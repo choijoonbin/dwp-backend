@@ -1,0 +1,10 @@
+rootProject.name = 'dwp-backend'
+
+include 'dwp-core'
+include 'dwp-gateway'
+include 'dwp-auth-server'
+include 'dwp-main-service'
+include 'services:mail-service'
+include 'services:chat-service'
+include 'services:approval-service'
+

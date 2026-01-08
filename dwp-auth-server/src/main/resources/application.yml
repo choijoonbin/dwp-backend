@@ -1,0 +1,25 @@
+server:
+  port: 8000
+
+spring:
+  application:
+    name: dwp-auth-server
+  datasource:
+    url: jdbc:postgresql://localhost:5432/dwp_auth
+    driver-class-name: org.postgresql.Driver
+    username: dwp_user
+    password: dwp_password
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+
+logging:
+  level:
+    com.dwp.services.auth: DEBUG
+    org.springframework.security: DEBUG
+

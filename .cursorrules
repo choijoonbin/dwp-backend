@@ -1,0 +1,23 @@
+# DWP 백엔드 개발 표준 가이드
+
+## 1. 아키텍처 원칙
+- Spring Boot 3.x 기반의 Gradle 멀티 모듈 구조를 사용한다.
+- MSA(Microservices Architecture) 지향: 각 서비스는 자신만의 DB를 가지며, 타 서비스 데이터는 API(FeignClient)를 통해 조회한다.
+
+## 2. 기술 스택
+- 언어/프레임워크: Java 17, Spring Boot 3.x
+- 빌드 도구: Gradle (Kotlin DSL 또는 Groovy)
+- 인증/인가: Spring Security, OAuth2, JWT
+- API 통신: Spring Cloud OpenFeign
+- DB: JPA (Hibernate), 각 모듈별 독립 스키마
+
+## 3. 코드 작성 규칙
+- 패키지 구조: `com.dwp.services.[module_name]`
+- 응답 규격: 모든 API 응답은 공통 응답 객체(e.g., `ApiResponse<T>`)로 감싸서 반환한다.
+- 예외 처리: `@RestControllerAdvice`를 사용하여 전역 예외 처리를 수행한다.
+- 계층 분리: Controller -> Service -> Repository 구조를 엄격히 준수하며, DTO와 Entity를 분리한다.
+
+## 4. 인프라 모듈
+- `dwp-core`: 공통 Exception, Utility, Common Response
+- `dwp-gateway`: Spring Cloud Gateway (라우팅 및 공통 인증 필터)
+- `services/*`: 개별 비즈니스 서비스 모듈

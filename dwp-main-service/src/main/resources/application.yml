@@ -1,0 +1,24 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: dwp-main-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/dwp_main
+    driver-class-name: org.postgresql.Driver
+    username: dwp_user
+    password: dwp_password
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+
+logging:
+  level:
+    com.dwp.services.main: DEBUG
+

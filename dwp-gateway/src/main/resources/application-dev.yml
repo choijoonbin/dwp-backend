@@ -1,0 +1,63 @@
+# 개발 환경 설정
+# 이 파일은 dev profile 활성화 시 사용됩니다.
+#
+# 사용 방법:
+# export SPRING_PROFILES_ACTIVE=dev
+
+server:
+  port: 8080
+
+spring:
+  application:
+    name: dwp-gateway
+  main:
+    web-application-type: reactive
+  cloud:
+    gateway:
+      routes:
+        # 개발 환경: 로컬호스트 사용
+        - id: main-service
+          uri: http://localhost:8081
+          predicates:
+            - Path=/api/main/**
+          filters:
+            - StripPrefix=1
+        - id: auth-server
+          uri: http://localhost:8000
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - StripPrefix=1
+        - id: mail-service
+          uri: http://localhost:8082
+          predicates:
+            - Path=/api/mail/**
+          filters:
+            - StripPrefix=1
+        - id: chat-service
+          uri: http://localhost:8083
+          predicates:
+            - Path=/api/chat/**
+          filters:
+            - StripPrefix=1
+        - id: approval-service
+          uri: http://localhost:8084
+          predicates:
+            - Path=/api/approval/**
+          filters:
+            - StripPrefix=1
+
+# 개발 환경 CORS 설정
+# 기본값: http://localhost:4200 (Angular 기본 포트)
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200,http://localhost:3000}
+  allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,DELETE,PATCH,OPTIONS}
+  allowed-headers: ${CORS_ALLOWED_HEADERS:*}
+  allow-credentials: ${CORS_ALLOW_CREDENTIALS:true}
+  max-age: ${CORS_MAX_AGE:3600}
+
+logging:
+  level:
+    '[org.springframework.cloud.gateway]': DEBUG
+    '[org.springframework.web]': DEBUG
+    '[com.dwp.gateway]': DEBUG

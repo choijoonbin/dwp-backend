@@ -1,0 +1,62 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: dwp-gateway
+  main:
+    web-application-type: reactive  # Gateway는 WebFlux 기반이므로 reactive로 설정
+  cloud:
+    gateway:
+      routes:
+        # Main Service 라우팅
+        # 프론트엔드: http://localhost:8080/api/main/health
+        # → Gateway가 /api 제거 후 → http://localhost:8081/main/health로 전달
+        - id: main-service
+          uri: http://localhost:8081
+          predicates:
+            - Path=/api/main/**
+          filters:
+            - StripPrefix=1  # /api/main/health → /main/health로 변환
+        - id: auth-server
+          uri: http://localhost:8000
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - StripPrefix=1
+        - id: mail-service
+          uri: http://localhost:8082
+          predicates:
+            - Path=/api/mail/**
+          filters:
+            - StripPrefix=1
+        - id: chat-service
+          uri: http://localhost:8083
+          predicates:
+            - Path=/api/chat/**
+          filters:
+            - StripPrefix=1
+        - id: approval-service
+          uri: http://localhost:8084
+          predicates:
+            - Path=/api/approval/**
+          filters:
+            - StripPrefix=1
+
+# CORS 설정
+# 환경 변수 CORS_ALLOWED_ORIGINS를 통해 허용할 Origin을 설정할 수 있습니다.
+# 기본값: http://localhost:4200 (로컬 개발 환경)
+# 여러 Origin을 허용하려면 콤마(,)로 구분하여 설정하세요.
+# 예시: CORS_ALLOWED_ORIGINS=http://localhost:4200,https://example.com
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
+  allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,DELETE,PATCH,OPTIONS}
+  allowed-headers: ${CORS_ALLOWED_HEADERS:*}
+  allow-credentials: ${CORS_ALLOW_CREDENTIALS:true}
+  max-age: ${CORS_MAX_AGE:3600}
+
+logging:
+  level:
+    '[org.springframework.cloud.gateway]': DEBUG
+    '[org.springframework.web]': DEBUG
+

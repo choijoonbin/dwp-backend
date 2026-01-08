@@ -1,0 +1,20 @@
+dependencies {
+    // Spring Cloud Gateway
+    implementation 'org.springframework.cloud:spring-cloud-starter-gateway'
+    
+    // Service Discovery (선택사항, 향후 확장용)
+    // implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
+    
+    // Configuration Properties 메타데이터 생성 (IDE 자동완성 및 검증 지원)
+    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+    
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    
+    // dwp-core 의존성 (spring-boot-starter-web 제외 - Gateway는 WebFlux 기반)
+    implementation(project(':dwp-core')) {
+        exclude group: 'org.springframework.boot', module: 'spring-boot-starter-web'
+    }
+}
+

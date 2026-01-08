@@ -1,0 +1,73 @@
+# 운영 환경 설정
+# 이 파일은 prod profile 활성화 시 사용됩니다.
+# 
+# 사용 방법:
+# 1. 환경 변수로 Profile 설정:
+#    export SPRING_PROFILES_ACTIVE=prod
+# 
+# 2. JAR 실행 시 Profile 지정:
+#    java -jar dwp-gateway.jar --spring.profiles.active=prod
+#
+# 3. 환경 변수로 CORS 설정:
+#    export CORS_ALLOWED_ORIGINS=https://app.example.com,https://admin.example.com
+#    export CORS_ALLOWED_METHODS=GET,POST,PUT,DELETE,PATCH,OPTIONS
+#    export CORS_ALLOW_CREDENTIALS=true
+
+server:
+  port: 8080
+
+spring:
+  application:
+    name: dwp-gateway
+  main:
+    web-application-type: reactive
+  cloud:
+    gateway:
+      routes:
+        # 운영 환경에서는 실제 서비스 주소로 변경 필요
+        - id: main-service
+          uri: http://main-service:8081
+          predicates:
+            - Path=/api/main/**
+          filters:
+            - StripPrefix=1
+        - id: auth-server
+          uri: http://auth-server:8000
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - StripPrefix=1
+        - id: mail-service
+          uri: http://mail-service:8082
+          predicates:
+            - Path=/api/mail/**
+          filters:
+            - StripPrefix=1
+        - id: chat-service
+          uri: http://chat-service:8083
+          predicates:
+            - Path=/api/chat/**
+          filters:
+            - StripPrefix=1
+        - id: approval-service
+          uri: http://approval-service:8084
+          predicates:
+            - Path=/api/approval/**
+          filters:
+            - StripPrefix=1
+
+# 운영 환경 CORS 설정
+# 환경 변수 CORS_ALLOWED_ORIGINS에 실제 운영 도메인을 설정하세요.
+# 예시: CORS_ALLOWED_ORIGINS=https://app.example.com,https://admin.example.com
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:https://app.example.com}
+  allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,DELETE,PATCH,OPTIONS}
+  allowed-headers: ${CORS_ALLOWED_HEADERS:*}
+  allow-credentials: ${CORS_ALLOW_CREDENTIALS:true}
+  max-age: ${CORS_MAX_AGE:3600}
+
+logging:
+  level:
+    '[org.springframework.cloud.gateway]': INFO
+    '[org.springframework.web]': INFO
+    '[com.dwp.gateway]': INFO

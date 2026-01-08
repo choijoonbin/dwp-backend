@@ -1,0 +1,21 @@
+dependencies {
+    // Spring Boot Web
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    
+    // JPA
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    
+    // PostgreSQL
+    runtimeOnly 'org.postgresql:postgresql'
+    
+    // Spring Cloud OpenFeign (다른 서비스와 통신용)
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+    
+    // dwp-core 의존성
+    implementation project(':dwp-core')
+    
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+}
+

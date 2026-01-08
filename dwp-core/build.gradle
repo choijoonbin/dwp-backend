@@ -1,0 +1,21 @@
+// dwp-core는 라이브러리 모듈이므로 실행 가능한 jar 생성을 비활성화
+jar {
+    enabled = true
+}
+
+bootJar {
+    enabled = false
+}
+
+dependencies {
+    // Spring Boot Web (Response DTO 등에 필요)
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    
+    // Validation
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    
+    // Lombok
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+}
+
