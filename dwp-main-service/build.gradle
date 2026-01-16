@@ -5,11 +5,23 @@ dependencies {
     // JPA
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     
+    // Validation
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    
     // PostgreSQL
     runtimeOnly 'org.postgresql:postgresql'
     
     // Spring Cloud OpenFeign (다른 서비스와 통신용)
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+    
+    // Redis (HITL 세션 관리용)
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    
+    // JWT 검증 (HITL 보안 인터셉터용)
+    // 주의: 모든 JWT 라이브러리를 implementation으로 추가해야 런타임에 사용 가능
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.3'
+    implementation 'io.jsonwebtoken:jjwt-impl:0.12.3'
+    implementation 'io.jsonwebtoken:jjwt-jackson:0.12.3'
     
     // dwp-core 의존성
     implementation project(':dwp-core')
@@ -19,3 +31,5 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok'
 }
 
+// IDE 실행 시 클래스패스 문제 해결을 위한 설정
+// Spring Boot의 bootRun 태스크는 자동으로 모든 의존성을 클래스패스에 포함시킵니다.

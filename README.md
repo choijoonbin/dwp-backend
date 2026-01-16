@@ -1,6 +1,22 @@
 # DWP Backend
 
-Spring Boot 3.x 기반의 멀티 모듈 MSA(Microservices Architecture) 프로젝트입니다.
+> **Spring Boot 3.x 기반의 멀티 모듈 MSA(Microservices Architecture) 프로젝트**  
+> **프론트엔드 및 Aura-Platform과의 협업을 위한 백엔드 API 서버**
+
+## 🎯 프로젝트 개요
+
+DWP Backend는 **Aura AI 플랫폼**의 백엔드 인프라를 제공하는 마이크로서비스 아키텍처 기반 시스템입니다.
+
+### 주요 역할
+- **API Gateway**: 모든 외부 요청의 진입점 및 라우팅
+- **인증/인가**: JWT 기반 멀티테넌시 지원
+- **AI 에이전트 관리**: 장기 실행 작업 상태 추적 및 HITL (Human-In-The-Loop) 승인 처리
+- **서비스 간 통신**: FeignClient 기반 서비스 오케스트레이션
+- **실시간 스트리밍**: SSE를 통한 AI 응답 스트리밍 중계
+
+### 협업 대상
+- **프론트엔드**: Aura AI UI와의 통합 (SSE 스트리밍, HITL 승인 API)
+- **Aura-Platform**: AI 에이전트 서비스와의 통합 (Python/FastAPI)
 
 ## 프로젝트 구조
 
@@ -8,10 +24,14 @@ Spring Boot 3.x 기반의 멀티 모듈 MSA(Microservices Architecture) 프로�
 dwp-backend/
 ├── dwp-core/                    # 공통 라이브러리 모듈
 │   ├── common/                  # 공통 응답 DTO (ApiResponse)
-│   └── exception/               # 공통 예외 처리
+│   ├── exception/               # 공통 예외 처리
+│   ├── config/                  # 공통 설정 (Feign 헤더 전파, Redis)
+│   ├── event/                   # 이벤트 발행/구독 (Redis Pub/Sub)
+│   └── constant/                # 공통 상수 (RequestSource 등)
 ├── dwp-gateway/                 # API Gateway (포트: 8080)
-├── dwp-auth-server/             # 인증 서버 (포트: 8000)
+├── dwp-auth-server/             # 인증 서버 (포트: 8001)
 ├── dwp-main-service/            # 메인 비즈니스 서비스 (포트: 8081)
+│   └── domain/                  # AgentTask 관리 (AI 장기 실행 작업)
 └── services/
     ├── mail-service/            # 메일 서비스 (포트: 8082)
     ├── chat-service/            # 채팅 서비스 (포트: 8083)
@@ -22,43 +42,94 @@ dwp-backend/
 
 - **언어/프레임워크**: Java 17, Spring Boot 3.4.3
 - **빌드 도구**: Gradle 8.5
-- **API Gateway**: Spring Cloud Gateway
+- **API Gateway**: Spring Cloud Gateway (SSE 지원)
 - **서비스 간 통신**: Spring Cloud OpenFeign
-- **인증/인가**: Spring Security, OAuth2, JWT (예정)
+- **인증/인가**: Spring Security, OAuth2, JWT (Python-Java 호환)
 - **데이터베이스**: PostgreSQL 15, JPA/Hibernate
 - **캐시/세션**: Redis 7
+- **이벤트 버스**: Redis Pub/Sub (서비스 간 이벤트 전파)
+- **비동기 처리**: @Async, CompletableFuture
 - **아키텍처**: MSA (Microservices Architecture)
+- **AI 연동**: Aura-Platform (포트: 9000)
 
 ## 모듈별 상세 설명
 
 ### dwp-core
 모든 서비스 모듈이 공통으로 사용하는 라이브러리 모듈입니다.
-- `ApiResponse<T>`: 공통 API 응답 포맷
-- `BaseException`: 공통 예외 클래스
-- `GlobalExceptionHandler`: 전역 예외 처리
+- **응답 처리**:
+  - `ApiResponse<T>`: 공통 API 응답 포맷 (AI 파싱 최적화)
+    - `AgentMetadata`: 에이전트 전용 메타데이터 필드 (추적 ID, 실행 단계, 신뢰도 등)
+  - `ErrorCode`: 표준화된 에러 코드 열거형
+  - `AgentStep`: AI 에이전트의 사고 과정 단계 DTO (id, title, description, status, confidence)
+- **예외 처리**:
+  - `BaseException`: 공통 예외 클래스
+  - `GlobalExceptionHandler`: 전역 예외 처리
+- **헤더 전파**:
+  - `FeignHeaderInterceptor`: FeignClient 요청 시 자동 헤더 전파
+  - `RequestSource`: 요청 출처 식별 (AURA, FRONTEND, INTERNAL, BATCH)
+  - `HeaderConstants`: 표준 헤더 키 상수 정의
+    - `X-DWP-Source`: 요청 출처
+    - `X-DWP-Caller-Type`: 호출자 타입 (AGENT 등)
+    - `X-Tenant-ID`: 테넌트 식별자
+    - `X-User-ID`: 사용자 식별자
+- **이벤트 시스템**:
+  - `EventPublisher`: 이벤트 발행 인터페이스
+  - `RedisEventPublisher`: Redis Pub/Sub 구현체
+  - `EventChannels`: 표준화된 이벤트 채널 정의
+  - `DomainEvent`: 도메인 이벤트 기본 클래스
 
 ### dwp-gateway
 Spring Cloud Gateway를 사용한 API Gateway입니다.
 - 모든 외부 요청의 진입점
 - 서비스별 라우팅 설정
-- 공통 인증 필터 (예정)
+- **SSE(Server-Sent Events) 지원**: AI 스트리밍 응답 중계
+  - Response Timeout: 300초 (5분)
+  - Connect Timeout: 10초
+  - 커넥션 풀 최적화 (max-connections: 500)
+  - 자동 스트리밍 처리 (text/event-stream)
+  - POST 요청에 대한 SSE 응답 지원 (프론트엔드 요구사항)
+- **헤더 전파**: Authorization, X-Tenant-ID, X-DWP-Source, X-DWP-Caller-Type, X-User-ID 등
+- **필터 구성**:
+  - `HeaderPropagationFilter`: 헤더 전파 보장 및 로깅
+  - `SseResponseHeaderFilter`: SSE 응답 헤더 보장 (Content-Type, Cache-Control, Transfer-Encoding)
+  - `RequestBodyLoggingFilter`: POST 요청 body 로깅 및 전달 보장 (Aura-Platform 연동)
+- CORS 설정 (환경 변수 기반)
 
 **라우팅 설정:**
+- `/api/aura/**` → `aura-platform` (포트 9000, AI 에이전트)
+  - `/api/aura/test/stream` → SSE 스트리밍 엔드포인트
+  - `/api/aura/hitl/**` → HITL 승인/거절 API (dwp-main-service로 라우팅)
 - `/api/main/**` → `dwp-main-service` (포트 8081)
-- `/api/auth/**` → `dwp-auth-server` (포트 8000)
+- `/api/auth/**` → `dwp-auth-server` (포트 8001)
 - `/api/mail/**` → `mail-service` (포트 8082)
 - `/api/chat/**` → `chat-service` (포트 8083)
 - `/api/approval/**` → `approval-service` (포트 8084)
 
 ### dwp-auth-server
 사용자 인증 및 인가를 담당하는 서비스입니다.
-- OAuth2, JWT 기반 인증 (구현 예정)
-- 사용자 토큰 발급 및 검증
+- **JWT 토큰 검증**: Python (jose)와 Java (Spring Security) 호환
+  - HS256 알고리즘 지원
+  - 공유 시크릿 키 기반 검증
+  - 멀티테넌시 지원 (`tenant_id` 클레임)
+- **Security Filter Chain**: OAuth2 Resource Server 기반
+- **헬스체크**: 인증 없이 접근 가능한 엔드포인트 제공
 
 ### dwp-main-service
 플랫폼의 메인 비즈니스 서비스를 담당합니다.
 - 사용자 정보 관리
 - 공통 메타데이터 관리
+- **AI 에이전트 작업 관리**:
+  - `AgentTask` 엔티티: AI 장기 실행 작업 상태 추적
+    - `planSteps`: AI 실행 계획 단계 (JSON 형식, `AgentStep` 배열)
+    - 작업 상태: REQUESTED → IN_PROGRESS → COMPLETED/FAILED
+    - 진척도 업데이트 (0~100%)
+    - 비동기 작업 실행 지원
+- **HITL (Human-In-The-Loop) 관리**:
+  - `HitlManager`: 승인 대기 중인 요청 관리 (Redis 기반)
+  - 승인/거절 API: `/api/aura/hitl/approve`, `/api/aura/hitl/reject`
+  - Redis Pub/Sub을 통한 에이전트 세션 신호 전송
+  - `HitlSecurityInterceptor`: HITL 작업 시 JWT 권한 재검증
+- Redis 세션 관리 (HITL 세션, 승인 요청 저장)
 - 다른 서비스와의 통신 (FeignClient)
 
 ### services/*
@@ -106,7 +177,10 @@ docker-compose down -v
 #### Redis
 - **호스트**: `localhost`
 - **포트**: `6379`
-- **용도**: 채팅 서비스 및 세션 관리
+- **용도**: 
+  - 채팅 서비스 및 세션 관리
+  - 이벤트 버스 (Redis Pub/Sub)
+  - 서비스 간 이벤트 전파 (Aura-Platform 벡터 DB 동기화용)
 
 ### 데이터베이스 연결 예시
 
@@ -167,31 +241,140 @@ cd dwp-gateway
 ### 모든 서비스 동시 실행 (권장)
 각 서비스를 별도의 터미널에서 실행하거나, IDE에서 각 모듈의 메인 클래스를 실행합니다.
 
+### 테스트 실행
+```bash
+# 전체 테스트
+./gradlew test
+
+# 특정 모듈 테스트
+./gradlew :dwp-gateway:test
+./gradlew :dwp-auth-server:test
+
+# 특정 테스트 클래스 실행
+./gradlew :dwp-gateway:test --tests "AuraPlatformIntegrationTest"
+./gradlew :dwp-auth-server:test --tests "JwtCompatibilityTest"
+```
+
+### 환경 변수 설정
+```bash
+# JWT 시크릿 키 (Python-Java 공유)
+export JWT_SECRET=your_shared_secret_key_must_be_at_least_256_bits_long_for_HS256
+
+# Aura-Platform URI
+export AURA_PLATFORM_URI=http://localhost:9000
+
+# CORS 허용 Origin
+export CORS_ALLOWED_ORIGINS=http://localhost:3039,http://localhost:4200
+
+# 데이터베이스 설정
+export DB_HOST=localhost
+export DB_PORT=5432
+export DB_USERNAME=dwp_user
+export DB_PASSWORD=dwp_password
+```
+
+## 🚀 빠른 시작 (협업 개발자용)
+
+### 프론트엔드 개발자
+1. **[프론트엔드 통합 가이드](./docs/FRONTEND_INTEGRATION_GUIDE.md)** ⭐ - 시작하기
+2. **[프론트엔드 API 스펙](./docs/FRONTEND_API_SPEC.md)** - 상세 API 명세
+3. **주요 엔드포인트**:
+   - SSE 스트리밍: `POST /api/aura/test/stream`
+   - HITL 승인: `POST /api/aura/hitl/approve/{requestId}`
+   - HITL 거절: `POST /api/aura/hitl/reject/{requestId}`
+
+### Aura-Platform 개발자
+1. **[Aura-Platform 통합 가이드](./docs/AURA_PLATFORM_INTEGRATION_GUIDE.md)** ⭐ - 시작하기
+2. **[Aura-Platform 업데이트 사항](./docs/AURA_PLATFORM_UPDATE.md)** - 최신 변경사항
+3. **[Aura-Platform 빠른 참조](./docs/AURA_PLATFORM_QUICK_REFERENCE.md)** - 핵심 정보
+4. **주요 통합 포인트**:
+   - SSE 응답: `Content-Type: text/event-stream` 필수
+   - HITL 신호: Redis Pub/Sub 채널 `hitl:channel:{sessionId}`
+   - 포트: **9000** (로컬 개발)
+
 ## API 엔드포인트
 
 ### Gateway를 통한 접근 (포트 8080)
+
+**Base URL**: `http://localhost:8080`
+
+#### 🤖 Aura-Platform (AI 에이전트) - 프론트엔드/Aura-Platform 핵심 엔드포인트
+
+**SSE 스트리밍** (프론트엔드 → Aura-Platform):
+- `POST http://localhost:8080/api/aura/test/stream` - AI 응답 스트리밍
+  - **요청 본문**: `{"prompt": "...", "context": {...}}`
+  - **Headers**: `Authorization: Bearer {JWT}`, `X-Tenant-ID: {tenant_id}`, `Content-Type: application/json`
+  - **Response**: `Content-Type: text/event-stream`
+  - **이벤트 타입**: `thought`, `plan_step`, `tool_execution`, `hitl`, `content`, `timeline_step_update`, `plan_step_update`
+  - **스트림 종료**: `data: [DONE]\n\n`
+  - **상세 스펙**: [프론트엔드 API 스펙](./docs/FRONTEND_API_SPEC.md)
+
+**HITL (Human-In-The-Loop) 승인** (프론트엔드 → Main Service):
+- `GET http://localhost:8080/api/aura/hitl/requests/{requestId}` - 승인 요청 조회
+- `POST http://localhost:8080/api/aura/hitl/approve/{requestId}` - 승인 처리
+  - **Body**: `{"userId": "user123"}`
+  - **Headers**: `Authorization`, `X-Tenant-ID`, `X-User-ID` 필수
+  - **동작**: Redis Pub/Sub으로 Aura-Platform에 승인 신호 전송
+- `POST http://localhost:8080/api/aura/hitl/reject/{requestId}` - 거절 처리
+  - **Body**: `{"userId": "user123", "reason": "사용자 거절"}`
+  - **Headers**: `Authorization`, `X-Tenant-ID`, `X-User-ID` 필수
+- `GET http://localhost:8080/api/aura/hitl/signals/{sessionId}` - 신호 조회 (Aura-Platform용)
+
+#### 메인 서비스
 - `GET http://localhost:8080/api/main/health` - 메인 서비스 헬스 체크
 - `GET http://localhost:8080/api/main/info` - 메인 서비스 정보
+
+#### AI 에이전트 작업 관리
+- `POST http://localhost:8080/api/main/agent/tasks` - 새 작업 생성
+- `GET http://localhost:8080/api/main/agent/tasks/{taskId}` - 작업 조회
+- `GET http://localhost:8080/api/main/agent/tasks?userId={userId}&tenantId={tenantId}` - 사용자별 작업 목록
+- `POST http://localhost:8080/api/main/agent/tasks/{taskId}/start` - 작업 시작
+- `PATCH http://localhost:8080/api/main/agent/tasks/{taskId}/progress` - 진척도 업데이트
+- `POST http://localhost:8080/api/main/agent/tasks/{taskId}/complete` - 작업 완료
+- `POST http://localhost:8080/api/main/agent/tasks/{taskId}/fail` - 작업 실패 처리
+- `POST http://localhost:8080/api/main/agent/tasks/{taskId}/execute` - 비동기 작업 실행
+
+#### 인증 서버
 - `GET http://localhost:8080/api/auth/health` - 인증 서버 헬스 체크
+- `GET http://localhost:8080/api/auth/info` - 인증 서버 정보 (JWT 인증 필요)
+
+#### 기타 서비스
 - `GET http://localhost:8080/api/mail/health` - 메일 서비스 헬스 체크
 - `GET http://localhost:8080/api/chat/health` - 채팅 서비스 헬스 체크
 - `GET http://localhost:8080/api/approval/health` - 승인 서비스 헬스 체크
 
-### 직접 접근
-- Gateway: `http://localhost:8080`
-- Auth Server: `http://localhost:8000`
-- Main Service: `http://localhost:8081`
-- Mail Service: `http://localhost:8082`
-- Chat Service: `http://localhost:8083`
-- Approval Service: `http://localhost:8084`
+### 직접 접근 (포트 정보)
+
+| 서비스 | 포트 | URL | 용도 |
+|--------|------|-----|------|
+| **Gateway** | 8080 | `http://localhost:8080` | 모든 외부 요청 진입점 |
+| **Auth Server** | 8001 | `http://localhost:8001` | 인증/인가 서비스 |
+| **Main Service** | 8081 | `http://localhost:8081` | 메인 비즈니스 로직, HITL 관리 |
+| **Aura-Platform** | 9000 | `http://localhost:9000` | AI 에이전트 서비스 (Python/FastAPI) |
+| Mail Service | 8082 | `http://localhost:8082` | 메일 서비스 |
+| Chat Service | 8083 | `http://localhost:8083` | 채팅 서비스 |
+| Approval Service | 8084 | `http://localhost:8084` | 승인 서비스 |
+
+**⚠️ 중요**: 
+- Auth Server는 포트 **8001**을 사용합니다 (Aura-Platform과의 포트 충돌 방지)
+- Aura-Platform은 포트 **9000**을 사용합니다
+- 모든 외부 요청은 Gateway(포트 8080)를 통해 접근해야 합니다
 
 ## 개발 가이드
 
 ### 코드 작성 규칙
 1. **패키지 구조**: `com.dwp.services.[module_name]`
 2. **응답 규격**: 모든 API 응답은 `ApiResponse<T>`로 감싸서 반환
+   - 에이전트 전용 메타데이터는 `AgentMetadata` 필드에 포함
 3. **예외 처리**: `@RestControllerAdvice`를 사용한 전역 예외 처리
 4. **계층 분리**: Controller → Service → Repository 구조 준수, DTO와 Entity 분리
+5. **헤더 전파**: 
+   - FeignClient 사용 시 `X-DWP-Source`, `X-Tenant-ID`, `X-DWP-Caller-Type` 자동 전파
+   - Gateway를 통한 요청 시 모든 헤더가 다운스트림 서비스로 전파
+6. **이벤트 발행**: 중요 데이터 변경 시 `EventPublisher`를 통해 이벤트 발행
+7. **비동기 처리**: 장기 실행 작업은 `@Async` 또는 `CompletableFuture` 사용
+8. **HITL 보안**: 승인/거절 작업 시 반드시 JWT 권한 재검증 (`HitlSecurityInterceptor`)
+9. **에이전트 데이터**: `AgentStep` DTO를 사용하여 AI 실행 계획 단계 표현
 
 ### 새 서비스 추가하기
 1. `services/` 디렉토리에 새 모듈 생성
@@ -211,19 +394,162 @@ cd dwp-gateway
 각 서비스는 JPA의 `ddl-auto: update` 설정을 사용하여 자동으로 테이블을 생성/수정합니다.
 프로덕션 환경에서는 Flyway나 Liquibase 같은 마이그레이션 도구 사용을 권장합니다.
 
-## 문서
+## 📚 문서
 
 프로젝트 관련 상세 문서는 [`docs/`](./docs/) 폴더를 참고하세요.
 
-- [서비스 실행 가이드](./docs/SERVICE_START_GUIDE.md)
-- [데이터베이스 연결 정보](./docs/DATABASE_INFO.md)
-- [IDE 설정 가이드](./docs/IDE_SETUP.md)
-- [Gateway 라우팅 테스트](./docs/GATEWAY_ROUTING_TEST.md)
-- [전체 문서 목록](./docs/README.md)
+### 👥 협업 팀별 핵심 문서
+
+#### 🔗 통합 체크리스트 (모든 팀 필수)
+- **[통/협업 체크리스트](./docs/COLLABORATION_CHECKLIST.md)** ⭐⭐⭐ - 포트 충돌, 사용자 ID 일관성, SSE POST 방식 등 통합 시 확인 사항
+
+#### 🎨 프론트엔드 개발팀
+- **[프론트엔드 통합 가이드](./docs/FRONTEND_INTEGRATION_GUIDE.md)** ⭐ - 시작하기
+- **[프론트엔드 API 스펙](./docs/FRONTEND_API_SPEC.md)** - 상세 API 명세서
+- [Aura AI UI 통합 가이드](./docs/AURA_UI_INTEGRATION.md) - UI 통합 상세 가이드
+
+#### 🤖 Aura-Platform 개발팀
+- **[Aura-Platform 통합 가이드](./docs/AURA_PLATFORM_INTEGRATION_GUIDE.md)** ⭐ - 시작하기
+- **[Aura-Platform 업데이트 사항](./docs/AURA_PLATFORM_UPDATE.md)** - 최신 변경사항 및 요구사항
+- **[Aura-Platform 빠른 참조](./docs/AURA_PLATFORM_QUICK_REFERENCE.md)** - 핵심 정보 빠른 참조
+- [Aura-Platform 전달 문서](./docs/AURA_PLATFORM_HANDOFF.md) - 전달 가이드
+- [Aura-Platform Backend 전달 문서](./docs/AURA_PLATFORM_BACKEND_HANDOFF.md) - Aura-Platform에서 전달받은 문서
+
+### 🔐 인증 및 보안
+- [JWT 호환성 가이드](./docs/JWT_COMPATIBILITY_GUIDE.md) - Python-Java JWT 통합
+- [JWT 이슈 요약](./docs/JWT_ISSUE_SUMMARY.md) - JWT 관련 이슈 및 해결
+
+### 🧪 테스트 및 검증
+- [통합 테스트 가이드](./docs/INTEGRATION_TEST_GUIDE.md) - Gateway 통합 테스트
+- [Aura-Platform 통합 테스트](./docs/AURA_INTEGRATION_TEST.md) - Aura-Platform 테스트 가이드
+- [Aura-Platform 통합 검증](./docs/AURA_INTEGRATION_VERIFICATION.md) - 검증 결과
+- [준비 완료 확인서](./docs/SETUP_VERIFICATION.md) - Aura-Platform 통합 준비 상태
+- [AI 인프라 구축 완료 보고](./docs/AI_AGENT_SETUP_COMPLETE.md)
+
+### 🛠️ 개발 도구 및 설정
+- [IDE 새로고침 가이드](./docs/IDE_REFRESH_GUIDE.md) - IDE 오류 해결 및 Gradle 새로고침
+- [CORS 설정 가이드](./docs/CORS_CONFIGURATION.md) - CORS 설정 방법
+
+### 📚 전체 문서 목록
+
+**프론트엔드 통합:**
+- `FRONTEND_INTEGRATION_GUIDE.md` ⭐ - 프론트엔드 통합 가이드
+- `FRONTEND_API_SPEC.md` ⭐ - 프론트엔드 API 스펙 (최신)
+
+**Aura-Platform 통합:**
+- `AURA_PLATFORM_INTEGRATION_GUIDE.md` ⭐ - 상세 통합 가이드
+- `AURA_PLATFORM_QUICK_REFERENCE.md` - 빠른 참조
+- `AURA_PLATFORM_HANDOFF.md` - 전달 문서
+- `AURA_PLATFORM_UPDATE.md` ⭐ - 최신 업데이트 사항
+- `AURA_PLATFORM_BACKEND_HANDOFF.md` - Aura-Platform에서 전달받은 문서
+- `AURA_UI_INTEGRATION.md` - Aura AI UI 통합 가이드
+- `AURA_INTEGRATION_TEST.md` - 통합 테스트
+- `AURA_INTEGRATION_VERIFICATION.md` - 검증 결과
+- `AURA_INTEGRATION_SUMMARY.md` - 통합 요약
+
+**AI 에이전트 인프라:**
+- `AI_AGENT_INFRASTRUCTURE.md` - 인프라 가이드
+- `AI_AGENT_SETUP_COMPLETE.md` - 구축 완료 보고
+- `NEXT_STEPS.md` - 다음 단계 로드맵
+
+**인증 및 보안:**
+- `JWT_COMPATIBILITY_GUIDE.md` - JWT 호환성
+- `JWT_ISSUE_SUMMARY.md` - JWT 이슈 요약
+
+**테스트 및 검증:**
+- `INTEGRATION_TEST_GUIDE.md` - 통합 테스트
+- `SETUP_VERIFICATION.md` - 준비 완료 확인서
+
+**개발 도구:**
+- `IDE_REFRESH_GUIDE.md` - IDE 새로고침
+- `CORS_CONFIGURATION.md` - CORS 설정
+
+**기타:**
+- `README_UPDATE_LOG.md` - README 업데이트 로그
+
+## Aura AI UI 통합 완료 내역
+
+프론트엔드 Aura AI UI 명세 v1.0에 맞춰 백엔드 연동 로직이 완료되었습니다.
+
+### ✅ dwp-core 확장
+
+- **`AgentStep` DTO**: AI 에이전트의 사고 과정 단계 표현
+  - 필드: `id`, `title`, `description`, `status`, `confidence`, `result`, `startedAt`, `completedAt`
+- **`AgentMetadata`**: `ApiResponse`에 에이전트 전용 메타데이터 필드 추가
+  - 필드: `traceId`, `steps`, `confidence`, `additionalData`
+- **`HeaderConstants`**: 표준 헤더 키 상수 정의
+  - `X-DWP-Caller-Type: AGENT` 상수 추가
+  - `X-DWP-Source`, `X-Tenant-ID`, `X-User-ID`, `Authorization` 등
+
+### ✅ dwp-gateway 최적화
+
+- **SSE 스트리밍 최적화**:
+  - Response Timeout: 300초 (5분) 보장
+  - 커넥션 풀 최적화 (max-connections: 500)
+  - 자동 스트리밍 처리 (`text/event-stream`)
+- **헤더 전파 강화**:
+  - `HeaderPropagationFilter`에 `X-DWP-Caller-Type` 헤더 추가
+  - 모든 헤더 전파 보장 및 로깅
+- **라우팅 설정**:
+  - `/api/aura/**` → Aura-Platform (포트 9000)
+  - `/api/aura/test/stream` → SSE 스트리밍 엔드포인트
+  - `/api/aura/hitl/**` → HITL 승인/거절 API
+
+### ✅ dwp-main-service 구현
+
+- **`AgentTask` 엔티티 확장**:
+  - `planSteps` 필드 추가 (JSON 형식, `AgentStep` 배열 저장)
+- **HITL Manager**:
+  - `HitlManager`: Redis 기반 승인 요청 관리
+  - 승인/거절 API: `/api/aura/hitl/approve`, `/api/aura/hitl/reject`
+  - Redis Pub/Sub을 통한 에이전트 세션 신호 전송
+  - 세션 관리 (TTL: 30분~60분)
+- **보안 인터셉터**:
+  - `HitlSecurityInterceptor`: HITL 작업 시 JWT 권한 재검증
+  - 필수 헤더 검증 (Authorization, X-Tenant-ID, X-User-ID)
+
+### 📚 관련 문서
+
+- [프론트엔드 API 스펙](./docs/FRONTEND_API_SPEC.md) - 프론트엔드에서 전달받은 상세 API 스펙 (최신)
+- [프론트엔드 통합 가이드](./docs/FRONTEND_INTEGRATION_GUIDE.md) - 프론트엔드 개발자를 위한 통합 가이드
+- [Aura AI UI 통합 가이드](./docs/AURA_UI_INTEGRATION.md) - 상세 통합 가이드
+- [Aura-Platform 통합 테스트](./docs/AURA_INTEGRATION_TEST.md) - 테스트 가이드
+- [Aura-Platform 통합 검증](./docs/AURA_INTEGRATION_VERIFICATION.md) - 검증 결과
+- [Aura-Platform Backend 전달 문서](./docs/AURA_PLATFORM_BACKEND_HANDOFF.md) - Aura-Platform에서 전달받은 통합 문서
+- [Aura-Platform 업데이트 사항](./docs/AURA_PLATFORM_UPDATE.md) - Aura-Platform에 전달할 업데이트 사항
 
 ## 향후 계획
 
-- [ ] Spring Security + OAuth2 + JWT 인증 구현
+### 완료된 작업
+- [x] **AI 에이전트 인프라 구축 완료** (2024-01)
+  - [x] Gateway에 Aura-Platform 라우팅 추가 (`/api/aura/**` → 포트 9000)
+  - [x] Auth Server 포트 변경 (8000 → 8001) - Aura-Platform과 포트 충돌 해결
+  - [x] SSE 지원 (AI 스트리밍 응답, 300초 타임아웃)
+  - [x] FeignClient 헤더 자동 전파 (`X-DWP-Source`, `X-Tenant-ID`)
+  - [x] AI 파싱 최적화 (ApiResponse에 `success` 필드 추가)
+  - [x] AgentTask 관리 (AI 장기 실행 작업 상태 추적)
+  - [x] Redis Pub/Sub 기반 이벤트 시스템 구축
+  - [x] Gateway 통합 테스트 코드 작성
+- [x] **JWT 인증 시스템 구축** (2024-01)
+  - [x] JWT 검증 설정 (HS256, Python-Java 호환)
+  - [x] Security Filter Chain 구성
+  - [x] JWT 호환성 테스트 작성
+  - [x] Python-Java JWT 통합 가이드 작성
+- [x] **Aura AI UI 백엔드 연동 완료** (2024-01)
+  - [x] `AgentStep` DTO 추가 (AI 사고 과정 단계 표현)
+  - [x] `AgentMetadata` 추가 (ApiResponse 확장)
+  - [x] `HeaderConstants` 추가 (`X-DWP-Caller-Type: AGENT` 상수)
+  - [x] Gateway SSE 스트리밍 최적화 (커넥션 풀, 타임아웃)
+  - [x] `AgentTask` 엔티티에 `planSteps` 필드 추가
+  - [x] HITL Manager 구현 (승인/거절 API, Redis 세션 관리)
+  - [x] HITL 보안 인터셉터 (JWT 권한 재검증)
+  - [x] `/api/aura/hitl/**` 엔드포인트 구현
+
+### 예정된 작업
+- [ ] Aura-Platform (AI Agent) 서비스 구현 및 연동 (포트 9000)
+- [ ] 벡터 DB 연동 (이벤트 기반 자동 동기화)
+- [ ] JWT 토큰 발급 API 구현 (현재는 검증만 완료)
+- [ ] RBAC 권한 관리 (AI 에이전트 전용 Scope 포함)
 - [ ] Service Discovery (Eureka) 도입
 - [ ] Config Server 도입
 - [ ] Circuit Breaker (Resilience4j) 적용

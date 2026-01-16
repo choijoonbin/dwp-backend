@@ -16,5 +16,10 @@ dependencies {
     implementation(project(':dwp-core')) {
         exclude group: 'org.springframework.boot', module: 'spring-boot-starter-web'
     }
+    
+    // Test dependencies
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'io.projectreactor:reactor-test'
 }
 

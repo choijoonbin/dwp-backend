@@ -8,7 +8,43 @@ spring:
     web-application-type: reactive  # Gateway는 WebFlux 기반이므로 reactive로 설정
   cloud:
     gateway:
+      # SSE(Server-Sent Events) 지원을 위한 타임아웃 설정
+      httpclient:
+        response-timeout: 300s  # AI 스트리밍 응답을 위해 5분으로 설정
+        connect-timeout: 10000  # 10초
+        # SSE 스트리밍 최적화: 커넥션 유지 및 버퍼링 비활성화
+        pool:
+          max-connections: 500
+          max-idle-time: 30s
       routes:
+        # HITL API 라우팅 (Main Service) - Aura 라우팅보다 먼저 매칭되도록 설정
+        # HITL API는 Main Service에 있으므로 별도 라우팅 필요
+        - id: hitl-api
+          uri: http://localhost:8081
+          predicates:
+            - Path=/api/aura/hitl/**
+          filters:
+            - StripPrefix=1  # /api/aura/hitl/** → /aura/hitl/**로 변환 (Main Service의 /aura/hitl 경로 유지)
+        # Aura Platform (AI Agent) 라우팅
+        # AI 에이전트의 스트리밍 응답(SSE)을 중간에 끊기지 않도록 별도 타임아웃 적용
+        # ✅ 포트 9000 확정: Aura-Platform은 포트 9000을 사용합니다
+        - id: aura-platform
+          uri: ${AURA_PLATFORM_URI:http://localhost:9000}  # ✅ 포트 9000 확정
+          predicates:
+            - Path=/api/aura/**
+          filters:
+            - StripPrefix=1  # /api/aura/** → /aura/**로 변환
+            # 헤더 전파 보장 (Authorization, X-Tenant-ID, X-DWP-Source, X-DWP-Caller-Type 등)
+            - PreserveHostHeader
+            # ✅ POST 요청 body 전달 보장:
+            # - Spring Cloud Gateway는 기본적으로 POST 요청의 body를 자동으로 전달합니다
+            # - RequestBodyLoggingFilter가 body 전달 여부를 로깅하여 확인합니다
+            # - 프론트엔드의 POST /api/aura/test/stream 요청 body (prompt, context)가
+            #   Aura-Platform까지 유실 없이 전달됩니다
+            # SSE 스트리밍 최적화:
+            # - response-timeout: 300s (위에서 설정)
+            # - Gateway는 기본적으로 text/event-stream을 자동으로 스트리밍 처리
+            # - 커넥션 유지 및 버퍼링 최적화는 httpclient.pool 설정으로 처리
         # Main Service 라우팅
         # 프론트엔드: http://localhost:8080/api/main/health
         # → Gateway가 /api 제거 후 → http://localhost:8081/main/health로 전달
@@ -19,7 +55,7 @@ spring:
           filters:
             - StripPrefix=1  # /api/main/health → /main/health로 변환
         - id: auth-server
-          uri: http://localhost:8000
+          uri: http://localhost:8001  # Auth Server 포트 변경 (8000 → 8001)
           predicates:
             - Path=/api/auth/**
           filters:

@@ -1,25 +1,33 @@
 server:
-  port: 8000
+  port: 8001  # Aura-Platform(8000)과 포트 충돌 방지를 위해 8001로 변경
 
 spring:
   application:
     name: dwp-auth-server
   datasource:
-    url: jdbc:postgresql://localhost:5432/dwp_auth
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:dwp_auth}
     driver-class-name: org.postgresql.Driver
-    username: dwp_user
-    password: dwp_password
+    username: ${DB_USERNAME:dwp_user}
+    password: ${DB_PASSWORD:dwp_password}
   jpa:
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: ${JPA_DDL_AUTO:update}
+    show-sql: ${JPA_SHOW_SQL:true}
     properties:
       hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
     open-in-view: false
 
+# JWT 설정
+# Python (jose)와 Java (Spring Security) 간 공유 시크릿 키
+# 최소 256비트(32바이트) 길이여야 합니다.
+jwt:
+  secret: ${JWT_SECRET:your_shared_secret_key_must_be_at_least_256_bits_long_for_HS256}
+
 logging:
   level:
-    com.dwp.services.auth: DEBUG
-    org.springframework.security: DEBUG
-
+    com.dwp.services.auth: ${LOG_LEVEL_AUTH:DEBUG}
+    org.springframework.security: ${LOG_LEVEL_SECURITY:DEBUG}
+    org.hibernate.SQL: ${LOG_LEVEL_SQL:DEBUG}
+    org.hibernate.type.descriptor.sql.BasicBinder: ${LOG_LEVEL_SQL_PARAM:TRACE}

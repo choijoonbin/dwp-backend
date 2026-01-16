@@ -17,6 +17,22 @@ spring:
       hibernate:
         format_sql: true
     open-in-view: false
+  # Redis 설정 (HITL 세션 관리용)
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+
+# JWT 설정 (dwp-auth-server와 동일한 시크릿 키 사용)
+jwt:
+  secret: ${JWT_SECRET:your_shared_secret_key_must_be_at_least_256_bits_long_for_HS256}
 
 logging:
   level:

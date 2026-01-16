@@ -23,7 +23,25 @@ spring:
     web-application-type: reactive
   cloud:
     gateway:
+      # SSE(Server-Sent Events) 지원을 위한 타임아웃 설정
+      httpclient:
+        response-timeout: 300s  # AI 스트리밍 응답을 위해 5분으로 설정
+        connect-timeout: 10000  # 10초
       routes:
+        # HITL API 라우팅 (Main Service) - 운영 환경
+        - id: hitl-api
+          uri: http://main-service:8081
+          predicates:
+            - Path=/api/aura/hitl/**
+          filters:
+            - StripPrefix=1  # /api/aura/hitl/** → /aura/hitl/**로 변환
+        # Aura Platform (AI Agent) 라우팅 - 운영 환경
+        - id: aura-platform
+          uri: ${AURA_PLATFORM_URI:http://aura-platform:9000}  # 포트 변경: 8000 → 9000
+          predicates:
+            - Path=/api/aura/**
+          filters:
+            - StripPrefix=1
         # 운영 환경에서는 실제 서비스 주소로 변경 필요
         - id: main-service
           uri: http://main-service:8081
@@ -32,7 +50,7 @@ spring:
           filters:
             - StripPrefix=1
         - id: auth-server
-          uri: http://auth-server:8000
+          uri: http://auth-server:8001  # Auth Server 포트 변경 (8000 → 8001)
           predicates:
             - Path=/api/auth/**
           filters:

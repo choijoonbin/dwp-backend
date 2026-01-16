@@ -14,6 +14,15 @@ dependencies {
     // Validation
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     
+    // OpenFeign (FeignClient 및 헤더 전파를 위해 필요)
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+    
+    // Redis (이벤트 발행 및 캐싱용)
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    
+    // Jackson (JSON 직렬화)
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+    
     // Lombok
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'

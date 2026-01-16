@@ -1,0 +1,11 @@
+// 이 파일은 services 폴더 자체의 빌드 설정입니다.
+// 실제 서비스들은 하위 디렉토리에 각각의 build.gradle을 가지고 있습니다.
+
+// services 폴더 자체는 실행 가능한 모듈이 아니므로 bootJar 비활성화
+bootJar {
+    enabled = false
+}
+
+jar {
+    enabled = false
+}

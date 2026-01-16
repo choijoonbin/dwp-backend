@@ -16,6 +16,22 @@ spring:
     gateway:
       routes:
         # 개발 환경: 로컬호스트 사용
+        # HITL API 라우팅 (Main Service)
+        - id: hitl-api
+          uri: http://localhost:8081
+          predicates:
+            - Path=/api/aura/hitl/**
+          filters:
+            - StripPrefix=1
+        # Aura Platform (AI Agent) 라우팅 - 개발 환경
+        # ✅ 포트 9000 확정: Aura-Platform은 포트 9000을 사용합니다
+        - id: aura-platform
+          uri: ${AURA_PLATFORM_URI:http://localhost:9000}  # ✅ 포트 9000 확정
+          predicates:
+            - Path=/api/aura/**
+          filters:
+            - StripPrefix=1
+            - PreserveHostHeader
         - id: main-service
           uri: http://localhost:8081
           predicates:
@@ -23,7 +39,7 @@ spring:
           filters:
             - StripPrefix=1
         - id: auth-server
-          uri: http://localhost:8000
+          uri: http://localhost:8001  # Auth Server 포트 변경 (8000 → 8001)
           predicates:
             - Path=/api/auth/**
           filters:
