@@ -2,135 +2,265 @@ package com.dwp.services.auth.service;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
-import com.dwp.services.auth.dto.LoginRequest;
-import com.dwp.services.auth.dto.LoginResponse;
-import io.jsonwebtoken.Claims;
+import com.dwp.services.auth.dto.*;
+import com.dwp.services.auth.entity.*;
+import com.dwp.services.auth.repository.*;
+import com.dwp.services.auth.util.CodeResolver;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 인증 서비스
  * 
- * 로그인 및 JWT 토큰 발급을 담당합니다.
+ * DB 기반 LOCAL 인증 및 JWT 토큰 발급을 담당합니다.
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
+@SuppressWarnings("null")
 public class AuthService {
     
-    private final SecretKey secretKey;
-    private final Long tokenExpirationSeconds;
+    private final UserRepository userRepository;
+    private final UserAccountRepository userAccountRepository;
+    private final TenantRepository tenantRepository;
+    private final RoleMemberRepository roleMemberRepository;
+    private final RolePermissionRepository rolePermissionRepository;
+    private final ResourceRepository resourceRepository;
+    private final PermissionRepository permissionRepository;
+    private final RoleRepository roleRepository;
+    private final LoginHistoryRepository loginHistoryRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final MenuRepository menuRepository;
+    private final CodeResolver codeResolver;
     
-    public AuthService(
-            @Value("${jwt.secret:your_shared_secret_key_must_be_at_least_256_bits_long_for_HS256}") String jwtSecret,
-            @Value("${jwt.expiration-seconds:3600}") Long tokenExpirationSeconds) {
-        this.secretKey = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
-        this.tokenExpirationSeconds = tokenExpirationSeconds;
+    @Value("${jwt.secret:your_shared_secret_key_must_be_at_least_256_bits_long_for_HS256}")
+    private String jwtSecret;
+    
+    @Value("${jwt.expiration-seconds:3600}")
+    private Long tokenExpirationSeconds;
+    
+    private SecretKey getSecretKey() {
+        return Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
     }
     
     /**
-     * 로그인 및 JWT 토큰 발급
+     * 로그인 및 JWT 토큰 발급 (DB 기반 LOCAL 인증)
      * 
-     * <p><strong>주의:</strong> 현재는 임시 구현으로, 실제 DB 조회 및 비밀번호 검증은 다음 단계(P1)에서 구현 예정입니다.</p>
-     * 
-     * @param request 로그인 요청
+     * @param request 로그인 요청 (username, password, tenantId)
      * @return 로그인 응답 (JWT 토큰 포함)
      * @throws BaseException 인증 실패 시
      */
+    @Transactional
     public LoginResponse login(LoginRequest request) {
-        // TODO(P1): 실제 사용자 인증 로직 구현
-        // - UserRepository를 통한 DB 조회
-        // - BCryptPasswordEncoder를 사용한 비밀번호 검증
-        // - 테넌트별 사용자 조회 및 권한 확인
-        // 현재는 간단한 검증만 수행 (운영 환경에서는 반드시 실제 인증 로직으로 교체)
+        final String username = request.getUsername();
+        final String password = request.getPassword();
+        final String tenantIdStr = request.getTenantId();
         
-        // 사용자명/비밀번호 검증 (임시 구현)
-        if (!validateCredentials(request.getUsername(), request.getPassword())) {
-            log.warn("Login failed: invalid credentials for username={}, tenantId={}", 
-                    request.getUsername(), request.getTenantId());
-            throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS, "잘못된 사용자명 또는 비밀번호입니다.");
+        // tenantId 파싱 (숫자 또는 code)
+        Long parsedTenantId;
+        try {
+            parsedTenantId = Long.parseLong(tenantIdStr);
+        } catch (NumberFormatException e) {
+            // 'default'는 개발 환경에서 'dev'로 매핑
+            String tenantCode = "default".equals(tenantIdStr) ? "dev" : tenantIdStr;
+            Tenant tenant = tenantRepository.findByCode(tenantCode)
+                .orElseThrow(() -> new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS, 
+                    String.format("Invalid tenant: %s (mapped to: %s)", tenantIdStr, tenantCode)));
+            parsedTenantId = tenant.getTenantId();
         }
+        final Long tenantId = parsedTenantId;
         
-        // 사용자 ID 결정 (현재는 username을 userId로 사용)
-        // TODO(P1): 실제 DB에서 사용자 정보 조회하여 userId 결정
-        // 예: User user = userRepository.findByUsernameAndTenantId(request.getUsername(), request.getTenantId());
-        //     String userId = user.getId();
-        String userId = request.getUsername();
+        try {
+            log.debug("Login attempt: tenantId={}, username={}", tenantId, username);
+            
+            // 1. UserAccount 조회
+            String localProviderType = "LOCAL";
+            codeResolver.require("IDP_PROVIDER_TYPE", localProviderType);
+            UserAccount account = userAccountRepository
+                .findByTenantIdAndProviderTypeAndProviderIdAndPrincipal(
+                    tenantId, localProviderType, "local", username
+                )
+                .orElseThrow(() -> {
+                    log.warn("UserAccount not found: tenantId={}, username={}", tenantId, username);
+                    recordLoginFailure(tenantId, null, username, "USER_NOT_FOUND");
+                    return new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS, "Invalid username or password");
+                });
+            
+            // 2. 계정 상태 확인
+            if (!"ACTIVE".equals(account.getStatus())) {
+                log.warn("Account is not active: status={}, username={}", account.getStatus(), username);
+                recordLoginFailure(tenantId, account.getUserId(), username, "USER_LOCKED");
+                throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS, "Account is locked");
+            }
+            
+            // 3. 비밀번호 검증 (BCrypt)
+            if (account.getPasswordHash() == null || 
+                !passwordEncoder.matches(password, account.getPasswordHash())) {
+                log.warn("Password mismatch for user: {}", username);
+                recordLoginFailure(tenantId, account.getUserId(), username, "INVALID_PASSWORD");
+                throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS, "Invalid username or password");
+            }
+            
+            // 4. User 조회
+            User user = userRepository.findById(account.getUserId())
+                .orElseThrow(() -> {
+                    log.error("User profile missing for account: userId={}", account.getUserId());
+                    recordLoginFailure(tenantId, account.getUserId(), username, "USER_NOT_FOUND");
+                    return new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS, "User not found");
+                });
+            
+            // 5. User 상태 확인
+            if (!"ACTIVE".equals(user.getStatus())) {
+                log.warn("User is not active: status={}, userId={}", user.getStatus(), user.getUserId());
+                recordLoginFailure(tenantId, user.getUserId(), username, "USER_LOCKED");
+                throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS, "User is not active");
+            }
+            
+            // 6. JWT 토큰 발급
+            String accessToken = generateJwtToken(user.getUserId().toString(), tenantId.toString());
+            
+            // 7. 로그인 성공 기록
+            recordLoginSuccess(tenantId, user.getUserId(), username);
+            
+            log.info("Login successful: userId={}, tenantId={}, username={}", 
+                    user.getUserId(), tenantId, username);
+            
+            return LoginResponse.builder()
+                    .accessToken(accessToken)
+                    .tokenType("Bearer")
+                    .expiresIn(tokenExpirationSeconds)
+                    .userId(user.getUserId().toString())
+                    .tenantId(tenantId.toString())
+                    .build();
+                    
+        } catch (BaseException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected login error: username={}, tenantId={}", username, tenantId, e);
+            recordLoginFailure(tenantId, null, username, "SYSTEM_ERROR");
+            throw new BaseException(ErrorCode.INTERNAL_SERVER_ERROR, "Login failed");
+        }
+    }
+    
+    /**
+     * 내 정보 조회
+     */
+    @Transactional(readOnly = true)
+    public MeResponse getMe(Long userId, Long tenantId) {
+        User user = userRepository.findByUserIdAndTenantId(userId, tenantId)
+            .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND, "User not found"));
         
-        // JWT 토큰 발급
-        String accessToken = generateJwtToken(userId, request.getTenantId());
+        Tenant tenant = tenantRepository.findById(tenantId)
+            .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND, "Tenant not found"));
         
-        log.info("Login successful: userId={}, tenantId={}", userId, request.getTenantId());
+        List<Long> roleIds = roleMemberRepository.findRoleIdsByTenantIdAndUserId(tenantId, userId);
+        List<String> roleCodes = roleRepository.findByRoleIdIn(roleIds).stream()
+            .map(Role::getCode)
+            .collect(Collectors.toList());
         
-        return LoginResponse.builder()
-                .accessToken(accessToken)
-                .tokenType("Bearer")
-                .expiresIn(tokenExpirationSeconds)
-                .userId(userId)
-                .tenantId(request.getTenantId())
+        return MeResponse.builder()
+                .userId(user.getUserId())
+                .displayName(user.getDisplayName())
+                .email(user.getEmail())
+                .tenantId(tenant.getTenantId())
+                .tenantCode(tenant.getCode())
+                .roles(roleCodes)
                 .build();
     }
     
     /**
-     * 자격 증명 검증 (임시 구현)
-     * 
-     * <p><strong>주의:</strong> 현재는 임시 구현으로, 실제 DB 조회 및 비밀번호 검증은 다음 단계(P1)에서 구현 예정입니다.</p>
-     * 
-     * @param username 사용자명
-     * @param password 비밀번호
-     * @return 검증 성공 여부
+     * 내 권한 목록 조회
      */
-    private boolean validateCredentials(String username, String password) {
-        // 임시 구현: username과 password가 모두 비어있지 않으면 통과
-        // 운영 환경에서는 반드시 실제 인증 로직으로 교체해야 합니다.
-        if (username == null || username.trim().isEmpty()) {
-            return false;
-        }
-        if (password == null || password.trim().isEmpty()) {
-            return false;
-        }
+    @Transactional(readOnly = true)
+    public List<PermissionDTO> getMyPermissions(Long userId, Long tenantId) {
+        List<Long> roleIds = roleMemberRepository.findRoleIdsByTenantIdAndUserId(tenantId, userId);
         
-        // TODO(P1): 실제 사용자 DB 조회 및 비밀번호 검증
-        // 예시:
-        //   User user = userRepository.findByUsernameAndTenantId(username, tenantId);
-        //   if (user == null) return false;
-        //   return passwordEncoder.matches(password, user.getPassword());
+        if (roleIds.isEmpty()) return List.of();
         
-        return true;
+        List<RolePermission> rolePermissions = rolePermissionRepository.findByTenantIdAndRoleIdIn(tenantId, roleIds);
+        if (rolePermissions.isEmpty()) return List.of();
+        
+        List<Long> resourceIds = rolePermissions.stream().map(RolePermission::getResourceId).distinct().toList();
+        List<Long> permissionIds = rolePermissions.stream().map(RolePermission::getPermissionId).distinct().toList();
+        
+        List<Resource> resources = resourceRepository.findByResourceIdIn(resourceIds);
+        List<Permission> permissions = permissionRepository.findByPermissionIdIn(permissionIds);
+        
+        return rolePermissions.stream()
+            .map(rp -> {
+                Resource resource = resources.stream().filter(r -> r.getResourceId().equals(rp.getResourceId())).findFirst().orElse(null);
+                Permission permission = permissions.stream().filter(p -> p.getPermissionId().equals(rp.getPermissionId())).findFirst().orElse(null);
+                
+                if (resource == null || permission == null) return null;
+                
+                // MENU 타입인 경우 sys_menus에서 menu_name을 가져옴 (호환성 개선)
+                String resourceName = resource.getName();
+                String menuTypeCode = "MENU";
+                if (codeResolver.validate("RESOURCE_TYPE", resource.getType()) && 
+                    menuTypeCode.equals(resource.getType())) {
+                    resourceName = menuRepository.findByTenantIdAndMenuKey(tenantId, resource.getKey())
+                            .map(menu -> menu.getMenuName())
+                            .orElse(resource.getName());
+                }
+                
+                return PermissionDTO.builder()
+                        .resourceType(resource.getType())
+                        .resourceKey(resource.getKey())
+                        .resourceName(resourceName)
+                        .permissionCode(permission.getCode())
+                        .permissionName(permission.getName())
+                        .effect(rp.getEffect())
+                        .build();
+            })
+            .filter(dto -> dto != null)
+            .collect(Collectors.toList());
     }
     
-    /**
-     * JWT 토큰 생성
-     * 
-     * Python (jose)와 호환되도록 HS256 알고리즘을 사용합니다.
-     * 
-     * @param userId 사용자 ID (JWT의 sub 클레임)
-     * @param tenantId 테넌트 ID (JWT의 tenant_id 클레임)
-     * @return JWT 토큰 문자열
-     */
     private String generateJwtToken(String userId, String tenantId) {
         Instant now = Instant.now();
-        Instant expiration = now.plus(tokenExpirationSeconds, ChronoUnit.SECONDS);
-        
-        // JWT Payload 구성 (Python jose와 호환)
-        Claims claims = Jwts.claims()
-                .subject(userId)  // sub: 사용자 ID
-                .add("tenant_id", tenantId)  // tenant_id: 테넌트 ID (필수)
-                .issuedAt(Date.from(now))  // iat: 발행 시간
-                .expiration(Date.from(expiration))  // exp: 만료 시간
-                .build();
         
         return Jwts.builder()
-                .claims(claims)
-                .signWith(secretKey)
+                .subject(userId)
+                .claim("tenant_id", tenantId)
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plus(tokenExpirationSeconds, ChronoUnit.SECONDS)))
+                .signWith(getSecretKey(), Jwts.SIG.HS256)
                 .compact();
+    }
+    
+    private void recordLoginSuccess(Long tenantId, Long userId, String username) {
+        try {
+            String localProviderType = "LOCAL";
+            codeResolver.require("IDP_PROVIDER_TYPE", localProviderType);
+            LoginHistory history = LoginHistory.builder()
+                    .tenantId(tenantId).userId(userId).providerType(localProviderType).providerId("local")
+                    .principal(username).success(true).build();
+            loginHistoryRepository.save(history);
+        } catch (Exception e) { log.error("Failed to record login success", e); }
+    }
+    
+    private void recordLoginFailure(Long tenantId, Long userId, String username, String reason) {
+        try {
+            String localProviderType = "LOCAL";
+            codeResolver.require("IDP_PROVIDER_TYPE", localProviderType);
+            LoginHistory history = LoginHistory.builder()
+                    .tenantId(tenantId).userId(userId).providerType(localProviderType).providerId("local")
+                    .principal(username).success(false).failureReason(reason).build();
+            loginHistoryRepository.save(history);
+        } catch (Exception e) { log.error("Failed to record login failure", e); }
     }
 }

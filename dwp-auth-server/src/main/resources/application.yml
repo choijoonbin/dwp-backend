@@ -11,13 +11,19 @@ spring:
     password: ${DB_PASSWORD:dwp_password}
   jpa:
     hibernate:
-      ddl-auto: ${JPA_DDL_AUTO:update}
+      ddl-auto: ${JPA_DDL_AUTO:validate}  # Flyway가 스키마 관리, JPA는 검증만
     show-sql: ${JPA_SHOW_SQL:true}
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
     open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true  # 기존 DB에 대해 baseline 자동 생성
+    baseline-version: 0  # baseline 버전
+    validate-on-migrate: true  # 마이그레이션 전 검증
 
 # JWT 설정
 # Python (jose)와 Java (Spring Security) 간 공유 시크릿 키
@@ -28,7 +34,7 @@ jwt:
 
 logging:
   level:
-    com.dwp.services.auth: ${LOG_LEVEL_AUTH:DEBUG}
-    org.springframework.security: ${LOG_LEVEL_SECURITY:DEBUG}
-    org.hibernate.SQL: ${LOG_LEVEL_SQL:DEBUG}
-    org.hibernate.type.descriptor.sql.BasicBinder: ${LOG_LEVEL_SQL_PARAM:TRACE}
+    "[com.dwp.services.auth]": ${LOG_LEVEL_AUTH:DEBUG}
+    "[org.springframework.security]": ${LOG_LEVEL_SECURITY:DEBUG}
+    "[org.hibernate.SQL]": ${LOG_LEVEL_SQL:DEBUG}
+    "[org.hibernate.type.descriptor.sql.BasicBinder]": ${LOG_LEVEL_SQL_PARAM:TRACE}

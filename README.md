@@ -141,24 +141,39 @@ Spring Cloud Gateway를 사용한 API Gateway입니다.
   - `/api/aura/hitl/**` → HITL 승인/거절 API (dwp-main-service로 라우팅)
 - `/api/main/**` → `dwp-main-service` (포트 8081)
 - `/api/auth/**` → `dwp-auth-server` (포트 8001)
+- `/api/monitoring/**` → `dwp-auth-server` (포트 8001, 모니터링 수집 API)
 - `/api/mail/**` → `mail-service` (포트 8082)
 - `/api/chat/**` → `chat-service` (포트 8083)
 - `/api/approval/**` → `approval-service` (포트 8084)
 
-### dwp-auth-server
+### dwp-auth-server (IAM)
 사용자 인증 및 인가를 담당하는 서비스입니다.
-- **JWT 토큰 발급**: 로그인 API를 통한 JWT 토큰 발급
-  - `POST /auth/login`: 사용자 인증 및 JWT 토큰 발급
-  - 요청 필드: `username`, `password`, `tenantId` (모두 필수)
-  - 응답: `accessToken`, `tokenType`, `expiresIn`, `userId`, `tenantId`
-- **JWT 토큰 검증**: Python (jose)와 Java (Spring Security) 호환
-  - HS256 알고리즘 지원
-  - 공유 시크릿 키 기반 검증
-  - 멀티테넌시 지원 (`tenant_id` 클레임)
-- **Security Filter Chain**: OAuth2 Resource Server 기반
-  - 공개 엔드포인트: `/auth/health`, `/auth/info`, `/auth/login`, `/error`
-  - 나머지 엔드포인트: JWT 토큰 검증 필요
-- **헬스체크**: 인증 없이 접근 가능한 엔드포인트 제공
+- **멀티테넌시 IAM**: 테넌트별 데이터 격리 및 권한 관리 (Flyway V1, V2)
+- **RBAC (Role-Based Access Control)**: 사용자/부서별 Role 할당 및 Resource(메뉴/버튼) 기반 Permission 제어
+- **JWT 토큰 발급 및 검증**: Python (jose)와 Java (Spring Security) 호환 (HS256)
+- **공통 코드 관리**: sys_code_groups/sys_codes 테이블 기반 코드 표준화 (P1-1)
+- **메뉴 트리 관리**: sys_menus 테이블 기반 권한 필터링 메뉴 트리 API (P0-4)
+- **모니터링 시스템**: 
+  - Gateway 자동 API 호출 이력 수집 (sys_api_call_histories)
+  - 페이지뷰/이벤트 수집 API (sys_page_view_events, sys_event_logs)
+  - Admin 모니터링 조회 API (Visitors/Events/Timeseries) (P1-2)
+- **주요 API**:
+  - `POST /api/auth/login`: LOCAL 로그인 (BCrypt 검증, 공개 API)
+  - `GET /api/auth/policy`: 테넌트별 로그인 정책 조회 (프론트엔드 UI 자동 분기용, 공개 API)
+  - `GET /api/auth/idp`: 활성화된 Identity Provider 목록 조회 (공개 API)
+  - `GET /api/auth/idp/{providerKey}`: 특정 Provider Key의 Identity Provider 조회 (공개 API)
+  - `GET /api/auth/me`: 내 정보 및 역할 조회 (JWT 인증 필요)
+  - `GET /api/auth/permissions`: 내 권한 목록(리소스별) 조회 (JWT 인증 필요)
+  - `GET /api/auth/menus/tree`: 권한 기반 메뉴 트리 조회 (JWT 인증 필요)
+  - `GET /api/admin/codes/**`: 공통 코드 조회 API (Admin 권한 필요)
+  - `GET /api/admin/monitoring/**`: 모니터링 조회 API (Admin 권한 필요)
+  - `POST /api/monitoring/page-view`: 페이지뷰 수집 (공개 API, X-Tenant-ID 필수)
+  - `POST /api/monitoring/event`: 이벤트 수집 (공개 API, X-Tenant-ID 필수)
+- **개발 편의**: `DevSeedRunner`를 통한 관리자 계정(`admin/admin1234!`) 자동 동기화
+- **상세 명세**: 
+  - [docs/FRONTEND_API_SPEC.md](docs/FRONTEND_API_SPEC.md)
+  - [docs/ADMIN_MONITORING_API_SPEC.md](docs/ADMIN_MONITORING_API_SPEC.md)
+  - [docs/CODE_MANAGEMENT.md](docs/CODE_MANAGEMENT.md)
 
 ### dwp-main-service
 플랫폼의 메인 비즈니스 서비스를 담당합니다.
@@ -382,12 +397,40 @@ export DB_PASSWORD=dwp_password
 
 #### 인증 서버
 - `GET http://localhost:8080/api/auth/health` - 인증 서버 헬스 체크
+- `GET http://localhost:8080/api/auth/policy` - 테넌트별 로그인 정책 조회 (프론트엔드 UI 자동 분기용)
+  - **Headers**: `X-Tenant-ID: {tenantId}` (필수)
+  - **응답**: `{"success": true, "data": {"tenantId": 1, "defaultLoginType": "LOCAL", "allowedLoginTypes": ["LOCAL"], "localLoginEnabled": true, "ssoLoginEnabled": false, "requireMfa": false}}`
+  - **상세 명세**: [docs/AUTH_POLICY_SPEC.md](docs/AUTH_POLICY_SPEC.md)
+- `GET http://localhost:8080/api/auth/idp` - 활성화된 Identity Provider 목록 조회
+  - **Headers**: `X-Tenant-ID: {tenantId}` (필수)
+  - **응답**: `{"success": true, "data": [{"tenantId": 1, "enabled": true, "providerType": "OIDC", "providerKey": "AZURE_AD", ...}]}`
+- `GET http://localhost:8080/api/auth/idp/{providerKey}` - 특정 Provider Key의 Identity Provider 조회
 - `POST http://localhost:8080/api/auth/login` - 로그인 및 JWT 토큰 발급
   - **요청 본문**: `{"username": "...", "password": "...", "tenantId": "..."}`
   - **Headers**: `Content-Type: application/json` (필수)
   - **응답**: `{"status": "SUCCESS", "data": {"accessToken": "...", "tokenType": "Bearer", "expiresIn": 3600, "userId": "...", "tenantId": "..."}}`
   - **상세 가이드**: [로그인 API 문제 해결 가이드](./docs/LOGIN_API_TROUBLESHOOTING.md)
+- `GET http://localhost:8080/api/auth/me` - 내 정보 조회 (JWT 인증 필요)
+  - **Headers**: `Authorization: Bearer {JWT}`, `X-Tenant-ID: {tenantId}` (필수)
+  - **응답**: `{"status": "SUCCESS", "data": {"userId": 1, "displayName": "...", "email": "...", "tenantId": 1, "tenantCode": "dev", "roles": ["ADMIN"]}}`
+- `GET http://localhost:8080/api/auth/permissions` - 내 권한 목록 조회 (JWT 인증 필요)
+  - **Headers**: `Authorization: Bearer {JWT}`, `X-Tenant-ID: {tenantId}` (필수)
+  - **응답**: `{"status": "SUCCESS", "data": [{"resourceType": "MENU", "resourceKey": "menu.dashboard", "resourceName": "Dashboard", "permissionCode": "VIEW", "permissionName": "조회", "effect": "ALLOW"}, ...]}`
+- `GET http://localhost:8080/api/auth/menus/tree` - 권한 기반 메뉴 트리 조회 (JWT 인증 필요)
+  - **Headers**: `Authorization: Bearer {JWT}`, `X-Tenant-ID: {tenantId}` (선택)
 - `GET http://localhost:8080/api/auth/info` - 인증 서버 정보 (JWT 인증 필요)
+
+#### 모니터링 API (Admin)
+- `GET http://localhost:8080/api/admin/monitoring/summary` - 모니터링 요약 정보 조회
+- `GET http://localhost:8080/api/admin/monitoring/page-views` - 페이지뷰 목록 조회
+- `GET http://localhost:8080/api/admin/monitoring/api-histories` - API 호출 이력 조회
+- `GET http://localhost:8080/api/admin/monitoring/visitors` - 방문자 목록 조회 (P1-2)
+- `GET http://localhost:8080/api/admin/monitoring/events` - 이벤트 로그 목록 조회 (P1-2)
+- `GET http://localhost:8080/api/admin/monitoring/timeseries` - 시계열 데이터 조회 (P1-2)
+- **수집 API** (인증 불필요, X-Tenant-ID 필수):
+  - `POST http://localhost:8080/api/monitoring/page-view` - 페이지뷰 수집
+  - `POST http://localhost:8080/api/monitoring/event` - 이벤트 수집
+- **상세 명세**: [docs/ADMIN_MONITORING_API_SPEC.md](docs/ADMIN_MONITORING_API_SPEC.md)
 
 #### 기타 서비스
 - `GET http://localhost:8080/api/mail/health` - 메일 서비스 헬스 체크
@@ -477,6 +520,7 @@ export DB_PASSWORD=dwp_password
 - [Aura-Platform Backend 전달 문서](./docs/AURA_PLATFORM_BACKEND_HANDOFF.md) - Aura-Platform에서 전달받은 문서
 
 ### 🔐 인증 및 보안
+- [인증 정책 및 Identity Provider 스펙](./docs/AUTH_POLICY_SPEC.md) ⭐ - 테넌트별 로그인 정책 및 SSO Provider 관리
 - [JWT 호환성 가이드](./docs/JWT_COMPATIBILITY_GUIDE.md) - Python-Java JWT 통합
 - [JWT 이슈 요약](./docs/JWT_ISSUE_SUMMARY.md) - JWT 관련 이슈 및 해결
 - [로그인 API 문제 해결 가이드](./docs/LOGIN_API_TROUBLESHOOTING.md) - 로그인 API 디버깅 및 문제 해결

@@ -60,6 +60,13 @@ spring:
             - Path=/api/auth/**
           filters:
             - StripPrefix=1
+        # Monitoring 수집 API 라우팅 (Auth Server)
+        - id: monitoring-collect
+          uri: http://localhost:8001
+          predicates:
+            - Path=/api/monitoring/**
+          filters:
+            - StripPrefix=1  # /api/monitoring/** → /monitoring/**로 변환
         - id: mail-service
           uri: http://localhost:8082
           predicates:

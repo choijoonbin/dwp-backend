@@ -1,0 +1,58 @@
+package com.dwp.services.auth.repository;
+
+import com.dwp.services.auth.entity.PageViewEvent;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+public interface PageViewEventRepository extends JpaRepository<PageViewEvent, Long> {
+
+    Page<PageViewEvent> findByTenantIdOrderByCreatedAtDesc(Long tenantId, Pageable pageable);
+
+    @Query("SELECT COUNT(p) FROM PageViewEvent p WHERE p.tenantId = :tenantId AND p.eventType = 'PAGE_VIEW' AND p.createdAt BETWEEN :from AND :to")
+    long countPvByTenantIdAndCreatedAtBetween(@Param("tenantId") Long tenantId, @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    @Query("SELECT COUNT(DISTINCT p.sessionId) FROM PageViewEvent p WHERE p.tenantId = :tenantId AND p.createdAt BETWEEN :from AND :to AND p.sessionId IS NOT NULL")
+    long countUvByTenantIdAndCreatedAtBetween(@Param("tenantId") Long tenantId, @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    @Query("SELECT COUNT(p) FROM PageViewEvent p WHERE p.tenantId = :tenantId AND p.eventType != 'PAGE_VIEW' AND p.createdAt BETWEEN :from AND :to")
+    long countEventsByTenantIdAndCreatedAtBetween(@Param("tenantId") Long tenantId, @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+    
+    /**
+     * 방문자별 집계를 위한 쿼리 (visitorId가 null이면 제외)
+     */
+    @Query("SELECT p.sessionId, MIN(p.createdAt) as firstSeen, MAX(p.createdAt) as lastSeen, " +
+           "COUNT(p) as pvCount, MAX(p.pageKey) as lastPath " +
+           "FROM PageViewEvent p " +
+           "WHERE p.tenantId = :tenantId " +
+           "AND p.createdAt BETWEEN :from AND :to " +
+           "AND p.sessionId IS NOT NULL " +
+           "GROUP BY p.sessionId")
+    List<Object[]> findVisitorSummariesByTenantIdAndCreatedAtBetween(
+            @Param("tenantId") Long tenantId,
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to);
+    
+    /**
+     * 키워드 검색 (visitorId 또는 path)
+     */
+    @Query("SELECT p.sessionId, MIN(p.createdAt) as firstSeen, MAX(p.createdAt) as lastSeen, " +
+           "COUNT(p) as pvCount, MAX(p.pageKey) as lastPath " +
+           "FROM PageViewEvent p " +
+           "WHERE p.tenantId = :tenantId " +
+           "AND p.createdAt BETWEEN :from AND :to " +
+           "AND p.sessionId IS NOT NULL " +
+           "AND (:keyword IS NULL OR LOWER(p.sessionId) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "     LOWER(p.pageKey) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "GROUP BY p.sessionId")
+    List<Object[]> findVisitorSummariesByTenantIdAndKeyword(
+            @Param("tenantId") Long tenantId,
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to,
+            @Param("keyword") String keyword);
+}

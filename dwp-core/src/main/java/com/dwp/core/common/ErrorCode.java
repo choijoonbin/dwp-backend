@@ -28,6 +28,7 @@ public enum ErrorCode {
     VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "E4000", "입력값 검증에 실패했습니다."),
     MISSING_REQUIRED_FIELD(HttpStatus.BAD_REQUEST, "E4001", "필수 필드가 누락되었습니다."),
     INVALID_FORMAT(HttpStatus.BAD_REQUEST, "E4002", "잘못된 형식입니다."),
+    INVALID_CODE(HttpStatus.BAD_REQUEST, "E4003", "유효하지 않은 코드입니다."),
     
     // 외부 서비스 에러 (5000번대)
     EXTERNAL_SERVICE_ERROR(HttpStatus.BAD_GATEWAY, "E5000", "외부 서비스 오류가 발생했습니다."),
