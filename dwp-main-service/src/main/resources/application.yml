@@ -15,7 +15,7 @@ spring:
     show-sql: true
     properties:
       hibernate:
-        format_sql: true
+        "[format_sql]": true
     open-in-view: false
   # Redis 설정 (HITL 세션 관리용)
   data:
@@ -36,5 +36,5 @@ jwt:
 
 logging:
   level:
-    com.dwp.services.main: DEBUG
+    "[com.dwp.services.main]": DEBUG
 

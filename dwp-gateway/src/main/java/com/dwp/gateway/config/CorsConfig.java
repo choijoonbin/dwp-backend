@@ -30,7 +30,9 @@ public class CorsConfig {
 
     private String allowedOrigins = "http://localhost:4200";
     private String allowedMethods = "GET,POST,PUT,DELETE,PATCH,OPTIONS";
-    private String allowedHeaders = "*";
+    // 표준 헤더 목록 (프론트엔드 통합 계약)
+    // "*"도 허용하지만, 명시적 목록을 권장합니다.
+    private String allowedHeaders = "Authorization,X-Tenant-ID,X-User-ID,X-Agent-ID,X-DWP-Source,X-DWP-Caller-Type,Content-Type,Accept,Last-Event-ID";
     private boolean allowCredentials = true;
     private long maxAge = 3600;
 
@@ -53,6 +55,7 @@ public class CorsConfig {
                 .toList());
         
         // 허용할 헤더 설정
+        // "*"인 경우 모든 헤더 허용, 그 외에는 명시적 목록 사용
         if ("*".equals(allowedHeaders)) {
             corsConfig.addAllowedHeader("*");
         } else {
@@ -62,6 +65,15 @@ public class CorsConfig {
                     .filter(header -> !header.isEmpty())
                     .toList());
         }
+        
+        // 표준 헤더는 항상 명시적으로 추가 (계약 보장)
+        corsConfig.addAllowedHeader("Authorization");
+        corsConfig.addAllowedHeader("X-Tenant-ID");
+        corsConfig.addAllowedHeader("X-User-ID");
+        corsConfig.addAllowedHeader("X-Agent-ID");
+        corsConfig.addAllowedHeader("X-DWP-Source");
+        corsConfig.addAllowedHeader("X-DWP-Caller-Type");
+        corsConfig.addAllowedHeader("Last-Event-ID");  // SSE 재연결 지원
         
         // Credentials 허용 여부
         corsConfig.setAllowCredentials(allowCredentials);

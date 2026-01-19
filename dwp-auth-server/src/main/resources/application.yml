@@ -24,6 +24,7 @@ spring:
 # 최소 256비트(32바이트) 길이여야 합니다.
 jwt:
   secret: ${JWT_SECRET:your_shared_secret_key_must_be_at_least_256_bits_long_for_HS256}
+  expiration-seconds: ${JWT_EXPIRATION_SECONDS:3600}  # 기본값: 1시간 (3600초)
 
 logging:
   level:

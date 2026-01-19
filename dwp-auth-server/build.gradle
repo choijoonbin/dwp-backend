@@ -2,16 +2,19 @@ dependencies {
     // Spring Boot Web
     implementation 'org.springframework.boot:spring-boot-starter-web'
     
+    // Validation
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    
     // Spring Security
     implementation 'org.springframework.boot:spring-boot-starter-security'
     
     // OAuth2 Resource Server (JWT 검증 포함)
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     
-    // JWT 라이브러리 (테스트 및 호환성 검증용)
-    testImplementation 'io.jsonwebtoken:jjwt-api:0.12.3'
-    testImplementation 'io.jsonwebtoken:jjwt-impl:0.12.3'
-    testImplementation 'io.jsonwebtoken:jjwt-jackson:0.12.3'
+    // JWT 라이브러리 (JWT 발급 및 검증용)
+    implementation 'io.jsonwebtoken:jjwt-api:0.12.3'
+    implementation 'io.jsonwebtoken:jjwt-impl:0.12.3'
+    implementation 'io.jsonwebtoken:jjwt-jackson:0.12.3'
     
     // JPA
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'

@@ -34,9 +34,13 @@ public class RequestBodyLoggingFilter implements GlobalFilter, Ordered {
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         ServerHttpRequest request = exchange.getRequest();
         String path = request.getURI().getPath();
+        String method = request.getMethod() != null ? request.getMethod().name() : "";
         
-        // Aura-Platform 라우팅에 대한 POST 요청만 처리
-        if (!path.contains("/api/aura/") || !request.getMethod().matches("POST")) {
+        // POST 요청에 대한 body 로깅 (Aura-Platform 및 Auth Server)
+        boolean isAuraRequest = path.contains("/api/aura/");
+        boolean isAuthRequest = path.contains("/api/auth/");
+        
+        if ((!isAuraRequest && !isAuthRequest) || !"POST".equals(method)) {
             return chain.filter(exchange);
         }
         
@@ -61,15 +65,29 @@ public class RequestBodyLoggingFilter implements GlobalFilter, Ordered {
                             ? body.substring(0, 500) + "... (truncated)" 
                             : body;
                         
-                        log.debug("POST request body for Aura-Platform: path={}, bodyLength={}, bodyPreview={}", 
-                                path, body.length(), logBody);
-                        
-                        // Body에 prompt와 context가 포함되어 있는지 확인
-                        if (body.contains("\"prompt\"") && body.contains("\"context\"")) {
-                            log.debug("✅ Request body contains required fields: prompt and context");
-                        } else {
-                            log.warn("⚠️ Request body may be missing required fields (prompt or context)");
+                        if (isAuraRequest) {
+                            log.debug("POST request body for Aura-Platform: path={}, bodyLength={}, bodyPreview={}", 
+                                    path, body.length(), logBody);
+                            
+                            // Body에 prompt와 context가 포함되어 있는지 확인
+                            if (body.contains("\"prompt\"") && body.contains("\"context\"")) {
+                                log.debug("✅ Request body contains required fields: prompt and context");
+                            } else {
+                                log.warn("⚠️ Request body may be missing required fields (prompt or context)");
+                            }
+                        } else if (isAuthRequest) {
+                            log.debug("POST request body for Auth Server: path={}, bodyLength={}, bodyPreview={}", 
+                                    path, body.length(), logBody);
+                            
+                            // Body에 username과 tenantId가 포함되어 있는지 확인
+                            if (body.contains("\"username\"") && body.contains("\"tenantId\"")) {
+                                log.debug("✅ Request body contains required fields: username and tenantId");
+                            } else {
+                                log.warn("⚠️ Request body may be missing required fields (username or tenantId)");
+                            }
                         }
+                    } else {
+                        log.warn("⚠️ POST request body is empty: path={}", path);
                     }
                     
                     // Body를 다시 읽을 수 있도록 DataBuffer로 변환

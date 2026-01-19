@@ -22,12 +22,14 @@ import reactor.core.publisher.Mono;
 @Component
 public class HeaderPropagationFilter implements GlobalFilter, Ordered {
 
-    // 전파할 헤더 목록
+    // 전파할 헤더 목록 (프론트엔드 통합 계약)
     private static final String HEADER_AUTHORIZATION = "Authorization";
     private static final String HEADER_TENANT_ID = "X-Tenant-ID";
     private static final String HEADER_DWP_SOURCE = "X-DWP-Source";
     private static final String HEADER_DWP_CALLER_TYPE = "X-DWP-Caller-Type";
     private static final String HEADER_USER_ID = "X-User-ID";
+    private static final String HEADER_AGENT_ID = "X-Agent-ID";  // Aura 에이전트 세션 식별자
+    private static final String HEADER_LAST_EVENT_ID = "Last-Event-ID";  // SSE 재연결 지원
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
@@ -64,6 +66,18 @@ public class HeaderPropagationFilter implements GlobalFilter, Ordered {
         String userId = request.getHeaders().getFirst(HEADER_USER_ID);
         if (userId != null && !userId.isEmpty()) {
             log.debug("Propagating {} header: {}", HEADER_USER_ID, userId);
+        }
+
+        // X-Agent-ID 헤더 전파 확인 (Aura 에이전트 세션 식별자)
+        String agentId = request.getHeaders().getFirst(HEADER_AGENT_ID);
+        if (agentId != null && !agentId.isEmpty()) {
+            log.debug("Propagating {} header: {}", HEADER_AGENT_ID, agentId);
+        }
+
+        // Last-Event-ID 헤더 전파 확인 (SSE 재연결 지원)
+        String lastEventId = request.getHeaders().getFirst(HEADER_LAST_EVENT_ID);
+        if (lastEventId != null && !lastEventId.isEmpty()) {
+            log.debug("Propagating {} header: {} (SSE reconnection)", HEADER_LAST_EVENT_ID, lastEventId);
         }
 
         // 요청 경로 로깅 (디버깅용)

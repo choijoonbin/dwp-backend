@@ -1,41 +1,81 @@
 # DWP Backend
 
-> **Spring Boot 3.x 기반의 멀티 모듈 MSA(Microservices Architecture) 프로젝트**  
-> **프론트엔드 및 Aura-Platform과의 협업을 위한 백엔드 API 서버**
+> **Spring Boot 3.x 기반 멀티 모듈 MSA(Microservices Architecture)**  
+> **DWP Frontend(Host/Remote) 및 Aura-Platform(Python/FastAPI)과 통합되는 백엔드 인프라**
+
+---
 
 ## 🎯 프로젝트 개요
 
-DWP Backend는 **Aura AI 플랫폼**의 백엔드 인프라를 제공하는 마이크로서비스 아키텍처 기반 시스템입니다.
+DWP Backend는 DWP 시스템의 **Gateway / Auth / Main / Domain Services**로 구성된 마이크로서비스 아키텍처 기반 시스템입니다.  
+특히 **Aura AI 플랫폼**과의 통합을 위해 **SSE 스트리밍 중계**, **HITL 승인 처리**, **AgentTask(장기 실행 작업) 관리**를 제공합니다.
 
 ### 주요 역할
-- **API Gateway**: 모든 외부 요청의 진입점 및 라우팅
-- **인증/인가**: JWT 기반 멀티테넌시 지원
-- **AI 에이전트 관리**: 장기 실행 작업 상태 추적 및 HITL (Human-In-The-Loop) 승인 처리
-- **서비스 간 통신**: FeignClient 기반 서비스 오케스트레이션
-- **실시간 스트리밍**: SSE를 통한 AI 응답 스트리밍 중계
+- **API Gateway**: 모든 외부 요청의 진입점 및 라우팅 + 헤더 전파 + CORS + SSE 중계
+- **인증/인가**: JWT 기반 멀티테넌시 지원 (`tenant_id` 클레임)
+- **AI 에이전트 관리**: AgentTask 상태 추적 및 HITL(Human-in-the-loop) 승인 처리
+- **서비스 간 통신**: FeignClient 기반 서비스 오케스트레이션 + 표준 헤더 전파
+- **실시간 스트리밍**: `text/event-stream` 기반 SSE(POST SSE 포함) 응답 중계
 
 ### 협업 대상
-- **프론트엔드**: Aura AI UI와의 통합 (SSE 스트리밍, HITL 승인 API)
-- **Aura-Platform**: AI 에이전트 서비스와의 통합 (Python/FastAPI)
+- **Frontend**: Aura AI UI(SSE 스트리밍, HITL 승인 API, 표준 헤더 계약)
+- **Aura-Platform**: AI 에이전트 서비스(Python/FastAPI, 9000) 통합
 
-## 프로젝트 구조
+---
 
-```
+## 🧩 표준 통합 계약 (Frontend ↔ Backend)
+
+### 1) 표준 헤더 (Strict Header Contract)
+모든 외부 요청은 Gateway(8080)를 통해 들어오며, 아래 헤더는 통합 계약으로 고정합니다.
+
+#### 필수 헤더
+- `Authorization: Bearer {JWT}`
+- `X-Tenant-ID: {tenantId}`
+- `X-User-ID: {userId}`
+
+#### 권장/상황별 헤더
+- `X-Agent-ID: {agentSessionOrClientId}` (Aura 세션/클라이언트 식별)
+- `X-DWP-Source: FRONTEND | AURA | INTERNAL | BATCH`
+- `X-DWP-Caller-Type: AGENT | USER | SYSTEM`
+
+> Gateway 및 FeignClient는 위 헤더를 다운스트림 서비스로 **누락 없이 전파**해야 합니다.
+
+---
+
+### 2) SSE 재연결 계약 (Last-Event-ID)
+Frontend는 다음 SSE 클라이언트를 사용합니다.
+- 네트워크 단절 시 Exponential Backoff 기반 재연결(최대 5회)
+- 재연결 시 `Last-Event-ID` 헤더를 전송하여 중단 지점부터 재개 시도
+
+Backend는 가능하면:
+- SSE 이벤트에 재개 가능한 `eventId`를 포함하고,
+- `Last-Event-ID` 수신 시 해당 지점부터 재개를 지원합니다.  
+(재개 불가능 시, 명확한 에러/재시작 정책을 문서화합니다.)
+
+---
+
+### 3) SSE 이벤트 타입 계약 (Aura AI UI v1.0)
+SSE 스트리밍은 아래 이벤트 타입을 지원합니다.
+- `thought`, `plan_step`, `tool_execution`, `hitl`, `content`, `timeline_step_update`, `plan_step_update`
+
+스트림 종료 시 반드시 아래를 전송합니다.
+- `data: [DONE]\n\n`
+
+---
+
+## 📁 프로젝트 구조
+
+```bash
 dwp-backend/
-├── dwp-core/                    # 공통 라이브러리 모듈
-│   ├── common/                  # 공통 응답 DTO (ApiResponse)
-│   ├── exception/               # 공통 예외 처리
-│   ├── config/                  # 공통 설정 (Feign 헤더 전파, Redis)
-│   ├── event/                   # 이벤트 발행/구독 (Redis Pub/Sub)
-│   └── constant/                # 공통 상수 (RequestSource 등)
-├── dwp-gateway/                 # API Gateway (포트: 8080)
-├── dwp-auth-server/             # 인증 서버 (포트: 8001)
-├── dwp-main-service/            # 메인 비즈니스 서비스 (포트: 8081)
-│   └── domain/                  # AgentTask 관리 (AI 장기 실행 작업)
+├── dwp-core/                    # 공통 라이브러리 모듈 (ApiResponse, 예외, 상수, Redis, 헤더 계약)
+├── dwp-gateway/                 # API Gateway (포트: 8080) - 라우팅/헤더전파/CORS/SSE 중계
+├── dwp-auth-server/             # 인증 서버 (포트: 8001) - JWT 검증/인가
+├── dwp-main-service/            # 메인 서비스 (포트: 8081) - AgentTask/HITL/장기 작업 상태 관리
 └── services/
     ├── mail-service/            # 메일 서비스 (포트: 8082)
     ├── chat-service/            # 채팅 서비스 (포트: 8083)
     └── approval-service/        # 승인 서비스 (포트: 8084)
+
 ```
 
 ## 기술 스택
@@ -107,11 +147,17 @@ Spring Cloud Gateway를 사용한 API Gateway입니다.
 
 ### dwp-auth-server
 사용자 인증 및 인가를 담당하는 서비스입니다.
+- **JWT 토큰 발급**: 로그인 API를 통한 JWT 토큰 발급
+  - `POST /auth/login`: 사용자 인증 및 JWT 토큰 발급
+  - 요청 필드: `username`, `password`, `tenantId` (모두 필수)
+  - 응답: `accessToken`, `tokenType`, `expiresIn`, `userId`, `tenantId`
 - **JWT 토큰 검증**: Python (jose)와 Java (Spring Security) 호환
   - HS256 알고리즘 지원
   - 공유 시크릿 키 기반 검증
   - 멀티테넌시 지원 (`tenant_id` 클레임)
 - **Security Filter Chain**: OAuth2 Resource Server 기반
+  - 공개 엔드포인트: `/auth/health`, `/auth/info`, `/auth/login`, `/error`
+  - 나머지 엔드포인트: JWT 토큰 검증 필요
 - **헬스체크**: 인증 없이 접근 가능한 엔드포인트 제공
 
 ### dwp-main-service
@@ -336,6 +382,11 @@ export DB_PASSWORD=dwp_password
 
 #### 인증 서버
 - `GET http://localhost:8080/api/auth/health` - 인증 서버 헬스 체크
+- `POST http://localhost:8080/api/auth/login` - 로그인 및 JWT 토큰 발급
+  - **요청 본문**: `{"username": "...", "password": "...", "tenantId": "..."}`
+  - **Headers**: `Content-Type: application/json` (필수)
+  - **응답**: `{"status": "SUCCESS", "data": {"accessToken": "...", "tokenType": "Bearer", "expiresIn": 3600, "userId": "...", "tenantId": "..."}}`
+  - **상세 가이드**: [로그인 API 문제 해결 가이드](./docs/LOGIN_API_TROUBLESHOOTING.md)
 - `GET http://localhost:8080/api/auth/info` - 인증 서버 정보 (JWT 인증 필요)
 
 #### 기타 서비스
@@ -405,11 +456,21 @@ export DB_PASSWORD=dwp_password
 
 #### 🎨 프론트엔드 개발팀
 - **[프론트엔드 통합 가이드](./docs/FRONTEND_INTEGRATION_GUIDE.md)** ⭐ - 시작하기
+- **[프론트엔드 확인 요청 사항](./docs/FRONTEND_VERIFICATION_REQUIREMENTS.md)** ⭐⭐⭐ - 통합 전 필수 확인 사항
+- **[프론트엔드 확인 답변 검토](./docs/FRONTEND_VERIFICATION_RESPONSE.md)** ⭐⭐⭐ - 프론트엔드 구현 확인 및 통합 테스트 가이드
+- **[프론트엔드 확인 체크리스트](./docs/FRONTEND_VERIFICATION_CHECKLIST.md)** - 백엔드 점검 결과
 - **[프론트엔드 API 스펙](./docs/FRONTEND_API_SPEC.md)** - 상세 API 명세서
 - [Aura AI UI 통합 가이드](./docs/AURA_UI_INTEGRATION.md) - UI 통합 상세 가이드
 
+#### 🔧 백엔드 개발팀 (통합 테스트)
+- **[백엔드 통합 테스트 체크리스트](./docs/BACKEND_INTEGRATION_TEST_CHECKLIST.md)** ⭐⭐⭐ - 백엔드 통합 테스트 필수 확인 사항
+- **[HITL API 테스트 가이드](./docs/HITL_API_TEST_GUIDE.md)** ⭐⭐⭐ - HITL API 500 에러 해결 및 테스트 절차
+- **[백엔드 통합 테스트 결과](./docs/BACKEND_INTEGRATION_TEST_RESULTS.md)** - 실제 테스트 결과 기록
+
 #### 🤖 Aura-Platform 개발팀
 - **[Aura-Platform 통합 가이드](./docs/AURA_PLATFORM_INTEGRATION_GUIDE.md)** ⭐ - 시작하기
+- **[Aura-Platform 확인 요청 사항](./docs/AURA_PLATFORM_VERIFICATION_REQUIREMENTS.md)** ⭐⭐⭐ - 통합 전 필수 확인 사항
+- **[Aura-Platform 통합 체크리스트 응답](./docs/AURA_PLATFORM_INTEGRATION_RESPONSE.md)** ⭐⭐⭐ - Aura-Platform 체크리스트에 대한 백엔드 응답
 - **[Aura-Platform 업데이트 사항](./docs/AURA_PLATFORM_UPDATE.md)** - 최신 변경사항 및 요구사항
 - **[Aura-Platform 빠른 참조](./docs/AURA_PLATFORM_QUICK_REFERENCE.md)** - 핵심 정보 빠른 참조
 - [Aura-Platform 전달 문서](./docs/AURA_PLATFORM_HANDOFF.md) - 전달 가이드
@@ -418,6 +479,7 @@ export DB_PASSWORD=dwp_password
 ### 🔐 인증 및 보안
 - [JWT 호환성 가이드](./docs/JWT_COMPATIBILITY_GUIDE.md) - Python-Java JWT 통합
 - [JWT 이슈 요약](./docs/JWT_ISSUE_SUMMARY.md) - JWT 관련 이슈 및 해결
+- [로그인 API 문제 해결 가이드](./docs/LOGIN_API_TROUBLESHOOTING.md) - 로그인 API 디버깅 및 문제 해결
 
 ### 🧪 테스트 및 검증
 - [통합 테스트 가이드](./docs/INTEGRATION_TEST_GUIDE.md) - Gateway 통합 테스트
@@ -535,6 +597,12 @@ export DB_PASSWORD=dwp_password
   - [x] Security Filter Chain 구성
   - [x] JWT 호환성 테스트 작성
   - [x] Python-Java JWT 통합 가이드 작성
+- [x] **로그인 API 구현 완료** (2026-01)
+  - [x] 로그인 엔드포인트 구현 (`POST /api/auth/login`)
+  - [x] JWT 토큰 발급 기능 구현
+  - [x] Security 설정 최적화 (permitAll 경로 명시적 처리)
+  - [x] Gateway 요청 body 로깅 필터 확장 (Auth Server 지원)
+  - [x] 로그인 API 문제 해결 가이드 작성
 - [x] **Aura AI UI 백엔드 연동 완료** (2024-01)
   - [x] `AgentStep` DTO 추가 (AI 사고 과정 단계 표현)
   - [x] `AgentMetadata` 추가 (ApiResponse 확장)
@@ -548,7 +616,7 @@ export DB_PASSWORD=dwp_password
 ### 예정된 작업
 - [ ] Aura-Platform (AI Agent) 서비스 구현 및 연동 (포트 9000)
 - [ ] 벡터 DB 연동 (이벤트 기반 자동 동기화)
-- [ ] JWT 토큰 발급 API 구현 (현재는 검증만 완료)
+- [ ] 실제 사용자 인증 로직 구현 (DB 조회 및 비밀번호 검증)
 - [ ] RBAC 권한 관리 (AI 에이전트 전용 Scope 포함)
 - [ ] Service Discovery (Eureka) 도입
 - [ ] Config Server 도입

@@ -1,36 +1,83 @@
-# DWP Backend Integrated Development Rules (v1.2)
+🛡️ DWP Backend Integrated Development Rules (v1.4 - Final, Revised)
 
-## 1. 아키텍처 원칙 & 모듈별 역할 (Architecture & Modules)
-- **Multi-Module MSA**: Spring Boot 3.x 기반 Gradle 멀티 모듈 구조를 엄격히 준수한다.
-- **Module Responsibility**:
-  - `dwp-core`: 모든 모듈의 공통 기반. DTO, 예외 처리, Redis 설정, 공통 상수 관리.
-  - `dwp-gateway`: 모든 외부 진입점. SSE 스트리밍 중계 및 라우팅 전담.
-  - `dwp-main-service`: AI 에이전트의 작업 상태(`AgentTask`) 및 HITL(승인) 로직 전담 관리.
-  - `services/*`: 개별 비즈니스 도메인. AI가 호출할 '도구'로서의 API 제공.
+0. 목적 (Goal)
+DWP Backend는 DWP Frontend(Host/Remote) 및 Aura-Platform(Python/FastAPI)과 통합되는 멀티 모듈 MSA이다.
+본 Rules는 “프론트/게이트웨이/서비스 간 계약(Contract)”을 코드로 고정하여 시스템 전체의 통합 안정성과 추적 가능성(Traceability)을 보장한다.
 
-## 2. AI 에이전트 & SSE 통신 규격 (Agentic AI & SSE)
-- **Aura AI UI v1.0 규격 준수**: AI 응답 데이터 모델은 프론트엔드 명세의 `thought`, `plan_step`, `tool_execution`, `hitl`, `content` 타입을 지원해야 한다.
-- **SSE Support**: `dwp-gateway`와 각 서비스는 `MediaType.TEXT_EVENT_STREAM_VALUE`를 통한 실시간 스트리밍을 지원하며, 게이트웨이 타임아웃은 최소 300초로 설정한다.
-- **HITL (Human-in-the-loop)**: 승인이 필요한 작업은 `dwp-main-service`를 통해 `waiting_for_approval` 상태를 관리하고, Redis Pub/Sub을 통해 에이전트에 신호를 전달한다.
-- **AgentTask Management**: 모든 에이전트 작업은 `AgentTask` 엔티티로 영속화하며, 실행 계획(`plan_steps`)을 JSON 형태로 포함해야 한다.
+1. 아키텍처 원칙 & 모듈별 역할
+- Multi-Module MSA: Spring Boot 3.4.x 기반 Gradle 멀티 모듈 구조를 엄격히 준수한다.
+- Single Ownership Principle:
+  - dwp-core: 공통 기반. DTO, ApiResponse<T>, 전역 예외 처리, HeaderConstants, Redis 공통 설정, 공통 유틸
+  - dwp-gateway: 유일한 외부 진입점. 라우팅, 헤더 전파(Propagation), CORS, SSE 스트리밍 중계 전담
+  - dwp-auth-server: 인증/인가. JWT 검증 및 테넌트 식별 (Python-Java HS256 호환성 유지)
+  - dwp-main-service: 상태 관리. AgentTask, HITL 세션, 장기 실행 작업(Lifecycle) 관리 단일 소유
+  - services/*: 도메인 서비스. AI 에이전트가 호출하는 개별 비즈니스 도구(Tool) API 제공
 
-## 3. 기술 스택 & 데이터 표준 (Standard Tech Stack)
-- **Core**: Java 17, Spring Boot 3.4.x
-- **Communication**: OpenFeign (헤더 전파 필수: `X-Tenant-ID`, `X-DWP-Source`)
-- **Security**: JWT (HS256) 기반 공유 시크릿 검증. 멀티테넌시(`tenant_id`) 클레임 필수 확인.
-- **Persistence**: PostgreSQL 15+, JPA (Soft Delete 권장)
-- **Messaging**: Redis 7 (Pub/Sub을 통한 AI 상태 동기화 및 캐싱)
+2. 통합 계약 및 헤더 표준 (Header Contract)
+모든 요청은 Gateway(8080)를 거치며, 다음 헤더는 다운스트림 및 FeignClient 통신 시 누락 없이 전파되어야 한다.
 
-## 4. 코드 작성 및 응답 표준 (Coding Standards)
-- **Unified Response**: 모든 응답은 `dwp-core`의 `ApiResponse<T>` 객체로 래핑한다.
-- **LLM-Friendly API**: `@Operation`을 사용하여 파라미터와 기능의 상세 설명을 작성한다. (AI 도구 인식용)
-- **Traceability**: 에이전트 호출 시 `X-DWP-Caller-Type: AGENT` 헤더를 전파하고 로깅한다.
-- **Long-running Task**: 10초 이상의 작업은 비동기로 처리하고 `task_id`를 반환하는 패턴을 사용한다.
+2.1 필수 보안 헤더 (Required)
+- Authorization: Bearer <JWT>
+  - HS256 기반 서명 검증
+  - tenant_id 클레임 필수
+  - 표준 시간 클레임(iat/exp) 기반 만료 처리 권장
+- X-Tenant-ID: 멀티테넌시 식별자 (DB 조회 시 tenant filter 강제)
+- X-User-ID: 사용자 식별자
 
-## 5. 멀티테넌시 및 보안 (Multi-tenancy)
-- **Tenant Isolation**: 모든 요청에서 `X-Tenant-ID`를 식별하고 DB 조회 시 테넌트 필터링을 강제한다.
-- **RBAC**: 에이전트 전용 권한 스코프를 정의하여 관리한다.
+2.2 추적 및 컨텍스트 헤더 (Trace/Context)
+- X-Agent-ID: Aura 에이전트 세션/클라이언트 식별자
+- X-DWP-Source: 요청 출처 (FRONTEND, AURA, INTERNAL, BATCH)
+- X-DWP-Caller-Type: 호출자 유형 (USER, AGENT, SYSTEM)
 
-## 6. 품질 및 문서화 (Quality & Docs)
-- **Swagger**: 모든 API는 최신 Swagger UI를 통해 문서를 자동화한다.
-- **Async Logic**: 대량 처리나 외부 연동은 `@Async` 또는 `CompletableFuture`를 활용한다.
+3. 에이전틱 AI & SSE 통신 규격 (Agentic AI & SSE)
+3.1 SSE 기본 규칙
+- Streaming: MediaType.TEXT_EVENT_STREAM_VALUE를 사용하여 실시간 응답을 구현한다.
+- Gateway Timeout: SSE 스트림이 끊기지 않도록 Gateway 타임아웃을 최소 300초 이상으로 설정한다.
+- Buffering 방지: SSE 응답이 중간 프록시/게이트웨이에서 버퍼링되지 않도록 설정한다. (구현 방식은 환경에 맞게 선택)
+- Method: 프론트엔드 요구사항에 따라 POST 요청에 대한 SSE 응답을 공식 지원한다.
+
+3.2 SSE 재연결 및 상태 복구 (Resilience)
+- Event ID: 모든 SSE 이벤트에 단조 증가하는 eventId(또는 sequence)를 포함하는 것을 권장한다.
+- Last-Event-ID: 프론트엔드 재연결 요청 시 Last-Event-ID 헤더를 확인하여,
+  가능한 경우 중단 지점 이후 이벤트를 재개(resume) 제공한다.
+  재개가 불가능한 경우, 명확한 재시작 정책(예: 새 세션/새 task 재생성)을 문서화한다.
+
+3.3 이벤트 타입 계약 (Aura UI v1.0)
+- 표준 이벤트: thought, plan_step, tool_execution, hitl, content, timeline_step_update, plan_step_update
+- 종료 선언: 스트림 종료 시 반드시 다음을 전송한다.
+  - data: [DONE]\n\n
+
+4. HITL (Human-In-The-Loop) & 승인 프로세스
+- State 소유권: dwp-main-service가 승인 대기 상태(waiting_for_approval 의미)를 관리한다.
+- 승인 전파: 사용자의 승인/거절 액션 시, dwp-main-service는 Redis Pub/Sub을 통해 Aura-Platform으로 즉시 신호를 발행한다.
+- 보안: HITL API 호출 시 HitlSecurityInterceptor(또는 동등 정책)로 요청자의 권한과 테넌트 일치 여부를 재검증한다.
+- 계약 관리: 승인/거절 request body 및 응답 규격 변경 시 버전업 또는 하위 호환 정책을 명시한다.
+
+5. AgentTask 및 비동기 작업 관리
+- 영속화: 모든 에이전트 요청은 AgentTask 엔티티로 생성되어 DB에 기록되어야 한다.
+- 진행도 추적:
+  - 실행 계획(planSteps)은 JSON 컬럼으로 관리한다.
+  - progress는 0~100 범위로 관리한다.
+  - 상태는 최소 REQUESTED, IN_PROGRESS, COMPLETED, FAILED를 포함한다.
+- 비동기 처리: 10초 이상 소요되는 작업/도구 호출은 비동기(@Async 또는 동등 방식)로 처리하고 taskId를 즉시 반환한다.
+
+6. 데이터 및 기술 표준
+- Stack: Java 17, Spring Boot 3.4.x, Spring Cloud Gateway, OpenFeign, Redis 7, PostgreSQL 15
+- Response: 모든 API 응답은 dwp-core의 ApiResponse<T>로 통일한다.
+- JWT: Python(jose) ↔ Java 간 HS256 호환성 유지 (클레임/서명 검증 규칙을 문서로 고정)
+
+7. 코드 품질 및 추적성 (Traceability)
+- Self-Documenting: Swagger(springdoc-openapi)를 통해 API 명세를 자동 생성한다.
+- Logging:
+  - 에이전트 관련 로그에는 traceId(가능하면)와 X-Agent-ID를 포함한다.
+  - Gateway/Downstream 간 추적 가능하도록 Correlation 전략을 유지한다.
+- Header Injection:
+  - FeignClient 요청 시 RequestInterceptor로 표준 헤더가 자동 주입/전파되도록 구현한다.
+
+8. 보안 및 멀티테넌시
+- Data Isolation: 모든 DB 조회는 tenantId 필터링을 강제한다. (누락 방지 체크 체계 권장)
+- Scope/RBAC: 에이전트 전용 RBAC 스코프를 정의하여 권한 밖 접근(타 테넌트 포함)을 차단한다.
+
+[Cursor Action Guideline]
+본 규칙을 바탕으로 코드를 생성할 때, 특히 Gateway 설정 / Header 전파 로직 / SSE 스트리밍 반환부에서
+규격 위반이 없는지 최우선으로 검증하십시오.
