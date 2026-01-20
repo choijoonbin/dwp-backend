@@ -179,13 +179,40 @@ public class MonitoringService {
     }
 
     @Transactional(readOnly = true)
-    public Page<PageViewEvent> getPageViews(Long tenantId, Pageable pageable) {
-        return pageViewEventRepository.findByTenantIdOrderByCreatedAtDesc(tenantId, pageable);
+    public Page<PageViewEvent> getPageViews(Long tenantId, LocalDateTime from, LocalDateTime to,
+                                            String keyword, String route, String menu, String path,
+                                            Long userId, Pageable pageable) {
+        // 빈 문자열을 null로 변환
+        keyword = (keyword != null && keyword.trim().isEmpty()) ? null : keyword;
+        route = (route != null && route.trim().isEmpty()) ? null : route;
+        menu = (menu != null && menu.trim().isEmpty()) ? null : menu;
+        path = (path != null && path.trim().isEmpty()) ? null : path;
+        
+        if (from != null && to != null) {
+            return pageViewEventRepository.findByTenantIdAndFiltersWithDate(
+                    tenantId, from, to, keyword, route, menu, path, userId, pageable);
+        } else {
+            return pageViewEventRepository.findByTenantIdAndFiltersWithoutDate(
+                    tenantId, keyword, route, menu, path, userId, pageable);
+        }
     }
 
     @Transactional(readOnly = true)
-    public Page<ApiCallHistory> getApiHistories(Long tenantId, Pageable pageable) {
-        return apiCallHistoryRepository.findByTenantIdOrderByCreatedAtDesc(tenantId, pageable);
+    public Page<ApiCallHistory> getApiHistories(Long tenantId, LocalDateTime from, LocalDateTime to,
+                                                 String keyword, String apiName, String apiUrl,
+                                                 Integer statusCode, Long userId, Pageable pageable) {
+        // 빈 문자열을 null로 변환
+        keyword = (keyword != null && keyword.trim().isEmpty()) ? null : keyword;
+        apiName = (apiName != null && apiName.trim().isEmpty()) ? null : apiName;
+        apiUrl = (apiUrl != null && apiUrl.trim().isEmpty()) ? null : apiUrl;
+        
+        if (from != null && to != null) {
+            return apiCallHistoryRepository.findByTenantIdAndFiltersWithDate(
+                    tenantId, from, to, keyword, apiName, apiUrl, statusCode, userId, pageable);
+        } else {
+            return apiCallHistoryRepository.findByTenantIdAndFiltersWithoutDate(
+                    tenantId, keyword, apiName, apiUrl, statusCode, userId, pageable);
+        }
     }
 
     private String toJson(Map<String, Object> metadata) {

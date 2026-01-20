@@ -54,36 +54,43 @@ public class UserManagementService {
     @Transactional(readOnly = true)
     public PageResponse<UserSummary> getUsers(Long tenantId, int page, int size, 
                                                String keyword, Long departmentId, Long roleId, String status) {
-        Pageable pageable = PageRequest.of(page - 1, size); // 1-base to 0-base
-        
-        Page<User> userPage = userRepository.findByTenantIdAndFilters(
-                tenantId, keyword, departmentId, status, pageable);
-        
-        // roleId 필터링이 있는 경우 추가 필터링
-        if (roleId != null) {
-            List<User> usersWithRole = userRepository.findByTenantIdAndRoleId(tenantId, roleId);
-            List<Long> userIds = usersWithRole.stream()
-                    .map(User::getUserId)
+        try {
+            Pageable pageable = PageRequest.of(page - 1, size); // 1-base to 0-base
+            
+            Page<User> userPage = userRepository.findByTenantIdAndFilters(
+                    tenantId, keyword, departmentId, status, pageable);
+            
+            // roleId 필터링이 있는 경우 추가 필터링
+            if (roleId != null) {
+                List<User> usersWithRole = userRepository.findByTenantIdAndRoleId(tenantId, roleId);
+                List<Long> userIds = usersWithRole.stream()
+                        .map(User::getUserId)
+                        .filter(java.util.Objects::nonNull) // null 체크 추가
+                        .collect(Collectors.toList());
+                userPage = userPage.getContent().stream()
+                        .filter(u -> u.getUserId() != null && userIds.contains(u.getUserId()))
+                        .collect(Collectors.collectingAndThen(
+                                Collectors.toList(),
+                                list -> new org.springframework.data.domain.PageImpl<>(
+                                        list, pageable, list.size())));
+            }
+            
+            List<UserSummary> summaries = userPage.getContent().stream()
+                    .map(user -> toUserSummary(tenantId, user))
                     .collect(Collectors.toList());
-            userPage = userPage.getContent().stream()
-                    .filter(u -> userIds.contains(u.getUserId()))
-                    .collect(Collectors.collectingAndThen(
-                            Collectors.toList(),
-                            list -> new org.springframework.data.domain.PageImpl<>(
-                                    list, pageable, list.size())));
+            
+            return PageResponse.<UserSummary>builder()
+                    .items(summaries)
+                    .page(page)
+                    .size(size)
+                    .totalItems(userPage.getTotalElements())
+                    .totalPages(userPage.getTotalPages())
+                    .build();
+        } catch (Exception e) {
+            log.error("사용자 목록 조회 실패: tenantId={}, page={}, size={}, error={}", 
+                    tenantId, page, size, e.getMessage(), e);
+            throw new BaseException(ErrorCode.INTERNAL_SERVER_ERROR, "사용자 목록 조회 중 오류가 발생했습니다: " + e.getMessage());
         }
-        
-        List<UserSummary> summaries = userPage.getContent().stream()
-                .map(user -> toUserSummary(tenantId, user))
-                .collect(Collectors.toList());
-        
-        return PageResponse.<UserSummary>builder()
-                .items(summaries)
-                .page(page)
-                .size(size)
-                .totalItems(userPage.getTotalElements())
-                .totalPages(userPage.getTotalPages())
-                .build();
     }
     
     /**
@@ -389,6 +396,14 @@ public class UserManagementService {
     }
     
     private UserSummary toUserSummary(Long tenantId, User user) {
+        if (user == null) {
+            log.warn("toUserSummary: user is null");
+            throw new BaseException(ErrorCode.INTERNAL_SERVER_ERROR, "사용자 정보가 null입니다.");
+        }
+        if (user.getUserId() == null) {
+            log.warn("toUserSummary: user.getUserId() is null");
+            throw new BaseException(ErrorCode.INTERNAL_SERVER_ERROR, "사용자 ID가 null입니다.");
+        }
         return UserSummary.builder()
                 .comUserId(user.getUserId())
                 .tenantId(tenantId)

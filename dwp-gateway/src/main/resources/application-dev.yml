@@ -38,12 +38,26 @@ spring:
             - Path=/api/main/**
           filters:
             - StripPrefix=1
+        # Monitoring 수집 API 라우팅 (Auth Server)
+        - id: monitoring-collect
+          uri: http://localhost:8001
+          predicates:
+            - Path=/api/monitoring/**
+          filters:
+            - StripPrefix=1  # /api/monitoring/** → /monitoring/**로 변환
         - id: auth-server
           uri: http://localhost:8001  # Auth Server 포트 변경 (8000 → 8001)
           predicates:
             - Path=/api/auth/**
           filters:
             - StripPrefix=1
+        # Admin API 라우팅 (Auth Server) - Admin CRUD 및 모니터링 조회 API
+        - id: admin-api
+          uri: http://localhost:8001
+          predicates:
+            - Path=/api/admin/**
+          filters:
+            - StripPrefix=1  # /api/admin/** → /admin/**로 변환
         - id: mail-service
           uri: http://localhost:8082
           predicates:

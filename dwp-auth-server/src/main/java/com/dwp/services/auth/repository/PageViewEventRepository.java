@@ -55,4 +55,54 @@ public interface PageViewEventRepository extends JpaRepository<PageViewEvent, Lo
             @Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to,
             @Param("keyword") String keyword);
+    
+    /**
+     * 페이지뷰 필터링 조회 (날짜 범위 없음)
+     */
+    @Query("SELECT p FROM PageViewEvent p " +
+           "WHERE p.tenantId = :tenantId " +
+           "AND (:keyword IS NULL OR :keyword = '' OR " +
+           "     LOWER(p.pageKey) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "     LOWER(p.eventName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "     LOWER(p.sessionId) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "AND (:route IS NULL OR :route = '' OR LOWER(p.pageKey) LIKE LOWER(CONCAT('%', :route, '%'))) " +
+           "AND (:menu IS NULL OR :menu = '' OR LOWER(p.eventName) LIKE LOWER(CONCAT('%', :menu, '%'))) " +
+           "AND (:path IS NULL OR :path = '' OR LOWER(p.pageKey) LIKE LOWER(CONCAT('%', :path, '%'))) " +
+           "AND (:userId IS NULL OR p.userId = :userId) " +
+           "ORDER BY p.createdAt DESC")
+    Page<PageViewEvent> findByTenantIdAndFiltersWithoutDate(
+            @Param("tenantId") Long tenantId,
+            @Param("keyword") String keyword,
+            @Param("route") String route,
+            @Param("menu") String menu,
+            @Param("path") String path,
+            @Param("userId") Long userId,
+            Pageable pageable);
+    
+    /**
+     * 페이지뷰 필터링 조회 (날짜 범위 포함)
+     */
+    @Query("SELECT p FROM PageViewEvent p " +
+           "WHERE p.tenantId = :tenantId " +
+           "AND p.createdAt >= :from " +
+           "AND p.createdAt <= :to " +
+           "AND (:keyword IS NULL OR :keyword = '' OR " +
+           "     LOWER(p.pageKey) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "     LOWER(p.eventName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "     LOWER(p.sessionId) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "AND (:route IS NULL OR :route = '' OR LOWER(p.pageKey) LIKE LOWER(CONCAT('%', :route, '%'))) " +
+           "AND (:menu IS NULL OR :menu = '' OR LOWER(p.eventName) LIKE LOWER(CONCAT('%', :menu, '%'))) " +
+           "AND (:path IS NULL OR :path = '' OR LOWER(p.pageKey) LIKE LOWER(CONCAT('%', :path, '%'))) " +
+           "AND (:userId IS NULL OR p.userId = :userId) " +
+           "ORDER BY p.createdAt DESC")
+    Page<PageViewEvent> findByTenantIdAndFiltersWithDate(
+            @Param("tenantId") Long tenantId,
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to,
+            @Param("keyword") String keyword,
+            @Param("route") String route,
+            @Param("menu") String menu,
+            @Param("path") String path,
+            @Param("userId") Long userId,
+            Pageable pageable);
 }

@@ -25,6 +25,13 @@ spring:
             - Path=/api/aura/hitl/**
           filters:
             - StripPrefix=1  # /api/aura/hitl/** → /aura/hitl/**로 변환 (Main Service의 /aura/hitl 경로 유지)
+        # Monitoring 수집 API 라우팅 (Auth Server) - 다른 라우팅보다 먼저 매칭되도록 설정
+        - id: monitoring-collect
+          uri: http://localhost:8001
+          predicates:
+            - Path=/api/monitoring/**
+          filters:
+            - StripPrefix=1  # /api/monitoring/** → /monitoring/**로 변환
         # Aura Platform (AI Agent) 라우팅
         # AI 에이전트의 스트리밍 응답(SSE)을 중간에 끊기지 않도록 별도 타임아웃 적용
         # ✅ 포트 9000 확정: Aura-Platform은 포트 9000을 사용합니다
@@ -60,13 +67,13 @@ spring:
             - Path=/api/auth/**
           filters:
             - StripPrefix=1
-        # Monitoring 수집 API 라우팅 (Auth Server)
-        - id: monitoring-collect
+        # Admin API 라우팅 (Auth Server) - Admin CRUD 및 모니터링 조회 API
+        - id: admin-api
           uri: http://localhost:8001
           predicates:
-            - Path=/api/monitoring/**
+            - Path=/api/admin/**
           filters:
-            - StripPrefix=1  # /api/monitoring/** → /monitoring/**로 변환
+            - StripPrefix=1  # /api/admin/** → /admin/**로 변환
         - id: mail-service
           uri: http://localhost:8082
           predicates:

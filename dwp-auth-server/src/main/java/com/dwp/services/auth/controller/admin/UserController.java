@@ -35,8 +35,16 @@ public class UserController {
             @RequestParam(required = false) Long departmentId,
             @RequestParam(required = false) Long roleId,
             @RequestParam(required = false) String status) {
-        return ApiResponse.success(userManagementService.getUsers(
-                tenantId, page, size, keyword, departmentId, roleId, status));
+        try {
+            log.debug("사용자 목록 조회 요청: tenantId={}, page={}, size={}, keyword={}, departmentId={}, roleId={}, status={}", 
+                    tenantId, page, size, keyword, departmentId, roleId, status);
+            return ApiResponse.success(userManagementService.getUsers(
+                    tenantId, page, size, keyword, departmentId, roleId, status));
+        } catch (Exception e) {
+            log.error("사용자 목록 조회 실패: tenantId={}, page={}, size={}, error={}", 
+                    tenantId, page, size, e.getMessage(), e);
+            throw e; // GlobalExceptionHandler가 처리
+        }
     }
     
     /**

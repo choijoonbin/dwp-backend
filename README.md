@@ -422,15 +422,21 @@ export DB_PASSWORD=dwp_password
 
 #### 모니터링 API (Admin)
 - `GET http://localhost:8080/api/admin/monitoring/summary` - 모니터링 요약 정보 조회
-- `GET http://localhost:8080/api/admin/monitoring/page-views` - 페이지뷰 목록 조회
-- `GET http://localhost:8080/api/admin/monitoring/api-histories` - API 호출 이력 조회
+- `GET http://localhost:8080/api/admin/monitoring/page-views` - 페이지뷰 목록 조회 (필터링 지원)
+- `GET http://localhost:8080/api/admin/monitoring/api-histories` - API 호출 이력 조회 (필터링 지원)
 - `GET http://localhost:8080/api/admin/monitoring/visitors` - 방문자 목록 조회 (P1-2)
 - `GET http://localhost:8080/api/admin/monitoring/events` - 이벤트 로그 목록 조회 (P1-2)
 - `GET http://localhost:8080/api/admin/monitoring/timeseries` - 시계열 데이터 조회 (P1-2)
 - **수집 API** (인증 불필요, X-Tenant-ID 필수):
   - `POST http://localhost:8080/api/monitoring/page-view` - 페이지뷰 수집
   - `POST http://localhost:8080/api/monitoring/event` - 이벤트 수집
-- **상세 명세**: [docs/ADMIN_MONITORING_API_SPEC.md](docs/ADMIN_MONITORING_API_SPEC.md)
+- **상세 명세**: 
+  - [docs/ADMIN_MONITORING_API_SPEC.md](docs/ADMIN_MONITORING_API_SPEC.md) - 전체 모니터링 API 스펙
+  - [docs/ADMIN_MONITORING_VISITORS_EVENTS_API_SPEC.md](docs/ADMIN_MONITORING_VISITORS_EVENTS_API_SPEC.md) - 방문자/이벤트 API 상세 스펙
+  - [docs/ADMIN_MONITORING_TIMESERIES_API_SPEC.md](docs/ADMIN_MONITORING_TIMESERIES_API_SPEC.md) - 시계열 API 스펙
+  - [docs/ADMIN_MONITORING_TIMESERIES_API_RESPONSE_EXAMPLES.md](docs/ADMIN_MONITORING_TIMESERIES_API_RESPONSE_EXAMPLES.md) - 시계열 API 응답 예시
+  - [docs/EVENT_LOGS_TABLE_AND_API.md](docs/EVENT_LOGS_TABLE_AND_API.md) - 이벤트 로그 테이블 및 수집 API 가이드
+  - [docs/MONITORING_API_COMPARISON.md](docs/MONITORING_API_COMPARISON.md) - 프론트엔드-백엔드 API 비교 문서
 
 #### 기타 서비스
 - `GET http://localhost:8080/api/mail/health` - 메일 서비스 헬스 체크
@@ -535,6 +541,15 @@ export DB_PASSWORD=dwp_password
 ### 🛠️ 개발 도구 및 설정
 - [IDE 새로고침 가이드](./docs/IDE_REFRESH_GUIDE.md) - IDE 오류 해결 및 Gradle 새로고침
 - [CORS 설정 가이드](./docs/CORS_CONFIGURATION.md) - CORS 설정 방법
+
+### 📊 모니터링 및 관리
+- [Admin 모니터링 API 스펙](./docs/ADMIN_MONITORING_API_SPEC.md) - 전체 모니터링 API 스펙
+- [방문자/이벤트 API 스펙](./docs/ADMIN_MONITORING_VISITORS_EVENTS_API_SPEC.md) - 방문자 및 이벤트 조회 API 상세 스펙
+- [시계열 API 스펙](./docs/ADMIN_MONITORING_TIMESERIES_API_SPEC.md) - 시계열 데이터 조회 API 스펙
+- [시계열 API 응답 예시](./docs/ADMIN_MONITORING_TIMESERIES_API_RESPONSE_EXAMPLES.md) - 시계열 API 실제 응답 예시 및 프론트엔드 활용 가이드
+- [이벤트 로그 테이블 및 API](./docs/EVENT_LOGS_TABLE_AND_API.md) - 이벤트 로그 테이블 구조 및 수집 API 가이드
+- [모니터링 API 비교](./docs/MONITORING_API_COMPARISON.md) - 프론트엔드-백엔드 API 비교 및 정합성 검증 문서
+- [리소스 데이터 소스 가이드](./docs/COM_RESOURCES_DATA_SOURCE.md) - com_resources 테이블 데이터 소스 및 관리 방법 가이드
 
 ### 📚 전체 문서 목록
 

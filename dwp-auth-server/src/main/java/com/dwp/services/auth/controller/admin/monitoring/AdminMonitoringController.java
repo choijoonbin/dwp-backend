@@ -39,10 +39,14 @@ public class AdminMonitoringController {
     // TODO: ADMIN 권한 체크 (@PreAuthorize("hasRole('ADMIN')") 또는 Service 레벨 체크)
     public ApiResponse<MonitoringSummaryResponse> getSummary(
             @RequestHeader("X-Tenant-ID") Long tenantId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
         
-        return ApiResponse.success(monitoringService.getSummary(tenantId, from, to));
+        // 기본값: 최근 30일
+        LocalDateTime defaultTo = to != null ? to : LocalDateTime.now();
+        LocalDateTime defaultFrom = from != null ? from : defaultTo.minusDays(30);
+        
+        return ApiResponse.success(monitoringService.getSummary(tenantId, defaultFrom, defaultTo));
     }
     
     /**
@@ -52,11 +56,19 @@ public class AdminMonitoringController {
     @GetMapping("/page-views")
     public ApiResponse<Page<PageViewEvent>> getPageViews(
             @RequestHeader("X-Tenant-ID") Long tenantId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String route,
+            @RequestParam(required = false) String menu,
+            @RequestParam(required = false) String path,
+            @RequestParam(required = false) Long userId) {
         
-        Pageable pageable = PageRequest.of(page, size);
-        return ApiResponse.success(monitoringService.getPageViews(tenantId, pageable));
+        Pageable pageable = PageRequest.of(page - 1, size); // 1-base to 0-base
+        return ApiResponse.success(monitoringService.getPageViews(
+                tenantId, from, to, keyword, route, menu, path, userId, pageable));
     }
     
     /**
@@ -66,11 +78,19 @@ public class AdminMonitoringController {
     @GetMapping("/api-histories")
     public ApiResponse<Page<ApiCallHistory>> getApiHistories(
             @RequestHeader("X-Tenant-ID") Long tenantId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String apiName,
+            @RequestParam(required = false) String apiUrl,
+            @RequestParam(required = false) Integer statusCode,
+            @RequestParam(required = false) Long userId) {
         
-        Pageable pageable = PageRequest.of(page, size);
-        return ApiResponse.success(monitoringService.getApiHistories(tenantId, pageable));
+        Pageable pageable = PageRequest.of(page - 1, size); // 1-base to 0-base
+        return ApiResponse.success(monitoringService.getApiHistories(
+                tenantId, from, to, keyword, apiName, apiUrl, statusCode, userId, pageable));
     }
     
     /**
@@ -82,12 +102,16 @@ public class AdminMonitoringController {
             @RequestHeader("X-Tenant-ID") Long tenantId,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
             @RequestParam(required = false) String keyword) {
         
+        // 기본값: 최근 30일
+        LocalDateTime defaultTo = to != null ? to : LocalDateTime.now();
+        LocalDateTime defaultFrom = from != null ? from : defaultTo.minusDays(30);
+        
         Pageable pageable = PageRequest.of(page - 1, size); // 1-base to 0-base
-        return ApiResponse.success(adminMonitoringService.getVisitors(tenantId, from, to, keyword, pageable));
+        return ApiResponse.success(adminMonitoringService.getVisitors(tenantId, defaultFrom, defaultTo, keyword, pageable));
     }
     
     /**
@@ -99,15 +123,19 @@ public class AdminMonitoringController {
             @RequestHeader("X-Tenant-ID") Long tenantId,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
             @RequestParam(required = false) String eventType,
             @RequestParam(required = false) String resourceKey,
             @RequestParam(required = false) String keyword) {
         
+        // 기본값: 최근 30일
+        LocalDateTime defaultTo = to != null ? to : LocalDateTime.now();
+        LocalDateTime defaultFrom = from != null ? from : defaultTo.minusDays(30);
+        
         Pageable pageable = PageRequest.of(page - 1, size); // 1-base to 0-base
         return ApiResponse.success(adminMonitoringService.getEvents(
-                tenantId, from, to, eventType, resourceKey, keyword, pageable));
+                tenantId, defaultFrom, defaultTo, eventType, resourceKey, keyword, pageable));
     }
     
     /**
@@ -117,11 +145,15 @@ public class AdminMonitoringController {
     @GetMapping("/timeseries")
     public ApiResponse<TimeseriesResponse> getTimeseries(
             @RequestHeader("X-Tenant-ID") Long tenantId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,
             @RequestParam(defaultValue = "DAY") String interval,
             @RequestParam(defaultValue = "PV") String metric) {
         
-        return ApiResponse.success(adminMonitoringService.getTimeseries(tenantId, from, to, interval, metric));
+        // 기본값: 최근 30일
+        LocalDateTime defaultTo = to != null ? to : LocalDateTime.now();
+        LocalDateTime defaultFrom = from != null ? from : defaultTo.minusDays(30);
+        
+        return ApiResponse.success(adminMonitoringService.getTimeseries(tenantId, defaultFrom, defaultTo, interval, metric));
     }
 }

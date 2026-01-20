@@ -55,6 +55,13 @@ spring:
             - Path=/api/auth/**
           filters:
             - StripPrefix=1
+        # Admin API 라우팅 (Auth Server) - Admin CRUD 및 모니터링 조회 API
+        - id: admin-api
+          uri: http://auth-server:8001
+          predicates:
+            - Path=/api/admin/**
+          filters:
+            - StripPrefix=1  # /api/admin/** → /admin/**로 변환
         - id: mail-service
           uri: http://mail-service:8082
           predicates:
