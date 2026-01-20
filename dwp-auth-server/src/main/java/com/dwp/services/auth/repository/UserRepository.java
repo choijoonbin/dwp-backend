@@ -33,16 +33,18 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByTenantIdAndUserId(Long tenantId, Long userId);
     
     /**
-     * 키워드 검색 (이름, 이메일) - 보강 (BE P1-5 Enhanced)
+     * 키워드 검색 (이름, 이메일, 로그인 ID) - 보강 (BE P1-5 Enhanced)
      * idpProviderType 필터는 UserAccount와 JOIN하여 처리
+     * 
+     * Note: V20 마이그레이션 이후 bytea 타입이 VARCHAR로 변환되어 JPQL 사용 가능
      */
     @Query("SELECT DISTINCT u FROM User u " +
-           "LEFT JOIN UserAccount ua ON ua.userId = u.userId " +
+           "LEFT JOIN UserAccount ua ON ua.userId = u.userId AND ua.tenantId = u.tenantId " +
            "WHERE u.tenantId = :tenantId " +
            "AND (:keyword IS NULL OR " +
            "     LOWER(u.displayName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
            "     LOWER(u.email) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-           "     LOWER(ua.principal) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "     (ua.principal IS NOT NULL AND LOWER(ua.principal) LIKE LOWER(CONCAT('%', :keyword, '%')))) " +
            "AND (:departmentId IS NULL OR u.primaryDepartmentId = :departmentId) " +
            "AND (:status IS NULL OR u.status = :status) " +
            "AND (:idpProviderType IS NULL OR ua.providerType = :idpProviderType) " +

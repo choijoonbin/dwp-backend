@@ -36,15 +36,17 @@ public class UserController {
             @RequestParam(required = false) Long roleId,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String idpProviderType,
-            @RequestParam(required = false) String loginType) {
+            @RequestParam(required = false) String loginType,
+            HttpServletRequest httpRequest) {
+        String traceId = httpRequest.getHeader("X-Trace-Id");
         try {
-            log.debug("사용자 목록 조회 요청: tenantId={}, page={}, size={}, keyword={}, departmentId={}, roleId={}, status={}, idpProviderType={}, loginType={}", 
-                    tenantId, page, size, keyword, departmentId, roleId, status, idpProviderType, loginType);
+            log.debug("[traceId={}] 사용자 목록 조회 요청: tenantId={}, page={}, size={}, keyword={}, departmentId={}, roleId={}, status={}, idpProviderType={}, loginType={}", 
+                    traceId, tenantId, page, size, keyword, departmentId, roleId, status, idpProviderType, loginType);
             return ApiResponse.success(userManagementService.getUsers(
                     tenantId, page, size, keyword, departmentId, roleId, status, idpProviderType, loginType));
         } catch (Exception e) {
-            log.error("사용자 목록 조회 실패: tenantId={}, page={}, size={}, error={}", 
-                    tenantId, page, size, e.getMessage(), e);
+            log.error("[traceId={}] 사용자 목록 조회 실패: tenantId={}, page={}, size={}, error={}", 
+                    traceId, tenantId, page, size, e.getMessage(), e);
             throw e; // GlobalExceptionHandler가 처리
         }
     }
