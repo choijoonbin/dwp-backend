@@ -25,13 +25,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * CodeUsageController 테스트
  */
 @WebMvcTest(CodeUsageController.class)
-@SuppressWarnings("null")
+@SuppressWarnings({"null", "removal"})
 class CodeUsageControllerTest {
     
     @Autowired
     private MockMvc mockMvc;
     
-    // Note: @MockBean is deprecated in Spring Boot 3.4.0 but still functional
     @MockBean
     private CodeUsageService codeUsageService;
     

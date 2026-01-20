@@ -21,13 +21,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * MonitoringCollectController 테스트
  */
 @WebMvcTest(MonitoringCollectController.class)
-@SuppressWarnings("null")
+@SuppressWarnings({"null", "removal"})
 class MonitoringCollectControllerTest {
     
     @Autowired
     private MockMvc mockMvc;
     
-    // Note: @MockBean is deprecated in Spring Boot 3.4.0 but still functional
     @MockBean
     private MonitoringCollectService monitoringCollectService;
     

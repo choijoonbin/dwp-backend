@@ -22,17 +22,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * AuthController 테스트
  */
 @WebMvcTest(AuthController.class)
-@SuppressWarnings("null")
+@SuppressWarnings({"null", "removal"})
 class AuthControllerTest {
     
     @Autowired
     private MockMvc mockMvc;
     
-    // Note: @MockBean is deprecated in Spring Boot 3.4.0 but still functional
     @MockBean
     private AuthPolicyService authPolicyService;
     
-    // Note: @MockBean is deprecated in Spring Boot 3.4.0 but still functional
     @MockBean
     private IdentityProviderService identityProviderService;
     

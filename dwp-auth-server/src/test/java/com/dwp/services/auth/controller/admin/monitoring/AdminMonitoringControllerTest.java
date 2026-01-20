@@ -27,17 +27,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * AdminMonitoringController 테스트
  */
 @WebMvcTest(AdminMonitoringController.class)
-@SuppressWarnings("null")
+@SuppressWarnings({"null", "removal"})
 class AdminMonitoringControllerTest {
     
     @Autowired
     private MockMvc mockMvc;
     
-    // Note: @MockBean is deprecated in Spring Boot 3.4.0 but still functional
     @MockBean
     private MonitoringService monitoringService;
     
-    // Note: @MockBean is deprecated in Spring Boot 3.4.0 but still functional
     @MockBean
     private AdminMonitoringService adminMonitoringService;
     

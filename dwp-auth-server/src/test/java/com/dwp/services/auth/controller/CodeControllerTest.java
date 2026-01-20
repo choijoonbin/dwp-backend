@@ -22,12 +22,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * CodeController 테스트
  */
 @WebMvcTest(CodeController.class)
+@SuppressWarnings("removal")
 class CodeControllerTest {
     
     @Autowired
     private MockMvc mockMvc;
     
-    // Note: @MockBean is deprecated in Spring Boot 3.4.0 but still functional
     @MockBean
     private CodeManagementService codeManagementService;
     
