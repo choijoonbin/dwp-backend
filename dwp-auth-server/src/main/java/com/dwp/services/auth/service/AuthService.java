@@ -217,17 +217,41 @@ public class AuthService {
                             .orElse(resource.getName());
                 }
                 
+                // 확장 필드 추가 (BE P1-5)
                 return PermissionDTO.builder()
-                        .resourceType(resource.getType())
+                        .resourceType(resource.getType())  // 기존 필드 (하위 호환)
                         .resourceKey(resource.getKey())
                         .resourceName(resourceName)
                         .permissionCode(permission.getCode())
                         .permissionName(permission.getName())
                         .effect(rp.getEffect())
+                        .resourceCategory(resource.getResourceCategory() != null ? resource.getResourceCategory() : resource.getType())  // 기본값: type과 동일
+                        .resourceKind(resource.getResourceKind() != null ? resource.getResourceKind() : "PAGE")  // 기본값: PAGE
+                        .eventKey(resource.getEventKey())
+                        .trackingEnabled(resource.getTrackingEnabled() != null ? resource.getTrackingEnabled() : true)  // 기본값: true
+                        .eventActions(resource.getEventActions())  // JSON 문자열
+                        .meta(parseMetadataJson(resource.getMetadataJson()))  // 기존 metadata_json 파싱
                         .build();
             })
             .filter(dto -> dto != null)
             .collect(Collectors.toList());
+    }
+    
+    /**
+     * metadata_json 문자열을 Object로 파싱 (BE P1-5)
+     */
+    private Object parseMetadataJson(String metadataJson) {
+        if (metadataJson == null || metadataJson.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            // 간단한 JSON 파싱 (Jackson ObjectMapper 사용 가능)
+            // 현재는 문자열 그대로 반환 (향후 필요시 ObjectMapper로 파싱)
+            return metadataJson;
+        } catch (Exception e) {
+            log.warn("Failed to parse metadata_json: {}", metadataJson, e);
+            return metadataJson;
+        }
     }
     
     private String generateJwtToken(String userId, String tenantId) {

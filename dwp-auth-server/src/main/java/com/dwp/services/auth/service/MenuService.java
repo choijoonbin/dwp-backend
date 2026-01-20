@@ -124,7 +124,14 @@ public class MenuService {
             List<MenuNode> rootNodes = new ArrayList<>();
             
             // 모든 메뉴를 MenuNode로 변환
+            // com_resources에서 resourceKind와 trackingEnabled 조회
+            Map<String, Resource> resourceMap = resources.stream()
+                    .filter(r -> codeResolver.validate("RESOURCE_TYPE", r.getType()) && 
+                                 menuTypeCode.equals(r.getType()))
+                    .collect(Collectors.toMap(Resource::getKey, r -> r, (r1, r2) -> r1));
+            
             for (Menu menu : menus) {
+                Resource resource = resourceMap.get(menu.getMenuKey());
                 MenuNode node = MenuNode.builder()
                         .menuKey(menu.getMenuKey())
                         .menuName(menu.getMenuName())
@@ -133,6 +140,8 @@ public class MenuService {
                         .group(menu.getMenuGroup())
                         .depth(menu.getDepth())
                         .sortOrder(menu.getSortOrder())
+                        .resourceKind(resource != null && resource.getResourceKind() != null ? resource.getResourceKind() : "PAGE")  // 기본값: PAGE
+                        .trackingEnabled(resource != null && resource.getTrackingEnabled() != null ? resource.getTrackingEnabled() : true)  // 기본값: true
                         .build();
                 
                 nodeMap.put(menu.getMenuKey(), node);

@@ -17,4 +17,11 @@ import java.util.List;
 public class UpdateUserRolesRequest {
     
     private List<Long> roleIds;
+    
+    /**
+     * true: 기존 역할을 모두 삭제하고 새로 추가 (replace)
+     * false: 기존 역할에 추가 (append)
+     */
+    @Builder.Default
+    private Boolean replace = true;
 }

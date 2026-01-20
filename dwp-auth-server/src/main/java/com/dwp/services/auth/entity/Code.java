@@ -52,4 +52,7 @@ public class Code extends BaseEntity {
     
     @Column(name = "ext3", length = 500)
     private String ext3;
+    
+    @Column(name = "tenant_id")
+    private Long tenantId;  // null이면 전사 공통 코드, 값이 있으면 테넌트별 커스텀 코드
 }

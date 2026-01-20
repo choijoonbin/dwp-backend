@@ -45,4 +45,25 @@ public class Resource extends BaseEntity {
     @Column(name = "enabled", nullable = false)
     @Builder.Default
     private Boolean enabled = true;
+    
+    @Column(name = "resource_category", nullable = false, length = 50)
+    @Builder.Default
+    private String resourceCategory = "MENU";  // MENU, UI_COMPONENT
+    
+    @Column(name = "resource_kind", nullable = false, length = 50)
+    @Builder.Default
+    private String resourceKind = "PAGE";  // MENU_GROUP, PAGE, BUTTON, TAB, SELECT, FILTER, SEARCH, TABLE_ACTION, DOWNLOAD, UPLOAD, MODAL, API_ACTION
+    
+    @Column(name = "event_key", length = 120)
+    private String eventKey;  // 예: menu.admin.users:view
+    
+    @Column(name = "event_actions", columnDefinition = "jsonb")
+    private String eventActions;  // JSON 배열: ["VIEW","CLICK","SUBMIT"]
+    
+    @Column(name = "tracking_enabled", nullable = false)
+    @Builder.Default
+    private Boolean trackingEnabled = true;
+    
+    @Column(name = "ui_scope", length = 30)
+    private String uiScope;  // GLOBAL, MENU, PAGE, COMPONENT
 }

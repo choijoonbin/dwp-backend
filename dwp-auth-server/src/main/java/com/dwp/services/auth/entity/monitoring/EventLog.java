@@ -41,6 +41,9 @@ public class EventLog extends BaseEntity {
     @Column(name = "resource_key", nullable = false, length = 255)
     private String resourceKey;
     
+    @Column(name = "resource_kind", length = 50)
+    private String resourceKind;  // MENU_GROUP, PAGE, BUTTON, TAB, SELECT, FILTER, SEARCH, TABLE_ACTION, DOWNLOAD, UPLOAD, MODAL, API_ACTION
+    
     @Column(name = "action", nullable = false, length = 100)
     private String action;
     

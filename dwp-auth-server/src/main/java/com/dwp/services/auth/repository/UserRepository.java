@@ -33,21 +33,26 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByTenantIdAndUserId(Long tenantId, Long userId);
     
     /**
-     * 키워드 검색 (이름, 이메일)
+     * 키워드 검색 (이름, 이메일) - 보강 (BE P1-5 Enhanced)
+     * idpProviderType 필터는 UserAccount와 JOIN하여 처리
      */
-    @Query("SELECT u FROM User u " +
+    @Query("SELECT DISTINCT u FROM User u " +
+           "LEFT JOIN UserAccount ua ON ua.userId = u.userId " +
            "WHERE u.tenantId = :tenantId " +
            "AND (:keyword IS NULL OR " +
            "     LOWER(u.displayName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-           "     LOWER(u.email) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "     LOWER(u.email) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "     LOWER(ua.principal) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
            "AND (:departmentId IS NULL OR u.primaryDepartmentId = :departmentId) " +
            "AND (:status IS NULL OR u.status = :status) " +
+           "AND (:idpProviderType IS NULL OR ua.providerType = :idpProviderType) " +
            "ORDER BY u.displayName ASC")
     Page<User> findByTenantIdAndFilters(
             @Param("tenantId") Long tenantId,
             @Param("keyword") String keyword,
             @Param("departmentId") Long departmentId,
             @Param("status") String status,
+            @Param("idpProviderType") String idpProviderType,
             Pageable pageable);
     
     /**

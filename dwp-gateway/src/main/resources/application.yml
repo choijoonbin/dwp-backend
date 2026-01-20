@@ -33,6 +33,9 @@ spring:
           filters:
             - StripPrefix=1  # /api/monitoring/** → /monitoring/**로 변환
         # Aura Platform (AI Agent) 라우팅
+        # ⚠️ 중요: 프론트엔드는 반드시 Gateway(8080)를 통해 Aura-Platform과 통신해야 합니다.
+        # 직접 Aura-Platform(9000)에 접근하는 것은 금지됩니다.
+        # 
         # AI 에이전트의 스트리밍 응답(SSE)을 중간에 끊기지 않도록 별도 타임아웃 적용
         # ✅ 포트 9000 확정: Aura-Platform은 포트 9000을 사용합니다
         - id: aura-platform
@@ -42,6 +45,8 @@ spring:
           filters:
             - StripPrefix=1  # /api/aura/** → /aura/**로 변환
             # 헤더 전파 보장 (Authorization, X-Tenant-ID, X-DWP-Source, X-DWP-Caller-Type 등)
+            # - RequiredHeaderFilter: X-Tenant-ID 필수 검증 및 기본값 설정
+            # - HeaderPropagationFilter: 모든 표준 헤더 다운스트림 전파
             - PreserveHostHeader
             # ✅ POST 요청 body 전달 보장:
             # - Spring Cloud Gateway는 기본적으로 POST 요청의 body를 자동으로 전달합니다
@@ -52,6 +57,11 @@ spring:
             # - response-timeout: 300s (위에서 설정)
             # - Gateway는 기본적으로 text/event-stream을 자동으로 스트리밍 처리
             # - 커넥션 유지 및 버퍼링 최적화는 httpclient.pool 설정으로 처리
+            # - SseResponseHeaderFilter: SSE 응답 헤더 보장 (Content-Type, Cache-Control, Connection, X-Accel-Buffering)
+            # - SseReconnectionFilter: Last-Event-ID 헤더 전파 및 Event ID 생성
+            # TODO: 향후 Aura-Platform 요청에 대한 JWT 검증 확장 포인트
+            # - 현재는 Authorization 헤더를 그대로 전파하지만, 필요 시 Gateway에서 JWT 검증 추가 가능
+            # - Auth Server와 통신하여 JWT 검증 후 Aura-Platform으로 전달하는 구조 확장 가능
         # Main Service 라우팅
         # 프론트엔드: http://localhost:8080/api/main/health
         # → Gateway가 /api 제거 후 → http://localhost:8081/main/health로 전달

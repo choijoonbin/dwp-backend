@@ -44,11 +44,14 @@ public class MonitoringService {
             ApiCallHistory history = ApiCallHistory.builder()
                     .tenantId(request.getTenantId())
                     .userId(request.getUserId())
+                    .agentId(request.getAgentId())
                     .method(request.getMethod())
                     .path(request.getPath())
                     .queryString(request.getQueryString())
                     .statusCode(request.getStatusCode())
                     .latencyMs(request.getLatencyMs())
+                    .requestSizeBytes(request.getRequestSizeBytes())
+                    .responseSizeBytes(request.getResponseSizeBytes())
                     .ipAddress(request.getIpAddress())
                     .userAgent(request.getUserAgent())
                     .traceId(request.getTraceId())
@@ -158,8 +161,14 @@ public class MonitoringService {
         long prevApiTotal = apiCallHistoryRepository.countByTenantIdAndCreatedAtBetween(tenantId, prevFrom, prevTo);
         long prevApiErrors = apiCallHistoryRepository.countErrorsByTenantIdAndCreatedAtBetween(tenantId, prevFrom, prevTo);
 
+        // 에러율 계산 검증 로깅 추가
+        log.debug("MonitoringSummary 계산: tenantId={}, from={}, to={}, currentApiTotal={}, currentApiErrors={}", 
+                tenantId, from, to, currentApiTotal, currentApiErrors);
+
         double apiErrorRate = currentApiTotal > 0 ? (double) currentApiErrors / currentApiTotal * 100 : 0.0;
         double prevApiErrorRate = prevApiTotal > 0 ? (double) prevApiErrors / prevApiTotal * 100 : 0.0;
+        
+        log.debug("에러율 계산 결과: apiErrorRate={}%, prevApiErrorRate={}%", apiErrorRate, prevApiErrorRate);
 
         return MonitoringSummaryResponse.builder()
                 .pv(currentPv)

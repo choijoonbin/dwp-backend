@@ -18,6 +18,9 @@ public enum ErrorCode {
     TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "E2002", "토큰이 만료되었습니다."),
     TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "E2003", "유효하지 않은 토큰입니다."),
     AUTH_INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "E2004", "잘못된 자격 증명입니다."),
+    AUTH_REQUIRED(HttpStatus.UNAUTHORIZED, "E2005", "인증이 필요합니다."),
+    TENANT_MISSING(HttpStatus.BAD_REQUEST, "E2006", "테넌트 정보가 필요합니다."),
+    TENANT_MISMATCH(HttpStatus.FORBIDDEN, "E2007", "테넌트 정보가 일치하지 않습니다."),
     
     // 비즈니스 로직 에러 (3000번대)
     ENTITY_NOT_FOUND(HttpStatus.NOT_FOUND, "E3000", "엔티티를 찾을 수 없습니다."),

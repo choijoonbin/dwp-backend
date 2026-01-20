@@ -106,6 +106,70 @@ public class AuditLogService {
         recordAuditLog(tenantId, actorUserId, action, resourceType, resourceId, null, null, request);
     }
     
+    /**
+     * Map 기반 감사 로그 기록 (Ultra Enhanced: RBAC_DENY 등)
+     * 
+     * @param tenantId 테넌트 ID
+     * @param actorUserId 행위자 사용자 ID
+     * @param action 액션 타입 (RBAC_DENY 등)
+     * @param resourceType 리소스 타입 (RBAC 등)
+     * @param resourceId 리소스 ID (nullable)
+     * @param metadataMap 메타데이터 Map
+     * @param request HTTP 요청 (IP, User-Agent 추출용)
+     */
+    @Async
+    @Transactional
+    public void recordAuditLog(Long tenantId, Long actorUserId, String action,
+                               String resourceType, Long resourceId,
+                               Map<String, Object> metadataMap,
+                               HttpServletRequest request) {
+        try {
+            Map<String, Object> metadata = new HashMap<>();
+            
+            // 메타데이터 Map 병합
+            if (metadataMap != null) {
+                metadata.putAll(metadataMap);
+            }
+            
+            // IP 주소 및 User-Agent
+            if (request != null) {
+                String ipAddress = getClientIp(request);
+                String userAgent = request.getHeader("User-Agent");
+                if (ipAddress != null) {
+                    metadata.put("ipAddress", ipAddress);
+                }
+                if (userAgent != null) {
+                    metadata.put("userAgent", userAgent);
+                }
+            }
+            
+            String metadataJson = null;
+            if (!metadata.isEmpty()) {
+                try {
+                    metadataJson = objectMapper.writeValueAsString(metadata);
+                } catch (Exception e) {
+                    log.warn("Failed to serialize audit metadata", e);
+                }
+            }
+            
+            AuditLog auditLog = AuditLog.builder()
+                    .tenantId(tenantId)
+                    .actorUserId(actorUserId)
+                    .action(action)
+                    .resourceType(resourceType)
+                    .resourceId(resourceId)
+                    .metadataJson(metadataJson)
+                    .build();
+            
+            @SuppressWarnings({"null", "unused"})
+            AuditLog saved = auditLogRepository.save(auditLog);
+        } catch (Exception e) {
+            log.error("Failed to record audit log: tenantId={}, action={}, resourceType={}, resourceId={}",
+                    tenantId, action, resourceType, resourceId, e);
+            // Silent fail: 감사 로그 실패가 메인 로직에 영향을 주지 않도록
+        }
+    }
+    
     private String getClientIp(HttpServletRequest request) {
         String xf = request.getHeader("X-Forwarded-For");
         if (xf != null && !xf.isEmpty()) {

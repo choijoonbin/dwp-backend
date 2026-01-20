@@ -2,7 +2,10 @@ package com.dwp.services.auth.controller;
 
 import com.dwp.services.auth.dto.CodeGroupResponse;
 import com.dwp.services.auth.dto.CodeResponse;
+import com.dwp.services.auth.dto.admin.CodeUsageResponse;
 import com.dwp.services.auth.service.CodeManagementService;
+import com.dwp.services.auth.service.admin.CodeUsageService;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -30,6 +33,9 @@ class CodeControllerTest {
     
     @MockBean
     private CodeManagementService codeManagementService;
+    
+    @MockBean
+    private CodeUsageService codeUsageService;
     
     @Test
     void getGroups_ReturnsGroupList() throws Exception {
@@ -95,5 +101,42 @@ class CodeControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.RESOURCE_TYPE[0].code").value("MENU"));
+    }
+    
+    @Test
+    @DisplayName("/api/admin/codes/usage?resourceKey=menu.admin.monitoring 호출 시 UI_ACTION 포함 확인")
+    void getCodesByUsage_IncludesUIAction() throws Exception {
+        // Given: menu.admin.monitoring에 UI_ACTION 매핑이 있음
+        Long tenantId = 1L;
+        String resourceKey = "menu.admin.monitoring";
+        
+        Map<String, List<CodeUsageResponse.CodeItem>> codesMap = new HashMap<>();
+        codesMap.put("UI_ACTION", Arrays.asList(
+                CodeUsageResponse.CodeItem.builder()
+                        .code("VIEW")
+                        .name("조회")
+                        .build(),
+                CodeUsageResponse.CodeItem.builder()
+                        .code("CLICK")
+                        .name("클릭")
+                        .build()
+        ));
+        
+        CodeUsageResponse response = CodeUsageResponse.builder()
+                .codes(codesMap)
+                .build();
+        
+        when(codeUsageService.getCodesByResourceKey(tenantId, resourceKey))
+                .thenReturn(response);
+        
+        // When & Then
+        mockMvc.perform(get("/admin/codes/usage")
+                        .param("resourceKey", resourceKey)
+                        .header("X-Tenant-ID", tenantId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.codes.UI_ACTION").exists())
+                .andExpect(jsonPath("$.data.codes.UI_ACTION[0].code").value("VIEW"))
+                .andExpect(jsonPath("$.data.codes.UI_ACTION[1].code").value("CLICK"));
     }
 }

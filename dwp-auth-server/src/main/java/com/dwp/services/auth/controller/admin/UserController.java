@@ -23,7 +23,7 @@ public class UserController {
     private final UserManagementService userManagementService;
     
     /**
-     * 사용자 목록 조회
+     * 사용자 목록 조회 (보강: idpProviderType, loginType 필터 추가)
      * GET /api/admin/users
      */
     @GetMapping
@@ -34,12 +34,14 @@ public class UserController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Long departmentId,
             @RequestParam(required = false) Long roleId,
-            @RequestParam(required = false) String status) {
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String idpProviderType,
+            @RequestParam(required = false) String loginType) {
         try {
-            log.debug("사용자 목록 조회 요청: tenantId={}, page={}, size={}, keyword={}, departmentId={}, roleId={}, status={}", 
-                    tenantId, page, size, keyword, departmentId, roleId, status);
+            log.debug("사용자 목록 조회 요청: tenantId={}, page={}, size={}, keyword={}, departmentId={}, roleId={}, status={}, idpProviderType={}, loginType={}", 
+                    tenantId, page, size, keyword, departmentId, roleId, status, idpProviderType, loginType);
             return ApiResponse.success(userManagementService.getUsers(
-                    tenantId, page, size, keyword, departmentId, roleId, status));
+                    tenantId, page, size, keyword, departmentId, roleId, status, idpProviderType, loginType));
         } catch (Exception e) {
             log.error("사용자 목록 조회 실패: tenantId={}, page={}, size={}, error={}", 
                     tenantId, page, size, e.getMessage(), e);
@@ -79,6 +81,22 @@ public class UserController {
      */
     @PutMapping("/{comUserId}")
     public ApiResponse<UserDetail> updateUser(
+            @RequestHeader("X-Tenant-ID") Long tenantId,
+            Authentication authentication,
+            @PathVariable("comUserId") Long userId,
+            @Valid @RequestBody UpdateUserRequest request,
+            HttpServletRequest httpRequest) {
+        Long actorUserId = getUserId(authentication);
+        return ApiResponse.success(userManagementService.updateUser(
+                tenantId, actorUserId, userId, request, httpRequest));
+    }
+    
+    /**
+     * 사용자 수정 (PATCH)
+     * PATCH /api/admin/users/{comUserId}
+     */
+    @PatchMapping("/{comUserId}")
+    public ApiResponse<UserDetail> patchUser(
             @RequestHeader("X-Tenant-ID") Long tenantId,
             Authentication authentication,
             @PathVariable("comUserId") Long userId,
@@ -163,6 +181,43 @@ public class UserController {
             HttpServletRequest httpRequest) {
         Long actorUserId = getUserId(authentication);
         userManagementService.updateUserRoles(tenantId, actorUserId, userId, request, httpRequest);
+        return ApiResponse.success(null);
+    }
+    
+    /**
+     * 사용자 역할 추가
+     * POST /api/admin/users/{comUserId}/roles
+     */
+    @PostMapping("/{comUserId}/roles")
+    public ApiResponse<UserRoleInfo> addUserRole(
+            @RequestHeader("X-Tenant-ID") Long tenantId,
+            Authentication authentication,
+            @PathVariable("comUserId") Long userId,
+            @RequestBody java.util.Map<String, Long> request,
+            HttpServletRequest httpRequest) {
+        Long actorUserId = getUserId(authentication);
+        Long roleId = request.get("roleId");
+        if (roleId == null) {
+            throw new com.dwp.core.exception.BaseException(
+                    com.dwp.core.common.ErrorCode.INVALID_INPUT_VALUE, "roleId는 필수입니다.");
+        }
+        return ApiResponse.success(userManagementService.addUserRole(
+                tenantId, actorUserId, userId, roleId, httpRequest));
+    }
+    
+    /**
+     * 사용자 역할 삭제
+     * DELETE /api/admin/users/{comUserId}/roles/{comRoleId}
+     */
+    @DeleteMapping("/{comUserId}/roles/{comRoleId}")
+    public ApiResponse<Void> removeUserRole(
+            @RequestHeader("X-Tenant-ID") Long tenantId,
+            Authentication authentication,
+            @PathVariable("comUserId") Long userId,
+            @PathVariable("comRoleId") Long roleId,
+            HttpServletRequest httpRequest) {
+        Long actorUserId = getUserId(authentication);
+        userManagementService.removeUserRole(tenantId, actorUserId, userId, roleId, httpRequest);
         return ApiResponse.success(null);
     }
     

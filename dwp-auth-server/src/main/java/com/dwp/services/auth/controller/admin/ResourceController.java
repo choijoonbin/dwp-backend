@@ -35,7 +35,7 @@ public class ResourceController {
     }
     
     /**
-     * 리소스 목록 조회
+     * 리소스 목록 조회 (보강: category, kind, enabled 필터 추가)
      * GET /api/admin/resources
      */
     @GetMapping
@@ -45,8 +45,12 @@ public class ResourceController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String type,
-            @RequestParam(required = false) Long parentId) {
-        return ApiResponse.success(resourceManagementService.getResources(tenantId, page, size, keyword, type, parentId));
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String kind,
+            @RequestParam(required = false) Long parentId,
+            @RequestParam(required = false) Boolean enabled) {
+        return ApiResponse.success(resourceManagementService.getResources(
+                tenantId, page, size, keyword, type, category, kind, parentId, enabled));
     }
     
     /**

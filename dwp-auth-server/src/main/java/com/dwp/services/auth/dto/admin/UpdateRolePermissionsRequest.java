@@ -10,7 +10,7 @@ import lombok.NoArgsConstructor;
 import java.util.List;
 
 /**
- * 역할 권한 업데이트 요청 DTO
+ * 역할 권한 업데이트 요청 DTO (BE P1-5 Final: resourceKey/permissionCode 기반)
  */
 @Data
 @Builder
@@ -26,13 +26,13 @@ public class UpdateRolePermissionsRequest {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class RolePermissionItem {
-        @NotNull(message = "resourceId는 필수입니다")
-        private Long resourceId;
+        @NotNull(message = "resourceKey는 필수입니다")
+        private String resourceKey;  // 예: menu.admin.users
         
-        @NotNull(message = "permissionId는 필수입니다")
-        private Long permissionId;
+        @NotNull(message = "permissionCode는 필수입니다")
+        private String permissionCode;  // 예: VIEW, USE, EDIT, EXECUTE
         
-        @Builder.Default
-        private String effect = "ALLOW"; // ALLOW, DENY
+        // effect=null이면 삭제, "ALLOW" 또는 "DENY"이면 upsert
+        private String effect;  // ALLOW, DENY, null (삭제)
     }
 }

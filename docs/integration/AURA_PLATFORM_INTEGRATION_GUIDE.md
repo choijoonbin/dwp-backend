@@ -21,6 +21,27 @@
 
 ---
 
+## ⚠️ 핵심 원칙: Gateway 단일 경유 필수
+
+**프론트엔드는 절대 Aura-Platform(포트 9000)에 직접 접근하지 않습니다.**
+
+```
+✅ 올바른 경로:
+Frontend → Gateway(8080) → Aura-Platform(9000)
+
+❌ 금지된 경로:
+Frontend → Aura-Platform(9000) 직접 접근
+```
+
+**이유**:
+1. **통합 모니터링**: 모든 API 호출 이력이 Gateway에서 단일 지점으로 기록됨
+2. **헤더 계약 강제**: 필수 헤더(X-Tenant-ID 등) 검증 및 전파 보장
+3. **SSE 안정화**: Gateway에서 스트리밍 품질 보장 (타임아웃, 버퍼링 방지)
+4. **보안 정책**: 향후 JWT 검증 등 보안 정책을 Gateway에서 일괄 적용 가능
+5. **CORS 관리**: Gateway에서 CORS 정책 일괄 관리
+
+---
+
 ## 개요
 
 DWP Backend는 Spring Boot 3.x 기반의 MSA 아키텍처로 구성되어 있으며, Aura-Platform은 AI 에이전트 서비스로 통합됩니다.
@@ -30,11 +51,11 @@ DWP Backend는 Spring Boot 3.x 기반의 MSA 아키텍처로 구성되어 있으
 ```
 Frontend (Aura UI)
     │
-    │ HTTP/SSE
+    │ HTTP/SSE (반드시 Gateway 경유)
     ▼
-Gateway (포트 8080)
+Gateway (포트 8080) ⭐ 단일 진입점
     │
-    ├─ /api/aura/** → Aura-Platform (포트 8000)
+    ├─ /api/aura/** → Aura-Platform (포트 9000)
     │
     └─ /api/main/** → Main Service (포트 8081)
                         │
@@ -43,8 +64,8 @@ Gateway (포트 8080)
 
 ### 핵심 통신 경로
 
-1. **SSE 스트리밍**: `Frontend → Gateway → Aura-Platform`
-2. **HITL 승인**: `Frontend → Gateway → Main Service → Redis → Aura-Platform`
+1. **SSE 스트리밍**: `Frontend → Gateway(8080) → Aura-Platform(9000)` ⭐ Gateway 필수 경유
+2. **HITL 승인**: `Frontend → Gateway(8080) → Main Service(8081) → Redis → Aura-Platform`
 3. **이벤트 발행**: `Mail/Approval Service → Redis Pub/Sub → Aura-Platform`
 
 ---

@@ -169,11 +169,19 @@ Spring Cloud Gateway를 사용한 API Gateway입니다.
   - `GET /api/admin/monitoring/**`: 모니터링 조회 API (Admin 권한 필요)
   - `POST /api/monitoring/page-view`: 페이지뷰 수집 (공개 API, X-Tenant-ID 필수)
   - `POST /api/monitoring/event`: 이벤트 수집 (공개 API, X-Tenant-ID 필수)
+- **Admin CRUD API (운영 수준)** (P1-5 Enhanced):
+  - **Users 관리**: `/api/admin/users` (목록/생성/수정/삭제/상태변경/비밀번호재설정/역할관리)
+  - **Roles 관리**: `/api/admin/roles` (목록/생성/수정/삭제/멤버관리/권한관리)
+  - **Resources 관리**: `/api/admin/resources` (목록/트리/생성/수정/삭제, category/kind 필터 지원)
+  - **Code Management**: `/api/admin/codes` (그룹/코드 CRUD, 메뉴별 코드 조회)
+  - **CodeUsage 관리**: `/api/admin/code-usages` (코드 사용 정의 CRUD)
+  - **RBAC Enforcement**: `AdminGuardInterceptor`가 `/api/admin/**` 모든 요청에 대해 ADMIN 역할 강제 검증 (403 Forbidden)
 - **개발 편의**: `DevSeedRunner`를 통한 관리자 계정(`admin/admin1234!`) 자동 동기화
 - **상세 명세**: 
   - [docs/FRONTEND_API_SPEC.md](docs/FRONTEND_API_SPEC.md)
   - [docs/ADMIN_MONITORING_API_SPEC.md](docs/ADMIN_MONITORING_API_SPEC.md)
   - [docs/CODE_MANAGEMENT.md](docs/CODE_MANAGEMENT.md)
+  - [docs/P1-5_ADMIN_CRUD_SPEC.md](docs/P1-5_ADMIN_CRUD_SPEC.md)
 
 ### dwp-main-service
 플랫폼의 메인 비즈니스 서비스를 담당합니다.
@@ -361,14 +369,27 @@ export DB_PASSWORD=dwp_password
 
 #### 🤖 Aura-Platform (AI 에이전트) - 프론트엔드/Aura-Platform 핵심 엔드포인트
 
-**SSE 스트리밍** (프론트엔드 → Aura-Platform):
+**⚠️ 중요: 프론트엔드는 반드시 Gateway(8080)를 통해 Aura-Platform과 통신해야 합니다.**
+**직접 Aura-Platform(9000)에 접근하는 것은 금지됩니다.**
+
+**SSE 스트리밍** (프론트엔드 → Gateway → Aura-Platform):
 - `POST http://localhost:8080/api/aura/test/stream` - AI 응답 스트리밍
   - **요청 본문**: `{"prompt": "...", "context": {...}}`
-  - **Headers**: `Authorization: Bearer {JWT}`, `X-Tenant-ID: {tenant_id}`, `Content-Type: application/json`
-  - **Response**: `Content-Type: text/event-stream`
+  - **필수 Headers**: 
+    - `X-Tenant-ID: {tenant_id}` (필수, 없으면 400 Bad Request)
+    - `Authorization: Bearer {JWT}` (권장)
+    - `X-DWP-Source: AURA` (권장, 없으면 기본값 "FRONTEND")
+    - `X-DWP-Caller-Type: AGENT` (권장, 없으면 기본값 "USER")
+    - `X-Agent-ID: {agent_session_id}` (권장)
+    - `Content-Type: application/json`
+    - `Accept: text/event-stream`
+  - **Response**: `Content-Type: text/event-stream`, `Cache-Control: no-cache`, `Connection: keep-alive`, `X-Accel-Buffering: no`
   - **이벤트 타입**: `thought`, `plan_step`, `tool_execution`, `hitl`, `content`, `timeline_step_update`, `plan_step_update`
   - **스트림 종료**: `data: [DONE]\n\n`
-  - **상세 스펙**: [프론트엔드 API 스펙](./docs/FRONTEND_API_SPEC.md)
+  - **타임아웃**: 300초 (5분)
+  - **상세 스펙**: 
+    - [Aura Gateway 단일 경유 명세서](./docs/AURA_GATEWAY_SINGLE_POINT_SPEC.md) ⭐
+    - [프론트엔드 API 스펙](./docs/FRONTEND_API_SPEC.md)
 
 **HITL (Human-In-The-Loop) 승인** (프론트엔드 → Main Service):
 - `GET http://localhost:8080/api/aura/hitl/requests/{requestId}` - 승인 요청 조회

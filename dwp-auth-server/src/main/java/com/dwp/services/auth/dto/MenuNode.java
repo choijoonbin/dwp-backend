@@ -63,6 +63,16 @@ public class MenuNode {
     private List<MenuNode> children = new ArrayList<>();
     
     /**
+     * 리소스 종류 (BE P1-5)
+     */
+    private String resourceKind;  // MENU_GROUP, PAGE
+    
+    /**
+     * 이벤트 추적 활성화 여부 (BE P1-5)
+     */
+    private Boolean trackingEnabled;
+    
+    /**
      * 자식 메뉴 추가
      */
     public void addChild(MenuNode child) {

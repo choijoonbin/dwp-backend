@@ -47,14 +47,15 @@ public class ResourceManagementService {
     }
     
     /**
-     * 리소스 목록 조회
+     * 리소스 목록 조회 (보강: category, kind, enabled 필터 추가)
      */
     @Transactional(readOnly = true)
     public PageResponse<ResourceSummary> getResources(Long tenantId, int page, int size,
-                                                      String keyword, String type, Long parentId) {
+                                                      String keyword, String type, String category, 
+                                                      String kind, Long parentId, Boolean enabled) {
         Pageable pageable = PageRequest.of(page - 1, size);
         Page<Resource> resourcePage = resourceRepository.findByTenantIdAndFilters(
-                tenantId, keyword, type, parentId, pageable);
+                tenantId, keyword, type, category, kind, parentId, enabled, pageable);
         
         List<ResourceSummary> summaries = resourcePage.getContent().stream()
                 .map(r -> toResourceSummary(tenantId, r))

@@ -64,4 +64,40 @@ public interface RoleMemberRepository extends JpaRepository<RoleMember, Long> {
            "AND rm.subjectId = :userId " +
            "AND rm.subjectType = 'USER'")
     void deleteByTenantIdAndUserId(@Param("tenantId") Long tenantId, @Param("userId") Long userId);
+    
+    /**
+     * 부서에 할당된 역할 ID 목록 조회 (Ultra Enhanced: 부서 role 지원)
+     * 
+     * @param tenantId 테넌트 ID
+     * @param departmentId 부서 ID
+     * @return 역할 ID 목록
+     */
+    @Query("SELECT rm.roleId FROM RoleMember rm " +
+           "WHERE rm.tenantId = :tenantId " +
+           "AND rm.subjectType = 'DEPARTMENT' " +
+           "AND rm.subjectId = :departmentId")
+    List<Long> findRoleIdsByTenantIdAndDepartmentId(
+        @Param("tenantId") Long tenantId,
+        @Param("departmentId") Long departmentId
+    );
+    
+    /**
+     * 사용자에게 할당된 모든 역할 ID 조회 (USER + DEPARTMENT)
+     * 
+     * 사용자 직접 할당 + 부서 할당을 모두 포함합니다.
+     * 
+     * @param tenantId 테넌트 ID
+     * @param userId 사용자 ID
+     * @param departmentId 부서 ID (nullable)
+     * @return 역할 ID 목록
+     */
+    @Query("SELECT DISTINCT rm.roleId FROM RoleMember rm " +
+           "WHERE rm.tenantId = :tenantId " +
+           "AND ((rm.subjectType = 'USER' AND rm.subjectId = :userId) " +
+           "     OR (rm.subjectType = 'DEPARTMENT' AND rm.subjectId = :departmentId))")
+    List<Long> findAllRoleIdsByTenantIdAndUserIdAndDepartmentId(
+        @Param("tenantId") Long tenantId,
+        @Param("userId") Long userId,
+        @Param("departmentId") Long departmentId
+    );
 }

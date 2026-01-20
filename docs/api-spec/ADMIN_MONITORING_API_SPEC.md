@@ -2,8 +2,20 @@
 
 본 문서는 Admin Remote 통합 모니터링 대시보드를 위한 운영 로그 수집 및 조회 API 명세를 정의합니다.
 
-**최종 업데이트**: 2026-01-19  
-**버전**: P1-2 (Visitors/Events/Timeseries 고도화)
+**⚠️ 핵심 정책 (상단 10줄)**:
+1. **Aura 통신은 Gateway 경유 필수**: 프론트엔드는 절대 Aura-Platform(9000)에 직접 접근하지 않으며, 반드시 Gateway(8080)를 통해 통신합니다.
+2. **SSE 요청 요약 기록**: SSE 요청은 ApiCallHistory에 요약만 저장됩니다 (로깅 폭발 방지). 1회 요청에 대해 요약 1건만 기록되며, queryString/requestSizeBytes/responseSizeBytes는 제외됩니다.
+3. **필수 헤더 CORS 허용**: Last-Event-ID, X-Agent-ID, X-Tenant-ID, X-DWP-Source, X-DWP-Caller-Type 헤더는 CORS에서 반드시 허용됩니다.
+4. **traceId 추적성**: 모든 Aura 스트림 요청은 traceId로 추적 가능하며, 로그에 tenantId/userId/agentId/traceId가 포함됩니다.
+5. **Gateway 단일 진입점**: 모든 외부 요청은 Gateway를 통해 들어오며, 다운스트림 서비스로 헤더가 자동 전파됩니다.
+6. **resourceCategory/resourceKind 기반 UI 이벤트 표준화**: com_resource의 resourceCategory(MENU/UI_COMPONENT)와 resourceKind(PAGE/BUTTON/TAB 등)로 UI 이벤트를 표준화합니다.
+7. **UI_ACTION 코드 기준 전송**: 프론트는 action을 UI_ACTION 코드 기준(VIEW/CLICK/SUBMIT/DOWNLOAD 등)으로 전송합니다.
+8. **com_resource.event_actions로 action 유효성 검증**: 서버는 com_resource.event_actions(JSONB)로 action 유효성을 검증합니다.
+9. **버튼/탭/검색/다운로드 모두 com_resource로 관리**: 모든 UI 요소는 com_resource로 관리할 수 있으며, resourceKind로 세분화됩니다.
+10. **tenant_id 기반 완전 추적**: 운영 로그(sys_event_logs)는 tenant_id 기반으로 완전 추적 가능하며, resource_kind도 저장됩니다.
+
+**최종 업데이트**: 2026-01-20  
+**버전**: P1-2 (Visitors/Events/Timeseries 고도화) + P1-X.1 (SSE 운영 안정화)
 
 ---
 
@@ -154,9 +166,27 @@
 ### 2.3 API 호출 이력 조회 (페이징)
 - **Endpoint**: `GET /api/admin/monitoring/api-histories`
 - **Query Parameters**:
-  - `page`: 페이지 번호 (default 0, 0-base)
-  - `size`: 페이지 크기 (default 20)
+  - `page`: 페이지 번호 (default 1, 1-base)
+  - `size`: 페이지 크기 (default 10)
+  - `from`: 시작 일시 (ISO-8601, 선택)
+  - `to`: 종료 일시 (ISO-8601, 선택)
+  - `keyword`: 검색 키워드 (path/method, 선택)
+  - `apiName`: API 이름 필터 (선택)
+  - `apiUrl`: API URL 필터 (선택)
+  - `statusCode`: HTTP 상태 코드 필터 (선택)
+  - `userId`: 사용자 ID 필터 (선택)
 - **Response**: `ApiResponse<Page<ApiCallHistory>>`
+- **데이터 소스**: `sys_api_call_histories` 테이블
+- **수집 방식**: Gateway의 `ApiCallHistoryFilter`가 모든 요청을 자동 적재
+- **SSE 요청 정책** (로깅 폭발 방지):
+  - `/api/aura/**` SSE 요청은 요약만 기록
+  - 1회 요청에 대해 요약 1건만 기록 (chunk마다 저장 금지)
+  - 기록 항목: path, statusCode, latencyMs, tenantId, userId, agentId, traceId, source, errorCode
+  - 제외 항목: queryString, requestSizeBytes, responseSizeBytes (스트리밍이므로 의미 없음)
+- **일반 요청**: 전체 정보 기록 (queryString, requestSizeBytes, responseSizeBytes 포함)
+- **TODO (확장 포인트)**: 
+  - 향후 `service_name` 필드 추가 가능 (downstream service 구분용)
+  - 예: `service_name: "aura-platform"`, `service_name: "auth-server"` 등
 
 ### 2.4 방문자 목록 조회 (신규, P1-2)
 - **Endpoint**: `GET /api/admin/monitoring/visitors`

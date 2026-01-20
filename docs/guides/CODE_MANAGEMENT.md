@@ -125,6 +125,107 @@ Headers:
 }
 ```
 
+**예시: menu.admin.monitoring (Events 탭 필터용)**
+```
+GET /api/admin/codes/usage?resourceKey=menu.admin.monitoring
+Headers:
+  X-Tenant-ID: 1
+  Authorization: Bearer {JWT}
+```
+
+**Response (UI_ACTION 포함)**
+```json
+{
+  "success": true,
+  "data": {
+    "codes": {
+      "UI_ACTION": [
+        {
+          "sysCodeId": 1,
+          "code": "VIEW",
+          "name": "조회",
+          "description": "화면/페이지 조회",
+          "sortOrder": 10,
+          "enabled": true
+        },
+        {
+          "sysCodeId": 2,
+          "code": "CLICK",
+          "name": "클릭",
+          "description": "버튼/링크 클릭",
+          "sortOrder": 20,
+          "enabled": true
+        },
+        {
+          "sysCodeId": 3,
+          "code": "EXECUTE",
+          "name": "실행",
+          "description": "액션 실행",
+          "sortOrder": 30,
+          "enabled": true
+        },
+        {
+          "sysCodeId": 4,
+          "code": "SCROLL",
+          "name": "스크롤",
+          "description": "페이지 스크롤",
+          "sortOrder": 40,
+          "enabled": true
+        },
+        {
+          "sysCodeId": 5,
+          "code": "SEARCH",
+          "name": "검색",
+          "description": "검색 실행",
+          "sortOrder": 50,
+          "enabled": true
+        },
+        {
+          "sysCodeId": 6,
+          "code": "FILTER",
+          "name": "필터",
+          "description": "필터 적용",
+          "sortOrder": 60,
+          "enabled": true
+        },
+        {
+          "sysCodeId": 7,
+          "code": "DOWNLOAD",
+          "name": "다운로드",
+          "description": "파일 다운로드",
+          "sortOrder": 70,
+          "enabled": true
+        },
+        {
+          "sysCodeId": 8,
+          "code": "OPEN",
+          "name": "열기",
+          "description": "모달/팝업 열기",
+          "sortOrder": 80,
+          "enabled": true
+        },
+        {
+          "sysCodeId": 9,
+          "code": "CLOSE",
+          "name": "닫기",
+          "description": "모달/팝업 닫기",
+          "sortOrder": 90,
+          "enabled": true
+        },
+        {
+          "sysCodeId": 10,
+          "code": "SUBMIT",
+          "name": "제출",
+          "description": "폼 제출",
+          "sortOrder": 100,
+          "enabled": true
+        }
+      ]
+    }
+  }
+}
+```
+
 **매핑이 없는 경우**
 ```json
 {

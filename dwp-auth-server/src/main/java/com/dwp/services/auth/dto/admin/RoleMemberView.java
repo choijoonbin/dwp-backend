@@ -14,6 +14,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class RoleMemberView {
     
+    private Long roleMemberId;  // 추가: 개별 삭제를 위한 ID
     private String subjectType; // USER, DEPARTMENT
     private Long subjectId;
     private String subjectName; // userName or departmentName

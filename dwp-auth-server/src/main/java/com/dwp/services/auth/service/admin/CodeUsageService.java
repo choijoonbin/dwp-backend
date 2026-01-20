@@ -35,7 +35,12 @@ public class CodeUsageService {
     private final CodeRepository codeRepository;
     private final AuditLogService auditLogService;
     
-    // 인메모리 캐시 (resourceKey 기준)
+    /**
+     * 인메모리 캐시 (resourceKey 기준)
+     * 
+     * 캐시 key 규칙: tenantId + ":" + resourceKey (예: "1:menu.admin.users")
+     * 캐시 무효화: invalidateCache(tenantId, resourceKey) 호출 시 해당 키만 제거
+     */
     private final Map<String, Map<String, List<CodeUsageResponse.CodeItem>>> codeCache = new HashMap<>();
     
     /**
@@ -62,11 +67,13 @@ public class CodeUsageService {
             return CodeUsageResponse.builder().codes(new HashMap<>()).build();
         }
         
-        // 각 그룹의 활성화된 코드 조회
+        // 각 그룹의 활성화된 코드 조회 (tenant_id 고려, BE P1-5)
         Map<String, List<CodeUsageResponse.CodeItem>> codesMap = new HashMap<>();
         for (String groupKey : codeGroupKeys) {
-            List<Code> codes = codeRepository.findByGroupKeyAndIsActiveTrueOrderBySortOrderAsc(groupKey);
+            // tenant_id를 고려한 코드 조회 (전사 공통 코드 + 테넌트별 커스텀 코드)
+            List<Code> codes = codeRepository.findByGroupKeyAndTenantIdOrderBySortOrderAsc(groupKey, tenantId);
             List<CodeUsageResponse.CodeItem> codeItems = codes.stream()
+                    .filter(code -> code.getIsActive())  // enabled=true만 필터링
                     .map(code -> CodeUsageResponse.CodeItem.builder()
                             .sysCodeId(code.getSysCodeId())
                             .code(code.getCode())

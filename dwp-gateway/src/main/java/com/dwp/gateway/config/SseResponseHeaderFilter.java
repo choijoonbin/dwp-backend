@@ -42,6 +42,10 @@ public class SseResponseHeaderFilter implements GlobalFilter, Ordered {
     private static final String NO_CACHE = "no-cache";
     private static final String TRANSFER_ENCODING = "Transfer-Encoding";
     private static final String CHUNKED = "chunked";
+    private static final String CONNECTION = "Connection";
+    private static final String KEEP_ALIVE = "keep-alive";
+    private static final String X_ACCEL_BUFFERING = "X-Accel-Buffering";
+    private static final String NO = "no";
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
@@ -86,6 +90,16 @@ public class SseResponseHeaderFilter implements GlobalFilter, Ordered {
                     headers.set(CACHE_CONTROL, NO_CACHE);
                     log.debug("Set Cache-Control: {}", NO_CACHE);
                 }
+                
+                // Connection: keep-alive 헤더 보장 (SSE 스트리밍 유지)
+                if (!headers.containsKey(CONNECTION)) {
+                    headers.set(CONNECTION, KEEP_ALIVE);
+                    log.debug("Set Connection: {}", KEEP_ALIVE);
+                }
+                
+                // X-Accel-Buffering: no 헤더 보장 (Nginx 프록시 버퍼링 방지)
+                headers.set(X_ACCEL_BUFFERING, NO);
+                log.debug("Set X-Accel-Buffering: {}", NO);
                 
                 // Transfer-Encoding: chunked는 Spring Cloud Gateway가 자동으로 설정하지만,
                 // 명시적으로 확인하여 로깅

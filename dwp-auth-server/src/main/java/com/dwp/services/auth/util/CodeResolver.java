@@ -30,7 +30,12 @@ public class CodeResolver {
     
     private final CodeRepository codeRepository;
     
-    // 간단한 인메모리 캐시 (그룹별 활성 코드 Set)
+    /**
+     * 인메모리 캐시 (그룹별 활성 코드 Set)
+     * 
+     * 캐시 key 규칙: groupKey (예: "RESOURCE_TYPE", "UI_ACTION")
+     * 캐시 무효화: clearCache() 호출 시 전체 초기화
+     */
     private final Map<String, Set<String>> codeCache = new ConcurrentHashMap<>();
     
     /**

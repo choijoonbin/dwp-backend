@@ -1,4 +1,4 @@
-🛡️ DWP Backend Integrated Development Rules (v1.4 - Final, Revised)
+🛡️ DWP Backend Integrated Development Rules (v1.6 - Final Merged)
 
 0. 목적 (Goal)
 DWP Backend는 DWP Frontend(Host/Remote) 및 Aura-Platform(Python/FastAPI)과 통합되는 멀티 모듈 MSA이다.
@@ -8,10 +8,15 @@ DWP Backend는 DWP Frontend(Host/Remote) 및 Aura-Platform(Python/FastAPI)과 �
 - Multi-Module MSA: Spring Boot 3.4.x 기반 Gradle 멀티 모듈 구조를 엄격히 준수한다.
 - Single Ownership Principle:
   - dwp-core: 공통 기반. DTO, ApiResponse<T>, 전역 예외 처리, HeaderConstants, Redis 공통 설정, 공통 유틸
-  - dwp-gateway: 유일한 외부 진입점. 라우팅, 헤더 전파(Propagation), CORS, SSE 스트리밍 중계 전담
-  - dwp-auth-server: 인증/인가. JWT 검증 및 테넌트 식별 (Python-Java HS256 호환성 유지)
+  - dwp-gateway: 유일한 외부 진입점. 라우팅, 헤더 전파(Propagation), CORS, SSE 스트리밍 중계, 공통 로깅(API Call History) 전담
+  - dwp-auth-server: 인증/인가 + Admin 영역(IAM/RBAC/Monitoring/Code/Policy) 단일 소유
   - dwp-main-service: 상태 관리. AgentTask, HITL 세션, 장기 실행 작업(Lifecycle) 관리 단일 소유
   - services/*: 도메인 서비스. AI 에이전트가 호출하는 개별 비즈니스 도구(Tool) API 제공
+
+✅ Admin 기능 개발 원칙
+- IAM/RBAC/Monitoring/Code/AuthPolicy/IDP 등 “공통 운영 기능”은 dwp-auth-server에 집중한다.
+- 서비스 도메인(ERP 등) 기능은 services/* 로 분리하는 것을 기본 원칙으로 하되,
+  현재 단계에서는 안정화 후 분리를 허용한다.
 
 2. 통합 계약 및 헤더 표준 (Header Contract)
 모든 요청은 Gateway(8080)를 거치며, 다음 헤더는 다운스트림 및 FeignClient 통신 시 누락 없이 전파되어야 한다.
@@ -31,53 +36,118 @@ DWP Backend는 DWP Frontend(Host/Remote) 및 Aura-Platform(Python/FastAPI)과 �
 
 3. 에이전틱 AI & SSE 통신 규격 (Agentic AI & SSE)
 3.1 SSE 기본 규칙
-- Streaming: MediaType.TEXT_EVENT_STREAM_VALUE를 사용하여 실시간 응답을 구현한다.
-- Gateway Timeout: SSE 스트림이 끊기지 않도록 Gateway 타임아웃을 최소 300초 이상으로 설정한다.
-- Buffering 방지: SSE 응답이 중간 프록시/게이트웨이에서 버퍼링되지 않도록 설정한다. (구현 방식은 환경에 맞게 선택)
-- Method: 프론트엔드 요구사항에 따라 POST 요청에 대한 SSE 응답을 공식 지원한다.
+- Streaming: MediaType.TEXT_EVENT_STREAM_VALUE 사용
+- Gateway Timeout: SSE 스트림이 끊기지 않도록 300초 이상 설정
+- Buffering 방지: 중간 프록시/게이트웨이에서 버퍼링되지 않도록 설정
+- Method: POST 기반 SSE 응답 공식 지원
 
 3.2 SSE 재연결 및 상태 복구 (Resilience)
-- Event ID: 모든 SSE 이벤트에 단조 증가하는 eventId(또는 sequence)를 포함하는 것을 권장한다.
-- Last-Event-ID: 프론트엔드 재연결 요청 시 Last-Event-ID 헤더를 확인하여,
-  가능한 경우 중단 지점 이후 이벤트를 재개(resume) 제공한다.
-  재개가 불가능한 경우, 명확한 재시작 정책(예: 새 세션/새 task 재생성)을 문서화한다.
+- Event ID: 모든 SSE 이벤트에 단조 증가 eventId/sequence 포함 권장
+- Last-Event-ID: 재연결 시 resume 가능하면 지원, 불가하면 재시작 정책 문서화
 
 3.3 이벤트 타입 계약 (Aura UI v1.0)
 - 표준 이벤트: thought, plan_step, tool_execution, hitl, content, timeline_step_update, plan_step_update
-- 종료 선언: 스트림 종료 시 반드시 다음을 전송한다.
-  - data: [DONE]\n\n
+- 종료 선언: data: [DONE]\n\n
 
 4. HITL (Human-In-The-Loop) & 승인 프로세스
-- State 소유권: dwp-main-service가 승인 대기 상태(waiting_for_approval 의미)를 관리한다.
-- 승인 전파: 사용자의 승인/거절 액션 시, dwp-main-service는 Redis Pub/Sub을 통해 Aura-Platform으로 즉시 신호를 발행한다.
-- 보안: HITL API 호출 시 HitlSecurityInterceptor(또는 동등 정책)로 요청자의 권한과 테넌트 일치 여부를 재검증한다.
-- 계약 관리: 승인/거절 request body 및 응답 규격 변경 시 버전업 또는 하위 호환 정책을 명시한다.
+- State 소유권: dwp-main-service가 승인 대기 상태를 단일 소유
+- 승인 전파: Redis Pub/Sub으로 Aura-Platform에 신호 발행
+- 보안: 요청자 권한 + 테넌트 일치 재검증
 
 5. AgentTask 및 비동기 작업 관리
-- 영속화: 모든 에이전트 요청은 AgentTask 엔티티로 생성되어 DB에 기록되어야 한다.
-- 진행도 추적:
-  - 실행 계획(planSteps)은 JSON 컬럼으로 관리한다.
-  - progress는 0~100 범위로 관리한다.
-  - 상태는 최소 REQUESTED, IN_PROGRESS, COMPLETED, FAILED를 포함한다.
-- 비동기 처리: 10초 이상 소요되는 작업/도구 호출은 비동기(@Async 또는 동등 방식)로 처리하고 taskId를 즉시 반환한다.
+- 영속화: 모든 에이전트 요청은 AgentTask로 DB 기록
+- 진행도: planSteps(JSON), progress(0~100), 상태(REQUESTED/IN_PROGRESS/COMPLETED/FAILED)
+- 비동기 처리: 10초 이상 작업은 비동기 처리 + taskId 즉시 반환
 
 6. 데이터 및 기술 표준
 - Stack: Java 17, Spring Boot 3.4.x, Spring Cloud Gateway, OpenFeign, Redis 7, PostgreSQL 15
-- Response: 모든 API 응답은 dwp-core의 ApiResponse<T>로 통일한다.
-- JWT: Python(jose) ↔ Java 간 HS256 호환성 유지 (클레임/서명 검증 규칙을 문서로 고정)
+- Response: 모든 API 응답은 dwp-core의 ApiResponse<T>로 통일
+- JWT: Python ↔ Java HS256 호환성 유지 (클레임/검증 규칙 문서로 고정)
 
 7. 코드 품질 및 추적성 (Traceability)
-- Self-Documenting: Swagger(springdoc-openapi)를 통해 API 명세를 자동 생성한다.
+- Swagger(springdoc-openapi)로 API 명세 자동 생성
 - Logging:
-  - 에이전트 관련 로그에는 traceId(가능하면)와 X-Agent-ID를 포함한다.
-  - Gateway/Downstream 간 추적 가능하도록 Correlation 전략을 유지한다.
+  - traceId + X-Agent-ID 포함 권장
+  - Gateway/Downstream Correlation 전략 유지
 - Header Injection:
-  - FeignClient 요청 시 RequestInterceptor로 표준 헤더가 자동 주입/전파되도록 구현한다.
+  - FeignClient RequestInterceptor로 표준 헤더 자동 주입/전파
 
 8. 보안 및 멀티테넌시
-- Data Isolation: 모든 DB 조회는 tenantId 필터링을 강제한다. (누락 방지 체크 체계 권장)
-- Scope/RBAC: 에이전트 전용 RBAC 스코프를 정의하여 권한 밖 접근(타 테넌트 포함)을 차단한다.
+- Data Isolation: 모든 DB 조회는 tenant_id 필터 강제
+- RBAC Scope: 권한 밖 접근(타 테넌트 포함) 차단
+
+────────────────────────────────────────────────────────
+🧩 Admin CRUD Engineering Pattern (Hard Standard)
+────────────────────────────────────────────────────────
+✅ Admin CRUD API는 “운영 유지보수”를 위해 반드시 표준 분리 구조를 따른다.
+- Controller는 mapping + guard만
+- Query/Command 분리로 서비스 비대화 방지
+- 하드코딩 제거(CodeResolver/CodeUsage 기반)
+
+[패키지 표준]
+controller/admin/
+service/admin/<feature>/
+  - <Feature>QueryService
+  - <Feature>CommandService
+  - <Feature>Validator
+dto/admin/<feature>/
+repository/
+entity/
+
+[API 통일]
+GET    /api/admin/<feature>              # list
+GET    /api/admin/<feature>/{id}         # detail
+POST   /api/admin/<feature>              # create
+PATCH  /api/admin/<feature>/{id}         # update
+DELETE /api/admin/<feature>/{id}         # delete
+
+[권한]
+- /api/admin/** : JWT 필수 + ADMIN enforcement
+- sidebar 숨김과 무관하게 BE enforcement가 최종 보안 기준
+
+[코드 하드코딩 금지]
+- "MENU","UI_COMPONENT","USER","ADMIN"... 직접 비교 금지
+- CodeResolver.require/validate + CodeUsage 범위 내 코드만 허용
+
+[감사로그]
+- 모든 CRUD는 com_audit_logs 기록 기본값
+- before/after json 가능한 범위 기록 권장
+
+────────────────────────────────────────────────────────
+🧹 Maintainability & Refactor Gate (운영 유지보수 규칙)
+────────────────────────────────────────────────────────
+- Class Size Limit (Hard)
+  - Controller: 250라인 초과 금지
+  - Service: 350라인 초과 금지
+  - Repository/Entity: 300라인 초과 금지
+  - 초과 시 반드시 책임 단위로 분리한다.
+
+- Layered Responsibility (Mandatory)
+  - Controller: Request/Response 매핑 + 인증/권한 Guard 호출만 담당
+  - Service: 유즈케이스 오케스트레이션만 담당
+  - 세부 로직은 아래로 분리:
+    - *QueryService: 조회 전용(검색/페이징/정렬)
+    - *CommandService: 생성/수정/삭제 전용
+    - *Validator: 입력값/비즈니스 룰 검증
+    - *Mapper: Entity ↔ DTO 변환 전용
+
+- Transaction Rule
+  - 조회: @Transactional(readOnly = true)
+  - 생성/수정/삭제: @Transactional 명시
+  - Controller에서 @Transactional 금지
+
+- Contract Safety
+  - API 응답 DTO 변경은 반드시 버전/호환성 고려
+  - 프론트 계약 영향이 있으면 docs/에 API Spec 업데이트 필수
+
+- Testing Gate (Minimum)
+  - Query/Command 각각 핵심 테스트 1개 이상 필수
+  - Role/Permission 계산, CodeUsage 매핑 로직은 단위 테스트 유지
+
+- Refactor Rule
+  - 리팩토링 PR에서는 기능 변경 금지(동작/응답 동일 유지)
+  - 예외: 명백한 버그/성능 문제 해결은 허용
 
 [Cursor Action Guideline]
-본 규칙을 바탕으로 코드를 생성할 때, 특히 Gateway 설정 / Header 전파 로직 / SSE 스트리밍 반환부에서
+본 규칙을 바탕으로 코드를 생성할 때, 특히 Gateway 설정 / Header 전파 / SSE 스트리밍 반환부에서
 규격 위반이 없는지 최우선으로 검증하십시오.
