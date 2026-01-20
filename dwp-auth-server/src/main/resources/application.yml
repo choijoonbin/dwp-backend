@@ -16,7 +16,7 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
+        "[format_sql]": true  # YAML 특수 문자 이스케이프
     open-in-view: false
   flyway:
     enabled: true
