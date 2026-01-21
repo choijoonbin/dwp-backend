@@ -36,19 +36,33 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * 키워드 검색 (이름, 이메일, 로그인 ID) - 보강 (BE P1-5 Enhanced)
      * idpProviderType 필터는 UserAccount와 JOIN하여 처리
      * 
-     * Note: V20 마이그레이션 이후 bytea 타입이 VARCHAR로 변환되어 JPQL 사용 가능
+     * Note: V20 마이그레이션 이후 bytea 타입이 VARCHAR로 변환되었지만,
+     * Hibernate가 여전히 bytea로 인식할 수 있어 CAST를 사용하여 명시적으로 VARCHAR로 변환
      */
-    @Query("SELECT DISTINCT u FROM User u " +
-           "LEFT JOIN UserAccount ua ON ua.userId = u.userId AND ua.tenantId = u.tenantId " +
-           "WHERE u.tenantId = :tenantId " +
+    @Query(value = "SELECT DISTINCT u.user_id, u.tenant_id, u.display_name, u.email, u.primary_department_id, u.status, " +
+           "u.created_at, u.created_by, u.updated_at, u.updated_by " +
+           "FROM com_users u " +
+           "LEFT JOIN com_user_accounts ua ON ua.user_id = u.user_id AND ua.tenant_id = u.tenant_id " +
+           "WHERE u.tenant_id = :tenantId " +
            "AND (:keyword IS NULL OR " +
-           "     LOWER(u.displayName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "     LOWER(u.display_name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
            "     LOWER(u.email) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-           "     (ua.principal IS NOT NULL AND LOWER(ua.principal) LIKE LOWER(CONCAT('%', :keyword, '%')))) " +
-           "AND (:departmentId IS NULL OR u.primaryDepartmentId = :departmentId) " +
+           "     (ua.principal IS NOT NULL AND LOWER(CAST(ua.principal AS VARCHAR)) LIKE LOWER(CONCAT('%', :keyword, '%')))) " +
+           "AND (:departmentId IS NULL OR u.primary_department_id = :departmentId) " +
            "AND (:status IS NULL OR u.status = :status) " +
-           "AND (:idpProviderType IS NULL OR ua.providerType = :idpProviderType) " +
-           "ORDER BY u.displayName ASC")
+           "AND (:idpProviderType IS NULL OR ua.provider_type = :idpProviderType) " +
+           "ORDER BY u.created_at DESC",
+           nativeQuery = true,
+           countQuery = "SELECT COUNT(DISTINCT u.user_id) FROM com_users u " +
+           "LEFT JOIN com_user_accounts ua ON ua.user_id = u.user_id AND ua.tenant_id = u.tenant_id " +
+           "WHERE u.tenant_id = :tenantId " +
+           "AND (:keyword IS NULL OR " +
+           "     LOWER(u.display_name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "     LOWER(u.email) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "     (ua.principal IS NOT NULL AND LOWER(CAST(ua.principal AS VARCHAR)) LIKE LOWER(CONCAT('%', :keyword, '%')))) " +
+           "AND (:departmentId IS NULL OR u.primary_department_id = :departmentId) " +
+           "AND (:status IS NULL OR u.status = :status) " +
+           "AND (:idpProviderType IS NULL OR ua.provider_type = :idpProviderType)")
     Page<User> findByTenantIdAndFilters(
             @Param("tenantId") Long tenantId,
             @Param("keyword") String keyword,
@@ -70,4 +84,14 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findByTenantIdAndRoleId(
             @Param("tenantId") Long tenantId,
             @Param("roleId") Long roleId);
+    
+    /**
+     * PR-03E: 부서 ID로 사용자 목록 조회 (캐시 무효화용)
+     */
+    @Query("SELECT u FROM User u " +
+           "WHERE u.tenantId = :tenantId " +
+           "AND u.primaryDepartmentId = :departmentId")
+    List<User> findByTenantIdAndPrimaryDepartmentId(
+            @Param("tenantId") Long tenantId,
+            @Param("departmentId") Long departmentId);
 }

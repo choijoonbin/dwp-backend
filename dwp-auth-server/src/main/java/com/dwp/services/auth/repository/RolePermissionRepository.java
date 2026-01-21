@@ -42,4 +42,12 @@ public interface RolePermissionRepository extends JpaRepository<RolePermission, 
            "WHERE rp.tenantId = :tenantId " +
            "AND rp.roleId = :roleId")
     void deleteByTenantIdAndRoleId(@Param("tenantId") Long tenantId, @Param("roleId") Long roleId);
+    
+    /**
+     * PR-03F: 역할에 할당된 권한 수 조회
+     */
+    @Query("SELECT COUNT(rp) FROM RolePermission rp " +
+           "WHERE rp.tenantId = :tenantId " +
+           "AND rp.roleId = :roleId")
+    long countByTenantIdAndRoleId(@Param("tenantId") Long tenantId, @Param("roleId") Long roleId);
 }

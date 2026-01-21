@@ -71,6 +71,37 @@ public class AuditLogService {
             if (!metadata.isEmpty()) {
                 try {
                     metadataJson = objectMapper.writeValueAsString(metadata);
+                    
+                    // PR-08B: before/after JSON size 정책 (최대 10KB)
+                    int maxLength = 10 * 1024; // 10KB
+                    if (metadataJson.length() > maxLength) {
+                        // before/after를 개별적으로 체크하여 truncate
+                        Map<String, Object> truncatedMetadata = new HashMap<>(metadata);
+                        boolean truncated = false;
+                        
+                        if (metadata.containsKey("before")) {
+                            Object beforeObj = metadata.get("before");
+                            String beforeJson = objectMapper.writeValueAsString(beforeObj);
+                            if (beforeJson.length() > maxLength / 2) {
+                                truncatedMetadata.put("before", beforeJson.substring(0, maxLength / 2) + "...[truncated]");
+                                truncated = true;
+                            }
+                        }
+                        
+                        if (metadata.containsKey("after")) {
+                            Object afterObj = metadata.get("after");
+                            String afterJson = objectMapper.writeValueAsString(afterObj);
+                            if (afterJson.length() > maxLength / 2) {
+                                truncatedMetadata.put("after", afterJson.substring(0, maxLength / 2) + "...[truncated]");
+                                truncated = true;
+                            }
+                        }
+                        
+                        if (truncated) {
+                            truncatedMetadata.put("truncated", true);
+                            metadataJson = objectMapper.writeValueAsString(truncatedMetadata);
+                        }
+                    }
                 } catch (Exception e) {
                     log.warn("Failed to serialize audit metadata", e);
                 }
@@ -147,6 +178,36 @@ public class AuditLogService {
             if (!metadata.isEmpty()) {
                 try {
                     metadataJson = objectMapper.writeValueAsString(metadata);
+                    
+                    // PR-08B: before/after JSON size 정책 (최대 10KB) - Map 기반 메서드
+                    int maxLength = 10 * 1024; // 10KB
+                    if (metadataJson.length() > maxLength) {
+                        Map<String, Object> truncatedMetadata = new HashMap<>(metadata);
+                        boolean truncated = false;
+                        
+                        if (metadata.containsKey("before")) {
+                            Object before = metadata.get("before");
+                            String beforeJson = objectMapper.writeValueAsString(before);
+                            if (beforeJson.length() > maxLength / 2) {
+                                truncatedMetadata.put("before", beforeJson.substring(0, maxLength / 2) + "...[truncated]");
+                                truncated = true;
+                            }
+                        }
+                        
+                        if (metadata.containsKey("after")) {
+                            Object after = metadata.get("after");
+                            String afterJson = objectMapper.writeValueAsString(after);
+                            if (afterJson.length() > maxLength / 2) {
+                                truncatedMetadata.put("after", afterJson.substring(0, maxLength / 2) + "...[truncated]");
+                                truncated = true;
+                            }
+                        }
+                        
+                        if (truncated) {
+                            truncatedMetadata.put("truncated", true);
+                            metadataJson = objectMapper.writeValueAsString(truncatedMetadata);
+                        }
+                    }
                 } catch (Exception e) {
                     log.warn("Failed to serialize audit metadata", e);
                 }

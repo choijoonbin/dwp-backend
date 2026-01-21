@@ -48,14 +48,32 @@ public class CodeManagementService {
     }
     
     /**
-     * 그룹별 코드 목록 조회
+     * PR-06C: 그룹별 코드 목록 조회 (tenantScope 필터 지원)
+     * 
+     * @param groupKey 그룹 키
+     * @param tenantId 테넌트 ID
+     * @param tenantScope COMMON | TENANT | ALL
+     * @param enabled 활성화 여부 필터 (nullable)
+     */
+    @Transactional(readOnly = true)
+    public List<CodeResponse> getCodesByGroup(String groupKey, Long tenantId, String tenantScope, Boolean enabled) {
+        // tenantScope 기본값: ALL
+        if (tenantScope == null || tenantScope.isEmpty()) {
+            tenantScope = "ALL";
+        }
+        
+        List<Code> codes = codeRepository.findByGroupKeyAndTenantScope(groupKey, tenantId, tenantScope, enabled);
+        return codes.stream()
+                .map(this::toCodeResponse)
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * 하위 호환성: 기존 메서드 유지
      */
     @Transactional(readOnly = true)
     public List<CodeResponse> getCodesByGroup(String groupKey) {
-        return codeRepository.findByGroupKeyAndIsActiveTrueOrderBySortOrderAsc(groupKey)
-                .stream()
-                .map(this::toCodeResponse)
-                .collect(Collectors.toList());
+        return getCodesByGroup(groupKey, null, "ALL", true);
     }
     
     /**
@@ -93,6 +111,7 @@ public class CodeManagementService {
                 .description(code.getDescription())
                 .sortOrder(code.getSortOrder())
                 .isActive(code.getIsActive())
+                .tenantId(code.getTenantId()) // PR-06C: tenant 분리 지원
                 .ext1(code.getExt1())
                 .ext2(code.getExt2())
                 .ext3(code.getExt3())
@@ -163,33 +182,34 @@ public class CodeManagementService {
     }
     
     /**
-     * 코드 그룹 삭제
+     * PR-06B: 코드 그룹 삭제 (codes 존재하면 409)
      */
     @Transactional
     public void deleteCodeGroup(Long tenantId, Long actorUserId, Long groupId, HttpServletRequest httpRequest) {
         CodeGroup group = codeGroupRepository.findById(groupId)
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "코드 그룹을 찾을 수 없습니다."));
         
-        // 코드 존재 시 삭제 금지
-        long codeCount = codeRepository.findByGroupKeyOrderBySortOrderAsc(group.getGroupKey()).size();
+        // PR-06B: 코드 존재 시 삭제 금지 (409)
+        long codeCount = codeRepository.countByGroupKeyAndIsActiveTrue(group.getGroupKey());
         if (codeCount > 0) {
-            throw new BaseException(ErrorCode.INVALID_STATE, "코드가 존재하는 그룹은 삭제할 수 없습니다.");
+            throw new BaseException(ErrorCode.RESOURCE_HAS_CHILDREN,
+                    String.format("코드가 존재하는 그룹은 삭제할 수 없습니다 (%d개). 코드를 먼저 제거해주세요.", codeCount));
         }
         
         CodeGroup before = copyCodeGroup(group);
         
         codeGroupRepository.delete(group);
         
-        // 캐시 초기화
+        // PR-06E: 캐시 초기화
         codeResolver.clearCache(group.getGroupKey());
         
-        // 감사 로그
+        // PR-06F: 감사 로그
         auditLogService.recordAuditLog(tenantId, actorUserId, "CODE_GROUP_DELETE", "CODE_GROUP", groupId,
                 before, null, httpRequest);
     }
     
     /**
-     * 코드 생성
+     * PR-06C: 코드 생성 (tenant 분리 지원, 중복 체크 강화)
      */
     @Transactional
     public CodeResponse createCode(Long tenantId, Long actorUserId, CreateCodeRequest request,
@@ -198,8 +218,14 @@ public class CodeManagementService {
         codeGroupRepository.findByGroupKey(request.getGroupKey())
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "코드 그룹을 찾을 수 없습니다."));
         
-        // 코드 중복 체크
-        codeRepository.findByGroupKeyAndCode(request.getGroupKey(), request.getCodeKey())
+        // PR-06C: tenantId 설정 (요청에 없으면 null = 공통 코드)
+        Long codeTenantId = request.getTenantId();
+        // 요청에 tenantId가 없으면 현재 tenantId로 설정 (tenant 전용 코드)
+        // 하지만 공통 코드를 만들고 싶으면 명시적으로 null을 보내야 함
+        // 여기서는 요청의 tenantId를 그대로 사용 (null이면 공통 코드)
+        
+        // PR-06C: 중복 체크 (groupKey + code + tenantId)
+        codeRepository.findByGroupKeyAndCodeAndTenantId(request.getGroupKey(), request.getCodeKey(), codeTenantId)
                 .ifPresent(c -> {
                     throw new BaseException(ErrorCode.DUPLICATE_ENTITY, "이미 존재하는 코드 키입니다.");
                 });
@@ -211,16 +237,17 @@ public class CodeManagementService {
                 .description(request.getDescription())
                 .sortOrder(request.getSortOrder() != null ? request.getSortOrder() : 0)
                 .isActive(request.getEnabled() != null ? request.getEnabled() : true)
+                .tenantId(codeTenantId) // PR-06C: tenant 분리 지원
                 .ext1(request.getExt1())
                 .ext2(request.getExt2())
                 .ext3(request.getExt3())
                 .build();
         code = codeRepository.save(code);
         
-        // 캐시 초기화
+        // PR-06E: 캐시 초기화
         codeResolver.clearCache(request.getGroupKey());
         
-        // 감사 로그
+        // PR-06F: 감사 로그
         auditLogService.recordAuditLog(tenantId, actorUserId, "CODE_CREATE", "CODE", code.getSysCodeId(),
                 null, code, httpRequest);
         
@@ -262,10 +289,10 @@ public class CodeManagementService {
         
         code = codeRepository.save(code);
         
-        // 캐시 초기화
+        // PR-06E: 캐시 초기화
         codeResolver.clearCache(code.getGroupKey());
         
-        // 감사 로그
+        // PR-06F: 감사 로그
         auditLogService.recordAuditLog(tenantId, actorUserId, "CODE_UPDATE", "CODE", codeId,
                 before, code, httpRequest);
         
@@ -273,12 +300,17 @@ public class CodeManagementService {
     }
     
     /**
-     * 코드 삭제
+     * PR-06C: 코드 삭제 (Soft Delete)
      */
     @Transactional
     public void deleteCode(Long tenantId, Long actorUserId, Long codeId, HttpServletRequest httpRequest) {
         Code code = codeRepository.findById(codeId)
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "코드를 찾을 수 없습니다."));
+        
+        // PR-06C: tenant 일치 검증 (tenant 전용 코드는 해당 tenant만 삭제 가능)
+        if (code.getTenantId() != null && !code.getTenantId().equals(tenantId)) {
+            throw new BaseException(ErrorCode.TENANT_MISMATCH, "다른 테넌트의 코드는 삭제할 수 없습니다.");
+        }
         
         Code before = copyCode(code);
         
@@ -286,10 +318,10 @@ public class CodeManagementService {
         code.setIsActive(false);
         codeRepository.save(code);
         
-        // 캐시 초기화
+        // PR-06E: 캐시 초기화
         codeResolver.clearCache(code.getGroupKey());
         
-        // 감사 로그
+        // PR-06F: 감사 로그
         auditLogService.recordAuditLog(tenantId, actorUserId, "CODE_DELETE", "CODE", codeId,
                 before, code, httpRequest);
     }
@@ -313,6 +345,7 @@ public class CodeManagementService {
                 .description(code.getDescription())
                 .sortOrder(code.getSortOrder())
                 .isActive(code.getIsActive())
+                .tenantId(code.getTenantId()) // PR-06C: tenant 분리 지원
                 .ext1(code.getExt1())
                 .ext2(code.getExt2())
                 .ext3(code.getExt3())

@@ -162,8 +162,24 @@ public class AdminGuardService {
     public void requireAdminRole(Long tenantId, Long userId) {
         if (!hasAdminRole(tenantId, userId)) {
             log.warn("Admin role required but user does not have it: tenantId={}, userId={}", tenantId, userId);
-            throw new BaseException(ErrorCode.FORBIDDEN, "관리자 권한이 필요합니다.");
+            throw new BaseException(ErrorCode.ADMIN_FORBIDDEN, "관리자 권한이 필요합니다.");
         }
+    }
+    
+    /**
+     * Admin API 접근 권한 검증 (표준화된 단일 진입점)
+     * 
+     * PR-01B: AdminGuard Enforcement 표준화
+     * - JWT 인증은 Spring Security에서 이미 완료된 상태
+     * - Tenant 검증은 Interceptor에서 수행
+     * - 이 메서드는 ADMIN 권한만 검증
+     * 
+     * @param tenantId 테넌트 ID (JWT 클레임에서 추출)
+     * @param userId 사용자 ID (JWT subject에서 추출)
+     * @throws BaseException ADMIN 권한이 없는 경우 FORBIDDEN (403)
+     */
+    public void requireAdmin(Long tenantId, Long userId) {
+        requireAdminRole(tenantId, userId);
     }
     
     /**

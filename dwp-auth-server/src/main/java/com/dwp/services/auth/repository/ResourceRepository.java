@@ -47,7 +47,17 @@ public interface ResourceRepository extends JpaRepository<Resource, Long> {
     List<Resource> findByTenantIdOrderByParentResourceIdAscKeyAsc(Long tenantId);
     
     /**
-     * 키워드 검색 (리소스명 또는 키) - 보강 (BE P1-5 Enhanced)
+     * PR-04E: 하위 리소스 수 조회 (삭제 충돌 정책용)
+     */
+    @Query("SELECT COUNT(r) FROM Resource r " +
+           "WHERE r.tenantId = :tenantId " +
+           "AND r.parentResourceId = :parentResourceId")
+    long countByTenantIdAndParentResourceId(@Param("tenantId") Long tenantId, @Param("parentResourceId") Long parentResourceId);
+    
+    /**
+     * PR-04B: 키워드 검색 (리소스명 또는 키) - 운영 수준 보강
+     * - trackingEnabled 필터 추가
+     * - created_at desc 정렬 (기본)
      */
     @Query("SELECT r FROM Resource r " +
            "WHERE r.tenantId = :tenantId " +
@@ -59,7 +69,8 @@ public interface ResourceRepository extends JpaRepository<Resource, Long> {
            "AND (:kind IS NULL OR r.resourceKind = :kind) " +
            "AND (:parentId IS NULL OR r.parentResourceId = :parentId) " +
            "AND (:enabled IS NULL OR r.enabled = :enabled) " +
-           "ORDER BY r.name ASC")
+           "AND (:trackingEnabled IS NULL OR r.trackingEnabled = :trackingEnabled) " +
+           "ORDER BY r.createdAt DESC")
     Page<Resource> findByTenantIdAndFilters(
             @Param("tenantId") Long tenantId,
             @Param("keyword") String keyword,
@@ -68,5 +79,6 @@ public interface ResourceRepository extends JpaRepository<Resource, Long> {
             @Param("kind") String kind,
             @Param("parentId") Long parentId,
             @Param("enabled") Boolean enabled,
+            @Param("trackingEnabled") Boolean trackingEnabled,
             Pageable pageable);
 }

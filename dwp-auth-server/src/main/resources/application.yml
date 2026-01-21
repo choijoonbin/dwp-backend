@@ -16,11 +16,14 @@ spring:
   jpa:
     hibernate:
       ddl-auto: ${JPA_DDL_AUTO:validate}  # Flyway가 스키마 관리, JPA는 검증만
-    show-sql: ${JPA_SHOW_SQL:true}
+    show-sql: ${JPA_SHOW_SQL:true}  # SQL 쿼리 출력 활성화
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        "[format_sql]": true  # YAML 특수 문자 이스케이프
+        "[format_sql]": true  # SQL 포맷팅 (가독성 향상)
+        "[use_sql_comments]": true  # SQL 주석 출력
+        # 메타데이터 캐시 비활성화 (스키마 변경 후 즉시 반영)
+        "[metadata_cache]": "none"
     open-in-view: false
   
   # Flyway 설정
@@ -48,6 +51,10 @@ jwt:
 logging:
   level:
     "[com.dwp.services.auth]": ${LOG_LEVEL_AUTH:DEBUG}
+    "[com.dwp.services.auth.controller.admin.monitoring]": ${LOG_LEVEL_MONITORING:DEBUG}  # 모니터링 API 로그
+    "[com.dwp.services.auth.service.MonitoringService]": ${LOG_LEVEL_MONITORING:DEBUG}
+    "[com.dwp.services.auth.service.monitoring.AdminMonitoringService]": ${LOG_LEVEL_MONITORING:DEBUG}
     "[org.springframework.security]": ${LOG_LEVEL_SECURITY:DEBUG}
-    "[org.hibernate.SQL]": ${LOG_LEVEL_SQL:DEBUG}
-    "[org.hibernate.type.descriptor.sql.BasicBinder]": ${LOG_LEVEL_SQL_PARAM:TRACE}
+    "[org.hibernate.SQL]": ${LOG_LEVEL_SQL:DEBUG}  # SQL 쿼리 출력
+    "[org.hibernate.type.descriptor.sql.BasicBinder]": ${LOG_LEVEL_SQL_PARAM:TRACE}  # SQL 파라미터 바인딩 출력
+    "[org.hibernate.orm.jdbc.bind]": ${LOG_LEVEL_SQL_PARAM:TRACE}  # Hibernate 6.x 파라미터 바인딩 로그

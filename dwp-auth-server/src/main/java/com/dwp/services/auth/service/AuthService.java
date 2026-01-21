@@ -46,6 +46,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final MenuRepository menuRepository;
     private final CodeResolver codeResolver;
+    private final AuthPolicyService authPolicyService;
     
     @Value("${jwt.secret:your_shared_secret_key_must_be_at_least_256_bits_long_for_HS256}")
     private String jwtSecret;
@@ -87,6 +88,16 @@ public class AuthService {
         try {
             log.debug("Login attempt: tenantId={}, username={}", tenantId, username);
             
+            // PR-10A: 정책 기반 로그인 흐름 최종 확정
+            // 0. Auth Policy 확인 (LOCAL 로그인 허용 여부 체크)
+            AuthPolicyResponse policy = authPolicyService.getAuthPolicy(tenantId);
+            if (!policy.getLocalLoginEnabled() || !policy.getAllowedLoginTypes().contains("LOCAL")) {
+                log.warn("Local login not allowed: tenantId={}, policy={}", tenantId, policy);
+                recordLoginFailure(tenantId, null, username, "LOCAL_LOGIN_DISABLED", "LOCAL");
+                throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS, 
+                        "Local login is not allowed. Please use SSO login.");
+            }
+            
             // 1. UserAccount 조회
             String localProviderType = "LOCAL";
             codeResolver.require("IDP_PROVIDER_TYPE", localProviderType);
@@ -96,14 +107,14 @@ public class AuthService {
                 )
                 .orElseThrow(() -> {
                     log.warn("UserAccount not found: tenantId={}, username={}", tenantId, username);
-                    recordLoginFailure(tenantId, null, username, "USER_NOT_FOUND");
+                    recordLoginFailure(tenantId, null, username, "USER_NOT_FOUND", "LOCAL");
                     return new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS, "Invalid username or password");
                 });
             
             // 2. 계정 상태 확인
             if (!"ACTIVE".equals(account.getStatus())) {
                 log.warn("Account is not active: status={}, username={}", account.getStatus(), username);
-                recordLoginFailure(tenantId, account.getUserId(), username, "USER_LOCKED");
+                recordLoginFailure(tenantId, account.getUserId(), username, "USER_LOCKED", "LOCAL");
                 throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS, "Account is locked");
             }
             
@@ -111,7 +122,7 @@ public class AuthService {
             if (account.getPasswordHash() == null || 
                 !passwordEncoder.matches(password, account.getPasswordHash())) {
                 log.warn("Password mismatch for user: {}", username);
-                recordLoginFailure(tenantId, account.getUserId(), username, "INVALID_PASSWORD");
+                recordLoginFailure(tenantId, account.getUserId(), username, "INVALID_PASSWORD", "LOCAL");
                 throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS, "Invalid username or password");
             }
             
@@ -119,22 +130,22 @@ public class AuthService {
             User user = userRepository.findById(account.getUserId())
                 .orElseThrow(() -> {
                     log.error("User profile missing for account: userId={}", account.getUserId());
-                    recordLoginFailure(tenantId, account.getUserId(), username, "USER_NOT_FOUND");
+                    recordLoginFailure(tenantId, account.getUserId(), username, "USER_NOT_FOUND", "LOCAL");
                     return new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS, "User not found");
                 });
             
             // 5. User 상태 확인
             if (!"ACTIVE".equals(user.getStatus())) {
                 log.warn("User is not active: status={}, userId={}", user.getStatus(), user.getUserId());
-                recordLoginFailure(tenantId, user.getUserId(), username, "USER_LOCKED");
+                recordLoginFailure(tenantId, user.getUserId(), username, "USER_LOCKED", "LOCAL");
                 throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS, "User is not active");
             }
             
             // 6. JWT 토큰 발급
             String accessToken = generateJwtToken(user.getUserId().toString(), tenantId.toString());
             
-            // 7. 로그인 성공 기록
-            recordLoginSuccess(tenantId, user.getUserId(), username);
+            // 7. PR-10E: 로그인 성공 기록 (provider_type 기록)
+            recordLoginSuccess(tenantId, user.getUserId(), username, "LOCAL", "local", null);
             
             log.info("Login successful: userId={}, tenantId={}, username={}", 
                     user.getUserId(), tenantId, username);
@@ -266,25 +277,154 @@ public class AuthService {
                 .compact();
     }
     
-    private void recordLoginSuccess(Long tenantId, Long userId, String username) {
+    /**
+     * PR-10E: 로그인 성공 기록 (provider_type 기록)
+     */
+    private void recordLoginSuccess(Long tenantId, Long userId, String principal, 
+                                   String providerType, String providerId,
+                                   jakarta.servlet.http.HttpServletRequest request) {
         try {
-            String localProviderType = "LOCAL";
-            codeResolver.require("IDP_PROVIDER_TYPE", localProviderType);
+            codeResolver.require("IDP_PROVIDER_TYPE", providerType);
             LoginHistory history = LoginHistory.builder()
-                    .tenantId(tenantId).userId(userId).providerType(localProviderType).providerId("local")
-                    .principal(username).success(true).build();
+                    .tenantId(tenantId)
+                    .userId(userId)
+                    .providerType(providerType)
+                    .providerId(providerId)
+                    .principal(principal)
+                    .success(true)
+                    .ipAddress(request != null ? getClientIp(request) : null)
+                    .userAgent(request != null ? request.getHeader("User-Agent") : null)
+                    .build();
             loginHistoryRepository.save(history);
-        } catch (Exception e) { log.error("Failed to record login success", e); }
+        } catch (Exception e) {
+            log.error("Failed to record login success", e);
+        }
     }
     
+    /**
+     * PR-10E: 로그인 실패 기록 (provider_type 및 실패 사유 표준화)
+     */
     private void recordLoginFailure(Long tenantId, Long userId, String username, String reason) {
+        recordLoginFailure(tenantId, userId, username, reason, "LOCAL");
+    }
+    
+    /**
+     * PR-10E: 로그인 실패 기록 (provider_type 및 실패 사유 표준화, 오버로드)
+     */
+    private void recordLoginFailure(Long tenantId, Long userId, String principal, 
+                                   String reason, String providerType) {
         try {
-            String localProviderType = "LOCAL";
-            codeResolver.require("IDP_PROVIDER_TYPE", localProviderType);
+            codeResolver.require("IDP_PROVIDER_TYPE", providerType);
             LoginHistory history = LoginHistory.builder()
-                    .tenantId(tenantId).userId(userId).providerType(localProviderType).providerId("local")
-                    .principal(username).success(false).failureReason(reason).build();
+                    .tenantId(tenantId)
+                    .userId(userId)
+                    .providerType(providerType)
+                    .providerId(providerType.equals("LOCAL") ? "local" : "sso")
+                    .principal(principal)
+                    .success(false)
+                    .failureReason(reason) // PR-10E: 실패 사유 표준화
+                    .build();
             loginHistoryRepository.save(history);
-        } catch (Exception e) { log.error("Failed to record login failure", e); }
+        } catch (Exception e) {
+            log.error("Failed to record login failure", e);
+        }
+    }
+    
+    /**
+     * PR-10D: SSO 로그인 및 JWT 토큰 발급 (LOCAL과 동일한 JWT 모델)
+     * 
+     * @param tenantId 테넌트 ID
+     * @param providerKey Provider Key (예: AZURE_AD)
+     * @param userInfo OIDC 사용자 정보
+     * @param request HTTP 요청 (IP, User-Agent 추출용)
+     * @return 로그인 응답 (JWT 토큰 포함)
+     */
+    @Transactional
+    public LoginResponse loginWithSso(Long tenantId, String providerKey, 
+                                     com.dwp.services.auth.service.sso.OidcUserInfo userInfo,
+                                     jakarta.servlet.http.HttpServletRequest request) {
+        try {
+            log.debug("SSO login attempt: tenantId={}, providerKey={}, email={}", 
+                    tenantId, providerKey, userInfo.getEmail());
+            
+            // PR-10A: 정책 체크 (SSO 로그인 허용 여부)
+            AuthPolicyResponse policy = authPolicyService.getAuthPolicy(tenantId);
+            if (!policy.getSsoLoginEnabled() || !policy.getAllowedLoginTypes().contains("SSO")) {
+                log.warn("SSO login not allowed: tenantId={}, policy={}", tenantId, policy);
+                recordLoginFailure(tenantId, null, userInfo.getEmail(), "SSO_LOGIN_DISABLED", "SSO");
+                throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS, 
+                        "SSO login is not allowed. Please use local login.");
+            }
+            
+            // 사용자 계정 찾기 또는 생성
+            String ssoProviderType = "SSO";
+            codeResolver.require("IDP_PROVIDER_TYPE", ssoProviderType);
+            String principal = userInfo.getEmail() != null ? userInfo.getEmail() : userInfo.getSub();
+            
+            UserAccount account = userAccountRepository
+                    .findByTenantIdAndProviderTypeAndProviderIdAndPrincipal(
+                            tenantId, ssoProviderType, providerKey, principal)
+                    .orElseThrow(() -> {
+                        log.warn("SSO UserAccount not found: tenantId={}, providerKey={}, principal={}", 
+                                tenantId, providerKey, principal);
+                        recordLoginFailure(tenantId, null, principal, "USER_NOT_FOUND", ssoProviderType);
+                        return new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS, 
+                                "SSO user not found. Please contact administrator.");
+                    });
+            
+            // 계정 상태 확인
+            if (!"ACTIVE".equals(account.getStatus())) {
+                log.warn("SSO Account is not active: status={}, principal={}", account.getStatus(), principal);
+                recordLoginFailure(tenantId, account.getUserId(), principal, "USER_LOCKED", ssoProviderType);
+                throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS, "Account is locked");
+            }
+            
+            // User 조회
+            User user = userRepository.findById(account.getUserId())
+                    .orElseThrow(() -> {
+                        log.error("User profile missing for SSO account: userId={}", account.getUserId());
+                        recordLoginFailure(tenantId, account.getUserId(), principal, "USER_NOT_FOUND", ssoProviderType);
+                        return new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS, "User not found");
+                    });
+            
+            // User 상태 확인
+            if (!"ACTIVE".equals(user.getStatus())) {
+                log.warn("User is not active: status={}, userId={}", user.getStatus(), user.getUserId());
+                recordLoginFailure(tenantId, user.getUserId(), principal, "USER_LOCKED", ssoProviderType);
+                throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS, "User is not active");
+            }
+            
+            // PR-10D: JWT 토큰 발급 (LOCAL과 동일한 모델)
+            String accessToken = generateJwtToken(user.getUserId().toString(), tenantId.toString());
+            
+            // PR-10E: 로그인 성공 기록 (provider_type 기록)
+            recordLoginSuccess(tenantId, user.getUserId(), principal, ssoProviderType, providerKey, request);
+            
+            log.info("SSO login successful: userId={}, tenantId={}, providerKey={}, principal={}", 
+                    user.getUserId(), tenantId, providerKey, principal);
+            
+            return LoginResponse.builder()
+                    .accessToken(accessToken)
+                    .tokenType("Bearer")
+                    .expiresIn(tokenExpirationSeconds)
+                    .userId(user.getUserId().toString())
+                    .tenantId(tenantId.toString())
+                    .build();
+                    
+        } catch (BaseException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("Unexpected SSO login error: tenantId={}, providerKey={}", tenantId, providerKey, e);
+            recordLoginFailure(tenantId, null, userInfo.getEmail(), "SYSTEM_ERROR", "SSO");
+            throw new BaseException(ErrorCode.INTERNAL_SERVER_ERROR, "SSO login failed");
+        }
+    }
+    
+    private String getClientIp(jakarta.servlet.http.HttpServletRequest request) {
+        String xf = request.getHeader("X-Forwarded-For");
+        if (xf != null && !xf.isEmpty()) {
+            return xf.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
     }
 }

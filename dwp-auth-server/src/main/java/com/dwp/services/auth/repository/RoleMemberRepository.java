@@ -100,4 +100,12 @@ public interface RoleMemberRepository extends JpaRepository<RoleMember, Long> {
         @Param("userId") Long userId,
         @Param("departmentId") Long departmentId
     );
+    
+    /**
+     * PR-03F: 역할에 할당된 멤버 수 조회
+     */
+    @Query("SELECT COUNT(rm) FROM RoleMember rm " +
+           "WHERE rm.tenantId = :tenantId " +
+           "AND rm.roleId = :roleId")
+    long countByTenantIdAndRoleId(@Param("tenantId") Long tenantId, @Param("roleId") Long roleId);
 }

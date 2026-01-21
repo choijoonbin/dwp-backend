@@ -51,7 +51,8 @@ public class AdminGuardInterceptor implements HandlerInterceptor {
             return true;
         }
         
-        // 인증 정보 추출
+        // PR-01B: 표준화된 인증/권한 검증 흐름
+        // 1) 인증 정보 추출 (Spring Security에서 이미 JWT 검증 완료)
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof Jwt)) {
             log.warn("Authentication required but not found: path={}", path);
@@ -67,6 +68,7 @@ public class AdminGuardInterceptor implements HandlerInterceptor {
             throw new BaseException(ErrorCode.TOKEN_INVALID, "유효하지 않은 토큰입니다.");
         }
         
+        // 2) Tenant ID 추출 및 검증 (JWT 클레임 필수)
         Object tenantIdClaim = jwt.getClaim("tenant_id");
         Long tenantId = null;
         if (tenantIdClaim != null) {
@@ -82,7 +84,8 @@ public class AdminGuardInterceptor implements HandlerInterceptor {
             throw new BaseException(ErrorCode.TENANT_MISSING, "테넌트 정보가 필요합니다.");
         }
         
-        // 요청 헤더의 X-Tenant-ID와 JWT의 tenant_id 일치 확인
+        // 3) Tenant 격리 검증 (JWT tenant_id + X-Tenant-ID 헤더 일치 확인)
+        // PR-01B 정책: 불일치 시 403 (FORBIDDEN)
         String headerTenantId = request.getHeader("X-Tenant-ID");
         if (headerTenantId != null) {
             try {
@@ -108,8 +111,9 @@ public class AdminGuardInterceptor implements HandlerInterceptor {
                 // TODO: STRICT 모드 구현 (policy 없으면 deny)
                 log.warn("STRICT mode not implemented yet, falling back to RELAX: path={}", path);
             }
+            // PR-01B: 표준화된 requireAdmin() 사용
             // RELAX 모드: admin만 통과
-            adminGuardService.requireAdminRole(tenantId, userId);
+            adminGuardService.requireAdmin(tenantId, userId);
         } else {
             // Policy 있음: 각 policy에 대해 권한 검사
             boolean hasAccess = false;

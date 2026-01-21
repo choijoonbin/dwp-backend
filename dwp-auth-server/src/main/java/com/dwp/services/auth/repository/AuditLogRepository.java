@@ -41,4 +41,29 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
             @Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to,
             Pageable pageable);
+    
+    /**
+     * PR-08A: 감사 로그 필터링 조회
+     */
+    @Query("SELECT a FROM AuditLog a " +
+           "WHERE a.tenantId = :tenantId " +
+           "AND (:from IS NULL OR a.createdAt >= :from) " +
+           "AND (:to IS NULL OR a.createdAt <= :to) " +
+           "AND (:actorUserId IS NULL OR a.actorUserId = :actorUserId) " +
+           "AND (:actionType IS NULL OR a.action = :actionType) " +
+           "AND (:resourceType IS NULL OR a.resourceType = :resourceType) " +
+           "AND (:keyword IS NULL OR " +
+           "     LOWER(a.action) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "     LOWER(a.resourceType) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "     (a.metadataJson IS NOT NULL AND LOWER(a.metadataJson) LIKE LOWER(CONCAT('%', :keyword, '%')))) " +
+           "ORDER BY a.createdAt DESC")
+    Page<AuditLog> findByTenantIdAndFilters(
+            @Param("tenantId") Long tenantId,
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to,
+            @Param("actorUserId") Long actorUserId,
+            @Param("actionType") String actionType,
+            @Param("resourceType") String resourceType,
+            @Param("keyword") String keyword,
+            Pageable pageable);
 }

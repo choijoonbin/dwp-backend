@@ -1,3 +1,7 @@
+plugins {
+    id 'org.flywaydb.flyway' version '10.0.0'
+}
+
 dependencies {
     // Spring Boot Web
     implementation 'org.springframework.boot:spring-boot-starter-web'
@@ -32,6 +36,10 @@ dependencies {
     // Caffeine Cache (RBAC Enforcement 성능 최적화)
     implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
     
+    // Apache POI (Excel Export - PR-08C)
+    implementation 'org.apache.poi:poi:5.2.5'
+    implementation 'org.apache.poi:poi-ooxml:5.2.5'
+    
     // Lombok
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
@@ -41,3 +49,12 @@ dependencies {
     testImplementation 'org.springframework.security:spring-security-test'
 }
 
+// Flyway 설정 (Gradle task용)
+flyway {
+    url = project.findProperty('flyway.url') ?: 'jdbc:postgresql://localhost:5432/dwp_auth'
+    user = project.findProperty('flyway.user') ?: 'dwp_user'
+    password = project.findProperty('flyway.password') ?: 'dwp_password'
+    locations = ['classpath:db/migration']
+    baselineOnMigrate = true
+    baselineVersion = '0'
+}

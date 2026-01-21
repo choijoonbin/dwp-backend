@@ -2,7 +2,8 @@ package com.dwp.services.auth.controller.admin;
 
 import com.dwp.core.common.ApiResponse;
 import com.dwp.services.auth.dto.admin.*;
-import com.dwp.services.auth.service.admin.UserManagementService;
+import com.dwp.services.auth.service.admin.users.UserManagementService;
+import com.dwp.services.auth.service.rbac.PermissionEvaluator;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -21,14 +22,16 @@ import org.springframework.web.bind.annotation.*;
 public class UserController {
     
     private final UserManagementService userManagementService;
+    private final PermissionEvaluator permissionEvaluator;
     
     /**
-     * 사용자 목록 조회 (보강: idpProviderType, loginType 필터 추가)
+     * PR-09B: 사용자 목록 조회 (VIEW 권한 체크)
      * GET /api/admin/users
      */
     @GetMapping
     public ApiResponse<PageResponse<UserSummary>> getUsers(
             @RequestHeader("X-Tenant-ID") Long tenantId,
+            Authentication authentication,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String keyword,
@@ -38,6 +41,10 @@ public class UserController {
             @RequestParam(required = false) String idpProviderType,
             @RequestParam(required = false) String loginType,
             HttpServletRequest httpRequest) {
+        Long userId = getUserId(authentication);
+        // PR-09B: VIEW 권한 체크
+        permissionEvaluator.requirePermission(userId, tenantId, "menu.admin.users", "VIEW");
+        
         String traceId = httpRequest.getHeader("X-Trace-Id");
         try {
             log.debug("[traceId={}] 사용자 목록 조회 요청: tenantId={}, page={}, size={}, keyword={}, departmentId={}, roleId={}, status={}, idpProviderType={}, loginType={}", 
@@ -52,7 +59,7 @@ public class UserController {
     }
     
     /**
-     * 사용자 생성
+     * PR-09B: 사용자 생성 (EDIT 권한 체크)
      * POST /api/admin/users
      */
     @PostMapping
@@ -62,23 +69,29 @@ public class UserController {
             @Valid @RequestBody CreateUserRequest request,
             HttpServletRequest httpRequest) {
         Long actorUserId = getUserId(authentication);
+        // PR-09B: EDIT 권한 체크 (CREATE → EDIT)
+        permissionEvaluator.requirePermission(actorUserId, tenantId, "menu.admin.users", "EDIT");
         return ApiResponse.success(userManagementService.createUser(
                 tenantId, actorUserId, request, httpRequest));
     }
     
     /**
-     * 사용자 상세 조회
+     * PR-09B: 사용자 상세 조회 (VIEW 권한 체크)
      * GET /api/admin/users/{comUserId}
      */
     @GetMapping("/{comUserId}")
     public ApiResponse<UserDetail> getUserDetail(
             @RequestHeader("X-Tenant-ID") Long tenantId,
+            Authentication authentication,
             @PathVariable("comUserId") Long userId) {
+        Long actorUserId = getUserId(authentication);
+        // PR-09B: VIEW 권한 체크 (READ → VIEW)
+        permissionEvaluator.requirePermission(actorUserId, tenantId, "menu.admin.users", "VIEW");
         return ApiResponse.success(userManagementService.getUserDetail(tenantId, userId));
     }
     
     /**
-     * 사용자 수정
+     * PR-09B: 사용자 수정 (EDIT 권한 체크)
      * PUT /api/admin/users/{comUserId}
      */
     @PutMapping("/{comUserId}")
@@ -89,12 +102,14 @@ public class UserController {
             @Valid @RequestBody UpdateUserRequest request,
             HttpServletRequest httpRequest) {
         Long actorUserId = getUserId(authentication);
+        // PR-09B: EDIT 권한 체크 (UPDATE → EDIT)
+        permissionEvaluator.requirePermission(actorUserId, tenantId, "menu.admin.users", "EDIT");
         return ApiResponse.success(userManagementService.updateUser(
                 tenantId, actorUserId, userId, request, httpRequest));
     }
     
     /**
-     * 사용자 수정 (PATCH)
+     * PR-09B: 사용자 수정 (PATCH) (EDIT 권한 체크)
      * PATCH /api/admin/users/{comUserId}
      */
     @PatchMapping("/{comUserId}")
@@ -105,12 +120,14 @@ public class UserController {
             @Valid @RequestBody UpdateUserRequest request,
             HttpServletRequest httpRequest) {
         Long actorUserId = getUserId(authentication);
+        // PR-09B: EDIT 권한 체크 (UPDATE → EDIT)
+        permissionEvaluator.requirePermission(actorUserId, tenantId, "menu.admin.users", "EDIT");
         return ApiResponse.success(userManagementService.updateUser(
                 tenantId, actorUserId, userId, request, httpRequest));
     }
     
     /**
-     * 사용자 상태 변경
+     * PR-09B: 사용자 상태 변경 (EDIT 권한 체크)
      * POST /api/admin/users/{comUserId}/status
      */
     @PostMapping("/{comUserId}/status")
@@ -121,12 +138,14 @@ public class UserController {
             @Valid @RequestBody UpdateUserStatusRequest request,
             HttpServletRequest httpRequest) {
         Long actorUserId = getUserId(authentication);
+        // PR-09B: EDIT 권한 체크 (UPDATE → EDIT)
+        permissionEvaluator.requirePermission(actorUserId, tenantId, "menu.admin.users", "EDIT");
         return ApiResponse.success(userManagementService.updateUserStatus(
                 tenantId, actorUserId, userId, request, httpRequest));
     }
     
     /**
-     * 사용자 삭제
+     * PR-09B: 사용자 삭제 (EDIT 권한 체크)
      * DELETE /api/admin/users/{comUserId}
      */
     @DeleteMapping("/{comUserId}")
@@ -136,12 +155,14 @@ public class UserController {
             @PathVariable("comUserId") Long userId,
             HttpServletRequest httpRequest) {
         Long actorUserId = getUserId(authentication);
+        // PR-09B: EDIT 권한 체크 (DELETE → EDIT)
+        permissionEvaluator.requirePermission(actorUserId, tenantId, "menu.admin.users", "EDIT");
         userManagementService.deleteUser(tenantId, actorUserId, userId, httpRequest);
         return ApiResponse.success(null);
     }
     
     /**
-     * 비밀번호 재설정
+     * PR-09B: 비밀번호 재설정 (EDIT 권한 체크)
      * POST /api/admin/users/{comUserId}/reset-password
      */
     @PostMapping("/{comUserId}/reset-password")
@@ -152,6 +173,8 @@ public class UserController {
             @RequestBody(required = false) ResetPasswordRequest request,
             HttpServletRequest httpRequest) {
         Long actorUserId = getUserId(authentication);
+        // PR-09B: EDIT 권한 체크
+        permissionEvaluator.requirePermission(actorUserId, tenantId, "menu.admin.users", "EDIT");
         if (request == null) {
             request = ResetPasswordRequest.builder().build();
         }
@@ -160,18 +183,22 @@ public class UserController {
     }
     
     /**
-     * 사용자 역할 조회
+     * PR-09B: 사용자 역할 조회 (VIEW 권한 체크)
      * GET /api/admin/users/{comUserId}/roles
      */
     @GetMapping("/{comUserId}/roles")
     public ApiResponse<java.util.List<UserRoleInfo>> getUserRoles(
             @RequestHeader("X-Tenant-ID") Long tenantId,
+            Authentication authentication,
             @PathVariable("comUserId") Long userId) {
+        Long actorUserId = getUserId(authentication);
+        // PR-09B: VIEW 권한 체크
+        permissionEvaluator.requirePermission(actorUserId, tenantId, "menu.admin.users", "VIEW");
         return ApiResponse.success(userManagementService.getUserRoles(tenantId, userId));
     }
     
     /**
-     * 사용자 역할 업데이트
+     * PR-09B: 사용자 역할 업데이트 (EDIT 권한 체크)
      * PUT /api/admin/users/{comUserId}/roles
      */
     @PutMapping("/{comUserId}/roles")
@@ -182,12 +209,14 @@ public class UserController {
             @Valid @RequestBody UpdateUserRolesRequest request,
             HttpServletRequest httpRequest) {
         Long actorUserId = getUserId(authentication);
+        // PR-09B: EDIT 권한 체크
+        permissionEvaluator.requirePermission(actorUserId, tenantId, "menu.admin.users", "EDIT");
         userManagementService.updateUserRoles(tenantId, actorUserId, userId, request, httpRequest);
         return ApiResponse.success(null);
     }
     
     /**
-     * 사용자 역할 추가
+     * PR-09B: 사용자 역할 추가 (EDIT 권한 체크)
      * POST /api/admin/users/{comUserId}/roles
      */
     @PostMapping("/{comUserId}/roles")
@@ -198,6 +227,8 @@ public class UserController {
             @RequestBody java.util.Map<String, Long> request,
             HttpServletRequest httpRequest) {
         Long actorUserId = getUserId(authentication);
+        // PR-09B: EDIT 권한 체크
+        permissionEvaluator.requirePermission(actorUserId, tenantId, "menu.admin.users", "EDIT");
         Long roleId = request.get("roleId");
         if (roleId == null) {
             throw new com.dwp.core.exception.BaseException(
@@ -208,7 +239,7 @@ public class UserController {
     }
     
     /**
-     * 사용자 역할 삭제
+     * PR-09B: 사용자 역할 삭제 (EDIT 권한 체크)
      * DELETE /api/admin/users/{comUserId}/roles/{comRoleId}
      */
     @DeleteMapping("/{comUserId}/roles/{comRoleId}")
@@ -219,6 +250,8 @@ public class UserController {
             @PathVariable("comRoleId") Long roleId,
             HttpServletRequest httpRequest) {
         Long actorUserId = getUserId(authentication);
+        // PR-09B: EDIT 권한 체크
+        permissionEvaluator.requirePermission(actorUserId, tenantId, "menu.admin.users", "EDIT");
         userManagementService.removeUserRole(tenantId, actorUserId, userId, roleId, httpRequest);
         return ApiResponse.success(null);
     }

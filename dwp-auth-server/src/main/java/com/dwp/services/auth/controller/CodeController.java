@@ -43,18 +43,23 @@ public class CodeController {
     }
     
     /**
-     * 그룹별 코드 목록 조회
-     * GET /api/admin/codes?groupKey=RESOURCE_TYPE
+     * PR-06C: 그룹별 코드 목록 조회 (tenantScope 필터 지원)
+     * GET /api/admin/codes?groupKey=RESOURCE_TYPE&tenantScope=ALL&enabled=true
+     * 
+     * tenantScope: COMMON | TENANT | ALL
      */
     @GetMapping
     public ApiResponse<?> getCodes(
-            @RequestParam(required = false) String groupKey) {
+            @RequestHeader("X-Tenant-ID") Long tenantId,
+            @RequestParam(required = false) String groupKey,
+            @RequestParam(required = false) String tenantScope,
+            @RequestParam(required = false) Boolean enabled) {
         
         if (groupKey != null && !groupKey.isEmpty()) {
-            return ApiResponse.success(codeManagementService.getCodesByGroup(groupKey));
+            return ApiResponse.success(codeManagementService.getCodesByGroup(groupKey, tenantId, tenantScope, enabled));
         }
         
-        // groupKey가 없으면 모든 그룹의 코드를 맵으로 반환
+        // groupKey가 없으면 모든 그룹의 코드를 맵으로 반환 (하위 호환성)
         Map<String, List<CodeResponse>> allCodes = codeManagementService.getAllCodesByGroup();
         return ApiResponse.success(allCodes);
     }
@@ -69,14 +74,21 @@ public class CodeController {
     }
     
     /**
-     * 메뉴별 코드 조회 (핵심 API)
+     * PR-06D: 메뉴별 코드 조회 (보안 강화)
      * GET /api/admin/codes/usage?resourceKey=menu.admin.users
+     * 
+     * 보안 검증:
+     * - ADMIN 권한 필수
+     * - resourceKey 접근 권한 (VIEW) 체크
+     * - enabled된 code group만 반환
      */
     @GetMapping("/usage")
     public ApiResponse<CodeUsageResponse> getCodesByUsage(
             @RequestHeader("X-Tenant-ID") Long tenantId,
+            Authentication authentication,
             @RequestParam("resourceKey") String resourceKey) {
-        return ApiResponse.success(codeUsageService.getCodesByResourceKey(tenantId, resourceKey));
+        Long userId = getUserId(authentication);
+        return ApiResponse.success(codeUsageService.getCodesByResourceKey(tenantId, userId, resourceKey));
     }
     
     /**

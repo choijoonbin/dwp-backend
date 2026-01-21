@@ -15,6 +15,7 @@ public enum ErrorCode {
     // 인증/인가 에러 (2000번대)
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "E2000", "인증이 필요합니다."),
     FORBIDDEN(HttpStatus.FORBIDDEN, "E2001", "권한이 없습니다."),
+    ADMIN_FORBIDDEN(HttpStatus.FORBIDDEN, "E2008", "관리자 권한이 필요합니다."),
     TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "E2002", "토큰이 만료되었습니다."),
     TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "E2003", "유효하지 않은 토큰입니다."),
     AUTH_INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "E2004", "잘못된 자격 증명입니다."),
@@ -26,6 +27,9 @@ public enum ErrorCode {
     ENTITY_NOT_FOUND(HttpStatus.NOT_FOUND, "E3000", "엔티티를 찾을 수 없습니다."),
     DUPLICATE_ENTITY(HttpStatus.CONFLICT, "E3001", "이미 존재하는 엔티티입니다."),
     INVALID_STATE(HttpStatus.BAD_REQUEST, "E3002", "잘못된 상태입니다."),
+    ROLE_IN_USE(HttpStatus.CONFLICT, "E3003", "역할이 사용 중입니다. 멤버나 권한을 먼저 제거해주세요."),
+    RESOURCE_KEY_DUPLICATED(HttpStatus.CONFLICT, "E3004", "이미 존재하는 리소스 키입니다."),
+    RESOURCE_HAS_CHILDREN(HttpStatus.CONFLICT, "E3005", "하위 리소스가 존재합니다. 하위 리소스를 먼저 제거해주세요."),
     
     // 검증 에러 (4000번대)
     VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "E4000", "입력값 검증에 실패했습니다."),

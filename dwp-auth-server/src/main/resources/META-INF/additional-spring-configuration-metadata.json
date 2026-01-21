@@ -1,0 +1,22 @@
+{
+  "properties": [
+    {
+      "name": "rbac.cache.ttl-seconds",
+      "type": "java.lang.Long",
+      "description": "RBAC 권한 캐시 TTL (초 단위). 기본값: 300초 (5분)",
+      "defaultValue": 300
+    },
+    {
+      "name": "jwt.secret",
+      "type": "java.lang.String",
+      "description": "JWT 서명에 사용되는 공유 시크릿 키. Python (jose)와 Java (Spring Security) 간 공유. 최소 256비트(32바이트) 길이여야 합니다.",
+      "defaultValue": "your_shared_secret_key_must_be_at_least_256_bits_long_for_HS256"
+    },
+    {
+      "name": "jwt.expiration-seconds",
+      "type": "java.lang.Long",
+      "description": "JWT 토큰 만료 시간 (초 단위). 기본값: 3600초 (1시간)",
+      "defaultValue": 3600
+    }
+  ]
+}

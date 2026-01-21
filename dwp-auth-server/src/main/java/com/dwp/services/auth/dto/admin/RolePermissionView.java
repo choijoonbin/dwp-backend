@@ -18,6 +18,7 @@ public class RolePermissionView {
     private Long comResourceId; // resource_id
     private String resourceKey;
     private String resourceName;
+    private String resourceType; // PR-03C: 매트릭스 구성용 (MENU, UI_COMPONENT, PAGE_SECTION, API)
     private Long comPermissionId; // permission_id
     private String permissionCode;
     private String permissionName;

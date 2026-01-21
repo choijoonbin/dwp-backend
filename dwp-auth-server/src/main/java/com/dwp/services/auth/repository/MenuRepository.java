@@ -43,4 +43,35 @@ public interface MenuRepository extends JpaRepository<Menu, Long> {
      */
     @Query("SELECT m FROM Menu m WHERE m.tenantId = :tenantId AND m.parentMenuKey = :parentMenuKey AND m.isEnabled = 'Y' AND m.isVisible = 'Y' ORDER BY m.sortOrder ASC")
     List<Menu> findByTenantIdAndParentMenuKey(@Param("tenantId") Long tenantId, @Param("parentMenuKey") String parentMenuKey);
+    
+    /**
+     * PR-05B: 테넌트 ID와 메뉴 ID로 조회
+     */
+    Optional<Menu> findByTenantIdAndSysMenuId(Long tenantId, Long sysMenuId);
+    
+    /**
+     * PR-05B: 키워드 검색 (메뉴명 또는 키)
+     */
+    @Query("SELECT m FROM Menu m " +
+           "WHERE m.tenantId = :tenantId " +
+           "AND (:keyword IS NULL OR " +
+           "     LOWER(m.menuName) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "     LOWER(m.menuKey) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "AND (:enabled IS NULL OR (m.isEnabled = 'Y' AND :enabled = true) OR (m.isEnabled = 'N' AND :enabled = false)) " +
+           "AND (:parentId IS NULL OR m.parentMenuKey IN (SELECT m2.menuKey FROM Menu m2 WHERE m2.tenantId = :tenantId AND m2.sysMenuId = :parentId)) " +
+           "ORDER BY m.createdAt DESC")
+    org.springframework.data.domain.Page<Menu> findByTenantIdAndFilters(
+            @Param("tenantId") Long tenantId,
+            @Param("keyword") String keyword,
+            @Param("enabled") Boolean enabled,
+            @Param("parentId") Long parentId,
+            org.springframework.data.domain.Pageable pageable);
+    
+    /**
+     * PR-05E: 하위 메뉴 수 조회 (삭제 충돌 정책용)
+     */
+    @Query("SELECT COUNT(m) FROM Menu m " +
+           "WHERE m.tenantId = :tenantId " +
+           "AND m.parentMenuKey = (SELECT m2.menuKey FROM Menu m2 WHERE m2.tenantId = :tenantId AND m2.sysMenuId = :parentMenuId)")
+    long countByTenantIdAndParentMenuId(@Param("tenantId") Long tenantId, @Param("parentMenuId") Long parentMenuId);
 }

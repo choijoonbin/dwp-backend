@@ -35,6 +35,13 @@ public class DepartmentManagementService {
      */
     @Transactional(readOnly = true)
     public PageResponse<DepartmentSummary> getDepartments(Long tenantId, int page, int size, String keyword) {
+        // 페이징 크기 제한 (최대 200)
+        if (size > 200) {
+            size = 200;
+        }
+        if (size < 1) {
+            size = 20;
+        }
         Pageable pageable = PageRequest.of(page - 1, size);
         Page<Department> departmentPage = departmentRepository.findByTenantIdAndKeyword(tenantId, keyword, pageable);
         

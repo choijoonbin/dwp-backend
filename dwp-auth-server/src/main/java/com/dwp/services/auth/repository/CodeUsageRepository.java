@@ -46,7 +46,7 @@ public interface CodeUsageRepository extends JpaRepository<CodeUsage, Long> {
     Optional<CodeUsage> findByTenantIdAndSysCodeUsageId(Long tenantId, Long sysCodeUsageId);
     
     /**
-     * 키워드 검색 (리소스 키 또는 코드 그룹 키)
+     * PR-07A: 키워드 검색 (리소스 키 또는 코드 그룹 키) + enabled 필터
      */
     @Query("SELECT cu FROM CodeUsage cu " +
            "WHERE cu.tenantId = :tenantId " +
@@ -54,10 +54,12 @@ public interface CodeUsageRepository extends JpaRepository<CodeUsage, Long> {
            "AND (:keyword IS NULL OR " +
            "     LOWER(cu.resourceKey) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
            "     LOWER(cu.codeGroupKey) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "AND (:enabled IS NULL OR cu.enabled = :enabled) " +
            "ORDER BY cu.resourceKey ASC, cu.sortOrder ASC NULLS LAST")
     Page<CodeUsage> findByTenantIdAndFilters(
             @Param("tenantId") Long tenantId,
             @Param("resourceKey") String resourceKey,
             @Param("keyword") String keyword,
+            @Param("enabled") Boolean enabled,
             Pageable pageable);
 }

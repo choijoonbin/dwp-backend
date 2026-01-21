@@ -7,7 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 코드 생성 요청 DTO
+ * PR-06C: 코드 생성 요청 DTO (tenant 분리 지원)
  */
 @Data
 @Builder
@@ -31,6 +31,8 @@ public class CreateCodeRequest {
     
     @Builder.Default
     private Boolean enabled = true; // isActive
+    
+    private Long tenantId; // PR-06C: nullable (null이면 공통 코드, 값이 있으면 tenant 전용)
     
     private String ext1;
     private String ext2;

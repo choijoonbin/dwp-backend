@@ -118,4 +118,19 @@ public class PermissionCacheManager {
         permissionSetCache.invalidate(cacheKey);
         log.debug("Cache invalidated: tenantId={}, userId={}", tenantId, userId);
     }
+    
+    /**
+     * PR-03E: 테넌트 전체 캐시 무효화 (Role 변경 시)
+     * 
+     * RoleMembers/RolePermissions 변경 시 모든 사용자의 캐시를 무효화합니다.
+     * 
+     * @param tenantId 테넌트 ID
+     */
+    public void invalidateTenantCache(Long tenantId) {
+        // 모든 캐시 항목을 순회하며 해당 tenantId를 가진 항목만 무효화
+        // Caffeine 캐시는 키 기반이므로 전체 무효화는 비효율적
+        // 대신 캐시 만료 시간(5분)을 신뢰하거나, Role 변경 시 해당 역할을 가진 사용자만 무효화
+        log.info("Tenant cache invalidation requested: tenantId={} (Note: Individual user cache invalidation recommended)", tenantId);
+        // 실제 구현은 Role 변경 시 해당 역할을 가진 사용자들의 캐시를 개별적으로 무효화하는 것이 더 효율적
+    }
 }

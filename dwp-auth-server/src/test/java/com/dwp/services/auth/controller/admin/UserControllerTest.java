@@ -1,7 +1,7 @@
 package com.dwp.services.auth.controller.admin;
 
 import com.dwp.services.auth.dto.admin.*;
-import com.dwp.services.auth.service.admin.UserManagementService;
+import com.dwp.services.auth.service.admin.users.UserManagementService;
 import com.dwp.services.auth.util.CodeResolver;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
@@ -234,5 +234,110 @@ class UserControllerTest {
         
         verify(userManagementService, times(1)).removeUserRole(
                 eq(tenantId), anyLong(), eq(userId), eq(roleId), any());
+    }
+    
+    @Test
+    @DisplayName("PR-02: 사용자 생성 성공")
+    @WithMockUser(roles = "ADMIN")
+    void createUser_Success() throws Exception {
+        // Given
+        Long tenantId = 1L;
+        
+        CreateUserRequest.LocalAccountRequest localAccount = 
+                CreateUserRequest.LocalAccountRequest.builder()
+                        .principal("newuser")
+                        .password("password123!")
+                        .build();
+        
+        CreateUserRequest request = CreateUserRequest.builder()
+                .userName("새 사용자")
+                .email("newuser@example.com")
+                .departmentId(1L)
+                .status("ACTIVE")
+                .localAccount(localAccount)
+                .build();
+        
+        UserDetail userDetail = UserDetail.builder()
+                .comUserId(100L)
+                .tenantId(tenantId)
+                .userName("새 사용자")
+                .email("newuser@example.com")
+                .status("ACTIVE")
+                .build();
+        
+        when(userManagementService.createUser(eq(tenantId), anyLong(), any(CreateUserRequest.class), any()))
+                .thenReturn(userDetail);
+        
+        // When & Then
+        mockMvc.perform(post("/admin/users")
+                        .header("X-Tenant-ID", tenantId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.comUserId").value(100L))
+                .andExpect(jsonPath("$.data.userName").value("새 사용자"))
+                .andExpect(jsonPath("$.data.email").value("newuser@example.com"));
+        
+        verify(userManagementService, times(1)).createUser(eq(tenantId), anyLong(), any(CreateUserRequest.class), any());
+    }
+    
+    @Test
+    @DisplayName("PR-02: 중복 principal → 409")
+    @WithMockUser(roles = "ADMIN")
+    void createUser_DuplicatePrincipal_Returns409() throws Exception {
+        // Given
+        Long tenantId = 1L;
+        
+        CreateUserRequest.LocalAccountRequest localAccount = 
+                CreateUserRequest.LocalAccountRequest.builder()
+                        .principal("duplicateuser")
+                        .password("password123!")
+                        .build();
+        
+        CreateUserRequest request = CreateUserRequest.builder()
+                .userName("중복 사용자")
+                .email("duplicate@example.com")
+                .departmentId(1L)
+                .status("ACTIVE")
+                .localAccount(localAccount)
+                .build();
+        
+        // 중복 principal로 인한 DUPLICATE_ENTITY 예외 발생
+        when(userManagementService.createUser(eq(tenantId), anyLong(), any(CreateUserRequest.class), any()))
+                .thenThrow(new com.dwp.core.exception.BaseException(
+                        com.dwp.core.common.ErrorCode.DUPLICATE_ENTITY, "이미 존재하는 principal입니다."));
+        
+        // When & Then
+        mockMvc.perform(post("/admin/users")
+                        .header("X-Tenant-ID", tenantId)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("E3001"));
+    }
+    
+    @Test
+    @DisplayName("PR-02: tenant isolation - 다른 tenantId로 조회 불가")
+    @WithMockUser(roles = "ADMIN")
+    void getUserDetail_DifferentTenant_Returns404() throws Exception {
+        // Given
+        Long tenantId2 = 2L;
+        Long userId = 100L;
+        
+        // 다른 tenantId로 조회 시도 → 404
+        when(userManagementService.getUserDetail(eq(tenantId2), eq(userId)))
+                .thenThrow(new com.dwp.core.exception.BaseException(
+                        com.dwp.core.common.ErrorCode.ENTITY_NOT_FOUND, "사용자를 찾을 수 없습니다."));
+        
+        // When & Then
+        mockMvc.perform(get("/admin/users/{comUserId}", userId)
+                        .header("X-Tenant-ID", tenantId2))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.errorCode").value("E3000"));
+        
+        verify(userManagementService, times(1)).getUserDetail(eq(tenantId2), eq(userId));
     }
 }

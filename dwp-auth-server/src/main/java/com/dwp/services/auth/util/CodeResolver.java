@@ -99,7 +99,7 @@ public class CodeResolver {
      */
     public void clearCache() {
         codeCache.clear();
-        log.debug("Code cache cleared");
+        log.info("Code cache cleared (all groups)");
     }
     
     /**
@@ -107,6 +107,6 @@ public class CodeResolver {
      */
     public void clearCache(String groupKey) {
         codeCache.remove(groupKey);
-        log.debug("Code cache cleared for groupKey: {}", groupKey);
+        log.info("Code cache cleared for groupKey: {}", groupKey);
     }
 }

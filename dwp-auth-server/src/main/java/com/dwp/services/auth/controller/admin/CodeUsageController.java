@@ -23,8 +23,8 @@ public class CodeUsageController {
     private final CodeUsageService codeUsageService;
     
     /**
-     * 코드 사용 정의 목록 조회
-     * GET /api/admin/code-usages
+     * PR-07A: 코드 사용 정의 목록 조회 고도화
+     * GET /api/admin/code-usages?keyword=&enabled=&resourceKey=
      */
     @GetMapping
     public ApiResponse<PageResponse<CodeUsageSummary>> getCodeUsages(
@@ -32,8 +32,9 @@ public class CodeUsageController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String resourceKey,
-            @RequestParam(required = false) String keyword) {
-        return ApiResponse.success(codeUsageService.getCodeUsages(tenantId, page, size, resourceKey, keyword));
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Boolean enabled) {
+        return ApiResponse.success(codeUsageService.getCodeUsages(tenantId, page, size, resourceKey, keyword, enabled));
     }
     
     /**

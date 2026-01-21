@@ -51,4 +51,38 @@ public interface CodeRepository extends JpaRepository<Code, Long> {
            "AND (c.tenantId IS NULL OR c.tenantId = :tenantId) " +
            "ORDER BY CASE WHEN c.tenantId IS NULL THEN 0 ELSE 1 END, c.sortOrder ASC")
     List<Code> findByGroupKeyAndTenantIdOrderBySortOrderAsc(@Param("groupKey") String groupKey, @Param("tenantId") Long tenantId);
+    
+    /**
+     * PR-06B: 그룹 키로 코드 수 조회 (삭제 충돌 정책용)
+     */
+    @Query("SELECT COUNT(c) FROM Code c " +
+           "WHERE c.groupKey = :groupKey " +
+           "AND c.isActive = true")
+    long countByGroupKeyAndIsActiveTrue(@Param("groupKey") String groupKey);
+    
+    /**
+     * PR-06C: 테넌트별 코드 조회 (tenantScope 필터)
+     */
+    @Query("SELECT c FROM Code c " +
+           "WHERE c.groupKey = :groupKey " +
+           "AND (:tenantScope = 'COMMON' OR (:tenantScope = 'TENANT' AND c.tenantId = :tenantId) OR (:tenantScope = 'ALL' AND (c.tenantId IS NULL OR c.tenantId = :tenantId))) " +
+           "AND (:enabled IS NULL OR c.isActive = :enabled) " +
+           "ORDER BY CASE WHEN c.tenantId IS NULL THEN 0 ELSE 1 END, c.sortOrder ASC")
+    List<Code> findByGroupKeyAndTenantScope(
+            @Param("groupKey") String groupKey,
+            @Param("tenantId") Long tenantId,
+            @Param("tenantScope") String tenantScope,
+            @Param("enabled") Boolean enabled);
+    
+    /**
+     * PR-06C: 중복 체크 (groupKey + code + tenantId)
+     */
+    @Query("SELECT c FROM Code c " +
+           "WHERE c.groupKey = :groupKey " +
+           "AND c.code = :code " +
+           "AND (c.tenantId = :tenantId OR (:tenantId IS NULL AND c.tenantId IS NULL))")
+    java.util.Optional<Code> findByGroupKeyAndCodeAndTenantId(
+            @Param("groupKey") String groupKey,
+            @Param("code") String code,
+            @Param("tenantId") Long tenantId);
 }

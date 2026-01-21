@@ -36,13 +36,22 @@ public interface RoleRepository extends JpaRepository<Role, Long> {
     
     /**
      * 키워드 검색 (역할명 또는 코드)
+     * 
+     * Note: V20 마이그레이션 이후 bytea 타입이 VARCHAR로 변환되었지만,
+     * Hibernate가 여전히 bytea로 인식할 수 있어 CAST를 사용하여 명시적으로 VARCHAR로 변환
      */
-    @Query("SELECT r FROM Role r " +
-           "WHERE r.tenantId = :tenantId " +
+    @Query(value = "SELECT r.* FROM com_roles r " +
+           "WHERE r.tenant_id = :tenantId " +
            "AND (:keyword IS NULL OR " +
-           "     LOWER(r.name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-           "     LOWER(r.code) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
-           "ORDER BY r.name ASC")
+           "     LOWER(CAST(r.name AS VARCHAR)) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "     LOWER(CAST(r.code AS VARCHAR)) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "ORDER BY CAST(r.name AS VARCHAR) ASC",
+           nativeQuery = true,
+           countQuery = "SELECT COUNT(*) FROM com_roles r " +
+           "WHERE r.tenant_id = :tenantId " +
+           "AND (:keyword IS NULL OR " +
+           "     LOWER(CAST(r.name AS VARCHAR)) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "     LOWER(CAST(r.code AS VARCHAR)) LIKE LOWER(CONCAT('%', :keyword, '%')))")
     Page<Role> findByTenantIdAndKeyword(
             @Param("tenantId") Long tenantId,
             @Param("keyword") String keyword,

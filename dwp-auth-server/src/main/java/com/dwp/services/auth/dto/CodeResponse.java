@@ -6,7 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * 코드 응답 DTO
+ * PR-06C: 코드 응답 DTO (tenant 분리 지원)
  */
 @Data
 @Builder
@@ -21,6 +21,7 @@ public class CodeResponse {
     private String description;
     private Integer sortOrder;
     private Boolean isActive;
+    private Long tenantId; // PR-06C: tenant 분리 지원 (null이면 공통 코드)
     private String ext1;
     private String ext2;
     private String ext3;

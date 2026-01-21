@@ -35,8 +35,20 @@ public class ResourceController {
     }
     
     /**
-     * 리소스 목록 조회 (보강: category, kind, enabled 필터 추가)
+     * PR-04B: 리소스 목록 조회 (운영 수준)
      * GET /api/admin/resources
+     * 
+     * Query:
+     * - page, size
+     * - keyword (key/name 검색)
+     * - resourceCategory (코드 기반)
+     * - resourceKind (코드 기반)
+     * - trackingEnabled (true/false)
+     * - enabled (true/false)
+     * 
+     * Response: ApiResponse<Page<ResourceItem>>
+     * - tenant_id 필터 무조건
+     * - created_at desc 기본 정렬
      */
     @GetMapping
     public ApiResponse<PageResponse<ResourceSummary>> getResources(
@@ -48,9 +60,10 @@ public class ResourceController {
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String kind,
             @RequestParam(required = false) Long parentId,
-            @RequestParam(required = false) Boolean enabled) {
+            @RequestParam(required = false) Boolean enabled,
+            @RequestParam(required = false) Boolean trackingEnabled) {
         return ApiResponse.success(resourceManagementService.getResources(
-                tenantId, page, size, keyword, type, category, kind, parentId, enabled));
+                tenantId, page, size, keyword, type, category, kind, parentId, enabled, trackingEnabled));
     }
     
     /**
