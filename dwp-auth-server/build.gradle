@@ -47,6 +47,7 @@ dependencies {
     // Test
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation project(':dwp-core')  // BaseException, ErrorCode 등 테스트에서 사용
 }
 
 // Flyway 설정 (Gradle task용)

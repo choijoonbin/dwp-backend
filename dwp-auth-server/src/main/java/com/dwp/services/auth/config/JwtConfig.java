@@ -11,9 +11,6 @@ import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
-import org.springframework.security.web.util.matcher.OrRequestMatcher;
-import org.springframework.security.web.util.matcher.RequestMatcher;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
@@ -62,20 +59,6 @@ public class JwtConfig {
      */
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        // 공개 엔드포인트 매처 (JWT 검증 없이 접근 가능)
-        RequestMatcher publicEndpoints = new OrRequestMatcher(
-            new AntPathRequestMatcher("/auth/health"),
-            new AntPathRequestMatcher("/auth/info"),
-            new AntPathRequestMatcher("/auth/login"),
-            new AntPathRequestMatcher("/auth/policy"),  // 로그인 정책 조회 (공개)
-            new AntPathRequestMatcher("/auth/idp"),  // Identity Provider 조회 (공개)
-            new AntPathRequestMatcher("/auth/idp/**"),  // 특정 Provider 조회 (공개)
-            new AntPathRequestMatcher("/monitoring/page-view"),
-            new AntPathRequestMatcher("/monitoring/event"),
-            new AntPathRequestMatcher("/internal/**"), // 내부 통신용 (Gateway 등)
-            new AntPathRequestMatcher("/error")  // Spring Boot 기본 에러 핸들러
-        );
-        
         http
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> 
@@ -83,7 +66,18 @@ public class JwtConfig {
             )
             .authorizeHttpRequests(auth -> auth
                 // 공개 엔드포인트: JWT 검증 없이 접근 가능
-                .requestMatchers(publicEndpoints).permitAll()
+                .requestMatchers(
+                    "/auth/health",
+                    "/auth/info",
+                    "/auth/login",
+                    "/auth/policy",  // 로그인 정책 조회 (공개)
+                    "/auth/idp",  // Identity Provider 조회 (공개)
+                    "/auth/idp/**",  // 특정 Provider 조회 (공개)
+                    "/monitoring/page-view",
+                    "/monitoring/event",
+                    "/internal/**", // 내부 통신용 (Gateway 등)
+                    "/error"  // Spring Boot 기본 에러 핸들러
+                ).permitAll()
                 // 나머지 엔드포인트: JWT 토큰 검증 필요
                 .anyRequest().authenticated()
             )

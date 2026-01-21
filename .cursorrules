@@ -3,6 +3,7 @@
 0. 목적 (Goal)
 DWP Backend는 DWP Frontend(Host/Remote) 및 Aura-Platform(Python/FastAPI)과 통합되는 멀티 모듈 MSA이다.
 본 Rules는 “프론트/게이트웨이/서비스 간 계약(Contract)”을 코드로 고정하여 시스템 전체의 통합 안정성과 추적 가능성(Traceability)을 보장한다.
+작업시 커밋 푸시는 내 명령없이는 절대 수행하지 않는다
 
 1. 아키텍처 원칙 & 모듈별 역할
 - Multi-Module MSA: Spring Boot 3.4.x 기반 Gradle 멀티 모듈 구조를 엄격히 준수한다.
