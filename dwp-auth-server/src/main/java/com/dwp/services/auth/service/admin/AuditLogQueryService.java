@@ -57,8 +57,13 @@ public class AuditLogQueryService {
             size = 20;
         }
         Pageable pageable = PageRequest.of(page - 1, size);
+        
+        // LocalDateTime을 문자열로 변환 (Native Query용)
+        String fromStr = from != null ? from.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : null;
+        String toStr = to != null ? to.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : null;
+        
         Page<AuditLog> auditLogPage = auditLogRepository.findByTenantIdAndFilters(
-                tenantId, from, to, actorUserId, actionType, resourceType, keyword, pageable);
+                tenantId, fromStr, toStr, actorUserId, actionType, resourceType, keyword, pageable);
         
         List<AuditLogItem> items = auditLogPage.getContent().stream()
                 .map(this::toAuditLogItem)
@@ -142,8 +147,12 @@ public class AuditLogQueryService {
         int maxRows = request.getMaxRows() != null ? request.getMaxRows() : 100;
         Pageable pageable = PageRequest.of(0, maxRows);
         
+        // LocalDateTime을 문자열로 변환 (Native Query용)
+        String fromStr = request.getFrom() != null ? request.getFrom().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : null;
+        String toStr = request.getTo() != null ? request.getTo().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : null;
+        
         Page<AuditLog> auditLogPage = auditLogRepository.findByTenantIdAndFilters(
-                tenantId, request.getFrom(), request.getTo(),
+                tenantId, fromStr, toStr,
                 request.getActorUserId(), request.getActionType(),
                 request.getResourceType(), request.getKeyword(),
                 pageable);
