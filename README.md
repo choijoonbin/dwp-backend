@@ -149,6 +149,8 @@ Spring Cloud Gateway를 사용한 API Gateway입니다.
 ### dwp-auth-server (IAM)
 사용자 인증 및 인가를 담당하는 서비스입니다.
 - **멀티테넌시 IAM**: 테넌트별 데이터 격리 및 권한 관리 (Flyway V1, V2)
+  - V1: 초기 스키마 생성 (com_roles, com_users, com_resources 등)
+  - V2: Roles 스키마 강화 (status, sort_order, description 필드 추가)
 - **RBAC (Role-Based Access Control)**: 사용자/부서별 Role 할당 및 Resource(메뉴/버튼) 기반 Permission 제어
 - **JWT 토큰 발급 및 검증**: Python (jose)와 Java (Spring Security) 호환 (HS256)
 - **공통 코드 관리**: sys_code_groups/sys_codes 테이블 기반 코드 표준화 (P1-1)
@@ -172,16 +174,22 @@ Spring Cloud Gateway를 사용한 API Gateway입니다.
 - **Admin CRUD API (운영 수준)** (P1-5 Enhanced):
   - **Users 관리**: `/api/admin/users` (목록/생성/수정/삭제/상태변경/비밀번호재설정/역할관리)
   - **Roles 관리**: `/api/admin/roles` (목록/생성/수정/삭제/멤버관리/권한관리)
+    - 역할 상태 관리 (ACTIVE/INACTIVE)
+    - 멤버 수 집계 (userCount, departmentCount, memberCount)
+    - 권한 매트릭스 정렬 지원 (sortOrder 기반)
+    - 상세 정보: [docs/api-spec/ROLES_API_RESPONSE_UPDATE.md](docs/api-spec/ROLES_API_RESPONSE_UPDATE.md)
   - **Resources 관리**: `/api/admin/resources` (목록/트리/생성/수정/삭제, category/kind 필터 지원)
   - **Code Management**: `/api/admin/codes` (그룹/코드 CRUD, 메뉴별 코드 조회)
   - **CodeUsage 관리**: `/api/admin/code-usages` (코드 사용 정의 CRUD)
+  - **Audit Logs**: `/api/admin/audit-logs` (감사 로그 조회, 필터링 지원)
   - **RBAC Enforcement**: `AdminGuardInterceptor`가 `/api/admin/**` 모든 요청에 대해 ADMIN 역할 강제 검증 (403 Forbidden)
 - **개발 편의**: `DevSeedRunner`를 통한 관리자 계정(`admin/admin1234!`) 자동 동기화
 - **상세 명세**: 
-  - [docs/FRONTEND_API_SPEC.md](docs/FRONTEND_API_SPEC.md)
-  - [docs/ADMIN_MONITORING_API_SPEC.md](docs/ADMIN_MONITORING_API_SPEC.md)
-  - [docs/CODE_MANAGEMENT.md](docs/CODE_MANAGEMENT.md)
-  - [docs/P1-5_ADMIN_CRUD_SPEC.md](docs/P1-5_ADMIN_CRUD_SPEC.md)
+  - [docs/api-spec/FRONTEND_API_SPEC.md](docs/api-spec/FRONTEND_API_SPEC.md)
+  - [docs/api-spec/ADMIN_MONITORING_API_SPEC.md](docs/api-spec/ADMIN_MONITORING_API_SPEC.md)
+  - [docs/guides/CODE_MANAGEMENT.md](docs/guides/CODE_MANAGEMENT.md)
+  - [docs/api-spec/USER_ADMIN_CRUD_API.md](docs/api-spec/USER_ADMIN_CRUD_API.md)
+  - [docs/api-spec/ROLES_API_RESPONSE_UPDATE.md](docs/api-spec/ROLES_API_RESPONSE_UPDATE.md)
 
 ### dwp-main-service
 플랫폼의 메인 비즈니스 서비스를 담당합니다.
@@ -564,13 +572,18 @@ export DB_PASSWORD=dwp_password
 - [CORS 설정 가이드](./docs/CORS_CONFIGURATION.md) - CORS 설정 방법
 
 ### 📊 모니터링 및 관리
-- [Admin 모니터링 API 스펙](./docs/ADMIN_MONITORING_API_SPEC.md) - 전체 모니터링 API 스펙
-- [방문자/이벤트 API 스펙](./docs/ADMIN_MONITORING_VISITORS_EVENTS_API_SPEC.md) - 방문자 및 이벤트 조회 API 상세 스펙
-- [시계열 API 스펙](./docs/ADMIN_MONITORING_TIMESERIES_API_SPEC.md) - 시계열 데이터 조회 API 스펙
-- [시계열 API 응답 예시](./docs/ADMIN_MONITORING_TIMESERIES_API_RESPONSE_EXAMPLES.md) - 시계열 API 실제 응답 예시 및 프론트엔드 활용 가이드
-- [이벤트 로그 테이블 및 API](./docs/EVENT_LOGS_TABLE_AND_API.md) - 이벤트 로그 테이블 구조 및 수집 API 가이드
-- [모니터링 API 비교](./docs/MONITORING_API_COMPARISON.md) - 프론트엔드-백엔드 API 비교 및 정합성 검증 문서
-- [리소스 데이터 소스 가이드](./docs/COM_RESOURCES_DATA_SOURCE.md) - com_resources 테이블 데이터 소스 및 관리 방법 가이드
+- [Admin 모니터링 API 스펙](./docs/api-spec/ADMIN_MONITORING_API_SPEC.md) - 전체 모니터링 API 스펙
+- [방문자/이벤트 API 스펙](./docs/api-spec/ADMIN_MONITORING_VISITORS_EVENTS_API_SPEC.md) - 방문자 및 이벤트 조회 API 상세 스펙
+- [시계열 API 스펙](./docs/api-spec/ADMIN_MONITORING_TIMESERIES_API_SPEC.md) - 시계열 데이터 조회 API 스펙
+- [시계열 API 응답 예시](./docs/api-spec/ADMIN_MONITORING_TIMESERIES_API_RESPONSE_EXAMPLES.md) - 시계열 API 실제 응답 예시 및 프론트엔드 활용 가이드
+- [이벤트 로그 테이블 및 API](./docs/api-spec/EVENT_LOGS_TABLE_AND_API.md) - 이벤트 로그 테이블 구조 및 수집 API 가이드
+- [모니터링 API 비교](./docs/guides/MONITORING_API_COMPARISON.md) - 프론트엔드-백엔드 API 비교 및 정합성 검증 문서
+- [리소스 데이터 소스 가이드](./docs/guides/COM_RESOURCES_DATA_SOURCE.md) - com_resources 테이블 데이터 소스 및 관리 방법 가이드
+
+### 🔐 Roles & Permissions 관리
+- [Roles API 응답 업데이트](./docs/api-spec/ROLES_API_RESPONSE_UPDATE.md) - Roles API 응답 DTO 업데이트 사항
+- [Roles 스키마 강화 요약](./docs/PR_ROLES_SCHEMA_ENHANCEMENT_SUMMARY.md) - Roles 스키마 강화 작업 요약
+- [Roles 감사로그 강화](./docs/PR_ROLES_AUDIT_LOG_ENHANCEMENT.md) - 감사로그 diff 추적 및 변경 항목 식별
 
 ### 📚 전체 문서 목록
 
@@ -692,6 +705,14 @@ export DB_PASSWORD=dwp_password
   - [x] HITL Manager 구현 (승인/거절 API, Redis 세션 관리)
   - [x] HITL 보안 인터셉터 (JWT 권한 재검증)
   - [x] `/api/aura/hitl/**` 엔드포인트 구현
+- [x] **Roles 스키마 강화 및 감사로그 개선** (2026-01)
+  - [x] Roles 스키마 강화 (com_roles.status, com_permissions.sort_order/description, com_resources.sort_order)
+  - [x] Roles API 응답 DTO 업데이트 (id, status, memberCount, userCount, departmentCount)
+  - [x] RolePermission 매트릭스 정렬 지원 (sortOrder 기반)
+  - [x] 감사로그 강화 (RoleAuditHelper, changedOnly 배열, diff 추적)
+  - [x] CQRS 패턴 리팩토링 (CodeUsage, Department, Resource 서비스 분리)
+  - [x] Flyway 마이그레이션 V2 추가
+  - [x] 상세 문서: [docs/PR_ROLES_SCHEMA_ENHANCEMENT_SUMMARY.md](docs/PR_ROLES_SCHEMA_ENHANCEMENT_SUMMARY.md), [docs/PR_ROLES_AUDIT_LOG_ENHANCEMENT.md](docs/PR_ROLES_AUDIT_LOG_ENHANCEMENT.md)
 
 ### 예정된 작업
 - [ ] Aura-Platform (AI Agent) 서비스 구현 및 연동 (포트 9000)
