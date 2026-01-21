@@ -35,28 +35,28 @@ public class EventLog extends BaseEntity {
     @Builder.Default
     private LocalDateTime occurredAt = LocalDateTime.now();
     
-    @Column(name = "event_type", nullable = false, length = 50)
+    @Column(name = "event_type", nullable = false, length = 50, columnDefinition = "VARCHAR(50)")
     private String eventType;
     
-    @Column(name = "resource_key", nullable = false, length = 255)
+    @Column(name = "resource_key", nullable = false, length = 255, columnDefinition = "VARCHAR(255)")
     private String resourceKey;
     
-    @Column(name = "resource_kind", length = 50)
+    @Column(name = "resource_kind", length = 50, columnDefinition = "VARCHAR(50)")
     private String resourceKind;  // MENU_GROUP, PAGE, BUTTON, TAB, SELECT, FILTER, SEARCH, TABLE_ACTION, DOWNLOAD, UPLOAD, MODAL, API_ACTION
     
-    @Column(name = "action", nullable = false, length = 100)
+    @Column(name = "action", nullable = false, length = 100, columnDefinition = "VARCHAR(100)")
     private String action;
     
-    @Column(name = "label", length = 200)
+    @Column(name = "label", length = 200, columnDefinition = "VARCHAR(200)")
     private String label;
     
-    @Column(name = "visitor_id", length = 255)
+    @Column(name = "visitor_id", length = 255, columnDefinition = "VARCHAR(255)")
     private String visitorId;
     
     @Column(name = "user_id")
     private Long userId;
     
-    @Column(name = "path", length = 500)
+    @Column(name = "path", length = 500, columnDefinition = "VARCHAR(500)")
     private String path;
     
     @JdbcTypeCode(SqlTypes.JSON)

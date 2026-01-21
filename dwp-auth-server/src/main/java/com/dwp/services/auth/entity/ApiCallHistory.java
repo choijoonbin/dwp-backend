@@ -26,16 +26,16 @@ public class ApiCallHistory extends BaseEntity {
     @Column(name = "user_id")
     private Long userId;
 
-    @Column(name = "agent_id", length = 100)
+    @Column(name = "agent_id", length = 100, columnDefinition = "VARCHAR(100)")
     private String agentId;
 
-    @Column(name = "source", length = 20)
+    @Column(name = "source", length = 20, columnDefinition = "VARCHAR(20)")
     private String source;
 
-    @Column(name = "method", nullable = false, length = 10)
+    @Column(name = "method", nullable = false, length = 10, columnDefinition = "VARCHAR(10)")
     private String method;
 
-    @Column(name = "path", nullable = false, length = 500)
+    @Column(name = "path", nullable = false, length = 500, columnDefinition = "VARCHAR(500)")
     private String path;
 
     @Column(name = "query_string", columnDefinition = "TEXT")

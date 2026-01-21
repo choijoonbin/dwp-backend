@@ -27,13 +27,13 @@ public class Resource extends BaseEntity {
     @Column(name = "tenant_id")
     private Long tenantId;  // nullable (global resource)
     
-    @Column(name = "type", nullable = false, length = 20)
+    @Column(name = "type", nullable = false, length = 20, columnDefinition = "VARCHAR(20)")
     private String type;  // MENU, UI_COMPONENT, PAGE_SECTION, API
     
-    @Column(name = "key", nullable = false, length = 255)
+    @Column(name = "key", nullable = false, length = 255, columnDefinition = "VARCHAR(255)")
     private String key;  // menu.mail.inbox, btn.mail.send
     
-    @Column(name = "name", nullable = false, length = 200)
+    @Column(name = "name", nullable = false, length = 200, columnDefinition = "VARCHAR(200)")
     private String name;
     
     @Column(name = "parent_resource_id")
@@ -46,15 +46,15 @@ public class Resource extends BaseEntity {
     @Builder.Default
     private Boolean enabled = true;
     
-    @Column(name = "resource_category", nullable = false, length = 50)
+    @Column(name = "resource_category", nullable = false, length = 50, columnDefinition = "VARCHAR(50)")
     @Builder.Default
     private String resourceCategory = "MENU";  // MENU, UI_COMPONENT
     
-    @Column(name = "resource_kind", nullable = false, length = 50)
+    @Column(name = "resource_kind", nullable = false, length = 50, columnDefinition = "VARCHAR(50)")
     @Builder.Default
     private String resourceKind = "PAGE";  // MENU_GROUP, PAGE, BUTTON, TAB, SELECT, FILTER, SEARCH, TABLE_ACTION, DOWNLOAD, UPLOAD, MODAL, API_ACTION
     
-    @Column(name = "event_key", length = 120)
+    @Column(name = "event_key", length = 120, columnDefinition = "VARCHAR(120)")
     private String eventKey;  // 예: menu.admin.users:view
     
     @Column(name = "event_actions", columnDefinition = "jsonb")
@@ -64,7 +64,7 @@ public class Resource extends BaseEntity {
     @Builder.Default
     private Boolean trackingEnabled = true;
     
-    @Column(name = "ui_scope", length = 30)
+    @Column(name = "ui_scope", length = 30, columnDefinition = "VARCHAR(30)")
     private String uiScope;  // GLOBAL, MENU, PAGE, COMPONENT
     
     @Column(name = "sort_order")

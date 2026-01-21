@@ -22,6 +22,16 @@
 - **위치**: `dwp-auth-server/src/main/java/com/dwp/services/auth/repository/UserRepository.java` (42-72줄)
 - **사용 이유**: bytea 타입을 VARCHAR로 명시적 변환 및 LEFT JOIN 처리
 
+### AuditLogRepository.java
+- **메서드**: `findByTenantIdAndFilters`
+- **위치**: `dwp-auth-server/src/main/java/com/dwp/services/auth/repository/AuditLogRepository.java` (54-80줄)
+- **사용 이유**: bytea 타입을 VARCHAR로 명시적 변환 및 LocalDateTime 파라미터 처리
+
+### CodeUsageRepository.java
+- **메서드**: `findByTenantIdAndFilters`
+- **위치**: `dwp-auth-server/src/main/java/com/dwp/services/auth/repository/CodeUsageRepository.java` (48-64줄)
+- **사용 이유**: bytea 타입을 VARCHAR로 명시적 변환 (columnDefinition 추가 후에도 Hibernate 메타데이터 캐시 문제로 Native Query 사용)
+
 ---
 
 ## 2. 사용 사유

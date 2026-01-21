@@ -47,15 +47,29 @@ public interface CodeUsageRepository extends JpaRepository<CodeUsage, Long> {
     
     /**
      * PR-07A: 키워드 검색 (리소스 키 또는 코드 그룹 키) + enabled 필터
+     * 
+     * Note: Hibernate가 resourceKey, codeGroupKey를 bytea로 인식하는 문제로 Native Query 사용
+     * CAST를 사용하여 명시적으로 VARCHAR로 변환
      */
-    @Query("SELECT cu FROM CodeUsage cu " +
-           "WHERE cu.tenantId = :tenantId " +
-           "AND (:resourceKey IS NULL OR cu.resourceKey = :resourceKey) " +
-           "AND (:keyword IS NULL OR " +
-           "     LOWER(cu.resourceKey) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-           "     LOWER(cu.codeGroupKey) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+    @Query(value = "SELECT cu.sys_code_usage_id, cu.tenant_id, cu.resource_key, cu.code_group_key, " +
+           "cu.scope, cu.enabled, cu.sort_order, cu.remark, " +
+           "cu.created_at, cu.created_by, cu.updated_at, cu.updated_by " +
+           "FROM sys_code_usages cu " +
+           "WHERE cu.tenant_id = :tenantId " +
+           "AND (:resourceKey IS NULL OR cu.resource_key = :resourceKey) " +
+           "AND (:keyword IS NULL OR :keyword = '' OR " +
+           "     LOWER(CAST(cu.resource_key AS VARCHAR)) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "     LOWER(CAST(cu.code_group_key AS VARCHAR)) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
            "AND (:enabled IS NULL OR cu.enabled = :enabled) " +
-           "ORDER BY cu.resourceKey ASC, cu.sortOrder ASC NULLS LAST")
+           "ORDER BY CAST(cu.resource_key AS VARCHAR) ASC, cu.sort_order ASC NULLS LAST",
+           nativeQuery = true,
+           countQuery = "SELECT COUNT(*) FROM sys_code_usages cu " +
+           "WHERE cu.tenant_id = :tenantId " +
+           "AND (:resourceKey IS NULL OR cu.resource_key = :resourceKey) " +
+           "AND (:keyword IS NULL OR :keyword = '' OR " +
+           "     LOWER(CAST(cu.resource_key AS VARCHAR)) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "     LOWER(CAST(cu.code_group_key AS VARCHAR)) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "AND (:enabled IS NULL OR cu.enabled = :enabled)")
     Page<CodeUsage> findByTenantIdAndFilters(
             @Param("tenantId") Long tenantId,
             @Param("resourceKey") String resourceKey,
