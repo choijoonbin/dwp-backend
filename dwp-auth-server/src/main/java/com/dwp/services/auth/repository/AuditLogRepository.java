@@ -44,6 +44,9 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     
     /**
      * PR-08A: 감사 로그 필터링 조회
+     * 
+     * Note: metadataJson에 대한 keyword 검색은 제외 (bytea 타입 인식 문제)
+     * metadataJson 검색이 필요한 경우 별도 API로 분리 권장
      */
     @Query("SELECT a FROM AuditLog a " +
            "WHERE a.tenantId = :tenantId " +
@@ -54,8 +57,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
            "AND (:resourceType IS NULL OR a.resourceType = :resourceType) " +
            "AND (:keyword IS NULL OR " +
            "     LOWER(a.action) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-           "     LOWER(a.resourceType) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-           "     (a.metadataJson IS NOT NULL AND LOWER(a.metadataJson) LIKE LOWER(CONCAT('%', :keyword, '%')))) " +
+           "     LOWER(a.resourceType) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
            "ORDER BY a.createdAt DESC")
     Page<AuditLog> findByTenantIdAndFilters(
             @Param("tenantId") Long tenantId,

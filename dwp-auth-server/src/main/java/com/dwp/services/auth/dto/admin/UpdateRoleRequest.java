@@ -17,4 +17,5 @@ public class UpdateRoleRequest {
     private String roleCode;
     private String roleName;
     private String description;
+    private String status; // ACTIVE, INACTIVE
 }

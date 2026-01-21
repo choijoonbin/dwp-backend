@@ -33,8 +33,8 @@ public class RoleManagementService {
     /**
      * 역할 목록 조회
      */
-    public PageResponse<RoleSummary> getRoles(Long tenantId, int page, int size, String keyword) {
-        return roleQueryService.getRoles(tenantId, page, size, keyword);
+    public PageResponse<RoleSummary> getRoles(Long tenantId, int page, int size, String keyword, String status) {
+        return roleQueryService.getRoles(tenantId, page, size, keyword, status);
     }
     
     /**

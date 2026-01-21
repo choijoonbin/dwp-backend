@@ -25,4 +25,10 @@ public class Permission extends BaseEntity {
     
     @Column(name = "name", nullable = false, length = 200)
     private String name;
+    
+    @Column(name = "sort_order")
+    private Integer sortOrder;
+    
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
 }

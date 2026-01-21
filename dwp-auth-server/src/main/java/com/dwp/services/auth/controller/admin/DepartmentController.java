@@ -2,7 +2,7 @@ package com.dwp.services.auth.controller.admin;
 
 import com.dwp.core.common.ApiResponse;
 import com.dwp.services.auth.dto.admin.*;
-import com.dwp.services.auth.service.admin.DepartmentManagementService;
+import com.dwp.services.auth.service.admin.departments.DepartmentManagementService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

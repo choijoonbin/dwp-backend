@@ -22,5 +22,8 @@ public class RolePermissionView {
     private Long comPermissionId; // permission_id
     private String permissionCode;
     private String permissionName;
+    private Integer permissionSortOrder; // 매트릭스 컬럼 정렬 순서
+    private String permissionDescription; // 권한 설명 (툴팁용)
     private String effect; // ALLOW, DENY
+    private Integer resourceSortOrder; // 리소스 트리 정렬 순서
 }

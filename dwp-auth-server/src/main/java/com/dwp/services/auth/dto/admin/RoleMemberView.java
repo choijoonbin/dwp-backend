@@ -18,4 +18,6 @@ public class RoleMemberView {
     private String subjectType; // USER, DEPARTMENT
     private Long subjectId;
     private String subjectName; // userName or departmentName
+    private String subjectEmail; // USER일 경우 email (선택)
+    private String departmentName; // USER의 primary department name (선택)
 }

@@ -45,15 +45,18 @@ public interface RoleRepository extends JpaRepository<Role, Long> {
            "AND (:keyword IS NULL OR " +
            "     LOWER(CAST(r.name AS VARCHAR)) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
            "     LOWER(CAST(r.code AS VARCHAR)) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "AND (:status IS NULL OR r.status = :status) " +
            "ORDER BY CAST(r.name AS VARCHAR) ASC",
            nativeQuery = true,
            countQuery = "SELECT COUNT(*) FROM com_roles r " +
            "WHERE r.tenant_id = :tenantId " +
            "AND (:keyword IS NULL OR " +
            "     LOWER(CAST(r.name AS VARCHAR)) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-           "     LOWER(CAST(r.code AS VARCHAR)) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+           "     LOWER(CAST(r.code AS VARCHAR)) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "AND (:status IS NULL OR r.status = :status)")
     Page<Role> findByTenantIdAndKeyword(
             @Param("tenantId") Long tenantId,
             @Param("keyword") String keyword,
+            @Param("status") String status,
             Pageable pageable);
 }

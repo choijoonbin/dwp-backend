@@ -9,7 +9,7 @@ import com.dwp.services.auth.dto.admin.CreateCodeRequest;
 import com.dwp.services.auth.dto.admin.UpdateCodeGroupRequest;
 import com.dwp.services.auth.dto.admin.UpdateCodeRequest;
 import com.dwp.services.auth.service.CodeManagementService;
-import com.dwp.services.auth.service.admin.CodeUsageService;
+import com.dwp.services.auth.service.admin.codeusages.CodeUsageService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

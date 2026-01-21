@@ -56,6 +56,7 @@ public class RoleCommandService {
                 .code(request.getRoleCode())
                 .name(request.getRoleName())
                 .description(request.getDescription())
+                .status("ACTIVE") // 기본값: ACTIVE
                 .build();
         role = roleRepository.save(role);
         
@@ -99,6 +100,11 @@ public class RoleCommandService {
         }
         if (request.getDescription() != null) {
             role.setDescription(request.getDescription());
+        }
+        if (request.getStatus() != null) {
+            // ROLE_STATUS 코드 검증
+            codeResolver.require("ROLE_STATUS", request.getStatus());
+            role.setStatus(request.getStatus());
         }
         
         role = roleRepository.save(role);
@@ -156,6 +162,7 @@ public class RoleCommandService {
                 .code(role.getCode())
                 .name(role.getName())
                 .description(role.getDescription())
+                .status(role.getStatus())
                 .build();
     }
 }

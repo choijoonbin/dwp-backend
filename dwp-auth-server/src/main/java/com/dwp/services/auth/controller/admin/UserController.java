@@ -39,23 +39,11 @@ public class UserController {
             @RequestParam(required = false) Long roleId,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String idpProviderType,
-            @RequestParam(required = false) String loginType,
-            HttpServletRequest httpRequest) {
+            @RequestParam(required = false) String loginType) {
         Long userId = getUserId(authentication);
-        // PR-09B: VIEW 권한 체크
         permissionEvaluator.requirePermission(userId, tenantId, "menu.admin.users", "VIEW");
-        
-        String traceId = httpRequest.getHeader("X-Trace-Id");
-        try {
-            log.debug("[traceId={}] 사용자 목록 조회 요청: tenantId={}, page={}, size={}, keyword={}, departmentId={}, roleId={}, status={}, idpProviderType={}, loginType={}", 
-                    traceId, tenantId, page, size, keyword, departmentId, roleId, status, idpProviderType, loginType);
-            return ApiResponse.success(userManagementService.getUsers(
-                    tenantId, page, size, keyword, departmentId, roleId, status, idpProviderType, loginType));
-        } catch (Exception e) {
-            log.error("[traceId={}] 사용자 목록 조회 실패: tenantId={}, page={}, size={}, error={}", 
-                    traceId, tenantId, page, size, e.getMessage(), e);
-            throw e; // GlobalExceptionHandler가 처리
-        }
+        return ApiResponse.success(userManagementService.getUsers(
+                tenantId, page, size, keyword, departmentId, roleId, status, idpProviderType, loginType));
     }
     
     /**
@@ -101,11 +89,7 @@ public class UserController {
             @PathVariable("comUserId") Long userId,
             @Valid @RequestBody UpdateUserRequest request,
             HttpServletRequest httpRequest) {
-        Long actorUserId = getUserId(authentication);
-        // PR-09B: EDIT 권한 체크 (UPDATE → EDIT)
-        permissionEvaluator.requirePermission(actorUserId, tenantId, "menu.admin.users", "EDIT");
-        return ApiResponse.success(userManagementService.updateUser(
-                tenantId, actorUserId, userId, request, httpRequest));
+        return updateUserInternal(tenantId, authentication, userId, request, httpRequest);
     }
     
     /**
@@ -119,8 +103,13 @@ public class UserController {
             @PathVariable("comUserId") Long userId,
             @Valid @RequestBody UpdateUserRequest request,
             HttpServletRequest httpRequest) {
+        return updateUserInternal(tenantId, authentication, userId, request, httpRequest);
+    }
+    
+    private ApiResponse<UserDetail> updateUserInternal(
+            Long tenantId, Authentication authentication, Long userId,
+            UpdateUserRequest request, HttpServletRequest httpRequest) {
         Long actorUserId = getUserId(authentication);
-        // PR-09B: EDIT 권한 체크 (UPDATE → EDIT)
         permissionEvaluator.requirePermission(actorUserId, tenantId, "menu.admin.users", "EDIT");
         return ApiResponse.success(userManagementService.updateUser(
                 tenantId, actorUserId, userId, request, httpRequest));

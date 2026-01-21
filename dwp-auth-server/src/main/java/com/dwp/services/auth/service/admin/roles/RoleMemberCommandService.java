@@ -21,7 +21,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * 역할 멤버 관리 서비스 (CQRS: Command 전용)
@@ -49,6 +50,10 @@ public class RoleMemberCommandService {
         // 역할 존재 확인
         roleRepository.findByTenantIdAndRoleId(tenantId, roleId)
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "역할을 찾을 수 없습니다."));
+        
+        // 기존 멤버 조회 (감사로그 diff 추적용)
+        List<RoleMember> beforeMembers = new ArrayList<>(
+                roleMemberRepository.findByTenantIdAndRoleId(tenantId, roleId));
         
         // 기존 멤버 삭제
         roleMemberRepository.deleteByTenantIdAndRoleId(tenantId, roleId);
@@ -90,13 +95,27 @@ public class RoleMemberCommandService {
             }
         }
         
+        // 변경 후 멤버 조회 (감사로그 diff 추적용)
+        List<RoleMember> afterMembers = roleMemberRepository.findByTenantIdAndRoleId(tenantId, roleId);
+        
         // PR-03E: 캐시 무효화 (변경 즉시 반영)
         // 해당 역할을 가진 모든 사용자의 캐시 무효화
         invalidateRoleMemberCache(tenantId, roleId);
         
-        // 감사 로그
-        auditLogService.recordAuditLog(tenantId, actorUserId, "ROLE_MEMBER_UPDATE", "ROLE", roleId,
-                null, request, httpRequest);
+        // 감사 로그 (diff 추적 강화)
+        Map<String, Object> auditMetadata = new HashMap<>();
+        
+        // 변경 전/후 멤버 목록 (간소화)
+        auditMetadata.put("before", simplifyMembers(beforeMembers));
+        auditMetadata.put("after", simplifyMembers(afterMembers));
+        
+        // 변경된 항목만 식별
+        List<Map<String, Object>> changedOnly = createMemberDiff(beforeMembers, afterMembers);
+        auditMetadata.put("changedOnly", changedOnly);
+        auditMetadata.put("changeCount", changedOnly.size());
+        
+        auditLogService.recordAuditLog(tenantId, actorUserId, "ROLE_MEMBER_UPDATE", 
+                "ROLE_MEMBER", roleId, auditMetadata, httpRequest);
     }
     
     /**
@@ -161,9 +180,18 @@ public class RoleMemberCommandService {
             invalidateDepartmentUserCache(tenantId, member.getSubjectId());
         }
         
-        // 감사 로그
-        auditLogService.recordAuditLog(tenantId, actorUserId, "ROLE_MEMBER_ADD", "ROLE", roleId,
-                null, request, httpRequest);
+        // 감사 로그 (상세 정보 포함)
+        Map<String, Object> auditMetadata = new HashMap<>();
+        auditMetadata.put("subjectType", member.getSubjectType());
+        auditMetadata.put("subjectId", member.getSubjectId());
+        auditMetadata.put("subjectName", subjectName);
+        if ("USER".equals(member.getSubjectType())) {
+            userRepository.findById(member.getSubjectId())
+                    .ifPresent(user -> auditMetadata.put("subjectEmail", user.getEmail()));
+        }
+        
+        auditLogService.recordAuditLog(tenantId, actorUserId, "ROLE_MEMBER_ADD", 
+                "ROLE_MEMBER", roleId, auditMetadata, httpRequest);
         
         return RoleMemberView.builder()
                 .roleMemberId(member.getRoleMemberId())
@@ -206,9 +234,25 @@ public class RoleMemberCommandService {
             invalidateDepartmentUserCache(tenantId, subjectId);
         }
         
-        // 감사 로그
-        auditLogService.recordAuditLog(tenantId, actorUserId, "ROLE_MEMBER_REMOVE", "ROLE", roleId,
-                member, null, httpRequest);
+        // 감사 로그 (상세 정보 포함)
+        Map<String, Object> auditMetadata = new HashMap<>();
+        auditMetadata.put("subjectType", member.getSubjectType());
+        auditMetadata.put("subjectId", member.getSubjectId());
+        
+        // subjectName 조회
+        if ("USER".equals(member.getSubjectType())) {
+            userRepository.findById(member.getSubjectId())
+                    .ifPresent(user -> {
+                        auditMetadata.put("subjectName", user.getDisplayName());
+                        auditMetadata.put("subjectEmail", user.getEmail());
+                    });
+        } else if ("DEPARTMENT".equals(member.getSubjectType())) {
+            departmentRepository.findById(member.getSubjectId())
+                    .ifPresent(dept -> auditMetadata.put("subjectName", dept.getName()));
+        }
+        
+        auditLogService.recordAuditLog(tenantId, actorUserId, "ROLE_MEMBER_REMOVE", 
+                "ROLE_MEMBER", roleId, auditMetadata, httpRequest);
     }
     
     /**
@@ -239,5 +283,65 @@ public class RoleMemberCommandService {
                 adminGuardService.invalidateCache(tenantId, user.getUserId());
             }
         }
+    }
+    
+    /**
+     * 멤버 목록을 간소화된 형태로 변환 (감사로그용)
+     */
+    private List<Map<String, Object>> simplifyMembers(List<RoleMember> members) {
+        return members.stream()
+                .map(m -> {
+                    Map<String, Object> simplified = new HashMap<>();
+                    simplified.put("subjectType", m.getSubjectType());
+                    simplified.put("subjectId", m.getSubjectId());
+                    return simplified;
+                })
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * 멤버 변경 diff 생성
+     */
+    private List<Map<String, Object>> createMemberDiff(List<RoleMember> before, List<RoleMember> after) {
+        List<Map<String, Object>> changedOnly = new ArrayList<>();
+        
+        // 변경 전/후를 키로 변환 (subjectType + subjectId)
+        Map<String, RoleMember> beforeMap = before.stream()
+                .collect(Collectors.toMap(
+                    m -> m.getSubjectType() + ":" + m.getSubjectId(),
+                    m -> m
+                ));
+        
+        Map<String, RoleMember> afterMap = after.stream()
+                .collect(Collectors.toMap(
+                    m -> m.getSubjectType() + ":" + m.getSubjectId(),
+                    m -> m
+                ));
+        
+        // 추가된 항목
+        for (RoleMember afterMember : after) {
+            String key = afterMember.getSubjectType() + ":" + afterMember.getSubjectId();
+            if (!beforeMap.containsKey(key)) {
+                Map<String, Object> change = new HashMap<>();
+                change.put("subjectType", afterMember.getSubjectType());
+                change.put("subjectId", afterMember.getSubjectId());
+                change.put("changeType", "ADDED");
+                changedOnly.add(change);
+            }
+        }
+        
+        // 삭제된 항목
+        for (RoleMember beforeMember : before) {
+            String key = beforeMember.getSubjectType() + ":" + beforeMember.getSubjectId();
+            if (!afterMap.containsKey(key)) {
+                Map<String, Object> change = new HashMap<>();
+                change.put("subjectType", beforeMember.getSubjectType());
+                change.put("subjectId", beforeMember.getSubjectId());
+                change.put("changeType", "REMOVED");
+                changedOnly.add(change);
+            }
+        }
+        
+        return changedOnly;
     }
 }

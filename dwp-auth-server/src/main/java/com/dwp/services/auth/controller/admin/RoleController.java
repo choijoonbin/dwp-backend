@@ -36,11 +36,12 @@ public class RoleController {
             Authentication authentication,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) String keyword) {
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String status) {
         Long userId = getUserId(authentication);
         // PR-09B: VIEW 권한 체크
         permissionEvaluator.requirePermission(userId, tenantId, "menu.admin.roles", "VIEW");
-        return ApiResponse.success(roleManagementService.getRoles(tenantId, page, size, keyword));
+        return ApiResponse.success(roleManagementService.getRoles(tenantId, page, size, keyword, status));
     }
     
     /**

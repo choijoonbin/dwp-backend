@@ -4,7 +4,7 @@ import com.dwp.services.auth.dto.CodeGroupResponse;
 import com.dwp.services.auth.dto.CodeResponse;
 import com.dwp.services.auth.dto.admin.CodeUsageResponse;
 import com.dwp.services.auth.service.CodeManagementService;
-import com.dwp.services.auth.service.admin.CodeUsageService;
+import com.dwp.services.auth.service.admin.codeusages.CodeUsageService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

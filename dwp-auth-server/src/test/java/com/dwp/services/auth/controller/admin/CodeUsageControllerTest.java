@@ -1,7 +1,7 @@
 package com.dwp.services.auth.controller.admin;
 
 import com.dwp.services.auth.dto.admin.*;
-import com.dwp.services.auth.service.admin.CodeUsageService;
+import com.dwp.services.auth.service.admin.codeusages.CodeUsageService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

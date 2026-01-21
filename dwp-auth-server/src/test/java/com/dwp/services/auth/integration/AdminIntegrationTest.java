@@ -3,7 +3,7 @@ package com.dwp.services.auth.integration;
 import com.dwp.services.auth.dto.admin.*;
 import com.dwp.services.auth.entity.Resource;
 import com.dwp.services.auth.repository.*;
-import com.dwp.services.auth.service.admin.CodeUsageService;
+import com.dwp.services.auth.service.admin.codeusages.CodeUsageService;
 import com.dwp.services.auth.service.admin.menus.MenuCommandService;
 import com.dwp.services.auth.service.admin.menus.MenuQueryService;
 import com.dwp.services.auth.service.rbac.PermissionEvaluator;

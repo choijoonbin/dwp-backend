@@ -4,6 +4,7 @@ import com.dwp.services.auth.dto.admin.CodeUsageResponse;
 import com.dwp.services.auth.entity.Code;
 import com.dwp.services.auth.repository.CodeRepository;
 import com.dwp.services.auth.repository.CodeUsageRepository;
+import com.dwp.services.auth.service.admin.codeusages.CodeUsageService;
 import com.dwp.services.auth.service.audit.AuditLogService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

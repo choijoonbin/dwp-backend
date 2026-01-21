@@ -72,11 +72,14 @@ class RoleControllerTest {
                 .build();
         
         RoleDetail roleDetail = RoleDetail.builder()
+                .id("100")
                 .comRoleId(100L)
                 .roleCode("MANAGER")
                 .roleName("매니저")
+                .status("ACTIVE")
                 .description("매니저 역할")
                 .createdAt(LocalDateTime.now())
+                .memberCount(0)
                 .build();
         
         when(roleManagementService.createRole(eq(tenantId), anyLong(), any(CreateRoleRequest.class), any()))
@@ -110,10 +113,13 @@ class RoleControllerTest {
                 .build();
         
         RoleDetail roleDetail = RoleDetail.builder()
+                .id(String.valueOf(roleId))
                 .comRoleId(roleId)
                 .roleCode("MANAGER")
                 .roleName("수정된 매니저")
+                .status("ACTIVE")
                 .description("수정된 설명")
+                .memberCount(0)
                 .build();
         
         when(roleManagementService.updateRole(eq(tenantId), anyLong(), eq(roleId), any(UpdateRoleRequest.class), any()))

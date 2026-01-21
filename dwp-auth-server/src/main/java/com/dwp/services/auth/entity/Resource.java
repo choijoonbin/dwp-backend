@@ -66,4 +66,7 @@ public class Resource extends BaseEntity {
     
     @Column(name = "ui_scope", length = 30)
     private String uiScope;  // GLOBAL, MENU, PAGE, COMPONENT
+    
+    @Column(name = "sort_order")
+    private Integer sortOrder;
 }
