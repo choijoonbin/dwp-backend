@@ -26,10 +26,10 @@ public class AuditLog extends BaseEntity {
     @Column(name = "actor_user_id")
     private Long actorUserId;
     
-    @Column(name = "action", nullable = false, length = 100)
+    @Column(name = "action", nullable = false, length = 100, columnDefinition = "VARCHAR(100)")
     private String action; // USER_CREATE, ROLE_UPDATE, etc.
     
-    @Column(name = "resource_type", length = 100)
+    @Column(name = "resource_type", length = 100, columnDefinition = "VARCHAR(100)")
     private String resourceType; // USER, ROLE, RESOURCE, CODE, etc.
     
     @Column(name = "resource_id")
