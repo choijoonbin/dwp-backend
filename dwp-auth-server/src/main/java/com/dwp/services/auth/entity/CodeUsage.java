@@ -27,13 +27,13 @@ public class CodeUsage extends BaseEntity {
     @Column(name = "tenant_id", nullable = false)
     private Long tenantId;
     
-    @Column(name = "resource_key", nullable = false, length = 200)
+    @Column(name = "resource_key", nullable = false, length = 200, columnDefinition = "VARCHAR(200)")
     private String resourceKey; // menu.admin.users 등
     
-    @Column(name = "code_group_key", nullable = false, length = 100)
+    @Column(name = "code_group_key", nullable = false, length = 100, columnDefinition = "VARCHAR(100)")
     private String codeGroupKey; // RESOURCE_TYPE, SUBJECT_TYPE 등
     
-    @Column(name = "scope", nullable = false, length = 30)
+    @Column(name = "scope", nullable = false, length = 30, columnDefinition = "VARCHAR(30)")
     @Builder.Default
     private String scope = "MENU"; // MENU, PAGE, MODULE
     
