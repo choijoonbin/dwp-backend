@@ -62,8 +62,14 @@ public class AuditLogQueryService {
         String fromStr = from != null ? from.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : null;
         String toStr = to != null ? to.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : null;
         
+        log.debug("AuditLogQueryService.getAuditLogs: tenantId={}, fromStr={}, toStr={}, actorUserId={}, actionType={}, resourceType={}, keyword={}",
+                tenantId, fromStr, toStr, actorUserId, actionType, resourceType, keyword);
+        
         Page<AuditLog> auditLogPage = auditLogRepository.findByTenantIdAndFilters(
                 tenantId, fromStr, toStr, actorUserId, actionType, resourceType, keyword, pageable);
+        
+        log.debug("AuditLogQueryService.getAuditLogs 결과: totalElements={}, totalPages={}, contentSize={}",
+                auditLogPage.getTotalElements(), auditLogPage.getTotalPages(), auditLogPage.getContent().size());
         
         List<AuditLogItem> items = auditLogPage.getContent().stream()
                 .map(this::toAuditLogItem)
