@@ -1,4 +1,12 @@
-// dwp-core는 라이브러리 모듈이므로 실행 가능한 jar 생성을 비활성화
+// ========================================
+// dwp-core: Spring Boot Starter 모듈
+// ========================================
+// 이 모듈은 "Auto-Configuration Starter"로 동작합니다.
+// 모든 서비스가 자동으로 공통 설정(ApiResponse, GlobalExceptionHandler, 
+// FeignHeaderInterceptor 등)을 로드합니다.
+// ========================================
+
+// 실행 가능한 jar가 아닌 라이브러리 jar 생성
 jar {
     enabled = true
 }
@@ -8,23 +16,56 @@ bootJar {
 }
 
 dependencies {
-    // Spring Boot Web (Response DTO 등에 필요)
-    implementation 'org.springframework.boot:spring-boot-starter-web'
+    // ========================================
+    // Spring Boot AutoConfiguration
+    // ========================================
+    // Spring Boot의 AutoConfiguration 메커니즘을 사용하기 위한 의존성
+    implementation 'org.springframework.boot:spring-boot-autoconfigure'
     
-    // Validation
-    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    // AutoConfiguration 조건부 로딩을 위한 어노테이션 프로세서
+    annotationProcessor 'org.springframework.boot:spring-boot-autoconfigure-processor'
     
-    // OpenFeign (FeignClient 및 헤더 전파를 위해 필요)
-    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
+    // @ConfigurationProperties 지원
+    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
     
-    // Redis (이벤트 발행 및 캐싱용)
-    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    // ========================================
+    // 조건부 의존성 (Optional)
+    // ========================================
+    // 아래 의존성들은 optional로 선언하여, 사용하는 서비스에서만 로드되도록 합니다.
+    // @ConditionalOnClass로 클래스 존재 여부를 체크하여 자동 구성합니다.
     
-    // Jackson (JSON 직렬화)
-    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+    // Spring Web (GlobalExceptionHandler, @RestControllerAdvice)
+    compileOnly 'org.springframework.boot:spring-boot-starter-web'
+    
+    // Validation (DTO 검증)
+    compileOnly 'org.springframework.boot:spring-boot-starter-validation'
+    
+    // OpenFeign (FeignHeaderInterceptor)
+    compileOnly 'org.springframework.cloud:spring-cloud-starter-openfeign'
+    
+    // Redis (RedisTemplate, EventPublisher)
+    compileOnly 'org.springframework.boot:spring-boot-starter-data-redis'
+    
+    // Jackson (ObjectMapper, JSON 직렬화)
+    compileOnly 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+    
+    // ========================================
+    // 필수 의존성 (Always Required)
+    // ========================================
+    // 모든 서비스에서 사용하는 공통 클래스 (ApiResponse, ErrorCode 등)
+    implementation 'org.springframework:spring-context'
+    implementation 'org.springframework:spring-web'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
     
     // Lombok
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
+    
+    // ========================================
+    // 테스트 의존성
+    // ========================================
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-web'
+    testImplementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
 }
 

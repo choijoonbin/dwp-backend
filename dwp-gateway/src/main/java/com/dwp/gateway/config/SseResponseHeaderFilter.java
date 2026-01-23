@@ -68,8 +68,14 @@ public class SseResponseHeaderFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange);
         }
 
-        log.debug("SSE request detected: method={}, path={}, accept={}", 
-                request.getMethod(), path, acceptHeader);
+        // C29: SSE 스트리밍 시작 로깅 강화 (추적용 헤더 포함)
+        String correlationId = request.getHeaders().getFirst("X-Correlation-ID");
+        String agentId = request.getHeaders().getFirst("X-Agent-ID");
+        String tenantId = request.getHeaders().getFirst("X-Tenant-ID");
+        String userId = request.getHeaders().getFirst("X-User-ID");
+        
+        log.info("SSE stream started: method={}, path={}, correlationId={}, agentId={}, tenantId={}, userId={}", 
+                request.getMethod(), path, correlationId, agentId, tenantId, userId);
 
         // 응답 헤더를 보장하기 위한 데코레이터 생성
         ServerHttpResponse originalResponse = exchange.getResponse();

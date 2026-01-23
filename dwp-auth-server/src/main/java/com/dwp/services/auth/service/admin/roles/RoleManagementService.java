@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 /**
- * 역할 관리 서비스 (Facade)
+ * 권한 관리 서비스 (Facade)
  * 
  * 리팩토링: Query/Command 분리
  * - RoleQueryService: 조회 전용

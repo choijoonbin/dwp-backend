@@ -31,7 +31,7 @@
 - `menu.admin` - Admin
   - `menu.admin.monitoring` - 통합 모니터링
   - `menu.admin.users` - 사용자 관리
-  - `menu.admin.roles` - 역할 관리
+  - `menu.admin.roles` - 권한 관리
   - `menu.admin.resources` - 리소스 관리
   - `menu.admin.audit` - 감사 로그
 

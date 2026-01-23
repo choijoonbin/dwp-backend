@@ -17,21 +17,20 @@ spring:
           max-connections: 500
           max-idle-time: 30s
       routes:
-        # HITL API 라우팅 (Main Service) - Aura 라우팅보다 먼저 매칭되도록 설정
-        # HITL API는 Main Service에 있으므로 별도 라우팅 필요
+        # HITL API 라우팅 (Main Service)
         - id: hitl-api
-          uri: http://localhost:8081
+          uri: ${SERVICE_MAIN_URL:http://localhost:8081}
           predicates:
             - Path=/api/aura/hitl/**
           filters:
-            - StripPrefix=1  # /api/aura/hitl/** → /aura/hitl/**로 변환 (Main Service의 /aura/hitl 경로 유지)
-        # Monitoring 수집 API 라우팅 (Auth Server) - 다른 라우팅보다 먼저 매칭되도록 설정
+            - StripPrefix=1
+        # Monitoring 수집 API 라우팅 (Auth Server)
         - id: monitoring-collect
-          uri: http://localhost:8001
+          uri: ${SERVICE_AUTH_URL:http://localhost:8001}
           predicates:
             - Path=/api/monitoring/**
           filters:
-            - StripPrefix=1  # /api/monitoring/** → /monitoring/**로 변환
+            - StripPrefix=1
         # Aura Platform (AI Agent) 라우팅
         # ⚠️ 중요: 프론트엔드는 반드시 Gateway(8080)를 통해 Aura-Platform과 통신해야 합니다.
         # 직접 Aura-Platform(9000)에 접근하는 것은 금지됩니다.
@@ -39,7 +38,7 @@ spring:
         # AI 에이전트의 스트리밍 응답(SSE)을 중간에 끊기지 않도록 별도 타임아웃 적용
         # ✅ 포트 9000 확정: Aura-Platform은 포트 9000을 사용합니다
         - id: aura-platform
-          uri: ${AURA_PLATFORM_URI:http://localhost:9000}  # ✅ 포트 9000 확정
+          uri: ${AURA_PLATFORM_URL:http://localhost:9000}  # env 변수명 표준화
           predicates:
             - Path=/api/aura/**
           filters:
@@ -66,38 +65,38 @@ spring:
         # 프론트엔드: http://localhost:8080/api/main/health
         # → Gateway가 /api 제거 후 → http://localhost:8081/main/health로 전달
         - id: main-service
-          uri: http://localhost:8081
+          uri: ${SERVICE_MAIN_URL:http://localhost:8081}
           predicates:
             - Path=/api/main/**
           filters:
-            - StripPrefix=1  # /api/main/health → /main/health로 변환
+            - StripPrefix=1
         - id: auth-server
-          uri: http://localhost:8001  # Auth Server 포트 변경 (8000 → 8001)
+          uri: ${SERVICE_AUTH_URL:http://localhost:8001}
           predicates:
             - Path=/api/auth/**
           filters:
             - StripPrefix=1
-        # Admin API 라우팅 (Auth Server) - Admin CRUD 및 모니터링 조회 API
+        # Admin API 라우팅 (Auth Server)
         - id: admin-api
-          uri: http://localhost:8001
+          uri: ${SERVICE_AUTH_URL:http://localhost:8001}
           predicates:
             - Path=/api/admin/**
           filters:
-            - StripPrefix=1  # /api/admin/** → /admin/**로 변환
+            - StripPrefix=1
         - id: mail-service
-          uri: http://localhost:8082
+          uri: ${SERVICE_MAIL_URL:http://localhost:8082}
           predicates:
             - Path=/api/mail/**
           filters:
             - StripPrefix=1
         - id: chat-service
-          uri: http://localhost:8083
+          uri: ${SERVICE_CHAT_URL:http://localhost:8083}
           predicates:
             - Path=/api/chat/**
           filters:
             - StripPrefix=1
         - id: approval-service
-          uri: http://localhost:8084
+          uri: ${SERVICE_APPROVAL_URL:http://localhost:8084}
           predicates:
             - Path=/api/approval/**
           filters:

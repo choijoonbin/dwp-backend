@@ -1,5 +1,6 @@
 package com.dwp.core.config;
 
+import com.dwp.core.constant.HeaderConstants;
 import feign.RequestInterceptor;
 import feign.RequestTemplate;
 import jakarta.servlet.http.HttpServletRequest;
@@ -9,28 +10,40 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 /**
- * FeignClient 요청 시 공통 헤더를 자동으로 전파하는 Interceptor
+ * FeignClient 요청 시 표준 헤더를 자동으로 전파하는 Interceptor
  * 
- * AI 에이전트(Aura)가 사용자를 대신해 API를 호출할 때 필요한 헤더:
- * - X-DWP-Source: 요청의 출처 (AURA, FRONTEND, INTERNAL 등)
- * - X-Tenant-ID: 멀티테넌시 환경에서 테넌트 식별자
- * - Authorization: JWT 토큰 전파
+ * DWP 플랫폼 계약 준수:
+ * - Authorization: JWT 토큰 (인증)
+ * - X-Tenant-ID: 멀티테넌트 식별자 (데이터 격리)
+ * - X-User-ID: 사용자 식별자 (사용자 컨텍스트)
+ * - X-Agent-ID: AI 에이전트 세션/클라이언트 식별자 (에이전트 추적)
+ * - X-DWP-Source: 요청 출처 (AURA, FRONTEND, INTERNAL, BATCH)
+ * - X-DWP-Caller-Type: 호출자 타입 (USER, AGENT, SYSTEM)
+ * 
+ * 헤더 전파 규칙:
+ * - 헤더가 존재하는 경우에만 전파 (null 주입 금지)
+ * - 비동기 호출 등으로 RequestContext가 없는 경우 안전하게 처리
+ * - 로그에 전파 헤더 기록 (디버깅 용이성)
+ * 
+ * Auto-Configuration:
+ * - CoreFeignAutoConfiguration에서 자동 등록
+ * - @EnableFeignClients가 있는 서비스에만 적용
  */
 @Slf4j
 @Component
 public class FeignHeaderInterceptor implements RequestInterceptor {
     
-    // 전파할 헤더 목록
-    private static final String HEADER_SOURCE = "X-DWP-Source";
-    private static final String HEADER_TENANT_ID = "X-Tenant-ID";
-    private static final String HEADER_AUTHORIZATION = "Authorization";
-    private static final String HEADER_USER_ID = "X-User-ID";
-    
     @Override
     public void apply(RequestTemplate template) {
         // 현재 HTTP 요청 컨텍스트에서 헤더 추출
-        ServletRequestAttributes attributes = 
-            (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        ServletRequestAttributes attributes;
+        try {
+            attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        } catch (IllegalStateException e) {
+            // 비동기 호출 등으로 RequestContext가 없는 경우
+            log.debug("No request context available for Feign header propagation (async call or scheduler)");
+            return;
+        }
         
         if (attributes == null) {
             log.debug("No request context available for Feign header propagation");
@@ -39,32 +52,28 @@ public class FeignHeaderInterceptor implements RequestInterceptor {
         
         HttpServletRequest request = attributes.getRequest();
         
-        // X-DWP-Source 헤더 전파 (AI 에이전트 식별)
-        String source = request.getHeader(HEADER_SOURCE);
-        if (source != null && !source.isEmpty()) {
-            template.header(HEADER_SOURCE, source);
-            log.debug("Propagating header: {} = {}", HEADER_SOURCE, source);
+        // HeaderConstants.REQUIRED_PROPAGATION_HEADERS 목록에 있는 모든 헤더 전파
+        for (String headerName : HeaderConstants.REQUIRED_PROPAGATION_HEADERS) {
+            String headerValue = request.getHeader(headerName);
+            if (headerValue != null && !headerValue.isEmpty()) {
+                template.header(headerName, headerValue);
+                
+                // Authorization 헤더는 민감 정보이므로 마스킹
+                if (HeaderConstants.AUTHORIZATION.equals(headerName)) {
+                    log.debug("Propagating header: {} = Bearer ***", headerName);
+                } else {
+                    log.debug("Propagating header: {} = {}", headerName, headerValue);
+                }
+            }
         }
         
-        // X-Tenant-ID 헤더 전파 (멀티테넌시)
-        String tenantId = request.getHeader(HEADER_TENANT_ID);
-        if (tenantId != null && !tenantId.isEmpty()) {
-            template.header(HEADER_TENANT_ID, tenantId);
-            log.debug("Propagating header: {} = {}", HEADER_TENANT_ID, tenantId);
-        }
-        
-        // Authorization 헤더 전파 (JWT 토큰)
-        String authorization = request.getHeader(HEADER_AUTHORIZATION);
-        if (authorization != null && !authorization.isEmpty()) {
-            template.header(HEADER_AUTHORIZATION, authorization);
-            log.debug("Propagating header: {} = Bearer ***", HEADER_AUTHORIZATION);
-        }
-        
-        // X-User-ID 헤더 전파 (사용자 식별)
-        String userId = request.getHeader(HEADER_USER_ID);
-        if (userId != null && !userId.isEmpty()) {
-            template.header(HEADER_USER_ID, userId);
-            log.debug("Propagating header: {} = {}", HEADER_USER_ID, userId);
+        // 전파된 헤더 요약 로그 (INFO 레벨)
+        if (log.isInfoEnabled()) {
+            long propagatedCount = HeaderConstants.REQUIRED_PROPAGATION_HEADERS.stream()
+                .filter(h -> request.getHeader(h) != null && !request.getHeader(h).isEmpty())
+                .count();
+            log.info("Feign header propagation: {}/{} headers propagated to downstream service",
+                    propagatedCount, HeaderConstants.REQUIRED_PROPAGATION_HEADERS.size());
         }
     }
 }

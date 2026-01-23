@@ -171,6 +171,16 @@ DELETE /api/admin/<feature>/{id}         # delete
   - 리팩토링 PR에서는 기능 변경 금지(동작/응답 동일 유지)
   - 예외: 명백한 버그/성능 문제 해결은 허용
 
+────────────────────────────────────────────────────────
+📋 FE-BE API 스펙 협업 (Frontend 협업)
+────────────────────────────────────────────────────────
+- **요청 문서 (FE → BE)**: 프론트가 `docs/backend-src/docs/api-spec/`에 업로드 → 백엔드의 `docs/api-spec/`와 동일.
+  → 작업 전 `docs/api-spec/`에서 요청·검토 문서 확인. `_v1`, `_v2` 등 수정본 있으면 최신 버전 기준.
+- **로드맵 (검토 요청)**: 작업 전 “이렇게 진행할 예정” 검토 요청 시 `docs/frontend/docs/api-spec/{요청문서제목}_ROADMAP.md` 업로드.
+- **결과 문서 (BE → FE)**: 작업 완료 후 `docs/frontend/docs/api-spec/{요청문서제목}_result.md` 업로드.
+- 상세: `docs/essentials/FE_BE_API_SPEC_WORKFLOW.md`
+
 [Cursor Action Guideline]
 본 규칙을 바탕으로 코드를 생성할 때, 특히 Gateway 설정 / Header 전파 / SSE 스트리밍 반환부에서
 규격 위반이 없는지 최우선으로 검증하십시오.
+FE 요청 문서 기반 작업 시: 검토 요청 시 `{요청제목}_ROADMAP.md`, 완료 후 `{요청제목}_result.md`를 `docs/frontend/docs/api-spec/`에 작성·업로드하십시오.

@@ -1,6 +1,37 @@
 server:
   port: 8001  # Aura-Platform(8000)과 포트 충돌 방지를 위해 8001로 변경
 
+# ========================================
+# Actuator & Observability (C28, C33)
+# ========================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus,info
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+# ========================================
+# SpringDoc OpenAPI (C30)
+# ========================================
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    tags-sorter: alpha
+    operations-sorter: alpha
+  show-actuator: false
+
 spring:
   application:
     name: dwp-auth-server

@@ -1,0 +1,68 @@
+-- ========================================
+-- DWP Main Service Baseline (Empty)
+-- 생성일: 2026-01-22
+-- 목적: Flyway baseline (초기 상태는 빈 스키마)
+-- ========================================
+-- ⚠️ 주의: V2__add_agent_task_tables.sql에서 실제 테이블 생성
+-- ========================================
+
+-- ========================================
+-- [향후 추가 예정] 1. AgentTask 테이블
+-- ========================================
+-- CREATE TABLE agent_tasks (
+--     agent_task_id BIGSERIAL PRIMARY KEY,
+--     tenant_id BIGINT NOT NULL,
+--     user_id BIGINT NOT NULL,
+--     task_type VARCHAR(50) NOT NULL,
+--     status VARCHAR(30) NOT NULL,
+--     progress INTEGER DEFAULT 0,
+--     plan_steps JSONB,
+--     result JSONB,
+--     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     created_by BIGINT,
+--     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     updated_by BIGINT
+-- );
+-- 
+-- CREATE INDEX idx_agent_tasks_tenant_id ON agent_tasks(tenant_id);
+-- CREATE INDEX idx_agent_tasks_user_id ON agent_tasks(user_id);
+-- CREATE INDEX idx_agent_tasks_status ON agent_tasks(status);
+-- 
+-- COMMENT ON TABLE agent_tasks IS 'AI 에이전트 작업 관리';
+
+-- ========================================
+-- [향후 추가 예정] 2. HITL 세션 테이블
+-- ========================================
+-- CREATE TABLE hitl_sessions (
+--     hitl_session_id BIGSERIAL PRIMARY KEY,
+--     tenant_id BIGINT NOT NULL,
+--     agent_task_id BIGINT NOT NULL,
+--     approval_request TEXT,
+--     approval_status VARCHAR(30) NOT NULL,
+--     approved_by BIGINT,
+--     approved_at TIMESTAMP,
+--     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     created_by BIGINT,
+--     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+--     updated_by BIGINT
+-- );
+-- 
+-- CREATE INDEX idx_hitl_sessions_tenant_id ON hitl_sessions(tenant_id);
+-- CREATE INDEX idx_hitl_sessions_agent_task_id ON hitl_sessions(agent_task_id);
+-- CREATE INDEX idx_hitl_sessions_status ON hitl_sessions(approval_status);
+-- 
+-- COMMENT ON TABLE hitl_sessions IS 'Human-In-The-Loop 승인 세션';
+
+-- ========================================
+-- Skeleton 요약
+-- ========================================
+-- 현재 테이블: 0개
+-- 향후 추가 예정: AgentTask, HITL 등
+-- 
+-- 다음 단계:
+-- 1. AgentTask/HITL 엔티티 설계
+-- 2. 로컬에서 ddl-auto=create로 테이블 생성 (임시)
+-- 3. tools/db/baseline/dump_schema.sh로 스키마 추출
+-- 4. V2__add_agent_task_tables.sql로 마이그레이션 생성
+-- 5. ddl-auto=validate로 복원
+-- ========================================

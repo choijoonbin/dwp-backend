@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- * 역할 관리 컨트롤러
+ * 권한 관리 컨트롤러
  */
 @Slf4j
 @RestController

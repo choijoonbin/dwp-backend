@@ -71,7 +71,7 @@ RBAC는 "서버 enforcement"가 있어야 완성입니다. FE 숨김만으로는
 
 ### Resource Key 예시
 - `menu.admin.users`: 사용자 관리 메뉴
-- `menu.admin.roles`: 역할 관리 메뉴
+- `menu.admin.roles`: 권한 관리 메뉴
 - `menu.admin.resources`: 리소스 관리 메뉴
 - `menu.admin.menus`: 메뉴 관리 메뉴
 - `btn.user.create`: 사용자 생성 버튼 (UI_COMPONENT)

@@ -43,3 +43,5 @@ out/
 application-local.yml
 *.log
 
+### Frontend Source (Reference Link) ###
+docs/frontend-src

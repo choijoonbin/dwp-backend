@@ -49,8 +49,10 @@ public class AgentTaskService {
         
         @SuppressWarnings("null")
         AgentTask savedTask = taskRepository.save(task);
-        log.info("Created new agent task: taskId={}, type={}, userId={}", 
-                 taskId, request.getTaskType(), request.getUserId());
+        
+        // C29: 작업 생성 로깅 강화 (MDC에서 correlationId 자동 포함)
+        log.info("AgentTask created: taskId={}, type={}, userId={}, tenantId={}", 
+                 taskId, request.getTaskType(), request.getUserId(), request.getTenantId());
         
         return toResponse(savedTask);
     }
@@ -84,7 +86,9 @@ public class AgentTaskService {
         task.start();
         taskRepository.save(task);
         
-        log.info("Started agent task: taskId={}", taskId);
+        // C29: 작업 시작 로깅 강화 (MDC에서 correlationId 자동 포함)
+        log.info("AgentTask started: taskId={}, type={}, status={}", 
+                 taskId, task.getTaskType(), task.getStatus());
         return toResponse(task);
     }
     
@@ -108,10 +112,13 @@ public class AgentTaskService {
     @Transactional
     public AgentTaskResponse completeTask(String taskId, String resultData) {
         AgentTask task = findTaskByIdOrThrow(taskId);
+        long durationMs = java.time.Duration.between(task.getStartedAt(), java.time.LocalDateTime.now()).toMillis();
         task.complete(resultData);
         taskRepository.save(task);
         
-        log.info("Completed agent task: taskId={}", taskId);
+        // C29: 작업 완료 로깅 강화 (소요 시간 포함, MDC에서 correlationId 자동 포함)
+        log.info("AgentTask completed: taskId={}, type={}, durationMs={}, progress={}%", 
+                 taskId, task.getTaskType(), durationMs, task.getProgress());
         return toResponse(task);
     }
     
@@ -124,7 +131,9 @@ public class AgentTaskService {
         task.fail(errorMessage);
         taskRepository.save(task);
         
-        log.warn("Failed agent task: taskId={}, error={}", taskId, errorMessage);
+        // C29: 작업 실패 로깅 강화 (MDC에서 correlationId 자동 포함)
+        log.error("AgentTask failed: taskId={}, type={}, status={}, error={}", 
+                  taskId, task.getTaskType(), task.getStatus(), errorMessage);
         return toResponse(task);
     }
     
