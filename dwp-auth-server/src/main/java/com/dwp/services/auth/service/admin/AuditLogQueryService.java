@@ -1,5 +1,8 @@
 package com.dwp.services.auth.service.admin;
 
+import com.dwp.core.common.ErrorCode;
+import com.dwp.core.exception.BaseException;
+import com.dwp.services.auth.dto.admin.AuditLogDetail;
 import com.dwp.services.auth.dto.admin.AuditLogItem;
 import com.dwp.services.auth.dto.admin.ExportAuditLogsRequest;
 import com.dwp.services.auth.dto.admin.PageResponse;
@@ -44,6 +47,7 @@ public class AuditLogQueryService {
     
     /**
      * PR-08A: 감사 로그 목록 조회
+     * P0-2: actorUserId, actionType (actor/action alias는 Controller에서 해소 후 전달)
      */
     public PageResponse<AuditLogItem> getAuditLogs(
             Long tenantId, int page, int size,
@@ -81,6 +85,71 @@ public class AuditLogQueryService {
                 .size(size)
                 .totalItems(auditLogPage.getTotalElements())
                 .totalPages(auditLogPage.getTotalPages())
+                .build();
+    }
+    
+    /**
+     * P1-4: 감사 로그 상세 조회. metadata_json에서 ip, userAgent, before, after 추출.
+     */
+    public AuditLogDetail getAuditLogDetail(Long tenantId, Long auditLogId) {
+        AuditLog auditLog = auditLogRepository.findByTenantIdAndAuditLogId(tenantId, auditLogId)
+                .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "감사 로그를 찾을 수 없습니다."));
+        return toAuditLogDetail(auditLog);
+    }
+    
+    private AuditLogDetail toAuditLogDetail(AuditLog auditLog) {
+        Map<String, Object> metadata = new HashMap<>();
+        boolean truncated = false;
+        String ipAddress = null;
+        String userAgent = null;
+        Object beforeValue = null;
+        Object afterValue = null;
+        
+        if (auditLog.getMetadataJson() != null) {
+            try {
+                Map<String, Object> parsed = objectMapper.readValue(
+                        auditLog.getMetadataJson(), new TypeReference<Map<String, Object>>() {});
+                metadata = parsed;
+                Object ip = parsed.get("ip"); if (ip == null) ip = parsed.get("ipAddress"); ipAddress = ip != null ? String.valueOf(ip) : null;
+                Object ua = parsed.get("userAgent"); if (ua == null) ua = parsed.get("user_agent"); userAgent = ua != null ? String.valueOf(ua) : null;
+                beforeValue = parsed.get("before");
+                afterValue = parsed.get("after");
+                if (beforeValue != null) {
+                    String js = objectMapper.writeValueAsString(beforeValue);
+                    if (js.length() > MAX_METADATA_LENGTH) {
+                        metadata.put("before", js.substring(0, MAX_METADATA_LENGTH) + "...[truncated]");
+                        beforeValue = metadata.get("before");
+                        truncated = true;
+                    }
+                }
+                if (afterValue != null) {
+                    String js = objectMapper.writeValueAsString(afterValue);
+                    if (js.length() > MAX_METADATA_LENGTH) {
+                        metadata.put("after", js.substring(0, MAX_METADATA_LENGTH) + "...[truncated]");
+                        afterValue = metadata.get("after");
+                        truncated = true;
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Failed to parse audit log metadata: auditLogId={}", auditLog.getAuditLogId(), e);
+                metadata.put("raw", auditLog.getMetadataJson());
+            }
+        }
+        
+        return AuditLogDetail.builder()
+                .auditLogId(auditLog.getAuditLogId())
+                .tenantId(auditLog.getTenantId())
+                .actorUserId(auditLog.getActorUserId())
+                .action(auditLog.getAction())
+                .resourceType(auditLog.getResourceType())
+                .resourceId(auditLog.getResourceId())
+                .metadata(metadata)
+                .truncated(truncated)
+                .ipAddress(ipAddress)
+                .userAgent(userAgent)
+                .beforeValue(beforeValue)
+                .afterValue(afterValue)
+                .createdAt(auditLog.getCreatedAt())
                 .build();
     }
     

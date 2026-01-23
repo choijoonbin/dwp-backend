@@ -283,17 +283,17 @@ class CodeUsageServiceTest {
         
         Page<com.dwp.services.auth.entity.CodeUsage> page = new PageImpl<>(Arrays.asList(codeUsage1));
         
-        when(codeUsageRepository.findByTenantIdAndFilters(eq(tenantId), any(), any(), any(), any()))
+        when(codeUsageRepository.findByTenantIdAndFilters(eq(tenantId), any(), any(), any(), any(), any()))
                 .thenReturn(page);
         
         // When
         com.dwp.services.auth.dto.admin.PageResponse<CodeUsageSummary> response = 
-                codeUsageService.getCodeUsages(tenantId, 1, 20, null, null, null);
+                codeUsageService.getCodeUsages(tenantId, 1, 20, null, null, null, null);
         
         // Then
         assertNotNull(response);
         assertEquals(1, response.getItems().size());
         assertEquals(tenantId, response.getItems().get(0).getTenantId());
-        verify(codeUsageRepository).findByTenantIdAndFilters(eq(tenantId), any(), any(), any(), any());
+        verify(codeUsageRepository).findByTenantIdAndFilters(eq(tenantId), any(), any(), any(), any(), any());
     }
 }

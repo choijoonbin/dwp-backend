@@ -34,12 +34,15 @@ public class CodeController {
     private final CodeUsageService codeUsageService;
     
     /**
-     * 코드 그룹 목록 조회
-     * GET /api/admin/codes/groups
+     * 코드 그룹 목록 조회 (P1-1: keyword, tenantScope, enabled)
+     * GET /api/admin/codes/groups?keyword=&tenantScope=COMMON|TENANT|ALL&enabled=
      */
     @GetMapping("/groups")
-    public ApiResponse<List<CodeGroupResponse>> getGroups() {
-        return ApiResponse.success(codeManagementService.getAllGroups());
+    public ApiResponse<List<CodeGroupResponse>> getGroups(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String tenantScope,
+            @RequestParam(required = false) Boolean enabled) {
+        return ApiResponse.success(codeManagementService.getAllGroups(keyword, tenantScope, enabled));
     }
     
     /**

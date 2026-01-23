@@ -23,8 +23,8 @@ public class CodeUsageController {
     private final CodeUsageService codeUsageService;
     
     /**
-     * PR-07A: 코드 사용 정의 목록 조회 고도화
-     * GET /api/admin/code-usages?keyword=&enabled=&resourceKey=
+     * PR-07A: 코드 사용 정의 목록 조회 고도화. P1-2: codeGroupKey 추가.
+     * GET /api/admin/code-usages?resourceKey=&codeGroupKey=&keyword=&enabled=
      */
     @GetMapping
     public ApiResponse<PageResponse<CodeUsageSummary>> getCodeUsages(
@@ -32,9 +32,21 @@ public class CodeUsageController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String resourceKey,
+            @RequestParam(required = false) String codeGroupKey,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Boolean enabled) {
-        return ApiResponse.success(codeUsageService.getCodeUsages(tenantId, page, size, resourceKey, keyword, enabled));
+        return ApiResponse.success(codeUsageService.getCodeUsages(tenantId, page, size, resourceKey, codeGroupKey, keyword, enabled));
+    }
+    
+    /**
+     * P1-5: 코드 사용 정의 상세 조회
+     * GET /api/admin/code-usages/{sysCodeUsageId}
+     */
+    @GetMapping("/{sysCodeUsageId}")
+    public ApiResponse<CodeUsageDetail> getCodeUsageDetail(
+            @RequestHeader("X-Tenant-ID") Long tenantId,
+            @PathVariable Long sysCodeUsageId) {
+        return ApiResponse.success(codeUsageService.getCodeUsageDetail(tenantId, sysCodeUsageId));
     }
     
     /**

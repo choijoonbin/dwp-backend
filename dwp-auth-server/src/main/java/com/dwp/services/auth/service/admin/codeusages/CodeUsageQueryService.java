@@ -2,6 +2,7 @@ package com.dwp.services.auth.service.admin.codeusages;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.auth.dto.admin.CodeUsageDetail;
 import com.dwp.services.auth.dto.admin.CodeUsageResponse;
 import com.dwp.services.auth.dto.admin.CodeUsageSummary;
 import com.dwp.services.auth.dto.admin.PageResponse;
@@ -140,24 +141,17 @@ public class CodeUsageQueryService {
     
     /**
      * PR-07A: 코드 사용 정의 목록 조회 고도화
+     * P1-2: codeGroupKey 필터 추가
      * 
-     * 필터:
-     * - keyword: resourceKey 또는 groupKey 검색
-     * - enabled: 활성화 여부 필터
-     * - resourceKey: 특정 리소스 키 필터
+     * 필터: resourceKey, codeGroupKey, keyword, enabled
      */
     public PageResponse<CodeUsageSummary> getCodeUsages(Long tenantId, int page, int size,
-                                                         String resourceKey, String keyword, Boolean enabled) {
-        // 페이징 크기 제한 (최대 200)
-        if (size > 200) {
-            size = 200;
-        }
-        if (size < 1) {
-            size = 20;
-        }
+                                                         String resourceKey, String codeGroupKey, String keyword, Boolean enabled) {
+        if (size > 200) size = 200;
+        if (size < 1) size = 20;
         Pageable pageable = PageRequest.of(page - 1, size);
         Page<CodeUsage> codeUsagePage = codeUsageRepository.findByTenantIdAndFilters(
-                tenantId, resourceKey, keyword, enabled, pageable);
+                tenantId, resourceKey, codeGroupKey, keyword, enabled, pageable);
         
         List<CodeUsageSummary> summaries = codeUsagePage.getContent().stream()
                 .map(this::toCodeUsageSummary)
@@ -178,6 +172,27 @@ public class CodeUsageQueryService {
     public CodeUsage findCodeUsage(Long tenantId, Long sysCodeUsageId) {
         return codeUsageRepository.findByTenantIdAndSysCodeUsageId(tenantId, sysCodeUsageId)
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "코드 사용 정의를 찾을 수 없습니다."));
+    }
+    
+    /**
+     * P1-5: 코드 사용 정의 상세 조회 (CodeUsageSummary + createdBy, updatedBy)
+     */
+    public CodeUsageDetail getCodeUsageDetail(Long tenantId, Long sysCodeUsageId) {
+        CodeUsage cu = findCodeUsage(tenantId, sysCodeUsageId);
+        return CodeUsageDetail.builder()
+                .sysCodeUsageId(cu.getSysCodeUsageId())
+                .tenantId(cu.getTenantId())
+                .resourceKey(cu.getResourceKey())
+                .codeGroupKey(cu.getCodeGroupKey())
+                .scope(cu.getScope())
+                .enabled(cu.getEnabled())
+                .sortOrder(cu.getSortOrder())
+                .remark(cu.getRemark())
+                .createdAt(cu.getCreatedAt())
+                .updatedAt(cu.getUpdatedAt())
+                .createdBy(cu.getCreatedBy())
+                .updatedBy(cu.getUpdatedBy())
+                .build();
     }
     
     /**

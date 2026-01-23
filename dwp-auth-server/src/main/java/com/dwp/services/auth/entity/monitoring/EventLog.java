@@ -1,6 +1,6 @@
 package com.dwp.services.auth.entity.monitoring;
 
-import com.dwp.services.auth.entity.BaseEntity;
+import com.dwp.core.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;

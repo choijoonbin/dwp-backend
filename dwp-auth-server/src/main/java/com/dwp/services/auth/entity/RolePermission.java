@@ -1,5 +1,6 @@
 package com.dwp.services.auth.entity;
 
+import com.dwp.core.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 

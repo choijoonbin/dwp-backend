@@ -37,11 +37,24 @@ public class CodeManagementService {
     private final AuditLogService auditLogService;
     
     /**
-     * 모든 코드 그룹 조회
+     * 모든 코드 그룹 조회 (하위호환: 파라미터 없으면 isActive=true만)
      */
     @Transactional(readOnly = true)
     public List<CodeGroupResponse> getAllGroups() {
-        return codeGroupRepository.findByIsActiveTrueOrderByGroupKey()
+        return getAllGroups(null, null, null);
+    }
+    
+    /**
+     * P1-1: keyword, tenantScope, enabled 필터 지원
+     * @param keyword groupKey, groupName, description LIKE 검색
+     * @param tenantScope COMMON|TENANT|ALL (빈값=ALL)
+     * @param enabled isActive 필터 (null=미적용, 파라미터 모두 없을 때만 기본 true로 동작)
+     */
+    @Transactional(readOnly = true)
+    public List<CodeGroupResponse> getAllGroups(String keyword, String tenantScope, Boolean enabled) {
+        boolean noFilter = (keyword == null || keyword.isBlank()) && (tenantScope == null || tenantScope.isBlank()) && (enabled == null);
+        Boolean effectiveEnabled = noFilter ? Boolean.TRUE : enabled;
+        return codeGroupRepository.findWithFilters(keyword, tenantScope, effectiveEnabled)
                 .stream()
                 .map(this::toCodeGroupResponse)
                 .collect(Collectors.toList());

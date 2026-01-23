@@ -25,5 +25,11 @@ public class ResourceSummary {
     private String path; // metadata에서 추출 가능
     private Integer sortOrder; // metadata에서 추출 가능
     private Boolean enabled;
+    /** P1-8: enabled → ACTIVE/INACTIVE */
+    private String status;
+    /** P1-8: metadata 또는 엔티티에서 추출 */
+    private String icon;
+    /** P1-8: metadata 또는 엔티티에서 추출 */
+    private String description;
     private LocalDateTime createdAt;
 }

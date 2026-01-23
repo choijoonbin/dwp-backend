@@ -21,6 +21,15 @@ import java.util.List;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class MenuNode {
     
+    /** P1-8: sysMenuId */
+    private Long id;
+    /** P1-8: 부모 메뉴 sysMenuId */
+    private Long parentId;
+    /** P1-8: 활성화 여부 (is_enabled) */
+    private Boolean enabled;
+    /** P1-8: 권한/리소스 키 (menuKey 또는 연동 리소스 키) */
+    private String permissionKey;
+    
     /**
      * 메뉴 키 (예: menu.admin.users)
      */

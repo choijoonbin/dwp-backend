@@ -203,10 +203,29 @@ public class AdminEndpointPolicyRegistry {
         // ========================================
         registerPolicy("GET", "^/api/admin/resources$", "menu.admin.resources", "VIEW");
         registerPolicy("GET", "^/api/admin/resources/\\d+$", "menu.admin.resources", "VIEW");
+        registerPolicy("GET", "^/api/admin/resources/tree$", "menu.admin.resources", "VIEW");  // P1-7
         registerPolicy("POST", "^/api/admin/resources$", "menu.admin.resources", "EDIT");
         registerPolicy("PATCH", "^/api/admin/resources/\\d+$", "menu.admin.resources", "EDIT");
         registerPolicy("PUT", "^/api/admin/resources/\\d+$", "menu.admin.resources", "EDIT");  // PUT도 지원
         registerPolicy("DELETE", "^/api/admin/resources/\\d+$", "menu.admin.resources", "EXECUTE");
+        
+        // ========================================
+        // P1-7: Menus (menu.admin.menus)
+        // ========================================
+        registerPolicy("GET", "^/api/admin/menus$", "menu.admin.menus", "VIEW");
+        registerPolicy("GET", "^/api/admin/menus/tree$", "menu.admin.menus", "VIEW");
+        registerPolicy("POST", "^/api/admin/menus$", "menu.admin.menus", "EDIT");
+        registerPolicy("PATCH", "^/api/admin/menus/\\d+$", "menu.admin.menus", "EDIT");
+        registerPolicy("DELETE", "^/api/admin/menus/\\d+$", "menu.admin.menus", "EXECUTE");
+        registerPolicy("PUT", "^/api/admin/menus/reorder$", "menu.admin.menus", "EXECUTE");
+        
+        // ========================================
+        // P1-7: Audit Logs (menu.admin.audit)
+        // ========================================
+        registerPolicy("GET", "^/api/admin/audit-logs$", "menu.admin.audit", "VIEW");
+        registerPolicy("GET", "^/api/admin/audit-logs/\\d+$", "menu.admin.audit", "VIEW");
+        registerPolicy("GET", "^/api/admin/audit-logs/export$", "menu.admin.audit", "VIEW");  // P1-9
+        registerPolicy("POST", "^/api/admin/audit-logs/export$", "menu.admin.audit", "VIEW");
         
         log.info("Endpoint Policy Registry initialized with {} policies", endpointPolicies.size());
     }

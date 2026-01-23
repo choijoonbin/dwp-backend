@@ -1,6 +1,7 @@
 package com.dwp.services.auth.controller.admin;
 
 import com.dwp.core.common.ApiResponse;
+import com.dwp.services.auth.dto.admin.AuditLogDetail;
 import com.dwp.services.auth.dto.admin.AuditLogItem;
 import com.dwp.services.auth.dto.admin.ExportAuditLogsRequest;
 import com.dwp.services.auth.dto.admin.PageResponse;
@@ -32,6 +33,11 @@ public class AdminAuditLogController {
      * PR-08A: 감사 로그 목록 조회
      * GET /api/admin/audit-logs?page=1&size=20&from=2026-01-01T00:00:00&to=2026-01-31T23:59:59&actorUserId=1&actionType=USER_CREATE&resourceType=USER&keyword=admin
      */
+    /**
+     * PR-08A: 감사 로그 목록 조회
+     * P0-2: actor(→actorUserId), action(→actionType) alias 지원. 기존 파라미터 유지(하위호환).
+     * GET /api/admin/audit-logs?page=1&size=20&from=&to=&actorUserId=|actor=&actionType=|action=&resourceType=&keyword=
+     */
     @GetMapping
     public ApiResponse<PageResponse<AuditLogItem>> getAuditLogs(
             @RequestHeader("X-Tenant-ID") Long tenantId,
@@ -41,20 +47,69 @@ public class AdminAuditLogController {
             @RequestParam(required = false) String to,
             @RequestParam(required = false) Long actorUserId,
             @RequestParam(required = false) String actionType,
+            @RequestParam(required = false) Long actor,
+            @RequestParam(required = false) String action,
             @RequestParam(required = false) String resourceType,
             @RequestParam(required = false) String keyword) {
         
+        Long effectiveActor = actorUserId != null ? actorUserId : actor;
+        String effectiveAction = actionType != null ? actionType : action;
+        
         log.debug("getAuditLogs 호출: tenantId={}, from={}, to={}", tenantId, from, to);
         
-        // UTC 시간을 KST로 변환
         LocalDateTime fromDateTime = from != null ? convertUtcToKst(from) : null;
         LocalDateTime toDateTime = to != null ? convertUtcToKst(to) : null;
         
-        log.debug("getAuditLogs 파라미터 적용: tenantId={}, fromDateTime={}, toDateTime={}", 
-                tenantId, fromDateTime, toDateTime);
-        
         return ApiResponse.success(auditLogQueryService.getAuditLogs(
-                tenantId, page, size, fromDateTime, toDateTime, actorUserId, actionType, resourceType, keyword));
+                tenantId, page, size, fromDateTime, toDateTime, effectiveActor, effectiveAction, resourceType, keyword));
+    }
+    
+    /**
+     * P1-9: 감사 로그 Excel 다운로드 (GET, query params). POST /export와 동일 로직.
+     * GET /api/admin/audit-logs/export?from=&to=&actor=&action=&resourceType=&keyword=&maxRows=
+     */
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> exportAuditLogsGet(
+            @RequestHeader("X-Tenant-ID") Long tenantId,
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to,
+            @RequestParam(required = false) Long actorUserId,
+            @RequestParam(required = false) String actionType,
+            @RequestParam(required = false) Long actor,
+            @RequestParam(required = false) String action,
+            @RequestParam(required = false) String resourceType,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer maxRows) {
+        LocalDateTime fromDt = from != null ? convertUtcToKst(from) : null;
+        LocalDateTime toDt = to != null ? convertUtcToKst(to) : null;
+        Long effectiveActor = actorUserId != null ? actorUserId : actor;
+        String effectiveAction = actionType != null ? actionType : action;
+        ExportAuditLogsRequest req = ExportAuditLogsRequest.builder()
+                .from(fromDt).to(toDt).actorUserId(effectiveActor).actionType(effectiveAction)
+                .resourceType(resourceType).keyword(keyword).maxRows(maxRows != null ? maxRows : 100)
+                .build();
+        try {
+            byte[] excelBytes = auditLogQueryService.exportAuditLogsToExcel(tenantId, req);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+            headers.setContentDispositionFormData("attachment",
+                    "audit-logs-" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss")) + ".xlsx");
+            return ResponseEntity.ok().headers(headers).body(excelBytes);
+        } catch (Exception e) {
+            log.error("Failed to export audit logs (GET)", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+    
+    /**
+     * P1-4: 감사 로그 상세 조회
+     * GET /api/admin/audit-logs/{id}
+     */
+    @GetMapping("/{id}")
+    public ApiResponse<AuditLogDetail> getAuditLogDetail(
+            @RequestHeader("X-Tenant-ID") Long tenantId,
+            @PathVariable("id") Long id) {
+        return ApiResponse.success(auditLogQueryService.getAuditLogDetail(tenantId, id));
     }
     
     /**

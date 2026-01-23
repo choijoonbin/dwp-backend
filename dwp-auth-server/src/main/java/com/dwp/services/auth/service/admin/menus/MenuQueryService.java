@@ -63,13 +63,18 @@ public class MenuQueryService {
      */
     public List<MenuNode> getMenuTree(Long tenantId) {
         List<Menu> allMenus = menuRepository.findByTenantIdAndActive(tenantId);
+        Map<String, Long> keyToId = allMenus.stream().collect(Collectors.toMap(Menu::getMenuKey, Menu::getSysMenuId, (a, b) -> a));
         
-        // Menu -> MenuNode 변환
         Map<String, MenuNode> nodeMap = new HashMap<>();
         List<MenuNode> rootNodes = new ArrayList<>();
         
         for (Menu menu : allMenus) {
+            Long parentId = menu.getParentMenuKey() != null ? keyToId.get(menu.getParentMenuKey()) : null;
             MenuNode node = MenuNode.builder()
+                    .id(menu.getSysMenuId())
+                    .parentId(parentId)
+                    .enabled("Y".equals(menu.getIsEnabled()))
+                    .permissionKey(menu.getMenuKey())
                     .menuKey(menu.getMenuKey())
                     .menuName(menu.getMenuName())
                     .path(menu.getMenuPath())

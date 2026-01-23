@@ -41,6 +41,14 @@ public class ResourceQueryService {
     }
     
     /**
+     * P1-6: 리소스 상세 조회 (ResourceSummary)
+     */
+    public ResourceSummary getResourceById(Long tenantId, Long resourceId) {
+        Resource r = findResource(tenantId, resourceId);
+        return toResourceSummary(tenantId, r);
+    }
+    
+    /**
      * PR-04B: 리소스 목록 조회 (운영 수준)
      * - trackingEnabled 필터 추가
      * - created_at desc 정렬 (기본)
@@ -108,6 +116,9 @@ public class ResourceQueryService {
         String path = metadata != null && metadata.containsKey("path") ? (String) metadata.get("path") : null;
         Integer sortOrder = metadata != null && metadata.containsKey("sortOrder") ? 
                 ((Number) metadata.get("sortOrder")).intValue() : null;
+        String icon = metadata != null && metadata.get("icon") != null ? String.valueOf(metadata.get("icon")) : null;
+        String description = metadata != null && metadata.get("description") != null ? String.valueOf(metadata.get("description")) : null;
+        String status = resource.getEnabled() != null && resource.getEnabled() ? "ACTIVE" : "INACTIVE";
         
         return ResourceSummary.builder()
                 .comResourceId(resource.getResourceId())
@@ -117,8 +128,11 @@ public class ResourceQueryService {
                 .parentResourceId(resource.getParentResourceId())
                 .parentResourceName(parentResourceName[0])
                 .path(path)
-                .sortOrder(sortOrder)
+                .sortOrder(sortOrder != null ? sortOrder : resource.getSortOrder())
                 .enabled(resource.getEnabled())
+                .status(status)
+                .icon(icon)
+                .description(description)
                 .createdAt(resource.getCreatedAt())
                 .build();
     }

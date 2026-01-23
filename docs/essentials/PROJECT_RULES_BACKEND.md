@@ -21,6 +21,7 @@
 - ddl-auto:update 금지 (Flyway 사용)
 - 모든 API는 `ApiResponse<T>` Envelope 사용
 - 환경변수 기반 설정 (하드코딩 금지)
+- **시스템 컬럼**: 모든 서비스 DB 테이블 생성 시 `created_at`/`created_by`/`updated_at`/`updated_by`(및 테넌트 단위 시 `tenant_id`) **디폴트 포함** → [SYSTEM_COLUMNS_POLICY.md](SYSTEM_COLUMNS_POLICY.md)
 
 ## 테스트 기준
 - 단위 테스트: 핵심 로직

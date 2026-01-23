@@ -7,6 +7,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.context.ApplicationContext;
+import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.scheduling.annotation.EnableAsync;
 
 /**
@@ -19,6 +20,7 @@ import org.springframework.scheduling.annotation.EnableAsync;
 @SpringBootApplication
 @EnableFeignClients(basePackages = "com.dwp.services.main")
 @EnableAsync  // 비동기 작업 활성화 (AI 에이전트 장기 실행 작업용)
+@EnableJpaAuditing(auditorAwareRef = "auditorProvider")
 public class MainServiceApplication {
     
     @Autowired

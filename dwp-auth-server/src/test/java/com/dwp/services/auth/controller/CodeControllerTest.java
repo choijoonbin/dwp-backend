@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -49,7 +50,7 @@ class CodeControllerTest {
                         .build()
         );
         
-        when(codeManagementService.getAllGroups()).thenReturn(groups);
+        when(codeManagementService.getAllGroups(any(), any(), any())).thenReturn(groups);
         
         // When & Then
         mockMvc.perform(get("/admin/codes/groups"))

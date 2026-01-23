@@ -1,19 +1,20 @@
 package com.dwp.services.main.domain;
 
+import com.dwp.core.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
 /**
  * AI 에이전트가 수행하는 장기 실행 작업의 상태를 저장하는 엔티티
- * 
+ *
+ * 시스템 컬럼(created_at, created_by, updated_at, updated_by)은 BaseEntity 상속.
+ *
  * 프론트엔드는 이 테이블을 조회하여 "AI가 현재 분석 중입니다(30%)..."와 같은
  * 진행 바를 보여줄 수 있습니다.
  */
@@ -29,7 +30,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class AgentTask {
+public class AgentTask extends BaseEntity {
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -137,21 +138,7 @@ public class AgentTask {
      */
     @Column(name = "completed_at")
     private LocalDateTime completedAt;
-    
-    /**
-     * 생성 시각
-     */
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
-    
-    /**
-     * 수정 시각
-     */
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
-    
+
     /**
      * 작업 시작
      */

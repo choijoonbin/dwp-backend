@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 /**
  * 감사 로그 Repository
@@ -84,4 +85,9 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
             @Param("resourceType") String resourceType,
             @Param("keyword") String keyword,
             Pageable pageable);
+
+    /**
+     * P1-4: tenantId + auditLogId로 상세 조회
+     */
+    Optional<AuditLog> findByTenantIdAndAuditLogId(Long tenantId, Long auditLogId);
 }

@@ -140,7 +140,7 @@ class CodeUsageControllerTest {
                 .totalPages(1)
                 .build();
         
-        when(codeUsageService.getCodeUsages(eq(tenantId), eq(1), eq(20), eq(resourceKey), any(), any()))
+        when(codeUsageService.getCodeUsages(eq(tenantId), eq(1), eq(20), eq(resourceKey), any(), any(), any()))
                 .thenReturn(pageResponse);
         
         // When & Then

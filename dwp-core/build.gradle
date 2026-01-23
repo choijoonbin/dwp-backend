@@ -49,6 +49,9 @@ dependencies {
     // Jackson (ObjectMapper, JSON 직렬화)
     compileOnly 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
     
+    // JPA (BaseEntity: created_at, created_by, updated_at, updated_by)
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    
     // ========================================
     // 필수 의존성 (Always Required)
     // ========================================

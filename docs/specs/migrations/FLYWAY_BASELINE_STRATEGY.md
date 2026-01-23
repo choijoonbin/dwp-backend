@@ -125,6 +125,9 @@ dropdb dwp_main && createdb dwp_main
 ## Baseline 파일 표준 구조
 
 ### V1__baseline.sql 템플릿
+
+> **시스템 컬럼 디폴트**: 모든 신규 테이블에 `created_at`, `created_by`, `updated_at`, `updated_by` 포함. 테넌트 단위는 `tenant_id`+인덱스 포함. → [SYSTEM_COLUMNS_POLICY.md](../../essentials/SYSTEM_COLUMNS_POLICY.md)
+
 ```sql
 -- ========================================
 -- DWP {Service} Baseline Schema
@@ -142,9 +145,9 @@ dropdb dwp_main && createdb dwp_main
 -- ========================================
 CREATE TABLE {table_name} (
     {column_id} BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL,
-    -- ...
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    tenant_id BIGINT NOT NULL,                    -- 테넌트 단위: 디폴트 포함
+    -- {비즈니스 컬럼}
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,  -- 시스템 컬럼 디폴트
     created_by BIGINT,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_by BIGINT
@@ -160,6 +163,10 @@ CREATE INDEX idx_{table}_tenant_id ON {table_name}(tenant_id);
 -- ========================================
 COMMENT ON TABLE {table_name} IS '{설명}';
 COMMENT ON COLUMN {table_name}.{column_id} IS '{설명}';
+COMMENT ON COLUMN {table_name}.created_at IS '생성일시';
+COMMENT ON COLUMN {table_name}.created_by IS '생성자 user_id (논리적 참조: com_users.user_id)';
+COMMENT ON COLUMN {table_name}.updated_at IS '수정일시';
+COMMENT ON COLUMN {table_name}.updated_by IS '수정자 user_id (논리적 참조: com_users.user_id)';
 
 -- ========================================
 -- Baseline 요약

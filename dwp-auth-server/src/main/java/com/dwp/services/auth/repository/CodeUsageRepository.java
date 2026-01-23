@@ -51,12 +51,16 @@ public interface CodeUsageRepository extends JpaRepository<CodeUsage, Long> {
      * Note: Hibernate가 resourceKey, codeGroupKey를 bytea로 인식하는 문제로 Native Query 사용
      * CAST를 사용하여 명시적으로 VARCHAR로 변환
      */
+    /**
+     * P1-2: codeGroupKey 필터 추가
+     */
     @Query(value = "SELECT cu.sys_code_usage_id, cu.tenant_id, cu.resource_key, cu.code_group_key, " +
            "cu.scope, cu.enabled, cu.sort_order, cu.remark, " +
            "cu.created_at, cu.created_by, cu.updated_at, cu.updated_by " +
            "FROM sys_code_usages cu " +
            "WHERE cu.tenant_id = :tenantId " +
            "AND (:resourceKey IS NULL OR cu.resource_key = :resourceKey) " +
+           "AND (:codeGroupKey IS NULL OR :codeGroupKey = '' OR cu.code_group_key = :codeGroupKey) " +
            "AND (:keyword IS NULL OR :keyword = '' OR " +
            "     LOWER(CAST(cu.resource_key AS VARCHAR)) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
            "     LOWER(CAST(cu.code_group_key AS VARCHAR)) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
@@ -66,6 +70,7 @@ public interface CodeUsageRepository extends JpaRepository<CodeUsage, Long> {
            countQuery = "SELECT COUNT(*) FROM sys_code_usages cu " +
            "WHERE cu.tenant_id = :tenantId " +
            "AND (:resourceKey IS NULL OR cu.resource_key = :resourceKey) " +
+           "AND (:codeGroupKey IS NULL OR :codeGroupKey = '' OR cu.code_group_key = :codeGroupKey) " +
            "AND (:keyword IS NULL OR :keyword = '' OR " +
            "     LOWER(CAST(cu.resource_key AS VARCHAR)) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
            "     LOWER(CAST(cu.code_group_key AS VARCHAR)) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
@@ -73,6 +78,7 @@ public interface CodeUsageRepository extends JpaRepository<CodeUsage, Long> {
     Page<CodeUsage> findByTenantIdAndFilters(
             @Param("tenantId") Long tenantId,
             @Param("resourceKey") String resourceKey,
+            @Param("codeGroupKey") String codeGroupKey,
             @Param("keyword") String keyword,
             @Param("enabled") Boolean enabled,
             Pageable pageable);

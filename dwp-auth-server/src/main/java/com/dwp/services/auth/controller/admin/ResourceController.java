@@ -35,20 +35,19 @@ public class ResourceController {
     }
     
     /**
-     * PR-04B: 리소스 목록 조회 (운영 수준)
-     * GET /api/admin/resources
-     * 
-     * Query:
-     * - page, size
-     * - keyword (key/name 검색)
-     * - resourceCategory (코드 기반)
-     * - resourceKind (코드 기반)
-     * - trackingEnabled (true/false)
-     * - enabled (true/false)
-     * 
-     * Response: ApiResponse<Page<ResourceItem>>
-     * - tenant_id 필터 무조건
-     * - created_at desc 기본 정렬
+     * P1-6: 리소스 상세 조회
+     * GET /api/admin/resources/{comResourceId}
+     */
+    @GetMapping("/{comResourceId}")
+    public ApiResponse<ResourceSummary> getResourceById(
+            @RequestHeader("X-Tenant-ID") Long tenantId,
+            @PathVariable("comResourceId") Long comResourceId) {
+        return ApiResponse.success(resourceManagementService.getResourceById(tenantId, comResourceId));
+    }
+    
+    /**
+     * PR-04B: 리소스 목록 조회 (운영 수준). P1-3: resourceType alias for type.
+     * GET /api/admin/resources?type=|resourceType=&keyword=&...
      */
     @GetMapping
     public ApiResponse<PageResponse<ResourceSummary>> getResources(
@@ -57,13 +56,15 @@ public class ResourceController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String type,
+            @RequestParam(required = false) String resourceType,
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String kind,
             @RequestParam(required = false) Long parentId,
             @RequestParam(required = false) Boolean enabled,
             @RequestParam(required = false) Boolean trackingEnabled) {
+        String effectiveType = type != null ? type : resourceType;
         return ApiResponse.success(resourceManagementService.getResources(
-                tenantId, page, size, keyword, type, category, kind, parentId, enabled, trackingEnabled));
+                tenantId, page, size, keyword, effectiveType, category, kind, parentId, enabled, trackingEnabled));
     }
     
     /**

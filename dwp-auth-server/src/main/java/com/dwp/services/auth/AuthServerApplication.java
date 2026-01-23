@@ -12,7 +12,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 @Slf4j
 @SpringBootApplication
-@EnableJpaAuditing
+@EnableJpaAuditing(auditorAwareRef = "auditorProvider")
 @EnableJpaRepositories(basePackages = "com.dwp.services.auth.repository")
 // @ComponentScan 제거: dwp-core AutoConfiguration으로 자동 적용
 // @ComponentScan(basePackages = {"com.dwp.core", "com.dwp.services.auth"})

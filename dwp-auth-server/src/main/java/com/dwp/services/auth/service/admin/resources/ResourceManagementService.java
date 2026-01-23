@@ -31,6 +31,13 @@ public class ResourceManagementService {
     }
     
     /**
+     * P1-6: 리소스 상세 조회
+     */
+    public ResourceSummary getResourceById(Long tenantId, Long resourceId) {
+        return resourceQueryService.getResourceById(tenantId, resourceId);
+    }
+    
+    /**
      * PR-04B: 리소스 목록 조회 (운영 수준)
      */
     public PageResponse<ResourceSummary> getResources(Long tenantId, int page, int size,

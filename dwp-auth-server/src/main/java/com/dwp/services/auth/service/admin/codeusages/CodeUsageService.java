@@ -45,11 +45,11 @@ public class CodeUsageService {
     }
     
     /**
-     * PR-07A: 코드 사용 정의 목록 조회 고도화
+     * PR-07A: 코드 사용 정의 목록 조회 고도화. P1-2: codeGroupKey 추가.
      */
     public PageResponse<CodeUsageSummary> getCodeUsages(Long tenantId, int page, int size,
-                                                         String resourceKey, String keyword, Boolean enabled) {
-        return codeUsageQueryService.getCodeUsages(tenantId, page, size, resourceKey, keyword, enabled);
+                                                         String resourceKey, String codeGroupKey, String keyword, Boolean enabled) {
+        return codeUsageQueryService.getCodeUsages(tenantId, page, size, resourceKey, codeGroupKey, keyword, enabled);
     }
     
     /**
@@ -66,6 +66,13 @@ public class CodeUsageService {
     public CodeUsageSummary updateCodeUsage(Long tenantId, Long actorUserId, Long sysCodeUsageId,
                                             UpdateCodeUsageRequest request, HttpServletRequest httpRequest) {
         return codeUsageCommandService.updateCodeUsage(tenantId, actorUserId, sysCodeUsageId, request, httpRequest);
+    }
+    
+    /**
+     * P1-5: 코드 사용 정의 상세 조회
+     */
+    public CodeUsageDetail getCodeUsageDetail(Long tenantId, Long sysCodeUsageId) {
+        return codeUsageQueryService.getCodeUsageDetail(tenantId, sysCodeUsageId);
     }
     
     /**
