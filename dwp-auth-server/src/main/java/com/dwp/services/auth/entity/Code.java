@@ -56,4 +56,8 @@ public class Code extends BaseEntity {
     
     @Column(name = "tenant_id")
     private Long tenantId;  // null이면 전사 공통 코드, 값이 있으면 테넌트별 커스텀 코드
+
+    /** 주로 사용되는 메뉴 키 (sys_code_usages.resource_key 기준, V6 추가) */
+    @Column(name = "menu_key", length = 255)
+    private String menuKey;
 }

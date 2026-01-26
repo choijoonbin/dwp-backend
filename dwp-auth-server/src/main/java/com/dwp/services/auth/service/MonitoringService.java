@@ -1,25 +1,40 @@
 package com.dwp.services.auth.service;
 
 import com.dwp.services.auth.dto.*;
+import com.dwp.services.auth.dto.monitoring.MonitoringSummaryKpi;
 import com.dwp.services.auth.entity.ApiCallHistory;
 import com.dwp.services.auth.entity.PageViewDailyStat;
 import com.dwp.services.auth.entity.PageViewEvent;
 import com.dwp.services.auth.repository.ApiCallHistoryRepository;
+import com.dwp.services.auth.repository.MonitoringConfigRepository;
 import com.dwp.services.auth.repository.PageViewDailyStatRepository;
 import com.dwp.services.auth.repository.PageViewEventRepository;
+import com.dwp.services.auth.repository.projection.LatencyPercentilesView;
+import com.dwp.services.auth.repository.projection.TopCauseView;
+import com.dwp.services.auth.repository.projection.TopErrorView;
+import com.dwp.services.auth.repository.projection.TopSlowView;
+import com.dwp.services.auth.repository.projection.TopTrafficView;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -30,9 +45,24 @@ import java.util.Optional;
 public class MonitoringService {
 
     private final ApiCallHistoryRepository apiCallHistoryRepository;
+    private final MonitoringConfigRepository monitoringConfigRepository;
     private final PageViewEventRepository pageViewEventRepository;
     private final PageViewDailyStatRepository pageViewDailyStatRepository;
     private final ObjectMapper objectMapper;
+
+    /** 모니터링 설정 키 (sys_codes 코드값) */
+    private static final String CODE_MIN_REQ_PER_MINUTE = "MIN_REQ_PER_MINUTE";
+    private static final String CODE_ERROR_RATE_THRESHOLD = "ERROR_RATE_THRESHOLD";
+    private static final String CODE_AVAILABILITY_SLO_TARGET = "AVAILABILITY_SLO_TARGET";
+    private static final String CODE_AVAILABILITY_CRITICAL_THRESHOLD = "AVAILABILITY_CRITICAL_THRESHOLD";
+    private static final String CODE_LATENCY_SLO_TARGET = "LATENCY_SLO_TARGET";
+    private static final String CODE_LATENCY_CRITICAL_THRESHOLD = "LATENCY_CRITICAL_THRESHOLD";
+    private static final int DEFAULT_MIN_REQ_PER_MINUTE = 1;
+    private static final double DEFAULT_ERROR_RATE_THRESHOLD = 5.0;
+    private static final double DEFAULT_AVAILABILITY_SLO_TARGET = 99.9;
+    private static final double DEFAULT_AVAILABILITY_CRITICAL_THRESHOLD = 99.0;
+    private static final long DEFAULT_LATENCY_SLO_TARGET = 500L;
+    private static final long DEFAULT_LATENCY_CRITICAL_THRESHOLD = 1500L;
 
     /**
      * API 호출 이력 비동기 저장 (Best-effort)
@@ -140,14 +170,17 @@ public class MonitoringService {
     }
 
     /**
-     * 대시보드 요약 정보 조회
+     * 대시보드 요약 정보 조회 (compare 미지정 시 직전 동일 기간 자동 계산)
      */
     @Transactional(readOnly = true)
-    public MonitoringSummaryResponse getSummary(Long tenantId, LocalDateTime from, LocalDateTime to) {
-        long durationDays = ChronoUnit.DAYS.between(from, to);
-        if (durationDays <= 0) durationDays = 1;
-        LocalDateTime prevFrom = from.minus(durationDays, ChronoUnit.DAYS);
-        LocalDateTime prevTo = from;
+    public MonitoringSummaryResponse getSummary(Long tenantId, LocalDateTime from, LocalDateTime to,
+                                                 LocalDateTime compareFrom, LocalDateTime compareTo) {
+        long durationSec = ChronoUnit.SECONDS.between(from, to);
+        if (durationSec <= 0) durationSec = 1;
+        if (compareFrom == null || compareTo == null) {
+            compareTo = from;
+            compareFrom = from.minus(durationSec, ChronoUnit.SECONDS);
+        }
 
         long currentPv = pageViewEventRepository.countPvByTenantIdAndCreatedAtBetween(tenantId, from, to);
         long currentUv = pageViewEventRepository.countUvByTenantIdAndCreatedAtBetween(tenantId, from, to);
@@ -155,20 +188,22 @@ public class MonitoringService {
         long currentApiTotal = apiCallHistoryRepository.countByTenantIdAndCreatedAtBetween(tenantId, from, to);
         long currentApiErrors = apiCallHistoryRepository.countErrorsByTenantIdAndCreatedAtBetween(tenantId, from, to);
 
-        long prevPv = pageViewEventRepository.countPvByTenantIdAndCreatedAtBetween(tenantId, prevFrom, prevTo);
-        long prevUv = pageViewEventRepository.countUvByTenantIdAndCreatedAtBetween(tenantId, prevFrom, prevTo);
-        long prevEvents = pageViewEventRepository.countEventsByTenantIdAndCreatedAtBetween(tenantId, prevFrom, prevTo);
-        long prevApiTotal = apiCallHistoryRepository.countByTenantIdAndCreatedAtBetween(tenantId, prevFrom, prevTo);
-        long prevApiErrors = apiCallHistoryRepository.countErrorsByTenantIdAndCreatedAtBetween(tenantId, prevFrom, prevTo);
-
-        // 에러율 계산 검증 로깅 추가
-        log.debug("MonitoringSummary 계산: tenantId={}, from={}, to={}, currentApiTotal={}, currentApiErrors={}", 
-                tenantId, from, to, currentApiTotal, currentApiErrors);
+        long prevPv = pageViewEventRepository.countPvByTenantIdAndCreatedAtBetween(tenantId, compareFrom, compareTo);
+        long prevUv = pageViewEventRepository.countUvByTenantIdAndCreatedAtBetween(tenantId, compareFrom, compareTo);
+        long prevEvents = pageViewEventRepository.countEventsByTenantIdAndCreatedAtBetween(tenantId, compareFrom, compareTo);
+        long prevApiTotal = apiCallHistoryRepository.countByTenantIdAndCreatedAtBetween(tenantId, compareFrom, compareTo);
+        long prevApiErrors = apiCallHistoryRepository.countErrorsByTenantIdAndCreatedAtBetween(tenantId, compareFrom, compareTo);
 
         double apiErrorRate = currentApiTotal > 0 ? (double) currentApiErrors / currentApiTotal * 100 : 0.0;
         double prevApiErrorRate = prevApiTotal > 0 ? (double) prevApiErrors / prevApiTotal * 100 : 0.0;
-        
-        log.debug("에러율 계산 결과: apiErrorRate={}%, prevApiErrorRate={}%", apiErrorRate, prevApiErrorRate);
+
+        MonitoringSummaryKpi kpiCurrent = buildKpi(tenantId, from, to, currentPv, currentUv, currentApiTotal);
+        MonitoringSummaryKpi kpiCompare = buildKpi(tenantId, compareFrom, compareTo, prevPv, prevUv, prevApiTotal);
+        if (kpiCurrent.getLatency() != null && kpiCompare.getLatency() != null) {
+            Long prevAvg = kpiCompare.getLatency().getAvgLatency();
+            kpiCurrent.getLatency().setPrevAvgLatency(prevAvg != null ? prevAvg : 0L);
+        }
+        attachDeltas(kpiCurrent, kpiCompare);
 
         return MonitoringSummaryResponse.builder()
                 .pv(currentPv)
@@ -179,12 +214,321 @@ public class MonitoringService {
                 .uvDeltaPercent(calculateDelta(currentUv, prevUv))
                 .eventDeltaPercent(calculateDelta(currentEvents, prevEvents))
                 .apiErrorDeltaPercent(calculateDelta(apiErrorRate, prevApiErrorRate))
+                .kpi(kpiCurrent)
                 .build();
+    }
+
+    private MonitoringSummaryKpi buildKpi(Long tenantId, LocalDateTime from, LocalDateTime to, long pv, long uv, long requestCount) {
+        long totalCount = apiCallHistoryRepository.countByTenantIdAndCreatedAtBetween(tenantId, from, to);
+        long successCount = apiCallHistoryRepository.countSuccessByTenantIdAndCreatedAtBetween(tenantId, from, to);
+        long count4xx = apiCallHistoryRepository.count4xxByTenantIdAndCreatedAtBetween(tenantId, from, to);
+        long count5xx = apiCallHistoryRepository.count5xxByTenantIdAndCreatedAtBetween(tenantId, from, to);
+        long durationSec = Math.max(1, ChronoUnit.SECONDS.between(from, to));
+
+        // 모니터링 설정 조회 (없으면 Fallback: MIN_REQ_PER_MINUTE=1, ERROR_RATE_THRESHOLD=5.0, AVAILABILITY_SLO_TARGET=99.9)
+        Map<String, String> config = getMonitoringConfigMap(tenantId);
+        int minReqPerMinute = parseMinReqPerMinute(config.get(CODE_MIN_REQ_PER_MINUTE));
+        double errorRateThreshold = parseErrorRateThreshold(config.get(CODE_ERROR_RATE_THRESHOLD));
+        double sloTargetSuccessRate = parseAvailabilitySloTarget(config.get(CODE_AVAILABILITY_SLO_TARGET));
+        double criticalThreshold = parseAvailabilityCriticalThreshold(config.get(CODE_AVAILABILITY_CRITICAL_THRESHOLD));
+        long latencySloTarget = parseLatencySloTarget(config.get(CODE_LATENCY_SLO_TARGET));
+        long latencyCriticalThreshold = parseLatencyCriticalThreshold(config.get(CODE_LATENCY_CRITICAL_THRESHOLD));
+
+        // 1. Availability: 데이터 0건이어도 successRate=100.0, downtimeMinutes=0 명시 (프론트 - 방지)
+        double successRate = totalCount > 0 ? Math.round((double) successCount / totalCount * 10000.0) / 100.0 : 100.0;
+        long downtimeBuckets1Min = apiCallHistoryRepository.countDowntimeBuckets1Min(tenantId, from, to, minReqPerMinute, errorRateThreshold);
+        int downtimeMinutes = totalCount > 0 ? (int) downtimeBuckets1Min : 0;
+
+        long totalPeriodMinutes = ChronoUnit.MINUTES.between(from, to);
+        long uptimeMinutes = Math.max(0L, totalPeriodMinutes - downtimeMinutes);
+
+        List<MonitoringSummaryKpi.DowntimeInterval> downtimeIntervals = new ArrayList<>();
+        List<Object[]> bucketStarts = apiCallHistoryRepository.findDowntimeBucketStarts(tenantId, from, to, minReqPerMinute, errorRateThreshold);
+        for (Object[] row : bucketStarts) {
+            if (row != null && row.length > 0 && row[0] != null) {
+                Instant start = row[0] instanceof Timestamp ? ((Timestamp) row[0]).toInstant() : null;
+                if (start != null) {
+                    Instant end = start.plusSeconds(60);
+                    downtimeIntervals.add(MonitoringSummaryKpi.DowntimeInterval.builder()
+                            .start(DateTimeFormatter.ISO_INSTANT.format(start))
+                            .end(DateTimeFormatter.ISO_INSTANT.format(end))
+                            .build());
+                }
+            }
+        }
+
+        MonitoringSummaryKpi.TopCause topCause = null;
+        List<TopCauseView> top5xx = apiCallHistoryRepository.findTop5xxPath(tenantId, from, to);
+        if (!top5xx.isEmpty()) {
+            TopCauseView v = top5xx.get(0);
+            topCause = MonitoringSummaryKpi.TopCause.builder()
+                    .path(v.getPath())
+                    .statusGroup("5xx")
+                    .count(v.getCount() != null ? v.getCount() : 0L)
+                    .build();
+        }
+
+        // 지연시간: 데이터 없으면 0 반환 (프론트 - 표시 방지)
+        long p50Ms = 0L;
+        long p95Ms = 0L;
+        long p99Ms = 0L;
+        LatencyPercentilesView percentiles = apiCallHistoryRepository.findLatencyPercentiles(tenantId, from, to);
+        if (percentiles != null) {
+            p50Ms = toLongMsOrZero(percentiles.getP50Ms());
+            p95Ms = toLongMsOrZero(percentiles.getP95Ms());
+            p99Ms = toLongMsOrZero(percentiles.getP99Ms());
+        }
+        Double avgLatencyDouble = apiCallHistoryRepository.findAvgLatencyMs(tenantId, from, to);
+        long avgLatency = avgLatencyDouble == null ? 0L : avgLatencyDouble.longValue();
+
+        MonitoringSummaryKpi.TopSlow topSlow = null;
+        List<TopSlowView> topSlowList = apiCallHistoryRepository.findTopSlowPath(tenantId, from, to);
+        if (!topSlowList.isEmpty()) {
+            TopSlowView v = topSlowList.get(0);
+            topSlow = MonitoringSummaryKpi.TopSlow.builder()
+                    .path(v.getPath())
+                    .p95Ms(toLongMs(v.getP95Ms()))
+                    .build();
+        }
+
+        // RPS: 소수점 2자리로 반올림 (매우 낮을 때 0.0 고착 방지)
+        Long maxPerMin = apiCallHistoryRepository.findMaxCountPerMinute(tenantId, from, to);
+        double rpsPeakRaw = totalCount > 0 && maxPerMin != null ? (double) maxPerMin / 60.0 : 0.0;
+        double rpsAvgRaw = durationSec > 0 ? (double) requestCount / durationSec : 0.0;
+        double rpsAvg = Math.round(rpsAvgRaw * 100.0) / 100.0;
+        double rpsPeak = Math.round(rpsPeakRaw * 100.0) / 100.0;
+
+        MonitoringSummaryKpi.TopTraffic topTraffic = null;
+        List<TopTrafficView> topTrafficList = apiCallHistoryRepository.findTopTrafficPath(tenantId, from, to);
+        if (!topTrafficList.isEmpty()) {
+            TopTrafficView v = topTrafficList.get(0);
+            topTraffic = MonitoringSummaryKpi.TopTraffic.builder()
+                    .path(v.getPath())
+                    .requestCount(v.getRequestCount() != null ? v.getRequestCount() : 0L)
+                    .build();
+        }
+
+        // 에러 분리 집계: 전체 요청 대비 4xx/5xx 비율(%) 및 절대 건수
+        double rate4xx = totalCount > 0 ? Math.round((double) count4xx / totalCount * 10000.0) / 100.0 : 0.0;
+        double rate5xx = totalCount > 0 ? Math.round((double) count5xx / totalCount * 10000.0) / 100.0 : 0.0;
+
+        // Error Budget: 소진율 = min(rate5xx/0.1, 1.0), 최대 1.0으로 제한(Progress Bar 호환). period는 조회 기간 연동
+        double consumedRatioRaw = rate5xx / 0.1;
+        double consumedRatio = Math.min(Math.round(consumedRatioRaw * 100.0) / 100.0, 1.0);
+        String budgetPeriod = resolveBudgetPeriod(durationSec);
+        MonitoringSummaryKpi.ErrorBudget budget = MonitoringSummaryKpi.ErrorBudget.builder()
+                .period(budgetPeriod)
+                .sloTargetSuccessRate(99.9)
+                .consumedRatio(consumedRatio)
+                .build();
+
+        // Top Error Path: 해당 기간 가장 많이 발생한 에러 1건 (path, statusCode, count)
+        MonitoringSummaryKpi.TopError topError = null;
+        List<TopErrorView> topErrorList = apiCallHistoryRepository.findTopErrorPathAndStatus(tenantId, from, to);
+        if (!topErrorList.isEmpty()) {
+            TopErrorView v = topErrorList.get(0);
+            topError = MonitoringSummaryKpi.TopError.builder()
+                    .path(v.getPath())
+                    .statusCode(v.getStatusCode())
+                    .count(v.getCount() != null ? v.getCount() : 0L)
+                    .build();
+        }
+
+        return MonitoringSummaryKpi.builder()
+                .availability(MonitoringSummaryKpi.AvailabilityKpi.builder()
+                        .successRate(Double.valueOf(successRate))
+                        .sloTargetSuccessRate(sloTargetSuccessRate)
+                        .criticalThreshold(criticalThreshold)
+                        .successCount(successCount)
+                        .totalCount(totalCount)
+                        .downtimeMinutes(Integer.valueOf(downtimeMinutes))
+                        .uptimeMinutes(uptimeMinutes)
+                        .downtimeIntervals(downtimeIntervals)
+                        .topCause(topCause)
+                        .build())
+                .latency(MonitoringSummaryKpi.LatencyKpi.builder()
+                        .avgLatency(avgLatency)
+                        .p50Latency(p50Ms)
+                        .p50Ms(p50Ms)
+                        .p95Ms(p95Ms)
+                        .p99Latency(p99Ms)
+                        .p99Ms(p99Ms)
+                        .sloTarget(latencySloTarget)
+                        .criticalThreshold(latencyCriticalThreshold)
+                        .topSlow(topSlow)
+                        .build())
+                .traffic(MonitoringSummaryKpi.TrafficKpi.builder()
+                        .rpsAvg(rpsAvg)
+                        .rpsPeak(rpsPeak)
+                        .requestCount(requestCount)
+                        .pv(pv)
+                        .uv(uv)
+                        .topTraffic(topTraffic)
+                        .build())
+                .error(MonitoringSummaryKpi.ErrorKpi.builder()
+                        .rate4xx(rate4xx)
+                        .rate5xx(rate5xx)
+                        .count4xx(count4xx)
+                        .count5xx(count5xx)
+                        .budget(budget)
+                        .topError(topError)
+                        .build())
+                .build();
+    }
+
+    private void attachDeltas(MonitoringSummaryKpi current, MonitoringSummaryKpi compare) {
+        if (compare.getAvailability() != null && current.getAvailability() != null) {
+            double cs = current.getAvailability().getSuccessRate() != null ? current.getAvailability().getSuccessRate() : 0;
+            double ps = compare.getAvailability().getSuccessRate() != null ? compare.getAvailability().getSuccessRate() : 0;
+            int cd = current.getAvailability().getDowntimeMinutes() != null ? current.getAvailability().getDowntimeMinutes() : 0;
+            int pd = compare.getAvailability().getDowntimeMinutes() != null ? compare.getAvailability().getDowntimeMinutes() : 0;
+            current.getAvailability().setDelta(MonitoringSummaryKpi.DeltaAvailability.builder()
+                    .successRatePp(Math.round((cs - ps) * 100.0) / 100.0)
+                    .downtimeMinutes(cd - pd)
+                    .build());
+        }
+        if (compare.getLatency() != null && current.getLatency() != null) {
+            long cp95 = current.getLatency().getP95Ms() != null ? current.getLatency().getP95Ms() : 0;
+            long pp95 = compare.getLatency().getP95Ms() != null ? compare.getLatency().getP95Ms() : 0;
+            long cp99 = current.getLatency().getP99Ms() != null ? current.getLatency().getP99Ms() : 0;
+            long pp99 = compare.getLatency().getP99Ms() != null ? compare.getLatency().getP99Ms() : 0;
+            current.getLatency().setDelta(MonitoringSummaryKpi.DeltaLatency.builder()
+                    .p95Ms(cp95 - pp95)
+                    .p99Ms(cp99 - pp99)
+                    .build());
+        }
+        if (compare.getTraffic() != null && current.getTraffic() != null) {
+            double crps = current.getTraffic().getRpsAvg() != null ? current.getTraffic().getRpsAvg() : 0;
+            double prps = compare.getTraffic().getRpsAvg() != null ? compare.getTraffic().getRpsAvg() : 0;
+            long crc = current.getTraffic().getRequestCount() != null ? current.getTraffic().getRequestCount() : 0;
+            long prc = compare.getTraffic().getRequestCount() != null ? compare.getTraffic().getRequestCount() : 0;
+            long cpv = current.getTraffic().getPv() != null ? current.getTraffic().getPv() : 0;
+            long ppv = compare.getTraffic().getPv() != null ? compare.getTraffic().getPv() : 0;
+            long cuv = current.getTraffic().getUv() != null ? current.getTraffic().getUv() : 0;
+            long puv = compare.getTraffic().getUv() != null ? compare.getTraffic().getUv() : 0;
+            double pvDeltaPct = calculateDelta(cpv, ppv);
+            double uvDeltaPct = calculateDelta(cuv, puv);
+            current.getTraffic().setDelta(MonitoringSummaryKpi.DeltaTraffic.builder()
+                    .rpsAvg(Math.round((crps - prps) * 100.0) / 100.0)
+                    .requestCount(crc - prc)
+                    .pv(cpv - ppv)
+                    .uv(cuv - puv)
+                    .pvDeltaPercent(Math.round(pvDeltaPct * 100.0) / 100.0)
+                    .uvDeltaPercent(Math.round(uvDeltaPct * 100.0) / 100.0)
+                    .build());
+        }
+        // Error Delta: 이전 동일 기간 대비 rate5xx 퍼센트포인트(pP) 증감, count5xx 증감
+        if (compare.getError() != null && current.getError() != null) {
+            double cr5 = current.getError().getRate5xx() != null ? current.getError().getRate5xx() : 0;
+            double pr5 = compare.getError().getRate5xx() != null ? compare.getError().getRate5xx() : 0;
+            long cc5 = current.getError().getCount5xx() != null ? current.getError().getCount5xx() : 0;
+            long pc5 = compare.getError().getCount5xx() != null ? compare.getError().getCount5xx() : 0;
+            current.getError().setDelta(MonitoringSummaryKpi.DeltaError.builder()
+                    .rate5xxPp(Math.round((cr5 - pr5) * 100.0) / 100.0)
+                    .count5xx(cc5 - pc5)
+                    .build());
+        }
+    }
+
+    /** Projection percentile/slow 값 Double → Long(ms) 변환 (null이면 null) */
+    private static Long toLongMs(Double v) {
+        return v == null ? null : Long.valueOf(v.longValue());
+    }
+
+    /** Projection 값 Double → Long(ms), null이면 0 (수치 필드 null 방지) */
+    private static long toLongMsOrZero(Double v) {
+        return v == null ? 0L : v.longValue();
     }
 
     private double calculateDelta(double current, double previous) {
         if (previous == 0) return current > 0 ? 100.0 : 0.0;
         return ((current - previous) / previous) * 100;
+    }
+
+    /** 조회 기간(초)으로 Error Budget period 라벨 (1H, 24H, 7D, WEEK) */
+    private static String resolveBudgetPeriod(long durationSec) {
+        if (durationSec <= 3600L) return "1H";
+        if (durationSec <= 86400L) return "24H";
+        if (durationSec <= 604800L) return "7D";
+        return "WEEK";
+    }
+
+    /** 테넌트별 모니터링 설정 조회 (키=config_key 코드, 값=config_value). 없으면 기본값 맵 반환 */
+    private Map<String, String> getMonitoringConfigMap(Long tenantId) {
+        Map<String, String> map = new HashMap<>();
+        map.put(CODE_MIN_REQ_PER_MINUTE, String.valueOf(DEFAULT_MIN_REQ_PER_MINUTE));
+        map.put(CODE_ERROR_RATE_THRESHOLD, String.valueOf(DEFAULT_ERROR_RATE_THRESHOLD));
+        map.put(CODE_AVAILABILITY_SLO_TARGET, String.valueOf(DEFAULT_AVAILABILITY_SLO_TARGET));
+        map.put(CODE_AVAILABILITY_CRITICAL_THRESHOLD, String.valueOf(DEFAULT_AVAILABILITY_CRITICAL_THRESHOLD));
+        map.put(CODE_LATENCY_SLO_TARGET, String.valueOf(DEFAULT_LATENCY_SLO_TARGET));
+        map.put(CODE_LATENCY_CRITICAL_THRESHOLD, String.valueOf(DEFAULT_LATENCY_CRITICAL_THRESHOLD));
+        List<com.dwp.services.auth.entity.MonitoringConfig> list = monitoringConfigRepository.findByTenantIdOrderByMonitoringConfigId(tenantId);
+        for (com.dwp.services.auth.entity.MonitoringConfig c : list) {
+            if (c.getConfigKey() != null && c.getConfigValue() != null) {
+                map.put(c.getConfigKey(), c.getConfigValue());
+            }
+        }
+        return map;
+    }
+
+    private static int parseMinReqPerMinute(String value) {
+        if (value == null || value.isBlank()) return DEFAULT_MIN_REQ_PER_MINUTE;
+        try {
+            int v = Integer.parseInt(value.trim());
+            return v >= 0 ? v : DEFAULT_MIN_REQ_PER_MINUTE;
+        } catch (NumberFormatException e) {
+            return DEFAULT_MIN_REQ_PER_MINUTE;
+        }
+    }
+
+    private static double parseErrorRateThreshold(String value) {
+        if (value == null || value.isBlank()) return DEFAULT_ERROR_RATE_THRESHOLD;
+        try {
+            double v = Double.parseDouble(value.trim());
+            return v >= 0 ? v : DEFAULT_ERROR_RATE_THRESHOLD;
+        } catch (NumberFormatException e) {
+            return DEFAULT_ERROR_RATE_THRESHOLD;
+        }
+    }
+
+    private static double parseAvailabilitySloTarget(String value) {
+        if (value == null || value.isBlank()) return DEFAULT_AVAILABILITY_SLO_TARGET;
+        try {
+            double v = Double.parseDouble(value.trim());
+            return v >= 0 && v <= 100 ? v : DEFAULT_AVAILABILITY_SLO_TARGET;
+        } catch (NumberFormatException e) {
+            return DEFAULT_AVAILABILITY_SLO_TARGET;
+        }
+    }
+
+    private static double parseAvailabilityCriticalThreshold(String value) {
+        if (value == null || value.isBlank()) return DEFAULT_AVAILABILITY_CRITICAL_THRESHOLD;
+        try {
+            double v = Double.parseDouble(value.trim());
+            return v >= 0 && v <= 100 ? v : DEFAULT_AVAILABILITY_CRITICAL_THRESHOLD;
+        } catch (NumberFormatException e) {
+            return DEFAULT_AVAILABILITY_CRITICAL_THRESHOLD;
+        }
+    }
+
+    private static long parseLatencySloTarget(String value) {
+        if (value == null || value.isBlank()) return DEFAULT_LATENCY_SLO_TARGET;
+        try {
+            long v = Long.parseLong(value.trim());
+            return v >= 0 ? v : DEFAULT_LATENCY_SLO_TARGET;
+        } catch (NumberFormatException e) {
+            return DEFAULT_LATENCY_SLO_TARGET;
+        }
+    }
+
+    private static long parseLatencyCriticalThreshold(String value) {
+        if (value == null || value.isBlank()) return DEFAULT_LATENCY_CRITICAL_THRESHOLD;
+        try {
+            long v = Long.parseLong(value.trim());
+            return v >= 0 ? v : DEFAULT_LATENCY_CRITICAL_THRESHOLD;
+        } catch (NumberFormatException e) {
+            return DEFAULT_LATENCY_CRITICAL_THRESHOLD;
+        }
     }
 
     @Transactional(readOnly = true)
@@ -209,19 +553,34 @@ public class MonitoringService {
     @Transactional(readOnly = true)
     public Page<ApiCallHistory> getApiHistories(Long tenantId, LocalDateTime from, LocalDateTime to,
                                                  String keyword, String apiName, String apiUrl,
-                                                 Integer statusCode, Long userId, Pageable pageable) {
-        // 빈 문자열을 null로 변환
+                                                 Integer statusCode, Long userId,
+                                                 String statusGroup, String pathLike, Long minLatencyMs, Long maxLatencyMs,
+                                                 String sort, Pageable pageable) {
         keyword = (keyword != null && keyword.trim().isEmpty()) ? null : keyword;
         apiName = (apiName != null && apiName.trim().isEmpty()) ? null : apiName;
         apiUrl = (apiUrl != null && apiUrl.trim().isEmpty()) ? null : apiUrl;
-        
-        if (from != null && to != null) {
-            return apiCallHistoryRepository.findByTenantIdAndFiltersWithDate(
-                    tenantId, from, to, keyword, apiName, apiUrl, statusCode, userId, pageable);
-        } else {
-            return apiCallHistoryRepository.findByTenantIdAndFiltersWithoutDate(
-                    tenantId, keyword, apiName, apiUrl, statusCode, userId, pageable);
+        pathLike = (pathLike != null && pathLike.trim().isEmpty()) ? null : pathLike;
+        statusGroup = (statusGroup != null && statusGroup.trim().isEmpty()) ? null : statusGroup;
+        if ("COUNT_DESC".equals(sort)) {
+            log.warn("api-histories: COUNT_DESC requested but path-aggregation endpoint not implemented; using TIME_DESC");
+            sort = "TIME_DESC";
         }
+        Sort order = "LATENCY_DESC".equals(sort)
+                ? Sort.by(Sort.Direction.DESC, "latencyMs")
+                : Sort.by(Sort.Direction.DESC, "createdAt");
+        Pageable pageableWithSort = PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), order);
+
+        if (from != null && to != null) {
+            boolean useDrillDown = statusGroup != null || pathLike != null || minLatencyMs != null || maxLatencyMs != null;
+            if (useDrillDown)
+                return apiCallHistoryRepository.findByTenantIdAndFiltersWithDateAndDrillDown(
+                        tenantId, from, to, keyword, apiName, apiUrl, pathLike, statusCode, statusGroup,
+                        minLatencyMs, maxLatencyMs, userId, pageableWithSort);
+            return apiCallHistoryRepository.findByTenantIdAndFiltersWithDate(
+                    tenantId, from, to, keyword, apiName, apiUrl, statusCode, userId, pageableWithSort);
+        }
+        return apiCallHistoryRepository.findByTenantIdAndFiltersWithoutDate(
+                tenantId, keyword, apiName, apiUrl, statusCode, userId, pageable);
     }
 
     private String toJson(Map<String, Object> metadata) {

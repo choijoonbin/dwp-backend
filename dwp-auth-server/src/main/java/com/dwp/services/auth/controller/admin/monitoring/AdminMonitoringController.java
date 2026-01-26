@@ -9,7 +9,6 @@ import com.dwp.services.auth.entity.ApiCallHistory;
 import com.dwp.services.auth.entity.PageViewEvent;
 import com.dwp.services.auth.service.MonitoringService;
 import com.dwp.services.auth.service.monitoring.AdminMonitoringService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -29,34 +28,40 @@ import java.time.format.DateTimeFormatter;
 @Slf4j
 @RestController
 @RequestMapping("/admin/monitoring")
-@RequiredArgsConstructor
 public class AdminMonitoringController {
-    
+
     private final MonitoringService monitoringService;
     private final AdminMonitoringService adminMonitoringService;
+
+    public AdminMonitoringController(MonitoringService monitoringService, AdminMonitoringService adminMonitoringService) {
+        this.monitoringService = monitoringService;
+        this.adminMonitoringService = adminMonitoringService;
+    }
     
     /**
-     * 모니터링 요약 정보 조회
-     * GET /api/admin/monitoring/summary
+     * 모니터링 요약 정보 조회 (SLI/SLO KPI 포함)
+     * GET /api/admin/monitoring/summary?from=ISO&to=ISO
+     * optional: compareFrom=ISO&compareTo=ISO (미전달 시 직전 동일 길이 기간 자동 계산)
      */
     @GetMapping("/summary")
     // TODO: ADMIN 권한 체크 (@PreAuthorize("hasRole('ADMIN')") 또는 Service 레벨 체크)
     public ApiResponse<MonitoringSummaryResponse> getSummary(
             @RequestHeader("X-Tenant-ID") Long tenantId,
             @RequestParam(required = false) String from,
-            @RequestParam(required = false) String to) {
+            @RequestParam(required = false) String to,
+            @RequestParam(required = false) String compareFrom,
+            @RequestParam(required = false) String compareTo) {
         
-        log.debug("getSummary 호출: tenantId={}, from={}, to={}", tenantId, from, to);
+        log.debug("getSummary 호출: tenantId={}, from={}, to={}, compareFrom={}, compareTo={}", tenantId, from, to, compareFrom, compareTo);
         
-        // UTC 시간을 KST로 변환
         LocalDateTime defaultTo = to != null ? convertUtcToKst(to) : LocalDateTime.now();
         LocalDateTime defaultFrom = from != null ? convertUtcToKst(from) : defaultTo.minusDays(30);
+        LocalDateTime compareFromDt = compareFrom != null ? convertUtcToKst(compareFrom) : null;
+        LocalDateTime compareToDt = compareTo != null ? convertUtcToKst(compareTo) : null;
         
-        log.debug("getSummary 파라미터 적용: tenantId={}, defaultFrom={}, defaultTo={}", tenantId, defaultFrom, defaultTo);
-        
-        MonitoringSummaryResponse summary = monitoringService.getSummary(tenantId, defaultFrom, defaultTo);
-        log.debug("getSummary 결과: pv={}, uv={}, events={}, apiErrorRate={}", 
-                summary.getPv(), summary.getUv(), summary.getEvents(), summary.getApiErrorRate());
+        MonitoringSummaryResponse summary = monitoringService.getSummary(
+                tenantId, defaultFrom, defaultTo, compareFromDt, compareToDt);
+        log.debug("getSummary 결과: pv={}, uv={}, kpi={}", summary.getPv(), summary.getUv(), summary.getKpi() != null);
         
         return ApiResponse.success(summary);
     }
@@ -94,7 +99,7 @@ public class AdminMonitoringController {
     }
     
     /**
-     * API 호출 이력 조회 (페이징)
+     * API 호출 이력 조회 (페이징, 드릴다운: statusGroup, path, minLatencyMs, maxLatencyMs, sort)
      * GET /api/admin/monitoring/api-histories
      */
     @GetMapping("/api-histories")
@@ -108,17 +113,20 @@ public class AdminMonitoringController {
             @RequestParam(required = false) String apiName,
             @RequestParam(required = false) String apiUrl,
             @RequestParam(required = false) Integer statusCode,
-            @RequestParam(required = false) Long userId) {
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) String statusGroup,
+            @RequestParam(required = false) String path,
+            @RequestParam(required = false) Long minLatencyMs,
+            @RequestParam(required = false) Long maxLatencyMs,
+            @RequestParam(required = false, defaultValue = "TIME_DESC") String sort) {
         
-        // UTC 시간을 KST로 변환
         LocalDateTime fromDateTime = from != null ? convertUtcToKst(from) : null;
         LocalDateTime toDateTime = to != null ? convertUtcToKst(to) : null;
-        
-        Pageable pageable = PageRequest.of(page - 1, size); // 1-base to 0-base
-        return ApiResponse.success(monitoringService.getApiHistories(
-                tenantId, fromDateTime, toDateTime, keyword, apiName, apiUrl, statusCode, userId, pageable));
+        Pageable paging = PageRequest.of(page - 1, size);
+        Page<ApiCallHistory> result = monitoringService.getApiHistories(tenantId, fromDateTime, toDateTime, keyword, apiName, apiUrl, statusCode, userId, statusGroup, path, minLatencyMs, maxLatencyMs, sort, paging);
+        return ApiResponse.success(result);
     }
-    
+
     /**
      * 방문자 목록 조회
      * GET /api/admin/monitoring/visitors
@@ -182,6 +190,7 @@ public class AdminMonitoringController {
     /**
      * 시계열 데이터 조회
      * GET /api/admin/monitoring/timeseries
+     * @param interval 그룹 단위: 1m(1분), 5m(5분), 1h(1시간), 1d(1일) 또는 HOUR, DAY. metric=LATENCY_P95 시 해당 구간별 p95(ms) 배열 반환, 갭은 이전 값으로 채움.
      */
     @GetMapping("/timeseries")
     public ApiResponse<TimeseriesResponse> getTimeseries(

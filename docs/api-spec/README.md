@@ -2,7 +2,7 @@
 
 > **대상**: 백엔드 팀  
 > **목적**: 프론트가 백엔드에 보내는 **작업 요청·검토·추가 질문** 문서를 둡니다.  
-> **최종 업데이트**: 2026-01-23
+> **최종 업데이트**: 2026-01-26
 
 ---
 
@@ -34,3 +34,11 @@
 
 → 프론트 문서: `docs/reference/FE_BE_API_SPEC_WORKFLOW.md` (프론트 저장소)  
 → 백엔드 문서: `docs/essentials/FE_BE_API_SPEC_WORKFLOW.md` (본 저장소)
+
+---
+
+## 5. 백엔드 시계열 집계 규격 (동일 폴더)
+
+| 문서 | 설명 |
+|------|------|
+| **ADMIN_MONITORING_TIMESERIES_INTERVAL_SPEC.md** | Timeseries API 인터벌(1m, 5m, 1h, 1d) 파싱·동적 GROUP BY, P95 통계 정확성, 빈 구간 처리(Zero-filling) 규격 |

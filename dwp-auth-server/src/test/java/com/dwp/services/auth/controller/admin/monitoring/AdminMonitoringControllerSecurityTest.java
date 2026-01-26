@@ -1,6 +1,7 @@
 package com.dwp.services.auth.controller.admin.monitoring;
 
 import com.dwp.core.common.ErrorCode;
+import com.dwp.core.exception.GlobalExceptionHandler;
 import com.dwp.services.auth.config.AdminEndpointPolicyRegistry;
 import com.dwp.services.auth.dto.MonitoringSummaryResponse;
 import com.dwp.services.auth.service.MonitoringService;
@@ -13,7 +14,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.Import;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.ContextConfiguration;
+import com.dwp.services.auth.controller.admin.monitoring.WithMockJwt;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.*;
@@ -33,6 +37,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 여기서는 Interceptor 레벨의 권한 검증을 테스트합니다.
  */
 @WebMvcTest(value = AdminMonitoringController.class, excludeAutoConfiguration = RedisAutoConfiguration.class)
+@ContextConfiguration(classes = com.dwp.services.auth.SliceTestApplication.class)
+@Import(GlobalExceptionHandler.class)
 @SuppressWarnings({"null", "removal"})
 class AdminMonitoringControllerSecurityTest {
     
@@ -59,14 +65,14 @@ class AdminMonitoringControllerSecurityTest {
     void testNoToken_Returns401() throws Exception {
         // Given: 토큰 없음 (인증되지 않은 요청)
         // When & Then: 401 Unauthorized (Spring Security에서 처리)
-        mockMvc.perform(get("/api/admin/monitoring/summary")
+        mockMvc.perform(get("/admin/monitoring/summary")
                         .header("X-Tenant-ID", "1"))
                 .andExpect(status().isUnauthorized());
     }
     
     @Test
     @DisplayName("PR-01D-2: admin 아닌 토큰 → 403")
-    @WithMockUser(username = "100", roles = "USER")  // 일반 사용자
+    @WithMockJwt(userId = 100L, tenantId = 1L)  // 일반 사용자
     void testNonAdminToken_Returns403() throws Exception {
         // Given: 일반 사용자 (admin 아님)
         // AdminGuardService가 requireAdmin()에서 예외 발생하도록 설정
@@ -74,7 +80,7 @@ class AdminMonitoringControllerSecurityTest {
                 .when(adminGuardService).requireAdmin(eq(1L), eq(100L));
         
         // When & Then: 403 Forbidden
-        mockMvc.perform(get("/api/admin/monitoring/summary")
+        mockMvc.perform(get("/admin/monitoring/summary")
                         .header("X-Tenant-ID", "1"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.success").value(false))
@@ -83,7 +89,7 @@ class AdminMonitoringControllerSecurityTest {
     
     @Test
     @DisplayName("PR-01D-3: admin 토큰 + tenant 일치 → 200")
-    @WithMockUser(username = "1", roles = "ADMIN")  // Admin 사용자
+    @WithMockJwt(userId = 1L, tenantId = 1L)  // Admin 사용자
     void testAdminTokenWithMatchingTenant_Returns200() throws Exception {
         // Given: Admin 사용자 + tenant 일치
         doNothing().when(adminGuardService).requireAdmin(eq(1L), eq(1L));
@@ -100,11 +106,11 @@ class AdminMonitoringControllerSecurityTest {
                 .apiErrorDeltaPercent(-1.0)
                 .build();
         
-        when(monitoringService.getSummary(eq(1L), any(), any()))
+        when(monitoringService.getSummary(eq(1L), any(), any(), any(), any()))
                 .thenReturn(response);
         
         // When & Then: 200 OK
-        mockMvc.perform(get("/api/admin/monitoring/summary")
+        mockMvc.perform(get("/admin/monitoring/summary")
                         .header("X-Tenant-ID", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -115,7 +121,7 @@ class AdminMonitoringControllerSecurityTest {
     
     @Test
     @DisplayName("PR-01D-4: admin 토큰 + tenant 불일치 → 403")
-    @WithMockUser(username = "1", roles = "ADMIN")  // Admin 사용자
+    @WithMockJwt(userId = 1L, tenantId = 1L)  // JWT tenant=1, 헤더 X-Tenant-ID=2 로 불일치
     void testAdminTokenWithMismatchedTenant_Returns403() throws Exception {
         // Given: Admin 사용자 + tenant 불일치
         // JWT의 tenant_id는 1L, 헤더의 X-Tenant-ID는 2L
@@ -125,7 +131,7 @@ class AdminMonitoringControllerSecurityTest {
         // Note: 실제로는 JWT의 tenant_id와 헤더의 X-Tenant-ID를 비교하지만,
         // @WithMockUser는 JWT를 생성하지 않으므로 Interceptor에서 처리되지 않습니다.
         // 이 테스트는 Interceptor의 tenant 검증 로직이 정상 동작함을 보장하기 위한 것입니다.
-        mockMvc.perform(get("/api/admin/monitoring/summary")
+        mockMvc.perform(get("/admin/monitoring/summary")
                         .header("X-Tenant-ID", "2"))  // tenant 불일치
                 .andExpect(status().isForbidden());
     }

@@ -17,7 +17,7 @@ import java.util.List;
 public class TimeseriesResponse {
     
     private String interval; // "HOUR" | "DAY"
-    private String metric; // "PV" | "UV" | "EVENT" | "API_TOTAL" | "API_ERROR"
-    private List<String> labels; // 시간 라벨 (예: ["2026-01-01", "2026-01-02", ...])
-    private List<Long> values; // 값 배열
+    private String metric; // "PV" | "UV" | "EVENT" | "API_TOTAL" | "API_ERROR" | "RPS" | "API_4XX" | "API_5XX" | "LATENCY_P50" | "LATENCY_P95" | "LATENCY_P99" | "AVAILABILITY"
+    private List<String> labels; // 시간 라벨
+    private List<Double> values; // 값 배열 (count 또는 rate/ms/%)
 }
