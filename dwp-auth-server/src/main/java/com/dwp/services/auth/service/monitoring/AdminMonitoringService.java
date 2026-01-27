@@ -114,9 +114,9 @@ public class AdminMonitoringService {
         return eventLogs.map(this::toEventLogItem);
     }
     
-    /** API 버킷 기반 시계열 메트릭 (sys_api_call_histories). LATENCY_P95 등은 여기서만 처리하며 API_TOTAL로 폴백하지 않음. */
+    /** API 버킷 기반 시계열 메트릭 (sys_api_call_histories). API_TOTAL/API_ERROR 요청 시 interval(1m,5m,1h,1d)에 맞춰 시간대별 값 반환. */
     private static final List<String> API_BUCKET_METRICS = List.of(
-            "RPS", "API_4XX", "API_5XX", "LATENCY_P50", "LATENCY_P95", "LATENCY_P99", "AVAILABILITY");
+            "RPS", "API_4XX", "API_5XX", "API_TOTAL", "API_ERROR", "LATENCY_P50", "LATENCY_P95", "LATENCY_P99", "AVAILABILITY");
 
     /** interval 파라미터: 1m, 5m, 1h, 1d (대소문자 무시). 기존 HOUR/DAY는 1h/1d로 정규화. */
     private static final DateTimeFormatter LABEL_FMT_HOUR_MIN = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -330,6 +330,8 @@ public class AdminMonitoringService {
             case "RPS" -> total > 0 ? Math.round((double) total / bucketSeconds * 100.0) / 100.0 : 0.0;
             case "API_4XX" -> (double) count4xx;
             case "API_5XX" -> (double) count5xx;
+            case "API_TOTAL" -> bucketSeconds > 0 ? Math.round((double) total / bucketSeconds * 100.0) / 100.0 : (double) total;
+            case "API_ERROR" -> (double) (count4xx + count5xx);
             case "AVAILABILITY" -> total > 0 ? Math.round((double) countSuccess / total * 10000.0) / 100.0 : 0.0;
             case "LATENCY_P50" -> p50 != null ? p50.doubleValue() : Double.NaN;
             case "LATENCY_P95" -> p95 != null ? p95.doubleValue() : Double.NaN;

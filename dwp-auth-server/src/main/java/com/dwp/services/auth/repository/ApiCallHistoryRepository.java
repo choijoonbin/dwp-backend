@@ -22,6 +22,12 @@ public interface ApiCallHistoryRepository extends JpaRepository<ApiCallHistory, 
     @Query("SELECT COUNT(a) FROM ApiCallHistory a WHERE a.tenantId = :tenantId AND a.createdAt BETWEEN :from AND :to")
     long countByTenantIdAndCreatedAtBetween(@Param("tenantId") Long tenantId, @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
+    /** 기간 내 중복 제거 클라이언트 수(UV): IP 또는 User ID 기준. API 트래픽 totalUv 용도. */
+    @Query(value = "SELECT COUNT(DISTINCT COALESCE(NULLIF(TRIM(a.ip_address), ''), 'u_' || COALESCE(a.user_id::text, '0'))) " +
+            " FROM sys_api_call_histories a " +
+            " WHERE a.tenant_id = :tenantId AND a.created_at >= :from AND a.created_at <= :to", nativeQuery = true)
+    long countDistinctClientsByTenantIdAndCreatedAtBetween(@Param("tenantId") Long tenantId, @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
     @Query("SELECT COUNT(a) FROM ApiCallHistory a WHERE a.tenantId = :tenantId AND a.statusCode >= 400 AND a.createdAt BETWEEN :from AND :to")
     long countErrorsByTenantIdAndCreatedAtBetween(@Param("tenantId") Long tenantId, @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
@@ -107,13 +113,21 @@ public interface ApiCallHistoryRepository extends JpaRepository<ApiCallHistory, 
             " ) t ORDER BY t.p95_ms DESC NULLS LAST LIMIT 1", nativeQuery = true)
     List<TopSlowView> findTopSlowPath(@Param("tenantId") Long tenantId, @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
-    /** 분당 요청 수 최대값 (rpsPeak): 1분 버킷별 count, max 반환 */
+    /** 분당 요청 수 최대값 (rpsPeak): 1분 버킷별 count, max 반환. @deprecated 동적 윈도우는 findMaxCountInWindow 사용 */
     @Query(value = "SELECT COALESCE(MAX(bucket_count), 0) FROM (" +
             " SELECT COUNT(*) AS bucket_count FROM sys_api_call_histories a " +
             " WHERE a.tenant_id = :tenantId AND a.created_at >= :from AND a.created_at <= :to " +
             " GROUP BY date_trunc('minute', a.created_at)" +
             ") AS buckets", nativeQuery = true)
     Long findMaxCountPerMinute(@Param("tenantId") Long tenantId, @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
+
+    /** Peak RPS용: 지정한 윈도우(초) 단위 버킷별 요청 수 중 최댓값. rpsPeak = 반환값 / windowSeconds */
+    @Query(value = "SELECT COALESCE(MAX(bucket_count), 0) FROM (" +
+            " SELECT COUNT(*) AS bucket_count FROM sys_api_call_histories a " +
+            " WHERE a.tenant_id = :tenantId AND a.created_at >= :from AND a.created_at <= :to " +
+            " GROUP BY (FLOOR(EXTRACT(EPOCH FROM a.created_at) / CAST(:windowSeconds AS double precision)) * CAST(:windowSeconds AS double precision))" +
+            ") AS buckets", nativeQuery = true)
+    Long findMaxCountInWindow(@Param("tenantId") Long tenantId, @Param("from") LocalDateTime from, @Param("to") LocalDateTime to, @Param("windowSeconds") int windowSeconds);
 
     /** path별 요청 수 최대 1건, alias 고정 */
     @Query(value = "SELECT a.path AS \"path\", COUNT(*) AS \"requestCount\" " +

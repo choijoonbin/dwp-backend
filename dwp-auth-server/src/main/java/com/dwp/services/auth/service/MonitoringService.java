@@ -57,12 +57,22 @@ public class MonitoringService {
     private static final String CODE_AVAILABILITY_CRITICAL_THRESHOLD = "AVAILABILITY_CRITICAL_THRESHOLD";
     private static final String CODE_LATENCY_SLO_TARGET = "LATENCY_SLO_TARGET";
     private static final String CODE_LATENCY_CRITICAL_THRESHOLD = "LATENCY_CRITICAL_THRESHOLD";
+    private static final String CODE_TRAFFIC_SLO_TARGET = "TRAFFIC_SLO_TARGET";
+    private static final String CODE_TRAFFIC_CRITICAL_THRESHOLD = "TRAFFIC_CRITICAL_THRESHOLD";
+    private static final String CODE_TRAFFIC_PEAK_WINDOW_SECONDS = "TRAFFIC_PEAK_WINDOW_SECONDS";
+    private static final String CODE_ERROR_RATE_SLO_TARGET = "ERROR_RATE_SLO_TARGET";
+    private static final String CODE_ERROR_BUDGET_TOTAL = "ERROR_BUDGET_TOTAL";
     private static final int DEFAULT_MIN_REQ_PER_MINUTE = 1;
     private static final double DEFAULT_ERROR_RATE_THRESHOLD = 5.0;
     private static final double DEFAULT_AVAILABILITY_SLO_TARGET = 99.9;
     private static final double DEFAULT_AVAILABILITY_CRITICAL_THRESHOLD = 99.0;
     private static final long DEFAULT_LATENCY_SLO_TARGET = 500L;
     private static final long DEFAULT_LATENCY_CRITICAL_THRESHOLD = 1500L;
+    private static final double DEFAULT_TRAFFIC_SLO_TARGET = 100.0;
+    private static final double DEFAULT_TRAFFIC_CRITICAL_THRESHOLD = 200.0;
+    private static final int DEFAULT_TRAFFIC_PEAK_WINDOW_SECONDS = 60;
+    private static final double DEFAULT_ERROR_RATE_SLO_TARGET = 0.5;
+    private static final double DEFAULT_ERROR_BUDGET_TOTAL = 100.0;
 
     /**
      * API 호출 이력 비동기 저장 (Best-effort)
@@ -204,6 +214,7 @@ public class MonitoringService {
             kpiCurrent.getLatency().setPrevAvgLatency(prevAvg != null ? prevAvg : 0L);
         }
         attachDeltas(kpiCurrent, kpiCompare);
+        attachTrafficRealtimeRps(tenantId, kpiCurrent);
 
         return MonitoringSummaryResponse.builder()
                 .pv(currentPv)
@@ -233,6 +244,9 @@ public class MonitoringService {
         double criticalThreshold = parseAvailabilityCriticalThreshold(config.get(CODE_AVAILABILITY_CRITICAL_THRESHOLD));
         long latencySloTarget = parseLatencySloTarget(config.get(CODE_LATENCY_SLO_TARGET));
         long latencyCriticalThreshold = parseLatencyCriticalThreshold(config.get(CODE_LATENCY_CRITICAL_THRESHOLD));
+        double trafficSloTarget = parseTrafficSloTarget(config.get(CODE_TRAFFIC_SLO_TARGET));
+        double trafficCriticalThreshold = parseTrafficCriticalThreshold(config.get(CODE_TRAFFIC_CRITICAL_THRESHOLD));
+        int trafficPeakWindowSeconds = parseTrafficPeakWindowSeconds(config.get(CODE_TRAFFIC_PEAK_WINDOW_SECONDS));
 
         // 1. Availability: 데이터 0건이어도 successRate=100.0, downtimeMinutes=0 명시 (프론트 - 방지)
         double successRate = totalCount > 0 ? Math.round((double) successCount / totalCount * 10000.0) / 100.0 : 100.0;
@@ -291,12 +305,14 @@ public class MonitoringService {
                     .build();
         }
 
-        // RPS: 소수점 2자리로 반올림 (매우 낮을 때 0.0 고착 방지)
-        Long maxPerMin = apiCallHistoryRepository.findMaxCountPerMinute(tenantId, from, to);
-        double rpsPeakRaw = totalCount > 0 && maxPerMin != null ? (double) maxPerMin / 60.0 : 0.0;
+        // RPS: rpsPeak = (조회 기간 내 window초 버킷별 요청 수 중 최댓값) / TRAFFIC_PEAK_WINDOW_SECONDS. 기본 60초=1분.
+        int windowSec = Math.max(1, trafficPeakWindowSeconds);
+        Long maxInWindow = apiCallHistoryRepository.findMaxCountInWindow(tenantId, from, to, windowSec);
+        double rpsPeakRaw = maxInWindow != null && windowSec > 0 ? (double) maxInWindow / windowSec : 0.0;
         double rpsAvgRaw = durationSec > 0 ? (double) requestCount / durationSec : 0.0;
         double rpsAvg = Math.round(rpsAvgRaw * 100.0) / 100.0;
         double rpsPeak = Math.round(rpsPeakRaw * 100.0) / 100.0;
+        long totalUv = apiCallHistoryRepository.countDistinctClientsByTenantIdAndCreatedAtBetween(tenantId, from, to);
 
         MonitoringSummaryKpi.TopTraffic topTraffic = null;
         List<TopTrafficView> topTrafficList = apiCallHistoryRepository.findTopTrafficPath(tenantId, from, to);
@@ -312,14 +328,23 @@ public class MonitoringService {
         double rate4xx = totalCount > 0 ? Math.round((double) count4xx / totalCount * 10000.0) / 100.0 : 0.0;
         double rate5xx = totalCount > 0 ? Math.round((double) count5xx / totalCount * 10000.0) / 100.0 : 0.0;
 
-        // Error Budget: 소진율 = min(rate5xx/0.1, 1.0), 최대 1.0으로 제한(Progress Bar 호환). period는 조회 기간 연동
-        double consumedRatioRaw = rate5xx / 0.1;
+        // Error Budget: ERROR_RATE_SLO_TARGET(목표 에러율 %, 기본 0.5) 기준. 소진율 = min(rate5xx/target, 1.0), burnRate = rate5xx/target
+        double errorRateSloTarget = parseErrorRateSloTarget(config.get(CODE_ERROR_RATE_SLO_TARGET));
+        double consumedRatioRaw = errorRateSloTarget > 0 ? rate5xx / errorRateSloTarget : 0.0;
         double consumedRatio = Math.min(Math.round(consumedRatioRaw * 100.0) / 100.0, 1.0);
+        double burnRate = errorRateSloTarget > 0 ? Math.round(rate5xx / errorRateSloTarget * 100.0) / 100.0 : 0.0;
+        double errorBudgetRemaining = Math.max(0.0, Math.round((1.0 - consumedRatio) * 10000.0) / 100.0);
+        double errorBudgetSloTargetSuccessRate = Math.round((100.0 - errorRateSloTarget) * 100.0) / 100.0;
         String budgetPeriod = resolveBudgetPeriod(durationSec);
         MonitoringSummaryKpi.ErrorBudget budget = MonitoringSummaryKpi.ErrorBudget.builder()
                 .period(budgetPeriod)
-                .sloTargetSuccessRate(99.9)
+                .sloTargetSuccessRate(errorBudgetSloTargetSuccessRate)
                 .consumedRatio(consumedRatio)
+                .build();
+
+        MonitoringSummaryKpi.ErrorCounts errorCounts = MonitoringSummaryKpi.ErrorCounts.builder()
+                .count4xx(count4xx)
+                .count5xx(count5xx)
                 .build();
 
         // Top Error Path: 해당 기간 가장 많이 발생한 에러 1건 (path, statusCode, count)
@@ -360,6 +385,11 @@ public class MonitoringService {
                 .traffic(MonitoringSummaryKpi.TrafficKpi.builder()
                         .rpsAvg(rpsAvg)
                         .rpsPeak(rpsPeak)
+                        .totalPv(requestCount)
+                        .totalUv(totalUv)
+                        .peakRps(rpsPeak)
+                        .sloTarget(trafficSloTarget)
+                        .criticalThreshold(trafficCriticalThreshold)
                         .requestCount(requestCount)
                         .pv(pv)
                         .uv(uv)
@@ -370,10 +400,45 @@ public class MonitoringService {
                         .rate5xx(rate5xx)
                         .count4xx(count4xx)
                         .count5xx(count5xx)
+                        .errorRate(rate5xx)
+                        .errorCounts(errorCounts)
+                        .errorBudgetRemaining(errorBudgetRemaining)
+                        .burnRate(burnRate)
                         .budget(budget)
                         .topError(topError)
                         .build())
                 .build();
+    }
+
+    /** 실시간 RPS: 최근 10초 평균(currentRps), 전일 동시간대 10초(prevRps). delta.rpsDeltaPercent 설정. attachDeltas 이후 호출. */
+    private void attachTrafficRealtimeRps(Long tenantId, MonitoringSummaryKpi kpi) {
+        if (kpi.getTraffic() == null) return;
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime tenSecAgo = now.minusSeconds(10);
+        long countLast10 = apiCallHistoryRepository.countByTenantIdAndCreatedAtBetween(tenantId, tenSecAgo, now);
+        double currentRps = Math.round(countLast10 / 10.0 * 100.0) / 100.0;
+        LocalDateTime yesterdayTenSecAgo = now.minusDays(1).minusSeconds(10);
+        LocalDateTime yesterdayNow = now.minusDays(1);
+        long countPrev10 = apiCallHistoryRepository.countByTenantIdAndCreatedAtBetween(tenantId, yesterdayTenSecAgo, yesterdayNow);
+        double prevRps = Math.round(countPrev10 / 10.0 * 100.0) / 100.0;
+        kpi.getTraffic().setCurrentRps(currentRps);
+        kpi.getTraffic().setPrevRps(prevRps);
+        // Load % = (currentRps / TRAFFIC_CRITICAL_THRESHOLD) × 100. 0 RPS이면 0%, 분모 0 방지로 1.0 사용. 소수점 없이 정수 반올림.
+        double critical = kpi.getTraffic().getCriticalThreshold() != null && kpi.getTraffic().getCriticalThreshold() > 0
+                ? kpi.getTraffic().getCriticalThreshold() : 1.0;
+        double loadPercentage = critical <= 0 ? 0.0 : (double) Math.round((currentRps / critical) * 100.0);
+        kpi.getTraffic().setLoadPercentage(loadPercentage);
+        double rpsDeltaPercent = prevRps > 0 ? Math.round((currentRps - prevRps) / prevRps * 10000.0) / 100.0 : (currentRps > 0 ? 100.0 : 0.0);
+        MonitoringSummaryKpi.DeltaTraffic d = kpi.getTraffic().getDelta();
+        kpi.getTraffic().setDelta(MonitoringSummaryKpi.DeltaTraffic.builder()
+                .rpsAvg(d != null ? d.getRpsAvg() : null)
+                .requestCount(d != null ? d.getRequestCount() : null)
+                .pv(d != null ? d.getPv() : null)
+                .uv(d != null ? d.getUv() : null)
+                .pvDeltaPercent(d != null ? d.getPvDeltaPercent() : null)
+                .uvDeltaPercent(d != null ? d.getUvDeltaPercent() : null)
+                .rpsDeltaPercent(rpsDeltaPercent)
+                .build());
     }
 
     private void attachDeltas(MonitoringSummaryKpi current, MonitoringSummaryKpi compare) {
@@ -462,6 +527,11 @@ public class MonitoringService {
         map.put(CODE_AVAILABILITY_CRITICAL_THRESHOLD, String.valueOf(DEFAULT_AVAILABILITY_CRITICAL_THRESHOLD));
         map.put(CODE_LATENCY_SLO_TARGET, String.valueOf(DEFAULT_LATENCY_SLO_TARGET));
         map.put(CODE_LATENCY_CRITICAL_THRESHOLD, String.valueOf(DEFAULT_LATENCY_CRITICAL_THRESHOLD));
+        map.put(CODE_TRAFFIC_SLO_TARGET, String.valueOf(DEFAULT_TRAFFIC_SLO_TARGET));
+        map.put(CODE_TRAFFIC_CRITICAL_THRESHOLD, String.valueOf(DEFAULT_TRAFFIC_CRITICAL_THRESHOLD));
+        map.put(CODE_TRAFFIC_PEAK_WINDOW_SECONDS, String.valueOf(DEFAULT_TRAFFIC_PEAK_WINDOW_SECONDS));
+        map.put(CODE_ERROR_RATE_SLO_TARGET, String.valueOf(DEFAULT_ERROR_RATE_SLO_TARGET));
+        map.put(CODE_ERROR_BUDGET_TOTAL, String.valueOf(DEFAULT_ERROR_BUDGET_TOTAL));
         List<com.dwp.services.auth.entity.MonitoringConfig> list = monitoringConfigRepository.findByTenantIdOrderByMonitoringConfigId(tenantId);
         for (com.dwp.services.auth.entity.MonitoringConfig c : list) {
             if (c.getConfigKey() != null && c.getConfigValue() != null) {
@@ -528,6 +598,57 @@ public class MonitoringService {
             return v >= 0 ? v : DEFAULT_LATENCY_CRITICAL_THRESHOLD;
         } catch (NumberFormatException e) {
             return DEFAULT_LATENCY_CRITICAL_THRESHOLD;
+        }
+    }
+
+    private static double parseTrafficSloTarget(String value) {
+        if (value == null || value.isBlank()) return DEFAULT_TRAFFIC_SLO_TARGET;
+        try {
+            double v = Double.parseDouble(value.trim());
+            return v >= 0 ? v : DEFAULT_TRAFFIC_SLO_TARGET;
+        } catch (NumberFormatException e) {
+            return DEFAULT_TRAFFIC_SLO_TARGET;
+        }
+    }
+
+    private static double parseTrafficCriticalThreshold(String value) {
+        if (value == null || value.isBlank()) return DEFAULT_TRAFFIC_CRITICAL_THRESHOLD;
+        try {
+            double v = Double.parseDouble(value.trim());
+            return v >= 0 ? v : DEFAULT_TRAFFIC_CRITICAL_THRESHOLD;
+        } catch (NumberFormatException e) {
+            return DEFAULT_TRAFFIC_CRITICAL_THRESHOLD;
+        }
+    }
+
+    private static int parseTrafficPeakWindowSeconds(String value) {
+        if (value == null || value.isBlank()) return DEFAULT_TRAFFIC_PEAK_WINDOW_SECONDS;
+        try {
+            int v = Integer.parseInt(value.trim());
+            return v >= 1 && v <= 86400 ? v : DEFAULT_TRAFFIC_PEAK_WINDOW_SECONDS;
+        } catch (NumberFormatException e) {
+            return DEFAULT_TRAFFIC_PEAK_WINDOW_SECONDS;
+        }
+    }
+
+    private static double parseErrorRateSloTarget(String value) {
+        if (value == null || value.isBlank()) return DEFAULT_ERROR_RATE_SLO_TARGET;
+        try {
+            double v = Double.parseDouble(value.trim());
+            return v > 0 && v <= 100 ? v : DEFAULT_ERROR_RATE_SLO_TARGET;
+        } catch (NumberFormatException e) {
+            return DEFAULT_ERROR_RATE_SLO_TARGET;
+        }
+    }
+
+    @SuppressWarnings("unused") // ERROR_BUDGET_TOTAL: 표시/스케일 용도로 향후 사용 예정
+    private static double parseErrorBudgetTotal(String value) {
+        if (value == null || value.isBlank()) return DEFAULT_ERROR_BUDGET_TOTAL;
+        try {
+            double v = Double.parseDouble(value.trim());
+            return v >= 0 ? v : DEFAULT_ERROR_BUDGET_TOTAL;
+        } catch (NumberFormatException e) {
+            return DEFAULT_ERROR_BUDGET_TOTAL;
         }
     }
 

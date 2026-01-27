@@ -120,8 +120,26 @@ public class MonitoringSummaryKpi {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class TrafficKpi {
+        /** 기간(from~to) 평균 RPS */
         private Double rpsAvg;
+        /** 기간 내 1분 단위 최대 RPS (Peak RPS) */
         private Double rpsPeak;
+        /** 최근 10초간 평균 초당 요청 수 (실시간) */
+        private Double currentRps;
+        /** 전일 동시간대 10초 구간 RPS (변동률 산출용) */
+        private Double prevRps;
+        /** 선택 기간 내 총 API 호출 수 (totalPv) */
+        private Long totalPv;
+        /** 선택 기간 내 중복 제거 클라이언트 수 (IP 또는 User ID 기준 UV) */
+        private Long totalUv;
+        /** 기간 내 1분 버킷 중 최고 RPS (rpsPeak와 동일값, 명시용) */
+        private Double peakRps;
+        /** 트래픽 SLO 목표(RPS). sys_monitoring_configs TRAFFIC_SLO_TARGET, 정상 범위 상한 */
+        private Double sloTarget;
+        /** 트래픽 Critical 임계치(RPS). sys_monitoring_configs TRAFFIC_CRITICAL_THRESHOLD, 초과 시 서버 수용 한계 */
+        private Double criticalThreshold;
+        /** 부하율(%): (currentRps / criticalThreshold) × 100. 상태 컬러링·서버 증설 신호(Red) 판단용. 100 초과 가능. */
+        private Double loadPercentage;
         private Long requestCount;
         private Long pv;
         private Long uv;
@@ -142,6 +160,8 @@ public class MonitoringSummaryKpi {
         private Double pvDeltaPercent;
         /** 이전 기간 대비 UV 증감 (%) */
         private Double uvDeltaPercent;
+        /** 전일 동시간대 대비 RPS 변동률 (%) — (currentRps - prevRps) / prevRps * 100 */
+        private Double rpsDeltaPercent;
     }
 
     @Data
@@ -154,7 +174,8 @@ public class MonitoringSummaryKpi {
     }
 
     /**
-     * Error KPI: 4xx/5xx 분리 집계, Error Budget(SLO 99.9%), Top Error Path, Delta(이전 기간 대비).
+     * Error KPI: 4xx/5xx 분리 집계, Error Budget(SLO), Top Error Path, Delta(이전 기간 대비).
+     * errorRate/errorCounts/errorBudgetRemaining/burnRate는 에러 카드 판정·게이지용.
      */
     @Data
     @Builder
@@ -169,9 +190,27 @@ public class MonitoringSummaryKpi {
         private Long count4xx;
         /** 해당 기간 5xx 건수 */
         private Long count5xx;
+        /** 현재 실시간 에러율(%) — 5xx 비율과 동일. Error 카드 메인 지표 */
+        private Double errorRate;
+        /** 4xx·5xx 각각 합계 (errorCounts.count4xx, errorCounts.count5xx) */
+        private ErrorCounts errorCounts;
+        /** 남은 에러 버짓 퍼센트(%). 0 미만이면 0 */
+        private Double errorBudgetRemaining;
+        /** 버짓 소진 속도. 1.0 이상이면 위험 */
+        private Double burnRate;
         private DeltaError delta;
         private ErrorBudget budget;
         private TopError topError;
+    }
+
+    /** 4xx·5xx 건수 집계 (errorCounts 객체용) */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ErrorCounts {
+        private Long count4xx;
+        private Long count5xx;
     }
 
     /** 이전 동일 기간 대비 rate5xx 퍼센트포인트(pP) 증감, count5xx 증감 */
@@ -184,7 +223,7 @@ public class MonitoringSummaryKpi {
         private Long count5xx;
     }
 
-    /** SLO 기반 에러 예산: 허용 에러율 0.1%, consumedRatio = min(rate5xx/0.1, 1.0), 최대 1.0(100%)로 제한 */
+    /** SLO 기반 에러 예산: 허용 에러율은 sys_monitoring_configs ERROR_RATE_SLO_TARGET(기본 0.5%). consumedRatio = min(rate5xx/target, 1.0) */
     @Data
     @Builder
     @NoArgsConstructor
