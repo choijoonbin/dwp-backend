@@ -150,8 +150,9 @@ public class AdminMonitoringService {
         List<Double> values = new ArrayList<>();
         long bucketSeconds = bucketSecondsFor(normalizedInterval);
 
+        List<Double> valuesErrorRate = "API_ERROR".equals(metric) ? new ArrayList<>() : null;
         if (API_BUCKET_METRICS.contains(metric)) {
-            fillTimeseriesFromApiBuckets(tenantId, from, to, normalizedInterval, metric, bucketSeconds, labels, values);
+            fillTimeseriesFromApiBuckets(tenantId, from, to, normalizedInterval, metric, bucketSeconds, labels, values, valuesErrorRate);
             if ("LATENCY_P50".equals(metric) || "LATENCY_P95".equals(metric) || "LATENCY_P99".equals(metric)) {
                 fillLatencyGaps(values);
             }
@@ -210,6 +211,7 @@ public class AdminMonitoringService {
                 .metric(metric)
                 .labels(labels)
                 .values(values)
+                .valuesErrorRate(valuesErrorRate)
                 .build();
         timeseriesCache.put(cacheKey, response);
         return response;
@@ -248,10 +250,11 @@ public class AdminMonitoringService {
         }
     }
 
-    /** 동적 그룹화: normalizedInterval(1m|5m|1h|1d)에 따라 해당 GROUP BY 쿼리 호출 후, from~to 모든 버킷에 대해 라벨·값 생성. */
+    /** 동적 그룹화: normalizedInterval(1m|5m|1h|1d)에 따라 해당 GROUP BY 쿼리 호출 후, from~to 모든 버킷에 대해 라벨·값 생성.
+     * metric=API_ERROR일 때 valuesErrorRate에 (에러건수/전체요청)*100(%) 순서대로 채움. */
     private void fillTimeseriesFromApiBuckets(Long tenantId, LocalDateTime from, LocalDateTime to,
                                                String normalizedInterval, String metric, long bucketSeconds,
-                                               List<String> labels, List<Double> values) {
+                                               List<String> labels, List<Double> values, List<Double> valuesErrorRate) {
         List<Object[]> rows = switch (normalizedInterval) {
             case "1m" -> apiCallHistoryRepository.findTimeseriesBucketStatsMinute(tenantId, from, to);
             case "5m" -> apiCallHistoryRepository.findTimeseriesBucketStats5Min(tenantId, from, to);
@@ -275,7 +278,11 @@ public class AdminMonitoringService {
             while (!current.isAfter(endDate)) {
                 String label = current.format(LABEL_FMT_DATE);
                 labels.add(label);
-                values.add(getBucketMetricValue(map, label, metric, bucketSeconds));
+                double val = getBucketMetricValue(map, label, metric, bucketSeconds);
+                values.add(val);
+                if ("API_ERROR".equals(metric) && valuesErrorRate != null) {
+                    valuesErrorRate.add(getBucketErrorRatePercent(map, label));
+                }
                 current = current.plusDays(1);
             }
         } else {
@@ -284,10 +291,25 @@ public class AdminMonitoringService {
             while (!current.isAfter(end)) {
                 String label = current.format(LABEL_FMT_HOUR_MIN);
                 labels.add(label);
-                values.add(getBucketMetricValue(map, label, metric, bucketSeconds));
+                double val = getBucketMetricValue(map, label, metric, bucketSeconds);
+                values.add(val);
+                if ("API_ERROR".equals(metric) && valuesErrorRate != null) {
+                    valuesErrorRate.add(getBucketErrorRatePercent(map, label));
+                }
                 current = nextBucketStart(current, normalizedInterval);
             }
         }
+    }
+
+    /** 버킷별 에러율(%) = (에러 건수/전체 요청 수)×100. row[1]=total, row[2]=count4xx, row[3]=count5xx. */
+    private static double getBucketErrorRatePercent(Map<String, Object[]> map, String bucketKey) {
+        Object[] row = map.get(bucketKey);
+        if (row == null || row[1] == null) return 0.0;
+        long total = ((Number) row[1]).longValue();
+        if (total == 0) return 0.0;
+        long count4xx = row.length > 2 && row[2] != null ? ((Number) row[2]).longValue() : 0;
+        long count5xx = row.length > 3 && row[3] != null ? ((Number) row[3]).longValue() : 0;
+        return Math.round((count4xx + count5xx) / (double) total * 10000.0) / 100.0;
     }
 
     private static LocalDateTime alignToBucketStart(LocalDateTime from, String normalizedInterval) {

@@ -6,7 +6,7 @@ import lombok.*;
 
 /**
  * 모니터링 설정 엔티티 (sys_monitoring_configs)
- * config_key는 sys_codes 코드값(MIN_REQ_PER_MINUTE, ERROR_RATE_THRESHOLD 등)으로 관리
+ * config_key는 sys_codes 코드값(AVAILABILITY_MIN_REQ_PER_MINUTE, AVAILABILITY_ERROR_RATE_THRESHOLD 등)으로 관리
  */
 @Entity
 @Table(name = "sys_monitoring_configs",

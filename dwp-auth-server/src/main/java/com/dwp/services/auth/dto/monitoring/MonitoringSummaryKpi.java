@@ -32,6 +32,10 @@ public class MonitoringSummaryKpi {
         private Double sloTargetSuccessRate;
         /** Critical 임계치 % (sys_monitoring_configs AVAILABILITY_CRITICAL_THRESHOLD, 기본 99.0). successRate < 이 값이면 Critical 배지·빨간색 UI */
         private Double criticalThreshold;
+        /** 분당 최소 요청 건수(가용성). sys_monitoring_configs AVAILABILITY_MIN_REQ_PER_MINUTE, 다운타임 판정 시 사용 */
+        private Integer availabilityMinReqPerMinute;
+        /** 5xx 에러율 임계치(가용성, %). sys_monitoring_configs AVAILABILITY_ERROR_RATE_THRESHOLD, 이 값 초과 시 해당 1분을 장애로 집계 */
+        private Double availabilityErrorRateThreshold;
         private Long successCount;
         private Long totalCount;
         private Integer downtimeMinutes;
@@ -156,6 +160,8 @@ public class MonitoringSummaryKpi {
         private Double criticalThreshold;
         /** 부하율(%): (currentRps / criticalThreshold) × 100. 상태 컬러링·서버 증설 신호(Red) 판단용. 100 초과 가능. */
         private Double loadPercentage;
+        /** Peak RPS 집계 윈도우(초). sys_monitoring_configs TRAFFIC_PEAK_WINDOW_SECONDS, 기본 60=1분 버킷 */
+        private Integer trafficPeakWindowSeconds;
         private Long requestCount;
         private Long pv;
         private Long uv;
@@ -208,6 +214,10 @@ public class MonitoringSummaryKpi {
         private Long count5xx;
         /** 현재 실시간 에러율(%) — 5xx 비율과 동일. Error 카드 메인 지표 */
         private Double errorRate;
+        /** 목표 에러율(%). sys_monitoring_configs ERROR_RATE_SLO_TARGET, Error Budget·burnRate 계산에 사용 */
+        private Double errorRateSloTarget;
+        /** 기준 기간 내 에러 예산 총량. sys_monitoring_configs ERROR_BUDGET_TOTAL */
+        private Double errorBudgetTotal;
         /** 4xx·5xx 각각 합계 (errorCounts.count4xx, errorCounts.count5xx) */
         private ErrorCounts errorCounts;
         /** 남은 에러 버짓 퍼센트(%). 0 미만이면 0 */

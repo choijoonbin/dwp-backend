@@ -16,6 +16,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -221,34 +222,34 @@ public class AdminMonitoringController {
     
     /**
      * UTC 시간 문자열을 KST(한국 표준시) LocalDateTime으로 변환
-     * 
+     *
      * 프론트엔드에서 UTC 시간을 보내면, 이를 서버의 로컬 타임존(KST)으로 변환합니다.
-     * 예: UTC "2026-01-20T04:42:00" → KST "2026-01-20T13:42:00"
-     * 
-     * @param utcDateTimeString UTC 시간 문자열 (ISO-8601 형식, 예: "2026-01-20T04:42:00")
+     * 예: UTC "2026-01-20T04:42:00Z" 또는 "2026-01-20T04:42:00" → KST "2026-01-20T13:42:00"
+     *
+     * @param utcDateTimeString UTC 시간 문자열 (ISO-8601 형식, 예: "2026-01-20T04:42:00Z")
      * @return KST LocalDateTime
      */
     private LocalDateTime convertUtcToKst(String utcDateTimeString) {
-        try {
-            // ISO-8601 형식 파싱 (타임존 정보 없으면 UTC로 간주)
-            LocalDateTime utcDateTime = LocalDateTime.parse(utcDateTimeString, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-            
-            // UTC로 해석하여 ZonedDateTime 생성
-            ZonedDateTime utcZoned = utcDateTime.atZone(ZoneId.of("UTC"));
-            
-            // KST(Asia/Seoul, UTC+9)로 변환
-            ZonedDateTime kstZoned = utcZoned.withZoneSameInstant(ZoneId.of("Asia/Seoul"));
-            
-            // LocalDateTime으로 변환
+        // Z 또는 +hh:mm / -hh:mm 오프셋이 포함된 경우: OffsetDateTime로 파싱
+        boolean hasOffset =
+                utcDateTimeString.endsWith("Z")
+                        || utcDateTimeString.contains("+")
+                        || utcDateTimeString.substring(utcDateTimeString.indexOf('T') + 1).contains("-");
+
+        if (hasOffset) {
+            OffsetDateTime offsetDateTime = OffsetDateTime.parse(utcDateTimeString, DateTimeFormatter.ISO_DATE_TIME);
+            ZonedDateTime kstZoned = offsetDateTime.atZoneSameInstant(ZoneId.of("Asia/Seoul"));
             LocalDateTime kstDateTime = kstZoned.toLocalDateTime();
-            
-            log.debug("UTC → KST 변환: {} → {}", utcDateTimeString, kstDateTime);
-            
+            log.debug("UTC(offset) → KST 변환: {} → {}", utcDateTimeString, kstDateTime);
             return kstDateTime;
-        } catch (Exception e) {
-            log.warn("UTC 시간 파싱 실패, 원본 문자열을 그대로 사용: {}", utcDateTimeString, e);
-            // 파싱 실패 시 원본 문자열을 LocalDateTime으로 파싱 시도
-            return LocalDateTime.parse(utcDateTimeString, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
         }
+
+        // 그 외(타임존 정보 없음)는 UTC 로컬 시각으로 간주
+        LocalDateTime utcDateTime = LocalDateTime.parse(utcDateTimeString, DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        ZonedDateTime utcZoned = utcDateTime.atZone(ZoneId.of("UTC"));
+        ZonedDateTime kstZoned = utcZoned.withZoneSameInstant(ZoneId.of("Asia/Seoul"));
+        LocalDateTime kstDateTime = kstZoned.toLocalDateTime();
+        log.debug("UTC(local) → KST 변환: {} → {}", utcDateTimeString, kstDateTime);
+        return kstDateTime;
     }
 }

@@ -53,9 +53,9 @@ public class MonitoringService {
     private final PageViewDailyStatRepository pageViewDailyStatRepository;
     private final ObjectMapper objectMapper;
 
-    /** 모니터링 설정 키 (sys_codes 코드값) */
-    private static final String CODE_MIN_REQ_PER_MINUTE = "MIN_REQ_PER_MINUTE";
-    private static final String CODE_ERROR_RATE_THRESHOLD = "ERROR_RATE_THRESHOLD";
+    /** 모니터링 설정 키 (sys_codes 코드값, 가용성 KPI 전용) */
+    private static final String CODE_AVAILABILITY_MIN_REQ_PER_MINUTE = "AVAILABILITY_MIN_REQ_PER_MINUTE";
+    private static final String CODE_AVAILABILITY_ERROR_RATE_THRESHOLD = "AVAILABILITY_ERROR_RATE_THRESHOLD";
     private static final String CODE_AVAILABILITY_SLO_TARGET = "AVAILABILITY_SLO_TARGET";
     private static final String CODE_AVAILABILITY_CRITICAL_THRESHOLD = "AVAILABILITY_CRITICAL_THRESHOLD";
     private static final String CODE_LATENCY_SLO_TARGET = "LATENCY_SLO_TARGET";
@@ -65,8 +65,8 @@ public class MonitoringService {
     private static final String CODE_TRAFFIC_PEAK_WINDOW_SECONDS = "TRAFFIC_PEAK_WINDOW_SECONDS";
     private static final String CODE_ERROR_RATE_SLO_TARGET = "ERROR_RATE_SLO_TARGET";
     private static final String CODE_ERROR_BUDGET_TOTAL = "ERROR_BUDGET_TOTAL";
-    private static final int DEFAULT_MIN_REQ_PER_MINUTE = 1;
-    private static final double DEFAULT_ERROR_RATE_THRESHOLD = 5.0;
+    private static final int DEFAULT_AVAILABILITY_MIN_REQ_PER_MINUTE = 1;
+    private static final double DEFAULT_AVAILABILITY_ERROR_RATE_THRESHOLD = 5.0;
     private static final double DEFAULT_AVAILABILITY_SLO_TARGET = 99.9;
     private static final double DEFAULT_AVAILABILITY_CRITICAL_THRESHOLD = 99.0;
     private static final long DEFAULT_LATENCY_SLO_TARGET = 500L;
@@ -239,10 +239,10 @@ public class MonitoringService {
         long count5xx = apiCallHistoryRepository.count5xxByTenantIdAndCreatedAtBetween(tenantId, from, to);
         long durationSec = Math.max(1, ChronoUnit.SECONDS.between(from, to));
 
-        // 모니터링 설정 조회 (없으면 Fallback: MIN_REQ_PER_MINUTE=1, ERROR_RATE_THRESHOLD=5.0, AVAILABILITY_SLO_TARGET=99.9)
+        // 모니터링 설정 조회 (없으면 Fallback: AVAILABILITY_MIN_REQ_PER_MINUTE=1, AVAILABILITY_ERROR_RATE_THRESHOLD=5.0, AVAILABILITY_SLO_TARGET=99.9)
         Map<String, String> config = getMonitoringConfigMap(tenantId);
-        int minReqPerMinute = parseMinReqPerMinute(config.get(CODE_MIN_REQ_PER_MINUTE));
-        double errorRateThreshold = parseErrorRateThreshold(config.get(CODE_ERROR_RATE_THRESHOLD));
+        int minReqPerMinute = parseAvailabilityMinReqPerMinute(config.get(CODE_AVAILABILITY_MIN_REQ_PER_MINUTE));
+        double errorRateThreshold = parseAvailabilityErrorRateThreshold(config.get(CODE_AVAILABILITY_ERROR_RATE_THRESHOLD));
         double sloTargetSuccessRate = parseAvailabilitySloTarget(config.get(CODE_AVAILABILITY_SLO_TARGET));
         double criticalThreshold = parseAvailabilityCriticalThreshold(config.get(CODE_AVAILABILITY_CRITICAL_THRESHOLD));
         long latencySloTarget = parseLatencySloTarget(config.get(CODE_LATENCY_SLO_TARGET));
@@ -369,11 +369,14 @@ public class MonitoringService {
                     .build();
         }
 
+        double errorBudgetTotal = parseErrorBudgetTotal(config.get(CODE_ERROR_BUDGET_TOTAL));
         return MonitoringSummaryKpi.builder()
                 .availability(MonitoringSummaryKpi.AvailabilityKpi.builder()
                         .successRate(Double.valueOf(successRate))
                         .sloTargetSuccessRate(sloTargetSuccessRate)
                         .criticalThreshold(criticalThreshold)
+                        .availabilityMinReqPerMinute(minReqPerMinute)
+                        .availabilityErrorRateThreshold(errorRateThreshold)
                         .successCount(successCount)
                         .totalCount(totalCount)
                         .downtimeMinutes(Integer.valueOf(downtimeMinutes))
@@ -401,6 +404,7 @@ public class MonitoringService {
                         .peakRps(rpsPeak)
                         .sloTarget(trafficSloTarget)
                         .criticalThreshold(trafficCriticalThreshold)
+                        .trafficPeakWindowSeconds(trafficPeakWindowSeconds)
                         .requestCount(requestCount)
                         .pv(pv)
                         .uv(uv)
@@ -412,6 +416,8 @@ public class MonitoringService {
                         .count4xx(count4xx)
                         .count5xx(count5xx)
                         .errorRate(rate5xx)
+                        .errorRateSloTarget(errorRateSloTarget)
+                        .errorBudgetTotal(errorBudgetTotal)
                         .errorCounts(errorCounts)
                         .errorBudgetRemaining(errorBudgetRemaining)
                         .burnRate(burnRate)
@@ -595,8 +601,8 @@ public class MonitoringService {
     /** 테넌트별 모니터링 설정 조회 (키=config_key 코드, 값=config_value). 없으면 기본값 맵 반환 */
     private Map<String, String> getMonitoringConfigMap(Long tenantId) {
         Map<String, String> map = new HashMap<>();
-        map.put(CODE_MIN_REQ_PER_MINUTE, String.valueOf(DEFAULT_MIN_REQ_PER_MINUTE));
-        map.put(CODE_ERROR_RATE_THRESHOLD, String.valueOf(DEFAULT_ERROR_RATE_THRESHOLD));
+        map.put(CODE_AVAILABILITY_MIN_REQ_PER_MINUTE, String.valueOf(DEFAULT_AVAILABILITY_MIN_REQ_PER_MINUTE));
+        map.put(CODE_AVAILABILITY_ERROR_RATE_THRESHOLD, String.valueOf(DEFAULT_AVAILABILITY_ERROR_RATE_THRESHOLD));
         map.put(CODE_AVAILABILITY_SLO_TARGET, String.valueOf(DEFAULT_AVAILABILITY_SLO_TARGET));
         map.put(CODE_AVAILABILITY_CRITICAL_THRESHOLD, String.valueOf(DEFAULT_AVAILABILITY_CRITICAL_THRESHOLD));
         map.put(CODE_LATENCY_SLO_TARGET, String.valueOf(DEFAULT_LATENCY_SLO_TARGET));
@@ -615,23 +621,23 @@ public class MonitoringService {
         return map;
     }
 
-    private static int parseMinReqPerMinute(String value) {
-        if (value == null || value.isBlank()) return DEFAULT_MIN_REQ_PER_MINUTE;
+    private static int parseAvailabilityMinReqPerMinute(String value) {
+        if (value == null || value.isBlank()) return DEFAULT_AVAILABILITY_MIN_REQ_PER_MINUTE;
         try {
             int v = Integer.parseInt(value.trim());
-            return v >= 0 ? v : DEFAULT_MIN_REQ_PER_MINUTE;
+            return v >= 0 ? v : DEFAULT_AVAILABILITY_MIN_REQ_PER_MINUTE;
         } catch (NumberFormatException e) {
-            return DEFAULT_MIN_REQ_PER_MINUTE;
+            return DEFAULT_AVAILABILITY_MIN_REQ_PER_MINUTE;
         }
     }
 
-    private static double parseErrorRateThreshold(String value) {
-        if (value == null || value.isBlank()) return DEFAULT_ERROR_RATE_THRESHOLD;
+    private static double parseAvailabilityErrorRateThreshold(String value) {
+        if (value == null || value.isBlank()) return DEFAULT_AVAILABILITY_ERROR_RATE_THRESHOLD;
         try {
             double v = Double.parseDouble(value.trim());
-            return v >= 0 ? v : DEFAULT_ERROR_RATE_THRESHOLD;
+            return v >= 0 ? v : DEFAULT_AVAILABILITY_ERROR_RATE_THRESHOLD;
         } catch (NumberFormatException e) {
-            return DEFAULT_ERROR_RATE_THRESHOLD;
+            return DEFAULT_AVAILABILITY_ERROR_RATE_THRESHOLD;
         }
     }
 
