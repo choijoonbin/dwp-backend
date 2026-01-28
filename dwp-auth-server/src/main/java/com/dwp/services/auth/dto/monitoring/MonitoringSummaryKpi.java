@@ -39,8 +39,24 @@ public class MonitoringSummaryKpi {
         private Long uptimeMinutes;
         /** 장애 구간: 5xx 에러율 임계치 초과 1분 버킷의 [start, end] 목록 (차트 Red 영역 표시용) */
         private java.util.List<DowntimeInterval> downtimeIntervals;
+        /** Health Dots용: 기간을 버킷별로 나눈 상태 이력. timestamp(ISO-8601 UTC), status(UP|WARNING|DOWN|NO_DATA), availability(%) */
+        private java.util.List<StatusHistoryItem> statusHistory;
         private DeltaAvailability delta;
         private TopCause topCause;
+    }
+
+    /** Health Dots용 버킷 단위 상태 이력 항목 */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class StatusHistoryItem {
+        /** 버킷 시작 시각 (ISO-8601 UTC) */
+        private String timestamp;
+        /** UP | WARNING | DOWN | NO_DATA */
+        private String status;
+        /** 해당 버킷 가용성 % (2xx+3xx/전체*100). NO_DATA면 0 */
+        private Double availability;
     }
 
     /** 장애 1분 구간 (ISO-8601 UTC) */

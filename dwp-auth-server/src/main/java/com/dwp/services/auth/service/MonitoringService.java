@@ -30,13 +30,16 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -258,10 +261,12 @@ public class MonitoringService {
 
         List<MonitoringSummaryKpi.DowntimeInterval> downtimeIntervals = new ArrayList<>();
         List<Object[]> bucketStarts = apiCallHistoryRepository.findDowntimeBucketStarts(tenantId, from, to, minReqPerMinute, errorRateThreshold);
+        Set<Long> downtimeEpochSeconds = new HashSet<>();
         for (Object[] row : bucketStarts) {
             if (row != null && row.length > 0 && row[0] != null) {
                 Instant start = row[0] instanceof Timestamp ? ((Timestamp) row[0]).toInstant() : null;
                 if (start != null) {
+                    downtimeEpochSeconds.add(start.getEpochSecond());
                     Instant end = start.plusSeconds(60);
                     downtimeIntervals.add(MonitoringSummaryKpi.DowntimeInterval.builder()
                             .start(DateTimeFormatter.ISO_INSTANT.format(start))
@@ -270,6 +275,11 @@ public class MonitoringService {
                 }
             }
         }
+
+        // Health Dots용 statusHistory: 기간을 버킷별로 나눠 UP|WARNING|DOWN|NO_DATA 및 가용성(%)
+        int statusHistoryBucketSeconds = resolveStatusHistoryBucketSeconds(durationSec);
+        List<MonitoringSummaryKpi.StatusHistoryItem> statusHistory = buildStatusHistory(
+                tenantId, from, to, statusHistoryBucketSeconds, downtimeEpochSeconds, sloTargetSuccessRate);
 
         MonitoringSummaryKpi.TopCause topCause = null;
         List<TopCauseView> top5xx = apiCallHistoryRepository.findTop5xxPath(tenantId, from, to);
@@ -369,6 +379,7 @@ public class MonitoringService {
                         .downtimeMinutes(Integer.valueOf(downtimeMinutes))
                         .uptimeMinutes(uptimeMinutes)
                         .downtimeIntervals(downtimeIntervals)
+                        .statusHistory(statusHistory)
                         .topCause(topCause)
                         .build())
                 .latency(MonitoringSummaryKpi.LatencyKpi.builder()
@@ -518,6 +529,69 @@ public class MonitoringService {
         return "WEEK";
     }
 
+    /**
+     * Health Dots 버킷 크기(초) 결정:
+     * - 1h 이하: 2분 (120초)  → 약 30개 도트
+     * - 3h 이하: 5분 (300초) → 최대 약 36개 도트
+     * - 6h 이하: 10분(600초) → 최대 약 36개 도트
+     * - 24h 이하: 30분(1800초) → 최대 48개 도트
+     * - 7일 이하: 6시간(21600초) → 최대 28개 도트
+     * - 그 외: 24시간(86400초) → 30일 기준 30개 도트
+     *
+     * 조회 기간이 1~6시간 사이인 경우 도트 개수가 최소 30개 내외가 되도록,
+     * 버킷 크기를 2~10분 사이에서 유동적으로 조정한다.
+     */
+    private static int resolveStatusHistoryBucketSeconds(long durationSec) {
+        if (durationSec <= 3600L) return 120;        // 1h 이내: 2분 버킷 → ~30 도트
+        if (durationSec <= 3 * 3600L) return 300;    // 3h 이내: 5분 버킷 → 최대 ~36 도트
+        if (durationSec <= 6 * 3600L) return 600;    // 6h 이내: 10분 버킷 → 최대 ~36 도트
+        if (durationSec <= 86400L) return 1800;      // 24h 이내: 30분 버킷 → 최대 48 도트
+        if (durationSec <= 604800L) return 21600;    // 7일 이내: 6시간 버킷 → 최대 28 도트
+        return 86400;                                // 그 외: 24시간(1일) 버킷 → 30일 기준 30 도트
+    }
+
+    /** Health Dots용 statusHistory: 버킷별 UP|WARNING|DOWN|NO_DATA 및 availability(%) */
+    private List<MonitoringSummaryKpi.StatusHistoryItem> buildStatusHistory(
+            Long tenantId, LocalDateTime from, LocalDateTime to, int bucketSeconds,
+            Set<Long> downtimeEpochSeconds, double sloTargetSuccessRate) {
+        List<MonitoringSummaryKpi.StatusHistoryItem> out = new ArrayList<>();
+        long fromEpoch = from.atOffset(ZoneOffset.UTC).toEpochSecond();
+        long toEpoch = to.atOffset(ZoneOffset.UTC).toEpochSecond();
+        long startBucket = (fromEpoch / bucketSeconds) * bucketSeconds;
+
+        List<Object[]> rows = apiCallHistoryRepository.findAvailabilityBucketStats(tenantId, from, to, bucketSeconds);
+        Map<Long, long[]> statsMap = new HashMap<>();
+        for (Object[] row : rows) {
+            if (row != null && row.length >= 3 && row[0] != null) {
+                Instant inst = row[0] instanceof Timestamp ? ((Timestamp) row[0]).toInstant() : null;
+                if (inst != null) {
+                    long bucketEpoch = inst.getEpochSecond();
+                    long total = row[1] instanceof Number ? ((Number) row[1]).longValue() : 0L;
+                    long success = row[2] instanceof Number ? ((Number) row[2]).longValue() : 0L;
+                    statsMap.put(bucketEpoch, new long[]{total, success});
+                }
+            }
+        }
+
+        for (long b = startBucket; b < toEpoch; b += bucketSeconds) {
+            final long bucketStart = b;
+            final long bucketEnd = b + bucketSeconds;
+            long[] pair = statsMap.getOrDefault(bucketStart, new long[]{0L, 0L});
+            long total = pair[0];
+            long success = pair[1];
+            double availability = total > 0 ? Math.round((double) success / total * 10000.0) / 100.0 : 0.0;
+            boolean isDown = downtimeEpochSeconds.stream().anyMatch(d -> d >= bucketStart && d < bucketEnd);
+            String status = total == 0 ? "NO_DATA" : (isDown ? "DOWN" : (availability < sloTargetSuccessRate ? "WARNING" : "UP"));
+            String timestamp = Instant.ofEpochSecond(bucketStart).toString();
+            out.add(MonitoringSummaryKpi.StatusHistoryItem.builder()
+                    .timestamp(timestamp)
+                    .status(status)
+                    .availability(availability)
+                    .build());
+        }
+        return out;
+    }
+
     /** 테넌트별 모니터링 설정 조회 (키=config_key 코드, 값=config_value). 없으면 기본값 맵 반환 */
     private Map<String, String> getMonitoringConfigMap(Long tenantId) {
         Map<String, String> map = new HashMap<>();
@@ -662,13 +736,22 @@ public class MonitoringService {
         menu = (menu != null && menu.trim().isEmpty()) ? null : menu;
         path = (path != null && path.trim().isEmpty()) ? null : path;
         
+        log.debug("getPageViews 서비스: tenantId={}, from={}, to={}, keyword={}, path={}, route={}, menu={}, userId={}", 
+                tenantId, from, to, keyword, path, route, menu, userId);
+        
+        Page<PageViewEvent> result;
         if (from != null && to != null) {
-            return pageViewEventRepository.findByTenantIdAndFiltersWithDate(
+            result = pageViewEventRepository.findByTenantIdAndFiltersWithDate(
                     tenantId, from, to, keyword, route, menu, path, userId, pageable);
         } else {
-            return pageViewEventRepository.findByTenantIdAndFiltersWithoutDate(
+            result = pageViewEventRepository.findByTenantIdAndFiltersWithoutDate(
                     tenantId, keyword, route, menu, path, userId, pageable);
         }
+        
+        log.debug("getPageViews 쿼리 결과: totalElements={}, contentSize={}", 
+                result.getTotalElements(), result.getContent().size());
+        
+        return result;
     }
 
     @Transactional(readOnly = true)

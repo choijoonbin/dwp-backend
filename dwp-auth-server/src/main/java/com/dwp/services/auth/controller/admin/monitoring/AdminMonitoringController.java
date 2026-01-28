@@ -83,17 +83,20 @@ public class AdminMonitoringController {
             @RequestParam(required = false) String path,
             @RequestParam(required = false) Long userId) {
         
-        log.debug("getPageViews 호출: tenantId={}, from={}, to={}, page={}, size={}", 
-                tenantId, from, to, page, size);
+        log.debug("getPageViews 호출: tenantId={}, from={}, to={}, page={}, size={}, keyword={}, path={}", 
+                tenantId, from, to, page, size, keyword, path);
         
         // UTC 시간을 KST로 변환
         LocalDateTime fromDateTime = from != null ? convertUtcToKst(from) : null;
         LocalDateTime toDateTime = to != null ? convertUtcToKst(to) : null;
         
+        log.debug("getPageViews 파라미터 변환 후: tenantId={}, fromDateTime={}, toDateTime={}, keyword={}, route={}, menu={}, path={}, userId={}", 
+                tenantId, fromDateTime, toDateTime, keyword, route, menu, path, userId);
+        
         Pageable pageable = PageRequest.of(page - 1, size); // 1-base to 0-base
         Page<PageViewEvent> result = monitoringService.getPageViews(
                 tenantId, fromDateTime, toDateTime, keyword, route, menu, path, userId, pageable);
-        log.debug("getPageViews 결과: totalElements={}", result.getTotalElements());
+        log.debug("getPageViews 결과: totalElements={}, totalPages={}", result.getTotalElements(), result.getTotalPages());
         
         return ApiResponse.success(result);
     }
