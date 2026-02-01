@@ -68,10 +68,11 @@ public interface ApiCallHistoryRepository extends JpaRepository<ApiCallHistory, 
     long countDowntimeBuckets1Min(@Param("tenantId") Long tenantId, @Param("from") LocalDateTime from, @Param("to") LocalDateTime to,
                                   @Param("minReqPerMinute") int minReqPerMinute, @Param("threshold") double threshold);
 
-    /** Health Dots용: 지정한 초 단위 버킷별 total·success 집계. bucket_start, total, success 순서. */
+    /** Health Dots용: 지정한 초 단위 버킷별 total·success·apiErrorCount 집계. bucket_start, total, success, api_error_count 순서. */
     @Query(value = "SELECT to_timestamp(FLOOR(EXTRACT(EPOCH FROM a.created_at) / CAST(:bucketSeconds AS double precision)) * CAST(:bucketSeconds AS double precision))::timestamp AS bucket_start, " +
             " COUNT(*) AS total, " +
-            " COUNT(*) FILTER (WHERE a.status_code >= 200 AND a.status_code < 400) AS success " +
+            " COUNT(*) FILTER (WHERE a.status_code >= 200 AND a.status_code < 400) AS success, " +
+            " COUNT(*) FILTER (WHERE a.status_code >= 400 AND a.status_code < 600) AS api_error_count " +
             " FROM sys_api_call_histories a " +
             " WHERE a.tenant_id = :tenantId AND a.created_at >= :from AND a.created_at <= :to " +
             " GROUP BY 1 ORDER BY 1", nativeQuery = true)

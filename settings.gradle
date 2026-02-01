@@ -7,4 +7,5 @@ include 'dwp-main-service'
 include 'services:mail-service'
 include 'services:chat-service'
 include 'services:approval-service'
+include 'services:aura-service'
 

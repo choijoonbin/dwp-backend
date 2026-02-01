@@ -61,6 +61,10 @@ public class MonitoringSummaryKpi {
         private String status;
         /** 해당 버킷 가용성 % (2xx+3xx/전체*100). NO_DATA면 0 */
         private Double availability;
+        /** 해당 구간 성공 API 건수 (2xx+3xx) */
+        private Long apiCount;
+        /** 해당 구간 API 에러 건수 (4xx+5xx) */
+        private Long apiErrorCount;
     }
 
     /** 장애 1분 구간 (ISO-8601 UTC) */

@@ -2,12 +2,15 @@ package com.dwp.services.main.controller;
 
 import com.dwp.core.common.ApiResponse;
 import com.dwp.services.main.dto.HitlApproveRequest;
+import com.dwp.services.main.dto.HitlApproveResult;
 import com.dwp.services.main.dto.HitlRejectRequest;
+import com.dwp.services.main.dto.HitlRejectResult;
 import com.dwp.services.main.service.HitlManager;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -37,55 +40,62 @@ public class HitlController {
     
     /**
      * HITL 승인 처리
-     * 
-     * @param requestId 요청 ID
-     * @param request 승인 요청 DTO
-     * @return 세션 ID
+     *
+     * 이미 처리된 requestId: 409 Conflict + 동일 본문 (FE는 409를 성공으로 처리).
+     * 최초 승인: 200 OK + 본문.
      */
     @PostMapping("/approve/{requestId}")
-    @ResponseStatus(HttpStatus.OK)
-    public ApiResponse<HitlApproveResponse> approve(
+    public ResponseEntity<ApiResponse<HitlApproveResponse>> approve(
             @PathVariable String requestId,
+            @RequestHeader("X-Tenant-ID") Long tenantId,
             @Valid @RequestBody HitlApproveRequest request) {
         
-        String sessionId = hitlManager.approve(requestId, request.getUserId());
+        HitlApproveResult result = hitlManager.approve(requestId, request.getUserId(), tenantId);
         
         HitlApproveResponse response = HitlApproveResponse.builder()
                 .requestId(requestId)
-                .sessionId(sessionId)
-                .status("approved")
+                .sessionId(result.getSessionId())
+                .status(result.getStatus())
                 .build();
         
-        return ApiResponse.success("Request approved successfully", response);
+        if (result.isAlreadyProcessed()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(ApiResponse.success("Request was already processed (idempotent)", response));
+        }
+        return ResponseEntity.ok(ApiResponse.success("Request approved successfully", response));
     }
     
     /**
      * HITL 거절 처리
-     * 
-     * @param requestId 요청 ID
-     * @param request 거절 요청 DTO
-     * @return 세션 ID
+     *
+     * 이미 처리된 requestId: 409 Conflict + 현재 상태 본문 (FE는 409를 성공으로 처리).
+     * 최초 거절: 200 OK + 본문.
      */
     @PostMapping("/reject/{requestId}")
-    @ResponseStatus(HttpStatus.OK)
-    public ApiResponse<HitlRejectResponse> reject(
+    public ResponseEntity<ApiResponse<HitlRejectResponse>> reject(
             @PathVariable String requestId,
+            @RequestHeader("X-Tenant-ID") Long tenantId,
             @Valid @RequestBody HitlRejectRequest request) {
         
-        String sessionId = hitlManager.reject(
+        HitlRejectResult result = hitlManager.reject(
                 requestId,
                 request.getUserId(),
-                request.getReason()
+                request.getReason(),
+                tenantId
         );
         
         HitlRejectResponse response = HitlRejectResponse.builder()
                 .requestId(requestId)
-                .sessionId(sessionId)
-                .status("rejected")
-                .reason(request.getReason())
+                .sessionId(result.getSessionId())
+                .status(result.getStatus())
+                .reason(result.getReason())
                 .build();
         
-        return ApiResponse.success("Request rejected", response);
+        if (result.isAlreadyProcessed()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(ApiResponse.success("Request was already processed (idempotent)", response));
+        }
+        return ResponseEntity.ok(ApiResponse.success("Request rejected", response));
     }
     
     /**

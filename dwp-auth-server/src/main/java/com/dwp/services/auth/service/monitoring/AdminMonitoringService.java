@@ -3,6 +3,7 @@ package com.dwp.services.auth.service.monitoring;
 import com.dwp.services.auth.dto.monitoring.EventLogItem;
 import com.dwp.services.auth.dto.monitoring.TimeseriesResponse;
 import com.dwp.services.auth.dto.monitoring.VisitorSummary;
+import com.dwp.services.auth.entity.PageViewDailyStat;
 import com.dwp.services.auth.entity.monitoring.EventLog;
 import com.dwp.services.auth.repository.ApiCallHistoryRepository;
 import com.dwp.services.auth.repository.PageViewEventRepository;
@@ -43,55 +44,42 @@ public class AdminMonitoringService {
     private final PageViewDailyStatRepository pageViewDailyStatRepository;
     
     /**
-     * 방문자 목록 조회
+     * 방문자 목록 조회 (DB 레벨 페이징)
      */
     @Transactional(readOnly = true)
-    public Page<VisitorSummary> getVisitors(Long tenantId, LocalDateTime from, LocalDateTime to, 
+    public Page<VisitorSummary> getVisitors(Long tenantId, LocalDateTime from, LocalDateTime to,
                                              String keyword, Pageable pageable) {
-        List<Object[]> results;
+        Page<Object[]> pagedResults;
         if (keyword != null && !keyword.trim().isEmpty()) {
-            results = pageViewEventRepository.findVisitorSummariesByTenantIdAndKeyword(
-                    tenantId, from, to, keyword.trim());
+            pagedResults = pageViewEventRepository.findVisitorSummariesByTenantIdAndKeyword(
+                    tenantId, from, to, keyword.trim(), pageable);
         } else {
-            results = pageViewEventRepository.findVisitorSummariesByTenantIdAndCreatedAtBetween(
-                    tenantId, from, to);
+            pagedResults = pageViewEventRepository.findVisitorSummariesByTenantIdAndCreatedAtBetween(
+                    tenantId, from, to, pageable);
         }
-        
-        // EventLog에서 eventCount 집계
-        List<VisitorSummary> summaries = results.stream().map(row -> {
+
+        // 기간 전체 eventCount 1회만 조회 (visitorId별 집계는 향후 개선)
+        Long eventCountTotal = eventLogRepository.countByTenantIdAndOccurredAtBetween(tenantId, from, to);
+
+        List<VisitorSummary> summaries = pagedResults.getContent().stream().map(row -> {
             String visitorId = (String) row[0];
             LocalDateTime firstSeen = (LocalDateTime) row[1];
             LocalDateTime lastSeen = (LocalDateTime) row[2];
-            Long pvCount = ((Number) row[3]).longValue();
+            Long pvCount = row[3] != null ? ((Number) row[3]).longValue() : 0L;
             String lastPath = (String) row[4];
-            
-            // visitorId가 null이면 "anonymous"로 매핑
             String displayVisitorId = visitorId != null ? visitorId : "anonymous";
-            
-            // EventLog에서 해당 visitorId의 eventCount 조회
-            Long eventCount = eventLogRepository.countByTenantIdAndOccurredAtBetween(
-                    tenantId, from, to);
-            // TODO: visitorId별 eventCount 집계는 향후 개선 (현재는 전체 이벤트 수)
-            
             return VisitorSummary.builder()
                     .visitorId(displayVisitorId)
                     .firstSeenAt(firstSeen)
                     .lastSeenAt(lastSeen)
                     .pageViewCount(pvCount)
-                    .eventCount(eventCount)
+                    .eventCount(eventCountTotal)
                     .lastPath(lastPath)
                     .build();
         }).collect(Collectors.toList());
-        
-        // 페이징 처리
-        int start = (int) pageable.getOffset();
-        int end = Math.min(start + pageable.getPageSize(), summaries.size());
-        List<VisitorSummary> pagedSummaries = start < summaries.size() 
-                ? summaries.subList(start, end) 
-                : new ArrayList<>();
-        
+
         @SuppressWarnings("null")
-        Page<VisitorSummary> result = new PageImpl<>(pagedSummaries, pageable, summaries.size());
+        Page<VisitorSummary> result = new PageImpl<>(summaries, pagedResults.getPageable(), pagedResults.getTotalElements());
         return result;
     }
     
@@ -159,34 +147,57 @@ public class AdminMonitoringService {
         } else if ("1d".equals(normalizedInterval)) {
             LocalDate startDate = from.toLocalDate();
             LocalDate endDate = to.toLocalDate();
-            LocalDate currentDate = startDate;
-            while (!currentDate.isAfter(endDate)) {
-                final LocalDate date = currentDate;
-                labels.add(date.format(LABEL_FMT_DATE));
-                long value = switch (metric) {
-                    case "PV" -> pageViewDailyStatRepository.findByTenantIdAndStatDateBetween(tenantId, date, date)
-                            .stream().mapToLong(s -> s.getPvCount() != null ? s.getPvCount() : 0L).sum();
-                    case "UV" -> pageViewDailyStatRepository.findByTenantIdAndStatDateBetween(tenantId, date, date)
-                            .stream().mapToLong(s -> s.getUvCount() != null ? s.getUvCount() : 0L).sum();
-                    case "EVENT" -> {
-                        LocalDateTime dayStart = date.atStartOfDay();
-                        LocalDateTime dayEnd = date.atTime(23, 59, 59);
-                        yield eventLogRepository.countByTenantIdAndOccurredAtBetween(tenantId, dayStart, dayEnd);
-                    }
-                    case "API_TOTAL" -> {
-                        LocalDateTime dayStart = date.atStartOfDay();
-                        LocalDateTime dayEnd = date.atTime(23, 59, 59);
-                        yield apiCallHistoryRepository.countByTenantIdAndCreatedAtBetween(tenantId, dayStart, dayEnd);
-                    }
-                    case "API_ERROR" -> {
-                        LocalDateTime dayStart = date.atStartOfDay();
-                        LocalDateTime dayEnd = date.atTime(23, 59, 59);
-                        yield apiCallHistoryRepository.countErrorsByTenantIdAndCreatedAtBetween(tenantId, dayStart, dayEnd);
-                    }
-                    default -> 0L;
-                };
-                values.add((double) value);
-                currentDate = currentDate.plusDays(1);
+            if ("PV".equals(metric) || "UV".equals(metric)) {
+                // PV/UV: 1회 조회 후 일별 합산 (N회 쿼리 → 1회)
+                List<PageViewDailyStat> dailyStats =
+                        pageViewDailyStatRepository.findByTenantIdAndStatDateBetween(tenantId, startDate, endDate);
+                Map<LocalDate, long[]> pvUvByDate = new LinkedHashMap<>();
+                for (PageViewDailyStat s : dailyStats) {
+                    LocalDate d = s.getStatDate();
+                    pvUvByDate.compute(d, (k, v) -> {
+                        long pv = s.getPvCount() != null ? s.getPvCount() : 0L;
+                        long uv = s.getUvCount() != null ? s.getUvCount() : 0L;
+                        if (v == null) return new long[]{pv, uv};
+                        v[0] += pv;
+                        v[1] += uv;
+                        return v;
+                    });
+                }
+                LocalDate currentDate = startDate;
+                while (!currentDate.isAfter(endDate)) {
+                    labels.add(currentDate.format(LABEL_FMT_DATE));
+                    long[] pair = pvUvByDate.getOrDefault(currentDate, new long[]{0L, 0L});
+                    long value = "PV".equals(metric) ? pair[0] : pair[1];
+                    values.add((double) value);
+                    currentDate = currentDate.plusDays(1);
+                }
+            } else {
+                // EVENT, API_TOTAL, API_ERROR: 기존처럼 일별 1회 쿼리 (메트릭별 1회는 불가피)
+                LocalDate currentDate = startDate;
+                while (!currentDate.isAfter(endDate)) {
+                    final LocalDate date = currentDate;
+                    labels.add(date.format(LABEL_FMT_DATE));
+                    long value = switch (metric) {
+                        case "EVENT" -> {
+                            LocalDateTime dayStart = date.atStartOfDay();
+                            LocalDateTime dayEnd = date.atTime(23, 59, 59);
+                            yield eventLogRepository.countByTenantIdAndOccurredAtBetween(tenantId, dayStart, dayEnd);
+                        }
+                        case "API_TOTAL" -> {
+                            LocalDateTime dayStart = date.atStartOfDay();
+                            LocalDateTime dayEnd = date.atTime(23, 59, 59);
+                            yield apiCallHistoryRepository.countByTenantIdAndCreatedAtBetween(tenantId, dayStart, dayEnd);
+                        }
+                        case "API_ERROR" -> {
+                            LocalDateTime dayStart = date.atStartOfDay();
+                            LocalDateTime dayEnd = date.atTime(23, 59, 59);
+                            yield apiCallHistoryRepository.countErrorsByTenantIdAndCreatedAtBetween(tenantId, dayStart, dayEnd);
+                        }
+                        default -> 0L;
+                    };
+                    values.add((double) value);
+                    currentDate = currentDate.plusDays(1);
+                }
             }
         } else {
             LocalDateTime current = from.truncatedTo(ChronoUnit.HOURS);

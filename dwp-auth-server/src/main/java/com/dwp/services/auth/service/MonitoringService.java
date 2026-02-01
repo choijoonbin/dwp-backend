@@ -17,6 +17,7 @@ import com.dwp.services.auth.repository.projection.TopTrafficView;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -40,12 +41,25 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+
+import org.springframework.context.annotation.Lazy;
+import org.springframework.beans.factory.annotation.Autowired;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 @SuppressWarnings("null")
 public class MonitoringService {
+
+    private static final Executor SUMMARY_EXECUTOR = Executors.newFixedThreadPool(2,
+            r -> { Thread t = new Thread(r, "monitoring-summary"); t.setDaemon(true); return t; });
+
+    @Autowired
+    @Lazy
+    private MonitoringService self;
 
     private final ApiCallHistoryRepository apiCallHistoryRepository;
     private final MonitoringConfigRepository monitoringConfigRepository;
@@ -183,35 +197,50 @@ public class MonitoringService {
     }
 
     /**
-     * 대시보드 요약 정보 조회 (compare 미지정 시 직전 동일 기간 자동 계산)
+     * 대시보드 요약 정보 조회 (compare 미지정 시 직전 동일 기간 자동 계산).
+     * 현재 구간과 비교 구간을 병렬 조회하여 응답 시간 단축.
      */
     @Transactional(readOnly = true)
     public MonitoringSummaryResponse getSummary(Long tenantId, LocalDateTime from, LocalDateTime to,
                                                  LocalDateTime compareFrom, LocalDateTime compareTo) {
         long durationSec = ChronoUnit.SECONDS.between(from, to);
         if (durationSec <= 0) durationSec = 1;
-        if (compareFrom == null || compareTo == null) {
-            compareTo = from;
-            compareFrom = from.minus(durationSec, ChronoUnit.SECONDS);
+        final LocalDateTime cmpFrom = compareFrom != null ? compareFrom : from.minus(durationSec, ChronoUnit.SECONDS);
+        final LocalDateTime cmpTo = compareTo != null ? compareTo : from;
+
+        CompletableFuture<SummaryPeriodData> currentFuture =
+                CompletableFuture.supplyAsync(() -> self.fetchSummaryPeriod(tenantId, from, to), SUMMARY_EXECUTOR);
+        CompletableFuture<SummaryPeriodData> compareFuture =
+                CompletableFuture.supplyAsync(() -> self.fetchSummaryPeriod(tenantId, cmpFrom, cmpTo), SUMMARY_EXECUTOR);
+
+        SummaryPeriodData current;
+        SummaryPeriodData compare;
+        try {
+            current = currentFuture.join();
+            compare = compareFuture.join();
+        } catch (Exception e) {
+            log.warn("Summary parallel fetch failed, falling back to sequential", e);
+            current = fetchSummaryPeriod(tenantId, from, to);
+            compare = fetchSummaryPeriod(tenantId, cmpFrom, cmpTo);
         }
 
-        long currentPv = pageViewEventRepository.countPvByTenantIdAndCreatedAtBetween(tenantId, from, to);
-        long currentUv = pageViewEventRepository.countUvByTenantIdAndCreatedAtBetween(tenantId, from, to);
-        long currentEvents = pageViewEventRepository.countEventsByTenantIdAndCreatedAtBetween(tenantId, from, to);
-        long currentApiTotal = apiCallHistoryRepository.countByTenantIdAndCreatedAtBetween(tenantId, from, to);
-        long currentApiErrors = apiCallHistoryRepository.countErrorsByTenantIdAndCreatedAtBetween(tenantId, from, to);
+        long currentPv = current.getPv();
+        long currentUv = current.getUv();
+        long currentEvents = current.getEvents();
+        long currentApiTotal = current.getApiTotal();
+        long currentApiErrors = current.getApiErrors();
+        MonitoringSummaryKpi kpiCurrent = current.getKpi();
 
-        long prevPv = pageViewEventRepository.countPvByTenantIdAndCreatedAtBetween(tenantId, compareFrom, compareTo);
-        long prevUv = pageViewEventRepository.countUvByTenantIdAndCreatedAtBetween(tenantId, compareFrom, compareTo);
-        long prevEvents = pageViewEventRepository.countEventsByTenantIdAndCreatedAtBetween(tenantId, compareFrom, compareTo);
-        long prevApiTotal = apiCallHistoryRepository.countByTenantIdAndCreatedAtBetween(tenantId, compareFrom, compareTo);
-        long prevApiErrors = apiCallHistoryRepository.countErrorsByTenantIdAndCreatedAtBetween(tenantId, compareFrom, compareTo);
+        long prevPv = compare.getPv();
+        long prevUv = compare.getUv();
+        long prevEvents = compare.getEvents();
+        long prevApiTotal = compare.getApiTotal();
+        long prevApiErrors = compare.getApiErrors();
+        MonitoringSummaryKpi kpiCompare = compare.getKpi();
 
         double apiErrorRate = currentApiTotal > 0 ? (double) currentApiErrors / currentApiTotal * 100 : 0.0;
         double prevApiErrorRate = prevApiTotal > 0 ? (double) prevApiErrors / prevApiTotal * 100 : 0.0;
 
-        MonitoringSummaryKpi kpiCurrent = buildKpi(tenantId, from, to, currentPv, currentUv, currentApiTotal);
-        MonitoringSummaryKpi kpiCompare = buildKpi(tenantId, compareFrom, compareTo, prevPv, prevUv, prevApiTotal);
         if (kpiCurrent.getLatency() != null && kpiCompare.getLatency() != null) {
             Long prevAvg = kpiCompare.getLatency().getAvgLatency();
             kpiCurrent.getLatency().setPrevAvgLatency(prevAvg != null ? prevAvg : 0L);
@@ -230,6 +259,31 @@ public class MonitoringService {
                 .apiErrorDeltaPercent(calculateDelta(apiErrorRate, prevApiErrorRate))
                 .kpi(kpiCurrent)
                 .build();
+    }
+
+    /**
+     * 한 구간(현재/비교)에 대한 PV·UV·이벤트·API 집계 및 KPI 조회.
+     * 병렬 호출 시 각 스레드에서 별도 read-only 트랜잭션으로 실행.
+     */
+    @Transactional(readOnly = true)
+    public SummaryPeriodData fetchSummaryPeriod(Long tenantId, LocalDateTime from, LocalDateTime to) {
+        long pv = pageViewEventRepository.countPvByTenantIdAndCreatedAtBetween(tenantId, from, to);
+        long uv = pageViewEventRepository.countUvByTenantIdAndCreatedAtBetween(tenantId, from, to);
+        long events = pageViewEventRepository.countEventsByTenantIdAndCreatedAtBetween(tenantId, from, to);
+        long apiTotal = apiCallHistoryRepository.countByTenantIdAndCreatedAtBetween(tenantId, from, to);
+        MonitoringSummaryKpi kpi = buildKpi(tenantId, from, to, pv, uv, apiTotal);
+        long apiErrors = apiCallHistoryRepository.countErrorsByTenantIdAndCreatedAtBetween(tenantId, from, to);
+        return new SummaryPeriodData(pv, uv, events, apiTotal, apiErrors, kpi);
+    }
+
+    @Value
+    private static class SummaryPeriodData {
+        long pv;
+        long uv;
+        long events;
+        long apiTotal;
+        long apiErrors;
+        MonitoringSummaryKpi kpi;
     }
 
     private MonitoringSummaryKpi buildKpi(Long tenantId, LocalDateTime from, LocalDateTime to, long pv, long uv, long requestCount) {
@@ -563,28 +617,40 @@ public class MonitoringService {
         List<MonitoringSummaryKpi.StatusHistoryItem> out = new ArrayList<>();
         long fromEpoch = from.atOffset(ZoneOffset.UTC).toEpochSecond();
         long toEpoch = to.atOffset(ZoneOffset.UTC).toEpochSecond();
+        // DB 쿼리와 동일한 버킷 경계 사용: FLOOR(epoch/bucketSeconds)*bucketSeconds (전역 epoch 그리드)
+        // 그렇지 않으면 statsMap 키와 currentBucket이 일치하지 않아 모든 구간이 NO_DATA로 나옴
         long startBucket = (fromEpoch / bucketSeconds) * bucketSeconds;
 
         List<Object[]> rows = apiCallHistoryRepository.findAvailabilityBucketStats(tenantId, from, to, bucketSeconds);
         Map<Long, long[]> statsMap = new HashMap<>();
         for (Object[] row : rows) {
-            if (row != null && row.length >= 3 && row[0] != null) {
+            if (row != null && row.length >= 4 && row[0] != null) {
                 Instant inst = row[0] instanceof Timestamp ? ((Timestamp) row[0]).toInstant() : null;
                 if (inst != null) {
                     long bucketEpoch = inst.getEpochSecond();
                     long total = row[1] instanceof Number ? ((Number) row[1]).longValue() : 0L;
                     long success = row[2] instanceof Number ? ((Number) row[2]).longValue() : 0L;
-                    statsMap.put(bucketEpoch, new long[]{total, success});
+                    long apiErrorCount = row[3] instanceof Number ? ((Number) row[3]).longValue() : 0L;
+                    statsMap.put(bucketEpoch, new long[]{total, success, apiErrorCount});
                 }
             }
         }
 
-        for (long b = startBucket; b < toEpoch; b += bucketSeconds) {
-            final long bucketStart = b;
-            final long bucketEnd = b + bucketSeconds;
-            long[] pair = statsMap.getOrDefault(bucketStart, new long[]{0L, 0L});
+        // startBucket부터 toEpoch 전까지 버킷 생성 (DB와 동일 그리드)
+        long currentBucket = startBucket;
+        while (currentBucket < toEpoch) {
+            // 조회 구간 [from, to]와 겹치지 않는 버킷은 제외
+            if (currentBucket + bucketSeconds <= fromEpoch) {
+                currentBucket += bucketSeconds;
+                continue;
+            }
+            final long bucketStart = currentBucket;
+            final long bucketEnd = Math.min(currentBucket + bucketSeconds, toEpoch);
+            
+            long[] pair = statsMap.getOrDefault(bucketStart, new long[]{0L, 0L, 0L});
             long total = pair[0];
             long success = pair[1];
+            long apiErrorCount = pair.length > 2 ? pair[2] : 0L;
             double availability = total > 0 ? Math.round((double) success / total * 10000.0) / 100.0 : 0.0;
             boolean isDown = downtimeEpochSeconds.stream().anyMatch(d -> d >= bucketStart && d < bucketEnd);
             String status = total == 0 ? "NO_DATA" : (isDown ? "DOWN" : (availability < sloTargetSuccessRate ? "WARNING" : "UP"));
@@ -593,6 +659,32 @@ public class MonitoringService {
                     .timestamp(timestamp)
                     .status(status)
                     .availability(availability)
+                    .apiCount(success)
+                    .apiErrorCount(apiErrorCount)
+                    .build());
+            
+            currentBucket += bucketSeconds;
+        }
+        
+        // 마지막 버킷이 to와 정확히 일치하도록 별도 처리
+        // (from < to인 경우에만 마지막 버킷을 별도로 추가, from == to인 경우는 이미 첫 번째 버킷에서 처리됨)
+        if (fromEpoch < toEpoch) {
+            final long bucketStart = toEpoch;
+            final long bucketEnd = toEpoch;
+            long[] pair = statsMap.getOrDefault(bucketStart, new long[]{0L, 0L, 0L});
+            long total = pair[0];
+            long success = pair[1];
+            long apiErrorCount = pair.length > 2 ? pair[2] : 0L;
+            double availability = total > 0 ? Math.round((double) success / total * 10000.0) / 100.0 : 0.0;
+            boolean isDown = downtimeEpochSeconds.stream().anyMatch(d -> d >= bucketStart && d < bucketEnd);
+            String status = total == 0 ? "NO_DATA" : (isDown ? "DOWN" : (availability < sloTargetSuccessRate ? "WARNING" : "UP"));
+            String timestamp = Instant.ofEpochSecond(bucketStart).toString();
+            out.add(MonitoringSummaryKpi.StatusHistoryItem.builder()
+                    .timestamp(timestamp)
+                    .status(status)
+                    .availability(availability)
+                    .apiCount(success)
+                    .apiErrorCount(apiErrorCount)
                     .build());
         }
         return out;

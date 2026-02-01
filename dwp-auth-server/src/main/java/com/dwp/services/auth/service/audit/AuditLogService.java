@@ -136,6 +136,20 @@ public class AuditLogService {
                                HttpServletRequest request) {
         recordAuditLog(tenantId, actorUserId, action, resourceType, resourceId, null, null, request);
     }
+
+    /**
+     * 내부 API용 감사 로그 기록 (HttpServletRequest 없음)
+     *
+     * main-service 등에서 Feign으로 POST /internal/audit-logs 호출 시 사용합니다.
+     * IP/User-Agent는 metadata에 포함되지 않습니다.
+     */
+    @Async
+    @Transactional
+    public void recordAuditLog(Long tenantId, Long actorUserId, String action,
+                               String resourceType, Long resourceId,
+                               Map<String, Object> metadataMap) {
+        recordAuditLog(tenantId, actorUserId, action, resourceType, resourceId, metadataMap, null);
+    }
     
     /**
      * Map 기반 감사 로그 기록 (Ultra Enhanced: RBAC_DENY 등)
@@ -156,13 +170,13 @@ public class AuditLogService {
                                HttpServletRequest request) {
         try {
             Map<String, Object> metadata = new HashMap<>();
-            
+
             // 메타데이터 Map 병합
             if (metadataMap != null) {
                 metadata.putAll(metadataMap);
             }
-            
-            // IP 주소 및 User-Agent
+
+            // IP 주소 및 User-Agent (request가 있을 때만)
             if (request != null) {
                 String ipAddress = getClientIp(request);
                 String userAgent = request.getHeader("User-Agent");

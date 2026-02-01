@@ -8,7 +8,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 public interface PageViewEventRepository extends JpaRepository<PageViewEvent, Long> {
 
@@ -24,37 +23,39 @@ public interface PageViewEventRepository extends JpaRepository<PageViewEvent, Lo
     long countEventsByTenantIdAndCreatedAtBetween(@Param("tenantId") Long tenantId, @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
     
     /**
-     * 방문자별 집계를 위한 쿼리 (visitorId가 null이면 제외)
+     * 방문자별 집계 (DB 레벨 페이징). sessionId가 null이면 제외.
      */
-    @Query("SELECT p.sessionId, MIN(p.createdAt) as firstSeen, MAX(p.createdAt) as lastSeen, " +
+    @Query(value = "SELECT p.sessionId, MIN(p.createdAt) as firstSeen, MAX(p.createdAt) as lastSeen, " +
            "COUNT(p) as pvCount, MAX(p.pageKey) as lastPath " +
            "FROM PageViewEvent p " +
-           "WHERE p.tenantId = :tenantId " +
-           "AND p.createdAt BETWEEN :from AND :to " +
-           "AND p.sessionId IS NOT NULL " +
-           "GROUP BY p.sessionId")
-    List<Object[]> findVisitorSummariesByTenantIdAndCreatedAtBetween(
-            @Param("tenantId") Long tenantId,
-            @Param("from") LocalDateTime from,
-            @Param("to") LocalDateTime to);
-    
-    /**
-     * 키워드 검색 (visitorId 또는 path)
-     */
-    @Query("SELECT p.sessionId, MIN(p.createdAt) as firstSeen, MAX(p.createdAt) as lastSeen, " +
-           "COUNT(p) as pvCount, MAX(p.pageKey) as lastPath " +
-           "FROM PageViewEvent p " +
-           "WHERE p.tenantId = :tenantId " +
-           "AND p.createdAt BETWEEN :from AND :to " +
-           "AND p.sessionId IS NOT NULL " +
-           "AND (:keyword IS NULL OR LOWER(p.sessionId) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
-           "     LOWER(p.pageKey) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
-           "GROUP BY p.sessionId")
-    List<Object[]> findVisitorSummariesByTenantIdAndKeyword(
+           "WHERE p.tenantId = :tenantId AND p.createdAt BETWEEN :from AND :to AND p.sessionId IS NOT NULL " +
+           "GROUP BY p.sessionId ORDER BY MAX(p.createdAt) DESC",
+           countQuery = "SELECT COUNT(DISTINCT p.sessionId) FROM PageViewEvent p " +
+           "WHERE p.tenantId = :tenantId AND p.createdAt BETWEEN :from AND :to AND p.sessionId IS NOT NULL")
+    Page<Object[]> findVisitorSummariesByTenantIdAndCreatedAtBetween(
             @Param("tenantId") Long tenantId,
             @Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to,
-            @Param("keyword") String keyword);
+            Pageable pageable);
+
+    /**
+     * 방문자별 집계 + 키워드 검색 (DB 레벨 페이징).
+     */
+    @Query(value = "SELECT p.sessionId, MIN(p.createdAt) as firstSeen, MAX(p.createdAt) as lastSeen, " +
+           "COUNT(p) as pvCount, MAX(p.pageKey) as lastPath " +
+           "FROM PageViewEvent p " +
+           "WHERE p.tenantId = :tenantId AND p.createdAt BETWEEN :from AND :to AND p.sessionId IS NOT NULL " +
+           "AND (LOWER(p.sessionId) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(p.pageKey) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
+           "GROUP BY p.sessionId ORDER BY MAX(p.createdAt) DESC",
+           countQuery = "SELECT COUNT(DISTINCT p.sessionId) FROM PageViewEvent p " +
+           "WHERE p.tenantId = :tenantId AND p.createdAt BETWEEN :from AND :to AND p.sessionId IS NOT NULL " +
+           "AND (LOWER(p.sessionId) LIKE LOWER(CONCAT('%', :keyword, '%')) OR LOWER(p.pageKey) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+    Page<Object[]> findVisitorSummariesByTenantIdAndKeyword(
+            @Param("tenantId") Long tenantId,
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to,
+            @Param("keyword") String keyword,
+            Pageable pageable);
     
     /**
      * 페이지뷰 필터링 조회 (날짜 범위 없음)

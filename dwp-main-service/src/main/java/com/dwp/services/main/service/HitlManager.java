@@ -2,6 +2,10 @@ package com.dwp.services.main.service;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.main.client.AuthServerAuditClient;
+import com.dwp.services.main.client.InternalAuditLogRequest;
+import com.dwp.services.main.dto.HitlApproveResult;
+import com.dwp.services.main.dto.HitlRejectResult;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +32,7 @@ public class HitlManager {
     
     private final RedisTemplate<String, String> redisTemplate;
     private final ObjectMapper objectMapper;
+    private final AuthServerAuditClient authServerAuditClient;
     
     // Redis 키 패턴
     private static final String HITL_REQUEST_PREFIX = "hitl:request:";
@@ -119,7 +124,9 @@ public class HitlManager {
             
             log.info("HITL approval request saved: requestId={}, sessionId={}, actionType={}, taskId={}",
                     finalRequestId, sessionId, actionType, taskId != null ? taskId : "N/A");
-            
+
+            recordHitlAudit(finalRequestId, sessionId, tenantId, userId, "HITL_REQUEST", requestDataMap, null);
+
             return finalRequestId;
             
         } catch (JsonProcessingException e) {
@@ -150,25 +157,50 @@ public class HitlManager {
     
     /**
      * HITL 승인 처리
-     * 
+     *
+     * 이미 approved/rejected인 경우 Redis·신호 없이 기존 sessionId 반환(멱등).
+     * headerTenantId와 Redis 저장 tenantId가 다르면 403 TENANT_MISMATCH.
+     *
      * @param requestId 요청 ID
      * @param userId 승인한 사용자 ID
+     * @param headerTenantId 요청 헤더 X-Tenant-ID
      * @return 세션 ID (에이전트에게 신호 전송용)
      */
-    public String approve(String requestId, String userId) {
+    public HitlApproveResult approve(String requestId, String userId, Long headerTenantId) {
         if (requestId == null || requestId.isEmpty()) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "Request ID cannot be null or empty");
         }
         if (userId == null || userId.isEmpty()) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "User ID cannot be null or empty");
         }
+        if (headerTenantId == null) {
+            throw new BaseException(ErrorCode.TENANT_MISSING, "X-Tenant-ID is required");
+        }
         try {
-            // 요청 조회
             String requestJson = getApprovalRequest(requestId);
             @SuppressWarnings("unchecked")
             Map<String, Object> requestData = objectMapper.readValue(requestJson, Map.class);
-            
-            // 승인 상태 업데이트
+
+            Long storedTenantId = getTenantIdFromRequestData(requestData);
+            if (storedTenantId != null && !storedTenantId.equals(headerTenantId)) {
+                log.warn("HITL approve tenant mismatch: requestId={}, headerTenantId={}, storedTenantId={}",
+                        requestId, headerTenantId, storedTenantId);
+                throw new BaseException(ErrorCode.TENANT_MISMATCH, "테넌트 정보가 일치하지 않습니다.");
+            }
+
+            String status = String.valueOf(requestData.get("status"));
+            String sessionId = requestData.get("sessionId").toString();
+
+            // 멱등: 이미 승인/거절된 경우 업데이트·신호 없이 기존 상태 반환 (FE는 409로 수신 후 성공으로 처리)
+            if ("approved".equals(status) || "rejected".equals(status)) {
+                log.info("HITL approve idempotent: requestId={}, status={}, sessionId={}", requestId, status, sessionId);
+                return HitlApproveResult.builder()
+                        .sessionId(sessionId)
+                        .status(status)
+                        .alreadyProcessed(true)
+                        .build();
+            }
+
             requestData.put("status", "approved");
             requestData.put("approvedBy", userId);
             requestData.put("approvedAt", System.currentTimeMillis());
@@ -176,7 +208,6 @@ public class HitlManager {
             String updatedJson = objectMapper.writeValueAsString(requestData);
             String requestKey = HITL_REQUEST_PREFIX + requestId;
             
-            // Redis에 업데이트
             redisTemplate.opsForValue().set(
                     requestKey,
                     updatedJson,
@@ -184,11 +215,7 @@ public class HitlManager {
                     TimeUnit.MINUTES
             );
             
-            // 에이전트 세션에 승인 신호 전송
-            String sessionId = requestData.get("sessionId").toString();
             String signalKey = "hitl:signal:" + sessionId;
-            
-            // Unix timestamp (초 단위 정수) - Aura-Platform 요구사항 준수
             long timestampSeconds = System.currentTimeMillis() / 1000;
             Map<String, Object> signal = Map.of(
                     "type", "approval",
@@ -196,24 +223,25 @@ public class HitlManager {
                     "status", "approved",
                     "timestamp", timestampSeconds
             );
-            
             String signalJson = objectMapper.writeValueAsString(signal);
-            Duration signalTtl = Duration.ofMinutes(5);  // 신호는 5분간 유지
-            redisTemplate.opsForValue().set(
-                    signalKey,
-                    signalJson,
-                    signalTtl
-            );
-            
-            // Redis Pub/Sub으로 신호 발행 (에이전트가 구독)
+            Duration signalTtl = Duration.ofMinutes(5);
+            redisTemplate.opsForValue().set(signalKey, signalJson, signalTtl);
             String channel = "hitl:channel:" + sessionId;
             redisTemplate.convertAndSend(channel, signalJson);
             
             log.info("HITL request approved: requestId={}, sessionId={}, approvedBy={}",
                     requestId, sessionId, userId);
+
+            recordHitlAudit(requestId, sessionId, headerTenantId, userId, "HITL_APPROVE", requestData, null);
             
-            return sessionId;
+            return HitlApproveResult.builder()
+                    .sessionId(sessionId)
+                    .status("approved")
+                    .alreadyProcessed(false)
+                    .build();
             
+        } catch (BaseException e) {
+            throw e;
         } catch (JsonProcessingException e) {
             log.error("Failed to approve HITL request: requestId={}", requestId, e);
             throw new BaseException(ErrorCode.INTERNAL_SERVER_ERROR, "Failed to approve request");
@@ -222,26 +250,47 @@ public class HitlManager {
     
     /**
      * HITL 거절 처리
-     * 
-     * @param requestId 요청 ID
-     * @param userId 거절한 사용자 ID
-     * @param reason 거절 사유
-     * @return 세션 ID (에이전트에게 신호 전송용)
+     *
+     * 이미 approved/rejected인 경우 Redis·신호 없이 기존 sessionId 반환(멱등).
+     * headerTenantId와 Redis 저장 tenantId가 다르면 403 TENANT_MISMATCH.
+     * @return 거절 결과 (sessionId, status, reason, alreadyProcessed). 이미 처리된 경우 409 반환용
      */
-    public String reject(String requestId, String userId, String reason) {
+    public HitlRejectResult reject(String requestId, String userId, String reason, Long headerTenantId) {
         if (requestId == null || requestId.isEmpty()) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "Request ID cannot be null or empty");
         }
         if (userId == null || userId.isEmpty()) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "User ID cannot be null or empty");
         }
+        if (headerTenantId == null) {
+            throw new BaseException(ErrorCode.TENANT_MISSING, "X-Tenant-ID is required");
+        }
         try {
-            // 요청 조회
             String requestJson = getApprovalRequest(requestId);
             @SuppressWarnings("unchecked")
             Map<String, Object> requestData = objectMapper.readValue(requestJson, Map.class);
-            
-            // 거절 상태 업데이트
+
+            Long storedTenantId = getTenantIdFromRequestData(requestData);
+            if (storedTenantId != null && !storedTenantId.equals(headerTenantId)) {
+                log.warn("HITL reject tenant mismatch: requestId={}, headerTenantId={}, storedTenantId={}",
+                        requestId, headerTenantId, storedTenantId);
+                throw new BaseException(ErrorCode.TENANT_MISMATCH, "테넌트 정보가 일치하지 않습니다.");
+            }
+
+            String status = String.valueOf(requestData.get("status"));
+            String sessionId = requestData.get("sessionId").toString();
+
+            if ("approved".equals(status) || "rejected".equals(status)) {
+                log.info("HITL reject idempotent: requestId={}, status={}, sessionId={}", requestId, status, sessionId);
+                String storedReason = requestData.get("reason") != null ? requestData.get("reason").toString() : null;
+                return HitlRejectResult.builder()
+                        .sessionId(sessionId)
+                        .status(status)
+                        .reason(storedReason)
+                        .alreadyProcessed(true)
+                        .build();
+            }
+
             requestData.put("status", "rejected");
             requestData.put("rejectedBy", userId);
             requestData.put("rejectedAt", System.currentTimeMillis());
@@ -249,20 +298,9 @@ public class HitlManager {
             
             String updatedJson = objectMapper.writeValueAsString(requestData);
             String requestKey = HITL_REQUEST_PREFIX + requestId;
+            redisTemplate.opsForValue().set(requestKey, updatedJson, HITL_REQUEST_TTL, TimeUnit.MINUTES);
             
-            // Redis에 업데이트
-            redisTemplate.opsForValue().set(
-                    requestKey,
-                    updatedJson,
-                    HITL_REQUEST_TTL,
-                    TimeUnit.MINUTES
-            );
-            
-            // 에이전트 세션에 거절 신호 전송
-            String sessionId = requestData.get("sessionId").toString();
             String signalKey = "hitl:signal:" + sessionId;
-            
-            // Unix timestamp (초 단위 정수) - Aura-Platform 요구사항 준수
             long timestampSeconds = System.currentTimeMillis() / 1000;
             Map<String, Object> signal = Map.of(
                     "type", "rejection",
@@ -271,24 +309,27 @@ public class HitlManager {
                     "reason", reason != null ? reason : "User rejected",
                     "timestamp", timestampSeconds
             );
-            
             String signalJson = objectMapper.writeValueAsString(signal);
-            Duration signalTtl = Duration.ofMinutes(5);  // 신호는 5분간 유지
-            redisTemplate.opsForValue().set(
-                    signalKey,
-                    signalJson,
-                    signalTtl
-            );
-            
-            // Redis Pub/Sub으로 신호 발행 (에이전트가 구독)
+            Duration signalTtl = Duration.ofMinutes(5);
+            redisTemplate.opsForValue().set(signalKey, signalJson, signalTtl);
             String channel = "hitl:channel:" + sessionId;
             redisTemplate.convertAndSend(channel, signalJson);
             
             log.info("HITL request rejected: requestId={}, sessionId={}, rejectedBy={}, reason={}",
                     requestId, sessionId, userId, reason);
+
+            recordHitlAudit(requestId, sessionId, headerTenantId, userId, "HITL_REJECT", requestData,
+                    Map.of("reason", reason != null ? reason : "User rejected"));
             
-            return sessionId;
+            return HitlRejectResult.builder()
+                    .sessionId(sessionId)
+                    .status("rejected")
+                    .reason(reason != null ? reason : "User rejected")
+                    .alreadyProcessed(false)
+                    .build();
             
+        } catch (BaseException e) {
+            throw e;
         } catch (JsonProcessingException e) {
             log.error("Failed to reject HITL request: requestId={}", requestId, e);
             throw new BaseException(ErrorCode.INTERNAL_SERVER_ERROR, "Failed to reject request");
@@ -348,6 +389,52 @@ public class HitlManager {
         } catch (Exception e) {
             log.warn("Failed to extract taskId from HITL request: requestId={}", requestId, e);
             return null;
+        }
+    }
+
+    private Long getTenantIdFromRequestData(Map<String, Object> requestData) {
+        Object t = requestData.get("tenantId");
+        if (t == null) return null;
+        if (t instanceof Number) return ((Number) t).longValue();
+        try {
+            return Long.parseLong(t.toString());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private void recordHitlAudit(String requestId, String sessionId, Object tenantIdObj, String userId,
+                                 String action, Map<String, Object> requestData, Map<String, Object> extraMetadata) {
+        Long tenantId = null;
+        if (tenantIdObj instanceof Number) {
+            tenantId = ((Number) tenantIdObj).longValue();
+        } else if (tenantIdObj != null) {
+            try {
+                tenantId = Long.parseLong(tenantIdObj.toString());
+            } catch (NumberFormatException ignored) { }
+        }
+        if (tenantId == null) return;
+        Long actorUserId = null;
+        try {
+            actorUserId = Long.parseLong(userId);
+        } catch (NumberFormatException ignored) { }
+        java.util.Map<String, Object> metadata = new java.util.HashMap<>();
+        metadata.put("requestId", requestId);
+        metadata.put("sessionId", sessionId);
+        metadata.put("actionType", requestData != null ? requestData.get("actionType") : null);
+        metadata.put("timestamp", System.currentTimeMillis());
+        if (extraMetadata != null) metadata.putAll(extraMetadata);
+        try {
+            authServerAuditClient.recordAuditLog(InternalAuditLogRequest.builder()
+                    .tenantId(tenantId)
+                    .actorUserId(actorUserId)
+                    .action(action)
+                    .resourceType("HITL")
+                    .resourceId(null)
+                    .metadata(metadata)
+                    .build());
+        } catch (Exception e) {
+            log.warn("Failed to record HITL audit log: requestId={}, action={}", requestId, action, e);
         }
     }
 }

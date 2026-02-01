@@ -60,30 +60,24 @@ public class SseReconnectionFilter implements GlobalFilter, Ordered {
         }
 
         // SSE 응답에 id: 라인 추가를 위한 데코레이터
+        // 주의: 변환된 Flux를 반드시 originalResponse.writeWith(...)로 써야 클라이언트에 전달됨
         ServerHttpResponse originalResponse = exchange.getResponse();
         ServerHttpResponseDecorator decoratedResponse = new ServerHttpResponseDecorator(originalResponse) {
             @Override
             @SuppressWarnings("null")
             public Mono<Void> writeWith(org.reactivestreams.Publisher<? extends DataBuffer> body) {
-                // SSE 응답 스트림을 가로채서 id: 라인 추가
-                return Flux.from(body)
+                Flux<DataBuffer> modifiedFlux = Flux.from(body)
                         .map(dataBuffer -> {
-                            // DataBuffer를 읽어서 문자열로 변환
                             byte[] bytes = new byte[dataBuffer.readableByteCount()];
                             dataBuffer.read(bytes);
                             DataBufferUtils.release(dataBuffer);
-                            
                             String content = new String(bytes, StandardCharsets.UTF_8);
-                            
-                            // SSE 이벤트 형식 확인 및 id: 라인 추가
                             String modifiedContent = addEventIdIfNeeded(content);
-                            
-                            // 수정된 내용을 DataBuffer로 변환
                             return originalResponse.bufferFactory().wrap(
                                     modifiedContent.getBytes(StandardCharsets.UTF_8)
                             );
-                        })
-                        .then();  // Flux를 Mono<Void>로 변환
+                        });
+                return originalResponse.writeWith(modifiedFlux);
             }
         };
 
