@@ -40,7 +40,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * Hibernate가 여전히 bytea로 인식할 수 있어 CAST를 사용하여 명시적으로 VARCHAR로 변환
      */
     @Query(value = "SELECT DISTINCT u.user_id, u.tenant_id, u.display_name, u.email, u.primary_department_id, u.status, " +
-           "u.created_at, u.created_by, u.updated_at, u.updated_by " +
+           "u.mfa_enabled, u.created_at, u.created_by, u.updated_at, u.updated_by " +
            "FROM com_users u " +
            "LEFT JOIN com_user_accounts ua ON ua.user_id = u.user_id AND ua.tenant_id = u.tenant_id " +
            "WHERE u.tenant_id = :tenantId " +
@@ -69,6 +69,45 @@ public interface UserRepository extends JpaRepository<User, Long> {
             @Param("departmentId") Long departmentId,
             @Param("status") String status,
             @Param("idpProviderType") String idpProviderType,
+            Pageable pageable);
+
+    /**
+     * 키워드 검색 + 사용자 ID 범위 제한 (앱 스코프: 해당 앱 역할을 가진 사용자만)
+     * appCode/roleIds 필터 시 먼저 scopeUserIds를 구한 뒤 이 메서드로 검색·페이징.
+     */
+    @Query(value = "SELECT DISTINCT u.user_id, u.tenant_id, u.display_name, u.email, u.primary_department_id, u.status, " +
+           "u.mfa_enabled, u.created_at, u.created_by, u.updated_at, u.updated_by " +
+           "FROM com_users u " +
+           "LEFT JOIN com_user_accounts ua ON ua.user_id = u.user_id AND ua.tenant_id = u.tenant_id " +
+           "WHERE u.tenant_id = :tenantId " +
+           "AND u.user_id IN (:userIds) " +
+           "AND (:keyword IS NULL OR " +
+           "     LOWER(u.display_name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "     LOWER(u.email) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "     (ua.principal IS NOT NULL AND LOWER(CAST(ua.principal AS VARCHAR)) LIKE LOWER(CONCAT('%', :keyword, '%')))) " +
+           "AND (:departmentId IS NULL OR u.primary_department_id = :departmentId) " +
+           "AND (:status IS NULL OR u.status = :status) " +
+           "AND (:idpProviderType IS NULL OR ua.provider_type = :idpProviderType) " +
+           "ORDER BY u.created_at DESC",
+           nativeQuery = true,
+           countQuery = "SELECT COUNT(DISTINCT u.user_id) FROM com_users u " +
+           "LEFT JOIN com_user_accounts ua ON ua.user_id = u.user_id AND ua.tenant_id = u.tenant_id " +
+           "WHERE u.tenant_id = :tenantId " +
+           "AND u.user_id IN (:userIds) " +
+           "AND (:keyword IS NULL OR " +
+           "     LOWER(u.display_name) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "     LOWER(u.email) LIKE LOWER(CONCAT('%', :keyword, '%')) OR " +
+           "     (ua.principal IS NOT NULL AND LOWER(CAST(ua.principal AS VARCHAR)) LIKE LOWER(CONCAT('%', :keyword, '%')))) " +
+           "AND (:departmentId IS NULL OR u.primary_department_id = :departmentId) " +
+           "AND (:status IS NULL OR u.status = :status) " +
+           "AND (:idpProviderType IS NULL OR ua.provider_type = :idpProviderType)")
+    Page<User> findByTenantIdAndFiltersAndUserIdIn(
+            @Param("tenantId") Long tenantId,
+            @Param("keyword") String keyword,
+            @Param("departmentId") Long departmentId,
+            @Param("status") String status,
+            @Param("idpProviderType") String idpProviderType,
+            @Param("userIds") List<Long> userIds,
             Pageable pageable);
     
     /**

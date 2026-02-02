@@ -85,8 +85,8 @@ class UserControllerTest {
                 .totalPages(1)
                 .build();
         
-        when(userManagementService.getUsers(eq(tenantId), eq(page), eq(size), eq(keyword), 
-                isNull(), isNull(), isNull(), isNull(), isNull()))
+        when(userManagementService.getUsers(eq(tenantId), eq(page), eq(size), eq(keyword),
+                isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull()))
                 .thenReturn(pageResponse);
         
         // When & Then

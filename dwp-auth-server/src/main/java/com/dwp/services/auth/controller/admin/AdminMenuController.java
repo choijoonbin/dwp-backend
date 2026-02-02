@@ -84,14 +84,14 @@ public class AdminMenuController {
      * DELETE /api/admin/menus/{sysMenuId}
      */
     @DeleteMapping("/{sysMenuId}")
-    public ApiResponse<Void> deleteMenu(
+    public ApiResponse<?> deleteMenu(
             @RequestHeader("X-Tenant-ID") Long tenantId,
             Authentication authentication,
             @PathVariable("sysMenuId") Long sysMenuId,
             HttpServletRequest httpRequest) {
         Long actorUserId = getUserId(authentication);
         menuManagementService.deleteMenu(tenantId, actorUserId, sysMenuId, httpRequest);
-        return ApiResponse.success(null);
+        return ApiResponse.successOk();
     }
     
     /**
@@ -99,14 +99,14 @@ public class AdminMenuController {
      * PUT /api/admin/menus/reorder
      */
     @PutMapping("/reorder")
-    public ApiResponse<Void> reorderMenus(
+    public ApiResponse<?> reorderMenus(
             @RequestHeader("X-Tenant-ID") Long tenantId,
             Authentication authentication,
             @Valid @RequestBody ReorderMenuRequest request,
             HttpServletRequest httpRequest) {
         Long actorUserId = getUserId(authentication);
         menuManagementService.reorderMenus(tenantId, actorUserId, request, httpRequest);
-        return ApiResponse.success(null);
+        return ApiResponse.successOk();
     }
     
     private Long getUserId(Authentication authentication) {

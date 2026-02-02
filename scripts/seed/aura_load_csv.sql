@@ -2,7 +2,7 @@
 -- self_healing_load_csv_v1.sql 을 dwp_aura 스키마에 맞게 적용
 --
 -- 실행: ./scripts/run-aura-load-csv.sh
---   (기본 CSV 디렉터리: services/aura-service/src/main/resources/sap_dummy)
+--   (기본 CSV 디렉터리: services/synapsex-service/src/main/resources/sap_dummy)
 --   __CSVDIR__ 은 스크립트에서 실제 경로로 치환됨
 -- ------------------------------------------------------------
 

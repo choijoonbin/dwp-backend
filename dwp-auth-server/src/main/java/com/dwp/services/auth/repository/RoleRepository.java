@@ -28,6 +28,11 @@ public interface RoleRepository extends JpaRepository<Role, Long> {
      * 테넌트 ID와 역할 코드로 조회
      */
     Optional<Role> findByTenantIdAndCode(Long tenantId, String code);
+
+    /**
+     * 테넌트 ID와 역할 코드 목록으로 조회 (앱 스코프용)
+     */
+    List<Role> findByTenantIdAndCodeIn(@Param("tenantId") Long tenantId, @Param("codes") List<String> codes);
     
     /**
      * 테넌트 ID로 모든 역할 조회

@@ -23,6 +23,7 @@ public class UserDetail {
     private String userName; // displayName
     private String email;
     private String status;
+    private Boolean mfaEnabled; // MFA(2단계 인증) 사용 여부
     private List<UserAccountInfo> accounts;
     private List<UserRoleInfo> roles;
     private LocalDateTime createdAt;

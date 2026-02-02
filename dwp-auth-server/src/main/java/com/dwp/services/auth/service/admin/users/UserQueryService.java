@@ -14,6 +14,7 @@ import com.dwp.services.auth.repository.RoleMemberRepository;
 import com.dwp.services.auth.repository.RoleRepository;
 import com.dwp.services.auth.repository.UserAccountRepository;
 import com.dwp.services.auth.repository.UserRepository;
+import com.dwp.services.auth.util.AppScopeResolver;
 import com.dwp.services.auth.util.CodeResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -50,46 +52,46 @@ public class UserQueryService {
     private final CodeResolver codeResolver;
     
     /**
-     * 사용자 목록 조회 (보강: idpProviderType, loginType 필터 추가)
+     * 사용자 목록 조회
+     * - appCode 있음: 해당 앱 역할 사용자만 조회 (이름 검색도 앱 스코프 내에서만)
+     * - roleIds 있음: 해당 역할 중 하나라도 가진 사용자만 조회
+     * - roleId 있음: 해당 역할 사용자만 조회 (기존 단일 역할 필터)
+     * - 모두 없음: 플랫폼 전체 사용자 (DWP 통합 어드민)
      */
-    public PageResponse<UserSummary> getUsers(Long tenantId, int page, int size, 
+    public PageResponse<UserSummary> getUsers(Long tenantId, int page, int size,
                                                String keyword, Long departmentId, Long roleId,
+                                               List<Long> roleIds, String appCode,
                                                String status, String idpProviderType, String loginType) {
         try {
-            // 페이징 크기 제한 (최대 200)
-            if (size > 200) {
-                size = 200;
-            }
-            if (size < 1) {
-                size = 20;
-            }
-            Pageable pageable = PageRequest.of(page - 1, size); // 1-base to 0-base
-            
-            // loginType 필터 처리 (providerType으로 변환)
+            if (size > 200) size = 200;
+            if (size < 1) size = 20;
+            Pageable pageable = PageRequest.of(page - 1, size);
             String providerTypeFilter = loginType != null ? loginType : idpProviderType;
-            
-            Page<User> userPage = userRepository.findByTenantIdAndFilters(
-                    tenantId, keyword, departmentId, status, providerTypeFilter, pageable);
-            
-            // roleId 필터링이 있는 경우 추가 필터링
-            if (roleId != null) {
-                List<User> usersWithRole = userRepository.findByTenantIdAndRoleId(tenantId, roleId);
-                List<Long> userIds = usersWithRole.stream()
-                        .map(User::getUserId)
-                        .filter(java.util.Objects::nonNull)
-                        .collect(Collectors.toList());
-                userPage = userPage.getContent().stream()
-                        .filter(u -> u.getUserId() != null && userIds.contains(u.getUserId()))
-                        .collect(Collectors.collectingAndThen(
-                                Collectors.toList(),
-                                list -> new org.springframework.data.domain.PageImpl<>(
-                                        list, pageable, list.size())));
+
+            List<Long> scopeUserIds = resolveScopeUserIds(tenantId, appCode, roleId, roleIds);
+            Page<User> userPage;
+
+            if (scopeUserIds != null) {
+                if (scopeUserIds.isEmpty()) {
+                    return PageResponse.<UserSummary>builder()
+                            .items(List.of())
+                            .page(page)
+                            .size(size)
+                            .totalItems(0L)
+                            .totalPages(0)
+                            .build();
+                }
+                userPage = userRepository.findByTenantIdAndFiltersAndUserIdIn(
+                        tenantId, keyword, departmentId, status, providerTypeFilter, scopeUserIds, pageable);
+            } else {
+                userPage = userRepository.findByTenantIdAndFilters(
+                        tenantId, keyword, departmentId, status, providerTypeFilter, pageable);
             }
-            
+
             List<UserSummary> summaries = userPage.getContent().stream()
                     .map(user -> toUserSummary(tenantId, user))
                     .collect(Collectors.toList());
-            
+
             return PageResponse.<UserSummary>builder()
                     .items(summaries)
                     .page(page)
@@ -98,10 +100,41 @@ public class UserQueryService {
                     .totalPages(userPage.getTotalPages())
                     .build();
         } catch (Exception e) {
-            log.error("사용자 목록 조회 실패: tenantId={}, page={}, size={}, error={}", 
+            log.error("사용자 목록 조회 실패: tenantId={}, page={}, size={}, error={}",
                     tenantId, page, size, e.getMessage(), e);
             throw new BaseException(ErrorCode.INTERNAL_SERVER_ERROR, "사용자 목록 조회 중 오류가 발생했습니다: " + e.getMessage());
         }
+    }
+
+    /**
+     * 앱/역할 스코프에 해당하는 사용자 ID 목록 반환.
+     * @return null = 플랫폼 전체(스코프 없음), empty = 해당 스코프 사용자 없음
+     */
+    private List<Long> resolveScopeUserIds(Long tenantId, String appCode, Long roleId, List<Long> roleIds) {
+        List<Long> targetRoleIds = null;
+
+        if (appCode != null && !appCode.isBlank()) {
+            List<String> roleCodes = AppScopeResolver.getRoleCodesByAppCode(appCode);
+            if (roleCodes.isEmpty()) {
+                return List.of();
+            }
+            List<Role> roles = roleRepository.findByTenantIdAndCodeIn(tenantId, roleCodes);
+            targetRoleIds = roles.stream().map(Role::getRoleId).filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        } else if (roleIds != null && !roleIds.isEmpty()) {
+            targetRoleIds = new ArrayList<>(roleIds);
+        } else if (roleId != null) {
+            targetRoleIds = List.of(roleId);
+        }
+
+        if (targetRoleIds == null) {
+            return null;
+        }
+        if (targetRoleIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> userIds = roleMemberRepository.findUserIdsByTenantIdAndRoleIdIn(tenantId, targetRoleIds);
+        return userIds != null ? userIds.stream().distinct().collect(Collectors.toList()) : List.of();
     }
     
     /**
@@ -135,7 +168,18 @@ public class UserQueryService {
     public List<UserRoleInfo> getUserRoles(Long tenantId, Long userId) {
         User user = userRepository.findByTenantIdAndUserId(tenantId, userId)
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "사용자를 찾을 수 없습니다."));
-        
+        return getUserRoles(tenantId, user);
+    }
+
+    /**
+     * 사용자 역할 조회 (User 엔티티 전달, 목록 조회 시 중복 user 조회 방지)
+     */
+    private List<UserRoleInfo> getUserRoles(Long tenantId, User user) {
+        if (user == null || user.getUserId() == null) {
+            return List.of();
+        }
+        long userId = user.getUserId();
+
         // 사용자 직접 할당 역할
         List<RoleMember> userRoleMembers = roleMemberRepository.findByTenantIdAndUserId(tenantId, userId);
         
@@ -213,21 +257,22 @@ public class UserQueryService {
             throw new BaseException(ErrorCode.INTERNAL_SERVER_ERROR, "사용자 ID가 null입니다.");
         }
         
-        // loginId 조회 (LOCAL 계정 우선, 없으면 첫 번째 계정)
+        // loginId, providerType 조회 (LOCAL 계정 우선, 없으면 첫 번째 계정)
         String loginId = null;
+        String providerType = null;
         java.time.LocalDateTime lastLoginAt = null;
         List<UserAccount> accounts = userAccountRepository.findByUserId(user.getUserId());
         if (!accounts.isEmpty()) {
             // LOCAL 계정 우선 선택
-            UserAccount localAccount = accounts.stream()
+            UserAccount primaryAccount = accounts.stream()
                     .filter(acc -> "LOCAL".equals(acc.getProviderType()))
                     .findFirst()
                     .orElse(accounts.get(0)); // LOCAL이 없으면 첫 번째 계정
-            loginId = localAccount.getPrincipal();
-            
+            loginId = primaryAccount.getPrincipal();
+            providerType = primaryAccount.getProviderType();
             // 마지막 로그인 시간 조회 (서브쿼리로 최신 1건만)
             lastLoginAt = loginHistoryRepository.findLastLoginAtByAccount(
-                    tenantId, localAccount.getProviderType(), localAccount.getProviderId(), localAccount.getPrincipal())
+                    tenantId, primaryAccount.getProviderType(), primaryAccount.getProviderId(), primaryAccount.getPrincipal())
                     .orElse(null);
         }
         
@@ -240,6 +285,9 @@ public class UserQueryService {
             }
         }
         
+        // 역할 목록 조회 (Users 탭 Role 컬럼 표시용, User 전달로 중복 조회 방지)
+        List<UserRoleInfo> roles = getUserRoles(tenantId, user);
+
         return UserSummary.builder()
                 .comUserId(user.getUserId())
                 .tenantId(tenantId)
@@ -247,9 +295,12 @@ public class UserQueryService {
                 .departmentName(departmentName)
                 .userName(user.getDisplayName())
                 .loginId(loginId)
+                .providerType(providerType)
                 .email(user.getEmail())
                 .status(user.getStatus())
+                .mfaEnabled(user.getMfaEnabled())
                 .lastLoginAt(lastLoginAt)
+                .roles(roles)
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
                 .build();

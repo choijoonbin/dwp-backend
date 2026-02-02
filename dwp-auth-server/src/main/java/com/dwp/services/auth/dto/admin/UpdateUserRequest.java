@@ -22,4 +22,6 @@ public class UpdateUserRequest {
     
     private Long departmentId;
     private String status;
+    /** MFA(2단계 인증) 사용 여부. true 시 로그인 시 2FA 검증 대상 */
+    private Boolean mfaEnabled;
 }

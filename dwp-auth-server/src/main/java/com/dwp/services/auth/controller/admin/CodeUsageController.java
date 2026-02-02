@@ -83,14 +83,14 @@ public class CodeUsageController {
      * DELETE /api/admin/code-usages/{sysCodeUsageId}
      */
     @DeleteMapping("/{sysCodeUsageId}")
-    public ApiResponse<Void> deleteCodeUsage(
+    public ApiResponse<?> deleteCodeUsage(
             @RequestHeader("X-Tenant-ID") Long tenantId,
             Authentication authentication,
             @PathVariable Long sysCodeUsageId,
             HttpServletRequest httpRequest) {
         Long actorUserId = getUserId(authentication);
         codeUsageService.deleteCodeUsage(tenantId, actorUserId, sysCodeUsageId, httpRequest);
-        return ApiResponse.success(null);
+        return ApiResponse.successOk();
     }
     
     private Long getUserId(Authentication authentication) {

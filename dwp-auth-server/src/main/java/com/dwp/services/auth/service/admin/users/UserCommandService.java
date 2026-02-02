@@ -57,27 +57,29 @@ public class UserCommandService {
                 .email(request.getEmail())
                 .primaryDepartmentId(request.getDepartmentId())
                 .status(userStatus)
+                .mfaEnabled(request.getMfaEnabled() != null ? request.getMfaEnabled() : false)
                 .build();
         user = userRepository.save(user);
         
-        // LOCAL 계정 생성 (옵션)
-        if (request.getLocalAccount() != null) {
+        // LOCAL 계정 생성 (옵션): getEffectiveLocalAccount()로 flat/nested 모두 처리
+        var effectiveLocal = request.getEffectiveLocalAccount();
+        if (effectiveLocal != null) {
             String providerType = "LOCAL";
             codeResolver.require("IDP_PROVIDER_TYPE", providerType);
-            
-            String password = request.getLocalAccount().getPassword();
+
+            String password = effectiveLocal.getPassword();
             String passwordHash = passwordEncoder.encode(password);
-            
+
             // 계정 상태 검증
             String accountStatus = "ACTIVE";
             codeResolver.require("USER_STATUS", accountStatus);
-            
+
             UserAccount account = UserAccount.builder()
                     .tenantId(tenantId)
                     .userId(user.getUserId())
                     .providerType(providerType)
                     .providerId("local")
-                    .principal(request.getLocalAccount().getPrincipal())
+                    .principal(effectiveLocal.getPrincipal())
                     .passwordHash(passwordHash)
                     .status(accountStatus)
                     .build();
@@ -124,6 +126,9 @@ public class UserCommandService {
         if (request.getStatus() != null) {
             codeResolver.require("USER_STATUS", request.getStatus());
             user.setStatus(request.getStatus());
+        }
+        if (request.getMfaEnabled() != null) {
+            user.setMfaEnabled(request.getMfaEnabled());
         }
         
         userRepository.save(user);

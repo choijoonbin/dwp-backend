@@ -27,11 +27,14 @@ public class UserManagementService {
     
     /**
      * 사용자 목록 조회
+     * @param appCode 앱 코드(예: SYNAPSEX) 시 해당 앱 역할 사용자만 조회. 미전달 시 플랫폼 전체.
+     * @param roleIds 역할 ID 목록(복수) 시 해당 역할 중 하나라도 가진 사용자만 조회. appCode 우선.
      */
-    public PageResponse<UserSummary> getUsers(Long tenantId, int page, int size, 
-                                               String keyword, Long departmentId, Long roleId, 
+    public PageResponse<UserSummary> getUsers(Long tenantId, int page, int size,
+                                               String keyword, Long departmentId, Long roleId,
+                                               List<Long> roleIds, String appCode,
                                                String status, String idpProviderType, String loginType) {
-        return userQueryService.getUsers(tenantId, page, size, keyword, departmentId, roleId, 
+        return userQueryService.getUsers(tenantId, page, size, keyword, departmentId, roleId, roleIds, appCode,
                 status, idpProviderType, loginType);
     }
     

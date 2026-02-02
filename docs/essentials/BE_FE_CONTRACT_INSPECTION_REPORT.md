@@ -98,7 +98,7 @@
 |------|-----------|------------------|--------|--------|
 | Admin CRUD 감사 로그 | ✅ 충족 | `dwp-auth-server` 내 RoleCommandService, UserCommandService, MenuCommandService, CodeUsageCommandService, ResourceCommandService, DepartmentCommandService, UserPasswordService, RoleMemberCommandService, RolePermissionCommandService 등에서 `AuditLogService.recordAuditLog` 호출. `AuditLog` 엔티티 → `com_audit_logs` 테이블. | 없음 | - |
 | HITL 요청/승인/거절 감사 로그 | ❌ 미충족 | `HitlManager.saveApprovalRequest`, `approve`, `reject`에서 `com_audit_logs` 또는 동등 감사 로그 기록 없음. | 높음 | HITL 생성·승인·거절 시 감사 로그 기록 추가. (main-service에 AuditLog 저장소 또는 auth-server 감사 API 호출) |
-| 데이터 조회/케이스/시뮬레이션/Action/정책 변경 감사 | ⚠️ 서비스별 | auth-server Admin 외, main-service(AgentTask/케이스), aura-service(시뮬레이션/데이터 조회) 등에서 감사 로그 설계 여부는 서비스별 코드 확인 필요. | 중간 | 엔터프라이즈 메뉴 vFinal 요구(데이터 조회, 케이스 생성/상태변경, 시뮬레이션, Action 실행, 정책 변경)에 대해 감사 로그 대상 및 저장소 정책 수립. |
+| 데이터 조회/케이스/시뮬레이션/Action/정책 변경 감사 | ⚠️ 서비스별 | auth-server Admin 외, main-service(AgentTask/케이스), synapsex-service(시뮬레이션/데이터 조회) 등에서 감사 로그 설계 여부는 서비스별 코드 확인 필요. | 중간 | 엔터프라이즈 메뉴 vFinal 요구(데이터 조회, 케이스 생성/상태변경, 시뮬레이션, Action 실행, 정책 변경)에 대해 감사 로그 대상 및 저장소 정책 수립. |
 
 **확인할 파일:**  
 - `dwp-auth-server/.../service/audit/AuditLogService.java`, `.../entity/AuditLog.java`  
@@ -157,7 +157,7 @@
 | **PR#4** | SseReconnectionFilter 이벤트 경계 보장 (선택) | `SseReconnectionFilter.java`: 청크 경계를 넘는 이벤트에 대해 줄 단위 버퍼로 `\n\n` 기준 분할 후 id 부여. 또는 Aura-Platform이 id 포함 시 Gateway는 id 미추가 정책 명시. | P2 |
 | **PR#5** | CORS exposedHeaders (필요 시) | `CorsConfig.java`: FE가 읽어야 하는 응답 헤더가 있으면 `setExposedHeaders` 추가. | P2 |
 | **PR#6** | Auth Policy / SSO 콜백 문서화 | docs: GET /api/auth/policy 스키마, 401/403 처리, SSO 콜백 URL·리다이렉트 규격을 FE와 합의 문서로 정리. | P1 |
-| **PR#7** | 감사 로그 확장 정책 (데이터 조회/케이스/시뮬레이션/Action) | docs + 서비스별 이슈: Audit-by-Design 대상 목록, 저장소(com_audit_logs vs 서비스별), 마스킹/내보내기 정책. 필요 시 main-service/aura-service에 감사 로그 호출 추가. | P1 |
+| **PR#7** | 감사 로그 확장 정책 (데이터 조회/케이스/시뮬레이션/Action) | docs + 서비스별 이슈: Audit-by-Design 대상 목록, 저장소(com_audit_logs vs 서비스별), 마스킹/내보내기 정책. 필요 시 main-service/synapsex-service에 감사 로그 호출 추가. | P1 |
 
 ---
 

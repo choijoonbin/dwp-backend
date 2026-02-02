@@ -116,8 +116,12 @@ public class UserValidator {
         validateEmailNotDuplicate(tenantId, request.getEmail());
         validateDepartmentExists(tenantId, request.getDepartmentId());
         
-        if (request.getLocalAccount() != null) {
-            validatePrincipalNotDuplicate(tenantId, request.getLocalAccount().getPrincipal());
+        var effectiveLocal = request.getEffectiveLocalAccount();
+        if (effectiveLocal != null) {
+            validatePrincipalNotDuplicate(tenantId, effectiveLocal.getPrincipal());
+        }
+        if (Boolean.TRUE.equals(request.getCreateLocalAccount()) && effectiveLocal == null) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "로컬 계정 생성 시 principal과 password는 필수입니다.");
         }
     }
     

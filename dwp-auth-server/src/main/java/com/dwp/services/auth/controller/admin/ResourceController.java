@@ -101,14 +101,14 @@ public class ResourceController {
      * DELETE /api/admin/resources/{comResourceId}
      */
     @DeleteMapping("/{comResourceId}")
-    public ApiResponse<Void> deleteResource(
+    public ApiResponse<?> deleteResource(
             @RequestHeader("X-Tenant-ID") Long tenantId,
             Authentication authentication,
             @PathVariable("comResourceId") Long resourceId,
             HttpServletRequest httpRequest) {
         Long actorUserId = getUserId(authentication);
         resourceManagementService.deleteResource(tenantId, actorUserId, resourceId, httpRequest);
-        return ApiResponse.success(null);
+        return ApiResponse.successOk();
     }
     
     private Long getUserId(Authentication authentication) {

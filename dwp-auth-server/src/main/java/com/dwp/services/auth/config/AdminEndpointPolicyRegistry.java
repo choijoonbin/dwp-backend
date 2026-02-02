@@ -220,6 +220,11 @@ public class AdminEndpointPolicyRegistry {
         registerPolicy("PUT", "^/api/admin/menus/reorder$", "menu.admin.menus", "EXECUTE");
         
         // ========================================
+        // Tenant Selector (menu.admin.users VIEW로 통과 - Admin 진입 시 Tenant 목록 필요)
+        // ========================================
+        registerPolicy("GET", "^/api/admin/tenants$", "menu.admin.users", "VIEW");
+
+        // ========================================
         // P1-7: Audit Logs (menu.admin.audit)
         // ========================================
         registerPolicy("GET", "^/api/admin/audit-logs$", "menu.admin.audit", "VIEW");

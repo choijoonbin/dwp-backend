@@ -210,6 +210,8 @@ public class MenuService {
     private String getGroupName(String groupCode) {
         return switch (groupCode) {
             case "MANAGEMENT" -> "관리";
+            case "ADMIN" -> "ADMIN";
+            case "SynapseX" -> "SynapseX";
             case "APPS" -> "앱";
             default -> "기타";
         };

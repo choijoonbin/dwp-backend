@@ -37,13 +37,15 @@ public class UserController {
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) Long departmentId,
             @RequestParam(required = false) Long roleId,
+            @RequestParam(required = false) java.util.List<Long> roleIds,
+            @RequestParam(required = false) String appCode,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String idpProviderType,
             @RequestParam(required = false) String loginType) {
         Long userId = getUserId(authentication);
         permissionEvaluator.requirePermission(userId, tenantId, "menu.admin.users", "VIEW");
         return ApiResponse.success(userManagementService.getUsers(
-                tenantId, page, size, keyword, departmentId, roleId, status, idpProviderType, loginType));
+                tenantId, page, size, keyword, departmentId, roleId, roleIds, appCode, status, idpProviderType, loginType));
     }
     
     /**
@@ -138,16 +140,15 @@ public class UserController {
      * DELETE /api/admin/users/{comUserId}
      */
     @DeleteMapping("/{comUserId}")
-    public ApiResponse<Void> deleteUser(
+    public ApiResponse<?> deleteUser(
             @RequestHeader("X-Tenant-ID") Long tenantId,
             Authentication authentication,
             @PathVariable("comUserId") Long userId,
             HttpServletRequest httpRequest) {
         Long actorUserId = getUserId(authentication);
-        // PR-09B: EDIT 권한 체크 (DELETE → EDIT)
         permissionEvaluator.requirePermission(actorUserId, tenantId, "menu.admin.users", "EDIT");
         userManagementService.deleteUser(tenantId, actorUserId, userId, httpRequest);
-        return ApiResponse.success(null);
+        return ApiResponse.successOk();
     }
     
     /**
@@ -191,7 +192,7 @@ public class UserController {
      * PUT /api/admin/users/{comUserId}/roles
      */
     @PutMapping("/{comUserId}/roles")
-    public ApiResponse<Void> updateUserRoles(
+    public ApiResponse<?> updateUserRoles(
             @RequestHeader("X-Tenant-ID") Long tenantId,
             Authentication authentication,
             @PathVariable("comUserId") Long userId,
@@ -201,7 +202,7 @@ public class UserController {
         // PR-09B: EDIT 권한 체크
         permissionEvaluator.requirePermission(actorUserId, tenantId, "menu.admin.users", "EDIT");
         userManagementService.updateUserRoles(tenantId, actorUserId, userId, request, httpRequest);
-        return ApiResponse.success(null);
+        return ApiResponse.successOk();
     }
     
     /**
@@ -232,7 +233,7 @@ public class UserController {
      * DELETE /api/admin/users/{comUserId}/roles/{comRoleId}
      */
     @DeleteMapping("/{comUserId}/roles/{comRoleId}")
-    public ApiResponse<Void> removeUserRole(
+    public ApiResponse<?> removeUserRole(
             @RequestHeader("X-Tenant-ID") Long tenantId,
             Authentication authentication,
             @PathVariable("comUserId") Long userId,
@@ -242,7 +243,7 @@ public class UserController {
         // PR-09B: EDIT 권한 체크
         permissionEvaluator.requirePermission(actorUserId, tenantId, "menu.admin.users", "EDIT");
         userManagementService.removeUserRole(tenantId, actorUserId, userId, roleId, httpRequest);
-        return ApiResponse.success(null);
+        return ApiResponse.successOk();
     }
     
     private Long getUserId(Authentication authentication) {

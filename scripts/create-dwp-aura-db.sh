@@ -1,10 +1,10 @@
 #!/bin/bash
 
 # ========================================
-# dwp_aura 데이터베이스 생성 (Aura 서비스용)
+# dwp_aura 데이터베이스 생성 (SynapseX 서비스용)
 # ========================================
 # Flyway는 스키마만 자동 생성 가능하고, 데이터베이스(DB)는 생성하지 못합니다.
-# 이 스크립트로 dwp_aura DB를 한 번 생성한 뒤 Aura 서비스를 기동하세요.
+# 이 스크립트로 dwp_aura DB를 한 번 생성한 뒤 SynapseX 서비스를 기동하세요.
 #
 # 사용법:
 #   ./scripts/create-dwp-aura-db.sh
@@ -61,4 +61,4 @@ else
     PGPASSWORD=${DB_PASSWORD} psql -h ${DB_HOST} -p ${DB_PORT} -U "${PG_SUPERUSER}" -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE dwp_aura TO ${DB_USERNAME};"
 fi
 
-echo -e "${GREEN}✓ dwp_aura DB 생성 완료. Aura 서비스를 기동하면 Flyway가 스키마/테이블을 자동 생성합니다.${NC}"
+echo -e "${GREEN}✓ dwp_aura DB 생성 완료. SynapseX 서비스를 기동하면 Flyway가 스키마/테이블을 자동 생성합니다.${NC}"

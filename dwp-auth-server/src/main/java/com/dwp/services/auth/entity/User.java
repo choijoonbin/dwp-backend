@@ -38,4 +38,9 @@ public class User extends BaseEntity {
     @Column(name = "status", nullable = false, length = 20)
     @Builder.Default
     private String status = "ACTIVE";
+
+    /** MFA(2단계 인증) 사용 여부. true 시 로그인 화면에서 2FA 검증 대상 */
+    @Column(name = "mfa_enabled", nullable = false)
+    @Builder.Default
+    private Boolean mfaEnabled = false;
 }

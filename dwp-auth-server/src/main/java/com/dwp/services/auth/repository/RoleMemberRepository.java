@@ -32,6 +32,17 @@ public interface RoleMemberRepository extends JpaRepository<RoleMember, Long> {
      * 역할 ID로 멤버 목록 조회
      */
     List<RoleMember> findByTenantIdAndRoleId(Long tenantId, Long roleId);
+
+    /**
+     * 역할 ID 목록에 속한 사용자 ID 목록 조회 (USER subject만, 앱 스코프용)
+     */
+    @Query("SELECT DISTINCT rm.subjectId FROM RoleMember rm " +
+           "WHERE rm.tenantId = :tenantId " +
+           "AND rm.subjectType = 'USER' " +
+           "AND rm.roleId IN :roleIds")
+    List<Long> findUserIdsByTenantIdAndRoleIdIn(
+            @Param("tenantId") Long tenantId,
+            @Param("roleIds") List<Long> roleIds);
     
     /**
      * 사용자 ID로 역할 멤버 조회

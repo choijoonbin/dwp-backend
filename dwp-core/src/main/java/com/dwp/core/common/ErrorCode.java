@@ -22,6 +22,7 @@ public enum ErrorCode {
     AUTH_REQUIRED(HttpStatus.UNAUTHORIZED, "E2005", "인증이 필요합니다."),
     TENANT_MISSING(HttpStatus.BAD_REQUEST, "E2006", "테넌트 정보가 필요합니다."),
     TENANT_MISMATCH(HttpStatus.FORBIDDEN, "E2007", "테넌트 정보가 일치하지 않습니다."),
+    OUT_OF_SCOPE(HttpStatus.FORBIDDEN, "E2009", "스코프에서 제외된 리소스입니다."),
     
     // 비즈니스 로직 에러 (3000번대)
     ENTITY_NOT_FOUND(HttpStatus.NOT_FOUND, "E3000", "엔티티를 찾을 수 없습니다."),

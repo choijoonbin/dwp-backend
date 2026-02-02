@@ -71,14 +71,14 @@ public class DepartmentController {
      * DELETE /api/admin/departments/{departmentId}
      */
     @DeleteMapping("/{departmentId}")
-    public ApiResponse<Void> deleteDepartment(
+    public ApiResponse<?> deleteDepartment(
             @RequestHeader("X-Tenant-ID") Long tenantId,
             Authentication authentication,
             @PathVariable Long departmentId,
             HttpServletRequest httpRequest) {
         Long actorUserId = getUserId(authentication);
         departmentManagementService.deleteDepartment(tenantId, actorUserId, departmentId, httpRequest);
-        return ApiResponse.success(null);
+        return ApiResponse.successOk();
     }
     
     private Long getUserId(Authentication authentication) {

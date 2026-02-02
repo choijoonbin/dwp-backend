@@ -78,6 +78,20 @@ public class ApiResponse<T> {
                 .timestamp(LocalDateTime.now())
                 .build();
     }
+
+    /**
+     * payload 없이 성공만 반환할 때 사용 (삭제/역할 저장 등).
+     * FE 계약: 성공 시 {@code data.success === true} 로 판단할 수 있도록 {@code data: { "success": true }} 를 반환합니다.
+     */
+    public static ApiResponse<java.util.Map<String, Boolean>> successOk() {
+        return ApiResponse.<java.util.Map<String, Boolean>>builder()
+                .status("SUCCESS")
+                .message("요청이 성공적으로 처리되었습니다.")
+                .data(java.util.Map.of("success", true))
+                .success(true)
+                .timestamp(LocalDateTime.now())
+                .build();
+    }
     
     // 에러 응답 생성 메서드
     public static <T> ApiResponse<T> error(ErrorCode errorCode) {

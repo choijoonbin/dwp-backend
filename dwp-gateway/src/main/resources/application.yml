@@ -31,7 +31,26 @@ spring:
             - Path=/api/monitoring/**
           filters:
             - StripPrefix=1
-        # Aura Platform (AI Agent) 라우팅
+        # SynapseX Service (Admin/통화·PII 정책, Audit 감사로그) - 프론트 제공 API: /api/synapse/**
+        - id: synapsex-admin
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/admin/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-audit
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/audit/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-entities
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/entities/**
+          filters:
+            - StripPrefix=1
+        # Aura Platform (AI Agent) 라우팅 - Python
         # ⚠️ 중요: 프론트엔드는 반드시 Gateway(8080)를 통해 Aura-Platform과 통신해야 합니다.
         # 직접 Aura-Platform(9000)에 접근하는 것은 금지됩니다.
         # 

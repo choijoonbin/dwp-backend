@@ -23,6 +23,11 @@ subprojects {
         targetCompatibility = '17'
     }
     
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+        options.compilerArgs += ['-Xlint:all', '-Xlint:-processing']
+    }
+    
     configurations {
         compileOnly {
             extendsFrom annotationProcessor

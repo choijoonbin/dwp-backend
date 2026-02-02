@@ -45,6 +45,25 @@ spring:
             - Path=/api/monitoring/**
           filters:
             - StripPrefix=1  # /api/monitoring/** → /monitoring/**로 변환
+        # SynapseX Service (Admin/통화·PII 정책, Audit 감사로그) - /api/synapse/**
+        - id: synapsex-admin
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/admin/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-audit
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/audit/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-entities
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/entities/**
+          filters:
+            - StripPrefix=1
         - id: auth-server
           uri: http://localhost:8001  # Auth Server 포트 변경 (8000 → 8001)
           predicates:

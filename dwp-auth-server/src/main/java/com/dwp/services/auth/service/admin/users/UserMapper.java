@@ -54,6 +54,7 @@ public class UserMapper {
                 .loginId(loginId)
                 .email(user.getEmail())
                 .status(user.getStatus())
+                .mfaEnabled(user.getMfaEnabled())
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
                 .build();
@@ -75,6 +76,7 @@ public class UserMapper {
                 .userName(user.getDisplayName())
                 .email(user.getEmail())
                 .status(user.getStatus())
+                .mfaEnabled(user.getMfaEnabled())
                 .accounts(accounts)
                 .roles(roles)
                 .createdAt(user.getCreatedAt())
@@ -140,6 +142,7 @@ public class UserMapper {
                 .email(user.getEmail())
                 .primaryDepartmentId(user.getPrimaryDepartmentId())
                 .status(user.getStatus())
+                .mfaEnabled(user.getMfaEnabled())
                 .build();
     }
 }

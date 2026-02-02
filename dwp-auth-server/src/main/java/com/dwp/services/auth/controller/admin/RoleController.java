@@ -97,7 +97,7 @@ public class RoleController {
      * DELETE /api/admin/roles/{comRoleId}
      */
     @DeleteMapping("/{comRoleId}")
-    public ApiResponse<Void> deleteRole(
+    public ApiResponse<?> deleteRole(
             @RequestHeader("X-Tenant-ID") Long tenantId,
             Authentication authentication,
             @PathVariable("comRoleId") Long roleId,
@@ -106,7 +106,7 @@ public class RoleController {
         // PR-09B: EDIT 권한 체크 (DELETE → EDIT)
         permissionEvaluator.requirePermission(actorUserId, tenantId, "menu.admin.roles", "EDIT");
         roleManagementService.deleteRole(tenantId, actorUserId, roleId, httpRequest);
-        return ApiResponse.success(null);
+        return ApiResponse.successOk();
     }
     
     /**
@@ -129,7 +129,7 @@ public class RoleController {
      * PUT /api/admin/roles/{comRoleId}/members
      */
     @PutMapping("/{comRoleId}/members")
-    public ApiResponse<Void> updateRoleMembers(
+    public ApiResponse<?> updateRoleMembers(
             @RequestHeader("X-Tenant-ID") Long tenantId,
             Authentication authentication,
             @PathVariable("comRoleId") Long roleId,
@@ -139,7 +139,7 @@ public class RoleController {
         // PR-09B: EDIT 권한 체크
         permissionEvaluator.requirePermission(actorUserId, tenantId, "menu.admin.roles", "EDIT");
         roleManagementService.updateRoleMembers(tenantId, actorUserId, roleId, request, httpRequest);
-        return ApiResponse.success(null);
+        return ApiResponse.successOk();
     }
     
     /**
@@ -164,7 +164,7 @@ public class RoleController {
      * DELETE /api/admin/roles/{comRoleId}/members/{comRoleMemberId}
      */
     @DeleteMapping("/{comRoleId}/members/{comRoleMemberId}")
-    public ApiResponse<Void> removeRoleMember(
+    public ApiResponse<?> removeRoleMember(
             @RequestHeader("X-Tenant-ID") Long tenantId,
             Authentication authentication,
             @PathVariable("comRoleId") Long roleId,
@@ -174,7 +174,7 @@ public class RoleController {
         // PR-09B: EDIT 권한 체크
         permissionEvaluator.requirePermission(actorUserId, tenantId, "menu.admin.roles", "EDIT");
         roleManagementService.removeRoleMember(tenantId, actorUserId, roleId, roleMemberId, httpRequest);
-        return ApiResponse.success(null);
+        return ApiResponse.successOk();
     }
     
     /**
@@ -197,7 +197,7 @@ public class RoleController {
      * PUT /api/admin/roles/{comRoleId}/permissions
      */
     @PutMapping("/{comRoleId}/permissions")
-    public ApiResponse<Void> updateRolePermissions(
+    public ApiResponse<?> updateRolePermissions(
             @RequestHeader("X-Tenant-ID") Long tenantId,
             Authentication authentication,
             @PathVariable("comRoleId") Long roleId,
@@ -207,7 +207,7 @@ public class RoleController {
         // PR-09B: EDIT 권한 체크
         permissionEvaluator.requirePermission(actorUserId, tenantId, "menu.admin.roles", "EDIT");
         roleManagementService.updateRolePermissions(tenantId, actorUserId, roleId, request, httpRequest);
-        return ApiResponse.success(null);
+        return ApiResponse.successOk();
     }
     
     private Long getUserId(Authentication authentication) {
