@@ -71,6 +71,12 @@ public class AgentCase {
     @Column(name = "owner_user", length = 80)
     private String ownerUser;
 
+    @Column(name = "assignee_user_id")
+    private Long assigneeUserId;
+
+    @Column(name = "saved_view_key", length = 100)
+    private String savedViewKey;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 

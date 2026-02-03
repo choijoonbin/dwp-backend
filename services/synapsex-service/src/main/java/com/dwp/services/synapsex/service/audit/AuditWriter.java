@@ -275,10 +275,58 @@ public class AuditWriter {
     public void logActionEvent(Long tenantId, String eventType, Long actionId, Long caseId,
                                Long actorUserId, String outcome, Map<String, Object> beforeJson, Map<String, Object> afterJson,
                                String ipAddress, String userAgent, String gatewayRequestId) {
+        logActionEventInternal(tenantId, eventType, actionId, caseId, actorUserId, outcome,
+                beforeJson, afterJson, ipAddress, userAgent, gatewayRequestId, null);
+    }
+
+    /**
+     * Action 실패 기록 (event_category=ACTION, outcome=FAILED) — auditId 반환.
+     * FE "Audit 상세 보기" 링크용.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = false)
+    public Long logActionEventFailure(Long tenantId, String eventType, Long actionId, Long caseId,
+                                     Long actorUserId, String errorMessage,
+                                     String ipAddress, String userAgent, String gatewayRequestId) {
+        Map<String, Object> afterJson = new HashMap<>();
+        afterJson.put("error", errorMessage != null ? errorMessage : "Unknown error");
         Map<String, Object> tags = new HashMap<>();
         tags.put("module", "ACTION");
-        tags.put("actionId", actionId);
-        tags.put("caseId", caseId);
+        if (actionId != null) tags.put("actionId", actionId);
+        if (caseId != null) tags.put("caseId", caseId);
+        try {
+            AuditEventLog e = AuditEventLog.builder()
+                    .tenantId(tenantId)
+                    .eventCategory(AuditEventConstants.CATEGORY_ACTION)
+                    .eventType(eventType)
+                    .resourceType("AGENT_ACTION")
+                    .resourceId(actionId != null ? String.valueOf(actionId) : null)
+                    .createdAt(Instant.now())
+                    .actorType(AuditEventConstants.ACTOR_HUMAN)
+                    .actorUserId(actorUserId)
+                    .channel(AuditEventConstants.CHANNEL_API)
+                    .outcome(AuditEventConstants.OUTCOME_FAILED)
+                    .severity(AuditEventConstants.SEVERITY_WARN)
+                    .afterJson(afterJson)
+                    .tags(tags)
+                    .ipAddress(ipAddress)
+                    .userAgent(userAgent)
+                    .gatewayRequestId(gatewayRequestId)
+                    .build();
+            e = auditEventLogRepository.save(e);
+            return e.getAuditId();
+        } catch (Exception ex) {
+            log.warn("Audit failure log write failed: {}", ex.getMessage());
+            return null;
+        }
+    }
+
+    private void logActionEventInternal(Long tenantId, String eventType, Long actionId, Long caseId,
+                                        Long actorUserId, String outcome, Map<String, Object> beforeJson, Map<String, Object> afterJson,
+                                        String ipAddress, String userAgent, String gatewayRequestId, Map<String, Object> tags) {
+        Map<String, Object> t = tags != null ? new HashMap<>(tags) : new HashMap<>();
+        t.put("module", "ACTION");
+        t.put("actionId", actionId);
+        t.put("caseId", caseId);
         log(tenantId,
                 AuditEventConstants.CATEGORY_ACTION,
                 eventType,
@@ -295,7 +343,7 @@ public class AuditWriter {
                 afterJson,
                 null,
                 null,
-                tags,
+                t,
                 ipAddress,
                 userAgent,
                 gatewayRequestId,
@@ -330,6 +378,38 @@ public class AuditWriter {
                 null,
                 null,
                 evidence,
+                tags,
+                ipAddress,
+                userAgent,
+                gatewayRequestId,
+                null,
+                null);
+    }
+
+    /** Integration Outbox Enqueue / Result Update 기록 (event_category=INTEGRATION) */
+    public void logIntegrationEvent(Long tenantId, String eventType, String resourceType, String resourceId,
+                                    Long actorUserId, String outcome,
+                                    Map<String, Object> beforeJson, Map<String, Object> afterJson,
+                                    String ipAddress, String userAgent, String gatewayRequestId) {
+        Map<String, Object> tags = new HashMap<>();
+        tags.put("module", "INTEGRATION");
+        if (resourceId != null) tags.put("resourceId", resourceId);
+        log(tenantId,
+                AuditEventConstants.CATEGORY_INTEGRATION,
+                eventType,
+                resourceType,
+                resourceId,
+                AuditEventConstants.ACTOR_SYSTEM,
+                actorUserId,
+                null,
+                null,
+                AuditEventConstants.CHANNEL_INTEGRATION,
+                outcome != null ? outcome : AuditEventConstants.OUTCOME_SUCCESS,
+                AuditEventConstants.SEVERITY_INFO,
+                beforeJson,
+                afterJson,
+                null,
+                null,
                 tags,
                 ipAddress,
                 userAgent,

@@ -1,5 +1,6 @@
 package com.dwp.services.synapsex.service.action;
 
+import com.dwp.services.synapsex.dto.action.ActionDetailDto;
 import com.dwp.services.synapsex.dto.action.ActionListRowDto;
 import com.dwp.services.synapsex.dto.common.PageResponse;
 import com.dwp.services.synapsex.entity.AgentAction;
@@ -74,6 +75,28 @@ public class ActionQueryService {
                 .map(this::toListRow)
                 .toList();
         return PageResponse.of(rows, total, page, size);
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.Optional<ActionDetailDto> findActionDetail(Long tenantId, Long actionId) {
+        return agentActionRepository.findById(actionId)
+                .filter(a -> tenantId.equals(a.getTenantId()))
+                .map(this::toDetailDto);
+    }
+
+    private ActionDetailDto toDetailDto(AgentAction action) {
+        Instant created = action.getCreatedAt() != null ? action.getCreatedAt() : action.getPlannedAt();
+        return ActionDetailDto.builder()
+                .actionId(action.getActionId())
+                .caseId(action.getCaseId())
+                .actionType(action.getActionType())
+                .status(action.getStatus())
+                .payload(action.getPayloadJson())
+                .simulationBefore(action.getSimulationBefore())
+                .simulationAfter(action.getSimulationAfter())
+                .diffJson(action.getDiffJson())
+                .createdAt(created)
+                .build();
     }
 
     private ActionListRowDto toListRow(AgentAction action) {

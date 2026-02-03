@@ -1,12 +1,16 @@
 package com.dwp.services.synapsex.service.dictionary;
 
+import com.dwp.services.synapsex.audit.AuditEventConstants;
 import com.dwp.services.synapsex.dto.dictionary.DictionaryTermDto;
 import com.dwp.services.synapsex.dto.dictionary.DictionaryTermUpsertRequest;
 import com.dwp.services.synapsex.entity.DictionaryTerm;
 import com.dwp.services.synapsex.repository.DictionaryTermRepository;
+import com.dwp.services.synapsex.service.audit.AuditWriter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Map;
 
 /**
  * Phase 3 Dictionary 명령 서비스
@@ -16,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class DictionaryCommandService {
 
     private final DictionaryTermRepository dictionaryTermRepository;
+    private final AuditWriter auditWriter;
 
     @Transactional
     public DictionaryTermDto create(Long tenantId, DictionaryTermUpsertRequest request) {
@@ -30,6 +35,12 @@ public class DictionaryCommandService {
                 .category(request.getCategory())
                 .build();
         t = dictionaryTermRepository.save(t);
+        auditWriter.log(tenantId, AuditEventConstants.CATEGORY_ADMIN, AuditEventConstants.TYPE_DICTIONARY_CHANGE,
+                "DICTIONARY_TERM", String.valueOf(t.getTermId()),
+                AuditEventConstants.ACTOR_HUMAN, null, null, null, AuditEventConstants.CHANNEL_API,
+                AuditEventConstants.OUTCOME_SUCCESS, AuditEventConstants.SEVERITY_INFO,
+                null, Map.of("termKey", t.getTermKey(), "category", t.getCategory() != null ? t.getCategory() : ""), null, null, null,
+                null, null, null, null, null);
         return toDto(t);
     }
 
@@ -52,6 +63,12 @@ public class DictionaryCommandService {
                 .filter(x -> tenantId.equals(x.getTenantId()))
                 .orElseThrow(() -> new IllegalArgumentException("Term not found: " + termId));
         dictionaryTermRepository.delete(t);
+        auditWriter.log(tenantId, AuditEventConstants.CATEGORY_ADMIN, AuditEventConstants.TYPE_DICTIONARY_CHANGE,
+                "DICTIONARY_TERM", String.valueOf(termId),
+                AuditEventConstants.ACTOR_HUMAN, null, null, null, AuditEventConstants.CHANNEL_API,
+                AuditEventConstants.OUTCOME_SUCCESS, AuditEventConstants.SEVERITY_INFO,
+                Map.of("termKey", t.getTermKey()), null, null, null, null,
+                null, null, null, null, null);
     }
 
     private DictionaryTermDto toDto(DictionaryTerm t) {

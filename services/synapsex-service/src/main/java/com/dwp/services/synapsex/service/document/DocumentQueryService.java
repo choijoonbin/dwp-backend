@@ -3,8 +3,12 @@ package com.dwp.services.synapsex.service.document;
 import com.dwp.services.synapsex.dto.common.PageResponse;
 import com.dwp.services.synapsex.dto.document.DocumentDetailDto;
 import com.dwp.services.synapsex.dto.document.DocumentListRowDto;
+import com.dwp.services.synapsex.dto.document.DocumentReversalChainDto;
 import com.dwp.services.synapsex.entity.*;
 import com.dwp.services.synapsex.repository.*;
+import com.dwp.services.synapsex.entity.QAgentCase;
+import com.dwp.services.synapsex.entity.QIngestionError;
+import com.dwp.services.synapsex.scope.TenantScopeResolver;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.Expressions;
@@ -19,6 +23,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.Instant;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Phase 1 Documents 조회 서비스
@@ -35,6 +40,7 @@ public class DocumentQueryService {
     private final BpPartyRepository bpPartyRepository;
     private final AgentCaseRepository agentCaseRepository;
     private final IngestionErrorRepository ingestionErrorRepository;
+    private final TenantScopeResolver tenantScopeResolver;
 
     private static final QFiDocHeader h = QFiDocHeader.fiDocHeader;
     private static final QFiDocItem i = QFiDocItem.fiDocItem;
@@ -50,8 +56,16 @@ public class DocumentQueryService {
         if (query.getDateTo() != null) {
             predicate.and(h.budat.loe(query.getDateTo()));
         }
+        Set<String> allowedBukrs = tenantScopeResolver.resolveEnabledBukrs(tenantId);
         if (query.getBukrs() != null && !query.getBukrs().isBlank()) {
-            predicate.and(h.bukrs.eq(query.getBukrs().toUpperCase()));
+            String bukrs = query.getBukrs().toUpperCase();
+            if (allowedBukrs.isEmpty() || allowedBukrs.contains(bukrs)) {
+                predicate.and(h.bukrs.eq(bukrs));
+            } else {
+                predicate.and(h.bukrs.eq("__SCOPE_EXCLUDED__")); // bukrs not in scope → no results
+            }
+        } else if (!allowedBukrs.isEmpty()) {
+            predicate.and(h.bukrs.in(allowedBukrs));
         }
         if (query.getBelnr() != null && !query.getBelnr().isBlank()) {
             predicate.and(h.belnr.eq(query.getBelnr()));
@@ -77,7 +91,69 @@ public class DocumentQueryService {
         if (query.getQ() != null && !query.getQ().isBlank()) {
             String q = "%" + query.getQ().trim() + "%";
             predicate.and(h.xblnr.containsIgnoreCase(q)
-                    .or(h.bktxt.containsIgnoreCase(q)));
+                    .or(h.bktxt.containsIgnoreCase(q))
+                    .or(h.belnr.containsIgnoreCase(q))
+                    .or(h.usnam.containsIgnoreCase(q))
+                    .or(h.tcode.containsIgnoreCase(q)));
+        }
+        if (Boolean.TRUE.equals(query.getHasCase())) {
+            predicate.and(JPAExpressions.selectOne()
+                    .from(QAgentCase.agentCase)
+                    .where(QAgentCase.agentCase.tenantId.eq(tenantId)
+                            .and(QAgentCase.agentCase.bukrs.eq(h.bukrs))
+                            .and(QAgentCase.agentCase.belnr.eq(h.belnr))
+                            .and(QAgentCase.agentCase.gjahr.eq(h.gjahr)))
+                    .exists());
+        }
+        if (query.getPartyId() != null) {
+            var partyOpt = bpPartyRepository.findById(query.getPartyId())
+                    .filter(p -> tenantId.equals(p.getTenantId()));
+            if (partyOpt.isPresent()) {
+                String code = partyOpt.get().getPartyCode();
+                String ptype = partyOpt.get().getPartyType();
+                if ("VENDOR".equalsIgnoreCase(ptype)) {
+                    predicate.and(JPAExpressions.selectOne()
+                            .from(i)
+                            .where(i.tenantId.eq(tenantId)
+                                    .and(i.bukrs.eq(h.bukrs))
+                                    .and(i.belnr.eq(h.belnr))
+                                    .and(i.gjahr.eq(h.gjahr))
+                                    .and(i.lifnr.eq(code)))
+                            .exists());
+                } else if ("CUSTOMER".equalsIgnoreCase(ptype)) {
+                    predicate.and(JPAExpressions.selectOne()
+                            .from(i)
+                            .where(i.tenantId.eq(tenantId)
+                                    .and(i.bukrs.eq(h.bukrs))
+                                    .and(i.belnr.eq(h.belnr))
+                                    .and(i.gjahr.eq(h.gjahr))
+                                    .and(i.kunnr.eq(code)))
+                            .exists());
+                }
+            }
+        }
+        if (query.getIntegrityStatus() != null && !query.getIntegrityStatus().isBlank()) {
+            String status = query.getIntegrityStatus().toUpperCase();
+            if ("FAIL".equals(status)) {
+                predicate.and(JPAExpressions.selectOne().from(i)
+                        .where(i.tenantId.eq(h.tenantId).and(i.bukrs.eq(h.bukrs))
+                                .and(i.belnr.eq(h.belnr)).and(i.gjahr.eq(h.gjahr)))
+                        .exists().not());
+            } else if ("WARN".equals(status)) {
+                predicate.and(h.rawEventId.isNotNull());
+                predicate.and(JPAExpressions.selectOne().from(QIngestionError.ingestionError)
+                        .where(QIngestionError.ingestionError.rawEventId.eq(h.rawEventId))
+                        .exists());
+            } else if ("PASS".equals(status)) {
+                predicate.and(JPAExpressions.selectOne().from(i)
+                        .where(i.tenantId.eq(h.tenantId).and(i.bukrs.eq(h.bukrs))
+                                .and(i.belnr.eq(h.belnr)).and(i.gjahr.eq(h.gjahr)))
+                        .exists());
+                predicate.and(h.rawEventId.isNull().or(
+                        JPAExpressions.selectOne().from(QIngestionError.ingestionError)
+                                .where(QIngestionError.ingestionError.rawEventId.eq(h.rawEventId))
+                                .exists().not()));
+            }
         }
         if (query.getLifnr() != null && !query.getLifnr().isBlank()) {
             predicate.and(JPAExpressions.selectOne()
@@ -169,17 +245,57 @@ public class DocumentQueryService {
                     .distinct()
                     .limit(3)
                     .toList();
+            String primaryLifnr = topLifnr.isEmpty() ? null : topLifnr.get(0);
+            String primaryKunnr = topKunnr.isEmpty() ? null : topKunnr.get(0);
+            String counterpartyName = null;
+            if (primaryLifnr != null) {
+                counterpartyName = bpPartyRepository.findByTenantIdAndPartyTypeAndPartyCode(tenantId, "VENDOR", primaryLifnr)
+                        .map(BpParty::getNameDisplay).orElse(null);
+            }
+            if (counterpartyName == null && primaryKunnr != null) {
+                counterpartyName = bpPartyRepository.findByTenantIdAndPartyTypeAndPartyCode(tenantId, "CUSTOMER", primaryKunnr)
+                        .map(BpParty::getNameDisplay).orElse(null);
+            }
+            List<AgentCase> cases = agentCaseRepository.findByTenantIdAndBukrsAndBelnrAndGjahr(
+                    tenantId, header.getBukrs(), header.getBelnr(), header.getGjahr());
+            int ingestionErrorCount = header.getRawEventId() != null
+                    ? (int) ingestionErrorRepository.countByRawEventId(header.getRawEventId())
+                    : 0;
+            String integrityStatus = deriveIntegrityStatus(items.size(), header.getRawEventId() != null, ingestionErrorCount);
+            String docKey = header.getBukrs() + "-" + header.getBelnr() + "-" + header.getGjahr();
+            String reversesDocKey = null;
+            String reversedByDocKey = null;
+            if (header.getReversalBelnr() != null && !header.getReversalBelnr().isBlank()) {
+                reversesDocKey = header.getBukrs() + "-" + header.getReversalBelnr() + "-" + header.getGjahr();
+            }
+            List<FiDocHeader> reversers = fiDocHeaderRepository.findByTenantIdAndBukrsAndReversalBelnrAndGjahr(
+                    tenantId, header.getBukrs(), header.getBelnr(), header.getGjahr());
+            if (!reversers.isEmpty()) {
+                FiDocHeader rev = reversers.get(0);
+                reversedByDocKey = rev.getBukrs() + "-" + rev.getBelnr() + "-" + rev.getGjahr();
+            }
             rows.add(DocumentListRowDto.builder()
+                    .docKey(docKey)
                     .bukrs(header.getBukrs())
                     .belnr(header.getBelnr())
                     .gjahr(header.getGjahr())
                     .budat(header.getBudat())
-                    .usnam(header.getUsnam())
-                    .tcode(header.getTcode())
+                    .bldat(header.getBldat())
                     .blart(header.getBlart())
+                    .tcode(header.getTcode())
+                    .usnam(header.getUsnam())
+                    .kunnr(primaryKunnr)
+                    .lifnr(primaryLifnr)
+                    .counterpartyName(counterpartyName)
+                    .wrbtr(totalWrbtr)
                     .waers(header.getWaers())
                     .xblnr(header.getXblnr())
                     .bktxt(header.getBktxt())
+                    .integrityStatus(integrityStatus)
+                    .reversalFlag(header.getReversalBelnr() != null && !header.getReversalBelnr().isBlank())
+                    .reversesDocKey(reversesDocKey)
+                    .reversedByDocKey(reversedByDocKey)
+                    .linkedCasesCount(cases.size())
                     .statusCode(header.getStatusCode())
                     .reversalBelnr(header.getReversalBelnr())
                     .lastChangeTs(header.getLastChangeTs())
@@ -192,11 +308,17 @@ public class DocumentQueryService {
                             .topKunnr(topKunnr)
                             .build())
                     .links(DocumentListRowDto.DocumentLinksDto.builder()
-                            .docKey(header.getBukrs() + "-" + header.getBelnr() + "-" + header.getGjahr())
+                            .docKey(docKey)
                             .build())
                     .build());
         }
         return rows;
+    }
+
+    private String deriveIntegrityStatus(int itemCount, boolean hasRawEvent, int ingestionErrorCount) {
+        if (itemCount == 0) return "FAIL";
+        if (ingestionErrorCount > 0) return "WARN";
+        return "PASS";
     }
 
     @Transactional(readOnly = true)
@@ -350,6 +472,63 @@ public class DocumentQueryService {
                 .build();
     }
 
+    @Transactional(readOnly = true)
+    public Optional<DocumentReversalChainDto> findReversalChain(Long tenantId, String docKey) {
+        var parsed = com.dwp.services.synapsex.util.DocKeyUtil.parse(docKey);
+        if (parsed == null) return Optional.empty();
+        return fiDocHeaderRepository.findByTenantIdAndBukrsAndBelnrAndGjahr(
+                        tenantId, parsed.getBukrs(), parsed.getBelnr(), parsed.getGjahr())
+                .map(header -> buildReversalChain(tenantId, header));
+    }
+
+    private DocumentReversalChainDto buildReversalChain(Long tenantId, FiDocHeader start) {
+        Set<String> visited = new HashSet<>();
+        List<DocumentReversalChainDto.ReversalNodeDto> nodes = new ArrayList<>();
+        List<DocumentReversalChainDto.ReversalEdgeDto> edges = new ArrayList<>();
+        Deque<FiDocHeader> queue = new ArrayDeque<>();
+        queue.add(start);
+
+        while (!queue.isEmpty()) {
+            FiDocHeader h = queue.poll();
+            String dk = com.dwp.services.synapsex.util.DocKeyUtil.format(h.getBukrs(), h.getBelnr(), h.getGjahr());
+            if (dk == null || !visited.add(dk)) continue;
+
+            nodes.add(DocumentReversalChainDto.ReversalNodeDto.builder()
+                    .docKey(dk)
+                    .belnr(h.getBelnr())
+                    .reversalBelnr(h.getReversalBelnr())
+                    .budat(h.getBudat() != null ? h.getBudat().toString() : null)
+                    .build());
+
+            if (h.getReversalBelnr() != null && !h.getReversalBelnr().isBlank()) {
+                fiDocHeaderRepository.findByTenantIdAndBukrsAndBelnrAndGjahr(
+                                tenantId, h.getBukrs(), h.getReversalBelnr(), h.getGjahr())
+                        .ifPresent(rev -> {
+                            String revKey = com.dwp.services.synapsex.util.DocKeyUtil.format(rev.getBukrs(), rev.getBelnr(), rev.getGjahr());
+                            edges.add(DocumentReversalChainDto.ReversalEdgeDto.builder()
+                                    .fromDocKey(dk)
+                                    .toDocKey(revKey)
+                                    .build());
+                            queue.add(rev);
+                        });
+            }
+            fiDocHeaderRepository.findByTenantIdAndBukrsAndReversalBelnrAndGjahr(
+                            tenantId, h.getBukrs(), h.getBelnr(), h.getGjahr())
+                    .forEach(rev -> {
+                        String revKey = com.dwp.services.synapsex.util.DocKeyUtil.format(rev.getBukrs(), rev.getBelnr(), rev.getGjahr());
+                        edges.add(DocumentReversalChainDto.ReversalEdgeDto.builder()
+                                .fromDocKey(revKey)
+                                .toDocKey(dk)
+                                .build());
+                        queue.add(rev);
+                    });
+        }
+        return DocumentReversalChainDto.builder()
+                .nodes(nodes)
+                .edges(edges)
+                .build();
+    }
+
     @lombok.Data
     @lombok.Builder
     @lombok.NoArgsConstructor
@@ -360,13 +539,16 @@ public class DocumentQueryService {
         private String bukrs;
         private String belnr;
         private String gjahr;
+        private Long partyId;
         private String usnam;
         private String tcode;
         private String xblnr;
         private String statusCode;
+        private String integrityStatus;
         private String lifnr;
         private String kunnr;
         private Boolean hasReversal;
+        private Boolean hasCase;
         private BigDecimal amountMin;
         private BigDecimal amountMax;
         private String q;

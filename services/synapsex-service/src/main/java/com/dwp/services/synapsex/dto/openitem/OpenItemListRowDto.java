@@ -10,7 +10,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 
 /**
- * B1) GET /open-items 응답 row
+ * B1) GET /open-items 응답 row (Phase1 프론트 mock-data.ts 매칭)
  */
 @Data
 @Builder
@@ -18,18 +18,29 @@ import java.time.LocalDate;
 @AllArgsConstructor
 public class OpenItemListRowDto {
 
+    /** openItemKey = bukrs-belnr-gjahr-buzei */
+    private String openItemKey;
     private String bukrs;
     private String belnr;
     private String gjahr;
     private String buzei;
-    private String itemType;
+    /** AR|AP */
+    private String type;
     private LocalDate dueDate;
-    private BigDecimal openAmount;
+    private BigDecimal amount;
     private String currency;
-    private Boolean cleared;
-    private Boolean paymentBlock;
+    /** OPEN|PARTIALLY_CLEARED|CLEARED */
+    private String status;
+    private Integer daysPastDue;
     private Boolean disputeFlag;
+    private Boolean paymentBlock;
+    private String blockReason;
+    private String recommendedAction;
+    /** ALLOWED|APPROVAL_REQUIRED|BLOCKED */
+    private String guardrailStatus;
     private Instant lastChangeTs;
     private Long partyId;
-    private String docLinkKey;  // "{bukrs}-{belnr}-{gjahr}"
+    private String partyName;
+    /** docKey = bukrs-belnr-gjahr */
+    private String docKey;
 }

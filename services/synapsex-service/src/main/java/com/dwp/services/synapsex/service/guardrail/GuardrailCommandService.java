@@ -34,7 +34,7 @@ public class GuardrailCommandService {
                 .build();
         g = policyGuardrailRepository.save(g);
 
-        auditWriter.log(tenantId, AuditEventConstants.CATEGORY_POLICY, AuditEventConstants.TYPE_CREATE,
+        auditWriter.log(tenantId, AuditEventConstants.CATEGORY_POLICY, AuditEventConstants.TYPE_GUARDRAIL_CHANGE,
                 "POLICY_GUARDRAIL", String.valueOf(g.getGuardrailId()),
                 AuditEventConstants.ACTOR_HUMAN, actorUserId, null, null, AuditEventConstants.CHANNEL_API,
                 AuditEventConstants.OUTCOME_SUCCESS, AuditEventConstants.SEVERITY_INFO,
@@ -73,7 +73,7 @@ public class GuardrailCommandService {
         after.put("scope", g.getScope());
         after.put("isEnabled", g.getIsEnabled());
 
-        auditWriter.log(tenantId, AuditEventConstants.CATEGORY_POLICY, AuditEventConstants.TYPE_UPDATE,
+        auditWriter.log(tenantId, AuditEventConstants.CATEGORY_POLICY, AuditEventConstants.TYPE_GUARDRAIL_CHANGE,
                 "POLICY_GUARDRAIL", String.valueOf(guardrailId),
                 AuditEventConstants.ACTOR_HUMAN, actorUserId, null, null, AuditEventConstants.CHANNEL_API,
                 AuditEventConstants.OUTCOME_SUCCESS, AuditEventConstants.SEVERITY_INFO,
@@ -98,7 +98,7 @@ public class GuardrailCommandService {
 
         policyGuardrailRepository.delete(g);
 
-        auditWriter.log(tenantId, AuditEventConstants.CATEGORY_POLICY, AuditEventConstants.TYPE_DELETE,
+        auditWriter.log(tenantId, AuditEventConstants.CATEGORY_POLICY, AuditEventConstants.TYPE_GUARDRAIL_CHANGE,
                 "POLICY_GUARDRAIL", String.valueOf(guardrailId),
                 AuditEventConstants.ACTOR_HUMAN, actorUserId, null, null, AuditEventConstants.CHANNEL_API,
                 AuditEventConstants.OUTCOME_SUCCESS, AuditEventConstants.SEVERITY_INFO,

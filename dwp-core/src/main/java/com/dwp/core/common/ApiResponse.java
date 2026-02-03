@@ -48,6 +48,27 @@ public class ApiResponse<T> {
     @JsonProperty("agentMetadata")
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private AgentMetadata agentMetadata;
+
+    /**
+     * 추적 ID (에러 시 필수 포함, 운영 추적용)
+     */
+    @JsonProperty("traceId")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String traceId;
+
+    /**
+     * Gateway 요청 ID (멱등성/중복 요청 추적)
+     */
+    @JsonProperty("gatewayRequestId")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String gatewayRequestId;
+
+    /**
+     * Audit ID (Action 실패 시 FE "Audit 상세 보기" 링크용)
+     */
+    @JsonProperty("auditId")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String auditId;
     
     // 성공 응답 생성 메서드
     public static <T> ApiResponse<T> success(T data) {
@@ -121,6 +142,42 @@ public class ApiResponse<T> {
                 .errorCode(errorCode)
                 .success(false)
                 .timestamp(LocalDateTime.now())
+                .build();
+    }
+
+    /**
+     * traceId/gatewayRequestId 포함 에러 (운영 추적용)
+     */
+    public static <T> ApiResponse<T> error(ErrorCode errorCode, String customMessage, String traceId, String gatewayRequestId) {
+        return ApiResponse.<T>builder()
+                .status("ERROR")
+                .message(customMessage)
+                .errorCode(errorCode.getCode())
+                .success(false)
+                .timestamp(LocalDateTime.now())
+                .traceId(traceId)
+                .gatewayRequestId(gatewayRequestId)
+                .build();
+    }
+
+    public static <T> ApiResponse<T> error(ErrorCode errorCode, String traceId, String gatewayRequestId) {
+        return error(errorCode, errorCode.getMessage(), traceId, gatewayRequestId);
+    }
+
+    /**
+     * auditId 포함 에러 (Action simulate/approve/execute 실패 시 FE Audit 링크용)
+     */
+    public static <T> ApiResponse<T> error(ErrorCode errorCode, String customMessage,
+                                            String auditId, String traceId, String gatewayRequestId) {
+        return ApiResponse.<T>builder()
+                .status("ERROR")
+                .message(customMessage)
+                .errorCode(errorCode.getCode())
+                .success(false)
+                .timestamp(LocalDateTime.now())
+                .auditId(auditId)
+                .traceId(traceId)
+                .gatewayRequestId(gatewayRequestId)
                 .build();
     }
 }

@@ -87,6 +87,14 @@ public class ArchiveQueryService {
         return PageResponse.of(rows, total, page, size);
     }
 
+    @Transactional(readOnly = true)
+    public Optional<ArchiveListRowDto> findArchivedActionDetail(Long tenantId, Long actionId) {
+        return agentActionRepository.findById(actionId)
+                .filter(a -> tenantId.equals(a.getTenantId()))
+                .filter(a -> java.util.Set.of("EXECUTED", "FAILED", "CANCELED", "SUCCESS").contains(a.getStatus()))
+                .map(a -> toArchiveRow(tenantId, a));
+    }
+
     private ArchiveListRowDto toArchiveRow(Long tenantId, AgentAction action) {
         String outcome = "EXECUTED".equals(action.getStatus()) || "SUCCESS".equals(action.getStatus()) ? "SUCCESS"
                 : "FAILED".equals(action.getStatus()) ? "FAILED" : action.getStatus();

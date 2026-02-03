@@ -122,6 +122,10 @@ public class ActionCommandService {
                 .filter(a -> tenantId.equals(a.getTenantId()))
                 .orElseThrow(() -> new IllegalArgumentException("Action not found: " + actionId));
 
+        if (!"APPROVED".equals(action.getStatus())) {
+            throw new IllegalStateException("Only APPROVED actions can be executed. Current status: " + action.getStatus());
+        }
+
         String oldStatus = action.getStatus();
         action.setStatus("EXECUTING");
         action.setUpdatedAt(Instant.now());
@@ -151,6 +155,39 @@ public class ActionCommandService {
                     ipAddress, userAgent, gatewayRequestId);
             throw e;
         }
+        return action;
+    }
+
+    @Transactional
+    public AgentAction rejectAction(Long tenantId, Long actionId, Long actorUserId,
+                                    String ipAddress, String userAgent, String gatewayRequestId) {
+        AgentAction action = agentActionRepository.findById(actionId)
+                .filter(a -> tenantId.equals(a.getTenantId()))
+                .orElseThrow(() -> new IllegalArgumentException("Action not found: " + actionId));
+
+        String oldStatus = action.getStatus();
+        action.setStatus("CANCELED");
+        action.setUpdatedAt(Instant.now());
+        action = agentActionRepository.save(action);
+
+        auditWriter.logActionEvent(tenantId, AuditEventConstants.TYPE_REJECT, actionId, action.getCaseId(),
+                actorUserId, AuditEventConstants.OUTCOME_SUCCESS,
+                Map.of("status", oldStatus), Map.of("status", "CANCELED"),
+                ipAddress, userAgent, gatewayRequestId);
+        return action;
+    }
+
+    @Transactional
+    public AgentAction requestInfo(Long tenantId, Long actionId, Long actorUserId,
+                                   String ipAddress, String userAgent, String gatewayRequestId) {
+        AgentAction action = agentActionRepository.findById(actionId)
+                .filter(a -> tenantId.equals(a.getTenantId()))
+                .orElseThrow(() -> new IllegalArgumentException("Action not found: " + actionId));
+
+        auditWriter.logActionEvent(tenantId, AuditEventConstants.TYPE_REQUEST_INFO, actionId, action.getCaseId(),
+                actorUserId, AuditEventConstants.OUTCOME_SUCCESS,
+                Map.of("actionId", actionId), Map.of("requested", "REQUEST_INFO"),
+                ipAddress, userAgent, gatewayRequestId);
         return action;
     }
 }

@@ -2,12 +2,15 @@ package com.dwp.services.synapsex.service.entity;
 
 import com.dwp.services.synapsex.dto.common.PageResponse;
 import com.dwp.services.synapsex.dto.entity.Entity360Dto;
+import com.dwp.services.synapsex.dto.entity.EntityChangeLogDto;
 import com.dwp.services.synapsex.dto.entity.EntityListRowDto;
 import com.dwp.services.synapsex.entity.*;
 import com.dwp.services.synapsex.repository.*;
+import com.dwp.services.synapsex.scope.TenantScopeResolver;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.types.OrderSpecifier;
+import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +37,7 @@ public class EntityQueryService {
     private final FiDocHeaderRepository fiDocHeaderRepository;
     private final AgentCaseRepository agentCaseRepository;
     private final SapChangeLogRepository sapChangeLogRepository;
+    private final TenantScopeResolver tenantScopeResolver;
 
     private static final QBpParty p = QBpParty.bpParty;
     private static final QAgentCase ac = QAgentCase.agentCase;
@@ -47,11 +51,27 @@ public class EntityQueryService {
         if (query.getType() != null && !query.getType().isBlank()) {
             predicate.and(p.partyType.eq(query.getType().toUpperCase()));
         }
+        Set<String> allowedBukrs = tenantScopeResolver.resolveEnabledBukrs(tenantId);
+        if (allowedBukrs.isEmpty()) {
+            predicate.and(p.partyId.eq(-1L));
+        } else {
+            Set<String> bukrsFilter = query.getBukrs() != null && !query.getBukrs().isBlank()
+                    ? (allowedBukrs.contains(query.getBukrs().toUpperCase()) ? Set.of(query.getBukrs().toUpperCase()) : Set.<String>of())
+                    : allowedBukrs;
+            if (bukrsFilter.isEmpty()) {
+                predicate.and(p.partyId.eq(-1L));
+            } else {
+                predicate.and(JPAExpressions.selectOne().from(fi)
+                        .where(fi.tenantId.eq(tenantId), fi.bukrs.in(bukrsFilter),
+                                fi.lifnr.eq(p.partyCode).or(fi.kunnr.eq(p.partyCode)))
+                        .exists());
+            }
+        }
         if (query.getCountry() != null && !query.getCountry().isBlank()) {
             predicate.and(p.country.eq(query.getCountry()));
         }
         if (query.getQ() != null && !query.getQ().isBlank()) {
-            String q = "%" + query.getQ().trim() + "%";
+            String q = query.getQ().trim();
             predicate.and(p.nameDisplay.containsIgnoreCase(q).or(p.partyCode.containsIgnoreCase(q)));
         }
 
@@ -101,23 +121,37 @@ public class EntityQueryService {
 
     private List<EntityListRowDto> buildEntityListRows(Long tenantId, List<BpParty> parties) {
         List<EntityListRowDto> rows = new ArrayList<>();
+        LocalDate now = LocalDate.now();
         for (BpParty party : parties) {
             List<FiOpenItem> openItems = getOpenItemsForParty(tenantId, party);
+            List<FiOpenItem> notCleared = openItems.stream().filter(oi -> !Boolean.TRUE.equals(oi.getCleared())).toList();
             BigDecimal totalOpen = openItems.stream()
                     .map(FiOpenItem::getOpenAmount)
                     .filter(Objects::nonNull)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
-            double riskScore = computeRiskScore(party, openItems.size(), tenantId);
+            long overdueCount = notCleared.stream()
+                    .filter(oi -> oi.getDueDate() != null && oi.getDueDate().isBefore(now))
+                    .count();
+            BigDecimal overdueTotal = notCleared.stream()
+                    .filter(oi -> oi.getDueDate() != null && oi.getDueDate().isBefore(now))
+                    .map(FiOpenItem::getOpenAmount)
+                    .filter(Objects::nonNull)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            List<AgentCase> cases = findCasesForParty(tenantId, party);
+            double riskScore = Math.min(100, computeRiskScore(party, openItems.size(), tenantId));
             rows.add(EntityListRowDto.builder()
                     .partyId(party.getPartyId())
-                    .partyType(party.getPartyType())
-                    .partyCode(party.getPartyCode())
-                    .nameDisplay(party.getNameDisplay())
+                    .type(party.getPartyType())
+                    .name(party.getNameDisplay())
                     .country(party.getCountry())
                     .riskScore(riskScore)
+                    .riskTrend("STABLE")
                     .openItemsCount(openItems.size())
-                    .totalOpenAmount(totalOpen)
-                    .lastChangeTs(party.getLastChangeTs())
+                    .openItemsTotal(totalOpen)
+                    .overdueCount((int) overdueCount)
+                    .overdueTotal(overdueTotal)
+                    .recentAnomaliesCount(cases.size())
+                    .lastChangedAt(party.getLastChangeTs())
                     .build());
         }
         return rows;
@@ -162,6 +196,30 @@ public class EntityQueryService {
                 .where(ac.tenantId.eq(tenantId), partyMatch)
                 .distinct()
                 .fetch();
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<EntityChangeLogDto> findChangeLogs(Long tenantId, Long partyId, int page, int size) {
+        return bpPartyRepository.findById(partyId)
+                .filter(p -> tenantId.equals(p.getTenantId()))
+                .map(party -> {
+                    var logs = sapChangeLogRepository.findByTenantIdAndObjectidOrderByUdateDescUtimeDesc(
+                            tenantId, party.getPartyCode(), PageRequest.of(page, size));
+                    long total = sapChangeLogRepository.countByTenantIdAndObjectid(tenantId, party.getPartyCode());
+                    var rows = logs.stream()
+                            .map(cl -> EntityChangeLogDto.builder()
+                                    .changenr(cl.getChangenr())
+                                    .udate(cl.getUdate() != null ? cl.getUdate().toString() : null)
+                                    .utime(cl.getUtime() != null ? cl.getUtime().toString() : null)
+                                    .tabname(cl.getTabname())
+                                    .fname(cl.getFname())
+                                    .valueOld(cl.getValueOld())
+                                    .valueNew(cl.getValueNew())
+                                    .build())
+                            .toList();
+                    return PageResponse.of(rows, total, page, size);
+                })
+                .orElse(PageResponse.of(List.of(), 0, page, size));
     }
 
     @Transactional(readOnly = true)
@@ -280,6 +338,7 @@ public class EntityQueryService {
     @lombok.AllArgsConstructor
     public static class EntityListQuery {
         private String type;
+        private String bukrs;
         private String country;
         private Double riskMin;
         private Double riskMax;

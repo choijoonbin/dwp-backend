@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 import java.util.List;
 
 /**
- * B2) GET /open-items/{bukrs}/{belnr}/{gjahr}/{buzei} 응답
+ * B2) GET /open-items/{openItemKey} 응답 (clearing history 포함)
  */
 @Data
 @Builder
@@ -16,6 +16,7 @@ import java.util.List;
 @AllArgsConstructor
 public class OpenItemDetailDto {
 
+    private String openItemKey;
     private String bukrs;
     private String belnr;
     private String gjahr;
@@ -31,6 +32,7 @@ public class OpenItemDetailDto {
     private DocHeaderSummaryDto docHeaderSummary;
     private PartySummaryDto partySummary;
     private List<RelatedCaseDto> relatedCases;
+    private List<ClearingHistoryDto> clearingHistory;
 
     @Data
     @Builder
@@ -65,5 +67,15 @@ public class OpenItemDetailDto {
         private String caseType;
         private String severity;
         private String detectedAt;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ClearingHistoryDto {
+        private String clearingDocKey;
+        private String clearingDate;
+        private String clearedAmount;
     }
 }

@@ -28,6 +28,7 @@ public class CaseListRowDto {
     private List<String> docKeys;
     private PartySummaryDto partySummary;
     private int relatedActionsCount;
+    private Long assigneeUserId;
 
     @Data
     @Builder

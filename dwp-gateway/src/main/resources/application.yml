@@ -142,6 +142,19 @@ spring:
             - Path=/api/synapse/analytics/**
           filters:
             - StripPrefix=1
+        - id: synapsex-optimization
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/optimization/**
+          filters:
+            - StripPrefix=1
+        # Agent Tool API (Aura 호출용) - /api/synapse/agent-tools/**
+        - id: synapsex-agent-tools
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/agent-tools/**
+          filters:
+            - StripPrefix=1
         # Aura Platform (AI Agent) 라우팅 - Python
         # ⚠️ 중요: 프론트엔드는 반드시 Gateway(8080)를 통해 Aura-Platform과 통신해야 합니다.
         # 직접 Aura-Platform(9000)에 접근하는 것은 금지됩니다.

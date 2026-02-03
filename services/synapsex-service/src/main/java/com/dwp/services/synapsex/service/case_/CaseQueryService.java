@@ -2,9 +2,11 @@ package com.dwp.services.synapsex.service.case_;
 
 import com.dwp.services.synapsex.dto.case_.CaseDetailDto;
 import com.dwp.services.synapsex.dto.case_.CaseListRowDto;
+import com.dwp.services.synapsex.dto.case_.CaseTimelineDto;
 import com.dwp.services.synapsex.dto.common.PageResponse;
 import com.dwp.services.synapsex.entity.*;
 import com.dwp.services.synapsex.repository.*;
+import org.springframework.data.domain.PageRequest;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
@@ -33,6 +35,8 @@ public class CaseQueryService {
     private final FiDocItemRepository fiDocItemRepository;
     private final FiOpenItemRepository fiOpenItemRepository;
     private final BpPartyRepository bpPartyRepository;
+    private final CaseCommentRepository caseCommentRepository;
+    private final AuditEventLogRepository auditEventLogRepository;
 
     private static final QAgentCase c = QAgentCase.agentCase;
     private static final QFiDocItem fi = QFiDocItem.fiDocItem;
@@ -58,6 +62,12 @@ public class CaseQueryService {
         if (query.getDetectedTo() != null) {
             predicate.and(c.detectedAt.loe(query.getDetectedTo()));
         }
+        if (query.getAssigneeUserId() != null) {
+            predicate.and(c.assigneeUserId.eq(query.getAssigneeUserId()));
+        }
+        if (query.getCompanyCode() != null && !query.getCompanyCode().isBlank()) {
+            predicate.and(c.bukrs.eq(query.getCompanyCode()));
+        }
         if (query.getBukrs() != null && !query.getBukrs().isBlank()) {
             predicate.and(c.bukrs.eq(query.getBukrs()));
         }
@@ -69,6 +79,21 @@ public class CaseQueryService {
         }
         if (query.getBuzei() != null && !query.getBuzei().isBlank()) {
             predicate.and(c.buzei.eq(query.getBuzei()));
+        }
+        if (query.getDateFrom() != null) {
+            predicate.and(c.detectedAt.goe(query.getDateFrom()));
+        }
+        if (query.getDateTo() != null) {
+            predicate.and(c.detectedAt.loe(query.getDateTo()));
+        }
+        if (query.getSavedViewKey() != null && !query.getSavedViewKey().isBlank()) {
+            predicate.and(c.savedViewKey.eq(query.getSavedViewKey()));
+        }
+        if (query.getQ() != null && !query.getQ().isBlank()) {
+            String q = query.getQ().trim();
+            BooleanExpression qPred = c.belnr.containsIgnoreCase(q)
+                    .or(c.reasonText.containsIgnoreCase(q));
+            predicate.and(qPred);
         }
 
         OrderSpecifier<?> orderBy = c.detectedAt.desc();
@@ -151,6 +176,7 @@ public class CaseQueryService {
                     .docKeys(docKeys)
                     .partySummary(partySummary)
                     .relatedActionsCount(actionCount)
+                    .assigneeUserId(case_.getAssigneeUserId())
                     .build());
         }
         return rows;
@@ -222,6 +248,8 @@ public class CaseQueryService {
                         .build())
                 .build();
         return CaseDetailDto.builder()
+                .caseId(case_.getCaseId())
+                .status(case_.getStatus())
                 .evidence(evidence)
                 .reasoning(reasoning)
                 .action(action)
@@ -296,6 +324,44 @@ public class CaseQueryService {
         return resolvePartySummary(tenantId, case_) != null ? resolvePartySummary(tenantId, case_).getPartyId() : null;
     }
 
+    @Transactional(readOnly = true)
+    public List<CaseTimelineDto> findTimeline(Long tenantId, Long caseId, int page, int size) {
+        agentCaseRepository.findByCaseIdAndTenantId(caseId, tenantId)
+                .orElseThrow(() -> new IllegalArgumentException("Case not found: " + caseId));
+
+        List<CaseTimelineDto> timeline = new ArrayList<>();
+        var auditPage = PageRequest.of(0, 50);
+        List<AuditEventLog> audits = auditEventLogRepository.findByTenantIdAndResourceTypeAndResourceIdOrderByCreatedAtDesc(
+                tenantId, "AGENT_CASE", String.valueOf(caseId), auditPage);
+        for (AuditEventLog a : audits) {
+            timeline.add(CaseTimelineDto.builder()
+                    .eventId(a.getAuditId())
+                    .eventType(a.getEventType())
+                    .createdAt(a.getCreatedAt())
+                    .actorUserId(a.getActorUserId())
+                    .actorAgentId(a.getActorAgentId())
+                    .summary(a.getEventType())
+                    .detail(a.getDiffJson() != null ? a.getDiffJson() : a.getAfterJson())
+                    .build());
+        }
+        List<CaseComment> comments = caseCommentRepository.findByTenantIdAndCaseIdOrderByCreatedAtDesc(tenantId, caseId);
+        for (CaseComment cc : comments) {
+            timeline.add(CaseTimelineDto.builder()
+                    .eventId(cc.getCommentId())
+                    .eventType("COMMENT_CREATE")
+                    .createdAt(cc.getCreatedAt())
+                    .actorUserId(cc.getAuthorUserId())
+                    .actorAgentId(cc.getAuthorAgentId())
+                    .summary(cc.getCommentText().length() > 200 ? cc.getCommentText().substring(0, 200) + "..." : cc.getCommentText())
+                    .detail(Map.of("commentText", cc.getCommentText()))
+                    .build());
+        }
+        timeline.sort((a, b) -> b.getCreatedAt().compareTo(a.getCreatedAt()));
+        int from = page * size;
+        int to = Math.min(from + size, timeline.size());
+        return from < timeline.size() ? timeline.subList(from, to) : List.of();
+    }
+
     @lombok.Data
     @lombok.Builder
     @lombok.NoArgsConstructor
@@ -304,6 +370,11 @@ public class CaseQueryService {
         private String status;
         private String severity;
         private String caseType;
+        private Long assigneeUserId;
+        private String companyCode;  // bukrs
+        private String waers;
+        private Instant dateFrom;
+        private Instant dateTo;
         private Instant detectedFrom;
         private Instant detectedTo;
         private String bukrs;
@@ -311,6 +382,8 @@ public class CaseQueryService {
         private String gjahr;
         private String buzei;
         private Long partyId;
+        private String q;  // 전표번호/거래처명/키워드
+        private String savedViewKey;
         @lombok.Builder.Default
         private int page = 0;
         @lombok.Builder.Default

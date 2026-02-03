@@ -53,7 +53,7 @@ public class ThresholdCommandService {
         e.setUpdatedAt(now);
         e.setUpdatedBy(actorUserId);
         e = ruleThresholdRepository.save(e);
-        auditWriter.logAdminChange(tenantId, actorUserId, AuditEventConstants.TYPE_BULK_UPDATE, "rule_threshold", String.valueOf(e.getThresholdId()), null, null, null, null, null);
+        auditWriter.logAdminChange(tenantId, actorUserId, AuditEventConstants.TYPE_POLICY_CHANGE, "rule_threshold", String.valueOf(e.getThresholdId()), null, null, null, null, null);
         return ThresholdDto.from(e);
     }
 
@@ -62,7 +62,7 @@ public class ThresholdCommandService {
         RuleThreshold e = ruleThresholdRepository.findById(thresholdId)
                 .filter(x -> x.getTenantId().equals(tenantId))
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "한도 정책을 찾을 수 없습니다."));
-        auditWriter.logAdminChange(tenantId, null, AuditEventConstants.TYPE_DELETE, "rule_threshold", String.valueOf(thresholdId), null, null, null, null, null);
+        auditWriter.logAdminChange(tenantId, null, AuditEventConstants.TYPE_POLICY_CHANGE, "rule_threshold", String.valueOf(thresholdId), null, null, null, null, null);
         ruleThresholdRepository.delete(e);
     }
 }

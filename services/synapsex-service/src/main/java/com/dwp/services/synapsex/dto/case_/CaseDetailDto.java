@@ -18,6 +18,8 @@ import java.util.List;
 @AllArgsConstructor
 public class CaseDetailDto {
 
+    private Long caseId;
+    private String status;
     private EvidencePanelDto evidence;
     private ReasoningPanelDto reasoning;
     private ActionPanelDto action;

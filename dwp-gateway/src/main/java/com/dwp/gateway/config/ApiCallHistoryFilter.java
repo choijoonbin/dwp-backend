@@ -45,7 +45,23 @@ public class ApiCallHistoryFilter implements GlobalFilter, Ordered {
         final String traceId = (existingTraceId != null && !existingTraceId.trim().isEmpty()) 
                 ? existingTraceId 
                 : UUID.randomUUID().toString();
+        String gatewayRequestId = request.getHeaders().getFirst("X-Gateway-Request-Id");
+        if (gatewayRequestId == null || gatewayRequestId.isBlank()) {
+            gatewayRequestId = UUID.randomUUID().toString();
+        }
         exchange.getAttributes().put("traceId", traceId);
+        exchange.getAttributes().put("gatewayRequestId", gatewayRequestId);
+
+        // FE 요청: 응답 헤더에 X-Trace-Id, X-Gateway-Request-Id 포함 (DevErrorPanel 등)
+        exchange.getResponse().getHeaders().addIfAbsent("X-Trace-Id", traceId);
+        exchange.getResponse().getHeaders().addIfAbsent("X-Gateway-Request-Id", gatewayRequestId);
+        
+        // 다운스트림으로 X-Trace-Id, X-Gateway-Request-Id 전파 (에러 응답/멱등성용)
+        ServerHttpRequest mutatedRequest = request.mutate()
+                .header("X-Trace-Id", traceId)
+                .header("X-Gateway-Request-Id", gatewayRequestId)
+                .build();
+        ServerWebExchange mutatedExchange = exchange.mutate().request(mutatedRequest).build();
         
         // 컨텍스트 정보 추출 (로깅 추적성 강화)
         String tenantIdStr = request.getHeaders().getFirst("X-Tenant-ID");
@@ -55,7 +71,7 @@ public class ApiCallHistoryFilter implements GlobalFilter, Ordered {
         
         // Reactive Context에 컨텍스트 정보 설정 (로깅 추적성 강화)
         // Reactive 환경에서는 Context를 통해 전파 (MDC는 Thread-local이므로 제한적)
-        return chain.filter(exchange)
+        return chain.filter(mutatedExchange)
                 .contextWrite(Context.of(
                         "traceId", traceId,
                         "tenantId", tenantIdStr != null ? tenantIdStr : "",

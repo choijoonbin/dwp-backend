@@ -51,6 +51,18 @@ public class HeaderConstants {
      * X-DWP-Source와 유사하지만, 더 구체적으로 에이전트 호출을 식별합니다.
      */
     public static final String X_DWP_CALLER_TYPE = "X-DWP-Caller-Type";
+
+    /**
+     * 추적 ID (Gateway 생성 또는 클라이언트 전달)
+     * 에러 응답에 traceId 포함 시 클라이언트/Sentry 연동용
+     */
+    public static final String X_TRACE_ID = "X-Trace-Id";
+
+    /**
+     * Gateway 요청 ID (멱등성 키로 사용 가능)
+     * simulate/execute 중복 실행 차단용
+     */
+    public static final String X_GATEWAY_REQUEST_ID = "X-Gateway-Request-Id";
     
     // ========================================
     // 호출자 타입 값

@@ -27,6 +27,7 @@ public enum ErrorCode {
     // 비즈니스 로직 에러 (3000번대)
     ENTITY_NOT_FOUND(HttpStatus.NOT_FOUND, "E3000", "엔티티를 찾을 수 없습니다."),
     DUPLICATE_ENTITY(HttpStatus.CONFLICT, "E3001", "이미 존재하는 엔티티입니다."),
+    IDEMPOTENCY_CONFLICT(HttpStatus.CONFLICT, "E3006", "동일 요청이 이미 처리되었습니다."),
     INVALID_STATE(HttpStatus.BAD_REQUEST, "E3002", "잘못된 상태입니다."),
     ROLE_IN_USE(HttpStatus.CONFLICT, "E3003", "역할이 사용 중입니다. 멤버나 권한을 먼저 제거해주세요."),
     RESOURCE_KEY_DUPLICATED(HttpStatus.CONFLICT, "E3004", "이미 존재하는 리소스 키입니다."),

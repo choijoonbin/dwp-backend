@@ -11,4 +11,6 @@ public interface SapChangeLogRepository extends JpaRepository<SapChangeLog, SapC
 
     List<SapChangeLog> findByTenantIdAndObjectidOrderByUdateDescUtimeDesc(
             Long tenantId, String objectid, Pageable pageable);
+
+    long countByTenantIdAndObjectid(Long tenantId, String objectid);
 }

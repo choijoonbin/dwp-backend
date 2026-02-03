@@ -142,8 +142,8 @@ class Phase1ReadApiIntegrationTest {
                     .belnr("1900000001")
                     .gjahr("2024")
                     .buzei("001")
-                    .docLinkKey("1000-1900000001-2024")
-                    .openAmount(BigDecimal.TEN)
+                    .openItemKey("1000-1900000001-2024-001")
+                    .amount(BigDecimal.TEN)
                     .build();
             var pageResponse = PageResponse.of(List.of(row), 1L, 0, 20);
 
@@ -194,9 +194,8 @@ class Phase1ReadApiIntegrationTest {
         void getEntities_returnsPageResponse() throws Exception {
             var row = EntityListRowDto.builder()
                     .partyId(100L)
-                    .partyType("VENDOR")
-                    .partyCode("V001")
-                    .nameDisplay("Test Vendor")
+                    .type("VENDOR")
+                    .name("Test Vendor")
                     .riskScore(0.5)
                     .openItemsCount(2)
                     .build();
@@ -208,7 +207,7 @@ class Phase1ReadApiIntegrationTest {
                             .header("X-Tenant-ID", TENANT_ID.toString()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.items[0].partyId").value(100))
-                    .andExpect(jsonPath("$.data.items[0].partyCode").value("V001"))
+                    .andExpect(jsonPath("$.data.items[0].name").value("Test Vendor"))
                     .andExpect(jsonPath("$.data.pageInfo").exists());
 
             verify(entityQueryService).findEntities(eq(TENANT_ID), any());

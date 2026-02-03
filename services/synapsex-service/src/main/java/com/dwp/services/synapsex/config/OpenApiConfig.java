@@ -4,6 +4,7 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.servers.Server;
+import io.swagger.v3.oas.models.tags.Tag;
 import org.springdoc.core.models.GroupedOpenApi;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -29,7 +30,14 @@ public class OpenApiConfig {
                         .version("1.0")
                         .contact(new Contact().name("DWP Backend")))
                 .servers(List.of(
-                        new Server().url("/").description("Gateway(8080) 또는 Direct(8085)")));
+                        new Server().url("/").description("Gateway(8080) 또는 Direct(8085)")))
+                .tags(List.of(
+                        new Tag().name("synapse-operations").description("Cases, Actions, Anomalies"),
+                        new Tag().name("synapse-data").description("Documents, OpenItems, Entities"),
+                        new Tag().name("synapse-knowledge").description("RAG, Dictionary, Policies, Guardrails"),
+                        new Tag().name("synapse-reporting").description("Reconciliation, Analytics, Audit"),
+                        new Tag().name("synapse-admin").description("Admin, Tenant Scope, PII"),
+                        new Tag().name("synapse-audit").description("Audit Events, Export")));
     }
 
     @Bean

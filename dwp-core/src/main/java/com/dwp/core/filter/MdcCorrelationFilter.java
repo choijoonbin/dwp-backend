@@ -20,7 +20,11 @@ public class MdcCorrelationFilter implements Filter {
 
     private static final Logger log = LoggerFactory.getLogger(MdcCorrelationFilter.class);
     private static final String CORRELATION_ID_HEADER = "X-Correlation-ID";
+    private static final String TRACE_ID_HEADER = "X-Trace-Id";
+    private static final String GATEWAY_REQUEST_ID_HEADER = "X-Gateway-Request-Id";
     private static final String MDC_CORRELATION_ID = "correlationId";
+    private static final String MDC_TRACE_ID = "traceId";
+    private static final String MDC_GATEWAY_REQUEST_ID = "gatewayRequestId";
     private static final String MDC_TENANT_ID = "tenantId";
     private static final String MDC_USER_ID = "userId";
     private static final String MDC_AGENT_ID = "agentId";
@@ -34,6 +38,16 @@ public class MdcCorrelationFilter implements Filter {
                 String correlationId = httpRequest.getHeader(CORRELATION_ID_HEADER);
                 if (correlationId != null) {
                     MDC.put(MDC_CORRELATION_ID, correlationId);
+                }
+                // Trace ID (에러 응답/운영 추적)
+                String traceId = httpRequest.getHeader(TRACE_ID_HEADER);
+                if (traceId != null) {
+                    MDC.put(MDC_TRACE_ID, traceId);
+                }
+                // Gateway Request ID (멱등성)
+                String gatewayRequestId = httpRequest.getHeader(GATEWAY_REQUEST_ID_HEADER);
+                if (gatewayRequestId != null) {
+                    MDC.put(MDC_GATEWAY_REQUEST_ID, gatewayRequestId);
                 }
 
                 // Tenant/User/Agent ID (추가 컨텍스트)
@@ -56,6 +70,8 @@ public class MdcCorrelationFilter implements Filter {
             } finally {
                 // MDC 정리 (메모리 누수 방지)
                 MDC.remove(MDC_CORRELATION_ID);
+                MDC.remove(MDC_TRACE_ID);
+                MDC.remove(MDC_GATEWAY_REQUEST_ID);
                 MDC.remove(MDC_TENANT_ID);
                 MDC.remove(MDC_USER_ID);
                 MDC.remove(MDC_AGENT_ID);

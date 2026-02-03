@@ -5,8 +5,11 @@ import com.dwp.services.synapsex.dto.openitem.OpenItemDetailDto;
 import com.dwp.services.synapsex.dto.openitem.OpenItemListRowDto;
 import com.dwp.services.synapsex.entity.*;
 import com.dwp.services.synapsex.repository.*;
+import com.dwp.services.synapsex.scope.TenantScopeResolver;
+import com.dwp.services.synapsex.util.OpenItemKeyUtil;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.types.OrderSpecifier;
+import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,19 +17,24 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class OpenItemQueryService {
 
+    private static final QFiDocHeader h = QFiDocHeader.fiDocHeader;
+
     private final JPAQueryFactory queryFactory;
     private final FiOpenItemRepository fiOpenItemRepository;
     private final FiDocHeaderRepository fiDocHeaderRepository;
     private final BpPartyRepository bpPartyRepository;
     private final AgentCaseRepository agentCaseRepository;
+    private final TenantScopeResolver tenantScopeResolver;
 
     private static final QFiOpenItem oi = QFiOpenItem.fiOpenItem;
 
@@ -35,12 +43,32 @@ public class OpenItemQueryService {
         BooleanBuilder predicate = new BooleanBuilder();
         predicate.and(oi.tenantId.eq(tenantId));
 
-        if (query.getDueFrom() != null) {
-            predicate.and(oi.dueDate.goe(query.getDueFrom()));
+        Set<String> allowedBukrs = tenantScopeResolver.resolveEnabledBukrs(tenantId);
+        if (query.getBukrs() != null && !query.getBukrs().isBlank()) {
+            String bukrs = query.getBukrs().toUpperCase();
+            if (allowedBukrs.isEmpty() || allowedBukrs.contains(bukrs)) {
+                predicate.and(oi.bukrs.eq(bukrs));
+            } else {
+                predicate.and(oi.bukrs.eq("__SCOPE_EXCLUDED__"));
+            }
+        } else if (!allowedBukrs.isEmpty()) {
+            predicate.and(oi.bukrs.in(allowedBukrs));
         }
-        if (query.getDueTo() != null) {
-            predicate.and(oi.dueDate.loe(query.getDueTo()));
+
+        LocalDate fromDue = query.getFromDueDate() != null ? query.getFromDueDate() : query.getDueFrom();
+        LocalDate toDue = query.getToDueDate() != null ? query.getToDueDate() : query.getDueTo();
+        if (fromDue != null) predicate.and(oi.dueDate.goe(fromDue));
+        if (toDue != null) predicate.and(oi.dueDate.loe(toDue));
+
+        if (query.getDaysPastDueMin() != null) {
+            LocalDate minDate = LocalDate.now().minusDays(query.getDaysPastDueMin());
+            predicate.and(oi.dueDate.loe(minDate));
         }
+        if (query.getDaysPastDueMax() != null) {
+            LocalDate maxDate = LocalDate.now().minusDays(query.getDaysPastDueMax());
+            predicate.and(oi.dueDate.goe(maxDate));
+        }
+
         if (query.getCleared() != null) {
             predicate.and(oi.cleared.eq(query.getCleared()));
         }
@@ -50,11 +78,15 @@ public class OpenItemQueryService {
         if (query.getDisputeFlag() != null) {
             predicate.and(oi.disputeFlag.eq(query.getDisputeFlag()));
         }
-        if (query.getItemType() != null && !query.getItemType().isBlank()) {
+        if (query.getType() != null && !query.getType().isBlank()) {
+            predicate.and(oi.itemType.eq(query.getType().toUpperCase()));
+        } else if (query.getItemType() != null && !query.getItemType().isBlank()) {
             predicate.and(oi.itemType.eq(query.getItemType().toUpperCase()));
         }
-        if (query.getBukrs() != null && !query.getBukrs().isBlank()) {
-            predicate.and(oi.bukrs.eq(query.getBukrs().toUpperCase()));
+        if (query.getStatus() != null && !query.getStatus().isBlank()) {
+            String status = query.getStatus().toUpperCase();
+            if ("CLEARED".equals(status)) predicate.and(oi.cleared.eq(true));
+            else if ("OPEN".equals(status) || "PARTIALLY_CLEARED".equals(status)) predicate.and(oi.cleared.eq(false));
         }
         if (query.getPartyId() != null) {
             BpParty party = bpPartyRepository.findById(query.getPartyId()).orElse(null);
@@ -75,6 +107,19 @@ public class OpenItemQueryService {
         if (query.getKunnr() != null && !query.getKunnr().isBlank()) {
             predicate.and(oi.kunnr.eq(query.getKunnr()));
         }
+        if (query.getQ() != null && !query.getQ().isBlank()) {
+            String q = query.getQ().trim();
+            predicate.and(
+                    oi.lifnr.containsIgnoreCase(q)
+                            .or(oi.kunnr.containsIgnoreCase(q))
+                            .or(JPAExpressions.selectOne().from(h)
+                                    .where(h.tenantId.eq(tenantId)
+                                            .and(h.bukrs.eq(oi.bukrs))
+                                            .and(h.belnr.eq(oi.belnr))
+                                            .and(h.gjahr.eq(oi.gjahr))
+                                            .and(h.xblnr.containsIgnoreCase(q)))
+                                    .exists()));
+        }
 
         OrderSpecifier<?> orderBy = oi.lastUpdateTs.desc();
         if (query.getSort() != null && !query.getSort().isBlank()) {
@@ -83,7 +128,7 @@ public class OpenItemQueryService {
             boolean asc = parts.length < 2 || !"desc".equalsIgnoreCase(parts[1].trim());
             orderBy = switch (prop.toLowerCase()) {
                 case "duedate" -> asc ? oi.dueDate.asc() : oi.dueDate.desc();
-                case "openamount" -> asc ? oi.openAmount.asc() : oi.openAmount.desc();
+                case "openamount", "amount" -> asc ? oi.openAmount.asc() : oi.openAmount.desc();
                 default -> asc ? oi.lastUpdateTs.asc() : oi.lastUpdateTs.desc();
             };
         }
@@ -103,28 +148,46 @@ public class OpenItemQueryService {
                 .fetchCount();
 
         List<OpenItemListRowDto> rows = items.stream()
-                .map(item -> {
-                    Long partyId = resolvePartyId(tenantId, item.getLifnr(), item.getKunnr(), item.getItemType());
-                    return OpenItemListRowDto.builder()
-                            .bukrs(item.getBukrs())
-                            .belnr(item.getBelnr())
-                            .gjahr(item.getGjahr())
-                            .buzei(item.getBuzei())
-                            .itemType(item.getItemType())
-                            .dueDate(item.getDueDate())
-                            .openAmount(item.getOpenAmount())
-                            .currency(item.getCurrency())
-                            .cleared(item.getCleared())
-                            .paymentBlock(item.getPaymentBlock())
-                            .disputeFlag(item.getDisputeFlag())
-                            .lastChangeTs(item.getLastChangeTs())
-                            .partyId(partyId)
-                            .docLinkKey(item.getBukrs() + "-" + item.getBelnr() + "-" + item.getGjahr())
-                            .build();
-                })
+                .map(item -> buildOpenItemListRow(tenantId, item))
                 .toList();
 
         return PageResponse.of(rows, total, page, size);
+    }
+
+    private OpenItemListRowDto buildOpenItemListRow(Long tenantId, FiOpenItem item) {
+        Long partyId = resolvePartyId(tenantId, item.getLifnr(), item.getKunnr(), item.getItemType());
+        String partyName = null;
+        if (partyId != null) {
+            partyName = bpPartyRepository.findById(partyId).map(BpParty::getNameDisplay).orElse(null);
+        }
+        String status = Boolean.TRUE.equals(item.getCleared()) ? "CLEARED" : "OPEN";
+        Integer daysPastDue = item.getDueDate() != null && item.getDueDate().isBefore(LocalDate.now())
+                ? (int) ChronoUnit.DAYS.between(item.getDueDate(), LocalDate.now()) : null;
+        String openItemKey = OpenItemKeyUtil.format(item.getBukrs(), item.getBelnr(), item.getGjahr(), item.getBuzei());
+        String docKey = item.getBukrs() + "-" + item.getBelnr() + "-" + item.getGjahr();
+
+        return OpenItemListRowDto.builder()
+                .openItemKey(openItemKey)
+                .bukrs(item.getBukrs())
+                .belnr(item.getBelnr())
+                .gjahr(item.getGjahr())
+                .buzei(item.getBuzei())
+                .type(item.getItemType())
+                .dueDate(item.getDueDate())
+                .amount(item.getOpenAmount())
+                .currency(item.getCurrency())
+                .status(status)
+                .daysPastDue(daysPastDue)
+                .disputeFlag(item.getDisputeFlag())
+                .paymentBlock(item.getPaymentBlock())
+                .blockReason(null)
+                .recommendedAction(null)
+                .guardrailStatus("ALLOWED")
+                .lastChangeTs(item.getLastChangeTs())
+                .partyId(partyId)
+                .partyName(partyName)
+                .docKey(docKey)
+                .build();
     }
 
     private Long resolvePartyId(Long tenantId, String lifnr, String kunnr, String itemType) {
@@ -147,14 +210,23 @@ public class OpenItemQueryService {
                 .map(item -> buildOpenItemDetail(tenantId, item));
     }
 
+    @Transactional(readOnly = true)
+    public Optional<OpenItemDetailDto> findOpenItemDetailByOpenItemKey(Long tenantId, String openItemKey) {
+        OpenItemKeyUtil.ParsedOpenItemKey parsed = OpenItemKeyUtil.parse(openItemKey);
+        if (parsed == null) return Optional.empty();
+        return findOpenItemDetail(tenantId, parsed.getBukrs(), parsed.getBelnr(), parsed.getGjahr(), parsed.getBuzei());
+    }
+
     private OpenItemDetailDto buildOpenItemDetail(Long tenantId, FiOpenItem item) {
         var docHeader = fiDocHeaderRepository.findByTenantIdAndBukrsAndBelnrAndGjahr(
                 tenantId, item.getBukrs(), item.getBelnr(), item.getGjahr());
         var party = resolveParty(tenantId, item.getLifnr(), item.getKunnr());
         var cases = agentCaseRepository.findByTenantIdAndBukrsAndBelnrAndGjahrAndBuzei(
                 tenantId, item.getBukrs(), item.getBelnr(), item.getGjahr(), item.getBuzei());
+        String openItemKey = OpenItemKeyUtil.format(item.getBukrs(), item.getBelnr(), item.getGjahr(), item.getBuzei());
 
         return OpenItemDetailDto.builder()
+                .openItemKey(openItemKey)
                 .bukrs(item.getBukrs())
                 .belnr(item.getBelnr())
                 .gjahr(item.getGjahr())
@@ -189,6 +261,7 @@ public class OpenItemQueryService {
                                 .detectedAt(c.getDetectedAt() != null ? c.getDetectedAt().toString() : null)
                                 .build())
                         .toList())
+                .clearingHistory(List.of())
                 .build();
     }
 
@@ -209,14 +282,21 @@ public class OpenItemQueryService {
     public static class OpenItemListQuery {
         private LocalDate dueFrom;
         private LocalDate dueTo;
+        private LocalDate fromDueDate;
+        private LocalDate toDueDate;
+        private Integer daysPastDueMin;
+        private Integer daysPastDueMax;
         private Boolean cleared;
         private Boolean paymentBlock;
         private Boolean disputeFlag;
         private String itemType;
+        private String type;
+        private String status;
         private String bukrs;
         private Long partyId;
         private String lifnr;
         private String kunnr;
+        private String q;
         @lombok.Builder.Default
         private int page = 0;
         @lombok.Builder.Default

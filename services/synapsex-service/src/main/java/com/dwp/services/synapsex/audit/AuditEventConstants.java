@@ -18,6 +18,33 @@ public final class AuditEventConstants {
 
     /** event_type - Case */
     public static final String TYPE_STATUS_CHANGE = "STATUS_CHANGE";
+    public static final String TYPE_VIEW_LIST = "CASE_VIEW_LIST";
+    public static final String TYPE_VIEW_DETAIL = "CASE_VIEW_DETAIL";
+    public static final String TYPE_ASSIGN = "CASE_ASSIGN";
+    public static final String TYPE_COMMENT_CREATE = "CASE_COMMENT_CREATE";
+
+    /** event_type - Anomaly */
+    public static final String TYPE_ANOMALY_VIEW_LIST = "ANOMALY_VIEW_LIST";
+    public static final String TYPE_ANOMALY_VIEW_DETAIL = "ANOMALY_VIEW_DETAIL";
+
+    /** event_type - Optimization */
+    public static final String TYPE_OPTIMIZATION_VIEW = "OPTIMIZATION_VIEW";
+
+    /** event_type - Action (확장) */
+    public static final String TYPE_REQUEST_INFO = "ACTION_REQUEST_INFO";
+
+    /** event_type - RAG */
+    public static final String TYPE_RAG_DOC_UPLOAD = "RAG_DOC_UPLOAD";
+    public static final String TYPE_RAG_DOC_STATUS_CHANGE = "RAG_DOC_STATUS_CHANGE";
+
+    /** event_type - Policy */
+    public static final String TYPE_POLICY_CHANGE = "POLICY_CHANGE";
+    public static final String TYPE_GUARDRAIL_CHANGE = "GUARDRAIL_CHANGE";
+    public static final String TYPE_DICTIONARY_CHANGE = "DICTIONARY_CHANGE";
+
+    /** event_type - Feedback */
+    public static final String TYPE_FEEDBACK_LABEL_CREATE = "FEEDBACK_LABEL_CREATE";
+    public static final String TYPE_POLICY_SUGGESTION_CREATE = "POLICY_SUGGESTION_CREATE";
 
     /** event_type - Admin/Policy */
     public static final String TYPE_CREATE = "CREATE";
@@ -31,6 +58,7 @@ public final class AuditEventConstants {
     public static final String TYPE_REJECT = "REJECT";
     public static final String TYPE_EXECUTE = "EXECUTE";
     public static final String TYPE_SIMULATE = "SIMULATE";
+    public static final String TYPE_PROPOSE = "PROPOSE";
     public static final String TYPE_FAILED = "FAILED";
 
     /** event_type - Integration (Phase1+) */
@@ -38,6 +66,9 @@ public final class AuditEventConstants {
     public static final String TYPE_VALIDATION_FAIL = "VALIDATION_FAIL";
     public static final String TYPE_OUTBOX_ENQUEUED = "OUTBOX_ENQUEUED";
     public static final String TYPE_SAP_APPLY_RESULT = "SAP_APPLY_RESULT";
+    /** 스펙 대응: INTEGRATION_OUTBOX_ENQUEUE, INTEGRATION_RESULT_UPDATE */
+    public static final String TYPE_INTEGRATION_OUTBOX_ENQUEUE = "INTEGRATION_OUTBOX_ENQUEUE";
+    public static final String TYPE_INTEGRATION_RESULT_UPDATE = "INTEGRATION_RESULT_UPDATE";
 
     /** actor_type */
     public static final String ACTOR_HUMAN = "HUMAN";
