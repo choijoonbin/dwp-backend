@@ -50,6 +50,98 @@ spring:
             - Path=/api/synapse/entities/**
           filters:
             - StripPrefix=1
+        - id: synapsex-documents
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/documents/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-open-items
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/open-items/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-lineage
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/lineage/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-cases
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/cases/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-anomalies
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/anomalies/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-actions
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/actions/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-archive
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/archive/**
+          filters:
+            - StripPrefix=1
+        # Phase 3: RAG, Policies, Guardrails, Dictionary, Feedback
+        - id: synapsex-rag
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/rag/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-policies
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/policies/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-guardrails
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/guardrails/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-dictionary
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/dictionary/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-feedback
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/feedback/**
+          filters:
+            - StripPrefix=1
+        # Phase 4: Reconciliation, Action-recon, Analytics
+        - id: synapsex-reconciliation
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/reconciliation/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-action-recon
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/action-recon/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-analytics
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/analytics/**
+          filters:
+            - StripPrefix=1
         # Aura Platform (AI Agent) 라우팅 - Python
         # ⚠️ 중요: 프론트엔드는 반드시 Gateway(8080)를 통해 Aura-Platform과 통신해야 합니다.
         # 직접 Aura-Platform(9000)에 접근하는 것은 금지됩니다.

@@ -7,6 +7,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -67,6 +68,18 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ErrorCode.VALIDATION_ERROR, "입력값 검증에 실패했습니다."));
     }
     
+    /**
+     * 필수 요청 헤더 누락 처리 (예: X-Tenant-ID)
+     */
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ApiResponse<Object>> handleMissingRequestHeader(MissingRequestHeaderException e) {
+        log.warn("Missing required header: {}", e.getHeaderName());
+        return ResponseEntity
+                .status(ErrorCode.VALIDATION_ERROR.getHttpStatus())
+                .body(ApiResponse.error(ErrorCode.VALIDATION_ERROR,
+                        String.format("필수 헤더 '%s'가 누락되었습니다.", e.getHeaderName())));
+    }
+
     /**
      * 파라미터 타입 불일치 처리
      */

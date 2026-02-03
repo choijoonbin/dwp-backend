@@ -239,6 +239,70 @@ public class AuditWriter {
                 null);
     }
 
+    /** Case 상태 변경 기록 (event_category=CASE, event_type=STATUS_CHANGE) */
+    public void logCaseStatusChange(Long tenantId, Long caseId, String oldStatus, String newStatus,
+                                    Long actorUserId, String ipAddress, String userAgent, String gatewayRequestId) {
+        Map<String, Object> diff = new HashMap<>();
+        diff.put("status", Map.of("before", oldStatus != null ? oldStatus : "null", "after", newStatus != null ? newStatus : "null"));
+        Map<String, Object> tags = new HashMap<>();
+        tags.put("module", "CASE");
+        tags.put("caseId", caseId);
+        log(tenantId,
+                AuditEventConstants.CATEGORY_CASE,
+                AuditEventConstants.TYPE_STATUS_CHANGE,
+                "AGENT_CASE",
+                String.valueOf(caseId),
+                AuditEventConstants.ACTOR_HUMAN,
+                actorUserId,
+                null,
+                null,
+                AuditEventConstants.CHANNEL_API,
+                AuditEventConstants.OUTCOME_SUCCESS,
+                AuditEventConstants.SEVERITY_INFO,
+                Map.of("status", oldStatus != null ? oldStatus : ""),
+                Map.of("status", newStatus != null ? newStatus : ""),
+                diff,
+                null,
+                tags,
+                ipAddress,
+                userAgent,
+                gatewayRequestId,
+                null,
+                null);
+    }
+
+    /** Action 승인/실행 기록 (event_category=ACTION) */
+    public void logActionEvent(Long tenantId, String eventType, Long actionId, Long caseId,
+                               Long actorUserId, String outcome, Map<String, Object> beforeJson, Map<String, Object> afterJson,
+                               String ipAddress, String userAgent, String gatewayRequestId) {
+        Map<String, Object> tags = new HashMap<>();
+        tags.put("module", "ACTION");
+        tags.put("actionId", actionId);
+        tags.put("caseId", caseId);
+        log(tenantId,
+                AuditEventConstants.CATEGORY_ACTION,
+                eventType,
+                "AGENT_ACTION",
+                String.valueOf(actionId),
+                AuditEventConstants.ACTOR_HUMAN,
+                actorUserId,
+                null,
+                null,
+                AuditEventConstants.CHANNEL_API,
+                outcome != null ? outcome : AuditEventConstants.OUTCOME_SUCCESS,
+                AuditEventConstants.SEVERITY_INFO,
+                beforeJson,
+                afterJson,
+                null,
+                null,
+                tags,
+                ipAddress,
+                userAgent,
+                gatewayRequestId,
+                null,
+                null);
+    }
+
     /** Scope 위반 DENIED 기록 (403 OUT_OF_SCOPE) */
     public void logScopeDenied(Long tenantId, Long actorUserId, String resourceType, String resourceId,
                                String bukrs, String currency, String reason,

@@ -36,6 +36,14 @@ spring:
     baseline-version: 0
     validate-on-migrate: true
 
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+
 logging:
   level:
     "[com.dwp.services.synapsex]": DEBUG

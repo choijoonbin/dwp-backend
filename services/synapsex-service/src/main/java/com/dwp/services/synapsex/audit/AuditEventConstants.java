@@ -12,7 +12,12 @@ public final class AuditEventConstants {
     public static final String CATEGORY_ADMIN = "ADMIN";
     public static final String CATEGORY_POLICY = "POLICY";
     public static final String CATEGORY_ACTION = "ACTION";
+    public static final String CATEGORY_CASE = "CASE";
+    public static final String CATEGORY_FEEDBACK = "FEEDBACK";
     public static final String CATEGORY_INTEGRATION = "INTEGRATION";
+
+    /** event_type - Case */
+    public static final String TYPE_STATUS_CHANGE = "STATUS_CHANGE";
 
     /** event_type - Admin/Policy */
     public static final String TYPE_CREATE = "CREATE";
