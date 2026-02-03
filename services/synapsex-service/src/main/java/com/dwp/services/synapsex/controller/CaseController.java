@@ -11,6 +11,8 @@ import com.dwp.services.synapsex.service.case_.CaseQueryService.CaseListQuery;
 import com.dwp.services.synapsex.service.case_.CaseCommandService;
 import com.dwp.services.synapsex.service.case_.CaseQueryService;
 import com.dwp.services.synapsex.service.audit.AuditWriter;
+import com.dwp.services.synapsex.service.scope.ScopeEnforcementService;
+import com.dwp.services.synapsex.util.DrillDownParamUtil;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -30,6 +32,7 @@ public class CaseController {
     private final CaseQueryService caseQueryService;
     private final CaseCommandService caseCommandService;
     private final AuditWriter auditWriter;
+    private final ScopeEnforcementService scopeEnforcementService;
 
     /**
      * A1) GET /api/synapse/cases
@@ -38,11 +41,18 @@ public class CaseController {
     public ApiResponse<PageResponse<CaseListRowDto>> getCases(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
             @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
+            @RequestParam(required = false) String range,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String severity,
             @RequestParam(required = false) String caseType,
+            @RequestParam(required = false) String driverType,
+            @RequestParam(required = false) String assignee,
             @RequestParam(required = false) Long assigneeUserId,
+            @RequestParam(required = false) String slaRisk,
             @RequestParam(required = false) String companyCode,
+            @RequestParam(required = false) String company,
             @RequestParam(required = false) String waers,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant dateFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant dateTo,
@@ -54,32 +64,65 @@ public class CaseController {
             @RequestParam(required = false) String buzei,
             @RequestParam(required = false) Long partyId,
             @RequestParam(required = false) String q,
+            @RequestParam(required = false) String ids,
+            @RequestParam(required = false) String caseKey,
+            @RequestParam(required = false) String documentKey,
+            @RequestParam(required = false) Boolean hasPendingAction,
             @RequestParam(required = false) String savedViewKey,
-            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) String sort) {
+            @RequestParam(defaultValue = "createdAt") String sort,
+            @RequestParam(defaultValue = "desc") String order) {
+
+        var timeRange = DrillDownParamUtil.resolve(range, from != null ? from : dateFrom, to != null ? to : dateTo);
+        Instant resolvedFrom = timeRange.from();
+        Instant resolvedTo = timeRange.to();
+
+        List<String> requestedCompany = DrillDownParamUtil.parseMulti(company);
+        if (requestedCompany.isEmpty() && companyCode != null && !companyCode.isBlank()) {
+            requestedCompany = List.of(companyCode.trim());
+        }
+        if (requestedCompany.isEmpty() && bukrs != null && !bukrs.isBlank()) {
+            requestedCompany = List.of(bukrs.trim());
+        }
+        List<String> resolvedCompany = scopeEnforcementService.resolveCompanyFilter(tenantId, null, requestedCompany);
+
+        Long resolvedAssignee = assigneeUserId;
+        if (resolvedAssignee == null && assignee != null && !assignee.isBlank()) {
+            try {
+                resolvedAssignee = Long.parseLong(assignee.trim());
+            } catch (NumberFormatException ignored) {}
+        }
 
         var query = CaseListQuery.builder()
                 .status(status)
                 .severity(severity)
-                .caseType(caseType)
-                .assigneeUserId(assigneeUserId)
+                .caseType(caseType != null ? caseType : driverType)
+                .assigneeUserId(resolvedAssignee)
+                .slaRisk(slaRisk)
                 .companyCode(companyCode != null ? companyCode : bukrs)
+                .company(resolvedCompany.isEmpty() ? null : resolvedCompany)
                 .waers(waers)
-                .dateFrom(dateFrom != null ? dateFrom : detectedFrom)
-                .dateTo(dateTo != null ? dateTo : detectedTo)
-                .detectedFrom(detectedFrom)
-                .detectedTo(detectedTo)
+                .dateFrom(resolvedFrom)
+                .dateTo(resolvedTo)
+                .detectedFrom(detectedFrom != null ? detectedFrom : resolvedFrom)
+                .detectedTo(detectedTo != null ? detectedTo : resolvedTo)
                 .bukrs(bukrs)
                 .belnr(belnr)
                 .gjahr(gjahr)
                 .buzei(buzei)
                 .partyId(partyId)
                 .q(q)
+                .ids(ids != null ? DrillDownParamUtil.parseIds(ids) : List.of())
+                .range(range)
+                .caseKey(caseKey)
+                .documentKey(documentKey)
+                .hasPendingAction(hasPendingAction)
                 .savedViewKey(savedViewKey)
-                .page(page)
-                .size(size)
+                .page(page < 1 ? 0 : page - 1)
+                .size(Math.min(200, Math.max(1, size)))
                 .sort(sort)
+                .order(order)
                 .build();
 
         PageResponse<CaseListRowDto> result = caseQueryService.findCases(tenantId, query);

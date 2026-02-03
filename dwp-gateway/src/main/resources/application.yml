@@ -50,6 +50,12 @@ spring:
             - Path=/api/synapse/entities/**
           filters:
             - StripPrefix=1
+        - id: synapsex-integration
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/integration/**
+          filters:
+            - StripPrefix=1
         - id: synapsex-documents
           uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
           predicates:
@@ -72,6 +78,12 @@ spring:
           uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
           predicates:
             - Path=/api/synapse/cases/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-dashboard
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/dashboard/**
           filters:
             - StripPrefix=1
         - id: synapsex-anomalies
@@ -155,6 +167,15 @@ spring:
             - Path=/api/synapse/agent-tools/**
           filters:
             - StripPrefix=1
+        # Aura Dashboard → SynapseX 프록시 (Aura 전달사항: /api/aura/dashboard/* 별칭)
+        # /api/synapse/dashboard/* 유지, /api/aura/dashboard/* 요청도 synapsex로 전달
+        - id: aura-dashboard-synapsex
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          order: -1
+          predicates:
+            - Path=/api/aura/dashboard/**
+          filters:
+            - RewritePath=/api/aura/dashboard(?<segment>.*), /synapse/dashboard$\{segment}
         # Aura Platform (AI Agent) 라우팅 - Python
         # ⚠️ 중요: 프론트엔드는 반드시 Gateway(8080)를 통해 Aura-Platform과 통신해야 합니다.
         # 직접 Aura-Platform(9000)에 접근하는 것은 금지됩니다.

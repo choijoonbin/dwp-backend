@@ -418,6 +418,36 @@ public class AuditWriter {
                 null);
     }
 
+    /** Dashboard 조회/드릴다운 기록 (event_category=DASHBOARD) — 관제센터 "누가 무엇을 봤는지" 감사 */
+    public void logDashboardViewed(Long tenantId, Long actorUserId, String eventType,
+                                   String dashboardKey, Map<String, Object> evidenceJson) {
+        Map<String, Object> evidence = evidenceJson != null ? new HashMap<>(evidenceJson) : new HashMap<>();
+        evidence.put("resource_type", "DASHBOARD");
+        evidence.put("resource_id", dashboardKey != null ? dashboardKey : "command-center");
+        log(tenantId,
+                AuditEventConstants.CATEGORY_DASHBOARD,
+                eventType != null ? eventType : AuditEventConstants.TYPE_DASHBOARD_VIEWED,
+                "DASHBOARD",
+                dashboardKey != null ? dashboardKey : "command-center",
+                AuditEventConstants.ACTOR_HUMAN,
+                actorUserId,
+                null,
+                null,
+                AuditEventConstants.CHANNEL_WEB_UI,
+                AuditEventConstants.OUTCOME_SUCCESS,
+                AuditEventConstants.SEVERITY_INFO,
+                null,
+                null,
+                null,
+                evidence,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+    }
+
     /** Data Protection UPDATE 기록 */
     public void logDataProtectionUpdate(Long tenantId, Long actorUserId, String profileId,
                                         Map<String, Object> beforeJson, Map<String, Object> afterJson,

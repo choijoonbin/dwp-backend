@@ -11,6 +11,8 @@ import com.dwp.services.synapsex.audit.AuditEventConstants;
 import com.dwp.services.synapsex.service.action.ActionCommandService;
 import com.dwp.services.synapsex.service.action.ActionQueryService;
 import com.dwp.services.synapsex.service.audit.AuditWriter;
+import com.dwp.services.synapsex.service.scope.ScopeEnforcementService;
+import com.dwp.services.synapsex.util.DrillDownParamUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +21,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
+import java.util.List;
 
 /**
  * Phase 2 Actions API
@@ -31,6 +34,7 @@ public class ActionController {
     private final ActionQueryService actionQueryService;
     private final ActionCommandService actionCommandService;
     private final AuditWriter auditWriter;
+    private final ScopeEnforcementService scopeEnforcementService;
 
     /**
      * C1) GET /api/synapse/actions
@@ -38,24 +42,48 @@ public class ActionController {
     @GetMapping
     public ApiResponse<PageResponse<ActionListRowDto>> getActions(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestParam(required = false) String range,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String type,
             @RequestParam(required = false) Long caseId,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant createdFrom,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant createdTo,
-            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(required = false) String ids,
+            @RequestParam(required = false) String company,
+            @RequestParam(required = false) String assignee,
+            @RequestParam(required = false) Long assigneeUserId,
+            @RequestParam(required = false) String severity,
+            @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) String sort) {
+            @RequestParam(defaultValue = "plannedAt") String sort,
+            @RequestParam(defaultValue = "desc") String order) {
+
+        var timeRange = DrillDownParamUtil.resolve(range, from, to);
+        List<String> requestedCompany = DrillDownParamUtil.parseMulti(company);
+        List<String> resolvedCompany = scopeEnforcementService.resolveCompanyFilter(tenantId, null, requestedCompany);
+
+        Long resolvedAssignee = assigneeUserId;
+        if (resolvedAssignee == null && assignee != null && !assignee.isBlank()) {
+            try {
+                resolvedAssignee = Long.parseLong(assignee.trim());
+            } catch (NumberFormatException ignored) {}
+        }
 
         var query = ActionQueryService.ActionListQuery.builder()
+                .range(range)
+                .createdFrom(timeRange.from())
+                .createdTo(timeRange.to())
                 .status(status)
                 .type(type)
                 .caseId(caseId)
-                .createdFrom(createdFrom)
-                .createdTo(createdTo)
-                .page(page)
-                .size(size)
+                .ids(ids != null ? DrillDownParamUtil.parseIds(ids) : List.of())
+                .company(resolvedCompany.isEmpty() ? null : resolvedCompany)
+                .assigneeUserId(resolvedAssignee)
+                .severity(severity)
+                .page(page < 1 ? 0 : page - 1)
+                .size(Math.min(200, Math.max(1, size)))
                 .sort(sort)
+                .order(order)
                 .build();
 
         PageResponse<ActionListRowDto> result = actionQueryService.findActions(tenantId, query);

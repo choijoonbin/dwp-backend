@@ -299,8 +299,48 @@ redis-cli PUBSUB CHANNELS hitl:channel:*
 
 ---
 
+### 6. 통합관제센터 Agent Execution Stream — audit_event_log 이벤트 규격 (2026-01-29)
+
+**배경**: `GET /api/synapse/dashboard/agent-activity` API가 `audit_event_log`를 SoT로 사용합니다.  
+Aura-Platform에서 에이전트 실행(스캔/탐지/조치/통합) 시 이벤트를 기록하면, 통합관제센터 "Agent Execution Stream"에 표시됩니다.
+
+**권장 event_category / event_type**:
+
+| event_category | event_type 예시 |
+|----------------|-----------------|
+| AGENT | SCAN_STARTED, SCAN_COMPLETED, DETECTION_FOUND, RAG_QUERIED, SIMULATION_RUN, DECISION_MADE |
+| INTEGRATION | INGEST_RECEIVED, INGEST_FAILED, SAP_WRITE_SUCCESS, SAP_WRITE_FAILED |
+| ACTION | ACTION_PROPOSED, ACTION_APPROVED, ACTION_EXECUTED, ACTION_ROLLED_BACK |
+
+**표시 품질을 위한 필드**:
+- `resource_type`: CASE, AGENT_ACTION, INTEGRATION 등
+- `resource_id`: case_id 또는 action_id (문자열)
+- `evidence_json.message`: 스트림에 표시할 메시지 (예: "Critical anomaly detected: Amount variance 3x")
+- `trace_id`: 요청 추적용
+- `severity`: INFO, WARN, ERROR (표시 레벨 결정)
+
+**참고**: SynapseX의 `AuditWriter` 또는 동일 규격으로 `dwp_aura.audit_event_log`에 insert하면 됩니다.
+
+---
+
+### 7. Redis Pub/Sub Audit 이벤트 수신 (2026-01-29)
+
+**구현 완료**: Synapse가 `audit:events:ingest` 채널을 구독하여 Aura 발행 AuditEvent를 수신·저장합니다.
+
+| 항목 | 내용 |
+|------|------|
+| **채널** | `audit:events:ingest` (기본), `AUDIT_REDIS_CHANNEL`로 변경 가능 |
+| **Redis** | Aura와 동일 인스턴스 (HITL `hitl:channel:*`과 동일) |
+| **메시지** | UTF-8 JSON 문자열 |
+| **처리** | 구독 → JSON 파싱 → `audit_event_log` 저장 |
+
+**상세**: [docs/guides/AUDIT_EVENTS_SPEC.md](../guides/AUDIT_EVENTS_SPEC.md) 섹션 6, 8 참조
+
+---
+
 ## 🔗 관련 문서
 
+- [AUDIT_EVENTS_SPEC.md](../guides/AUDIT_EVENTS_SPEC.md) - Audit 이벤트 규격 및 Redis Pub/Sub 상세
 - [프론트엔드 API 스펙](./FRONTEND_API_SPEC.md) - 프론트엔드에서 전달받은 상세 API 스펙 (최신)
 - [프론트엔드 통합 가이드](./FRONTEND_INTEGRATION_GUIDE.md) - 프론트엔드 개발자를 위한 통합 가이드
 - [Aura-Platform Backend 전달 문서](./AURA_PLATFORM_BACKEND_HANDOFF.md)

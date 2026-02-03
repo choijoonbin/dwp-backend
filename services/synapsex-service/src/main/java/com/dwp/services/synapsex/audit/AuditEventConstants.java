@@ -15,6 +15,13 @@ public final class AuditEventConstants {
     public static final String CATEGORY_CASE = "CASE";
     public static final String CATEGORY_FEEDBACK = "FEEDBACK";
     public static final String CATEGORY_INTEGRATION = "INTEGRATION";
+    public static final String CATEGORY_AGENT = "AGENT";
+    public static final String CATEGORY_DASHBOARD = "DASHBOARD";
+
+    /** event_type - Dashboard (관제센터 조회 감사) */
+    public static final String TYPE_DASHBOARD_VIEWED = "DASHBOARD_VIEWED";
+    public static final String TYPE_DASHBOARD_DRILLDOWN_CLICKED = "DASHBOARD_DRILLDOWN_CLICKED";
+    public static final String TYPE_DASHBOARD_EXPORT_REQUESTED = "DASHBOARD_EXPORT_REQUESTED";
 
     /** event_type - Case */
     public static final String TYPE_STATUS_CHANGE = "STATUS_CHANGE";

@@ -14,7 +14,10 @@ import com.dwp.services.synapsex.service.anomaly.AnomalyQueryService;
 import com.dwp.services.synapsex.service.archive.ArchiveQueryService;
 import com.dwp.services.synapsex.service.case_.CaseCommandService;
 import com.dwp.services.synapsex.service.case_.CaseQueryService;
+import com.dwp.services.synapsex.service.audit.AuditWriter;
 import com.dwp.services.synapsex.service.optimization.OptimizationQueryService;
+import com.dwp.services.synapsex.service.scope.ScopeEnforcementService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -65,8 +68,18 @@ class SynapseContractTest {
     private ActionCommandService actionCommandService;
     @MockBean
     private ArchiveQueryService archiveQueryService;
+    @MockBean
+    private AuditWriter auditWriter;
+    @MockBean
+    private ScopeEnforcementService scopeEnforcementService;
 
     private static final Long TENANT_ID = 1L;
+
+    @BeforeEach
+    void setUp() {
+        when(scopeEnforcementService.resolveCompanyFilter(any(), any(), any()))
+                .thenReturn(List.of());
+    }
 
     @Nested
     @DisplayName("Cases API - Contract")
@@ -89,7 +102,7 @@ class SynapseContractTest {
                     .andExpect(jsonPath("$.status").value("SUCCESS"))
                     .andExpect(jsonPath("$.data.items").isArray())
                     .andExpect(jsonPath("$.data.total").value(1))
-                    .andExpect(jsonPath("$.data.pageInfo.page").value(0))
+                    .andExpect(jsonPath("$.data.pageInfo.page").value(1))
                     .andExpect(jsonPath("$.data.pageInfo.size").value(20))
                     .andExpect(jsonPath("$.data.pageInfo.hasNext").value(false));
         }

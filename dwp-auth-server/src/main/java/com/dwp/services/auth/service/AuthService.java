@@ -45,6 +45,7 @@ public class AuthService {
     private final LoginHistoryRepository loginHistoryRepository;
     private final PasswordEncoder passwordEncoder;
     private final MenuRepository menuRepository;
+    private final MenuService menuService;
     private final CodeResolver codeResolver;
     private final AuthPolicyService authPolicyService;
     
@@ -150,12 +151,17 @@ public class AuthService {
             log.info("Login successful: userId={}, tenantId={}, username={}", 
                     user.getUserId(), tenantId, username);
             
+            List<PermissionDTO> permissions = getMyPermissions(user.getUserId(), tenantId);
+            List<MenuNode> menus = menuService.getMenuTree(user.getUserId(), tenantId).getMenus();
+            
             return LoginResponse.builder()
                     .accessToken(accessToken)
                     .tokenType("Bearer")
                     .expiresIn(tokenExpirationSeconds)
                     .userId(user.getUserId().toString())
                     .tenantId(tenantId.toString())
+                    .permissions(permissions)
+                    .menus(menus)
                     .build();
                     
         } catch (BaseException e) {
@@ -403,12 +409,17 @@ public class AuthService {
             log.info("SSO login successful: userId={}, tenantId={}, providerKey={}, principal={}", 
                     user.getUserId(), tenantId, providerKey, principal);
             
+            List<PermissionDTO> permissions = getMyPermissions(user.getUserId(), tenantId);
+            List<MenuNode> menus = menuService.getMenuTree(user.getUserId(), tenantId).getMenus();
+            
             return LoginResponse.builder()
                     .accessToken(accessToken)
                     .tokenType("Bearer")
                     .expiresIn(tokenExpirationSeconds)
                     .userId(user.getUserId().toString())
                     .tenantId(tenantId.toString())
+                    .permissions(permissions)
+                    .menus(menus)
                     .build();
                     
         } catch (BaseException e) {

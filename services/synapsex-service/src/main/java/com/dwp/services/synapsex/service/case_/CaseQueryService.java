@@ -6,6 +6,8 @@ import com.dwp.services.synapsex.dto.case_.CaseTimelineDto;
 import com.dwp.services.synapsex.dto.common.PageResponse;
 import com.dwp.services.synapsex.entity.*;
 import com.dwp.services.synapsex.repository.*;
+import com.dwp.services.synapsex.scope.DrillDownCodeResolver;
+import com.dwp.services.synapsex.util.DocKeyUtil;
 import org.springframework.data.domain.PageRequest;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.types.OrderSpecifier;
@@ -37,6 +39,7 @@ public class CaseQueryService {
     private final BpPartyRepository bpPartyRepository;
     private final CaseCommentRepository caseCommentRepository;
     private final AuditEventLogRepository auditEventLogRepository;
+    private final DrillDownCodeResolver drillDownCodeResolver;
 
     private static final QAgentCase c = QAgentCase.agentCase;
     private static final QFiDocItem fi = QFiDocItem.fiDocItem;
@@ -47,10 +50,18 @@ public class CaseQueryService {
         BooleanBuilder predicate = new BooleanBuilder();
         predicate.and(c.tenantId.eq(tenantId));
 
-        if (query.getStatus() != null && !query.getStatus().isBlank()) {
+        List<String> statusList = drillDownCodeResolver.filterValid(DrillDownCodeResolver.GROUP_CASE_STATUS,
+                com.dwp.services.synapsex.util.DrillDownParamUtil.parseMulti(query.getStatus()));
+        if (!statusList.isEmpty()) {
+            predicate.and(c.status.in(statusList));
+        } else if (query.getStatus() != null && !query.getStatus().isBlank()) {
             predicate.and(c.status.eq(query.getStatus()));
         }
-        if (query.getSeverity() != null && !query.getSeverity().isBlank()) {
+        List<String> severityList = drillDownCodeResolver.filterValid(DrillDownCodeResolver.GROUP_SEVERITY,
+                com.dwp.services.synapsex.util.DrillDownParamUtil.parseMulti(query.getSeverity()));
+        if (!severityList.isEmpty()) {
+            predicate.and(c.severity.in(severityList));
+        } else if (query.getSeverity() != null && !query.getSeverity().isBlank()) {
             predicate.and(c.severity.eq(query.getSeverity()));
         }
         if (query.getCaseType() != null && !query.getCaseType().isBlank()) {
@@ -65,7 +76,17 @@ public class CaseQueryService {
         if (query.getAssigneeUserId() != null) {
             predicate.and(c.assigneeUserId.eq(query.getAssigneeUserId()));
         }
-        if (query.getCompanyCode() != null && !query.getCompanyCode().isBlank()) {
+        if (query.getSlaRisk() != null && !query.getSlaRisk().isBlank()) {
+            List<Long> assigneeIdsBySla = resolveAssigneeIdsBySlaRisk(tenantId, query.getSlaRisk());
+            if (!assigneeIdsBySla.isEmpty()) {
+                predicate.and(c.assigneeUserId.in(assigneeIdsBySla));
+            } else if ("AT_RISK".equalsIgnoreCase(query.getSlaRisk()) || "ON_TRACK".equalsIgnoreCase(query.getSlaRisk())) {
+                predicate.and(c.caseId.eq(-1L));
+            }
+        }
+        if (query.getCompany() != null && !query.getCompany().isEmpty()) {
+            predicate.and(c.bukrs.in(query.getCompany()));
+        } else if (query.getCompanyCode() != null && !query.getCompanyCode().isBlank()) {
             predicate.and(c.bukrs.eq(query.getCompanyCode()));
         }
         if (query.getBukrs() != null && !query.getBukrs().isBlank()) {
@@ -89,6 +110,45 @@ public class CaseQueryService {
         if (query.getSavedViewKey() != null && !query.getSavedViewKey().isBlank()) {
             predicate.and(c.savedViewKey.eq(query.getSavedViewKey()));
         }
+        if (query.getIds() != null && !query.getIds().isEmpty()) {
+            predicate.and(c.caseId.in(query.getIds()));
+        }
+        if (query.getCaseKey() != null && !query.getCaseKey().isBlank()) {
+            String key = query.getCaseKey().trim();
+            if (key.matches("CS-\\d+")) {
+                try {
+                    long id = Long.parseLong(key.substring(3));
+                    predicate.and(c.caseId.eq(id));
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+        if (query.getDocumentKey() != null && !query.getDocumentKey().isBlank()) {
+            DocKeyUtil.ParsedDocKey docKey = DocKeyUtil.parse(query.getDocumentKey());
+            if (docKey != null) {
+                predicate.and(c.bukrs.eq(docKey.getBukrs())
+                        .and(c.belnr.eq(docKey.getBelnr()))
+                        .and(c.gjahr.eq(docKey.getGjahr())));
+            }
+        }
+        if (Boolean.TRUE.equals(query.getHasPendingAction())) {
+            List<String> pendingStatuses = drillDownCodeResolver.filterValid(DrillDownCodeResolver.GROUP_ACTION_STATUS,
+                    List.of("PENDING_APPROVAL", "PENDING", "QUEUED", "PROPOSED", "PLANNED"));
+            if (pendingStatuses.isEmpty()) pendingStatuses = List.of("PENDING_APPROVAL", "PENDING", "QUEUED", "PROPOSED", "PLANNED");
+            List<Long> caseIdsWithPending = queryFactory.select(QAgentAction.agentAction.caseId)
+                    .from(QAgentAction.agentAction)
+                    .where(QAgentAction.agentAction.tenantId.eq(tenantId)
+                            .and(QAgentAction.agentAction.status.in(pendingStatuses)))
+                    .distinct()
+                    .fetch();
+            if (!caseIdsWithPending.isEmpty()) {
+                predicate.and(c.caseId.in(caseIdsWithPending));
+            } else {
+                predicate.and(c.caseId.eq(-1L)); // no pending actions exist
+            }
+        }
+        if (query.getCompany() != null && !query.getCompany().isEmpty()) {
+            predicate.and(c.bukrs.in(query.getCompany()));
+        }
         if (query.getQ() != null && !query.getQ().isBlank()) {
             String q = query.getQ().trim();
             BooleanExpression qPred = c.belnr.containsIgnoreCase(q)
@@ -96,13 +156,17 @@ public class CaseQueryService {
             predicate.and(qPred);
         }
 
-        OrderSpecifier<?> orderBy = c.detectedAt.desc();
+        OrderSpecifier<?> orderBy = c.createdAt.desc();
+        boolean asc = !"asc".equalsIgnoreCase(query.getOrder());
         if (query.getSort() != null && !query.getSort().isBlank()) {
             String[] parts = query.getSort().split(",");
-            boolean asc = parts.length < 2 || !"desc".equalsIgnoreCase(parts[1].trim());
-            orderBy = "detectedAt".equalsIgnoreCase(parts[0].trim())
+            if (parts.length >= 2) asc = "asc".equalsIgnoreCase(parts[1].trim());
+            String sortField = parts[0].trim();
+            orderBy = "createdAt".equalsIgnoreCase(sortField)
+                    ? (asc ? c.createdAt.asc() : c.createdAt.desc())
+                    : "detectedAt".equalsIgnoreCase(sortField)
                     ? (asc ? c.detectedAt.asc() : c.detectedAt.desc())
-                    : (asc ? c.detectedAt.asc() : c.detectedAt.desc());
+                    : (asc ? c.createdAt.asc() : c.createdAt.desc());
         }
 
         int page = Math.max(0, query.getPage());
@@ -121,7 +185,11 @@ public class CaseQueryService {
             long total = cases.size();
             cases = cases.stream().skip((long) page * size).limit(size).toList();
             List<CaseListRowDto> rows = buildCaseListRows(tenantId, cases);
-            return PageResponse.of(rows, total, page, size);
+            Map<String, Object> filtersApplied = buildFiltersApplied(query);
+            return PageResponse.of(rows, total, page, size,
+                    query.getSort() != null ? query.getSort() : "createdAt",
+                    query.getOrder() != null ? query.getOrder() : "desc",
+                    filtersApplied);
         }
 
         cases = queryFactory.selectFrom(c)
@@ -132,7 +200,11 @@ public class CaseQueryService {
                 .fetch();
         long total = queryFactory.selectFrom(c).where(predicate).fetchCount();
         List<CaseListRowDto> rows = buildCaseListRows(tenantId, cases);
-        return PageResponse.of(rows, total, page, size);
+        Map<String, Object> filtersApplied = buildFiltersApplied(query);
+        return PageResponse.of(rows, total, page, size,
+                query.getSort() != null ? query.getSort() : "createdAt",
+                query.getOrder() != null ? query.getOrder() : "desc",
+                filtersApplied);
     }
 
     private List<AgentCase> filterCasesByParty(Long tenantId, List<AgentCase> cases, Long partyId) {
@@ -142,6 +214,40 @@ public class CaseQueryService {
                         .filter(case_ -> matchesParty(case_, party))
                         .toList())
                 .orElse(List.of());
+    }
+
+    private List<Long> resolveAssigneeIdsBySlaRisk(Long tenantId, String slaRisk) {
+        List<AgentCase> openCases = agentCaseRepository.findByTenantId(tenantId).stream()
+                .filter(c -> c.getStatus() != null && List.of("OPEN", "ACTIVE", "IN_PROGRESS", "IN_REVIEW", "TRIAGED").contains(c.getStatus().toUpperCase()))
+                .filter(c -> c.getAssigneeUserId() != null)
+                .toList();
+        Map<Long, Long> countByAssignee = new java.util.HashMap<>();
+        for (AgentCase c : openCases) {
+            countByAssignee.merge(c.getAssigneeUserId(), 1L, Long::sum);
+        }
+        int threshold = 5;
+        return countByAssignee.entrySet().stream()
+                .filter(e -> "AT_RISK".equalsIgnoreCase(slaRisk) ? e.getValue() > threshold : e.getValue() <= threshold)
+                .map(Map.Entry::getKey)
+                .toList();
+    }
+
+    private Map<String, Object> buildFiltersApplied(CaseListQuery query) {
+        Map<String, Object> m = new java.util.LinkedHashMap<>();
+        if (query.getRange() != null && !query.getRange().isBlank()) m.put("range", query.getRange());
+        if (query.getDateFrom() != null) m.put("from", query.getDateFrom().toString());
+        if (query.getDateTo() != null) m.put("to", query.getDateTo().toString());
+        if (query.getStatus() != null && !query.getStatus().isBlank())
+            m.put("status", com.dwp.services.synapsex.util.DrillDownParamUtil.parseMulti(query.getStatus()));
+        if (query.getSeverity() != null && !query.getSeverity().isBlank())
+            m.put("severity", com.dwp.services.synapsex.util.DrillDownParamUtil.parseMulti(query.getSeverity()));
+        if (query.getCaseType() != null && !query.getCaseType().isBlank()) m.put("driverType", query.getCaseType());
+        if (query.getAssigneeUserId() != null) m.put("assigneeUserId", query.getAssigneeUserId());
+        if (query.getCompany() != null && !query.getCompany().isEmpty()) m.put("company", query.getCompany());
+        else if (query.getCompanyCode() != null && !query.getCompanyCode().isBlank()) m.put("company", List.of(query.getCompanyCode()));
+        if (query.getDocumentKey() != null && !query.getDocumentKey().isBlank()) m.put("documentKey", query.getDocumentKey());
+        if (Boolean.TRUE.equals(query.getHasPendingAction())) m.put("hasPendingAction", true);
+        return m.isEmpty() ? null : m;
     }
 
     private boolean matchesParty(AgentCase case_, BpParty party) {
@@ -367,12 +473,14 @@ public class CaseQueryService {
     @lombok.NoArgsConstructor
     @lombok.AllArgsConstructor
     public static class CaseListQuery {
-        private String status;
-        private String severity;
-        private String caseType;
+        private String status;           // single or comma-separated
+        private String severity;         // single or comma-separated
+        private String caseType;         // driverType 별칭
         private Long assigneeUserId;
-        private String companyCode;  // bukrs
+        private String companyCode;       // bukrs, single
+        private List<String> company;    // multi (BUKRS)
         private String waers;
+        private List<String> currency;
         private Instant dateFrom;
         private Instant dateTo;
         private Instant detectedFrom;
@@ -382,12 +490,19 @@ public class CaseQueryService {
         private String gjahr;
         private String buzei;
         private Long partyId;
-        private String q;  // 전표번호/거래처명/키워드
+        private String q;
         private String savedViewKey;
+        private List<Long> ids;           // drill-down: ids=1,2,3
+        private String caseKey;           // CS-2026-0001 형식
+        private String range;             // 1h|6h|24h|7d|30d|90d (filtersApplied용)
+        private String documentKey;
+        private Boolean hasPendingAction;
+        private String slaRisk;  // AT_RISK | ON_TRACK
         @lombok.Builder.Default
         private int page = 0;
         @lombok.Builder.Default
         private int size = 20;
         private String sort;
+        private String order;
     }
 }

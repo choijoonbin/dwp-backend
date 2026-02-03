@@ -29,8 +29,11 @@ public class AuditEventController {
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
+            @RequestParam(required = false) String range,
             @RequestParam(required = false) String category,
+            @RequestParam(required = false) String eventCategory,
             @RequestParam(required = false) String type,
+            @RequestParam(required = false) String eventType,
             @RequestParam(required = false) String outcome,
             @RequestParam(required = false) String severity,
             @RequestParam(required = false) Long actorUserId,
@@ -39,8 +42,17 @@ public class AuditEventController {
             @RequestParam(required = false) String resourceId,
             @RequestParam(required = false) String q,
             @PageableDefault(size = 20, sort = "createdAt") Pageable pageable) {
+        var cat = category != null && !category.isBlank() ? category : eventCategory;
+        var typ = type != null && !type.isBlank() ? type : eventType;
+        Instant fromResolved = from;
+        Instant toResolved = to;
+        if (range != null && !range.isBlank()) {
+            var tr = com.dwp.services.synapsex.util.DrillDownParamUtil.resolve(range, from, to);
+            fromResolved = tr.from();
+            toResolved = tr.to();
+        }
         AuditEventPageDto page = queryService.search(
-                tenantId, from, to, category, type, outcome, severity,
+                tenantId, fromResolved, toResolved, cat, typ, outcome, severity,
                 actorUserId, actorType, resourceType, resourceId, q, pageable);
         return ApiResponse.success(page);
     }

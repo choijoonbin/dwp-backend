@@ -23,6 +23,14 @@ spring:
             - Path=/api/aura/hitl/**
           filters:
             - StripPrefix=1
+        # Aura Dashboard → SynapseX 프록시 (Aura 전달사항)
+        - id: aura-dashboard-synapsex
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          order: -1
+          predicates:
+            - Path=/api/aura/dashboard/**
+          filters:
+            - RewritePath=/api/aura/dashboard(?<segment>.*), /synapse/dashboard$\{segment}
         # Aura Platform (AI Agent) 라우팅 - 개발 환경
         # ✅ 포트 9000 확정: Aura-Platform은 포트 9000을 사용합니다
         - id: aura-platform
@@ -64,6 +72,117 @@ spring:
             - Path=/api/synapse/entities/**
           filters:
             - StripPrefix=1
+        - id: synapsex-integration
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/integration/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-documents
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/documents/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-open-items
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/open-items/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-lineage
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/lineage/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-cases
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/cases/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-dashboard
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/dashboard/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-anomalies
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/anomalies/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-actions
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/actions/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-archive
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/archive/**
+          filters:
+            - StripPrefix=1
+        # Phase 3: RAG, Policies, Guardrails, Dictionary, Feedback
+        - id: synapsex-rag
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/rag/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-policies
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/policies/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-guardrails
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/guardrails/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-dictionary
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/dictionary/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-feedback
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/feedback/**
+          filters:
+            - StripPrefix=1
+        # Phase 4: Reconciliation, Action-recon, Analytics
+        - id: synapsex-reconciliation
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/reconciliation/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-action-recon
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/action-recon/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-analytics
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/analytics/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-optimization
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/optimization/**
+          filters:
+            - StripPrefix=1
+        # Agent Tool API (Aura 호출용)
         - id: synapsex-agent-tools
           uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
           predicates:

@@ -10,12 +10,15 @@ import com.dwp.services.synapsex.dto.common.PageResponse;
 import com.dwp.services.synapsex.service.anomaly.AnomalyQueryService;
 import com.dwp.services.synapsex.service.audit.AuditWriter;
 import com.dwp.services.synapsex.service.case_.CaseQueryService;
+import com.dwp.services.synapsex.service.scope.ScopeEnforcementService;
+import com.dwp.services.synapsex.util.DrillDownParamUtil;
 import com.dwp.services.synapsex.dto.case_.CaseDetailDto;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
+import java.util.List;
 
 /**
  * Phase 2 Anomalies API
@@ -28,6 +31,7 @@ public class AnomalyController {
     private final AnomalyQueryService anomalyQueryService;
     private final CaseQueryService caseQueryService;
     private final AuditWriter auditWriter;
+    private final ScopeEnforcementService scopeEnforcementService;
 
     /**
      * B1) GET /api/synapse/anomalies
@@ -36,22 +40,38 @@ public class AnomalyController {
     public ApiResponse<PageResponse<AnomalyListRowDto>> getAnomalies(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
             @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
+            @RequestParam(required = false) String range,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
+            @RequestParam(required = false) String status,
             @RequestParam(required = false) String severity,
+            @RequestParam(required = false) String type,
             @RequestParam(required = false) String anomalyType,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant detectedFrom,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant detectedTo,
-            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(required = false) String driverType,
+            @RequestParam(required = false) String ids,
+            @RequestParam(required = false) String company,
+            @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) String sort) {
+            @RequestParam(defaultValue = "detectedAt") String sort,
+            @RequestParam(defaultValue = "desc") String order) {
+
+        var timeRange = DrillDownParamUtil.resolve(range, from, to);
+        List<String> requestedCompany = DrillDownParamUtil.parseMulti(company);
+        List<String> resolvedCompany = scopeEnforcementService.resolveCompanyFilter(tenantId, null, requestedCompany);
 
         var query = AnomalyQueryService.AnomalyListQuery.builder()
+                .range(range)
+                .detectedFrom(timeRange.from())
+                .detectedTo(timeRange.to())
+                .status(status)
                 .severity(severity)
-                .anomalyType(anomalyType)
-                .detectedFrom(detectedFrom)
-                .detectedTo(detectedTo)
-                .page(page)
-                .size(size)
+                .anomalyType(type != null ? type : (anomalyType != null ? anomalyType : driverType))
+                .ids(ids != null ? DrillDownParamUtil.parseIds(ids) : List.of())
+                .company(resolvedCompany.isEmpty() ? null : resolvedCompany)
+                .page(page < 1 ? 0 : page - 1)
+                .size(Math.min(200, Math.max(1, size)))
                 .sort(sort)
+                .order(order)
                 .build();
 
         PageResponse<AnomalyListRowDto> result = anomalyQueryService.findAnomalies(tenantId, query);

@@ -111,6 +111,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
             Pageable pageable);
     
     /**
+     * 테넌트 내 사용자 ID 목록으로 조회 (display_name 배치 조회용)
+     */
+    List<User> findByTenantIdAndUserIdIn(Long tenantId, List<Long> userIds);
+
+    /**
      * 역할 ID로 사용자 목록 조회
      */
     @Query("SELECT DISTINCT u FROM User u " +

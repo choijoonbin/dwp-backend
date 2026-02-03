@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.context.ApplicationContext;
 
 /**
@@ -14,6 +15,7 @@ import org.springframework.context.ApplicationContext;
  */
 @Slf4j
 @SpringBootApplication
+@EnableFeignClients(basePackages = "com.dwp.services.synapsex.client")
 public class SynapsexServiceApplication {
 
     @Autowired

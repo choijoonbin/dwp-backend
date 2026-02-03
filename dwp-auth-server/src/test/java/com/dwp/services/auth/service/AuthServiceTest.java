@@ -34,6 +34,9 @@ class AuthServiceTest {
     @Mock private RoleRepository roleRepository;
     @Mock private LoginHistoryRepository loginHistoryRepository;
     @Mock private PasswordEncoder passwordEncoder;
+    @Mock private MenuService menuService;
+    @Mock private com.dwp.services.auth.service.AuthPolicyService authPolicyService;
+    @Mock private com.dwp.services.auth.util.CodeResolver codeResolver;
 
     @InjectMocks
     private AuthService authService;
@@ -54,11 +57,18 @@ class AuthServiceTest {
         UserAccount account = UserAccount.builder()
                 .userId(1L).tenantId(1L).status("ACTIVE").passwordHash("encodedHash").build();
         User user = User.builder().userId(1L).tenantId(1L).status("ACTIVE").build();
+        AuthPolicyResponse policy = AuthPolicyResponse.builder()
+                .localLoginEnabled(true)
+                .allowedLoginTypes(List.of("LOCAL"))
+                .build();
 
+        when(authPolicyService.getAuthPolicy(1L)).thenReturn(policy);
         when(userAccountRepository.findByTenantIdAndProviderTypeAndProviderIdAndPrincipal(anyLong(), anyString(), anyString(), anyString()))
                 .thenReturn(Optional.of(account));
         when(passwordEncoder.matches(anyString(), anyString())).thenReturn(true);
         when(userRepository.findById(anyLong())).thenReturn(Optional.of(user));
+        when(menuService.getMenuTree(anyLong(), anyLong()))
+                .thenReturn(MenuTreeResponse.builder().menus(List.of()).groups(List.of()).build());
 
         // when
         LoginResponse response = authService.login(request);
@@ -67,6 +77,8 @@ class AuthServiceTest {
         assertNotNull(response.getAccessToken());
         assertEquals("1", response.getUserId());
         assertEquals("1", response.getTenantId());
+        assertNotNull(response.getPermissions());
+        assertNotNull(response.getMenus());
         verify(loginHistoryRepository, times(1)).save(any());
     }
 

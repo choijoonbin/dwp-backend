@@ -35,6 +35,29 @@ spring:
     baseline-on-migrate: true
     baseline-version: 0
     validate-on-migrate: true
+  # Redis (Aura audit 이벤트 수신용 - HITL과 동일 인스턴스)
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+
+# auth-server URL (Team Snapshot display_name Feign 호출용)
+auth:
+  server:
+    url: ${SERVICE_AUTH_URL:http://localhost:8001}
+
+# Audit Redis (Aura 이벤트 수신)
+audit:
+  redis:
+    enabled: ${AUDIT_REDIS_ENABLED:true}
+    channel: ${AUDIT_REDIS_CHANNEL:audit:events:ingest}
 
 springdoc:
   api-docs:

@@ -5,6 +5,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.Collections;
+import java.util.List;
+
 /**
  * 로그인 응답 DTO
  */
@@ -39,4 +42,16 @@ public class LoginResponse {
      * 테넌트 ID (JWT의 tenant_id 클레임과 동일)
      */
     private String tenantId;
+    
+    /**
+     * 사용자 권한 목록 (리소스별)
+     */
+    @Builder.Default
+    private List<PermissionDTO> permissions = Collections.emptyList();
+    
+    /**
+     * 권한 기반 메뉴 트리 (루트 노드 배열)
+     */
+    @Builder.Default
+    private List<MenuNode> menus = Collections.emptyList();
 }

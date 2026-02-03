@@ -4,6 +4,8 @@ import com.dwp.services.synapsex.dto.anomaly.AnomalyListRowDto;
 import com.dwp.services.synapsex.dto.common.PageResponse;
 import com.dwp.services.synapsex.entity.*;
 import com.dwp.services.synapsex.repository.*;
+import com.dwp.services.synapsex.scope.DrillDownCodeResolver;
+import com.dwp.services.synapsex.util.DrillDownParamUtil;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.types.OrderSpecifier;
@@ -30,6 +32,7 @@ public class AnomalyQueryService {
     private final AgentActionRepository agentActionRepository;
     private final FiDocItemRepository fiDocItemRepository;
     private final BpPartyRepository bpPartyRepository;
+    private final DrillDownCodeResolver drillDownCodeResolver;
 
     private static final QAgentCase c = QAgentCase.agentCase;
 
@@ -59,10 +62,11 @@ public class AnomalyQueryService {
             predicate.and(c.detectedAt.loe(query.getDetectedTo()));
         }
 
+        boolean asc = !"desc".equalsIgnoreCase(query.getOrder() != null ? query.getOrder() : "desc");
         OrderSpecifier<?> orderBy = c.detectedAt.desc();
         if (query.getSort() != null && !query.getSort().isBlank()) {
             String[] parts = query.getSort().split(",");
-            boolean asc = parts.length < 2 || !"desc".equalsIgnoreCase(parts[parts.length - 1].trim());
+            if (parts.length >= 2) asc = "asc".equalsIgnoreCase(parts[1].trim());
             String field = parts[0].trim().toLowerCase();
             orderBy = "detectedat".equals(field) || "detected_at".equals(field)
                     ? (asc ? c.detectedAt.asc() : c.detectedAt.desc())
@@ -82,7 +86,26 @@ public class AnomalyQueryService {
         List<AnomalyListRowDto> rows = cases.stream()
                 .map(case_ -> buildAnomalyRow(tenantId, case_))
                 .toList();
-        return PageResponse.of(rows, total, page, size);
+        Map<String, Object> filtersApplied = buildFiltersApplied(query);
+        return PageResponse.of(rows, total, page, size,
+                query.getSort() != null ? query.getSort() : "detectedAt",
+                query.getOrder() != null ? query.getOrder() : "desc",
+                filtersApplied);
+    }
+
+    private Map<String, Object> buildFiltersApplied(AnomalyListQuery query) {
+        Map<String, Object> m = new java.util.LinkedHashMap<>();
+        if (query.getRange() != null && !query.getRange().isBlank()) m.put("range", query.getRange());
+        if (query.getDetectedFrom() != null) m.put("from", query.getDetectedFrom().toString());
+        if (query.getDetectedTo() != null) m.put("to", query.getDetectedTo().toString());
+        if (query.getStatus() != null && !query.getStatus().isBlank())
+            m.put("status", DrillDownParamUtil.parseMulti(query.getStatus()));
+        if (query.getSeverity() != null && !query.getSeverity().isBlank())
+            m.put("severity", DrillDownParamUtil.parseMulti(query.getSeverity()));
+        if (query.getAnomalyType() != null && !query.getAnomalyType().isBlank()) m.put("driverType", query.getAnomalyType());
+        if (query.getIds() != null && !query.getIds().isEmpty()) m.put("ids", query.getIds());
+        if (query.getCompany() != null && !query.getCompany().isEmpty()) m.put("company", query.getCompany());
+        return m.isEmpty() ? null : m;
     }
 
     private AnomalyListRowDto buildAnomalyRow(Long tenantId, AgentCase case_) {
@@ -137,14 +160,19 @@ public class AnomalyQueryService {
     @lombok.NoArgsConstructor
     @lombok.AllArgsConstructor
     public static class AnomalyListQuery {
-        private String severity;
-        private String anomalyType;
+        private String range;
         private java.time.Instant detectedFrom;
         private java.time.Instant detectedTo;
+        private String status;
+        private String severity;
+        private String anomalyType;
+        private List<Long> ids;
+        private List<String> company;
         @lombok.Builder.Default
         private int page = 0;
         @lombok.Builder.Default
         private int size = 20;
         private String sort;
+        private String order;
     }
 }

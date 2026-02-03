@@ -14,6 +14,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.dwp.services.synapsex.util.DrillDownParamUtil;
 import jakarta.persistence.criteria.Predicate;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -36,8 +37,16 @@ public class AuditEventQueryService {
             predicates.add(cb.equal(root.get("tenantId"), tenantId));
             if (from != null) predicates.add(cb.greaterThanOrEqualTo(root.get("createdAt"), from));
             if (to != null) predicates.add(cb.lessThanOrEqualTo(root.get("createdAt"), to));
-            if (category != null && !category.isBlank()) predicates.add(cb.equal(root.get("eventCategory"), category));
-            if (type != null && !type.isBlank()) predicates.add(cb.equal(root.get("eventType"), type));
+            if (category != null && !category.isBlank()) {
+                List<String> cats = DrillDownParamUtil.parseMulti(category);
+                if (cats.size() == 1) predicates.add(cb.equal(root.get("eventCategory"), cats.get(0)));
+                else if (!cats.isEmpty()) predicates.add(root.get("eventCategory").in(cats));
+            }
+            if (type != null && !type.isBlank()) {
+                List<String> types = DrillDownParamUtil.parseMulti(type);
+                if (types.size() == 1) predicates.add(cb.equal(root.get("eventType"), types.get(0)));
+                else if (!types.isEmpty()) predicates.add(root.get("eventType").in(types));
+            }
             if (outcome != null && !outcome.isBlank()) predicates.add(cb.equal(root.get("outcome"), outcome));
             if (severity != null && !severity.isBlank()) predicates.add(cb.equal(root.get("severity"), severity));
             if (actorType != null && !actorType.isBlank()) predicates.add(cb.equal(root.get("actorType"), actorType));
