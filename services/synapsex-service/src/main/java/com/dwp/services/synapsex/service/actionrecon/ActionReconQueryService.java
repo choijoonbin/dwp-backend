@@ -27,14 +27,14 @@ public class ActionReconQueryService {
 
         long total = actions.size();
         long successCount = actions.stream()
-                .filter(a -> "EXECUTED".equals(a.getStatus()) || "SUCCESS".equals(a.getStatus()))
+                .filter(a -> a.getStatus() == com.dwp.services.synapsex.entity.AgentActionStatus.EXECUTED || a.getStatus() == com.dwp.services.synapsex.entity.AgentActionStatus.SUCCESS)
                 .count();
         long failedCount = actions.stream()
-                .filter(a -> "FAILED".equals(a.getStatus()))
+                .filter(a -> a.getStatus() == com.dwp.services.synapsex.entity.AgentActionStatus.FAILED)
                 .count();
 
         List<String> failureReasons = actions.stream()
-                .filter(a -> "FAILED".equals(a.getStatus()))
+                .filter(a -> a.getStatus() == com.dwp.services.synapsex.entity.AgentActionStatus.FAILED)
                 .map(a -> a.getFailureReason() != null ? a.getFailureReason() : a.getErrorMessage())
                 .filter(Objects::nonNull)
                 .distinct()

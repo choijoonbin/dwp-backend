@@ -49,7 +49,7 @@ public class AgentToolCommandService {
 
         ObjectNode before = JsonNodeFactory.instance.objectNode()
                 .put("caseId", case_.getCaseId())
-                .put("status", case_.getStatus())
+                .put("status", case_.getStatus() != null ? case_.getStatus().name() : null)
                 .put("caseType", case_.getCaseType())
                 .put("actionType", actionType);
 
@@ -154,7 +154,7 @@ public class AgentToolCommandService {
 
         Map<String, Object> afterMap = new HashMap<>();
         afterMap.put("actionId", action.getActionId());
-        afterMap.put("status", action.getStatus());
+        afterMap.put("status", action.getStatus() != null ? action.getStatus().name() : null);
         afterMap.put("requiresApproval", requiresApproval);
         auditWriter.log(tenantId, AuditEventConstants.CATEGORY_ACTION, AuditEventConstants.TYPE_PROPOSE,
                 "AGENT_ACTION", String.valueOf(action.getActionId()),

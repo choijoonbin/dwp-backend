@@ -58,9 +58,14 @@ public class CaseQueryService {
                 .distinct()
                 .toList();
         if (!statusList.isEmpty()) {
-            predicate.and(c.status.in(statusList));
+            List<AgentCaseStatus> statusEnums = statusList.stream()
+                    .map(AgentCaseStatus::fromString)
+                    .filter(java.util.Objects::nonNull)
+                    .toList();
+            if (!statusEnums.isEmpty()) predicate.and(c.status.in(statusEnums));
         } else if (query.getStatus() != null && !query.getStatus().isBlank()) {
-            predicate.and(c.status.eq(query.getStatus()));
+            AgentCaseStatus statusEnum = AgentCaseStatus.fromString(query.getStatus());
+            if (statusEnum != null) predicate.and(c.status.eq(statusEnum));
         }
         List<String> severityList = drillDownCodeResolver.filterValid(DrillDownCodeResolver.GROUP_SEVERITY,
                 com.dwp.services.synapsex.util.DrillDownParamUtil.parseMulti(query.getSeverity()));
@@ -139,10 +144,15 @@ public class CaseQueryService {
             List<String> pendingStatuses = drillDownCodeResolver.filterValid(DrillDownCodeResolver.GROUP_ACTION_STATUS,
                     List.of("PENDING_APPROVAL", "PENDING", "QUEUED", "PROPOSED", "PLANNED"));
             if (pendingStatuses.isEmpty()) pendingStatuses = List.of("PENDING_APPROVAL", "PENDING", "QUEUED", "PROPOSED", "PLANNED");
+            List<com.dwp.services.synapsex.entity.AgentActionStatus> statusEnums = pendingStatuses.stream()
+                    .map(com.dwp.services.synapsex.entity.AgentActionStatus::fromString)
+                    .filter(java.util.Objects::nonNull)
+                    .toList();
+            if (statusEnums.isEmpty()) statusEnums = List.of(com.dwp.services.synapsex.entity.AgentActionStatus.PENDING_APPROVAL, com.dwp.services.synapsex.entity.AgentActionStatus.PROPOSED, com.dwp.services.synapsex.entity.AgentActionStatus.PLANNED);
             List<Long> caseIdsWithPending = queryFactory.select(QAgentAction.agentAction.caseId)
                     .from(QAgentAction.agentAction)
                     .where(QAgentAction.agentAction.tenantId.eq(tenantId)
-                            .and(QAgentAction.agentAction.status.in(pendingStatuses)))
+                            .and(QAgentAction.agentAction.status.in(statusEnums)))
                     .distinct()
                     .fetch();
             if (!caseIdsWithPending.isEmpty()) {
@@ -223,7 +233,7 @@ public class CaseQueryService {
 
     private List<Long> resolveAssigneeIdsBySlaRisk(Long tenantId, String slaRisk) {
         List<AgentCase> openCases = agentCaseRepository.findByTenantId(tenantId).stream()
-                .filter(c -> c.getStatus() != null && List.of("OPEN", "ACTIVE", "IN_PROGRESS", "IN_REVIEW", "TRIAGED").contains(c.getStatus().toUpperCase()))
+                .filter(c -> c.getStatus() != null && List.of(AgentCaseStatus.OPEN, AgentCaseStatus.IN_PROGRESS, AgentCaseStatus.IN_REVIEW, AgentCaseStatus.TRIAGED).contains(c.getStatus()))
                 .filter(c -> c.getAssigneeUserId() != null)
                 .toList();
         Map<Long, Long> countByAssignee = new java.util.HashMap<>();
@@ -282,7 +292,7 @@ public class CaseQueryService {
                     .caseType(case_.getCaseType())
                     .severity(case_.getSeverity())
                     .score(case_.getScore())
-                    .status(case_.getStatus())
+                    .status(case_.getStatus() != null ? case_.getStatus().name() : null)
                     .reasonTextShort(reasonShort)
                     .docKeys(docKeys)
                     .partySummary(partySummary)
@@ -346,7 +356,7 @@ public class CaseQueryService {
                         .map(a -> CaseDetailDto.ActionSummaryDto.builder()
                                 .actionId(a.getActionId())
                                 .actionType(a.getActionType())
-                                .status(a.getStatus())
+                                .status(a.getStatus() != null ? a.getStatus().name() : null)
                                 .createdAt(a.getCreatedAt() != null ? a.getCreatedAt().toString() : null)
                                 .executedAt(a.getExecutedAt() != null ? a.getExecutedAt().toString() : null)
                                 .build())
@@ -360,7 +370,7 @@ public class CaseQueryService {
                 .build();
         return CaseDetailDto.builder()
                 .caseId(case_.getCaseId())
-                .status(case_.getStatus())
+                .status(case_.getStatus() != null ? case_.getStatus().name() : null)
                 .evidence(evidence)
                 .reasoning(reasoning)
                 .action(action)

@@ -61,7 +61,7 @@ class SynapseVerificationIntegrationTest extends SynapseTestcontainersBase {
                 .detectedAt(Instant.now())
                 .caseType("DUPLICATE_INVOICE")
                 .severity("HIGH")
-                .status("OPEN")
+                .status(com.dwp.services.synapsex.entity.AgentCaseStatus.OPEN)
                 .build();
         c1 = agentCaseRepository.save(c1);
         caseIdTenant1 = c1.getCaseId();
@@ -70,7 +70,7 @@ class SynapseVerificationIntegrationTest extends SynapseTestcontainersBase {
                 .tenantId(TENANT_1)
                 .caseId(caseIdTenant1)
                 .actionType("PAYMENT_BLOCK")
-                .status("PROPOSED")
+                .status(com.dwp.services.synapsex.entity.AgentActionStatus.PROPOSED)
                 .plannedAt(Instant.now())
                 .build();
         a1 = agentActionRepository.save(a1);
@@ -81,7 +81,7 @@ class SynapseVerificationIntegrationTest extends SynapseTestcontainersBase {
                 .detectedAt(Instant.now())
                 .caseType("DUPLICATE_INVOICE")
                 .severity("MEDIUM")
-                .status("OPEN")
+                .status(com.dwp.services.synapsex.entity.AgentCaseStatus.OPEN)
                 .build();
         c2 = agentCaseRepository.save(c2);
         caseIdTenant2 = c2.getCaseId();
@@ -134,7 +134,7 @@ class SynapseVerificationIntegrationTest extends SynapseTestcontainersBase {
         @DisplayName("POST /synapse/actions/{id}/execute - X-Tenant-ID 없으면 400")
         void execute_withoutTenant_returns400() throws Exception {
             agentActionRepository.findById(actionIdTenant1).ifPresent(a -> {
-                a.setStatus("APPROVED");
+                a.setStatus(com.dwp.services.synapsex.entity.AgentActionStatus.APPROVED);
                 agentActionRepository.save(a);
             });
             mockMvc.perform(post("/synapse/actions/{actionId}/execute", actionIdTenant1))
@@ -203,7 +203,7 @@ class SynapseVerificationIntegrationTest extends SynapseTestcontainersBase {
         @DisplayName("POST /actions/{id}/execute → audit_event_log EXECUTE 기록")
         void actionExecute_recordsAudit() throws Exception {
             agentActionRepository.findById(actionIdTenant1).ifPresent(a -> {
-                a.setStatus("APPROVED");
+                a.setStatus(com.dwp.services.synapsex.entity.AgentActionStatus.APPROVED);
                 agentActionRepository.save(a);
             });
             long before = auditEventLogRepository.findByTenantId(TENANT_1, PageRequest.of(0, 1000)).getTotalElements();
@@ -251,7 +251,7 @@ class SynapseVerificationIntegrationTest extends SynapseTestcontainersBase {
                     .tenantId(TENANT_2)
                     .caseId(caseIdTenant2)
                     .actionType("PAYMENT_BLOCK")
-                    .status("PROPOSED")
+                    .status(com.dwp.services.synapsex.entity.AgentActionStatus.PROPOSED)
                     .plannedAt(Instant.now())
                     .build();
             a2 = agentActionRepository.save(a2);

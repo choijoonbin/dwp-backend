@@ -64,9 +64,11 @@ public class AgentCase {
     @Column(name = "rag_refs_json", columnDefinition = "jsonb")
     private JsonNode ragRefsJson;
 
-    @Column(name = "status", nullable = false, length = 20)
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.NAMED_ENUM)
+    @Column(name = "status", nullable = false, columnDefinition = "dwp_aura.agent_case_status")
     @Builder.Default
-    private String status = "OPEN";
+    private AgentCaseStatus status = AgentCaseStatus.OPEN;
 
     @Column(name = "owner_user", length = 80)
     private String ownerUser;

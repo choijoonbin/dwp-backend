@@ -67,7 +67,7 @@ public class DashboardQueryService {
         // PostgreSQL enum 비교 회피: findByTenantId 후 Java에서 status 필터
         List<AgentCase> allCases = agentCaseRepository.findByTenantId(tenantId);
         List<AgentCase> openCases = allCases.stream()
-                .filter(c -> c.getStatus() != null && OPEN_CASE_STATUSES.contains(c.getStatus().toUpperCase()))
+                .filter(c -> c.getStatus() != null && OPEN_CASE_STATUSES.contains(c.getStatus().name().toUpperCase()))
                 .toList();
         long critical = openCases.stream().filter(c -> "CRITICAL".equalsIgnoreCase(c.getSeverity())).count();
         long high = openCases.stream().filter(c -> "HIGH".equalsIgnoreCase(c.getSeverity())).count();
@@ -77,10 +77,10 @@ public class DashboardQueryService {
         // AI Action success rate (last 7 days)
         List<AgentAction> recentActions = agentActionRepository.findByTenantIdAndCreatedAtAfter(tenantId, sevenDaysAgo);
         long okCnt = recentActions.stream()
-                .filter(a -> SUCCESS_ACTION_STATUSES.stream().anyMatch(s -> s.equalsIgnoreCase(a.getStatus())))
+                .filter(a -> a.getStatus() != null && SUCCESS_ACTION_STATUSES.stream().anyMatch(s -> s.equalsIgnoreCase(a.getStatus().name())))
                 .count();
         long failCnt = recentActions.stream()
-                .filter(a -> FAIL_ACTION_STATUSES.stream().anyMatch(s -> s.equalsIgnoreCase(a.getStatus())))
+                .filter(a -> a.getStatus() != null && FAIL_ACTION_STATUSES.stream().anyMatch(s -> s.equalsIgnoreCase(a.getStatus().name())))
                 .count();
         BigDecimal ratePct = (okCnt + failCnt) > 0
                 ? BigDecimal.valueOf(okCnt).multiply(BigDecimal.valueOf(100))
@@ -108,7 +108,7 @@ public class DashboardQueryService {
         // PostgreSQL enum 비교 회피: findByTenantId 후 Java에서 status 필터
         List<AgentAction> allActions = agentActionRepository.findByTenantId(tenantId);
         List<AgentAction> pendingActions = allActions.stream()
-                .filter(a -> a.getStatus() != null && PENDING_ACTION_STATUSES.contains(a.getStatus().toUpperCase()))
+                .filter(a -> a.getStatus() != null && PENDING_ACTION_STATUSES.contains(a.getStatus().name().toUpperCase()))
                 .toList();
         long pendingApprovals = pendingActions.size();
 
@@ -151,7 +151,7 @@ public class DashboardQueryService {
         // PostgreSQL enum 비교 회피: findByTenantIdAndCreatedAtAfter 후 Java에서 status 필터
         List<AgentCase> allCases = agentCaseRepository.findByTenantIdAndCreatedAtAfter(tenantId, fromTs);
         List<AgentCase> cases = allCases.stream()
-                .filter(c -> c.getStatus() != null && OPEN_CASE_STATUSES.contains(c.getStatus().toUpperCase()))
+                .filter(c -> c.getStatus() != null && OPEN_CASE_STATUSES.contains(c.getStatus().name().toUpperCase()))
                 .toList();
 
         Map<String, TopRiskDriverDto> byType = new LinkedHashMap<>();
@@ -206,7 +206,7 @@ public class DashboardQueryService {
 
         List<AgentAction> allActions = agentActionRepository.findByTenantId(tenantId);
         List<AgentAction> pendingActions = allActions.stream()
-                .filter(a -> a.getStatus() != null && PENDING_ACTION_STATUSES.contains(a.getStatus().toUpperCase()))
+                .filter(a -> a.getStatus() != null && PENDING_ACTION_STATUSES.contains(a.getStatus().name().toUpperCase()))
                 .toList();
         Set<Long> caseIds = pendingActions.stream().map(AgentAction::getCaseId).collect(Collectors.toSet());
         if (caseIds.isEmpty()) {
@@ -262,13 +262,13 @@ public class DashboardQueryService {
         Map<Long, AgentCase> caseMap = allCasesForLookup.stream().collect(Collectors.toMap(AgentCase::getCaseId, c -> c, (a, b) -> a));
 
         List<AgentCase> openCases = rangeCases.stream()
-                .filter(c -> c.getStatus() != null && OPEN_CASE_STATUSES.contains(c.getStatus().toUpperCase()))
+                .filter(c -> c.getStatus() != null && OPEN_CASE_STATUSES.contains(c.getStatus().name().toUpperCase()))
                 .filter(c -> c.getAssigneeUserId() != null)
                 .toList();
 
         List<AgentAction> allActions = agentActionRepository.findByTenantId(tenantId);
         List<AgentAction> pendingActions = allActions.stream()
-                .filter(a -> a.getStatus() != null && PENDING_ACTION_STATUSES.contains(a.getStatus().toUpperCase()))
+                .filter(a -> a.getStatus() != null && PENDING_ACTION_STATUSES.contains(a.getStatus().name().toUpperCase()))
                 .toList();
 
         Map<Long, Long> pendingByAssignee = new HashMap<>();
@@ -520,7 +520,7 @@ public class DashboardQueryService {
         int count = 0;
         for (AgentCase c : cases) {
             Instant end = c.getUpdatedAt() != null ? c.getUpdatedAt() : now;
-            boolean closed = c.getStatus() != null && CLOSED_CASE_STATUSES.contains(c.getStatus().toUpperCase());
+            boolean closed = c.getStatus() != null && CLOSED_CASE_STATUSES.contains(c.getStatus().name().toUpperCase());
             if (!closed) end = now;
             long millis = ChronoUnit.MILLIS.between(c.getCreatedAt(), end);
             sumHours += millis / (1000.0 * 3600.0);

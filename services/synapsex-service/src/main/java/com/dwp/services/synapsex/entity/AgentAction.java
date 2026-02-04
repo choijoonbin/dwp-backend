@@ -67,9 +67,11 @@ public class AgentAction {
     @Column(name = "executed_at")
     private Instant executedAt;
 
-    @Column(name = "status", nullable = false, length = 20)
+    @jakarta.persistence.Enumerated(jakarta.persistence.EnumType.STRING)
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.NAMED_ENUM)
+    @Column(name = "status", nullable = false, columnDefinition = "dwp_aura.agent_action_status")
     @Builder.Default
-    private String status = "PROPOSED";
+    private AgentActionStatus status = AgentActionStatus.PROPOSED;
 
     @Column(name = "executed_by", length = 50)
     @Builder.Default

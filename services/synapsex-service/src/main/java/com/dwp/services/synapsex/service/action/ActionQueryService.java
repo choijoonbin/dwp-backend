@@ -4,6 +4,7 @@ import com.dwp.services.synapsex.dto.action.ActionDetailDto;
 import com.dwp.services.synapsex.dto.action.ActionListRowDto;
 import com.dwp.services.synapsex.dto.common.PageResponse;
 import com.dwp.services.synapsex.entity.AgentAction;
+import com.dwp.services.synapsex.entity.AgentActionStatus;
 import com.dwp.services.synapsex.entity.AgentCase;
 import com.dwp.services.synapsex.entity.QAgentAction;
 import com.dwp.services.synapsex.entity.QAgentCase;
@@ -43,9 +44,14 @@ public class ActionQueryService {
         List<String> statusList = drillDownCodeResolver.filterValid(DrillDownCodeResolver.GROUP_ACTION_STATUS,
                 DrillDownParamUtil.parseMulti(query.getStatus()));
         if (!statusList.isEmpty()) {
-            predicate.and(a.status.in(statusList));
+            List<AgentActionStatus> statusEnums = statusList.stream()
+                    .map(AgentActionStatus::fromString)
+                    .filter(java.util.Objects::nonNull)
+                    .toList();
+            if (!statusEnums.isEmpty()) predicate.and(a.status.in(statusEnums));
         } else if (query.getStatus() != null && !query.getStatus().isBlank()) {
-            predicate.and(a.status.eq(query.getStatus()));
+            AgentActionStatus statusEnum = AgentActionStatus.fromString(query.getStatus());
+            if (statusEnum != null) predicate.and(a.status.eq(statusEnum));
         }
         if (query.getType() != null && !query.getType().isBlank()) {
             predicate.and(a.actionType.eq(query.getType()));
@@ -93,7 +99,11 @@ public class ActionQueryService {
             List<String> approvalStatuses = drillDownCodeResolver.filterValid(DrillDownCodeResolver.GROUP_ACTION_STATUS,
                     List.of("PENDING_APPROVAL", "PENDING", "PROPOSED", "WAITING_APPROVAL"));
             if (approvalStatuses.isEmpty()) approvalStatuses = List.of("PENDING_APPROVAL", "PENDING", "PROPOSED");
-            predicate.and(a.status.in(approvalStatuses));
+            List<AgentActionStatus> statusEnums = approvalStatuses.stream()
+                    .map(AgentActionStatus::fromString)
+                    .filter(java.util.Objects::nonNull)
+                    .toList();
+            if (!statusEnums.isEmpty()) predicate.and(a.status.in(statusEnums));
         }
 
         int page = Math.max(0, query.getPage());
@@ -161,7 +171,7 @@ public class ActionQueryService {
                 .actionId(action.getActionId())
                 .caseId(action.getCaseId())
                 .actionType(action.getActionType())
-                .status(action.getStatus())
+                .status(action.getStatus() != null ? action.getStatus().name() : null)
                 .payload(action.getPayloadJson())
                 .simulationBefore(action.getSimulationBefore())
                 .simulationAfter(action.getSimulationAfter())
@@ -172,13 +182,14 @@ public class ActionQueryService {
 
     private ActionListRowDto toListRow(AgentAction action) {
         Instant created = action.getCreatedAt() != null ? action.getCreatedAt() : action.getPlannedAt();
-        String outcome = "EXECUTED".equals(action.getStatus()) || "SUCCESS".equals(action.getStatus()) ? "SUCCESS"
-                : "FAILED".equals(action.getStatus()) ? "FAILED" : null;
+        AgentActionStatus st = action.getStatus();
+        String outcome = st == AgentActionStatus.EXECUTED || st == AgentActionStatus.SUCCESS ? "SUCCESS"
+                : st == AgentActionStatus.FAILED ? "FAILED" : null;
         return ActionListRowDto.builder()
                 .actionId(action.getActionId())
                 .caseId(action.getCaseId())
                 .actionType(action.getActionType())
-                .status(action.getStatus())
+                .status(action.getStatus() != null ? action.getStatus().name() : null)
                 .createdAt(created)
                 .executedAt(action.getExecutedAt())
                 .outcome(outcome)

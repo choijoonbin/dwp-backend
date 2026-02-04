@@ -3,6 +3,7 @@ package com.dwp.services.synapsex.service.archive;
 import com.dwp.services.synapsex.dto.archive.ArchiveListRowDto;
 import com.dwp.services.synapsex.dto.common.PageResponse;
 import com.dwp.services.synapsex.entity.AgentAction;
+import com.dwp.services.synapsex.entity.AgentActionStatus;
 import com.dwp.services.synapsex.entity.AgentCase;
 import com.dwp.services.synapsex.entity.QAgentAction;
 import com.dwp.services.synapsex.repository.AgentActionRepository;
@@ -40,13 +41,13 @@ public class ArchiveQueryService {
     public PageResponse<ArchiveListRowDto> findArchivedActions(Long tenantId, ArchiveListQuery query) {
         BooleanBuilder predicate = new BooleanBuilder();
         predicate.and(a.tenantId.eq(tenantId));
-        predicate.and(a.status.in("EXECUTED", "FAILED", "CANCELED", "SUCCESS"));
+        predicate.and(a.status.in(AgentActionStatus.EXECUTED, AgentActionStatus.FAILED, AgentActionStatus.CANCELED, AgentActionStatus.SUCCESS));
 
         if (query.getOutcome() != null && !query.getOutcome().isBlank()) {
             if ("SUCCESS".equalsIgnoreCase(query.getOutcome())) {
-                predicate.and(a.status.in("EXECUTED", "SUCCESS"));
+                predicate.and(a.status.in(AgentActionStatus.EXECUTED, AgentActionStatus.SUCCESS));
             } else if ("FAILED".equalsIgnoreCase(query.getOutcome())) {
-                predicate.and(a.status.eq("FAILED"));
+                predicate.and(a.status.eq(AgentActionStatus.FAILED));
             }
         }
         if (query.getType() != null && !query.getType().isBlank()) {
@@ -91,13 +92,14 @@ public class ArchiveQueryService {
     public Optional<ArchiveListRowDto> findArchivedActionDetail(Long tenantId, Long actionId) {
         return agentActionRepository.findById(actionId)
                 .filter(a -> tenantId.equals(a.getTenantId()))
-                .filter(a -> java.util.Set.of("EXECUTED", "FAILED", "CANCELED", "SUCCESS").contains(a.getStatus()))
+                .filter(a -> a.getStatus() != null && java.util.Set.of(AgentActionStatus.EXECUTED, AgentActionStatus.FAILED, AgentActionStatus.CANCELED, AgentActionStatus.SUCCESS).contains(a.getStatus()))
                 .map(a -> toArchiveRow(tenantId, a));
     }
 
     private ArchiveListRowDto toArchiveRow(Long tenantId, AgentAction action) {
-        String outcome = "EXECUTED".equals(action.getStatus()) || "SUCCESS".equals(action.getStatus()) ? "SUCCESS"
-                : "FAILED".equals(action.getStatus()) ? "FAILED" : action.getStatus();
+        AgentActionStatus st = action.getStatus();
+        String outcome = st == AgentActionStatus.EXECUTED || st == AgentActionStatus.SUCCESS ? "SUCCESS"
+                : st == AgentActionStatus.FAILED ? "FAILED" : (st != null ? st.name() : null);
         String docKey = null;
         Long partyId = null;
         Optional<AgentCase> caseOpt = agentCaseRepository.findByCaseIdAndTenantId(action.getCaseId(), tenantId);
@@ -127,7 +129,7 @@ public class ArchiveQueryService {
                 .actionId(action.getActionId())
                 .caseId(action.getCaseId())
                 .actionType(action.getActionType())
-                .status(action.getStatus())
+                .status(action.getStatus() != null ? action.getStatus().name() : null)
                 .outcome(outcome)
                 .executedAt(action.getExecutedAt())
                 .failureReason(action.getFailureReason() != null ? action.getFailureReason() : action.getErrorMessage())

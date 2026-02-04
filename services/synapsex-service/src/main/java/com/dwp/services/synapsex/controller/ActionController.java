@@ -56,7 +56,7 @@ public class ActionController {
             @RequestParam(required = false) String assignee,
             @RequestParam(required = false) Long assigneeUserId,
             @RequestParam(required = false) String severity,
-            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "plannedAt") String sort,
             @RequestParam(defaultValue = "desc") String order) {
@@ -166,7 +166,7 @@ public class ActionController {
                 .actionId(action.getActionId())
                 .caseId(action.getCaseId())
                 .actionType(action.getActionType())
-                .status(action.getStatus())
+                .status(action.getStatus() != null ? action.getStatus().name() : null)
                 .createdAt(action.getCreatedAt() != null ? action.getCreatedAt() : action.getPlannedAt())
                 .executedAt(action.getExecutedAt())
                 .build()));
@@ -208,7 +208,7 @@ public class ActionController {
                 .actionId(action.getActionId())
                 .caseId(action.getCaseId())
                 .actionType(action.getActionType())
-                .status(action.getStatus())
+                .status(action.getStatus() != null ? action.getStatus().name() : null)
                 .createdAt(action.getCreatedAt() != null ? action.getCreatedAt() : action.getPlannedAt())
                 .executedAt(action.getExecutedAt())
                 .build());
@@ -229,10 +229,10 @@ public class ActionController {
                     .actionId(action.getActionId())
                     .caseId(action.getCaseId())
                     .actionType(action.getActionType())
-                    .status(action.getStatus())
+                    .status(action.getStatus() != null ? action.getStatus().name() : null)
                     .createdAt(action.getCreatedAt() != null ? action.getCreatedAt() : action.getPlannedAt())
                     .executedAt(action.getExecutedAt())
-                    .outcome("EXECUTED".equals(action.getStatus()) ? "SUCCESS" : "FAILED")
+                    .outcome(action.getStatus() == com.dwp.services.synapsex.entity.AgentActionStatus.EXECUTED ? "SUCCESS" : "FAILED")
                     .failureReason(action.getFailureReason())
                     .build()));
         } catch (com.dwp.core.exception.BaseException e) {

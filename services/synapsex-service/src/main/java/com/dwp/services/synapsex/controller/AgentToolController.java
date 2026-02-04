@@ -189,7 +189,7 @@ public class AgentToolController {
                 .actionId(action.getActionId())
                 .caseId(action.getCaseId())
                 .actionType(action.getActionType())
-                .status(action.getStatus())
+                .status(action.getStatus() != null ? action.getStatus().name() : null)
                 .payload(action.getPayloadJson())
                 .simulationBefore(action.getSimulationBefore())
                 .simulationAfter(action.getSimulationAfter())

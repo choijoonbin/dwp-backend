@@ -34,8 +34,9 @@ public class EntityController {
 
     /**
      * C1) GET /api/synapse/entities
+     * C1-alt) GET /api/synapse/entities/parties — 동일 동작 (FE 계약: 경로 충돌 방지용 별칭)
      */
-    @GetMapping
+    @GetMapping({"", "/parties"})
     public ApiResponse<PageResponse<EntityListRowDto>> getEntities(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
             @RequestParam(required = false) String type,

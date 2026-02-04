@@ -2,6 +2,7 @@ package com.dwp.services.synapsex.service.case_;
 
 import com.dwp.services.synapsex.audit.AuditEventConstants;
 import com.dwp.services.synapsex.entity.AgentCase;
+import com.dwp.services.synapsex.entity.AgentCaseStatus;
 import com.dwp.services.synapsex.entity.CaseComment;
 import com.dwp.services.synapsex.repository.AgentCaseRepository;
 import com.dwp.services.synapsex.repository.CaseCommentRepository;
@@ -24,7 +25,7 @@ import java.util.Map;
 public class CaseCommandService {
 
     private static final List<String> ALLOWED_STATUSES = List.of(
-            "NEW", "OPEN", "TRIAGED", "IN_PROGRESS", "WAITING_APPROVAL", "RESOLVED", "DISMISSED", "CLOSED");
+            "OPEN", "TRIAGED", "IN_PROGRESS", "RESOLVED", "DISMISSED", "CLOSED", "IN_REVIEW", "APPROVED", "REJECTED", "ACTIONED");
 
     private final AgentCaseRepository agentCaseRepository;
     private final CaseCommentRepository caseCommentRepository;
@@ -36,12 +37,13 @@ public class CaseCommandService {
         AgentCase case_ = agentCaseRepository.findByCaseIdAndTenantId(caseId, tenantId)
                 .orElseThrow(() -> new IllegalArgumentException("Case not found: " + caseId));
 
-        if (!ALLOWED_STATUSES.contains(newStatus)) {
+        AgentCaseStatus statusEnum = AgentCaseStatus.fromString(newStatus);
+        if (statusEnum == null || !ALLOWED_STATUSES.contains(newStatus)) {
             throw new IllegalArgumentException("Invalid status: " + newStatus);
         }
 
-        String oldStatus = case_.getStatus();
-        case_.setStatus(newStatus);
+        String oldStatus = case_.getStatus() != null ? case_.getStatus().name() : null;
+        case_.setStatus(statusEnum);
         agentCaseRepository.save(case_);
 
         auditWriter.logCaseStatusChange(tenantId, caseId, oldStatus, newStatus,

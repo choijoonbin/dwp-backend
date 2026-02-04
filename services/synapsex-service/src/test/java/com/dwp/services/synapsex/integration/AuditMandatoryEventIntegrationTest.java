@@ -65,7 +65,7 @@ class AuditMandatoryEventIntegrationTest extends SynapseTestcontainersBase {
                 .detectedAt(Instant.now())
                 .caseType("DUPLICATE_INVOICE")
                 .severity("HIGH")
-                .status("OPEN")
+                .status(com.dwp.services.synapsex.entity.AgentCaseStatus.OPEN)
                 .build();
         c = agentCaseRepository.save(c);
         caseId = c.getCaseId();
@@ -74,7 +74,7 @@ class AuditMandatoryEventIntegrationTest extends SynapseTestcontainersBase {
                 .tenantId(TENANT_ID)
                 .caseId(caseId)
                 .actionType("PAYMENT_BLOCK")
-                .status("PROPOSED")
+                .status(com.dwp.services.synapsex.entity.AgentActionStatus.PROPOSED)
                 .plannedAt(Instant.now())
                 .build();
         a = agentActionRepository.save(a);
@@ -194,7 +194,7 @@ class AuditMandatoryEventIntegrationTest extends SynapseTestcontainersBase {
         @BeforeEach
         void setActionApproved() {
             agentActionRepository.findById(actionId).ifPresent(a -> {
-                a.setStatus("APPROVED");
+                a.setStatus(com.dwp.services.synapsex.entity.AgentActionStatus.APPROVED);
                 agentActionRepository.save(a);
             });
         }

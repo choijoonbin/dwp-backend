@@ -3,6 +3,7 @@ package com.dwp.services.synapsex.service.action;
 import com.dwp.services.synapsex.audit.AuditEventConstants;
 import com.dwp.services.synapsex.dto.action.ActionDetailDto;
 import com.dwp.services.synapsex.entity.AgentAction;
+import com.dwp.services.synapsex.entity.AgentActionStatus;
 import com.dwp.services.synapsex.entity.AgentCase;
 import com.dwp.services.synapsex.repository.AgentActionRepository;
 import com.dwp.services.synapsex.repository.AgentCaseRepository;
@@ -44,7 +45,7 @@ public class ActionCommandService {
                 .payloadJson(payload)
                 .requestedByUserId(requestedByUserId)
                 .requestedByActorType("USER")
-                .status("PROPOSED")
+                .status(AgentActionStatus.PROPOSED)
                 .plannedAt(Instant.now())
                 .executedBy("PENDING")
                 .build();
@@ -63,7 +64,7 @@ public class ActionCommandService {
                 .actionId(action.getActionId())
                 .caseId(action.getCaseId())
                 .actionType(action.getActionType())
-                .status(action.getStatus())
+                .status(action.getStatus() != null ? action.getStatus().name() : null)
                 .payload(action.getPayloadJson())
                 .simulationBefore(action.getSimulationBefore())
                 .simulationAfter(action.getSimulationAfter())
@@ -75,7 +76,7 @@ public class ActionCommandService {
     private JsonNode computeSimulationBefore(AgentCase case_, AgentAction action) {
         return com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.objectNode()
                 .put("caseId", case_.getCaseId())
-                .put("status", case_.getStatus())
+                .put("status", case_.getStatus() != null ? case_.getStatus().name() : null)
                 .put("actionType", action.getActionType());
     }
 
@@ -103,14 +104,14 @@ public class ActionCommandService {
                 .filter(a -> tenantId.equals(a.getTenantId()))
                 .orElseThrow(() -> new IllegalArgumentException("Action not found: " + actionId));
 
-        String oldStatus = action.getStatus();
-        action.setStatus("APPROVED");
+        String oldStatus = action.getStatus() != null ? action.getStatus().name() : null;
+        action.setStatus(AgentActionStatus.APPROVED);
         action.setUpdatedAt(Instant.now());
         action = agentActionRepository.save(action);
 
         auditWriter.logActionEvent(tenantId, AuditEventConstants.TYPE_APPROVE, actionId, action.getCaseId(),
                 actorUserId, AuditEventConstants.OUTCOME_SUCCESS,
-                Map.of("status", oldStatus), Map.of("status", "APPROVED"),
+                Map.of("status", oldStatus != null ? oldStatus : ""), Map.of("status", "APPROVED"),
                 ipAddress, userAgent, gatewayRequestId);
         return action;
     }
@@ -122,17 +123,17 @@ public class ActionCommandService {
                 .filter(a -> tenantId.equals(a.getTenantId()))
                 .orElseThrow(() -> new IllegalArgumentException("Action not found: " + actionId));
 
-        if (!"APPROVED".equals(action.getStatus())) {
-            throw new IllegalStateException("Only APPROVED actions can be executed. Current status: " + action.getStatus());
+        if (action.getStatus() != AgentActionStatus.APPROVED) {
+            throw new IllegalStateException("Only APPROVED actions can be executed. Current status: " + (action.getStatus() != null ? action.getStatus().name() : null));
         }
 
-        String oldStatus = action.getStatus();
-        action.setStatus("EXECUTING");
+        String oldStatus = action.getStatus().name();
+        action.setStatus(AgentActionStatus.EXECUTING);
         action.setUpdatedAt(Instant.now());
         action = agentActionRepository.save(action);
 
         try {
-            action.setStatus("EXECUTED");
+            action.setStatus(AgentActionStatus.EXECUTED);
             action.setExecutedAt(Instant.now());
             action.setExecutedBy(actorUserId != null ? "USER:" + actorUserId : "SYSTEM");
             action.setUpdatedAt(Instant.now());
@@ -143,7 +144,7 @@ public class ActionCommandService {
                     Map.of("status", oldStatus), Map.of("status", "EXECUTED"),
                     ipAddress, userAgent, gatewayRequestId);
         } catch (Exception e) {
-            action.setStatus("FAILED");
+            action.setStatus(AgentActionStatus.FAILED);
             action.setFailureReason(e.getMessage());
             action.setErrorMessage(e.getMessage());
             action.setUpdatedAt(Instant.now());
@@ -165,14 +166,14 @@ public class ActionCommandService {
                 .filter(a -> tenantId.equals(a.getTenantId()))
                 .orElseThrow(() -> new IllegalArgumentException("Action not found: " + actionId));
 
-        String oldStatus = action.getStatus();
-        action.setStatus("CANCELED");
+        String oldStatus = action.getStatus() != null ? action.getStatus().name() : null;
+        action.setStatus(AgentActionStatus.CANCELED);
         action.setUpdatedAt(Instant.now());
         action = agentActionRepository.save(action);
 
         auditWriter.logActionEvent(tenantId, AuditEventConstants.TYPE_REJECT, actionId, action.getCaseId(),
                 actorUserId, AuditEventConstants.OUTCOME_SUCCESS,
-                Map.of("status", oldStatus), Map.of("status", "CANCELED"),
+                Map.of("status", oldStatus != null ? oldStatus : ""), Map.of("status", "CANCELED"),
                 ipAddress, userAgent, gatewayRequestId);
         return action;
     }
