@@ -89,5 +89,6 @@
 | event_type → stage | ✅ | AuraEventStageMapper (Aura 규격) |
 | audit_event_log event_type | ✅ | stage로 저장 (event_category='AGENT') |
 | agent-stream | ✅ | agent_activity_log 우선, 없으면 audit_event_log fallback |
+| POST /api/synapse/agent/events | ✅ | REST push (Prompt C), agent_activity_log 저장 |
 | Team Snapshot display_name | ✅ | AuthServerUserClient Feign → com_users.display_name |
 | /api/aura/dashboard/* | ✅ | Gateway 프록시 → synapsex (동일 API) |

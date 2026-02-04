@@ -31,7 +31,8 @@ public class AuditEventQueryService {
     public AuditEventPageDto search(Long tenantId, Instant from, Instant to,
                                    String category, String type, String outcome, String severity,
                                    Long actorUserId, String actorType,
-                                   String resourceType, String resourceId, String q, Pageable pageable) {
+                                   String resourceType, String resourceId,
+                                   String traceId, String gatewayRequestId, String q, Pageable pageable) {
         Specification<AuditEventLog> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.equal(root.get("tenantId"), tenantId));
@@ -53,6 +54,16 @@ public class AuditEventQueryService {
             if (actorUserId != null) predicates.add(cb.equal(root.get("actorUserId"), actorUserId));
             if (resourceType != null && !resourceType.isBlank()) predicates.add(cb.equal(root.get("resourceType"), resourceType));
             if (resourceId != null && !resourceId.isBlank()) predicates.add(cb.equal(root.get("resourceId"), resourceId));
+            if (traceId != null && !traceId.isBlank()) predicates.add(cb.equal(root.get("traceId"), traceId));
+            if (gatewayRequestId != null && !gatewayRequestId.isBlank()) predicates.add(cb.equal(root.get("gatewayRequestId"), gatewayRequestId));
+            if (q != null && !q.isBlank()) {
+                String qLower = "%" + q.toLowerCase() + "%";
+                List<Predicate> qPreds = new ArrayList<>();
+                qPreds.add(cb.like(cb.lower(cb.coalesce(root.get("resourceId"), "")), qLower));
+                qPreds.add(cb.like(cb.lower(cb.coalesce(root.get("traceId"), "")), qLower));
+                qPreds.add(cb.like(cb.lower(cb.coalesce(root.get("gatewayRequestId"), "")), qLower));
+                predicates.add(cb.or(qPreds.toArray(new Predicate[0])));
+            }
             return cb.and(predicates.toArray(new Predicate[0]));
         };
         Page<AuditEventLog> page = repository.findAll(spec, pageable);

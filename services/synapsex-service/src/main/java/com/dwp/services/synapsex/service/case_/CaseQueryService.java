@@ -52,6 +52,11 @@ public class CaseQueryService {
 
         List<String> statusList = drillDownCodeResolver.filterValid(DrillDownCodeResolver.GROUP_CASE_STATUS,
                 com.dwp.services.synapsex.util.DrillDownParamUtil.parseMulti(query.getStatus()));
+        // Drill-down 계약: TRIAGE → TRIAGED 매핑 (DB enum은 TRIAGED)
+        statusList = statusList.stream()
+                .map(s -> "TRIAGE".equalsIgnoreCase(s) ? "TRIAGED" : s)
+                .distinct()
+                .toList();
         if (!statusList.isEmpty()) {
             predicate.and(c.status.in(statusList));
         } else if (query.getStatus() != null && !query.getStatus().isBlank()) {

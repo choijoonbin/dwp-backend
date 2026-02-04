@@ -418,6 +418,37 @@ public class AuditWriter {
                 null);
     }
 
+    /** UI 이벤트 기록 (event_category=UI) — 프론트엔드 클릭/필터 감사 */
+    public void logUiEvent(Long tenantId, Long actorUserId, String eventType,
+                          String targetRoute, Map<String, Object> query, Map<String, Object> metadata) {
+        Map<String, Object> evidence = new java.util.HashMap<>();
+        if (query != null && !query.isEmpty()) evidence.put("query", query);
+        if (metadata != null && !metadata.isEmpty()) evidence.put("metadata", metadata);
+        evidence.put("target_route", targetRoute != null ? targetRoute : "");
+        log(tenantId,
+                AuditEventConstants.CATEGORY_UI,
+                eventType != null ? eventType : AuditEventConstants.TYPE_UI_FILTER_APPLY,
+                "ROUTE",
+                targetRoute != null ? targetRoute : null,
+                AuditEventConstants.ACTOR_HUMAN,
+                actorUserId,
+                null,
+                null,
+                AuditEventConstants.CHANNEL_WEB_UI,
+                AuditEventConstants.OUTCOME_SUCCESS,
+                AuditEventConstants.SEVERITY_INFO,
+                null,
+                null,
+                null,
+                evidence,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
+    }
+
     /** Dashboard 조회/드릴다운 기록 (event_category=DASHBOARD) — 관제센터 "누가 무엇을 봤는지" 감사 */
     public void logDashboardViewed(Long tenantId, Long actorUserId, String eventType,
                                    String dashboardKey, Map<String, Object> evidenceJson) {

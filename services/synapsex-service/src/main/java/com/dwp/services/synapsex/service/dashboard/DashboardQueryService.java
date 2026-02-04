@@ -354,7 +354,8 @@ public class DashboardQueryService {
             var catAgent = cb.equal(cb.upper(root.get("eventCategory")), "AGENT");
             var catAction = cb.equal(cb.upper(root.get("eventCategory")), "ACTION");
             var catIntegration = cb.equal(cb.upper(root.get("eventCategory")), "INTEGRATION");
-            return cb.and(tenantEq, createdAfter, cb.or(catAgent, catAction, catIntegration));
+            var catCase = cb.equal(cb.upper(root.get("eventCategory")), "CASE");
+            return cb.and(tenantEq, createdAfter, cb.or(catAgent, catAction, catIntegration, catCase));
         };
         List<AuditEventLog> logs = auditEventLogRepository.findAll(spec,
                 PageRequest.of(0, fetchLimit, Sort.by(Sort.Direction.DESC, "createdAt"))).getContent();
@@ -372,27 +373,31 @@ public class DashboardQueryService {
         String actionId = null;
         if (log.getResourceType() != null && log.getResourceId() != null) {
             if ("AGENT_CASE".equalsIgnoreCase(log.getResourceType()) || "CASE".equalsIgnoreCase(log.getResourceType())) {
-                caseId = "CS-" + log.getResourceId();
+                caseId = log.getResourceId().matches("\\d+") ? "CS-" + log.getResourceId() : log.getResourceId();
             } else if ("AGENT_ACTION".equalsIgnoreCase(log.getResourceType()) || "ACTION".equalsIgnoreCase(log.getResourceType())) {
-                actionId = "AC-" + log.getResourceId();
+                actionId = log.getResourceId().matches("\\d+") ? "AC-" + log.getResourceId() : log.getResourceId();
             }
         }
-        String casePath = caseId != null ? "/cases/" + log.getResourceId() : null;
+        String casePath = (caseId != null && log.getResourceId() != null && log.getResourceId().matches("\\d+")) ? "/cases/" + log.getResourceId() : null;
         String auditPath = "/audit?resourceType=" + (log.getResourceType() != null ? log.getResourceType() : "CASE")
                 + "&resourceId=" + (log.getResourceId() != null ? log.getResourceId() : "");
 
-        String message = "[" + log.getStage() + "] " + (log.getEventType() != null ? log.getEventType().replace("_", " ") : log.getStage());
+        String message = resolveMessageFromLog(log);
+
+        String level = resolveLevelFromMetadata(log.getMetadataJson());
+        String traceId = extractFromMetadata(log.getMetadataJson(), "traceId");
 
         return AgentActivityItemDto.builder()
                 .ts(log.getOccurredAt())
-                .level("INFO")
+                .level(level != null ? level : "INFO")
                 .stage(log.getStage())
                 .message(message)
                 .caseId(caseId)
                 .actionId(actionId)
                 .resourceType(log.getResourceType())
                 .resourceId(log.getResourceId())
-                .traceId(null)
+                .traceId(traceId)
+                .gatewayRequestId(null)
                 .links(AgentActivityItemDto.Links.builder()
                         .casePath(casePath)
                         .auditPath(auditPath)
@@ -421,8 +426,7 @@ public class DashboardQueryService {
             }
         }
         String casePath = caseId != null ? "/cases/" + e.getResourceId() : null;
-        String auditPath = "/audit?resourceType=" + (e.getResourceType() != null ? e.getResourceType() : "CASE")
-                + "&resourceId=" + (e.getResourceId() != null ? e.getResourceId() : "");
+        String auditPath = buildAuditPath(e.getTraceId(), e.getGatewayRequestId(), e.getResourceType(), e.getResourceId());
 
         return AgentActivityItemDto.builder()
                 .ts(e.getCreatedAt())
@@ -434,11 +438,42 @@ public class DashboardQueryService {
                 .resourceType(e.getResourceType())
                 .resourceId(e.getResourceId())
                 .traceId(e.getTraceId())
+                .gatewayRequestId(e.getGatewayRequestId())
                 .links(AgentActivityItemDto.Links.builder()
                         .casePath(casePath)
                         .auditPath(auditPath)
                         .build())
                 .build();
+    }
+
+    /** REST push 이벤트: metadataJson.message 사용. Redis ingest: stage + eventType 조합 */
+    private String resolveMessageFromLog(AgentActivityLog log) {
+        if (log.getMetadataJson() != null) {
+            Object msg = log.getMetadataJson().get("message");
+            if (msg != null && !msg.toString().isBlank()) return "[" + log.getStage() + "] " + msg;
+        }
+        return "[" + log.getStage() + "] " + (log.getEventType() != null ? log.getEventType().replace("_", " ") : log.getStage());
+    }
+
+    private String resolveLevelFromMetadata(Map<String, Object> metadata) {
+        if (metadata == null) return null;
+        Object s = metadata.get("severity");
+        return s != null ? s.toString() : null;
+    }
+
+    private String extractFromMetadata(Map<String, Object> metadata, String key) {
+        if (metadata == null) return null;
+        Object v = metadata.get(key);
+        return v != null ? v.toString() : null;
+    }
+
+    private String buildAuditPath(String traceId, String gatewayRequestId, String resourceType, String resourceId) {
+        StringBuilder sb = new StringBuilder("/audit/events?range=24h");
+        if (traceId != null && !traceId.isBlank()) sb.append("&traceId=").append(traceId);
+        else if (gatewayRequestId != null && !gatewayRequestId.isBlank()) sb.append("&gatewayRequestId=").append(gatewayRequestId);
+        if (resourceType != null && !resourceType.isBlank()) sb.append("&resourceType=").append(resourceType);
+        if (resourceId != null && !resourceId.isBlank()) sb.append("&resourceId=").append(resourceId);
+        return sb.toString();
     }
 
     private String mapEventToStage(String category, String type) {

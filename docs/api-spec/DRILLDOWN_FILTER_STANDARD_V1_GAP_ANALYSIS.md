@@ -1,7 +1,7 @@
 # Drill-down Filter Query Standard v1.0 — BE 갭 분석
 
 > 공통 계약 문서 대비 현재 SynapseX 구현 상태  
-> 작성: 2026-02-03
+> 작성: 2026-02-03 | 갱신: 2026-02-04
 
 ---
 
@@ -9,12 +9,12 @@
 
 | 영역 | 현재 상태 | 갭 |
 |------|-----------|-----|
-| 공통 Query 규칙 | ✅ 대부분 준수 | range/from 동시 400 검증 없음 |
-| Enum (app_codes) | ✅ V18 SoT | 일부 spec 값 매핑 필요 |
-| Cases/Anomalies/Actions API | ✅ 구현됨 | 일부 파라미터 추가 필요 |
-| Dashboard API | ✅ 구현됨 | 필드명/경로 차이 |
-| Audit 로그 | ⚠️ 부분 | category=UI 미적용 |
-| Validation (400) | ⚠️ 부분 | enum 외 값 400 미적용 |
+| 공통 Query 규칙 | ✅ 준수 | range/from 동시 400 검증 완료 |
+| Enum (app_codes) | ✅ V18 SoT | TRIAGE, PENDING 등 매핑 완료 |
+| Cases/Anomalies/Actions API | ✅ 구현됨 | approvalState, requiresApproval 지원 |
+| Dashboard API | ✅ 구현됨 | agent-stream 별칭 |
+| Audit 로그 | ✅ | category=UI, POST /ui-events |
+| Validation (400) | ⚠️ 부분 | enum 외 값 400 미적용 (무시 후 필터) |
 
 ---
 
@@ -26,11 +26,11 @@
 | 다중값 comma | ✅ | DrillDownParamUtil.parseMulti |
 | range \| from/to | ✅ | DrillDownParamUtil.resolve |
 | range: 1h\|6h\|24h\|7d\|30d\|90d | ✅ | |
-| page 0-based | ⚠️ | **현재 1-based** (page=1 → offset 0) |
-| sort=field,dir | ⚠️ | **현재 sort + order 분리** |
+| page 0-based | ✅ | defaultValue=0 (2026-02-04 반영) |
+| sort=field,dir | ✅ | parseSortAndOrder (sort,order 분리도 지원) |
 | q 검색 | ✅ | Cases/Anomalies/Actions 지원 |
 
-**갭**: range와 from/to 동시 제공 시 400 반환 미구현. page는 FE 계약상 1-based 유지 중.
+**갱신**: range+from/to 동시 400, page 0-based, sort=field,dir 모두 반영 완료.
 
 ---
 
@@ -111,7 +111,7 @@
 | Spec | 현재 | 비고 |
 |------|------|------|
 | severity, status, type | ✅ | |
-| requiresApproval | ❌ | **미지원** |
+| requiresApproval | ✅ | 지원 |
 | actorType | ❌ | **미지원** |
 | range, page, size, sort, q | ✅ | |
 
@@ -145,7 +145,7 @@
 | message | message | ✅ |
 | caseId, actionId | ✅ | |
 | traceId | ✅ | (audit fallback 시 traceId 전달) |
-| gatewayRequestId | ❌ | **AgentActivityItemDto에 없음** |
+| gatewayRequestId | ✅ | audit_event_log 기반 시 포함, agent_activity_log는 metadata.traceId |
 
 **데이터 소스**: agent_activity_log 우선, 없으면 audit_event_log (AGENT, ACTION, INTEGRATION) ✅
 
@@ -162,7 +162,7 @@
 | channel=UI | channel=API | 대시보드 호출이 API 경유 |
 | evidence_json (필터 정보) | ✅ | filters 맵 전달 |
 
-**갭**: spec은 category=UI를 요구하나, 현재는 DASHBOARD 사용. 기획/감사 요건에 따라 UI vs DASHBOARD 정리 필요.
+**갱신**: category=UI 지원. POST /api/synapse/audit/ui-events로 UI 이벤트 기록. GET /audit/events?category=UI 필터 가능.
 
 ---
 
@@ -170,7 +170,7 @@
 
 | 규칙 | 현재 | 비고 |
 |------|------|------|
-| range와 from/to 동시 제공 시 400 | ❌ | 무시만 함 (from/to 우선) |
+| range와 from/to 동시 제공 시 400 | ✅ | validateRangeExclusive (2026-02-04) |
 | enum 외 값 400 | ⚠️ | DrillDownCodeResolver는 **무시** (필터에서 제외), 400 아님 |
 
 ---
@@ -199,18 +199,18 @@
 
 ## 10. 권장 조치 (우선순위)
 
-### P0 (계약 준수)
-1. **range + from/to 동시 시 400** — DrillDownParamUtil 또는 Controller에서 검증
-2. **Action Required caseId** — ✅ 이미 포함 (caseId, caseNumber, reviewPath)
+### P0 (계약 준수) — 완료
+1. **range + from/to 동시 시 400** — ✅ validateRangeExclusive
+2. **Action Required caseId** — ✅ 이미 포함
 3. **Top Risk Drivers type** — ✅ links.anomaliesPath에 type 포함
 
-### P1 (spec 정합성)
-4. **AgentActivityItemDto에 gatewayRequestId** 추가 (audit_event_log에 존재)
-5. **agent-execution-stream** 별칭 추가 (선택)
-6. **Enum 매핑**: TRIAGE↔TRIAGED, WAITING_APPROVAL↔PENDING_APPROVAL, SUCCEEDED↔SUCCESS 문서화
+### P1 (spec 정합성) — 완료
+4. **AgentActivityItemDto gatewayRequestId** — ✅ audit_event_log 기반 시 포함
+5. **agent-execution-stream** 별칭 — ✅ agent-stream, agent-activity
+6. **Enum 매핑** — ✅ TRIAGE→TRIAGED, PENDING 지원
 
 ### P2 (확장)
-7. ownerTeam, vendorId, customerId, amountMin/Max, requiresApproval, actorType — 요구 시 추가
+7. ownerTeam, vendorId, customerId, amountMin/Max, actorType — 요구 시 추가 (requiresApproval ✅)
 8. slaRiskCount (sla_due_at, is_sla_risk) — agent_case 스키마 확장 필요
 9. Audit category=UI vs DASHBOARD — 기획 확정 후 적용
 

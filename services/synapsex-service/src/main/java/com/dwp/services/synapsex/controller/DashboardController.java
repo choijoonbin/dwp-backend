@@ -84,7 +84,7 @@ public class DashboardController {
     @GetMapping("/team-snapshot")
     public ApiResponse<TeamSnapshotResponseDto> getTeamSnapshot(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
-            @RequestParam(defaultValue = "24h") String range,
+            @RequestParam(defaultValue = "7d") String range,
             @RequestParam(required = false) Long teamId,
             @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId) {
         logDashboardViewed(tenantId, actorUserId, AuditEventConstants.TYPE_DASHBOARD_VIEWED, "team-snapshot",

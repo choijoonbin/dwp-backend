@@ -43,6 +43,13 @@ spring:
             - Path=/api/aura/dashboard/**
           filters:
             - RewritePath=/api/aura/dashboard(?<segment>.*), /synapse/dashboard$\{segment}
+        # SynapseX API (cases, anomalies, actions, audit, agent, dashboard 등)
+        - id: synapsex-api
+          uri: ${SERVICE_SYNAPSEX_URL:http://synapsex-service:8085}
+          predicates:
+            - Path=/api/synapse/**
+          filters:
+            - StripPrefix=1
         # Aura Platform (AI Agent) 라우팅 - 운영 환경
         - id: aura-platform
           uri: ${AURA_PLATFORM_URI:http://aura-platform:9000}  # 포트 변경: 8000 → 9000

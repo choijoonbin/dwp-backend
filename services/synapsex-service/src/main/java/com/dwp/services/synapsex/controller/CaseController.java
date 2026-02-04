@@ -19,7 +19,10 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
+
+import static com.dwp.services.synapsex.util.DrillDownParamUtil.parseIds;
 
 /**
  * Phase 2 Cases API
@@ -65,11 +68,14 @@ public class CaseController {
             @RequestParam(required = false) Long partyId,
             @RequestParam(required = false) String q,
             @RequestParam(required = false) String ids,
+            @RequestParam(required = false) Long caseId,
             @RequestParam(required = false) String caseKey,
             @RequestParam(required = false) String documentKey,
             @RequestParam(required = false) Boolean hasPendingAction,
+            @RequestParam(required = false) Boolean needsApproval,
             @RequestParam(required = false) String savedViewKey,
-            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(required = false) String approvalState,
+            @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "createdAt") String sort,
             @RequestParam(defaultValue = "desc") String order) {
@@ -77,6 +83,7 @@ public class CaseController {
         var timeRange = DrillDownParamUtil.resolve(range, from != null ? from : dateFrom, to != null ? to : dateTo);
         Instant resolvedFrom = timeRange.from();
         Instant resolvedTo = timeRange.to();
+        var sortOrder = DrillDownParamUtil.parseSortAndOrder(sort, order, "createdAt", "desc");
 
         List<String> requestedCompany = DrillDownParamUtil.parseMulti(company);
         if (requestedCompany.isEmpty() && companyCode != null && !companyCode.isBlank()) {
@@ -113,16 +120,16 @@ public class CaseController {
                 .buzei(buzei)
                 .partyId(partyId)
                 .q(q)
-                .ids(ids != null ? DrillDownParamUtil.parseIds(ids) : List.of())
+                .ids(resolveCaseIds(ids, caseId))
                 .range(range)
                 .caseKey(caseKey)
                 .documentKey(documentKey)
-                .hasPendingAction(hasPendingAction)
+                .hasPendingAction(resolveHasPendingAction(hasPendingAction, needsApproval, approvalState))
                 .savedViewKey(savedViewKey)
-                .page(page < 1 ? 0 : page - 1)
+                .page(Math.max(0, page))
                 .size(Math.min(200, Math.max(1, size)))
-                .sort(sort)
-                .order(order)
+                .sort(sortOrder[0])
+                .order(sortOrder[1])
                 .build();
 
         PageResponse<CaseListRowDto> result = caseQueryService.findCases(tenantId, query);
@@ -163,6 +170,29 @@ public class CaseController {
 
         List<CaseTimelineDto> timeline = caseQueryService.findTimeline(tenantId, caseId, page, size);
         return ApiResponse.success(timeline);
+    }
+
+    /**
+     * approvalState=REQUIRES_REVIEW → hasPendingAction=true.
+     * approvalState=NONE 또는 미지정 → hasPendingAction/needsApproval 값 사용.
+     */
+    private static Boolean resolveHasPendingAction(Boolean hasPendingAction, Boolean needsApproval, String approvalState) {
+        if ("REQUIRES_REVIEW".equalsIgnoreCase(approvalState)) return true;
+        if ("NONE".equalsIgnoreCase(approvalState)) return false;
+        return hasPendingAction != null ? hasPendingAction : needsApproval;
+    }
+
+    /**
+     * ids와 caseId를 병합. caseId가 있으면 ids에 추가.
+     * Drill-down 계약: caseId 쿼리 파라미터 → ids에 매핑.
+     */
+    private static List<Long> resolveCaseIds(String ids, Long caseId) {
+        List<Long> result = ids != null && !ids.isBlank() ? parseIds(ids) : new ArrayList<>();
+        if (caseId != null && !result.contains(caseId)) {
+            result = new ArrayList<>(result);
+            result.add(caseId);
+        }
+        return result.isEmpty() ? null : result;
     }
 
     /**

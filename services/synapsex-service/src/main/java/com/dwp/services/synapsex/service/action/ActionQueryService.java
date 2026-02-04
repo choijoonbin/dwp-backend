@@ -89,6 +89,12 @@ public class ActionQueryService {
                 ));
             }
         }
+        if (Boolean.TRUE.equals(query.getRequiresApproval())) {
+            List<String> approvalStatuses = drillDownCodeResolver.filterValid(DrillDownCodeResolver.GROUP_ACTION_STATUS,
+                    List.of("PENDING_APPROVAL", "PENDING", "PROPOSED", "WAITING_APPROVAL"));
+            if (approvalStatuses.isEmpty()) approvalStatuses = List.of("PENDING_APPROVAL", "PENDING", "PROPOSED");
+            predicate.and(a.status.in(approvalStatuses));
+        }
 
         int page = Math.max(0, query.getPage());
         int size = Math.min(200, Math.max(1, query.getSize()));
@@ -138,6 +144,7 @@ public class ActionQueryService {
         if (query.getAssigneeUserId() != null) m.put("assigneeUserId", query.getAssigneeUserId());
         if (query.getSeverity() != null && !query.getSeverity().isBlank())
             m.put("severity", DrillDownParamUtil.parseMulti(query.getSeverity()));
+        if (Boolean.TRUE.equals(query.getRequiresApproval())) m.put("requiresApproval", true);
         return m.isEmpty() ? null : m;
     }
 
@@ -189,6 +196,7 @@ public class ActionQueryService {
         private Instant createdTo;
         private String status;
         private String type;
+        private Boolean requiresApproval;
         private Long caseId;
         private List<Long> ids;
         private List<String> company;

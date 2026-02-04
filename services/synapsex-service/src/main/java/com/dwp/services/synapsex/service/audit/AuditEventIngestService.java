@@ -63,10 +63,14 @@ public class AuditEventIngestService {
     }
 
     private AuditEventLog toEntity(AuditEventIngestDto dto, String stage, Instant occurredAt) {
+        String eventCategory = resolveEventCategory(dto.getEventCategory());
+        String eventType = resolveEventType(dto.getEventType());
+        String traceId = dto.getTraceId() != null ? dto.getTraceId() : extractFromEvidence(dto.getEvidenceJson(), "traceId");
+        String gatewayRequestId = dto.getGatewayRequestId() != null ? dto.getGatewayRequestId() : extractFromEvidence(dto.getEvidenceJson(), "gatewayRequestId");
         return AuditEventLog.builder()
                 .tenantId(dto.getTenantId())
-                .eventCategory(AuditEventConstants.CATEGORY_AGENT)
-                .eventType(stage != null ? stage : "ANALYZE")
+                .eventCategory(eventCategory)
+                .eventType(eventType)
                 .resourceType(dto.getResourceType())
                 .resourceId(dto.getResourceId())
                 .createdAt(occurredAt != null ? occurredAt : Instant.now())
@@ -98,5 +102,28 @@ public class AuditEventIngestService {
             log.debug("CreatedAt parse failed: {}", s);
             return null;
         }
+    }
+
+    /** event_category 보존. AGENT, ACTION, INTEGRATION, CASE 등. 없으면 AGENT. */
+    private String resolveEventCategory(String fromDto) {
+        if (fromDto != null && !fromDto.isBlank()) return fromDto.toUpperCase();
+        return AuditEventConstants.CATEGORY_AGENT;
+    }
+
+    /** event_type prefix 제거 (AGENT/SCAN_STARTED → SCAN_STARTED). 없으면 stage 기반. */
+    private String resolveEventType(String fromDto) {
+        if (fromDto != null && !fromDto.isBlank()) {
+            int slash = fromDto.indexOf('/');
+            return slash >= 0 ? fromDto.substring(slash + 1) : fromDto;
+        }
+        return "ANALYZE";
+    }
+
+    private String extractFromEvidence(java.util.Map<String, Object> evidence, String key) {
+        if (evidence == null) return null;
+        Object v = evidence.get(key);
+        if (v == null && "traceId".equals(key)) v = evidence.get("trace_id");
+        if (v == null && "gatewayRequestId".equals(key)) v = evidence.get("gateway_request_id");
+        return v != null ? v.toString() : null;
     }
 }

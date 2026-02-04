@@ -189,6 +189,13 @@ spring:
             - Path=/api/synapse/agent-tools/**
           filters:
             - StripPrefix=1
+        # Agent Stream REST push (Prompt C)
+        - id: synapsex-agent-events
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/agent/**
+          filters:
+            - StripPrefix=1
         - id: auth-server
           uri: http://localhost:8001  # Auth Server 포트 변경 (8000 → 8001)
           predicates:

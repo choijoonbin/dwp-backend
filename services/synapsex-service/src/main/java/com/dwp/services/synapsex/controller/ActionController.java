@@ -46,7 +46,10 @@ public class ActionController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
             @RequestParam(required = false) String status,
+            @RequestParam(required = false) String actionStatus,
             @RequestParam(required = false) String type,
+            @RequestParam(required = false) String actionType,
+            @RequestParam(required = false) Boolean requiresApproval,
             @RequestParam(required = false) Long caseId,
             @RequestParam(required = false) String ids,
             @RequestParam(required = false) String company,
@@ -58,7 +61,9 @@ public class ActionController {
             @RequestParam(defaultValue = "plannedAt") String sort,
             @RequestParam(defaultValue = "desc") String order) {
 
+        DrillDownParamUtil.validateRangeExclusive(range, from, to);
         var timeRange = DrillDownParamUtil.resolve(range, from, to);
+        var sortOrder = DrillDownParamUtil.parseSortAndOrder(sort, order, "plannedAt", "desc");
         List<String> requestedCompany = DrillDownParamUtil.parseMulti(company);
         List<String> resolvedCompany = scopeEnforcementService.resolveCompanyFilter(tenantId, null, requestedCompany);
 
@@ -73,17 +78,18 @@ public class ActionController {
                 .range(range)
                 .createdFrom(timeRange.from())
                 .createdTo(timeRange.to())
-                .status(status)
-                .type(type)
+                .status(status != null ? status : actionStatus)
+                .type(type != null ? type : actionType)
+                .requiresApproval(requiresApproval)
                 .caseId(caseId)
                 .ids(ids != null ? DrillDownParamUtil.parseIds(ids) : List.of())
                 .company(resolvedCompany.isEmpty() ? null : resolvedCompany)
                 .assigneeUserId(resolvedAssignee)
                 .severity(severity)
-                .page(page < 1 ? 0 : page - 1)
+                .page(Math.max(0, page))
                 .size(Math.min(200, Math.max(1, size)))
-                .sort(sort)
-                .order(order)
+                .sort(sortOrder[0])
+                .order(sortOrder[1])
                 .build();
 
         PageResponse<ActionListRowDto> result = actionQueryService.findActions(tenantId, query);

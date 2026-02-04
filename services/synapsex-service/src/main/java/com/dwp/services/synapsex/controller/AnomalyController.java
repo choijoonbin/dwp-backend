@@ -50,12 +50,17 @@ public class AnomalyController {
             @RequestParam(required = false) String driverType,
             @RequestParam(required = false) String ids,
             @RequestParam(required = false) String company,
+            @RequestParam(required = false) String waers,
+            @RequestParam(required = false) Integer confidenceMin,
+            @RequestParam(required = false) String q,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "detectedAt") String sort,
             @RequestParam(defaultValue = "desc") String order) {
 
+        DrillDownParamUtil.validateRangeExclusive(range, from, to);
         var timeRange = DrillDownParamUtil.resolve(range, from, to);
+        var sortOrder = DrillDownParamUtil.parseSortAndOrder(sort, order, "detectedAt", "desc");
         List<String> requestedCompany = DrillDownParamUtil.parseMulti(company);
         List<String> resolvedCompany = scopeEnforcementService.resolveCompanyFilter(tenantId, null, requestedCompany);
 
@@ -68,10 +73,13 @@ public class AnomalyController {
                 .anomalyType(type != null ? type : (anomalyType != null ? anomalyType : driverType))
                 .ids(ids != null ? DrillDownParamUtil.parseIds(ids) : List.of())
                 .company(resolvedCompany.isEmpty() ? null : resolvedCompany)
-                .page(page < 1 ? 0 : page - 1)
+                .waers(waers != null && !waers.isBlank() ? DrillDownParamUtil.parseMulti(waers) : List.of())
+                .confidenceMin(confidenceMin != null ? confidenceMin : null)
+                .q(q)
+                .page(Math.max(0, page))
                 .size(Math.min(200, Math.max(1, size)))
-                .sort(sort)
-                .order(order)
+                .sort(sortOrder[0])
+                .order(sortOrder[1])
                 .build();
 
         PageResponse<AnomalyListRowDto> result = anomalyQueryService.findAnomalies(tenantId, query);

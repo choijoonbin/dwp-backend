@@ -30,11 +30,13 @@ public class AnomalyQueryService {
     private final JPAQueryFactory queryFactory;
     private final AgentCaseRepository agentCaseRepository;
     private final AgentActionRepository agentActionRepository;
+    private final FiDocHeaderRepository fiDocHeaderRepository;
     private final FiDocItemRepository fiDocItemRepository;
     private final BpPartyRepository bpPartyRepository;
     private final DrillDownCodeResolver drillDownCodeResolver;
 
     private static final QAgentCase c = QAgentCase.agentCase;
+    private static final QFiDocHeader h = QFiDocHeader.fiDocHeader;
 
     private boolean isAnomalyType(String caseType) {
         if (caseType == null) return false;
@@ -49,7 +51,11 @@ public class AnomalyQueryService {
         predicate.and(c.caseType.upper().like("ANOMALY_%")
                 .or(c.caseType.in(ANOMALY_TYPE_WHITELIST)));
 
-        if (query.getSeverity() != null && !query.getSeverity().isBlank()) {
+        List<String> severityList = drillDownCodeResolver.filterValid(DrillDownCodeResolver.GROUP_SEVERITY,
+                DrillDownParamUtil.parseMulti(query.getSeverity()));
+        if (!severityList.isEmpty()) {
+            predicate.and(c.severity.in(severityList));
+        } else if (query.getSeverity() != null && !query.getSeverity().isBlank()) {
             predicate.and(c.severity.eq(query.getSeverity()));
         }
         if (query.getAnomalyType() != null && !query.getAnomalyType().isBlank()) {
@@ -60,6 +66,33 @@ public class AnomalyQueryService {
         }
         if (query.getDetectedTo() != null) {
             predicate.and(c.detectedAt.loe(query.getDetectedTo()));
+        }
+        if (query.getConfidenceMin() != null && query.getConfidenceMin() >= 0 && query.getConfidenceMin() <= 100) {
+            java.math.BigDecimal minScore = java.math.BigDecimal.valueOf(query.getConfidenceMin())
+                    .divide(java.math.BigDecimal.valueOf(100), 4, java.math.RoundingMode.HALF_UP);
+            predicate.and(c.score.goe(minScore));
+        }
+        if (query.getWaers() != null && !query.getWaers().isEmpty()) {
+            List<Long> caseIdsWithWaers = queryFactory
+                    .select(c.caseId)
+                    .from(c)
+                    .innerJoin(h).on(h.tenantId.eq(c.tenantId)
+                            .and(h.bukrs.eq(c.bukrs))
+                            .and(h.belnr.eq(c.belnr))
+                            .and(h.gjahr.eq(c.gjahr))
+                            .and(h.waers.upper().in(query.getWaers().stream().map(String::toUpperCase).toList())))
+                    .where(c.tenantId.eq(tenantId))
+                    .fetch();
+            if (!caseIdsWithWaers.isEmpty()) {
+                predicate.and(c.caseId.in(caseIdsWithWaers));
+            } else {
+                predicate.and(c.caseId.eq(-1L));
+            }
+        }
+        if (query.getQ() != null && !query.getQ().isBlank()) {
+            String q = query.getQ().trim();
+            predicate.and(c.belnr.containsIgnoreCase(q)
+                    .or(c.reasonText.containsIgnoreCase(q)));
         }
 
         boolean asc = !"desc".equalsIgnoreCase(query.getOrder() != null ? query.getOrder() : "desc");
@@ -105,6 +138,9 @@ public class AnomalyQueryService {
         if (query.getAnomalyType() != null && !query.getAnomalyType().isBlank()) m.put("driverType", query.getAnomalyType());
         if (query.getIds() != null && !query.getIds().isEmpty()) m.put("ids", query.getIds());
         if (query.getCompany() != null && !query.getCompany().isEmpty()) m.put("company", query.getCompany());
+        if (query.getWaers() != null && !query.getWaers().isEmpty()) m.put("waers", query.getWaers());
+        if (query.getConfidenceMin() != null) m.put("confidenceMin", query.getConfidenceMin());
+        if (query.getQ() != null && !query.getQ().isBlank()) m.put("q", query.getQ());
         return m.isEmpty() ? null : m;
     }
 
@@ -168,6 +204,9 @@ public class AnomalyQueryService {
         private String anomalyType;
         private List<Long> ids;
         private List<String> company;
+        private List<String> waers;
+        private Integer confidenceMin;
+        private String q;
         @lombok.Builder.Default
         private int page = 0;
         @lombok.Builder.Default

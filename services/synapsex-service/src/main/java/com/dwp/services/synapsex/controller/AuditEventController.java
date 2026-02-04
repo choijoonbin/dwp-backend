@@ -40,20 +40,19 @@ public class AuditEventController {
             @RequestParam(required = false) String actorType,
             @RequestParam(required = false) String resourceType,
             @RequestParam(required = false) String resourceId,
+            @RequestParam(required = false) String traceId,
+            @RequestParam(required = false) String gatewayRequestId,
             @RequestParam(required = false) String q,
             @PageableDefault(size = 20, sort = "createdAt") Pageable pageable) {
         var cat = category != null && !category.isBlank() ? category : eventCategory;
         var typ = type != null && !type.isBlank() ? type : eventType;
-        Instant fromResolved = from;
-        Instant toResolved = to;
-        if (range != null && !range.isBlank()) {
-            var tr = com.dwp.services.synapsex.util.DrillDownParamUtil.resolve(range, from, to);
-            fromResolved = tr.from();
-            toResolved = tr.to();
-        }
+        com.dwp.services.synapsex.util.DrillDownParamUtil.validateRangeExclusive(range, from, to);
+        var tr = com.dwp.services.synapsex.util.DrillDownParamUtil.resolve(range, from, to);
+        Instant fromResolved = tr.from();
+        Instant toResolved = tr.to();
         AuditEventPageDto page = queryService.search(
                 tenantId, fromResolved, toResolved, cat, typ, outcome, severity,
-                actorUserId, actorType, resourceType, resourceId, q, pageable);
+                actorUserId, actorType, resourceType, resourceId, traceId, gatewayRequestId, q, pageable);
         return ApiResponse.success(page);
     }
 

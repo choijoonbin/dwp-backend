@@ -27,6 +27,7 @@ public class AgentActivityItemDto {
     private String resourceType;  // CASE | ACTION | INTEGRATION
     private String resourceId;
     private String traceId;
+    private String gatewayRequestId;
     private Links links;
 
     @Data

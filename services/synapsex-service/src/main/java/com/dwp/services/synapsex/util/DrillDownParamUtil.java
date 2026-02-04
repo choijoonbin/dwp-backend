@@ -1,5 +1,8 @@
 package com.dwp.services.synapsex.util;
 
+import com.dwp.core.exception.BaseException;
+import com.dwp.core.common.ErrorCode;
+
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -7,7 +10,7 @@ import java.util.stream.Stream;
 
 /**
  * Drill-down 공통 Query Param: range / from / to 규칙
- * range가 있으면 from/to 무시. range 없으면 from/to 사용 (보정 적용).
+ * 계약: from 또는 to가 있으면 range 무시. range와 from/to 동시 제공 시 400 반환.
  */
 public final class DrillDownParamUtil {
 
@@ -17,18 +20,33 @@ public final class DrillDownParamUtil {
     public static final List<String> RANGE_VALUES = List.of("1h", "6h", "24h", "7d", "30d", "90d");
 
     /**
-     * range 또는 from/to로 (fromInstant, toInstant) 계산.
-     * range가 있으면 now 기준 계산. 없으면 from/to 사용 (to 없으면 now, from 없으면 to-24h).
+     * range와 from/to 동시 제공 시 400. 계약: 둘 중 하나만 사용.
+     */
+    public static void validateRangeExclusive(String range, Instant from, Instant to) {
+        boolean hasRange = range != null && !range.isBlank();
+        boolean hasFromTo = from != null || to != null;
+        if (hasRange && hasFromTo) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "range와 from/to를 동시에 지정할 수 없습니다. 둘 중 하나만 사용하세요.");
+        }
+    }
+
+    /**
+     * from/to 우선, 없으면 range 사용.
+     * 계약: from 또는 to가 있으면 range 무시. 둘 다 없으면 range로 계산.
+     * validateRangeExclusive 호출 후 사용.
      */
     public static TimeRange resolve(String range, Instant from, Instant to) {
         Instant now = Instant.now();
+        if (from != null || to != null) {
+            if (to == null) to = now;
+            if (from == null) from = to.minus(24, ChronoUnit.HOURS);
+            return new TimeRange(from, to);
+        }
         if (range != null && !range.isBlank()) {
             Instant fromResolved = parseRangeToFrom(range);
             return new TimeRange(fromResolved, now);
         }
-        if (to == null) to = now;
-        if (from == null) from = to.minus(24, ChronoUnit.HOURS);
-        return new TimeRange(from, to);
+        return new TimeRange(now.minus(24, ChronoUnit.HOURS), now);
     }
 
     public static Instant parseRangeToFrom(String range) {
@@ -69,4 +87,18 @@ public final class DrillDownParamUtil {
     }
 
     public record TimeRange(Instant from, Instant to) {}
+
+    /**
+     * sort=field,dir 형식 또는 sort+order 분리 형식 파싱.
+     * sort에 쉼표가 있으면 field,dir로 분리; 없으면 sort=field, order=dir.
+     */
+    public static String[] parseSortAndOrder(String sort, String order, String defaultField, String defaultDir) {
+        if (sort != null && !sort.isBlank() && sort.contains(",")) {
+            String[] parts = sort.split(",", 2);
+            return new String[]{parts[0].trim(), parts.length >= 2 && !parts[1].isBlank() ? parts[1].trim() : defaultDir};
+        }
+        String f = sort != null && !sort.isBlank() ? sort.trim() : defaultField;
+        String d = order != null && !order.isBlank() ? order.trim() : defaultDir;
+        return new String[]{f, d};
+    }
 }

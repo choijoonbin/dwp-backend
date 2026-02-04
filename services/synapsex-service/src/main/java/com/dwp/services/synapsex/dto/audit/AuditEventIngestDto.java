@@ -4,20 +4,39 @@ import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
-import java.time.Instant;
 import java.util.Map;
 
 /**
  * Redis Pub/Sub 수신용 AuditEvent JSON DTO.
  * Aura에서 audit:events:ingest 채널로 발행하는 메시지 형식.
  * snake_case / camelCase 모두 지원.
+ * tenant_id: Long 또는 문자열(숫자) 지원. "tenant1" 등 비숫자 문자열은 변환 실패 시 null.
  */
 @Data
 public class AuditEventIngestDto {
 
+    private Long tenantId;
+
     @JsonProperty("tenant_id")
     @JsonAlias({"tenantId"})
-    private Long tenantId;
+    public void setTenantIdFromJson(Object value) {
+        if (value == null) {
+            this.tenantId = null;
+            return;
+        }
+        if (value instanceof Number) {
+            this.tenantId = ((Number) value).longValue();
+            return;
+        }
+        if (value instanceof String) {
+            String s = ((String) value).trim();
+            try {
+                this.tenantId = Long.parseLong(s);
+            } catch (NumberFormatException e) {
+                this.tenantId = null;
+            }
+        }
+    }
 
     @JsonProperty("event_category")
     @JsonAlias({"eventCategory"})

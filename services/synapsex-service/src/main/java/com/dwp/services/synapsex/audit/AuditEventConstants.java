@@ -17,6 +17,13 @@ public final class AuditEventConstants {
     public static final String CATEGORY_INTEGRATION = "INTEGRATION";
     public static final String CATEGORY_AGENT = "AGENT";
     public static final String CATEGORY_DASHBOARD = "DASHBOARD";
+    public static final String CATEGORY_UI = "UI";
+
+    /** event_type - UI (프론트엔드 클릭/필터 감사) */
+    public static final String TYPE_UI_DASHBOARD_DRILLDOWN = "DASHBOARD_DRILLDOWN";
+    public static final String TYPE_UI_DASHBOARD_REVIEW_CASE = "DASHBOARD_REVIEW_CASE";
+    public static final String TYPE_UI_DASHBOARD_VIEW_AUDIT = "DASHBOARD_VIEW_AUDIT";
+    public static final String TYPE_UI_FILTER_APPLY = "FILTER_APPLY";
 
     /** event_type - Dashboard (관제센터 조회 감사) */
     public static final String TYPE_DASHBOARD_VIEWED = "DASHBOARD_VIEWED";

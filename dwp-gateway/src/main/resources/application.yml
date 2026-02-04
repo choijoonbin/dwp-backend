@@ -167,6 +167,13 @@ spring:
             - Path=/api/synapse/agent-tools/**
           filters:
             - StripPrefix=1
+        # Agent Stream REST push (Prompt C) - Aura → POST /api/synapse/agent/events
+        - id: synapsex-agent-events
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/agent/**
+          filters:
+            - StripPrefix=1
         # Aura Dashboard → SynapseX 프록시 (Aura 전달사항: /api/aura/dashboard/* 별칭)
         # /api/synapse/dashboard/* 유지, /api/aura/dashboard/* 요청도 synapsex로 전달
         - id: aura-dashboard-synapsex
