@@ -34,6 +34,8 @@ public class OpenItemController {
             @RequestParam(required = false) String type,
             @RequestParam(required = false) String bukrs,
             @RequestParam(required = false) Long partyId,
+            @RequestParam(required = false) String lifnr,
+            @RequestParam(required = false) String kunnr,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDueDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDueDate,
             @RequestParam(required = false) Integer daysPastDueMin,
@@ -50,6 +52,8 @@ public class OpenItemController {
                 .type(type)
                 .bukrs(bukrs)
                 .partyId(partyId)
+                .lifnr(lifnr)
+                .kunnr(kunnr)
                 .fromDueDate(fromDueDate)
                 .toDueDate(toDueDate)
                 .daysPastDueMin(daysPastDueMin)
