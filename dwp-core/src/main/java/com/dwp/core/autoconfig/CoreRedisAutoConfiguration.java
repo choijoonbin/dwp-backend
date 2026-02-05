@@ -1,5 +1,6 @@
 package com.dwp.core.autoconfig;
 
+import com.dwp.core.event.RedisEventPublisher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -52,5 +53,13 @@ public class CoreRedisAutoConfiguration {
         
         log.info("✅ DWP Core: RedisTemplate registered (default String serialization - can be overridden by services)");
         return template;
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(RedisEventPublisher.class)
+    public RedisEventPublisher redisEventPublisher(RedisTemplate<String, String> redisTemplate,
+                                                    com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
+        log.info("✅ DWP Core: RedisEventPublisher registered");
+        return new RedisEventPublisher(redisTemplate, objectMapper);
     }
 }

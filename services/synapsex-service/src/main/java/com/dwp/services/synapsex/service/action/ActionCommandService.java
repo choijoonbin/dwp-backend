@@ -1,5 +1,7 @@
 package com.dwp.services.synapsex.service.action;
 
+import com.dwp.core.common.ErrorCode;
+import com.dwp.core.exception.BaseException;
 import com.dwp.services.synapsex.audit.AuditEventConstants;
 import com.dwp.services.synapsex.dto.action.ActionDetailDto;
 import com.dwp.services.synapsex.entity.AgentAction;
@@ -17,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -35,7 +38,13 @@ public class ActionCommandService {
     public ActionDetailDto createAction(Long tenantId, Long caseId, String actionType, JsonNode payload,
                                         Long requestedByUserId, String ipAddress, String userAgent, String gatewayRequestId) {
         AgentCase case_ = agentCaseRepository.findByCaseIdAndTenantId(caseId, tenantId)
-                .orElseThrow(() -> new IllegalArgumentException("Case not found: " + caseId));
+                .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "Case not found: " + caseId));
+
+        // Phase A: 동일 caseId+actionType에 open 상태 proposal 중복 방지
+        if (agentActionRepository.existsByTenantIdAndCaseIdAndActionTypeAndStatusIn(tenantId, caseId, actionType,
+                List.of(AgentActionStatus.PROPOSED, AgentActionStatus.PENDING_APPROVAL, AgentActionStatus.APPROVED, AgentActionStatus.PLANNED))) {
+            throw new BaseException(ErrorCode.DUPLICATE_ENTITY, "동일 케이스에 동일 actionType의 승인 대기 중인 제안이 이미 존재합니다.");
+        }
 
         AgentAction action = AgentAction.builder()
                 .tenantId(tenantId)
@@ -99,32 +108,44 @@ public class ActionCommandService {
 
     @Transactional
     public AgentAction approveAction(Long tenantId, Long actionId, Long actorUserId,
-                                     String ipAddress, String userAgent, String gatewayRequestId) {
+                                     String ipAddress, String userAgent, String gatewayRequestId,
+                                     String traceId) {
         AgentAction action = agentActionRepository.findById(actionId)
                 .filter(a -> tenantId.equals(a.getTenantId()))
-                .orElseThrow(() -> new IllegalArgumentException("Action not found: " + actionId));
+                .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "Action not found: " + actionId));
+
+        // Phase A: idempotent - 이미 APPROVED면 200 no-op
+        if (action.getStatus() == AgentActionStatus.APPROVED) {
+            return action;
+        }
 
         String oldStatus = action.getStatus() != null ? action.getStatus().name() : null;
         action.setStatus(AgentActionStatus.APPROVED);
         action.setUpdatedAt(Instant.now());
         action = agentActionRepository.save(action);
 
+        Map<String, Object> approveAfter = new HashMap<>();
+        approveAfter.put("status", "APPROVED");
+        approveAfter.put("case_id", action.getCaseId());
+        approveAfter.put("proposal_id", actionId);
+        if (traceId != null) approveAfter.put("trace_id", traceId);
         auditWriter.logActionEvent(tenantId, AuditEventConstants.TYPE_APPROVE, actionId, action.getCaseId(),
                 actorUserId, AuditEventConstants.OUTCOME_SUCCESS,
-                Map.of("status", oldStatus != null ? oldStatus : ""), Map.of("status", "APPROVED"),
-                ipAddress, userAgent, gatewayRequestId);
+                Map.of("status", oldStatus != null ? oldStatus : ""), approveAfter,
+                ipAddress, userAgent, gatewayRequestId, traceId, null);
         return action;
     }
 
     @Transactional
     public AgentAction executeAction(Long tenantId, Long actionId, Long actorUserId,
-                                     String ipAddress, String userAgent, String gatewayRequestId) {
+                                     String ipAddress, String userAgent, String gatewayRequestId,
+                                     String traceId, String spanId) {
         AgentAction action = agentActionRepository.findById(actionId)
                 .filter(a -> tenantId.equals(a.getTenantId()))
-                .orElseThrow(() -> new IllegalArgumentException("Action not found: " + actionId));
+                .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "Action not found: " + actionId));
 
         if (action.getStatus() != AgentActionStatus.APPROVED) {
-            throw new IllegalStateException("Only APPROVED actions can be executed. Current status: " + (action.getStatus() != null ? action.getStatus().name() : null));
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "Only APPROVED actions can be executed. Current status: " + (action.getStatus() != null ? action.getStatus().name() : null));
         }
 
         String oldStatus = action.getStatus().name();
@@ -142,7 +163,7 @@ public class ActionCommandService {
             auditWriter.logActionEvent(tenantId, AuditEventConstants.TYPE_EXECUTE, actionId, action.getCaseId(),
                     actorUserId, AuditEventConstants.OUTCOME_SUCCESS,
                     Map.of("status", oldStatus), Map.of("status", "EXECUTED"),
-                    ipAddress, userAgent, gatewayRequestId);
+                    ipAddress, userAgent, gatewayRequestId, traceId, spanId);
         } catch (Exception e) {
             action.setStatus(AgentActionStatus.FAILED);
             action.setFailureReason(e.getMessage());
@@ -153,7 +174,7 @@ public class ActionCommandService {
             auditWriter.logActionEvent(tenantId, AuditEventConstants.TYPE_FAILED, actionId, action.getCaseId(),
                     actorUserId, AuditEventConstants.OUTCOME_FAILED,
                     Map.of("status", oldStatus), Map.of("status", "FAILED", "error", e.getMessage()),
-                    ipAddress, userAgent, gatewayRequestId);
+                    ipAddress, userAgent, gatewayRequestId, traceId, spanId);
             throw e;
         }
         return action;
@@ -161,20 +182,31 @@ public class ActionCommandService {
 
     @Transactional
     public AgentAction rejectAction(Long tenantId, Long actionId, Long actorUserId,
-                                    String ipAddress, String userAgent, String gatewayRequestId) {
+                                    String ipAddress, String userAgent, String gatewayRequestId,
+                                    String traceId) {
         AgentAction action = agentActionRepository.findById(actionId)
                 .filter(a -> tenantId.equals(a.getTenantId()))
-                .orElseThrow(() -> new IllegalArgumentException("Action not found: " + actionId));
+                .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "Action not found: " + actionId));
+
+        // Phase A: idempotent - 이미 CANCELED면 200 no-op
+        if (action.getStatus() == AgentActionStatus.CANCELED) {
+            return action;
+        }
 
         String oldStatus = action.getStatus() != null ? action.getStatus().name() : null;
         action.setStatus(AgentActionStatus.CANCELED);
         action.setUpdatedAt(Instant.now());
         action = agentActionRepository.save(action);
 
+        Map<String, Object> rejectAfter = new HashMap<>();
+        rejectAfter.put("status", "CANCELED");
+        rejectAfter.put("case_id", action.getCaseId());
+        rejectAfter.put("proposal_id", actionId);
+        if (traceId != null) rejectAfter.put("trace_id", traceId);
         auditWriter.logActionEvent(tenantId, AuditEventConstants.TYPE_REJECT, actionId, action.getCaseId(),
                 actorUserId, AuditEventConstants.OUTCOME_SUCCESS,
-                Map.of("status", oldStatus != null ? oldStatus : ""), Map.of("status", "CANCELED"),
-                ipAddress, userAgent, gatewayRequestId);
+                Map.of("status", oldStatus != null ? oldStatus : ""), rejectAfter,
+                ipAddress, userAgent, gatewayRequestId, traceId, null);
         return action;
     }
 
@@ -183,7 +215,7 @@ public class ActionCommandService {
                                    String ipAddress, String userAgent, String gatewayRequestId) {
         AgentAction action = agentActionRepository.findById(actionId)
                 .filter(a -> tenantId.equals(a.getTenantId()))
-                .orElseThrow(() -> new IllegalArgumentException("Action not found: " + actionId));
+                .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "Action not found: " + actionId));
 
         auditWriter.logActionEvent(tenantId, AuditEventConstants.TYPE_REQUEST_INFO, actionId, action.getCaseId(),
                 actorUserId, AuditEventConstants.OUTCOME_SUCCESS,

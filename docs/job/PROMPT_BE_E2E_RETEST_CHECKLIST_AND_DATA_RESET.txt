@@ -1,0 +1,38 @@
+[BACKEND PROMPT] E2E 재테스트 전 점검/수정 체크리스트(P0/P1) + 데이터 리셋 가이드
+(대상: DWP Backend / SynapseX, 목적: “배치→케이스→(Aura)SSE→HITL→Audit” 100% 완주)
+
+## P0(최우선)
+1) “케이스를 만든 detect_run” 확정
+- detect_run 최근 10건에서 counts_json created/updated > 0 인 run_id 확인
+- audit_event_log에서 RUN_DETECT_* ↔ CASE_CREATED/UPDATED가 run_id 또는 trace_id로 연계되는지 확인
+
+2) Upsert 핵심 필드 채우기(필수)
+- agent_case.dedup_key = tenant + rule_id + entity_key(룰별)
+- agent_case.last_detect_run_id = 현재 run_id
+- detected_at/updated_at 갱신
+- CASE_CREATED/UPDATED audit payload에 dedup_key/rule_id/entity_key/run_id 포함
+
+3) Amount 표시 소스 확정(필수)
+- 권장: agent_case.amount(denormalized) + currency 저장
+- 최소: Case list/Detail API에 amount/currency(or amount_source) 포함
+
+4) HITL 승인/거절 연결성(필수)
+- ACTION_APPROVED/REJECTED 이벤트 payload에 case_id/proposal_id/trace_id 포함
+- idempotent 규칙 유지(중복 승인 처리)
+
+5) detect 범위(윈도우) 재현성
+- seed 시간 컬럼을 고정 기간으로 두고 windowMinutes 또는 from/to(backfill)로 그 기간만 실행
+
+## P1(권장)
+- WINDOW_* smoke 룰 유지 + 도메인 룰 2~3개(중복전표/금액이상/근거누락)만 실제 계산으로 승격
+- rule_id/severity_mapping/threshold를 Rule Catalog(테이블)로 정책화
+
+## 재테스트 데이터 리셋(중요)
+- 결론: agent_case, audit_event_log만 비우면 부족한 경우가 많음
+- 권장 최소 purge(테넌트 기준):
+  - agent_case
+  - audit_event_log
+  - detect_run
+  - (있다면) action_proposal/action_execution/case_evidence/case_comment/case_assignment 등 파생 테이블
+- 원천 입력(전표/오픈아이템/원천이벤트)은 seed 재사용이면 유지 가능
+- TRUNCATE 대신 DELETE ... WHERE tenant_id=:TENANT_E2E_01 권장

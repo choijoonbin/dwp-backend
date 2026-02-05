@@ -1,0 +1,77 @@
+[FOLLOW-UP / Backend Prompt] Phase 0~B 완료 점검 후 후속조치 — 문서 정합/클러스터 락/ingest_run/탐지범위 확장
+(목표: 지금 구현된 Phase A/B를 ‘운영형 표준’으로 다듬고, 다음 단계(정식 Ingest Run + 탐지 확장 + 정책화)에 들어갈 준비를 끝낸다)
+
+## 0) 이번 점검에서 확인된 상태(요약)
+- Phase A: Case Detail + HITL propose/approve/reject/resume(execute) + audit 조회 API까지 구현됨.
+- Phase B: detect_run(V21), agent_case.dedup_key, 15분 스케줄러 + 수동 트리거 API(/api/synapse/admin/detect/run) 구현됨.
+- 단, Phase 0 문서(standard-process.md / data-model.md)가 Phase B 반영 전 상태로 일부 **불일치(문서 갭)**.
+
+---
+
+## 1) P0 후속조치(필수 / 2중작업 방지)
+### 1.1 문서 정합성 업데이트(무조건)
+- `backend/standard-process.md`에서 아래 문구를 실제 구현에 맞게 수정:
+  - “detect_run 테이블 없음. Phase B에서 예정” → **이미 구현됨(V21)**
+  - “agent_case dedup_key 없음” → **이미 도입됨**
+- `backend/data-model.md`의 “detect_run 제안” 섹션을 “구현 완료(V21)” 섹션으로 교체하고,
+  - 실제 컬럼/인덱스를 `PHASEB_RESULT.md`와 동일하게 반영
+- 산출물:
+  - `backend/standard-process.md` (Updated)
+  - `backend/data-model.md` (Updated)
+
+### 1.2 클러스터 중복 실행 방지(DB advisory lock) 구현
+- 현재 `PHASEB_RESULT.md`에 “미구현 갭”으로 명시됨.
+- 운영형 표준에서는 필수.
+- 구현 선택(권장 순서):
+  1) Postgres advisory lock (tenant별 key)  ✅ 권장
+  2) lock table + row lock
+- 완료조건:
+  - 동일 tenant에 대해 스케줄러가 동시에 2번 실행되어도 detect_run이 1개만 “RUNNING”으로 남음
+
+### 1.3 ingest_run 도입 여부 “결정/설계”
+- 현재는 raw 테이블(sap_raw_events) + ingestion_errors만 있고, “실행 단위”가 없음.
+- 표준 프로세스 완성(정석)을 위해 ingest_run을 다음 중 하나로 확정:
+  A) 신규 테이블 ingest_run 추가(권장)
+  B) audit_event_log만으로 run을 표현(최소) — 단, 재처리/집계가 약함
+- 권장안(A): ingest_run + audit_event_log RUN_INGEST_* 함께 사용
+- 완료조건:
+  - 적재 배치가 언제/어느 범위(window_from/to)로 몇 건 적재했는지 조회 가능
+
+---
+
+## 2) P1 후속조치(강력 권장)
+### 2.1 탐지 범위 확장: fi_open_item 윈도우 포함
+- 현재 DetectBatchService는 fi_doc_header(created_at between) 중심.
+- open_item도 window 대상에 포함하고, entityKey/dedup_key 규칙을 문서화:
+  - 예: open_item은 (bukrs+belnr+gjahr+buzei) 또는 open_item_id
+- 완료조건:
+  - open_item 기반 케이스가 생성/업데이트 가능
+
+### 2.2 detect_run ↔ case 연결성 강화
+- detect_run.counts_json에:
+  - created_count, updated_count, suppressed_count, rule_breakdown(optional)
+- case에:
+  - last_detect_run_id(옵션) 또는 last_detected_at 명확화
+- 완료조건:
+  - “이번 배치에서 어떤 케이스가 영향을 받았는지” 역추적 가능
+
+---
+
+## 3) P2(다음 단계 준비)
+- 정책 프로파일(테넌트별 임계치/룰 활성화/오토트리거 조건) 저장 구조 설계
+- 룰 카탈로그(rule_id, name, severity_mapping, threshold) 테이블화(또는 config_kv 대체)
+
+---
+
+## 4) 검증 시나리오(curl/SQL)
+1) 스케줄러 enabled=true로 2개 인스턴스 동시 실행(또는 수동 트리거 2번 동시 호출)
+2) advisory lock이 없으면 detect_run 2개 RUNNING 생성 → 있으면 1개만 RUNNING
+3) detect_run 완료 후 audit_event_log에 RUN_DETECT_* + CASE_* 존재 확인
+4) ingest_run 도입 시 적재 1회 실행 후 RUN_INGEST_* 확인
+
+---
+
+## 5) 제출 산출물(필수)
+- 업데이트된 `standard-process.md`, `data-model.md`
+- advisory lock 구현 코드(서비스/스케줄러) + 테스트/재현 로그
+- (선택) ingest_run DDL + 마이그레이션 + 샘플 실행 로그

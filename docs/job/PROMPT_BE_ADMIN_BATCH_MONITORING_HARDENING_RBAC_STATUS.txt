@@ -1,0 +1,107 @@
+[BACKEND PROMPT] Admin Batch Monitoring 보완(P0) — RBAC 강제 + Scheduler Status 조회 API + 운영 안전장치
+(대상: DWP Backend / synapsex-service, Aura 제외)
+
+## 결론/결정안(3줄)
+- “정지/재시작 토글”은 1차에선 사고 포인트라 **추가하지 않는다**.
+- 대신 운영 표준상 더 중요한 **(1) 서비스 레벨 RBAC 강제**와 **(2) 스케줄러 상태 조회 API**를 먼저 넣는다.
+- 추가로 **SKIPPED(락 미획득)** 상황을 운영자가 원인/현재 RUNNING run을 바로 알 수 있게 보강한다.
+
+---
+
+## 0) 배경(현재 상태)
+- `/api/synapse/admin/detect/run` 수동 실행 + runs 목록/상세 + audit 조회는 구현됨.
+- 하지만 synapsex-service 내부에서 `/api/admin/**` 인터셉터 적용이 제한적이라 “Gateway JWT 전파 수준”으로 보임.
+- 운영 메뉴라면 서비스 레벨에서도 RBAC가 강제되어야 한다.
+
+---
+
+## 1) 구현 범위(In/Out)
+### In (이번 보완에 포함)
+A) **서비스 레벨 RBAC 강제(P0 필수)**
+- `/api/synapse/admin/**` 전체에 대해:
+  - 최소: ADMIN_OPERATIONS 권한 요구
+  - 수동 실행(POST)은 별도 권한(예: ADMIN_OPERATIONS_EXECUTE) 분리 권장
+- 권한 검증 방식(프로젝트 표준 중 택1):
+  1) Gateway에서 권한 클레임 검증 후 차단(우선) + 서비스에서 최소검증(tenant/user 존재)
+  2) 서비스에서 auth-server 조회(Feign)로 권한 확인(정석)
+  3) JWT claim에 roles가 포함되어 있다면 서비스에서 직접 검증(가능하면)
+- 완료조건: 권한 없는 토큰/사용자에서 403이 재현됨.
+
+B) **Scheduler Status 조회 API(조회 전용, 토글 금지)**
+- 신규 API:
+  - GET `/api/synapse/admin/detect/scheduler/status`
+- 응답 필드(최소):
+  - enabled(boolean)
+  - schedule_type('fixedDelay'|'cron')
+  - interval_minutes 또는 cron_expression
+  - last_run_id
+  - last_success_at
+  - last_fail_at
+  - running(boolean)  # 현재 RUNNING detect_run 존재 여부
+  - running_run_id(optional)
+  - next_planned_at(optional, 계산 가능하면)
+- 데이터 소스:
+  - (우선) detect_run 테이블(status=RUNNING / 최근 SUCCESS/FAILED) 기반으로 계산
+  - enabled/interval은 application config에서 읽기(현재 구현 방식에 맞춰)
+
+C) **운영 안전장치: SKIPPED 원인/현재 RUNNING run 명확화**
+- Manual Run 응답에:
+  - status == SKIPPED 인 경우
+  - `runningRunId` / `runningSince` / `skipReason` 등을 내려주도록 보강(가능하면)
+- 또는 Run Detail API에서:
+  - errorMessage + currentRunningRunId를 확인 가능하게.
+
+### Out
+- UI에서 enable/disable 토글(정지/재시작)
+- 룰/정책 편집 UI/엔드포인트
+- 대규모 운영 알림(슬랙/메일)
+
+---
+
+## 2) 작업 순서(권장)
+1) **RBAC 강제**: filter/interceptor 또는 controller annotation 방식으로 `/api/synapse/admin/**` 보호
+2) **Scheduler status API**: detect_run 조회 기반으로 구현(비즈니스 로직 단순)
+3) **SKIPPED 보강**: lock 미획득 시 현재 RUNNING run 정보를 응답/상세에 제공
+4) OpenAPI 업데이트 + curl 시나리오 작성
+
+---
+
+## 3) OpenAPI 스니펫(필수)
+- `/api/synapse/admin/detect/scheduler/status` 추가
+- Admin APIs에 security 요구사항(roles) 문서화
+
+---
+
+## 4) Definition of Done
+- 권한 없는 사용자:
+  - GET runs/status/detail 모두 403
+  - POST run도 403
+- Scheduler status API:
+  - enabled/interval + last_success/last_fail + running 여부가 정상 표시
+- SKIPPED:
+  - 수동 실행이 SKIPPED면 “누가/무엇 때문에 스킵됐는지” 운영자가 바로 파악 가능
+- 감사로그:
+  - manual trigger 시 audit_event_log에 RUN_DETECT_MANUAL_TRIGGERED(또는 동등) 남음
+
+---
+
+## 5) 검증용 curl
+```bash
+# 권한 테스트(권한 없는 토큰으로 403 확인)
+curl -i -X GET "$BASE_URL/api/synapse/admin/detect/runs?page=0&size=5" \
+  -H "Authorization: Bearer $TOKEN_NO_ADMIN" -H "X-Tenant-ID: $TENANT" -H "X-User-ID: $USER" -H "X-Trace-ID: rbac-test"
+
+# Scheduler status
+curl -X GET "$BASE_URL/api/synapse/admin/detect/scheduler/status" \
+  -H "Authorization: Bearer $TOKEN_ADMIN" -H "X-Tenant-ID: $TENANT" -H "X-User-ID: $USER" -H "X-Trace-ID: status-001"
+
+# Manual run SKIPPED 확인(동시 호출)
+curl -X POST "$BASE_URL/api/synapse/admin/detect/run" \
+  -H "Authorization: Bearer $TOKEN_ADMIN_EXEC" -H "X-Tenant-ID: $TENANT" -H "X-User-ID: $USER" -H "X-Trace-ID: run-001" \
+  -H "Content-Type: application/json" -d '{ "windowMinutes": 60 }'
+
+curl -X POST "$BASE_URL/api/synapse/admin/detect/run" \
+  -H "Authorization: Bearer $TOKEN_ADMIN_EXEC" -H "X-Tenant-ID: $TENANT" -H "X-User-ID: $USER" -H "X-Trace-ID: run-002" \
+  -H "Content-Type: application/json" -d '{ "windowMinutes": 60 }'
+# 두 번째는 SKIPPED가 나와야 하고, runningRunId/skipReason이 포함되어야 함
+```

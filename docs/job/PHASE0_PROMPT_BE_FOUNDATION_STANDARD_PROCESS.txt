@@ -1,0 +1,85 @@
+[PHASE 0 / Backend Prompt] “표준 형태” 기초 골격 구축 — Ingest Run → Detect Run → Case Upsert → Audit
+(목표: 이후 Phase A/E2E, Phase B/윈도우 배치가 ‘2중 작업’ 없이 얹히도록, 데이터/상태/감사/스코프의 뼈대를 먼저 확정)
+
+## 0) 원칙(고정)
+- 가정 금지: 소스/DDL/OpenAPI에 없는 것은 “추가 요청안”으로만 표기.
+- Tenant 강제: 모든 API/쿼리는 `X-Tenant-ID` 스코프(WHERE tenant_id = ?).
+- Audit-Ready: 변경/승인/조치/배치 실행은 `audit_event_log`로 남김.
+- HITL 우선: 무승인 자동 실행 금지(Phase B에서도 “제안(propose)”까지만 가능).
+- 성능 기본: 페이징/정렬/인덱스 없으면 완료로 보지 않음.
+- Error Contract + Observability: 표준 에러 포맷 + `X-Trace-ID` 전달/기록.
+
+---
+
+## 1) Phase 0 산출물(무조건)
+1) **현재 DDL 기반 실체 테이블/컬럼 목록 문서화**
+- case/case_item(있다면), document/open_item, audit_event_log, lineage 관련 테이블
+- tenant 컬럼 존재 여부, PK/FK/인덱스 현황
+
+2) **표준 프로세스 스펙 문서(정형화)**
+- Ingest Run → Detect Run → Case Upsert → Agentic Trigger → HITL → Audit
+- “어디서 무엇을 기록하는가”를 이벤트 타입과 함께 정의
+
+> 산출물 파일:
+- `docs/phase-0/backend/data-model.md`
+- `docs/phase-0/backend/standard-process.md`
+
+---
+
+## 2) 구현 범위(In/Out)
+### In (Phase 0에서 확정해야 할 것)
+A) **Run(실행 단위) 개념 도입**
+- `ingest_run`(또는 동등) : 원천데이터 적재 단위(배치 id, 기간, 건수, 상태)
+- `detect_run`(또는 동등) : 탐지 실행 단위(윈도우, 대상 범위, 결과 요약, 상태)
+> 이미 유사 테이블/개념이 있으면 재사용하고, 없으면 “추가 요청안”으로 테이블 설계 제안
+
+B) **Case Upsert 규칙**
+- 동일 리스크/동일 엔티티(예: vendor/docKey) 기준으로 중복 케이스를 만들지 않고 병합
+- caseId 생성 규칙(ULID/UUID) + 중복키(dedup_key) 규칙
+- 상태머신 최소: NEW → TRIAGED → ACTION_REQUIRED → RESOLVED (+ CLOSED 옵션)
+
+C) **Audit 이벤트 표준**
+- RUN_INGEST_STARTED/COMPLETED/FAILED
+- RUN_DETECT_STARTED/COMPLETED/FAILED
+- CASE_CREATED/UPDATED/STATUS_CHANGED
+- ACTION_PROPOSED/APPROVED/REJECTED/RESUMED/EXECUTED/FAILED
+
+D) **헤더/스코프 표준**
+- `X-Tenant-ID`, `X-User-ID`, `X-Agent-ID`, `X-Trace-ID`
+- audit_event_log에 trace_id, tenant_id, user_id, case_id, run_id(ingest/detect) 연결
+
+### Out
+- 탐지 알고리즘 고도화(Phase B)
+- LLM reasoning 고도화(Phase A/Aura)
+- SAP 실시간 연동(JCo)
+
+---
+
+## 3) 작업 순서(정확히 이대로)
+### Step 1 — DDL/코드 기반 “현재 상태” 점검(필수)
+- 테넌트 스코프가 실제 쿼리에 적용되는지 확인(Repository/QueryDSL)
+- audit_event_log가 어떤 이벤트를 담고 있는지 실제 코드 확인
+
+### Step 2 — 부족한 ‘표준 개념’ 갭 정리
+- ingest_run/detect_run 개념이 없다면:
+  - 최소 스키마(tenant_id, run_id, window_from/to, status, counts, created_at)
+  - 인덱스(tenant_id+created_at, tenant_id+status)
+- case upsert를 위해 dedup_key(tenant+rule+entity) 도입 여부 결정
+
+### Step 3 — OpenAPI 계약의 “표준 규칙” 확정
+- Case/Evidence/HITL/Audit 엔드포인트는 Phase A에서 본격, Phase 0에서는:
+  - 헤더/에러/페이지네이션/정렬 규칙을 OpenAPI에 명시
+
+---
+
+## 4) Definition of Done(완료조건)
+- `docs/phase-0/backend/data-model.md`와 `standard-process.md`가 **실제 DDL/코드 근거로 작성**됨
+- tenant scope 방식이 코드 레벨로 명확(어디서 강제하는지)
+- audit_event_log 표준 이벤트 타입/최소 payload가 문서화됨
+- (추가 요청안이 있다면) 테이블/인덱스/제약 변경안이 명확(DDL 초안 포함)
+
+---
+
+## 5) 검증 방법(체크)
+- “테넌트 다른 값”으로 동일 API 호출 시 데이터가 절대 섞이지 않는지
+- audit_event_log에 trace_id가 남는지(요청 1건으로 확인)

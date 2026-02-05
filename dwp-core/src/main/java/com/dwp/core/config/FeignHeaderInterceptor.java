@@ -5,7 +5,6 @@ import feign.RequestInterceptor;
 import feign.RequestTemplate;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -30,7 +29,6 @@ import org.springframework.web.context.request.ServletRequestAttributes;
  * - @EnableFeignClients가 있는 서비스에만 적용
  */
 @Slf4j
-@Component
 public class FeignHeaderInterceptor implements RequestInterceptor {
     
     @Override

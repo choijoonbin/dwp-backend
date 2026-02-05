@@ -38,6 +38,7 @@ public class AuditEventIngestService {
             Instant occurredAt = parseCreatedAt(dto.getCreatedAt());
             if (occurredAt == null) occurredAt = Instant.now();
 
+            Instant now = Instant.now();
             AgentActivityLog activityLog = AgentActivityLog.builder()
                     .tenantId(dto.getTenantId())
                     .stage(stage)
@@ -49,7 +50,8 @@ public class AuditEventIngestService {
                     .actorUserId(dto.getActorUserId())
                     .actorDisplayName(dto.getActorDisplayName())
                     .metadataJson(dto.getEvidenceJson() != null ? dto.getEvidenceJson() : dto.getAfterJson())
-                    .createdAt(Instant.now())
+                    .createdAt(now)
+                    .updatedAt(now)
                     .build();
             agentActivityLogRepository.save(activityLog);
 

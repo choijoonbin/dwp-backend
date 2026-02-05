@@ -68,10 +68,10 @@ public class EntityController {
     }
 
     /**
-     * C2) GET /api/synapse/entities/{partyId}
+     * C2) GET /api/synapse/entities/{partyId} 또는 /entities/parties/{partyId}
      * partyId는 숫자만 매칭 (fi-doc-headers, cases 등과 경로 충돌 방지)
      */
-    @GetMapping("/{partyId:[0-9]+}")
+    @GetMapping({"/{partyId:[0-9]+}", "/parties/{partyId:[0-9]+}"})
     public ApiResponse<Entity360Dto> getEntity360(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
             @PathVariable Long partyId) {
@@ -82,9 +82,9 @@ public class EntityController {
     }
 
     /**
-     * C3) GET /api/synapse/entities/{partyId}/change-logs
+     * C3) GET /api/synapse/entities/{partyId}/change-logs 또는 /entities/parties/{partyId}/change-logs
      */
-    @GetMapping("/{partyId:[0-9]+}/change-logs")
+    @GetMapping({"/{partyId:[0-9]+}/change-logs", "/parties/{partyId:[0-9]+}/change-logs"})
     public ApiResponse<PageResponse<EntityChangeLogDto>> getChangeLogs(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
             @PathVariable Long partyId,
@@ -96,9 +96,9 @@ public class EntityController {
     }
 
     /**
-     * C4) GET /api/synapse/entities/{partyId}/documents
+     * C4) GET /api/synapse/entities/{partyId}/documents 또는 /entities/parties/{partyId}/documents
      */
-    @GetMapping("/{partyId:[0-9]+}/documents")
+    @GetMapping({"/{partyId:[0-9]+}/documents", "/parties/{partyId:[0-9]+}/documents"})
     public ApiResponse<PageResponse<DocumentListRowDto>> getDocuments(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
             @PathVariable Long partyId,
@@ -115,9 +115,9 @@ public class EntityController {
     }
 
     /**
-     * C5) GET /api/synapse/entities/{partyId}/open-items
+     * C5) GET /api/synapse/entities/{partyId}/open-items 또는 /entities/parties/{partyId}/open-items
      */
-    @GetMapping("/{partyId:[0-9]+}/open-items")
+    @GetMapping({"/{partyId:[0-9]+}/open-items", "/parties/{partyId:[0-9]+}/open-items"})
     public ApiResponse<PageResponse<OpenItemListRowDto>> getOpenItems(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
             @PathVariable Long partyId,
@@ -134,9 +134,9 @@ public class EntityController {
     }
 
     /**
-     * C6) GET /api/synapse/entities/{partyId}/cases
+     * C6) GET /api/synapse/entities/{partyId}/cases 또는 /entities/parties/{partyId}/cases
      */
-    @GetMapping("/{partyId:[0-9]+}/cases")
+    @GetMapping({"/{partyId:[0-9]+}/cases", "/parties/{partyId:[0-9]+}/cases"})
     public ApiResponse<PageResponse<CaseListRowDto>> getCases(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
             @PathVariable Long partyId,

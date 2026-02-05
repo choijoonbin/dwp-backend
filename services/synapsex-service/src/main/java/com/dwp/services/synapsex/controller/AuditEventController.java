@@ -40,6 +40,7 @@ public class AuditEventController {
             @RequestParam(required = false) String actorType,
             @RequestParam(required = false) String resourceType,
             @RequestParam(required = false) String resourceId,
+            @RequestParam(required = false) Long runId,
             @RequestParam(required = false) String traceId,
             @RequestParam(required = false) String gatewayRequestId,
             @RequestParam(required = false) String q,
@@ -52,7 +53,7 @@ public class AuditEventController {
         Instant toResolved = tr.to();
         AuditEventPageDto page = queryService.search(
                 tenantId, fromResolved, toResolved, cat, typ, outcome, severity,
-                actorUserId, actorType, resourceType, resourceId, traceId, gatewayRequestId, q, pageable);
+                actorUserId, actorType, resourceType, resourceId, runId, traceId, gatewayRequestId, q, pageable);
         return ApiResponse.success(page);
     }
 

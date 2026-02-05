@@ -22,4 +22,7 @@ public interface AgentCaseRepository extends JpaRepository<AgentCase, Long> {
     List<AgentCase> findByTenantIdAndCreatedAtAfter(Long tenantId, Instant since);
 
     List<AgentCase> findByTenantIdAndCaseIdIn(Long tenantId, List<Long> caseIds);
+
+    /** Phase B: dedup_key 기준 upsert */
+    Optional<AgentCase> findByTenantIdAndDedupKey(Long tenantId, String dedupKey);
 }

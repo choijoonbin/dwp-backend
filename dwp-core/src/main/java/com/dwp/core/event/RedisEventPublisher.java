@@ -7,7 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.Objects;
@@ -23,7 +22,6 @@ import java.util.concurrent.CompletableFuture;
  * - dwp:events:{tenant} - 테넌트별 이벤트
  */
 @Slf4j
-@Component
 @RequiredArgsConstructor
 public class RedisEventPublisher implements EventPublisher {
     

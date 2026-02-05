@@ -2,6 +2,7 @@ package com.dwp.services.synapsex.service.case_;
 
 import com.dwp.services.synapsex.dto.case_.CaseDetailDto;
 import com.dwp.services.synapsex.dto.case_.CaseListRowDto;
+import com.dwp.services.synapsex.dto.case_.DocumentOrOpenItemDto;
 import com.dwp.services.synapsex.dto.case_.CaseTimelineDto;
 import com.dwp.services.synapsex.dto.common.PageResponse;
 import com.dwp.services.synapsex.entity.*;
@@ -19,6 +20,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.*;
 
@@ -286,6 +288,7 @@ public class CaseQueryService {
             String reasonShort = case_.getReasonText() != null && case_.getReasonText().length() > 200
                     ? case_.getReasonText().substring(0, 200) + "..." : case_.getReasonText();
 
+            var amountCurrency = resolveAmountAndCurrency(tenantId, case_);
             rows.add(CaseListRowDto.builder()
                     .caseId(case_.getCaseId())
                     .detectedAt(case_.getDetectedAt())
@@ -298,9 +301,34 @@ public class CaseQueryService {
                     .partySummary(partySummary)
                     .relatedActionsCount(actionCount)
                     .assigneeUserId(case_.getAssigneeUserId())
+                    .amount(amountCurrency != null ? amountCurrency.amount() : null)
+                    .currency(amountCurrency != null ? amountCurrency.currency() : null)
                     .build());
         }
         return rows;
+    }
+
+    /** P0-3: fi_doc_item wrbtr 합계 또는 fi_open_item open_amount + currency */
+    private record AmountCurrency(BigDecimal amount, String currency) {}
+    private AmountCurrency resolveAmountAndCurrency(Long tenantId, AgentCase case_) {
+        if (case_.getBukrs() == null || case_.getBelnr() == null || case_.getGjahr() == null) return null;
+        var headerOpt = fiDocHeaderRepository.findByTenantIdAndBukrsAndBelnrAndGjahr(
+                tenantId, case_.getBukrs(), case_.getBelnr(), case_.getGjahr());
+        if (headerOpt.isPresent()) {
+            var items = fiDocItemRepository.findByTenantIdAndBukrsAndBelnrAndGjahrOrderByBuzeiAsc(
+                    tenantId, case_.getBukrs(), case_.getBelnr(), case_.getGjahr());
+            BigDecimal sum = items.stream().map(FiDocItem::getWrbtr).filter(Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add);
+            if (sum.compareTo(BigDecimal.ZERO) > 0) {
+                return new AmountCurrency(sum, headerOpt.get().getWaers());
+            }
+        }
+        var openItems = fiOpenItemRepository.findByTenantIdAndBukrsAndBelnrAndGjahrOrderByBuzeiAsc(
+                tenantId, case_.getBukrs(), case_.getBelnr(), case_.getGjahr());
+        if (!openItems.isEmpty()) {
+            var oi = openItems.get(0);
+            return new AmountCurrency(oi.getOpenAmount(), oi.getCurrency());
+        }
+        return null;
     }
 
     private CaseListRowDto.PartySummaryDto resolvePartySummary(Long tenantId, AgentCase case_) {
@@ -380,7 +408,7 @@ public class CaseQueryService {
     private CaseDetailDto.EvidencePanelDto buildEvidencePanel(Long tenantId, AgentCase case_) {
         String docKey = case_.getBukrs() != null && case_.getBelnr() != null && case_.getGjahr() != null
                 ? case_.getBukrs() + "-" + case_.getBelnr() + "-" + case_.getGjahr() : null;
-        CaseDetailDto.DocumentOrOpenItemDto docOrOi = null;
+        DocumentOrOpenItemDto docOrOi = null;
         if (docKey != null) {
             var headerOpt = fiDocHeaderRepository.findByTenantIdAndBukrsAndBelnrAndGjahr(
                     tenantId, case_.getBukrs(), case_.getBelnr(), case_.getGjahr());
@@ -388,23 +416,28 @@ public class CaseQueryService {
                 var header = headerOpt.get();
                 var items = fiDocItemRepository.findByTenantIdAndBukrsAndBelnrAndGjahrOrderByBuzeiAsc(
                         tenantId, header.getBukrs(), header.getBelnr(), header.getGjahr());
-                docOrOi = CaseDetailDto.DocumentOrOpenItemDto.builder()
+                BigDecimal docAmount = items.stream().map(FiDocItem::getWrbtr).filter(Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add);
+                docOrOi = DocumentOrOpenItemDto.builder()
                         .type("DOCUMENT")
                         .docKey(docKey)
                         .headerSummary(Map.of("bukrs", header.getBukrs(), "belnr", header.getBelnr(), "gjahr", header.getGjahr(),
                                 "budat", header.getBudat() != null ? header.getBudat().toString() : "", "xblnr", header.getXblnr() != null ? header.getXblnr() : ""))
                         .items(items.stream().map(i -> (Object) Map.of("buzei", i.getBuzei(), "lifnr", i.getLifnr() != null ? i.getLifnr() : "", "kunnr", i.getKunnr() != null ? i.getKunnr() : "", "wrbtr", i.getWrbtr() != null ? i.getWrbtr().toString() : "")).toList())
+                        .amount(docAmount.compareTo(BigDecimal.ZERO) > 0 ? docAmount : null)
+                        .currency(header.getWaers())
                         .build();
             } else {
                 var openItems = fiOpenItemRepository.findByTenantIdAndBukrsAndBelnrAndGjahrOrderByBuzeiAsc(
                         tenantId, case_.getBukrs(), case_.getBelnr(), case_.getGjahr());
                 if (!openItems.isEmpty()) {
                     var oi = openItems.get(0);
-                    docOrOi = CaseDetailDto.DocumentOrOpenItemDto.builder()
+                    docOrOi = DocumentOrOpenItemDto.builder()
                             .type("OPEN_ITEM")
                             .docKey(docKey)
                             .headerSummary(Map.of("bukrs", oi.getBukrs(), "belnr", oi.getBelnr(), "gjahr", oi.getGjahr()))
                             .items(List.of())
+                            .amount(oi.getOpenAmount())
+                            .currency(oi.getCurrency())
                             .build();
                 }
             }
@@ -431,6 +464,7 @@ public class CaseQueryService {
                 }
             }
         }
+        var amountCurrency = resolveAmountAndCurrency(tenantId, case_);
         return CaseDetailDto.EvidencePanelDto.builder()
                 .documentOrOpenItem(docOrOi)
                 .reversalChainSummary(CaseDetailDto.ReversalChainSummaryDto.builder()
@@ -438,6 +472,8 @@ public class CaseQueryService {
                         .edgeCount(Math.max(0, reversalNodes.size() - 1))
                         .build())
                 .relatedPartyIds(relatedPartyIds.stream().distinct().toList())
+                .amount(amountCurrency != null ? amountCurrency.amount() : null)
+                .currency(amountCurrency != null ? amountCurrency.currency() : null)
                 .build();
     }
 

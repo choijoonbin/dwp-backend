@@ -276,7 +276,15 @@ public class AuditWriter {
                                Long actorUserId, String outcome, Map<String, Object> beforeJson, Map<String, Object> afterJson,
                                String ipAddress, String userAgent, String gatewayRequestId) {
         logActionEventInternal(tenantId, eventType, actionId, caseId, actorUserId, outcome,
-                beforeJson, afterJson, ipAddress, userAgent, gatewayRequestId, null);
+                beforeJson, afterJson, ipAddress, userAgent, gatewayRequestId, null, null, null);
+    }
+
+    /** Action 기록 (trace_id 전파용) */
+    public void logActionEvent(Long tenantId, String eventType, Long actionId, Long caseId,
+                               Long actorUserId, String outcome, Map<String, Object> beforeJson, Map<String, Object> afterJson,
+                               String ipAddress, String userAgent, String gatewayRequestId, String traceId, String spanId) {
+        logActionEventInternal(tenantId, eventType, actionId, caseId, actorUserId, outcome,
+                beforeJson, afterJson, ipAddress, userAgent, gatewayRequestId, null, traceId, spanId);
     }
 
     /**
@@ -322,7 +330,8 @@ public class AuditWriter {
 
     private void logActionEventInternal(Long tenantId, String eventType, Long actionId, Long caseId,
                                         Long actorUserId, String outcome, Map<String, Object> beforeJson, Map<String, Object> afterJson,
-                                        String ipAddress, String userAgent, String gatewayRequestId, Map<String, Object> tags) {
+                                        String ipAddress, String userAgent, String gatewayRequestId, Map<String, Object> tags,
+                                        String traceId, String spanId) {
         Map<String, Object> t = tags != null ? new HashMap<>(tags) : new HashMap<>();
         t.put("module", "ACTION");
         t.put("actionId", actionId);
@@ -347,6 +356,98 @@ public class AuditWriter {
                 ipAddress,
                 userAgent,
                 gatewayRequestId,
+                traceId,
+                spanId);
+    }
+
+    /** Admin Batch Monitoring: Manual Run 트리거 기록 (event_type=RUN_DETECT_MANUAL_TRIGGERED) */
+    public void logDetectRunManualTriggered(Long tenantId, Long actorUserId, Long runId, String resultStatus,
+                                            Instant windowFrom, Instant windowTo, String traceId,
+                                            String ipAddress, String userAgent, String gatewayRequestId) {
+        Map<String, Object> afterJson = new HashMap<>();
+        afterJson.put("tenant_id", tenantId);
+        afterJson.put("user_id", actorUserId);
+        afterJson.put("result_status", resultStatus);
+        afterJson.put("run_id", runId);
+        if (windowFrom != null) afterJson.put("window_from", windowFrom.toString());
+        if (windowTo != null) afterJson.put("window_to", windowTo.toString());
+        if (traceId != null) afterJson.put("trace_id", traceId);
+        Map<String, Object> tags = new HashMap<>();
+        if (runId != null) tags.put("runId", runId);
+        log(tenantId,
+                AuditEventConstants.CATEGORY_RUN,
+                AuditEventConstants.TYPE_RUN_DETECT_MANUAL_TRIGGERED,
+                "DETECT_RUN",
+                runId != null ? String.valueOf(runId) : null,
+                AuditEventConstants.ACTOR_HUMAN,
+                actorUserId,
+                null,
+                null,
+                AuditEventConstants.CHANNEL_API,
+                AuditEventConstants.OUTCOME_SUCCESS,
+                AuditEventConstants.SEVERITY_INFO,
+                null,
+                afterJson,
+                null,
+                null,
+                tags,
+                ipAddress,
+                userAgent,
+                gatewayRequestId,
+                traceId,
+                null);
+    }
+
+    /** Phase B: Detect Run 이벤트 기록 */
+    public void logDetectRunEvent(Long tenantId, String eventType, Long runId, String outcome,
+                                  Map<String, Object> afterJson, Map<String, Object> tags) {
+        log(tenantId,
+                AuditEventConstants.CATEGORY_RUN,
+                eventType,
+                "DETECT_RUN",
+                runId != null ? String.valueOf(runId) : null,
+                AuditEventConstants.ACTOR_SYSTEM,
+                null,
+                null,
+                null,
+                AuditEventConstants.CHANNEL_INGESTION,
+                outcome != null ? outcome : AuditEventConstants.OUTCOME_SUCCESS,
+                AuditEventConstants.SEVERITY_INFO,
+                null,
+                afterJson,
+                null,
+                null,
+                tags,
+                null,
+                null,
+                null,
+                null,
+                null);
+    }
+
+    /** Phase B: Case Created/Updated 이벤트 기록 */
+    public void logCaseEvent(Long tenantId, String eventType, Long caseId, Map<String, Object> afterJson,
+                             Map<String, Object> beforeJson, Map<String, Object> tags) {
+        log(tenantId,
+                AuditEventConstants.CATEGORY_CASE,
+                eventType,
+                "AGENT_CASE",
+                caseId != null ? String.valueOf(caseId) : null,
+                AuditEventConstants.ACTOR_SYSTEM,
+                null,
+                null,
+                null,
+                AuditEventConstants.CHANNEL_INGESTION,
+                AuditEventConstants.OUTCOME_SUCCESS,
+                AuditEventConstants.SEVERITY_INFO,
+                beforeJson,
+                afterJson,
+                null,
+                null,
+                tags,
+                null,
+                null,
+                null,
                 null,
                 null);
     }

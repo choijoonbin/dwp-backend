@@ -59,4 +59,13 @@ public class AgentActivityLog {
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+
+    @Column(name = "created_by")
+    private Long createdBy;
+
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
+
+    @Column(name = "updated_by")
+    private Long updatedBy;
 }

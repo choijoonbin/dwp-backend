@@ -32,17 +32,10 @@ public class CaseDetailDto {
         private DocumentOrOpenItemDto documentOrOpenItem;
         private ReversalChainSummaryDto reversalChainSummary;
         private List<Long> relatedPartyIds;
-    }
-
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class DocumentOrOpenItemDto {
-        private String type;  // DOCUMENT | OPEN_ITEM
-        private String docKey;
-        private Object headerSummary;
-        private List<Object> items;
+        /** P0-3: 금액 표시 (fi_doc_item wrbtr 합계 또는 fi_open_item open_amount) */
+        private java.math.BigDecimal amount;
+        /** P0-3: 통화 (fi_doc_header waers 또는 fi_open_item currency) */
+        private String currency;
     }
 
     @Data

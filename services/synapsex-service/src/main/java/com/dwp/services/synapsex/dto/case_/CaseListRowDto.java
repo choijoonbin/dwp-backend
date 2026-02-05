@@ -29,6 +29,10 @@ public class CaseListRowDto {
     private PartySummaryDto partySummary;
     private int relatedActionsCount;
     private Long assigneeUserId;
+    /** P0-3: 금액 표시 (fi_doc_item wrbtr 합계 또는 fi_open_item open_amount) */
+    private BigDecimal amount;
+    /** P0-3: 통화 (fi_doc_header waers 또는 fi_open_item currency) */
+    private String currency;
 
     @Data
     @Builder

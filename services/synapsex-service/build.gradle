@@ -32,3 +32,15 @@ sourceSets {
         }
     }
 }
+
+// IDE가 생성하는 bin/ 폴더 삭제 (QueryDSL Q-class 중복 정의 방지)
+tasks.register('deleteBin') {
+    doLast {
+        def binDir = file("${project.projectDir}/bin")
+        if (binDir.exists()) {
+            binDir.deleteDir()
+            println "Deleted ${binDir} (QueryDSL duplicate fix)"
+        }
+    }
+}
+tasks.named('clean') { dependsOn 'deleteBin' }

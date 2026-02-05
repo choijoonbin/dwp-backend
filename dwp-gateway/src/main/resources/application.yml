@@ -161,6 +161,14 @@ spring:
           filters:
             - StripPrefix=1
         # Agent Tool API (Aura 호출용) - /api/synapse/agent-tools/**
+        # 단, /api/synapse/agent-tools/agents/** 는 Aura SSE 스트림 → Aura-Platform으로 전달
+        - id: synapse-agent-tools-stream-to-aura
+          uri: ${AURA_PLATFORM_URL:http://localhost:9000}
+          order: -2
+          predicates:
+            - Path=/api/synapse/agent-tools/agents/**
+          filters:
+            - RewritePath=/api/synapse/agent-tools/agents(?<segment>.*), /aura/agents$\{segment}
         - id: synapsex-agent-tools
           uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
           predicates:

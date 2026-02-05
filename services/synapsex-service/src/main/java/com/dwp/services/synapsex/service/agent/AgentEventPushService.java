@@ -46,6 +46,7 @@ public class AgentEventPushService {
 
                 Map<String, Object> metadata = buildMetadata(e);
 
+                Instant now = Instant.now();
                 AgentActivityLog logEntity = AgentActivityLog.builder()
                         .tenantId(tenantId)
                         .stage(stage)
@@ -54,7 +55,8 @@ public class AgentEventPushService {
                         .resourceId(resourceId)
                         .occurredAt(occurredAt)
                         .metadataJson(metadata)
-                        .createdAt(Instant.now())
+                        .createdAt(now)
+                        .updatedAt(now)
                         .build();
                 agentActivityLogRepository.save(logEntity);
                 saved++;

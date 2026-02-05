@@ -1,0 +1,100 @@
+[BACKEND PROMPT] Admin 배치 모니터링/운영 API 확정 + (필요 시) 테이블/인덱스 설계
+(대상: DWP Backend / SynapseX, Aura 제외)
+
+## 0) 전제(현재 구현 기반)
+- detect_run(V21) + agent_case.dedup_key, last_detect_run_id(V22), ingest_run(V22)까지 구현 완료 상태로 가정한다.
+- DetectBatchService는 pg_try_advisory_lock(tenant별)로 중복 실행 방지까지 구현 완료 상태로 가정한다.
+- 수동 트리거: `/api/synapse/admin/detect/run` 존재(Phase B). 실행 결과에 SKIPPED가 포함될 수 있다. fileciteturn11file1
+
+---
+
+## 1) 목적
+프론트 “Admin > Batch Monitoring” 화면을 위해,
+- Run History / Run Detail / Manual Controls 가 동작하도록
+- **운영형 표준 API + RBAC + Audit** 를 확정/보강한다.
+
+---
+
+## 2) 구현 범위(In/Out)
+### In
+A) Detect Run 관제 API(필수)
+1) GET `/api/synapse/admin/detect/runs`
+- query: from, to, status, page, size, sort
+- return: Page<DetectRunSummary>
+
+2) GET `/api/synapse/admin/detect/runs/{runId}`
+- return: DetectRunDetail(counts_json 포함)
+
+3) POST `/api/synapse/admin/detect/run`
+- body: windowMinutes(optional), from/to(optional, backfill)
+- return: runId + status(COMPLETED/FAILED/SKIPPED) + counts_json
+
+B) Ingest Run 관제 API(권장)
+1) GET `/api/synapse/admin/ingest/runs`
+2) GET `/api/synapse/admin/ingest/runs/{runId}`
+(ingest_run이 이미 있으므로 “조회/관제”는 운영 필수)
+
+C) Audit 연결 API(필수)
+- GET `/api/synapse/audit/events?runId=...` 또는 runId로 필터 가능한 규격 확정
+  - 없다면: caseId 기반으로만 가능 → run detail에서 “관련 케이스 목록”을 통해 우회라도 가능하게
+
+D) 권한/RBAC(필수)
+- Admin Batch Monitoring은 ADMIN_OPERATIONS(또는 동등) 권한으로 제한
+- Manual Run(POST)는 추가로 ADMIN_OPERATIONS_EXECUTE(또는 동일)로 분리 권장
+- 권한 실패는 403 표준 에러
+
+E) Audit-Ready(필수)
+- Manual Run 실행은 audit_event_log에 기록
+  - event_category=RUN, event_type=RUN_DETECT_MANUAL_TRIGGERED
+  - payload: tenant_id, user_id, trace_id, window(from/to), result_status, run_id
+
+### Out
+- UI에서 cron/enable 토글(운영 리스크) — 1차에서는 금지(필요하면 별도 설계)
+- 룰 편집/정책 편집 전체
+
+---
+
+## 3) DB/스키마(추가 필요 여부 판단)
+- detect_run/ingest_run 테이블이 이미 존재한다면 “추가 테이블 생성”은 하지 않는다.
+- 만약 Run History에 필요한 필드가 누락되어 있다면, 아래 최소 확장을 제안(필요 시만):
+  - detect_run: window_from, window_to, started_at, completed_at, status, duration_ms, counts_json(JSONB)
+  - ingest_run: window_from, window_to, record_count, status, started_at, completed_at
+- 인덱스(tenant_id + started_at desc), (tenant_id + status)
+
+> 산출물: “현재 스키마로 충분/부족”을 명확히 결론 내리고, 부족 시에만 마이그레이션 초안 제공.
+
+---
+
+## 4) OpenAPI 스니펫(필수)
+- 위 3~5개 API를 OpenAPI에 추가/정리(요청/응답 예시 포함)
+- Page 응답은 프로젝트 표준(page,size,totalElements,totalPages,content) 준수
+
+---
+
+## 5) Definition of Done
+- FE가 Run History를 조회/필터/페이징 가능
+- run 1건 클릭 시 detail(counts_json, window, duration, status) 조회 가능
+- Manual Run 실행 시:
+  - advisory lock 미획득이면 SKIPPED로 응답
+  - 실행 결과가 detect_run에 기록되고 Run History에서 바로 보임
+  - audit_event_log에 “manual trigger” 이벤트가 남음
+- 권한 없는 사용자는 403
+
+---
+
+## 6) 검증용 curl
+```bash
+# List
+curl -X GET "$BASE_URL/api/synapse/admin/detect/runs?page=0&size=20&sort=startedAt,desc" \
+  -H "Authorization: Bearer $TOKEN" -H "X-Tenant-ID: $TENANT" -H "X-User-ID: $USER" -H "X-Trace-ID: $TRACE"
+
+# Detail
+curl -X GET "$BASE_URL/api/synapse/admin/detect/runs/{runId}" \
+  -H "Authorization: Bearer $TOKEN" -H "X-Tenant-ID: $TENANT" -H "X-User-ID: $USER" -H "X-Trace-ID: $TRACE"
+
+# Manual Run (backfill)
+curl -X POST "$BASE_URL/api/synapse/admin/detect/run" \
+  -H "Authorization: Bearer $TOKEN" -H "X-Tenant-ID: $TENANT" -H "X-User-ID: $USER" -H "X-Trace-ID: $TRACE" \
+  -H "Content-Type: application/json" \
+  -d '{ "windowMinutes": 1440 }'
+```

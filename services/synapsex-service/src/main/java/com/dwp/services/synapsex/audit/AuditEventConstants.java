@@ -71,9 +71,22 @@ public final class AuditEventConstants {
     public static final String TYPE_APPROVE = "APPROVE";
     public static final String TYPE_REJECT = "REJECT";
     public static final String TYPE_EXECUTE = "EXECUTE";
+    public static final String TYPE_RESUMED = "RESUMED";
     public static final String TYPE_SIMULATE = "SIMULATE";
     public static final String TYPE_PROPOSE = "PROPOSE";
     public static final String TYPE_FAILED = "FAILED";
+
+    /** event_type - Run (Phase B) */
+    public static final String TYPE_RUN_DETECT_STARTED = "RUN_DETECT_STARTED";
+    public static final String TYPE_RUN_DETECT_COMPLETED = "RUN_DETECT_COMPLETED";
+    public static final String TYPE_RUN_DETECT_FAILED = "RUN_DETECT_FAILED";
+    /** Manual trigger (Admin Batch Monitoring) */
+    public static final String TYPE_RUN_DETECT_MANUAL_TRIGGERED = "RUN_DETECT_MANUAL_TRIGGERED";
+    public static final String TYPE_CASE_CREATED = "CASE_CREATED";
+    public static final String TYPE_CASE_UPDATED = "CASE_UPDATED";
+
+    /** event_category - Run */
+    public static final String CATEGORY_RUN = "RUN";
 
     /** event_type - Integration (Phase1+) */
     public static final String TYPE_INGEST_FAIL = "INGEST_FAIL";

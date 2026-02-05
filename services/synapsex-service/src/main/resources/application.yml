@@ -59,6 +59,13 @@ audit:
     enabled: ${AUDIT_REDIS_ENABLED:true}
     channel: ${AUDIT_REDIS_CHANNEL:audit:events:ingest}
 
+# Phase B: Detect 배치 (기본 비활성 - 수동 트리거만)
+detect:
+  batch:
+    enabled: ${DETECT_BATCH_ENABLED:false}
+    cron: ${DETECT_BATCH_CRON:0 */15 * * * *}
+    interval-minutes: ${DETECT_BATCH_INTERVAL_MINUTES:15}
+
 springdoc:
   api-docs:
     path: /v3/api-docs

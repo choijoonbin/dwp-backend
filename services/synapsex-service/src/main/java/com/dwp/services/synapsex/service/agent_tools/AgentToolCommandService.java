@@ -149,7 +149,7 @@ public class AgentToolCommandService {
                 .orElseThrow();
 
         if (!requiresApproval) {
-            actionCommandService.approveAction(tenantId, action.getActionId(), actorUserId, null, null, null);
+            actionCommandService.approveAction(tenantId, action.getActionId(), actorUserId, null, null, null, null);
         }
 
         Map<String, Object> afterMap = new HashMap<>();
@@ -173,6 +173,6 @@ public class AgentToolCommandService {
 
     @Transactional
     public AgentAction execute(Long tenantId, Long actionId, String actorType, Long actorUserId) {
-        return actionCommandService.executeAction(tenantId, actionId, actorUserId, null, null, null);
+        return actionCommandService.executeAction(tenantId, actionId, actorUserId, null, null, null, null, null);
     }
 }

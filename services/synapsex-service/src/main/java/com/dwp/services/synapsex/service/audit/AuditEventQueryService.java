@@ -32,6 +32,7 @@ public class AuditEventQueryService {
                                    String category, String type, String outcome, String severity,
                                    Long actorUserId, String actorType,
                                    String resourceType, String resourceId,
+                                   Long runId,
                                    String traceId, String gatewayRequestId, String q, Pageable pageable) {
         Specification<AuditEventLog> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -54,6 +55,11 @@ public class AuditEventQueryService {
             if (actorUserId != null) predicates.add(cb.equal(root.get("actorUserId"), actorUserId));
             if (resourceType != null && !resourceType.isBlank()) predicates.add(cb.equal(root.get("resourceType"), resourceType));
             if (resourceId != null && !resourceId.isBlank()) predicates.add(cb.equal(root.get("resourceId"), resourceId));
+            if (runId != null) {
+                jakarta.persistence.criteria.Expression<String> runIdExpr = cb.function(
+                        "jsonb_extract_path_text", String.class, root.get("tags"), cb.literal("runId"));
+                predicates.add(cb.equal(runIdExpr, String.valueOf(runId)));
+            }
             if (traceId != null && !traceId.isBlank()) predicates.add(cb.equal(root.get("traceId"), traceId));
             if (gatewayRequestId != null && !gatewayRequestId.isBlank()) predicates.add(cb.equal(root.get("gatewayRequestId"), gatewayRequestId));
             if (q != null && !q.isBlank()) {

@@ -79,6 +79,12 @@ public class AgentCase {
     @Column(name = "saved_view_key", length = 100)
     private String savedViewKey;
 
+    @Column(name = "dedup_key", length = 200)
+    private String dedupKey;
+
+    @Column(name = "last_detect_run_id")
+    private Long lastDetectRunId;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 

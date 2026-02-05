@@ -1,0 +1,55 @@
+[PHASE B / Backend Prompt] Window Detection Batch(정석) — Detect Run 스케줄 + Case Upsert + Audit
+(목표: 원천데이터 적재 이후, 5/15/60분 윈도우로 탐지를 실행하고 케이스를 표준 규칙으로 생성/업데이트)
+
+## 0) 원칙(표준)
+- 구현 위치: Backend(서버 배치) + DB 락으로 중복 실행 방지
+- 탐지 로직은 1차 룰/스코어링(단순)로 시작, 결과는 case upsert
+- Agentic는 “케이스 처리(Phase A)”에서 동작, 탐지 배치가 LLM을 돌리지 않는다.
+- RUN/CASE/AUDIT 이벤트는 필수 기록
+
+---
+
+## 1) 배치 트리거(윈도우)
+- 기본: 15분(권장) 또는 60분(대량이면 60)
+- 실행 시점:
+  - now 기준 window_from/to 계산
+  - ingest_run(또는 원천데이터 테이블 created_at) 기반으로 대상 범위를 선정
+
+---
+
+## 2) 구현 범위(In)
+A) 스케줄러
+- `@Scheduled` 또는 JobRunner로 `detect_run` 생성 후 실행
+- 클러스터 중복 방지:
+  - DB advisory lock(tenant별) 또는 lock table
+
+B) 데이터 선택
+- window 내 신규/변경 전표/오픈아이템 대상으로 룰 평가
+- 룰 결과는 (rule_id, entity_key, score, severity, evidence_refs) 형태로 정리
+
+C) Case Upsert
+- dedup_key(tenant+rule+entity) 기준:
+  - 있으면 update(누적, severity max, last_seen_at 갱신)
+  - 없으면 create
+- suppressed 규칙(임계치 미만은 후보만 기록 or skip)
+
+D) Audit/Run 기록
+- RUN_DETECT_STARTED/COMPLETED/FAILED
+- CASE_CREATED/UPDATED (+ count summary)
+- detect_run에 결과 요약(counts) 저장
+
+---
+
+## 3) Definition of Done
+- 더미 전표가 window에 들어오면 detect batch가 케이스를 생성/업데이트
+- 같은 전표/동일 entity가 반복 적재되어도 중복 케이스 폭증하지 않음(upsert 확인)
+- audit_event_log에서 detect_run/case 이벤트가 추적됨
+- 성능: 인덱스/페이징/요약 쿼리 계획 확인
+
+---
+
+## 4) 검증용 시나리오
+1) 더미 전표 몇 건을 ‘현재 시간 window’에 맞게 적재(또는 updated_at 조정)
+2) 배치 1회 실행(수동 트리거 옵션 제공 가능: dev profile에서만)
+3) 케이스 테이블에서 신규 생성/업데이트 확인
+4) audit_event_log에서 RUN_DETECT_* 및 CASE_* 확인

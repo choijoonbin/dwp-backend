@@ -161,7 +161,9 @@ public class ActionController {
             @PathVariable Long actionId,
             HttpServletRequest httpRequest) {
         try {
-            var action = actionCommandService.approveAction(tenantId, actionId, actorUserId, null, null, null);
+            var action = actionCommandService.approveAction(tenantId, actionId, actorUserId,
+                    httpRequest.getRemoteAddr(), httpRequest.getHeader("User-Agent"), httpRequest.getHeader(HeaderConstants.X_GATEWAY_REQUEST_ID),
+                    httpRequest.getHeader(HeaderConstants.X_TRACE_ID));
             return ResponseEntity.ok(ApiResponse.success(ActionListRowDto.builder()
                 .actionId(action.getActionId())
                 .caseId(action.getCaseId())
@@ -201,9 +203,14 @@ public class ActionController {
     public ApiResponse<ActionListRowDto> rejectAction(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
             @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
-            @PathVariable Long actionId) {
+            @PathVariable Long actionId,
+            HttpServletRequest httpRequest) {
 
-        var action = actionCommandService.rejectAction(tenantId, actionId, actorUserId, null, null, null);
+        var action = actionCommandService.rejectAction(tenantId, actionId, actorUserId,
+                httpRequest != null ? httpRequest.getRemoteAddr() : null,
+                httpRequest != null ? httpRequest.getHeader("User-Agent") : null,
+                httpRequest != null ? httpRequest.getHeader(HeaderConstants.X_GATEWAY_REQUEST_ID) : null,
+                httpRequest != null ? httpRequest.getHeader(HeaderConstants.X_TRACE_ID) : null);
         return ApiResponse.success(ActionListRowDto.builder()
                 .actionId(action.getActionId())
                 .caseId(action.getCaseId())
@@ -212,6 +219,19 @@ public class ActionController {
                 .createdAt(action.getCreatedAt() != null ? action.getCreatedAt() : action.getPlannedAt())
                 .executedAt(action.getExecutedAt())
                 .build());
+    }
+
+    /**
+     * Phase A: POST /api/synapse/actions/{actionId}/resume
+     * 승인된 proposal 실행 (execute와 동일. HITL resume = approve 후 실행 진행)
+     */
+    @PostMapping("/{actionId}/resume")
+    public ResponseEntity<ApiResponse<ActionListRowDto>> resumeAction(
+            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
+            @PathVariable Long actionId,
+            HttpServletRequest httpRequest) {
+        return executeAction(tenantId, actorUserId, actionId, httpRequest);
     }
 
     /**
@@ -224,7 +244,9 @@ public class ActionController {
             @PathVariable Long actionId,
             HttpServletRequest httpRequest) {
         try {
-            var action = actionCommandService.executeAction(tenantId, actionId, actorUserId, null, null, null);
+            var action = actionCommandService.executeAction(tenantId, actionId, actorUserId,
+                    httpRequest.getRemoteAddr(), httpRequest.getHeader("User-Agent"), httpRequest.getHeader(HeaderConstants.X_GATEWAY_REQUEST_ID),
+                    httpRequest.getHeader(HeaderConstants.X_TRACE_ID), null);
             return ResponseEntity.ok(ApiResponse.success(ActionListRowDto.builder()
                     .actionId(action.getActionId())
                     .caseId(action.getCaseId())

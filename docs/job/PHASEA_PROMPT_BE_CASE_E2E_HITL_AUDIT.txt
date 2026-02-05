@@ -1,0 +1,63 @@
+[PHASE A / Backend Prompt] Case E2E(P0) — Case Detail + Evidence Pack + HITL + Audit (표준 프로세스에 연결)
+(목표: “케이스 1개를 끝까지 닫는” 운영 루프를 계약/DB/감사까지 완성)
+
+## 0) 원칙(Phase 0 표준 준수)
+- tenant scope/audit/error/trace 규칙은 Phase 0 문서 기준으로 고정.
+- HITL 승인 기반만(approve/reject/resume). 실행은 제한적(또는 비활성)으로 시작.
+
+---
+
+## 1) P0 사용자 시나리오(완료 기준)
+Command Center → Case 클릭 →
+1) Case Detail 조회
+2) Evidence Pack 조회(문서/오픈아이템/라인리지/정책 중 3종 이상 식별자)
+3) propose_action 생성 → approve/reject → resume
+4) Audit 조회로 전 과정 추적
+
+---
+
+## 2) 구현 범위(In/Out)
+### In
+- Case Detail API(현행 경로 기준)
+- Case Evidence API(현행 경로 기준)
+- HITL APIs(현행 경로 기준): propose/approve/reject/resume
+- Audit events 조회 API(현행 경로 기준)
+
+### Out
+- 탐지 배치(Phase B)
+- SAP 실시간 연동
+- 무승인 자동 실행
+
+---
+
+## 3) 해야 할 일(권장 순서)
+### Step 1 — “현행 엔드포인트” 실제 목록 확정
+- FE가 호출 중인 경로/파라미터/응답 shape를 소스에서 추출
+- OpenAPI에 스니펫으로 반영
+
+### Step 2 — Case Detail 응답 최소 필드 정리
+- case_id, status, severity, created_at, updated_at
+- 담당/할당(있으면)
+- evidence_refs(또는 evidence 조회를 위한 키)
+
+### Step 3 — Evidence Pack 설계(최소 3종)
+- documents: docKey/belnr/gjahr/bukrs 등 (실제 테이블 키)
+- open_items: openItemKey 또는 (belnr+gjahr+...) 복합키
+- lineage: lineageId 또는 (belnr+gjahr) 기반 조회 키
+- policy: policyId 또는 policyRef(없으면 Phase B로 미룸)
+- 응답에는 “UI에서 클릭 가능한 식별자”만 넣고, PII/원문은 별도 조회로 분리
+
+### Step 4 — HITL 상태머신 + 중복 방지
+- proposal 생성 시 중복 제안 방지(같은 caseId+actionType+open 상태면 409)
+- approve/reject는 idempotent(중복 호출 시 409 또는 200-noop 규칙)
+- resume는 승인된 proposalId만 허용
+
+### Step 5 — Audit 이벤트 기록(필수)
+- ACTION_PROPOSED/APPROVED/REJECTED/RESUMED (+ CASE_STATUS_CHANGED)
+- payload: trace_id/tenant_id/user_id/case_id/proposal_id/action_type/evidence_refs/before_after_status
+
+---
+
+## 4) Definition of Done
+- curl로 Case/Evidence/HITL/Audit 재현 가능
+- tenant 섞임 0, RBAC 위반 0, audit 누락 0
