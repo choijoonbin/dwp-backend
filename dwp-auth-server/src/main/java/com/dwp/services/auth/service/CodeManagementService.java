@@ -2,6 +2,7 @@ package com.dwp.services.auth.service;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.core.util.LocaleUtil;
 import com.dwp.services.auth.dto.CodeGroupResponse;
 import com.dwp.services.auth.dto.CodeResponse;
 import com.dwp.services.auth.dto.admin.CreateCodeGroupRequest;
@@ -116,11 +117,13 @@ public class CodeManagementService {
     }
     
     private CodeResponse toCodeResponse(Code code) {
+        String resolvedLabel = LocaleUtil.resolveLabel(code.getNameKo(), code.getNameEn(), code.getName());
         return CodeResponse.builder()
                 .sysCodeId(code.getSysCodeId())
                 .groupKey(code.getGroupKey())
                 .code(code.getCode())
-                .name(code.getName())
+                .name(resolvedLabel)
+                .label(resolvedLabel)
                 .description(code.getDescription())
                 .sortOrder(code.getSortOrder())
                 .isActive(code.getIsActive())

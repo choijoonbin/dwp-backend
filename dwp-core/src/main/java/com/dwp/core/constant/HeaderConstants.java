@@ -63,6 +63,12 @@ public class HeaderConstants {
      * simulate/execute 중복 실행 차단용
      */
     public static final String X_GATEWAY_REQUEST_ID = "X-Gateway-Request-Id";
+
+    /**
+     * Accept-Language: 다국어(ko/en) 지원
+     * FE가 ko|en을 보내면 해당 언어로 코드/메뉴 라벨 반환
+     */
+    public static final String ACCEPT_LANGUAGE = "Accept-Language";
     
     // ========================================
     // 호출자 타입 값
@@ -99,7 +105,8 @@ public class HeaderConstants {
         X_USER_ID,
         X_AGENT_ID,
         X_DWP_SOURCE,
-        X_DWP_CALLER_TYPE
+        X_DWP_CALLER_TYPE,
+        ACCEPT_LANGUAGE
     );
     
     private HeaderConstants() {

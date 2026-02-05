@@ -1,0 +1,101 @@
+[BACKEND PROMPT] SynapseX 다국어 지원(ko/en) — 표준 헤더(Accept-Language) + (필요 시) 코드/메뉴 라벨 다국어 DB 설계
+(대상: DWP Backend / Spring + PostgreSQL)
+
+## 결론/결정안(3줄)
+- 언어는 **ko/en 2개**만 지원하며, FE가 `Accept-Language: ko|en`을 보낸다.
+- 1차 표준은 “DB에 저장되는 라벨(메뉴/코드)”만 다국어 컬럼을 두고, API는 요청 언어에 맞는 label을 내려준다.
+- 번역문(문장) 전체를 DB에서 관리하는 번역 테이블은 2차(운영툴 필요)로 미룬다.
+
+---
+
+## 0) 범위(In/Out)
+### In
+- 모든 API가 `Accept-Language`를 읽어 `LocaleContext`에 반영(ko/en)
+- 코드관리/메뉴트리 등 “라벨 데이터”가 ko/en 둘 다를 갖고, 요청 언어에 맞춰 반환
+- 서버 에러 응답은 errorCode 중심(메시지 하드 번역은 FE에서) + 필요 시 message_ko/message_en 제공 가능
+
+### Out(1차에서 제외)
+- 번역 관리 UI(어드민에서 번역 편집)
+- 문장 단위 다국어 DB(translation_key/value) 전면 적용
+
+---
+
+## 1) Accept-Language 처리(필수)
+- Spring `LocaleResolver` 또는 `HandlerInterceptor`로 `Accept-Language`를 파싱
+- 허용 값: ko, en(그 외는 ko fallback)
+- Thread-local(LocaleContextHolder)에 세팅
+
+---
+
+## 2) DB 설계(필요 시) — “라벨”만 다국어(권장)
+### 2.1 코드 테이블(예: common_code 또는 admin_code)
+- 기존 스키마가 있다면 ALTER로 확장(테이블명은 실제 DDL 기준)
+
+#### (A) 코드 그룹/코드
+```sql
+-- NOTE: 실제 테이블명/컬럼명은 프로젝트 DDL에 맞춰 적용할 것
+ALTER TABLE codes
+  ADD COLUMN IF NOT EXISTS label_ko VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS label_en VARCHAR(255);
+
+COMMENT ON COLUMN codes.label_ko IS 'Korean label for UI';
+COMMENT ON COLUMN codes.label_en IS 'English label for UI';
+
+CREATE INDEX IF NOT EXISTS idx_codes_group_code
+  ON codes(group_code, code);
+```
+
+### 2.2 메뉴 테이블(예: menus)
+- auth-server가 menus/tree를 제공한다면, 그 DB에 반영해야 한다.
+```sql
+ALTER TABLE menus
+  ADD COLUMN IF NOT EXISTS name_ko VARCHAR(255),
+  ADD COLUMN IF NOT EXISTS name_en VARCHAR(255);
+
+COMMENT ON COLUMN menus.name_ko IS 'Korean menu display name';
+COMMENT ON COLUMN menus.name_en IS 'English menu display name';
+
+CREATE INDEX IF NOT EXISTS idx_menus_id ON menus(id);
+```
+
+---
+
+## 3) API 응답 규칙(필수)
+### 3.1 코드 조회 API
+권장: **서버에서 label 단일 필드로 내려줌**
+```json
+{ "group":"CASE_TYPE", "code":"DUPLICATE_INVOICE", "label":"Duplicate invoice" }
+```
+
+### 3.2 메뉴 트리 API
+- `name`을 locale에 맞춘 값으로 반환
+- fallback: name_ko 우선, 없으면 기존 name
+
+---
+
+## 4) 구현 체크리스트(필수)
+- LocaleUtil.getLang(): 'ko'|'en'
+- 코드 조회/메뉴 조회에서 label/name 선택 로직 적용
+- 캐시(선택): tenant+lang 기준 캐시 가능
+
+---
+
+## 5) Definition of Done
+- Accept-Language=en 요청 시 code/menu 라벨이 영어로 내려온다
+- 미지정/잘못된 값은 ko fallback
+- FE 언어 전환 시 라벨이 즉시 바뀐다
+
+---
+
+## 6) 검증 curl
+```bash
+curl -X GET "$BASE_URL/api/admin/codes?group=CASE_TYPE" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-ID: $TENANT" \
+  -H "Accept-Language: en"
+
+curl -X GET "$BASE_URL/api/auth/menus/tree" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-ID: $TENANT" \
+  -H "Accept-Language: en"
+```

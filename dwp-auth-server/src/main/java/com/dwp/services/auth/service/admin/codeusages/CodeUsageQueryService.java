@@ -2,6 +2,7 @@ package com.dwp.services.auth.service.admin.codeusages;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.core.util.LocaleUtil;
 import com.dwp.services.auth.dto.admin.CodeUsageDetail;
 import com.dwp.services.auth.dto.admin.CodeUsageResponse;
 import com.dwp.services.auth.dto.admin.CodeUsageSummary;
@@ -74,8 +75,8 @@ public class CodeUsageQueryService {
     }
     
     private CodeUsageResponse getCodesByResourceKeyInternal(Long tenantId, String resourceKey) {
-        // 캐시 확인
-        String cacheKey = tenantId + ":" + resourceKey;
+        // 캐시 확인 (locale 포함: i18n 지원)
+        String cacheKey = tenantId + ":" + resourceKey + ":" + LocaleUtil.getLang();
         Map<String, List<CodeUsageResponse.CodeItem>> cached = codeCache.get(cacheKey);
         if (cached != null) {
             return CodeUsageResponse.builder().codes(cached).build();
@@ -111,17 +112,20 @@ public class CodeUsageQueryService {
             List<Code> finalCodes = tenantSpecificCodes.isEmpty() ? commonCodes : tenantSpecificCodes;
             
             List<CodeUsageResponse.CodeItem> codeItems = finalCodes.stream()
-                    .map(code -> CodeUsageResponse.CodeItem.builder()
-                            .sysCodeId(code.getSysCodeId())
-                            .code(code.getCode())
-                            .name(code.getName())
-                            .description(code.getDescription())
-                            .sortOrder(code.getSortOrder())
-                            .enabled(code.getIsActive())
-                            .ext1(code.getExt1())
-                            .ext2(code.getExt2())
-                            .ext3(code.getExt3())
-                            .build())
+                    .map(code -> {
+                        String resolvedName = LocaleUtil.resolveLabel(code.getNameKo(), code.getNameEn(), code.getName());
+                        return CodeUsageResponse.CodeItem.builder()
+                                .sysCodeId(code.getSysCodeId())
+                                .code(code.getCode())
+                                .name(resolvedName)
+                                .description(code.getDescription())
+                                .sortOrder(code.getSortOrder())
+                                .enabled(code.getIsActive())
+                                .ext1(code.getExt1())
+                                .ext2(code.getExt2())
+                                .ext3(code.getExt3())
+                                .build();
+                    })
                     .collect(Collectors.toList());
             codesMap.put(groupKey, codeItems);
         }

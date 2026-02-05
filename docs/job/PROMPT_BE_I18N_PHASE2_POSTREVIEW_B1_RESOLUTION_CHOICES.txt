@@ -1,0 +1,67 @@
+[BACKEND PROMPT] i18n Phase2 후속조치 — B-1(케이스 라벨 코드 소스) 확정/해결 플랜 2안 중 택1
+(대상: Backend/Auth/Aura 중 ‘실제 코드 API’ 소유 시스템)
+
+## 0) 배경(점검 결과)
+- CASE_TYPE/CASE_STATUS/SEVERITY가 auth sys_codes가 아니라 synapsex dwp_aura.app_codes에 있을 수 있음
+- FE useCodes(CASE_STATUS/CASE_TYPE)가 실제로 어떤 API를 호출하는지에 따라 보완 대상이 달라짐
+
+---
+
+## 1) 먼저 해야 할 단 하나(필수)
+- FE 네트워크 탭에서 /synapse/cases 가 호출하는 코드 조회 API를 확정한다.
+  - (A) auth /api/admin/codes 또는 /api/admin/codes/usage 를 호출한다
+  - (B) synapsex 전용 코드 API(예: /api/synapse/codes …) 를 호출한다
+
+이 결과에 따라 아래 2안 중 **정확히 하나만** 수행한다.
+
+---
+
+## 2) 해결안 A (Auth 서버가 코드 라벨을 제공하는 방식) — 권장(중앙집중)
+### A1) sys_code_usages 매핑 추가
+- menu.autonomous-operations.cases 에서 사용하는 코드 그룹을 등록:
+  - CASE_TYPE, CASE_STATUS, SEVERITY
+- FE가 /api/admin/codes/usage?menuKey=... 같은 방식이면, 여기서 그룹을 반환하도록 함
+
+### A2) sys_codes에 ko/en 라벨(이미 V28 seed가 있다면 값 확인)
+- groupKey/code 별 name_ko/name_en이 채워져 있어야 함
+- Accept-Language에 따라 name이 단일 필드로 내려오도록 유지
+
+### A3) DoD
+- /api/admin/codes/usage 호출 시 cases 메뉴에 필요한 그룹이 모두 내려온다
+- /api/admin/codes?groupKey=CASE_TYPE 을 en으로 호출하면 영어 라벨이 온다
+- FE /synapse/cases 에서 배지/칩이 언어 전환에 반응한다
+
+---
+
+## 3) 해결안 B (SynapseX/Aura가 app_codes로 직접 제공) — 분산(차선)
+### B1) dwp_aura.app_codes 스키마 확장
+- app_codes에 name_ko/name_en(또는 label_ko/label_en) 컬럼 추가
+- groupKey/code 인덱스 추가, 코멘트 포함
+
+### B2) SynapseX 코드 API에서 Accept-Language로 label 선택 반환
+- LocaleResolver는 이미 있으므로 동일 정책(ko/en, fallback ko)
+- 캐시를 쓴다면 tenant+lang로 분리
+
+### B3) seed/migration 추가
+- CASE_TYPE/CASE_STATUS/SEVERITY 전용 시드 삽입
+
+### B4) DoD
+- synapsex 코드 API를 en으로 호출하면 영어 라벨이 온다
+- FE /synapse/cases 에서 배지/칩이 언어 전환에 반응한다
+
+---
+
+## 4) 공통 검증 curl(택1 대상에 맞게)
+```bash
+# Auth codes
+curl -X GET "$BASE_URL/api/admin/codes?groupKey=CASE_TYPE" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-ID: $TENANT" \
+  -H "Accept-Language: en"
+
+# Menus
+curl -X GET "$BASE_URL/api/auth/menus/tree" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-ID: $TENANT" \
+  -H "Accept-Language: en"
+```

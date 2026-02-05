@@ -1,5 +1,6 @@
 package com.dwp.services.auth.service;
 
+import com.dwp.core.util.LocaleUtil;
 import com.dwp.services.auth.dto.MenuNode;
 import com.dwp.services.auth.dto.MenuTreeResponse;
 import com.dwp.services.auth.entity.*;
@@ -132,9 +133,10 @@ public class MenuService {
             
             for (Menu menu : menus) {
                 Resource resource = resourceMap.get(menu.getMenuKey());
+                String resolvedMenuName = LocaleUtil.resolveLabel(menu.getMenuNameKo(), menu.getMenuNameEn(), menu.getMenuName());
                 MenuNode node = MenuNode.builder()
                         .menuKey(menu.getMenuKey())
-                        .menuName(menu.getMenuName())
+                        .menuName(resolvedMenuName)
                         .path(menu.getMenuPath())
                         .icon(menu.getMenuIcon())
                         .group(menu.getMenuGroup())

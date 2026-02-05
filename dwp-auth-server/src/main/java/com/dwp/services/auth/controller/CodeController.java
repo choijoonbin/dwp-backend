@@ -79,6 +79,7 @@ public class CodeController {
     /**
      * PR-06D: 메뉴별 코드 조회 (보안 강화)
      * GET /api/admin/codes/usage?resourceKey=menu.admin.users
+     * GET /api/admin/codes/usage?menuKey=menu.autonomous-operations.cases  (A안: menuKey alias)
      * 
      * 보안 검증:
      * - ADMIN 권한 필수
@@ -89,20 +90,31 @@ public class CodeController {
     public ApiResponse<CodeUsageResponse> getCodesByUsage(
             @RequestHeader("X-Tenant-ID") Long tenantId,
             Authentication authentication,
-            @RequestParam("resourceKey") String resourceKey) {
+            @RequestParam(value = "resourceKey", required = false) String resourceKey,
+            @RequestParam(value = "menuKey", required = false) String menuKey) {
+        String effectiveKey = (resourceKey != null && !resourceKey.isBlank()) ? resourceKey : menuKey;
+        if (effectiveKey == null || effectiveKey.isBlank()) {
+            throw new IllegalArgumentException("resourceKey or menuKey is required");
+        }
         Long userId = getUserId(authentication);
-        return ApiResponse.success(codeUsageService.getCodesByResourceKey(tenantId, userId, resourceKey));
+        return ApiResponse.success(codeUsageService.getCodesByResourceKey(tenantId, userId, effectiveKey));
     }
     
     /**
      * 메뉴별 사용 코드 그룹 목록 조회
      * GET /api/admin/codes/usage/groups?resourceKey=menu.admin.users
+     * GET /api/admin/codes/usage/groups?menuKey=menu.autonomous-operations.cases  (A안: menuKey alias)
      */
     @GetMapping("/usage/groups")
     public ApiResponse<List<String>> getCodeGroupKeysByUsage(
             @RequestHeader("X-Tenant-ID") Long tenantId,
-            @RequestParam("resourceKey") String resourceKey) {
-        return ApiResponse.success(codeUsageService.getCodeGroupKeysByResourceKey(tenantId, resourceKey));
+            @RequestParam(value = "resourceKey", required = false) String resourceKey,
+            @RequestParam(value = "menuKey", required = false) String menuKey) {
+        String effectiveKey = (resourceKey != null && !resourceKey.isBlank()) ? resourceKey : menuKey;
+        if (effectiveKey == null || effectiveKey.isBlank()) {
+            throw new IllegalArgumentException("resourceKey or menuKey is required");
+        }
+        return ApiResponse.success(codeUsageService.getCodeGroupKeysByResourceKey(tenantId, effectiveKey));
     }
     
     /**

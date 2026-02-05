@@ -1,0 +1,88 @@
+
+[BACKEND PROMPT] i18n 2차 보완 — 다국어 데이터(코드/메뉴) 시드 입력 + (선택) 에러 메시지 다국어
+(대상: DWP Backend + Auth 서버 menus/tree)
+
+## 0) 이번 점검에서 확인된 상태(요약)
+- Accept-Language 처리 ✅ (AcceptLanguageLocaleResolver)
+- 코드 라벨 다국어 ✅ (sys_codes: name_ko/name_en, 캐시 키에 lang 포함)
+- 메뉴 트리 다국어 ✅ (auth-server에서 menuName 유지)
+- 추가 필요: 실제 번역 데이터 시드 입력(현재 null이면 fallback), 에러 message_ko/en은 2차 옵션
+
+---
+
+## 1) P0: 다국어 시드 데이터 입력(필수)
+### 1.1 sys_codes 번역값 채우기
+- 대상 컬럼: name_ko, name_en (현재 구현 기준)
+- 대상 그룹Key 최소 세트:
+  - CASE_TYPE: DUPLICATE_INVOICE, ANOMALY_AMOUNT, MISSING_EVIDENCE …
+  - CASE_STATUS: OPEN, IN_PROGRESS, RESOLVED, CLOSED …
+  - SEVERITY: CRITICAL, HIGH, MEDIUM, LOW, INFO
+
+#### 시드 SQL 템플릿(예시)
+```sql
+-- CASE_TYPE
+UPDATE sys_codes SET name_ko='중복 전표', name_en='Duplicate invoice'
+ WHERE group_key='CASE_TYPE' AND code='DUPLICATE_INVOICE';
+
+UPDATE sys_codes SET name_ko='금액 이상', name_en='Amount anomaly'
+ WHERE group_key='CASE_TYPE' AND code='ANOMALY_AMOUNT';
+
+UPDATE sys_codes SET name_ko='근거 누락', name_en='Missing evidence'
+ WHERE group_key='CASE_TYPE' AND code='MISSING_EVIDENCE';
+
+-- SEVERITY
+UPDATE sys_codes SET name_ko='치명', name_en='Critical'
+ WHERE group_key='SEVERITY' AND code='CRITICAL';
+-- ... 나머지 동일 패턴
+```
+
+> NOTE: 실제 테이블/컬럼명은 프로젝트 DDL 기준. (점검 결과는 sys_codes/groupKey 사용)
+
+### 1.2 sys_menus 번역값 채우기(auth-server 포함)
+- 대상 컬럼: menu_name_ko, menu_name_en (현재 구현 기준)
+- synapse 관련 주요 메뉴 최소 세트:
+  - Command Center, Cases, Documents, Open Items, Actions, Audit, Admin Codes 등
+
+#### 시드 SQL 템플릿(예시)
+```sql
+UPDATE sys_menus SET menu_name_ko='케이스 작업함', menu_name_en='Cases'
+ WHERE menu_key='menu.autonomous-operations.cases';
+-- ... 나머지 동일 패턴
+```
+
+---
+
+## 2) P1(선택): 에러 메시지 다국어(정책에 따라)
+현재 1차는 errorCode 중심이므로, FE에서 번역하는 것이 표준.
+다만 운영/외부 API 사용자에게 message를 보여줘야 한다면 아래 중 하나로 통일:
+
+A) message는 항상 영어 고정 + errorCode 제공 (가장 단순)
+B) message_ko/message_en 추가 + Accept-Language로 message 필드 선택 반환
+
+> 권장: 내부 UI면 FE 번역으로 충분. (B는 2차 이후)
+
+---
+
+## 3) 검증
+- Accept-Language=en으로 codes 조회 시 name이 영어로 내려옴
+- menus/tree도 en으로 내려옴
+- null fallback이 더 이상 발생하지 않음(시드 채움)
+
+### curl
+```bash
+curl -X GET "$BASE_URL/api/admin/codes?groupKey=CASE_TYPE" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-ID: $TENANT" \
+  -H "Accept-Language: en"
+
+curl -X GET "$BASE_URL/api/auth/menus/tree" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-ID: $TENANT" \
+  -H "Accept-Language: en"
+```
+
+---
+
+## 4) 완료조건(DoD)
+- sys_codes/sys_menus의 ko/en 값이 채워져, UI에서 코드/메뉴 라벨이 언어 전환에 즉시 반응
+- 캐시가 lang별로 분리되어 언어 전환 시 잘못된 언어 값이 섞이지 않음

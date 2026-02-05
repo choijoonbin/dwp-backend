@@ -1,0 +1,165 @@
+[BACKEND PROMPT] i18n 코드 라벨 소스 확정/통일 — “A안(권장: Auth 중앙 코드)”으로 강제 정리
+(목표: SynapseX 케이스 라벨(CASE_TYPE/STATUS/SEVERITY)이 어디서 오든, 최종적으로 **Auth 코드 시스템 1곳**에서 다국어를 제공하게 만들어 운영 안정성/일관성 확보)
+
+============================================================
+0) 결론(왜 A안이 가장 안정적인가)
+============================================================
+- **A안(Auth 중앙집중)**이 가장 안정적입니다.
+  - 코드/라벨은 “전사 공통 기준”에 가깝고, 메뉴/권한과 같이 움직이므로 auth(관리영역)에서 관리하는 것이 표준입니다.
+  - SynapseX(Aura/도메인)가 app_codes를 따로 들고 있으면, 라벨 불일치/중복 관리/캐시 충돌이 반복됩니다.
+  - FE는 어느 Remote에서든 동일 codes API/usage API만 호출하면 되므로 MFE에서 특히 유리합니다.
+
+따라서 **Auth가 단일 소유자(Source of Truth)**가 되도록 정리합니다.
+
+============================================================
+1) 전제/검증(반드시 먼저 확인)
+============================================================
+1-1) FE가 실제로 어떤 “코드 조회 API”를 호출하는지 네트워크로 확정
+- /synapse/cases 진입 시 호출되는 endpoint를 확인:
+  - (예) GET /api/admin/codes/usage?menuKey=...
+  - (예) GET /api/admin/codes?groupKey=CASE_TYPE
+  - (예) GET /api/synapse/codes?...  (이 경우 FE를 A안으로 교체해야 함)
+
+1-2) 결과에 따라 조치
+- FE가 이미 auth codes를 호출한다 → 아래 “Auth 보완”만 하면 됨
+- FE가 synapsex 전용 codes를 호출한다 → FE를 auth codes 호출로 변경(Front에 별도 task)
+
+============================================================
+2) A안 구현 범위(P0/P1)
+============================================================
+P0) Auth 서버에서 “코드/라벨 다국어”를 완성하고, SynapseX가 이를 사용하도록 통일
+- codes 테이블: groupKey+code 별 name_ko/name_en 채우기(시드)
+- codes 조회 API: Accept-Language에 따라 단일 name(label) 반환
+- codes usage API: menuKey별로 필요한 groupKey 리스트를 반환(케이스 화면에 3종 포함)
+
+P1) (선택) 기존 app_codes(예: dwp_aura.app_codes)가 있다면 “라벨 저장소로 사용 금지”
+- 완전 제거는 리스크 → 1차는 “미사용/동기화 금지”로 문서화
+- 필요 시 마이그레이션으로 auth codes에 매핑만 남김
+
+============================================================
+3) DB/데이터 설계(권장 스키마 가정)
+============================================================
+※ 실제 테이블명은 프로젝트 DDL 기준으로 맞춰 적용.
+
+3-1) sys_codes (또는 codes) 다국어 컬럼 확인
+- 컬럼: group_key, code, name_ko, name_en (이미 있다면 OK)
+- 인덱스: (group_key, code) UNIQUE 권장
+
+3-2) sys_code_usages (메뉴별 코드 그룹 매핑) — 없다면 추가 권장
+- 목적: “이 화면에서 필요한 코드 그룹을 FE가 한 번에 가져오게” 함
+- 예: menuKey='menu.autonomous-operations.cases' → CASE_TYPE/CASE_STATUS/SEVERITY
+
+[테이블 생성 SQL 예시]
+```sql
+CREATE TABLE IF NOT EXISTS sys_code_usages (
+  id BIGSERIAL PRIMARY KEY,
+  menu_key VARCHAR(200) NOT NULL,
+  group_key VARCHAR(100) NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+COMMENT ON TABLE sys_code_usages IS 'Menu-to-code-group mapping for UI bootstrapping';
+COMMENT ON COLUMN sys_code_usages.menu_key IS 'Menu key used by FE (RBAC menu tree)';
+COMMENT ON COLUMN sys_code_usages.group_key IS 'Code group key (CASE_TYPE, SEVERITY, ...)';
+
+CREATE INDEX IF NOT EXISTS idx_sys_code_usages_menu_key ON sys_code_usages(menu_key);
+CREATE UNIQUE INDEX IF NOT EXISTS uk_sys_code_usages_menu_group ON sys_code_usages(menu_key, group_key);
+```
+
+============================================================
+4) API 스펙(권장)
+============================================================
+4-1) GET /api/admin/codes/usage?menuKey={menuKey}
+- 응답: groupKeys 배열
+```json
+{
+  "status":"SUCCESS",
+  "data": { "menuKey":"menu.autonomous-operations.cases", "groupKeys":["CASE_TYPE","CASE_STATUS","SEVERITY"] }
+}
+```
+
+4-2) GET /api/admin/codes?groupKey=CASE_TYPE
+- Accept-Language=en 이면 영어 label 선택 반환
+```json
+{
+  "status":"SUCCESS",
+  "data":[
+    {"groupKey":"CASE_TYPE","code":"DUPLICATE_INVOICE","name":"Duplicate invoice"},
+    {"groupKey":"CASE_TYPE","code":"ANOMALY_AMOUNT","name":"Amount anomaly"}
+  ]
+}
+```
+
+- (옵션) FE 디버깅을 위해 name_ko/name_en 같이 내려주는 확장 필드 제공 가능(기본은 name만)
+
+============================================================
+5) 구현 체크리스트(서버 코드)
+============================================================
+5-1) Locale 결정(기존 AcceptLanguageLocaleResolver 유지)
+- 허용: ko/en, 기타는 ko fallback
+
+5-2) CodesService.getCodes(groupKey)
+- DB에서 name_ko/name_en을 가져오고
+- lang에 따라 `name = (lang=='en' ? name_en : name_ko)` 선택
+- null fallback: name_en이 null이면 name_ko, 둘 다 null이면 code
+
+5-3) CodesUsageService.getGroupKeys(menuKey)
+- sys_code_usages에서 menuKey로 groupKeys 조회
+- (없으면) 최소 기본값 반환(케이스 화면은 3종 고정) 또는 404(정책 택1)
+  - 권장: 기본값 반환(운영 안정)
+
+5-4) 캐시(선택)
+- groupKey+tenant+lang 기준 캐시
+- usage도 menuKey+tenant 캐시 가능
+
+============================================================
+6) 데이터 시드(필수: 최소 3그룹)
+============================================================
+- CASE_TYPE, CASE_STATUS, SEVERITY 의 주요 코드들에 대해 name_ko/name_en 업데이트/삽입
+- menuKey='menu.autonomous-operations.cases'에 usage 매핑 삽입
+
+[시드 SQL 템플릿]
+```sql
+-- usage
+INSERT INTO sys_code_usages(menu_key, group_key)
+VALUES
+('menu.autonomous-operations.cases','CASE_TYPE'),
+('menu.autonomous-operations.cases','CASE_STATUS'),
+('menu.autonomous-operations.cases','SEVERITY')
+ON CONFLICT DO NOTHING;
+
+-- codes (예시)
+UPDATE sys_codes SET name_ko='중복 전표', name_en='Duplicate invoice'
+ WHERE group_key='CASE_TYPE' AND code='DUPLICATE_INVOICE';
+```
+
+============================================================
+7) 검증(curl) — 성공 기준
+============================================================
+```bash
+# 1) usage 확인
+curl -X GET "$BASE_URL/api/admin/codes/usage?menuKey=menu.autonomous-operations.cases" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-ID: $TENANT" \
+  -H "Accept-Language: en"
+
+# 2) codes 영어 라벨 확인
+curl -X GET "$BASE_URL/api/admin/codes?groupKey=CASE_TYPE" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-ID: $TENANT" \
+  -H "Accept-Language: en"
+```
+
+DoD:
+- usage가 3개 그룹을 반환
+- codes가 영어 name으로 내려옴
+- FE /synapse/cases 에서 배지/칩 라벨이 언어 전환에 즉시 반응(네트워크로 auth codes 호출 확인)
+
+============================================================
+8) Front 변경이 필요한 경우(조건부)
+============================================================
+만약 FE가 synapsex 전용 codes API를 호출 중이라면:
+- 해당 호출을 **/api/admin/codes/usage + /api/admin/codes**로 교체
+- useCodes() 훅에서 baseUrl/endpoint를 auth로 통일
+- 이 변경은 “라벨 소스 통일”을 위한 필수 작업이며, 이후 유지보수 비용을 크게 줄입니다.

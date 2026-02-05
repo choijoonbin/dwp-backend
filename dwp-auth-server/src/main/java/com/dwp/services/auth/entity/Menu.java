@@ -34,6 +34,14 @@ public class Menu extends BaseEntity {
     
     @Column(name = "menu_name", nullable = false, length = 200)
     private String menuName;
+
+    /** 한국어 메뉴명 (i18n, nullable) */
+    @Column(name = "menu_name_ko", length = 255)
+    private String menuNameKo;
+
+    /** 영어 메뉴명 (i18n, nullable) */
+    @Column(name = "menu_name_en", length = 255)
+    private String menuNameEn;
     
     @Column(name = "menu_path", length = 500)
     private String menuPath;

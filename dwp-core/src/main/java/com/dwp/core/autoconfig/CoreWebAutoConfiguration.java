@@ -1,5 +1,6 @@
 package com.dwp.core.autoconfig;
 
+import com.dwp.core.config.AcceptLanguageLocaleResolver;
 import com.dwp.core.exception.GlobalExceptionHandler;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -7,6 +8,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.LocaleResolver;
 
 /**
  * DWP Core Web Auto-Configuration
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  * 
  * 제공 빈:
  * - GlobalExceptionHandler: 전역 예외 처리 (@RestControllerAdvice)
+ * - LocaleResolver: Accept-Language 기반 다국어(ko/en) 지원
  * - ApiResponse<T> Envelope은 공통 DTO로 제공 (별도 빈 불필요)
  */
 @Slf4j
@@ -36,5 +39,16 @@ public class CoreWebAutoConfiguration {
     public GlobalExceptionHandler globalExceptionHandler() {
         log.info("✅ DWP Core: GlobalExceptionHandler registered (ApiResponse Envelope enabled)");
         return new GlobalExceptionHandler();
+    }
+
+    /**
+     * Accept-Language 기반 LocaleResolver 등록
+     * 
+     * ko/en 지원, 미지정/잘못된 값은 ko fallback
+     */
+    @Bean
+    public LocaleResolver localeResolver() {
+        log.info("✅ DWP Core: AcceptLanguageLocaleResolver registered (i18n ko/en)");
+        return new AcceptLanguageLocaleResolver();
     }
 }

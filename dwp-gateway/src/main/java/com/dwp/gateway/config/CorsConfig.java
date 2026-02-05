@@ -32,7 +32,7 @@ public class CorsConfig {
     private String allowedMethods = "GET,POST,PUT,DELETE,PATCH,OPTIONS";
     // 표준 헤더 목록 (프론트엔드 통합 계약)
     // "*"도 허용하지만, 명시적 목록을 권장합니다.
-    private String allowedHeaders = "Authorization,X-Tenant-ID,X-User-ID,X-Agent-ID,X-DWP-Source,X-DWP-Caller-Type,Content-Type,Accept,Last-Event-ID";
+    private String allowedHeaders = "Authorization,X-Tenant-ID,X-User-ID,X-Agent-ID,X-DWP-Source,X-DWP-Caller-Type,Content-Type,Accept,Accept-Language,Last-Event-ID";
     private boolean allowCredentials = true;
     private long maxAge = 3600;
 
@@ -74,6 +74,7 @@ public class CorsConfig {
         corsConfig.addAllowedHeader("X-DWP-Source");
         corsConfig.addAllowedHeader("X-DWP-Caller-Type");
         corsConfig.addAllowedHeader("Last-Event-ID");  // SSE 재연결 지원
+        corsConfig.addAllowedHeader("Accept-Language");  // i18n ko/en
         
         // Credentials 허용 여부
         corsConfig.setAllowCredentials(allowCredentials);

@@ -33,6 +33,14 @@ public class Code extends BaseEntity {
     
     @Column(name = "name", nullable = false, length = 200)
     private String name;
+
+    /** 한국어 라벨 (i18n, nullable) */
+    @Column(name = "name_ko", length = 255)
+    private String nameKo;
+
+    /** 영어 라벨 (i18n, nullable) */
+    @Column(name = "name_en", length = 255)
+    private String nameEn;
     
     @Column(name = "description", length = 500)
     private String description;

@@ -1,0 +1,91 @@
+# i18n Phase2 점검 결과(Front/Back) + 잔여 ToDo + 다음 액션(Go/No-Go)
+
+근거:
+- Front 결과 요약: front.txt
+- Back 결과 요약: back.txt
+
+---
+
+## 0) 결론(Go/No-Go)
+- **Go**: Phase2 목표(P0 중심)는 “기능적으로” 달성된 것으로 판단됩니다.
+- 단, “전 메뉴 100% 완성/운영 안정” 관점에서 **P0.5(환경) + P1(회귀) 3가지**를 추가 점검해야 합니다. (아래 체크)
+
+---
+
+## 1) Front 점검(Phase2 프롬프트 대비)
+### ✅ 완료로 판단되는 항목
+- P0-1 메뉴명 다국어: `menuName` 우선 + fallback 적용 완료
+- P0-2 코드 라벨: Cases에서 `useCodes(CASE_STATUS/CASE_TYPE)` 적용 완료, 관련 컴포넌트/쿼리 import 정리
+- P0-3 에러/토스트/Confirm: Admin Confirm/Dialog/삭제 확인/에러바운더리 t() 치환 완료
+- P0-4 날짜/숫자/통화: Cases에 formatCurrency/formatDate 적용 완료(기존 formatMoney 제거)
+- P0-5 Remote 단독 실행 fallback(일부): Admin main.tsx에서 InitI18nAxios로 Accept-Language 헤더 주입 추가
+- P1-1 네임스페이스 로딩 실패 fallback: resourcesToBackend try/catch 이미 존재
+
+### ⚠️ 추가 확인/보완이 필요한 항목(프론트)
+F-1) **Remote 단독 실행 fallback의 “i18n init” 보장**
+- Admin에 헤더 주입은 추가되었지만, Host 없이 Admin만 띄웠을 때
+  - 번역 리소스 로딩/언어 토글/namespace 로딩이 100% 되는지 확인 필요
+- 확인 방법:
+  - `apps/remotes/admin` 단독 dev 실행 → ko/en 전환 → ConfirmDialog/에러 바운더리 문구까지 변경되는지
+
+F-2) **전파 범위(모든 Remote)**
+- SynapseX는 이미 적용되었다고 하나, 다른 Remote(예: AI Workspace/기타)에서 공통 i18n이 공유되는지 회귀 필요
+- 확인 방법:
+  - 최소 8개 라우트(/synapse/*, /admin/*, /ai-workspace 등)에서 토글 후 텍스트 즉시 변경 확인
+
+F-3) **레이아웃 회귀(EN 길이 증가)**
+- confirm/delete/상단바/사이드바/테이블 컬럼이 깨지는 화면이 있는지 스냅샷 점검 필요
+- 특히: 칩/배지/버튼 truncate 처리
+
+F-4) **설치/빌드 환경 이슈**
+- `self-signed certificate in certificate chain` 오류는 코드 문제가 아니라 네트워크/프록시/CA 문제
+- CI/빌드 서버에서 재현 여부 확인 필요(운영 리스크)
+
+---
+
+## 2) Back 점검(Phase2 프롬프트 대비)
+### ✅ 완료로 판단되는 항목
+- sys_codes(name_ko/name_en) 시드 제공 완료
+- sys_menus(menu_name_ko/menu_name_en) 시드 제공 완료
+- 에러 메시지 다국어(P1)는 권장대로 미적용(OK)
+
+### ⚠️ 추가 확인/보완이 필요한 항목(백엔드)
+B-1) **SynapseX 도메인 코드 테이블 분리 이슈**
+- 보고서에 따르면 `CASE_TYPE/CASE_STATUS/SEVERITY`는 auth sys_codes가 아니라 **dwp_aura 스키마의 synapsex app_codes**에 존재
+- 즉, 현재 auth-server 시드만으로는 “케이스 라벨”이 바뀌지 않을 수 있음(환경에 따라)
+- 확인 방법:
+  - FE에서 케이스 라벨이 실제로 ko/en 전환되는지(네트워크로 codes API 응답 확인)
+  - 케이스 라벨이 바뀌지 않으면 dwp_aura(app_codes)용 i18n 시드 migration 추가 필요
+
+B-2) **Accept-Language가 menus/tree에 반영되는지**
+- curl로 en 요청 시 menuName이 영어로 내려오는지 최종 확인(캐시 포함)
+
+---
+
+## 3) 지금 바로 해야 할 “최소 회귀 테스트”(30분 컷)
+### T0) 프론트(필수)
+1) Shell에서 ko→en 토글 → Sidebar 메뉴명 변경 확인
+2) /synapse/cases: Case Type/Status/Severity 라벨 변경 확인
+3) /admin/menus 또는 /admin/codes: 삭제 Confirm 문구 변경 확인
+4) 403/500 유도: ErrorBoundary 문구 변경 확인
+5) 네트워크: API 요청 Accept-Language 헤더 포함 확인
+
+### T1) 백엔드(필수)
+1) codes API: Accept-Language=en 시 label/name이 영어로 내려오는지
+2) menus/tree: Accept-Language=en 시 menuName이 영어로 내려오는지
+3) (중요) 케이스 라벨 소스가 auth sys_codes인지 dwp_aura app_codes인지 “실제 호출 API”로 확정
+
+---
+
+## 4) 다음 단계(필요 시) — Phase2.1(보완) 프롬프트가 필요한 조건
+아래 중 하나라도 FAIL이면, “Phase2.1 보완 프롬프트”를 추가로 작성하는 것이 안전합니다.
+- Remote 단독 실행에서 i18n이 깨짐(F-1)
+- 케이스 라벨이 언어 전환에 반응하지 않음(B-1)
+- EN에서 레이아웃 깨짐(F-3)
+- CI/빌드에서 인증서 오류로 설치 실패(F-4)
+
+---
+
+## 5) 현재 상태에서의 최종 판단
+- **재테스트/데모 진행은 가능(Go)**  
+- 다만 케이스 라벨이 실제로 어떤 코드 소스를 쓰는지(B-1)만 확인하면 “완료” 선언이 가능합니다.
