@@ -15,6 +15,10 @@ import lombok.NoArgsConstructor;
 public class UpdateCodeRequest {
     
     private String codeName; // name
+    /** 한국어 라벨 (i18n, null이면 기존 값 유지) */
+    private String nameKo;
+    /** 영어 라벨 (i18n, null이면 기존 값 유지) */
+    private String nameEn;
     private String description;
     private Integer sortOrder;
     private Boolean enabled; // isActive

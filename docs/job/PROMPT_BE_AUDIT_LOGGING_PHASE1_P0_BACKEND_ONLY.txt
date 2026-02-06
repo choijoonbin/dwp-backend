@@ -1,0 +1,185 @@
+[BACKEND PROMPT] Audit Logging 1차 적용(P0) — “조회/상세/다운로드/승인/실행” 서버 Audit 전면 적용 (SynapseX)
+(목표: audit_event_log 적재 누락을 ‘API 레벨’에서 0으로 만들기. FE는 수정 최소/없음)
+
+============================================================
+0) 결론/원칙(반드시 준수)
+============================================================
+- Audit(감사/규정) 로그는 **백엔드에서만 기록**한다. (FE 클릭 이벤트는 감사 로그가 아님)
+- 1차 범위는 “사용자/에이전트가 실제로 데이터에 접근하거나 상태를 바꾸는 API”에 대해
+  audit_event_log를 **항상** 남기도록 하는 것이다.
+- 기록 기준은 “버튼 클릭”이 아니라 **서버 행위(API 성공/실패)** 이다.
+
+============================================================
+1) 1차 적용 범위(In/Out)
+============================================================
+IN (P0: 반드시)
+A) READ(조회/상세)
+- Cases: LIST/DETAIL  (이미 일부 있음 → 누락/표준화만)
+- Documents: LIST/DETAIL(+Download 있으면 포함)
+- Open Items: LIST/DETAIL(+Export/Download 있으면 포함)
+- Actions: LIST/DETAIL
+- Audit: LIST(타임라인)/DETAIL (감사 화면 조회 자체도 기록 대상이면 포함)
+
+B) WRITE(변경/승인/실행) — 반드시
+- Action Proposal 생성/수정/삭제(있다면)
+- Action Approve / Reject
+- Action Execute(실행 요청/실행 완료)
+- Case 상태 변경(ASSIGN/STATUS/COMMENT 등 존재하는 것만)
+
+C) 운영
+- Batch: detect run manual trigger, schedule change(있다면)
+
+OUT(2차로)
+- UI-only 이벤트(탭 전환/필터 변경/모달 오픈 등)
+- 고빈도 조회(검색 자동완성 등) 샘플링 필요한 이벤트
+
+============================================================
+2) event_type / resource_type 표준(고정)
+============================================================
+2-1) event_category
+- VIEW(또는 ACCESS), ACTION, ADMIN, BATCH, INTEGRATION 중 프로젝트 표준에 맞춤
+  - 기존 예시: ACTION / CASE_VIEW_LIST 가 이미 있음 → “기존 체계 유지”를 우선
+
+2-2) event_type (권장 표준)
+- CASE_VIEW_LIST, CASE_VIEW_DETAIL
+- DOCUMENT_VIEW_LIST, DOCUMENT_VIEW_DETAIL, DOCUMENT_DOWNLOAD
+- OPENITEM_VIEW_LIST, OPENITEM_VIEW_DETAIL, OPENITEM_EXPORT
+- ACTION_VIEW_LIST, ACTION_VIEW_DETAIL
+- ACTION_PROPOSED, ACTION_APPROVED, ACTION_REJECTED, ACTION_EXECUTED
+- DETECT_RUN_MANUAL, DETECT_RUN_SCHEDULED (있는 경우)
+- AUDIT_VIEW_LIST, AUDIT_VIEW_DETAIL (있는 경우)
+
+2-3) resource_type / resource_id
+- resource_type: CASE, DOCUMENT, OPEN_ITEM, ACTION, DETECT_RUN, AUDIT_EVENT 등
+- resource_id:
+  - LIST는 null 허용(대신 tags에 query 요약)
+  - DETAIL/EXECUTE는 반드시 식별자(case_id, doc_id, open_item_id, action_id, run_id)
+
+============================================================
+3) 구현 방식(1차는 “명시적 호출”로 누락 0 만들기)
+============================================================
+- Controller/Service 종료 지점에서 auditService.log(...) 호출을 표준화한다.
+- AOP/Annotation은 2차(유지보수 최적화)로 미룸.
+
+3-1) 공통 AuditContext 구성(필수 필드)
+- tenant_id: X-Tenant-ID
+- actor_type: HUMAN/AGENT (X-Agent-ID 유무로 결정)
+- actor_user_id: X-User-ID
+- actor_agent_id: X-Agent-ID
+- channel: API
+- outcome: SUCCESS/FAIL
+- severity: INFO/WARN/ERROR
+- trace_id/span_id/gateway_request_id: MDC 또는 헤더에서 추출(있으면)
+- user_agent/ip_address: request에서 추출
+
+3-2) tags/evidence_json
+- LIST: tags에 필터/정렬/페이징을 “짧게” 요약(PII 금지)
+  예) {"q":"...","status":"OPEN","from":"2026-02-01","to":"2026-02-05","page":0,"size":50}
+- DETAIL: tags에 최소 식별자 + 요청 파라미터
+- WRITE: before_json/after_json/diff_json (가능한 경우만)
+
+============================================================
+4) 적용 대상 API 목록(실제 컨트롤러 기준으로 매핑해서 작업)
+============================================================
+※ 아래는 “패턴”이며, 실제 소스에서 endpoint를 찾아 event_type을 매핑할 것
+
+4-1) Cases
+- GET /api/synapse/cases (LIST)        -> CASE_VIEW_LIST
+- GET /api/synapse/cases/{id} (DETAIL) -> CASE_VIEW_DETAIL
+
+4-2) Documents
+- GET /api/synapse/documents (LIST)           -> DOCUMENT_VIEW_LIST
+- GET /api/synapse/documents/{id} (DETAIL)    -> DOCUMENT_VIEW_DETAIL
+- GET /api/synapse/documents/{id}/download    -> DOCUMENT_DOWNLOAD  (있다면)
+
+4-3) Open Items
+- GET /api/synapse/open-items (LIST)          -> OPENITEM_VIEW_LIST
+- GET /api/synapse/open-items/{id} (DETAIL)   -> OPENITEM_VIEW_DETAIL
+- GET /api/synapse/open-items/export          -> OPENITEM_EXPORT (있다면)
+
+4-4) Actions
+- GET /api/synapse/actions (LIST)             -> ACTION_VIEW_LIST
+- GET /api/synapse/actions/{id} (DETAIL)      -> ACTION_VIEW_DETAIL
+- POST /api/synapse/actions/{id}/approve      -> ACTION_APPROVED
+- POST /api/synapse/actions/{id}/reject       -> ACTION_REJECTED
+- POST /api/synapse/actions/{id}/execute      -> ACTION_EXECUTED
+
+4-5) Admin/Batch(있다면)
+- POST /api/admin/batch/detect/run-now        -> DETECT_RUN_MANUAL
+- PUT  /api/admin/batch/schedules/{id}        -> (ADMIN/BATCH_SCHEDULE_UPDATED 등)
+
+============================================================
+5) 구현 체크리스트(P0)
+============================================================
+P0-1) auditService 표준 메서드 1개로 통일
+- log(category, type, resourceType, resourceId, outcome, severity, tags, evidence, before, after, diff)
+
+P0-2) “조회 API” 전부에 로그 추가(누락 0)
+- Documents/OpenItems/Actions/Audit 화면에서 호출되는 LIST/DETAIL에 반드시 추가
+
+P0-3) “변경/승인/실행 API” 전부에 로그 추가
+- approve/reject/execute는 성공/실패 모두 기록
+- 실패 시 outcome=FAIL, severity=ERROR(또는 WARN), evidence_json에 errorCode/exception 요약(PII 금지)
+
+P0-4) Tenant 강제/권한 실패도 기록(선택)
+- 403/401을 audit로 남길지 정책 결정(권장: SECURITY 이벤트로 별도 카테고리)
+
+P0-5) 중복 방지(선택)
+- 같은 요청에 대해 중복 기록되지 않게 “컨트롤러 1회” 원칙 유지
+
+============================================================
+6) Definition of Done(완료조건)
+============================================================
+- (필수) 아래 5개 화면 동선에서 audit_event_log가 100% 남는다
+  1) Cases 목록 진입
+  2) Documents 목록 진입
+  3) Open Items 목록 진입
+  4) Actions 목록 진입
+  5) Case 상세/Action approve/reject/execute 중 1개 수행
+- (필수) 각 이벤트가 event_type 표준값으로 기록되고, tenant_id/actor_user_id/outcome이 채워진다
+- (필수) LIST 이벤트는 tags에 page/size/sort/filter 요약이 남는다
+- (필수) DETAIL/WRITE는 resource_id가 채워진다
+
+============================================================
+7) 검증용 SQL(필수)
+============================================================
+-- 최근 10분 내 테넌트 1의 이벤트 타입별 카운트
+SELECT event_type, count(*)
+FROM audit_event_log
+WHERE tenant_id = 1
+  AND created_at > now() - interval '10 minutes'
+GROUP BY event_type
+ORDER BY count(*) DESC;
+
+-- 특정 사용자 이벤트 확인
+SELECT audit_id, event_type, resource_type, resource_id, outcome, created_at
+FROM audit_event_log
+WHERE tenant_id = 1
+  AND actor_user_id = 1
+ORDER BY created_at DESC
+LIMIT 50;
+
+============================================================
+8) 검증 시나리오(curl) — 실제 endpoint로 맞춰 실행
+============================================================
+(예시)
+curl -X GET "$BASE_URL/api/synapse/documents?page=0&size=20" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-ID: 1" -H "X-User-ID: 1" -H "Accept-Language: ko"
+
+curl -X GET "$BASE_URL/api/synapse/open-items?page=0&size=20" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-ID: 1" -H "X-User-ID: 1"
+
+curl -X POST "$BASE_URL/api/synapse/actions/123/approve" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "X-Tenant-ID: 1" -H "X-User-ID: 1"
+
+============================================================
+9) 산출물(반드시)
+============================================================
+- 변경 파일 목록(Controller/Service 단위)
+- event_type 매핑표(엔드포인트 → event_type/resource_type/resource_id 추출 규칙)
+- 테스트 결과 캡처:
+  - (1) 화면 동선 5개 실행 후 audit_event_log 쿼리 결과
+  - (2) 실패 케이스 1개(outcome=FAIL) 기록 확인

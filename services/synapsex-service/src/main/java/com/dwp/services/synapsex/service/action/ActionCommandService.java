@@ -69,6 +69,16 @@ public class ActionCommandService {
         action.setDiffJson(diff);
         action = agentActionRepository.save(action);
 
+        Map<String, Object> afterJson = new HashMap<>();
+        afterJson.put("actionId", action.getActionId());
+        afterJson.put("caseId", action.getCaseId());
+        afterJson.put("actionType", action.getActionType());
+        afterJson.put("status", "PROPOSED");
+        auditWriter.logActionEvent(tenantId, AuditEventConstants.TYPE_PROPOSE, action.getActionId(), action.getCaseId(),
+                requestedByUserId, AuditEventConstants.OUTCOME_SUCCESS,
+                null, afterJson,
+                ipAddress, userAgent, gatewayRequestId);
+
         return ActionDetailDto.builder()
                 .actionId(action.getActionId())
                 .caseId(action.getCaseId())

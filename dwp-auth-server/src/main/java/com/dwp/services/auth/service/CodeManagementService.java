@@ -250,6 +250,8 @@ public class CodeManagementService {
                 .groupKey(request.getGroupKey())
                 .code(request.getCodeKey())
                 .name(request.getCodeName())
+                .nameKo(request.getNameKo())
+                .nameEn(request.getNameEn())
                 .description(request.getDescription())
                 .sortOrder(request.getSortOrder() != null ? request.getSortOrder() : 0)
                 .isActive(request.getEnabled() != null ? request.getEnabled() : true)
@@ -283,6 +285,12 @@ public class CodeManagementService {
         
         if (request.getCodeName() != null) {
             code.setName(request.getCodeName());
+        }
+        if (request.getNameKo() != null) {
+            code.setNameKo(request.getNameKo());
+        }
+        if (request.getNameEn() != null) {
+            code.setNameEn(request.getNameEn());
         }
         if (request.getDescription() != null) {
             code.setDescription(request.getDescription());
@@ -358,6 +366,8 @@ public class CodeManagementService {
                 .groupKey(code.getGroupKey())
                 .code(code.getCode())
                 .name(code.getName())
+                .nameKo(code.getNameKo())
+                .nameEn(code.getNameEn())
                 .description(code.getDescription())
                 .sortOrder(code.getSortOrder())
                 .isActive(code.getIsActive())

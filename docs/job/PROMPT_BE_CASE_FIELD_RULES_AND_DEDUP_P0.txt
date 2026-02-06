@@ -1,0 +1,156 @@
+[BACKEND PROMPT] Detect 배치의 “케이스 생성 기준” 명확화(P0) — case_type/severity/status/score/dedup_key 규칙 확정 + 1차 구현
+(목적: 케이스 테이블(agent_case 등)에 들어가는 값이 “임의/DEFAULT 고정”이 아니라, **명확한 기준(Policy/Rule)**에 의해 생성되도록 P0 수준에서 정리/구현)
+
+근거(현상 요약)
+- 현재 Detect 배치: window 내 전표/미결제 조회 후 “1건당 1건 케이스 생성”, case_type은 항상 DEFAULT(분류 로직 없음) fileciteturn26file0
+- rule_duplicate_invoice 테이블은 있으나 Detect 배치에서 조회/평가하지 않음(테이블만 존재) fileciteturn26file0
+- seed 데이터에는 DUPLICATE_INVOICE, ANOMALY_AMOUNT 등이 있으나 배치 생성 케이스에는 반영되지 않음 fileciteturn26file0
+
+============================================================
+0) 이번 라운드의 목표(“정석+2중작업 방지”)
+============================================================
+- Detect 배치가 생성하는 케이스는 아래 필드들이 **명확한 규칙**으로 결정돼야 함:
+  - case_type, severity, score, status, dedup_key, detected_at, evidence_json, last_detect_run_id
+- 1차(P0)는 “룰 엔진 전체 도입”이 아니라,
+  - (A) 최소 의미 부여: window 종류/데이터 특성 기반의 “기본 분류 규칙” 적용
+  - (B) idempotency: 동일 대상은 재실행해도 1건 유지(UPSERT) + last_detect_run_id만 갱신
+  - (C) 확장 포인트: 향후 rule_duplicate_invoice를 붙일 수 있게 구조를 잡음
+- 즉, **DEFAULT 고정 제거** + **추후 확장 가능한 규칙 프레임**을 만든다.
+
+============================================================
+1) 케이스 필드별 “결정 규칙”(P0 표준)
+============================================================
+
+(1) case_id
+- DB PK/sequence/UUID 등 기존 방식 유지
+
+(2) tenant_id
+- DetectRun/배치 실행 컨텍스트의 tenant(또는 X-Tenant-ID) 기준
+
+(3) detected_at
+- 이번 실행에서 “탐지 시점”: now() 또는 run.started_at
+- 재탐지 시에는 업데이트 정책 택1:
+  A) detected_at=최초 탐지 시점 유지, last_detected_at(신규 컬럼 있으면) 갱신
+  B) detected_at=마지막 탐지 시점으로 갱신
+- 권장(P0): A(최초 유지) + updated_at 갱신(추가 컬럼 없으면)
+
+(4) bukrs/belnr/gjahr/buzei
+- 원천테이블의 도메인 키 그대로 저장
+- doc(open item) 구분에 따라 buzei가 없을 수 있음 → null 허용
+
+(5) case_type (P0 핵심)
+- 현재 DEFAULT 고정에서 아래 “기본 분류 규칙”으로 변경 fileciteturn26file0
+- 규칙 우선순위:
+  1) (향후) 특정 rule 평가 결과가 있으면 → 해당 결과의 case_type 사용
+  2) (P0) window 종류 기반 매핑:
+     - WINDOW_DOC_ENTRY(전표 창) → DOC_WINDOW (또는 ANOMALY_DOC_WINDOW)
+     - WINDOW_OPEN_ITEM(미결제 창) → OPEN_ITEM_WINDOW (또는 ANOMALY_OPENITEM_WINDOW)
+  3) 그래도 없으면 DEFAULT
+
+※ 주의: sys_codes에 이미 존재하는 값만 사용(새 case_type을 만들면 sys_codes에도 ko/en 라벨 시드 필요)
+
+(6) severity (P0 기본값 + 간단 규칙)
+- 기본값: MEDIUM
+- 간단 규칙(둘 중 1개 택):
+  A) window 기반:
+     - DOC_WINDOW → MEDIUM
+     - OPEN_ITEM_WINDOW → LOW
+  B) 금액 기반(가능하면 권장):
+     - amount >= 100,000,000 → HIGH
+     - amount >= 10,000,000 → MEDIUM
+     - else → LOW
+- severity는 sys_codes(SEVERITY)와 반드시 일치해야 함
+
+(7) score (0~100 또는 0~1 등 프로젝트 표준에 맞춤)
+- P0 권장: severity→score 매핑
+  - CRITICAL=95, HIGH=80, MEDIUM=60, LOW=30, INFO=10
+- 향후 룰 엔진에서 score를 직접 계산하게 확장
+
+(8) reason_text
+- P0: “왜 케이스가 생겼는지” 1줄 설명(현상 기반)
+  - 예: "Detected in document window during scheduled run"
+  - 예: "Detected in open item window (overdue)"
+- 반드시 i18n 대상이 아니어도 됨(내부 설명), 필요 시 ko/en 분리(차후)
+
+(9) evidence_json / rag_refs_json
+- P0: 최소 증거 구조를 고정
+  - evidence_json:
+    - source: "fi_doc_header" or "fi_open_item"
+    - keys: {bukrs, belnr, gjahr, buzei}
+    - window: "WINDOW_DOC_ENTRY" | "WINDOW_OPEN_ITEM"
+    - amount, vendor/customer, due_date 등 핵심 필드(PII 정책 준수)
+  - rag_refs_json: 일단 빈 배열/NULL (AURA 연계 후 채움)
+
+(10) status (P0 기준)
+- 생성 시: OPEN
+- 재탐지(동일 dedup_key) 시 정책 택1:
+  A) OPEN/IN_PROGRESS면 유지 + updated_at 갱신
+  B) RESOLVED/CLOSED면 “재오픈”(OPEN으로 변경) 또는 “새 케이스 생성”
+- 권장(P0): A(유지) + CLOSED/RESOLVED는 **재오픈하지 않음**(2중작업 방지). 필요하면 Policy로 옵션화.
+
+(11) owner_user / assignee_user_id
+- P0: null(미할당)
+- 운영 정책으로 자동 할당(부서/BUKRS) 등은 2차
+
+(12) saved_view_key
+- P0: null
+
+(13) dedup_key (P0 핵심 — 동일 케이스 1건 보장)
+- 절대 포함하면 안 되는 것: run_id, created_at, timestamp, random(실행마다 달라짐)
+- 권장 구성:
+  dedup_key = tenant_id + ":" + case_type + ":" + bukrs + "-" + belnr + "-" + gjahr + "-" + coalesce(buzei,"_")
+- 문서/오픈아이템 둘 다 처리한다면 “sourceType”을 추가해 충돌 방지:
+  tenant:case_type:sourceType:bukrs-belnr-gjahr-buzei
+
+(14) last_detect_run_id
+- 이번 run_id를 저장(재실행 시 갱신)
+
+============================================================
+2) 구현 지시(코드 변경 범위)
+============================================================
+- DetectBatchService(또는 동등 서비스)에서 “케이스 생성” 직전에:
+  1) window/sourceType 식별
+  2) case_type 결정(매핑)
+  3) severity/score 결정(기본 규칙)
+  4) dedup_key 생성
+  5) UPSERT(agent_case) by (tenant_id, dedup_key) 또는 (tenant_id, case_type, bukrs, belnr, gjahr, buzei, sourceType)
+     - 신규: INSERT
+     - 기존: UPDATE (last_detect_run_id, updated_at, severity/score/reason/evidence 등 정책대로)
+- DB 제약:
+  - UNIQUE(tenant_id, dedup_key) 추가 권장(또는 기존 유니크 키가 있다면 그걸 사용)
+  - 인덱스: (tenant_id, status), (tenant_id, case_type), (tenant_id, detected_at desc)
+
+============================================================
+3) 최소 테스트(필수)
+============================================================
+T1) idempotency
+- 같은 seed 5건으로 DetectRun 2회 실행
+- 기대: agent_case 총 건수는 동일(=5), last_detect_run_id/updated_at만 변경
+
+T2) 분류 규칙
+- doc window 케이스는 case_type=DOC_WINDOW (또는 지정 값)
+- open item window 케이스는 case_type=OPEN_ITEM_WINDOW
+
+T3) severity/score
+- amount 기반 규칙을 택했다면 임계값 케이스 1건씩 생성해 HIGH/MEDIUM/LOW 확인
+
+T4) 감사 로그(선택)
+- DetectRun 실행이 DETECT_RUN_* 로 audit_event_log에 기록되는지(이미 구현되어 있다면)
+
+============================================================
+4) 산출물(반드시 제출)
+============================================================
+- “케이스 필드 규칙 표” 1장(위 1번을 표로 요약)
+- event_type/추적: detect_run_id → agent_case.last_detect_run_id 연결 확인
+- DB migration:
+  - UNIQUE/INDEX 추가(필요 시)
+  - sys_codes에 신규 case_type을 추가했다면 ko/en 라벨 시드 포함
+
+============================================================
+5) 다음 단계(2차, 이번 라운드에서 하지 말 것)
+============================================================
+- rule_duplicate_invoice 실제 평가 로직 연결
+- anomaly amount, missing evidence 등의 룰 엔진/정책 프로파일
+- HITL(승인) 연계/Action 자동 제안
+
+끝.

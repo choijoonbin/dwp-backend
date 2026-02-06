@@ -24,6 +24,10 @@ public class CreateCodeRequest {
     @NotBlank(message = "코드명은 필수입니다")
     private String codeName; // name
     
+    /** 한국어 라벨 (i18n) */
+    private String nameKo;
+    /** 영어 라벨 (i18n) */
+    private String nameEn;
     private String description;
     
     @Builder.Default

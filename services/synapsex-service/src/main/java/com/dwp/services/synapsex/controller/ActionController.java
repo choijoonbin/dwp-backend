@@ -8,6 +8,7 @@ import com.dwp.services.synapsex.dto.action.ActionListRowDto;
 import com.dwp.services.synapsex.dto.action.CreateActionRequest;
 import com.dwp.services.synapsex.dto.common.PageResponse;
 import com.dwp.services.synapsex.audit.AuditEventConstants;
+import com.dwp.services.synapsex.audit.AuditRequestContext;
 import com.dwp.services.synapsex.service.action.ActionCommandService;
 import com.dwp.services.synapsex.service.action.ActionQueryService;
 import com.dwp.services.synapsex.service.audit.AuditWriter;
@@ -21,7 +22,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Phase 2 Actions API
@@ -42,6 +45,8 @@ public class ActionController {
     @GetMapping
     public ApiResponse<PageResponse<ActionListRowDto>> getActions(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
+            @RequestHeader(value = HeaderConstants.X_AGENT_ID, required = false) String actorAgentId,
             @RequestParam(required = false) String range,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
@@ -59,7 +64,8 @@ public class ActionController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "plannedAt") String sort,
-            @RequestParam(defaultValue = "desc") String order) {
+            @RequestParam(defaultValue = "desc") String order,
+            HttpServletRequest httpRequest) {
 
         DrillDownParamUtil.validateRangeExclusive(range, from, to);
         var timeRange = DrillDownParamUtil.resolve(range, from, to);
@@ -93,7 +99,40 @@ public class ActionController {
                 .build();
 
         PageResponse<ActionListRowDto> result = actionQueryService.findActions(tenantId, query);
+        Map<String, Object> filters = new HashMap<>();
+        if (status != null && !status.isBlank()) filters.put("status", status);
+        if (type != null && !type.isBlank()) filters.put("type", type);
+        if (caseId != null) filters.put("caseId", caseId);
+        Map<String, Object> tags = AuditRequestContext.listTags(page, size, sort, order, filters);
+        String actorType = actorAgentId != null ? AuditEventConstants.ACTOR_AGENT : AuditEventConstants.ACTOR_HUMAN;
+        auditWriter.log(tenantId, AuditEventConstants.CATEGORY_ACTION, AuditEventConstants.TYPE_ACTION_VIEW_LIST,
+                AuditEventConstants.RESOURCE_ACTION, null, actorType, actorUserId, actorAgentId, null, AuditEventConstants.CHANNEL_API,
+                AuditEventConstants.OUTCOME_SUCCESS, AuditEventConstants.SEVERITY_INFO,
+                null, null, null, null, tags, AuditRequestContext.getIpAddress(httpRequest), AuditRequestContext.getUserAgent(httpRequest),
+                AuditRequestContext.getGatewayRequestId(httpRequest), AuditRequestContext.getTraceId(httpRequest), null);
         return ApiResponse.success(result);
+    }
+
+    /**
+     * GET /api/synapse/actions/{actionId} — Action 상세 조회 (P0 Audit: ACTION_VIEW_DETAIL)
+     */
+    @GetMapping("/{actionId}")
+    public ApiResponse<ActionDetailDto> getActionDetail(
+            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
+            @RequestHeader(value = HeaderConstants.X_AGENT_ID, required = false) String actorAgentId,
+            @PathVariable Long actionId,
+            HttpServletRequest httpRequest) {
+        ActionDetailDto dto = actionQueryService.findActionDetail(tenantId, actionId)
+                .orElseThrow(() -> new com.dwp.core.exception.BaseException(ErrorCode.ENTITY_NOT_FOUND, "액션을 찾을 수 없습니다."));
+        String actorType = actorAgentId != null ? AuditEventConstants.ACTOR_AGENT : AuditEventConstants.ACTOR_HUMAN;
+        Map<String, Object> tags = Map.of("actionId", actionId, "caseId", dto.getCaseId());
+        auditWriter.log(tenantId, AuditEventConstants.CATEGORY_ACTION, AuditEventConstants.TYPE_ACTION_VIEW_DETAIL,
+                AuditEventConstants.RESOURCE_ACTION, String.valueOf(actionId), actorType, actorUserId, actorAgentId, null, AuditEventConstants.CHANNEL_API,
+                AuditEventConstants.OUTCOME_SUCCESS, AuditEventConstants.SEVERITY_INFO,
+                null, null, null, null, tags, AuditRequestContext.getIpAddress(httpRequest), AuditRequestContext.getUserAgent(httpRequest),
+                AuditRequestContext.getGatewayRequestId(httpRequest), AuditRequestContext.getTraceId(httpRequest), null);
+        return ApiResponse.success(dto);
     }
 
     /**
@@ -103,10 +142,13 @@ public class ActionController {
     public ApiResponse<ActionDetailDto> createAction(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
             @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
-            @Valid @RequestBody CreateActionRequest request) {
+            @Valid @RequestBody CreateActionRequest request,
+            HttpServletRequest httpRequest) {
 
         ActionDetailDto dto = actionCommandService.createAction(tenantId, request.getCaseId(), request.getActionType(),
-                request.getPayload(), actorUserId, null, null, null);
+                request.getPayload(), actorUserId,
+                AuditRequestContext.getIpAddress(httpRequest), AuditRequestContext.getUserAgent(httpRequest),
+                AuditRequestContext.getGatewayRequestId(httpRequest));
         return ApiResponse.success(dto);
     }
 

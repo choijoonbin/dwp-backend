@@ -4,8 +4,11 @@ import com.dwp.core.config.AcceptLanguageLocaleResolver;
 import com.dwp.core.exception.GlobalExceptionHandler;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.LocaleResolver;
@@ -26,6 +29,7 @@ import org.springframework.web.servlet.LocaleResolver;
  */
 @Slf4j
 @AutoConfiguration
+@AutoConfigureBefore(WebMvcAutoConfiguration.class)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @ConditionalOnClass(RestControllerAdvice.class)
 public class CoreWebAutoConfiguration {
@@ -45,8 +49,10 @@ public class CoreWebAutoConfiguration {
      * Accept-Language 기반 LocaleResolver 등록
      * 
      * ko/en 지원, 미지정/잘못된 값은 ko fallback
+     * @ConditionalOnMissingBean: WebMvcAutoConfiguration의 기본 LocaleResolver와 충돌 방지
      */
     @Bean
+    @ConditionalOnMissingBean(LocaleResolver.class)
     public LocaleResolver localeResolver() {
         log.info("✅ DWP Core: AcceptLanguageLocaleResolver registered (i18n ko/en)");
         return new AcceptLanguageLocaleResolver();

@@ -18,6 +18,8 @@ public final class AuditEventConstants {
     public static final String CATEGORY_AGENT = "AGENT";
     public static final String CATEGORY_DASHBOARD = "DASHBOARD";
     public static final String CATEGORY_UI = "UI";
+    /** event_category - Audit (감사 화면 조회) */
+    public static final String CATEGORY_AUDIT = "AUDIT";
 
     /** event_type - UI (프론트엔드 클릭/필터 감사) */
     public static final String TYPE_UI_DASHBOARD_DRILLDOWN = "DASHBOARD_DRILLDOWN";
@@ -36,6 +38,24 @@ public final class AuditEventConstants {
     public static final String TYPE_VIEW_DETAIL = "CASE_VIEW_DETAIL";
     public static final String TYPE_ASSIGN = "CASE_ASSIGN";
     public static final String TYPE_COMMENT_CREATE = "CASE_COMMENT_CREATE";
+
+    /** event_type - Document (P0 Audit) */
+    public static final String TYPE_DOCUMENT_VIEW_LIST = "DOCUMENT_VIEW_LIST";
+    public static final String TYPE_DOCUMENT_VIEW_DETAIL = "DOCUMENT_VIEW_DETAIL";
+    public static final String TYPE_DOCUMENT_DOWNLOAD = "DOCUMENT_DOWNLOAD";
+
+    /** event_type - Open Item (P0 Audit) */
+    public static final String TYPE_OPENITEM_VIEW_LIST = "OPENITEM_VIEW_LIST";
+    public static final String TYPE_OPENITEM_VIEW_DETAIL = "OPENITEM_VIEW_DETAIL";
+    public static final String TYPE_OPENITEM_EXPORT = "OPENITEM_EXPORT";
+
+    /** event_type - Action (P0 Audit) */
+    public static final String TYPE_ACTION_VIEW_LIST = "ACTION_VIEW_LIST";
+    public static final String TYPE_ACTION_VIEW_DETAIL = "ACTION_VIEW_DETAIL";
+
+    /** event_type - Audit (P0 Audit) */
+    public static final String TYPE_AUDIT_VIEW_LIST = "AUDIT_VIEW_LIST";
+    public static final String TYPE_AUDIT_VIEW_DETAIL = "AUDIT_VIEW_DETAIL";
 
     /** event_type - Anomaly */
     public static final String TYPE_ANOMALY_VIEW_LIST = "ANOMALY_VIEW_LIST";
@@ -114,6 +134,14 @@ public final class AuditEventConstants {
     public static final String OUTCOME_FAILED = "FAILED";
     public static final String OUTCOME_DENIED = "DENIED";
     public static final String OUTCOME_NOOP = "NOOP";
+
+    /** resource_type - P0 Audit */
+    public static final String RESOURCE_CASE = "CASE";
+    public static final String RESOURCE_DOCUMENT = "DOCUMENT";
+    public static final String RESOURCE_OPEN_ITEM = "OPEN_ITEM";
+    public static final String RESOURCE_ACTION = "ACTION";
+    public static final String RESOURCE_DETECT_RUN = "DETECT_RUN";
+    public static final String RESOURCE_AUDIT_EVENT = "AUDIT_EVENT";
 
     /** resource_type - PII & Encryption */
     public static final String RESOURCE_PII_POLICY = "PII_POLICY";

@@ -5,12 +5,15 @@ import com.dwp.services.synapsex.entity.AgentCase;
 import com.dwp.services.synapsex.entity.AgentCaseStatus;
 import com.dwp.services.synapsex.entity.DetectRun;
 import com.dwp.services.synapsex.entity.FiDocHeader;
+import com.dwp.services.synapsex.entity.FiDocItem;
 import com.dwp.services.synapsex.entity.FiOpenItem;
 import com.dwp.services.synapsex.repository.AgentCaseRepository;
 import com.dwp.services.synapsex.repository.DetectRunRepository;
 import com.dwp.services.synapsex.repository.FiDocHeaderRepository;
+import com.dwp.services.synapsex.repository.FiDocItemRepository;
 import com.dwp.services.synapsex.repository.FiOpenItemRepository;
 import com.dwp.services.synapsex.service.audit.AuditWriter;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +21,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
@@ -25,8 +30,9 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Phase B: Detect Run 배치 — window 내 전표 대상 룰 평가, Case Upsert
- * 클러스터 중복 방지: PostgreSQL advisory lock (tenant별)
+ * Phase B: Detect Run 배치 — window 내 전표/미결제 대상 케이스 Upsert
+ * P0 규칙: case_type, severity, score, dedup_key, evidence_json 등 명확한 기준 적용
+ * 참고: docs/job/PROMPT_BE_CASE_FIELD_RULES_AND_DEDUP_P0.txt
  */
 @Slf4j
 @Service
@@ -35,20 +41,28 @@ public class DetectBatchService {
 
     private static final String RULE_ID_DOC = "WINDOW_DOC_ENTRY";
     private static final String RULE_ID_OPEN_ITEM = "WINDOW_OPEN_ITEM";
-    /** Advisory lock key base (tenant별 고유 키: BASE + tenantId) */
+    /** sys_codes CASE_TYPE (auth) */
+    private static final String CASE_TYPE_DOC_WINDOW = "DOC_WINDOW";
+    private static final String CASE_TYPE_OPEN_ITEM_WINDOW = "OPEN_ITEM_WINDOW";
+    private static final String SOURCE_TYPE_DOC = "DOC";
+    private static final String SOURCE_TYPE_OPEN_ITEM = "OPEN_ITEM";
+    /** Advisory lock key base (tenant별 고유 키) */
     private static final long ADVISORY_LOCK_BASE = 1_000_000_000_000L;
+    /** severity → score (0~100) */
+    private static final Map<String, Integer> SEVERITY_SCORE = Map.of(
+            "CRITICAL", 95, "HIGH", 80, "MEDIUM", 60, "LOW", 30, "INFO", 10);
+    /** amount 기반 severity 임계값 (원) */
+    private static final BigDecimal AMOUNT_HIGH = new BigDecimal("100000000");
+    private static final BigDecimal AMOUNT_MEDIUM = new BigDecimal("10000000");
 
     private final DetectRunRepository detectRunRepository;
     private final FiDocHeaderRepository fiDocHeaderRepository;
+    private final FiDocItemRepository fiDocItemRepository;
     private final FiOpenItemRepository fiOpenItemRepository;
     private final AgentCaseRepository agentCaseRepository;
     private final AuditWriter auditWriter;
     private final JdbcTemplate jdbcTemplate;
 
-    /**
-     * 단일 tenant에 대해 detect 배치 실행.
-     * advisory lock 미획득 시 null 반환 (다른 인스턴스가 실행 중).
-     */
     @Transactional
     public DetectRun runDetectBatch(Long tenantId, Instant windowFrom, Instant windowTo) {
         long lockKey = ADVISORY_LOCK_BASE + tenantId;
@@ -57,7 +71,6 @@ public class DetectBatchService {
             log.info("Detect batch skipped: advisory lock not acquired tenant={} (another instance running)", tenantId);
             return null;
         }
-
         try {
             return runDetectBatchInternal(tenantId, windowFrom, windowTo);
         } finally {
@@ -65,9 +78,6 @@ public class DetectBatchService {
         }
     }
 
-    /**
-     * SKIPPED 시 현재 실행 중인 run 정보 (락 미획득 원인 파악용).
-     */
     public SkippedRunInfo getSkippedRunInfo(Long tenantId) {
         Optional<DetectRun> running = detectRunRepository.findTopByTenantIdAndStatusOrderByStartedAtDesc(tenantId, "STARTED");
         return running.map(r -> new SkippedRunInfo(r.getRunId(), r.getStartedAt())).orElse(null);
@@ -103,17 +113,19 @@ public class DetectBatchService {
             List<FiOpenItem> openItems = fiOpenItemRepository.findByTenantIdAndLastUpdateTsBetween(tenantId, windowFrom, windowTo);
 
             for (FiDocHeader doc : docs) {
-                String entityKey = doc.getBukrs() + "-" + doc.getBelnr() + "-" + doc.getGjahr();
-                String dedupKey = tenantId + ":" + RULE_ID_DOC + ":" + entityKey;
-                int[] c = upsertCase(tenantId, run, dedupKey, RULE_ID_DOC, doc.getBukrs(), doc.getBelnr(), doc.getGjahr(), null);
+                String dedupKey = buildDedupKey(tenantId, CASE_TYPE_DOC_WINDOW, SOURCE_TYPE_DOC, doc.getBukrs(), doc.getBelnr(), doc.getGjahr(), null);
+                BigDecimal amount = sumDocAmount(tenantId, doc.getBukrs(), doc.getBelnr(), doc.getGjahr());
+                int[] c = upsertCase(tenantId, run, dedupKey, CASE_TYPE_DOC_WINDOW, SOURCE_TYPE_DOC, RULE_ID_DOC,
+                        doc.getBukrs(), doc.getBelnr(), doc.getGjahr(), null, amount, doc.getWaers(), null);
                 caseCreated += c[0];
                 caseUpdated += c[1];
             }
 
             for (FiOpenItem oi : openItems) {
-                String entityKey = oi.getBukrs() + "-" + oi.getBelnr() + "-" + oi.getGjahr() + "-" + oi.getBuzei();
-                String dedupKey = tenantId + ":" + RULE_ID_OPEN_ITEM + ":" + entityKey;
-                int[] c = upsertCase(tenantId, run, dedupKey, RULE_ID_OPEN_ITEM, oi.getBukrs(), oi.getBelnr(), oi.getGjahr(), oi.getBuzei());
+                String dedupKey = buildDedupKey(tenantId, CASE_TYPE_OPEN_ITEM_WINDOW, SOURCE_TYPE_OPEN_ITEM,
+                        oi.getBukrs(), oi.getBelnr(), oi.getGjahr(), oi.getBuzei());
+                int[] c = upsertCase(tenantId, run, dedupKey, CASE_TYPE_OPEN_ITEM_WINDOW, SOURCE_TYPE_OPEN_ITEM, RULE_ID_OPEN_ITEM,
+                        oi.getBukrs(), oi.getBelnr(), oi.getGjahr(), oi.getBuzei(), oi.getOpenAmount(), oi.getCurrency(), oi.getDueDate());
                 caseCreated += c[0];
                 caseUpdated += c[1];
             }
@@ -156,21 +168,82 @@ public class DetectBatchService {
         return run;
     }
 
+    /** P0: dedup_key = tenant:case_type:sourceType:bukrs-belnr-gjahr-buzei */
+    private String buildDedupKey(Long tenantId, String caseType, String sourceType,
+                                  String bukrs, String belnr, String gjahr, String buzei) {
+        String entity = bukrs + "-" + belnr + "-" + gjahr + "-" + (buzei != null ? buzei : "_");
+        return tenantId + ":" + caseType + ":" + sourceType + ":" + entity;
+    }
+
+    private BigDecimal sumDocAmount(Long tenantId, String bukrs, String belnr, String gjahr) {
+        List<FiDocItem> items = fiDocItemRepository.findByTenantIdAndBukrsAndBelnrAndGjahrOrderByBuzeiAsc(
+                tenantId, bukrs, belnr, gjahr);
+        return items.stream()
+                .map(FiDocItem::getWrbtr)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /** severity: amount 기반 (>=1억 HIGH, >=1천만 MEDIUM, else LOW). sys_codes SEVERITY 일치 */
+    private String resolveSeverity(BigDecimal amount) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) < 0) return "LOW";
+        if (amount.compareTo(AMOUNT_HIGH) >= 0) return "HIGH";
+        if (amount.compareTo(AMOUNT_MEDIUM) >= 0) return "MEDIUM";
+        return "LOW";
+    }
+
+    private BigDecimal resolveScore(String severity) {
+        Integer s = SEVERITY_SCORE.get(severity != null ? severity.toUpperCase() : "LOW");
+        return s != null ? BigDecimal.valueOf(s).setScale(4, RoundingMode.HALF_UP) : BigDecimal.valueOf(30).setScale(4, RoundingMode.HALF_UP);
+    }
+
+    private JsonNode buildEvidenceJson(String source, String window, String bukrs, String belnr, String gjahr, String buzei,
+                                       BigDecimal amount, String currency, java.time.LocalDate dueDate, String vendor, String customer) {
+        ObjectNode root = com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.objectNode();
+        root.put("source", source);
+        root.put("window", window);
+        ObjectNode keys = root.putObject("keys");
+        keys.put("bukrs", bukrs != null ? bukrs : "");
+        keys.put("belnr", belnr != null ? belnr : "");
+        keys.put("gjahr", gjahr != null ? gjahr : "");
+        keys.put("buzei", buzei != null ? buzei : "");
+        if (amount != null) root.put("amount", amount.toString());
+        if (currency != null) root.put("currency", currency);
+        if (dueDate != null) root.put("due_date", dueDate.toString());
+        if (vendor != null && !vendor.isBlank()) root.put("vendor", vendor);
+        if (customer != null && !customer.isBlank()) root.put("customer", customer);
+        return root;
+    }
+
     /** @return [created, updated] */
-    private int[] upsertCase(Long tenantId, DetectRun run, String dedupKey, String ruleId,
-                             String bukrs, String belnr, String gjahr, String buzei) {
+    private int[] upsertCase(Long tenantId, DetectRun run, String dedupKey, String caseType, String sourceType, String ruleId,
+                             String bukrs, String belnr, String gjahr, String buzei,
+                             BigDecimal amount, String currency, java.time.LocalDate dueDate) {
         AgentCase existing = agentCaseRepository.findByTenantIdAndDedupKey(tenantId, dedupKey).orElse(null);
 
+        String severity = resolveSeverity(amount);
+        BigDecimal score = resolveScore(severity);
+        String reasonText = "DOC".equals(sourceType)
+                ? "Detected in document window during scheduled run"
+                : "Detected in open item window during scheduled run";
+        String source = "DOC".equals(sourceType) ? "fi_doc_header" : "fi_open_item";
+        String window = "DOC".equals(sourceType) ? RULE_ID_DOC : RULE_ID_OPEN_ITEM;
+
         if (existing == null) {
+            JsonNode evidence = buildEvidenceJson(source, window, bukrs, belnr, gjahr, buzei, amount, currency, dueDate, null, null);
             AgentCase created = AgentCase.builder()
                     .tenantId(tenantId)
-                    .detectedAt(Instant.now())
+                    .detectedAt(run.getStartedAt() != null ? run.getStartedAt() : Instant.now())
                     .bukrs(bukrs)
                     .belnr(belnr)
                     .gjahr(gjahr)
                     .buzei(buzei)
-                    .caseType(ruleId)
-                    .severity("INFO")
+                    .caseType(caseType)
+                    .severity(severity)
+                    .score(score)
+                    .reasonText(reasonText)
+                    .evidenceJson(evidence)
+                    .ragRefsJson(com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.arrayNode())
                     .status(AgentCaseStatus.OPEN)
                     .dedupKey(dedupKey)
                     .lastDetectRunId(run.getRunId())
@@ -186,30 +259,36 @@ public class DetectBatchService {
             createAfter.put("ruleId", ruleId);
             createAfter.put("entityKey", entityKey);
             createAfter.put("runId", run.getRunId());
-            Map<String, Object> createTags = new HashMap<>();
-            createTags.put("runId", run.getRunId());
             auditWriter.logCaseEvent(tenantId, AuditEventConstants.TYPE_CASE_CREATED, created.getCaseId(),
-                    createAfter, null, createTags);
+                    createAfter, null, Map.of("runId", run.getRunId()));
             return new int[]{1, 0};
         } else {
+            // P0: CLOSED/RESOLVED는 재오픈하지 않음 (2중작업 방지)
+            if (existing.getStatus() == AgentCaseStatus.CLOSED || existing.getStatus() == AgentCaseStatus.RESOLVED) {
+                existing.setLastDetectRunId(run.getRunId());
+                existing.setUpdatedAt(Instant.now());
+                agentCaseRepository.save(existing);
+                return new int[]{0, 1};
+            }
+            // P0: detected_at 유지, updated_at만 갱신
             existing.setUpdatedAt(Instant.now());
-            existing.setDetectedAt(Instant.now());
             existing.setLastDetectRunId(run.getRunId());
+            existing.setSeverity(severity);
+            existing.setScore(score);
+            existing.setReasonText(reasonText);
+            existing.setEvidenceJson(buildEvidenceJson(source, window, bukrs, belnr, gjahr, buzei, amount, currency, dueDate, null, null));
             agentCaseRepository.save(existing);
 
             String entityKey = buzei != null ? bukrs + "-" + belnr + "-" + gjahr + "-" + buzei : bukrs + "-" + belnr + "-" + gjahr;
             Map<String, Object> updateAfter = new HashMap<>();
-            updateAfter.put("detectedAt", Instant.now().toString());
+            updateAfter.put("lastDetectRunId", run.getRunId());
+            updateAfter.put("severity", severity);
             updateAfter.put("dedupKey", existing.getDedupKey());
-            updateAfter.put("ruleId", ruleId);
-            updateAfter.put("entityKey", entityKey);
             updateAfter.put("runId", run.getRunId());
-            Map<String, Object> updateTags = new HashMap<>();
-            updateTags.put("runId", run.getRunId());
             auditWriter.logCaseEvent(tenantId, AuditEventConstants.TYPE_CASE_UPDATED, existing.getCaseId(),
                     updateAfter,
                     Map.of("detectedAt", existing.getDetectedAt() != null ? existing.getDetectedAt().toString() : ""),
-                    updateTags);
+                    Map.of("runId", run.getRunId()));
             return new int[]{0, 1};
         }
     }

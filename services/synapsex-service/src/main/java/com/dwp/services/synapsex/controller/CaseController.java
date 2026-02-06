@@ -7,18 +7,22 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.services.synapsex.audit.AuditEventConstants;
 import com.dwp.services.synapsex.dto.case_.*;
 import com.dwp.services.synapsex.dto.common.PageResponse;
+import com.dwp.services.synapsex.audit.AuditRequestContext;
 import com.dwp.services.synapsex.service.case_.CaseQueryService.CaseListQuery;
 import com.dwp.services.synapsex.service.case_.CaseCommandService;
 import com.dwp.services.synapsex.service.case_.CaseQueryService;
 import com.dwp.services.synapsex.service.audit.AuditWriter;
 import com.dwp.services.synapsex.service.scope.ScopeEnforcementService;
 import com.dwp.services.synapsex.util.DrillDownParamUtil;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -44,6 +48,7 @@ public class CaseController {
     public ApiResponse<PageResponse<CaseListRowDto>> getCases(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
             @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
+            @RequestHeader(value = HeaderConstants.X_AGENT_ID, required = false) String actorAgentId,
             @RequestParam(required = false) String range,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
@@ -78,7 +83,8 @@ public class CaseController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "createdAt") String sort,
-            @RequestParam(defaultValue = "desc") String order) {
+            @RequestParam(defaultValue = "desc") String order,
+            HttpServletRequest httpRequest) {
 
         var timeRange = DrillDownParamUtil.resolve(range, from != null ? from : dateFrom, to != null ? to : dateTo);
         Instant resolvedFrom = timeRange.from();
@@ -133,10 +139,17 @@ public class CaseController {
                 .build();
 
         PageResponse<CaseListRowDto> result = caseQueryService.findCases(tenantId, query);
-        auditWriter.log(tenantId, AuditEventConstants.CATEGORY_ACTION, AuditEventConstants.TYPE_VIEW_LIST,
-                "CASE_LIST", null, AuditEventConstants.ACTOR_HUMAN, actorUserId, null, null, AuditEventConstants.CHANNEL_API,
+        Map<String, Object> filters = new HashMap<>();
+        if (status != null && !status.isBlank()) filters.put("status", status);
+        if (severity != null && !severity.isBlank()) filters.put("severity", severity);
+        if (caseType != null && !caseType.isBlank()) filters.put("caseType", caseType);
+        Map<String, Object> tags = AuditRequestContext.listTags(page, size, sort, order, filters);
+        String actorType = actorAgentId != null ? AuditEventConstants.ACTOR_AGENT : AuditEventConstants.ACTOR_HUMAN;
+        auditWriter.log(tenantId, AuditEventConstants.CATEGORY_CASE, AuditEventConstants.TYPE_VIEW_LIST,
+                AuditEventConstants.RESOURCE_CASE, null, actorType, actorUserId, actorAgentId, null, AuditEventConstants.CHANNEL_API,
                 AuditEventConstants.OUTCOME_SUCCESS, AuditEventConstants.SEVERITY_INFO,
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, tags, AuditRequestContext.getIpAddress(httpRequest), AuditRequestContext.getUserAgent(httpRequest),
+                AuditRequestContext.getGatewayRequestId(httpRequest), AuditRequestContext.getTraceId(httpRequest), null);
         return ApiResponse.success(result);
     }
 
@@ -147,14 +160,19 @@ public class CaseController {
     public ApiResponse<CaseDetailDto> getCaseDetail(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
             @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
-            @PathVariable Long caseId) {
+            @RequestHeader(value = HeaderConstants.X_AGENT_ID, required = false) String actorAgentId,
+            @PathVariable Long caseId,
+            HttpServletRequest httpRequest) {
 
         CaseDetailDto dto = caseQueryService.findCaseDetail(tenantId, caseId)
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
-        auditWriter.log(tenantId, AuditEventConstants.CATEGORY_ACTION, AuditEventConstants.TYPE_VIEW_DETAIL,
-                "AGENT_CASE", String.valueOf(caseId), AuditEventConstants.ACTOR_HUMAN, actorUserId, null, null, AuditEventConstants.CHANNEL_API,
+        String actorType = actorAgentId != null ? AuditEventConstants.ACTOR_AGENT : AuditEventConstants.ACTOR_HUMAN;
+        Map<String, Object> tags = Map.of("caseId", caseId);
+        auditWriter.log(tenantId, AuditEventConstants.CATEGORY_CASE, AuditEventConstants.TYPE_VIEW_DETAIL,
+                AuditEventConstants.RESOURCE_CASE, String.valueOf(caseId), actorType, actorUserId, actorAgentId, null, AuditEventConstants.CHANNEL_API,
                 AuditEventConstants.OUTCOME_SUCCESS, AuditEventConstants.SEVERITY_INFO,
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, tags, AuditRequestContext.getIpAddress(httpRequest), AuditRequestContext.getUserAgent(httpRequest),
+                AuditRequestContext.getGatewayRequestId(httpRequest), AuditRequestContext.getTraceId(httpRequest), null);
         return ApiResponse.success(dto);
     }
 
@@ -203,10 +221,11 @@ public class CaseController {
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
             @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
             @PathVariable Long caseId,
-            @Valid @RequestBody CaseStatusUpdateRequest request) {
+            @Valid @RequestBody CaseStatusUpdateRequest request,
+            HttpServletRequest httpRequest) {
 
         caseCommandService.updateCaseStatus(tenantId, caseId, request.getStatus(),
-                actorUserId, null, null, null);
+                actorUserId, AuditRequestContext.getIpAddress(httpRequest), AuditRequestContext.getUserAgent(httpRequest), AuditRequestContext.getGatewayRequestId(httpRequest));
         CaseDetailDto dto = caseQueryService.findCaseDetail(tenantId, caseId)
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
         return ApiResponse.success(dto);
@@ -220,10 +239,11 @@ public class CaseController {
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
             @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
             @PathVariable Long caseId,
-            @Valid @RequestBody CaseAssignRequest request) {
+            @Valid @RequestBody CaseAssignRequest request,
+            HttpServletRequest httpRequest) {
 
         caseCommandService.assignCase(tenantId, caseId, request.getAssigneeUserId(),
-                actorUserId, null, null, null);
+                actorUserId, AuditRequestContext.getIpAddress(httpRequest), AuditRequestContext.getUserAgent(httpRequest), AuditRequestContext.getGatewayRequestId(httpRequest));
         CaseDetailDto dto = caseQueryService.findCaseDetail(tenantId, caseId)
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
         return ApiResponse.success(dto);
@@ -238,10 +258,11 @@ public class CaseController {
             @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
             @RequestHeader(value = HeaderConstants.X_AGENT_ID, required = false) String actorAgentId,
             @PathVariable Long caseId,
-            @Valid @RequestBody CaseCommentRequest request) {
+            @Valid @RequestBody CaseCommentRequest request,
+            HttpServletRequest httpRequest) {
 
         caseCommandService.addComment(tenantId, caseId, request.getCommentText(),
-                actorUserId, actorAgentId, null, null, null);
+                actorUserId, actorAgentId, AuditRequestContext.getIpAddress(httpRequest), AuditRequestContext.getUserAgent(httpRequest), AuditRequestContext.getGatewayRequestId(httpRequest));
         CaseDetailDto dto = caseQueryService.findCaseDetail(tenantId, caseId)
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
         return ApiResponse.success(dto);
