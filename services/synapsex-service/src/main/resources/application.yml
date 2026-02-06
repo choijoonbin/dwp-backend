@@ -53,6 +53,10 @@ auth:
   server:
     url: ${SERVICE_AUTH_URL:http://localhost:8001}
 
+# Aura Platform URL (Case 탭 프록시용 - analysis/confidence/similar/rag/evidence)
+aura:
+  base-url: ${AURA_BASE_URL:${AURA_PLATFORM_URL:http://localhost:9000}}
+
 # Audit Redis (Aura 이벤트 수신)
 audit:
   redis:
@@ -65,6 +69,13 @@ detect:
     enabled: ${DETECT_BATCH_ENABLED:false}
     cron: ${DETECT_BATCH_CRON:0 */15 * * * *}
     interval-minutes: ${DETECT_BATCH_INTERVAL_MINUTES:15}
+
+feign:
+  client:
+    config:
+      aura-case-tab:
+        connectTimeout: 3000
+        readTimeout: 5000
 
 springdoc:
   api-docs:

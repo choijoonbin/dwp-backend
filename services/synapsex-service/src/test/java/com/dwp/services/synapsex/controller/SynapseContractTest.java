@@ -14,6 +14,7 @@ import com.dwp.services.synapsex.service.anomaly.AnomalyQueryService;
 import com.dwp.services.synapsex.service.archive.ArchiveQueryService;
 import com.dwp.services.synapsex.service.case_.CaseCommandService;
 import com.dwp.services.synapsex.service.case_.CaseQueryService;
+import com.dwp.services.synapsex.service.case_.CaseTabProxyService;
 import com.dwp.services.synapsex.service.audit.AuditWriter;
 import com.dwp.services.synapsex.service.optimization.OptimizationQueryService;
 import com.dwp.services.synapsex.service.scope.ScopeEnforcementService;
@@ -72,6 +73,8 @@ class SynapseContractTest {
     private AuditWriter auditWriter;
     @MockBean
     private ScopeEnforcementService scopeEnforcementService;
+    @MockBean
+    private CaseTabProxyService caseTabProxyService;
 
     private static final Long TENANT_ID = 1L;
 
@@ -125,6 +128,58 @@ class SynapseContractTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.caseId").value(1))
                     .andExpect(jsonPath("$.data.status").value("OPEN"));
+        }
+
+        @Test
+        @DisplayName("GET /synapse/cases/{id}/analysis - 200, 최소 빈 구조")
+        void getAnalysis_returns200() throws Exception {
+            when(caseTabProxyService.getAnalysis(eq(TENANT_ID), eq(1L), any(), any()))
+                    .thenReturn(java.util.Map.of("summary", (Object) null, "sections", List.of()));
+
+            mockMvc.perform(get("/synapse/cases/1/analysis").header("X-Tenant-ID", TENANT_ID.toString()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.status").value("SUCCESS"))
+                    .andExpect(jsonPath("$.data.sections").isArray());
+        }
+
+        @Test
+        @DisplayName("GET /synapse/cases/{id}/confidence - 200, factors 배열")
+        void getConfidence_returns200() throws Exception {
+            when(caseTabProxyService.getConfidence(eq(TENANT_ID), eq(1L), any(), any()))
+                    .thenReturn(java.util.Map.of("score", (Object) null, "factors", List.of()));
+
+            mockMvc.perform(get("/synapse/cases/1/confidence").header("X-Tenant-ID", TENANT_ID.toString()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.factors").isArray());
+        }
+
+        @Test
+        @DisplayName("GET /synapse/cases/{id}/similar - 200, items 배열")
+        void getSimilar_returns200() throws Exception {
+            when(caseTabProxyService.getSimilar(eq(TENANT_ID), eq(1L), any(), any()))
+                    .thenReturn(java.util.Map.of("items", List.of()));
+
+            mockMvc.perform(get("/synapse/cases/1/similar").header("X-Tenant-ID", TENANT_ID.toString()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.items").isArray());
+        }
+
+        @Test
+        @DisplayName("GET /synapse/cases/{id}/rag/evidence - 200, items 배열")
+        void getRagEvidence_returns200() throws Exception {
+            when(caseTabProxyService.getRagEvidence(eq(TENANT_ID), eq(1L), any(), any()))
+                    .thenReturn(java.util.Map.of("items", List.of()));
+
+            mockMvc.perform(get("/synapse/cases/1/rag/evidence").header("X-Tenant-ID", TENANT_ID.toString()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.data.items").isArray());
+        }
+
+        @Test
+        @DisplayName("GET /synapse/cases/{id}/analysis - X-Tenant-ID 없으면 400")
+        void getAnalysis_withoutTenant_returns400() throws Exception {
+            mockMvc.perform(get("/synapse/cases/1/analysis"))
+                    .andExpect(status().isBadRequest());
         }
     }
 

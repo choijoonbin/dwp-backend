@@ -36,6 +36,11 @@ public final class AuditEventConstants {
     public static final String TYPE_STATUS_CHANGE = "STATUS_CHANGE";
     public static final String TYPE_VIEW_LIST = "CASE_VIEW_LIST";
     public static final String TYPE_VIEW_DETAIL = "CASE_VIEW_DETAIL";
+    /** event_type - Case 탭 (P1 Proxy) */
+    public static final String TYPE_VIEW_ANALYSIS = "CASE_VIEW_ANALYSIS";
+    public static final String TYPE_VIEW_CONFIDENCE = "CASE_VIEW_CONFIDENCE";
+    public static final String TYPE_VIEW_SIMILAR = "CASE_VIEW_SIMILAR";
+    public static final String TYPE_VIEW_RAG = "CASE_VIEW_RAG";
     public static final String TYPE_ASSIGN = "CASE_ASSIGN";
     public static final String TYPE_COMMENT_CREATE = "CASE_COMMENT_CREATE";
 
@@ -47,6 +52,9 @@ public final class AuditEventConstants {
     /** event_type - Open Item (P0 Audit) */
     public static final String TYPE_OPENITEM_VIEW_LIST = "OPENITEM_VIEW_LIST";
     public static final String TYPE_OPENITEM_VIEW_DETAIL = "OPENITEM_VIEW_DETAIL";
+
+    /** event_type - Lineage (P0 Audit) */
+    public static final String TYPE_LINEAGE_VIEW = "LINEAGE_VIEW";
     public static final String TYPE_OPENITEM_EXPORT = "OPENITEM_EXPORT";
 
     /** event_type - Action (P0 Audit) */

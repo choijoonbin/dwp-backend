@@ -4,6 +4,7 @@ import com.dwp.services.synapsex.dto.case_.CaseDetailDto;
 import com.dwp.services.synapsex.dto.case_.CaseListRowDto;
 import com.dwp.services.synapsex.dto.case_.DocumentOrOpenItemDto;
 import com.dwp.services.synapsex.dto.case_.CaseTimelineDto;
+import com.dwp.services.synapsex.dto.common.PageInfo;
 import com.dwp.services.synapsex.dto.common.PageResponse;
 import com.dwp.services.synapsex.entity.*;
 import com.dwp.services.synapsex.repository.*;
@@ -203,10 +204,17 @@ public class CaseQueryService {
             cases = cases.stream().skip((long) page * size).limit(size).toList();
             List<CaseListRowDto> rows = buildCaseListRows(tenantId, cases);
             Map<String, Object> filtersApplied = buildFiltersApplied(query);
-            return PageResponse.of(rows, total, page, size,
-                    query.getSort() != null ? query.getSort() : "createdAt",
-                    query.getOrder() != null ? query.getOrder() : "desc",
-                    filtersApplied);
+            Map<String, Long> summary = buildCaseSummary(tenantId);
+            boolean hasNext = (long) (page + 1) * size < total;
+            return PageResponse.<CaseListRowDto>builder()
+                    .items(rows)
+                    .total(total)
+                    .pageInfo(PageInfo.builder().page(page + 1).size(size).hasNext(hasNext).build())
+                    .sort(query.getSort() != null ? query.getSort() : "createdAt")
+                    .order(query.getOrder() != null ? query.getOrder() : "desc")
+                    .filtersApplied(filtersApplied)
+                    .summary(summary)
+                    .build();
         }
 
         cases = queryFactory.selectFrom(c)
@@ -218,10 +226,17 @@ public class CaseQueryService {
         long total = queryFactory.selectFrom(c).where(predicate).fetchCount();
         List<CaseListRowDto> rows = buildCaseListRows(tenantId, cases);
         Map<String, Object> filtersApplied = buildFiltersApplied(query);
-        return PageResponse.of(rows, total, page, size,
-                query.getSort() != null ? query.getSort() : "createdAt",
-                query.getOrder() != null ? query.getOrder() : "desc",
-                filtersApplied);
+        Map<String, Long> summary = buildCaseSummary(tenantId);
+        boolean hasNext = (long) (page + 1) * size < total;
+        return PageResponse.<CaseListRowDto>builder()
+                .items(rows)
+                .total(total)
+                .pageInfo(PageInfo.builder().page(page + 1).size(size).hasNext(hasNext).build())
+                .sort(query.getSort() != null ? query.getSort() : "createdAt")
+                .order(query.getOrder() != null ? query.getOrder() : "desc")
+                .filtersApplied(filtersApplied)
+                .summary(summary)
+                .build();
     }
 
     private List<AgentCase> filterCasesByParty(Long tenantId, List<AgentCase> cases, Long partyId) {
@@ -247,6 +262,22 @@ public class CaseQueryService {
                 .filter(e -> "AT_RISK".equalsIgnoreCase(slaRisk) ? e.getValue() > threshold : e.getValue() <= threshold)
                 .map(Map.Entry::getKey)
                 .toList();
+    }
+
+    /** P0-2: Case list summary (total, open, triage, inReview) */
+    private Map<String, Long> buildCaseSummary(Long tenantId) {
+        long total = queryFactory.selectFrom(c).where(c.tenantId.eq(tenantId)).fetchCount();
+        long open = queryFactory.selectFrom(c)
+                .where(c.tenantId.eq(tenantId)
+                        .and(c.status.in(AgentCaseStatus.OPEN, AgentCaseStatus.IN_PROGRESS, AgentCaseStatus.IN_REVIEW, AgentCaseStatus.TRIAGED)))
+                .fetchCount();
+        long triage = queryFactory.selectFrom(c)
+                .where(c.tenantId.eq(tenantId).and(c.status.eq(AgentCaseStatus.TRIAGED)))
+                .fetchCount();
+        long inReview = queryFactory.selectFrom(c)
+                .where(c.tenantId.eq(tenantId).and(c.status.eq(AgentCaseStatus.IN_REVIEW)))
+                .fetchCount();
+        return Map.of("total", total, "open", open, "triage", triage, "inReview", inReview);
     }
 
     private Map<String, Object> buildFiltersApplied(CaseListQuery query) {
@@ -396,9 +427,26 @@ public class CaseQueryService {
                         .partyId(resolvePartyId(tenantId, case_))
                         .build())
                 .build();
+
+        String sourceType = resolveSourceType(case_);
+        String openItemsUrl = "/api/synapse/open-items?caseId=" + case_.getCaseId();
+        String lineageUrl = "/api/synapse/lineage?caseId=" + case_.getCaseId();
+
         return CaseDetailDto.builder()
                 .caseId(case_.getCaseId())
                 .status(case_.getStatus() != null ? case_.getStatus().name() : null)
+                .keys(CaseDetailDto.CaseKeysDto.builder()
+                        .sourceType(sourceType)
+                        .bukrs(case_.getBukrs())
+                        .belnr(case_.getBelnr())
+                        .gjahr(case_.getGjahr())
+                        .buzei(case_.getBuzei())
+                        .dedupKey(case_.getDedupKey())
+                        .build())
+                .links(CaseDetailDto.CaseLinksDto.builder()
+                        .openItems(openItemsUrl)
+                        .lineage(lineageUrl)
+                        .build())
                 .evidence(evidence)
                 .reasoning(reasoning)
                 .action(action)
@@ -479,6 +527,18 @@ public class CaseQueryService {
 
     private Long resolvePartyId(Long tenantId, AgentCase case_) {
         return resolvePartySummary(tenantId, case_) != null ? resolvePartySummary(tenantId, case_).getPartyId() : null;
+    }
+
+    /** P0-2: evidence_json.window 또는 case_type 기반 sourceType */
+    private String resolveSourceType(AgentCase case_) {
+        if (case_.getEvidenceJson() != null && case_.getEvidenceJson().has("window")) {
+            var w = case_.getEvidenceJson().get("window");
+            if (w != null && !w.isNull()) {
+                String s = w.asText();
+                if (s != null && !s.isBlank()) return s;
+            }
+        }
+        return case_.getCaseType() != null ? case_.getCaseType() : "DEFAULT";
     }
 
     @Transactional(readOnly = true)

@@ -2,13 +2,18 @@ package com.dwp.services.synapsex.controller;
 
 import com.dwp.core.common.ApiResponse;
 import com.dwp.core.constant.HeaderConstants;
+import com.dwp.services.synapsex.audit.AuditEventConstants;
+import com.dwp.services.synapsex.audit.AuditRequestContext;
 import com.dwp.services.synapsex.dto.lineage.LineageResponseDto;
+import com.dwp.services.synapsex.service.audit.AuditWriter;
 import com.dwp.services.synapsex.service.lineage.LineageQueryService;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
+import java.util.Map;
 
 /**
  * Phase 1 Lineage / Evidence Viewer API
@@ -20,6 +25,7 @@ import java.time.Instant;
 public class LineageController {
 
     private final LineageQueryService lineageQueryService;
+    private final AuditWriter auditWriter;
 
     /**
      * D1) GET /api/synapse/lineage
@@ -28,11 +34,14 @@ public class LineageController {
     @GetMapping
     public ApiResponse<LineageResponseDto> getLineage(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
+            @RequestHeader(value = HeaderConstants.X_AGENT_ID, required = false) String actorAgentId,
             @RequestParam(required = false) Long caseId,
             @RequestParam(required = false) String docKey,
             @RequestParam(required = false) Long rawEventId,
             @RequestParam(required = false) Long partyId,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant asOf) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant asOf,
+            HttpServletRequest httpRequest) {
 
         var query = LineageQueryService.LineageQuery.builder()
                 .caseId(caseId)
@@ -43,6 +52,15 @@ public class LineageController {
                 .build();
 
         LineageResponseDto result = lineageQueryService.findLineage(tenantId, query);
+
+        Map<String, Object> tags = caseId != null ? Map.of("caseId", caseId) : (docKey != null ? Map.of("docKey", docKey) : Map.of());
+        String actorType = actorAgentId != null ? AuditEventConstants.ACTOR_AGENT : AuditEventConstants.ACTOR_HUMAN;
+        auditWriter.log(tenantId, AuditEventConstants.CATEGORY_ACTION, AuditEventConstants.TYPE_LINEAGE_VIEW,
+                "LINEAGE", caseId != null ? String.valueOf(caseId) : docKey, actorType, actorUserId, actorAgentId, null, AuditEventConstants.CHANNEL_API,
+                AuditEventConstants.OUTCOME_SUCCESS, AuditEventConstants.SEVERITY_INFO,
+                null, null, null, null, tags, AuditRequestContext.getIpAddress(httpRequest), AuditRequestContext.getUserAgent(httpRequest),
+                AuditRequestContext.getGatewayRequestId(httpRequest), AuditRequestContext.getTraceId(httpRequest), null);
+
         return ApiResponse.success(result);
     }
 
@@ -53,8 +71,11 @@ public class LineageController {
     @GetMapping("/time-travel")
     public ApiResponse<LineageResponseDto> getTimeTravel(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
+            @RequestHeader(value = HeaderConstants.X_AGENT_ID, required = false) String actorAgentId,
             @RequestParam(required = false) Long partyId,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant asOf) {
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant asOf,
+            HttpServletRequest httpRequest) {
 
         var query = LineageQueryService.LineageQuery.builder()
                 .partyId(partyId)
@@ -62,6 +83,15 @@ public class LineageController {
                 .build();
 
         LineageResponseDto result = lineageQueryService.findLineage(tenantId, query);
+
+        Map<String, Object> tags = partyId != null ? Map.of("partyId", partyId, "timeTravel", true) : Map.of("timeTravel", true);
+        String actorType = actorAgentId != null ? AuditEventConstants.ACTOR_AGENT : AuditEventConstants.ACTOR_HUMAN;
+        auditWriter.log(tenantId, AuditEventConstants.CATEGORY_ACTION, AuditEventConstants.TYPE_LINEAGE_VIEW,
+                "LINEAGE", null, actorType, actorUserId, actorAgentId, null, AuditEventConstants.CHANNEL_API,
+                AuditEventConstants.OUTCOME_SUCCESS, AuditEventConstants.SEVERITY_INFO,
+                null, null, null, null, tags, AuditRequestContext.getIpAddress(httpRequest), AuditRequestContext.getUserAgent(httpRequest),
+                AuditRequestContext.getGatewayRequestId(httpRequest), AuditRequestContext.getTraceId(httpRequest), null);
+
         return ApiResponse.success(result);
     }
 }

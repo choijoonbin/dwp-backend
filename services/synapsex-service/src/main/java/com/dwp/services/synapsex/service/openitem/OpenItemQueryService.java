@@ -107,6 +107,17 @@ public class OpenItemQueryService {
         if (query.getKunnr() != null && !query.getKunnr().isBlank()) {
             predicate.and(oi.kunnr.eq(query.getKunnr()));
         }
+        // P0-3: caseId → 관련 미결재 항목만 (case의 bukrs/belnr/gjahr로 필터)
+        if (query.getCaseId() != null) {
+            Optional<AgentCase> caseOpt = agentCaseRepository.findByCaseIdAndTenantId(query.getCaseId(), tenantId);
+            if (caseOpt.isEmpty() || caseOpt.get().getBukrs() == null || caseOpt.get().getBelnr() == null || caseOpt.get().getGjahr() == null) {
+                return PageResponse.of(List.of(), 0, query.getPage(), query.getSize());
+            }
+            AgentCase case_ = caseOpt.get();
+            predicate.and(oi.bukrs.eq(case_.getBukrs()));
+            predicate.and(oi.belnr.eq(case_.getBelnr()));
+            predicate.and(oi.gjahr.eq(case_.getGjahr()));
+        }
         if (query.getQ() != null && !query.getQ().isBlank()) {
             String q = query.getQ().trim();
             predicate.and(
@@ -293,6 +304,8 @@ public class OpenItemQueryService {
         private String type;
         private String status;
         private String bukrs;
+        /** P0-3: caseId → 관련 미결재 항목만 (case keys 기반 필터) */
+        private Long caseId;
         private Long partyId;
         private String lifnr;
         private String kunnr;

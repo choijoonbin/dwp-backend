@@ -11,6 +11,7 @@ import com.dwp.services.synapsex.audit.AuditRequestContext;
 import com.dwp.services.synapsex.service.case_.CaseQueryService.CaseListQuery;
 import com.dwp.services.synapsex.service.case_.CaseCommandService;
 import com.dwp.services.synapsex.service.case_.CaseQueryService;
+import com.dwp.services.synapsex.service.case_.CaseTabProxyService;
 import com.dwp.services.synapsex.service.audit.AuditWriter;
 import com.dwp.services.synapsex.service.scope.ScopeEnforcementService;
 import com.dwp.services.synapsex.util.DrillDownParamUtil;
@@ -38,6 +39,7 @@ public class CaseController {
 
     private final CaseQueryService caseQueryService;
     private final CaseCommandService caseCommandService;
+    private final CaseTabProxyService caseTabProxyService;
     private final AuditWriter auditWriter;
     private final ScopeEnforcementService scopeEnforcementService;
 
@@ -174,6 +176,80 @@ public class CaseController {
                 null, null, null, null, tags, AuditRequestContext.getIpAddress(httpRequest), AuditRequestContext.getUserAgent(httpRequest),
                 AuditRequestContext.getGatewayRequestId(httpRequest), AuditRequestContext.getTraceId(httpRequest), null);
         return ApiResponse.success(dto);
+    }
+
+    /**
+     * P1) GET /api/synapse/cases/{caseId}/analysis — Aura 프록시
+     */
+    @GetMapping("/{caseId}/analysis")
+    public ApiResponse<Object> getAnalysis(
+            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
+            @RequestHeader(value = HeaderConstants.X_AGENT_ID, required = false) String actorAgentId,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable Long caseId,
+            HttpServletRequest httpRequest) {
+        Object result = caseTabProxyService.getAnalysis(tenantId, caseId, authorization, actorUserId);
+        logTabAudit(tenantId, caseId, actorUserId, actorAgentId, AuditEventConstants.TYPE_VIEW_ANALYSIS, httpRequest);
+        return ApiResponse.success(result);
+    }
+
+    /**
+     * P1) GET /api/synapse/cases/{caseId}/confidence — Aura 프록시
+     */
+    @GetMapping("/{caseId}/confidence")
+    public ApiResponse<Object> getConfidence(
+            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
+            @RequestHeader(value = HeaderConstants.X_AGENT_ID, required = false) String actorAgentId,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable Long caseId,
+            HttpServletRequest httpRequest) {
+        Object result = caseTabProxyService.getConfidence(tenantId, caseId, authorization, actorUserId);
+        logTabAudit(tenantId, caseId, actorUserId, actorAgentId, AuditEventConstants.TYPE_VIEW_CONFIDENCE, httpRequest);
+        return ApiResponse.success(result);
+    }
+
+    /**
+     * P1) GET /api/synapse/cases/{caseId}/similar — Aura 프록시
+     */
+    @GetMapping("/{caseId}/similar")
+    public ApiResponse<Object> getSimilar(
+            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
+            @RequestHeader(value = HeaderConstants.X_AGENT_ID, required = false) String actorAgentId,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable Long caseId,
+            HttpServletRequest httpRequest) {
+        Object result = caseTabProxyService.getSimilar(tenantId, caseId, authorization, actorUserId);
+        logTabAudit(tenantId, caseId, actorUserId, actorAgentId, AuditEventConstants.TYPE_VIEW_SIMILAR, httpRequest);
+        return ApiResponse.success(result);
+    }
+
+    /**
+     * P1) GET /api/synapse/cases/{caseId}/rag/evidence — Aura 프록시
+     */
+    @GetMapping("/{caseId}/rag/evidence")
+    public ApiResponse<Object> getRagEvidence(
+            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
+            @RequestHeader(value = HeaderConstants.X_AGENT_ID, required = false) String actorAgentId,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable Long caseId,
+            HttpServletRequest httpRequest) {
+        Object result = caseTabProxyService.getRagEvidence(tenantId, caseId, authorization, actorUserId);
+        logTabAudit(tenantId, caseId, actorUserId, actorAgentId, AuditEventConstants.TYPE_VIEW_RAG, httpRequest);
+        return ApiResponse.success(result);
+    }
+
+    private void logTabAudit(Long tenantId, Long caseId, Long actorUserId, String actorAgentId, String eventType, HttpServletRequest httpRequest) {
+        String actorType = actorAgentId != null ? AuditEventConstants.ACTOR_AGENT : AuditEventConstants.ACTOR_HUMAN;
+        Map<String, Object> tags = Map.of("caseId", caseId);
+        auditWriter.log(tenantId, AuditEventConstants.CATEGORY_CASE, eventType,
+                AuditEventConstants.RESOURCE_CASE, String.valueOf(caseId), actorType, actorUserId, actorAgentId, null, AuditEventConstants.CHANNEL_API,
+                AuditEventConstants.OUTCOME_SUCCESS, AuditEventConstants.SEVERITY_INFO,
+                null, null, null, null, tags, AuditRequestContext.getIpAddress(httpRequest), AuditRequestContext.getUserAgent(httpRequest),
+                AuditRequestContext.getGatewayRequestId(httpRequest), AuditRequestContext.getTraceId(httpRequest), null);
     }
 
     /**

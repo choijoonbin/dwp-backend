@@ -20,9 +20,35 @@ public class CaseDetailDto {
 
     private Long caseId;
     private String status;
+    /** P0-2: 핵심 식별자 (sourceType, bukrs, belnr, gjahr, buzei, dedupKey) */
+    private CaseKeysDto keys;
+    /** P0-2: 관련 링크 (openItems, lineage) — FE 하드코딩 제거용 */
+    private CaseLinksDto links;
     private EvidencePanelDto evidence;
     private ReasoningPanelDto reasoning;
     private ActionPanelDto action;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CaseKeysDto {
+        private String sourceType;
+        private String bukrs;
+        private String belnr;
+        private String gjahr;
+        private String buzei;
+        private String dedupKey;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CaseLinksDto {
+        private String openItems;
+        private String lineage;
+    }
 
     @Data
     @Builder

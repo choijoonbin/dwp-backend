@@ -28,6 +28,9 @@ public class PageResponse<T> {
     private String order;
     private Map<String, Object> filtersApplied;
 
+    /** P0-2: Case list용 summary (total, open, triage, inReview) — optional */
+    private Map<String, Long> summary;
+
     /** FE 계약: data는 items와 동일 */
     @JsonProperty("data")
     public List<T> getData() { return items; }

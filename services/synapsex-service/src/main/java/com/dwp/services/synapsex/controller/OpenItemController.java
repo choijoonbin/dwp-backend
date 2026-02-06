@@ -42,6 +42,7 @@ public class OpenItemController {
             @RequestHeader(value = HeaderConstants.X_AGENT_ID, required = false) String actorAgentId,
             @RequestParam(required = false) String type,
             @RequestParam(required = false) String bukrs,
+            @RequestParam(required = false) Long caseId,
             @RequestParam(required = false) Long partyId,
             @RequestParam(required = false) String lifnr,
             @RequestParam(required = false) String kunnr,
@@ -61,6 +62,7 @@ public class OpenItemController {
         var query = OpenItemQueryService.OpenItemListQuery.builder()
                 .type(type)
                 .bukrs(bukrs)
+                .caseId(caseId)
                 .partyId(partyId)
                 .lifnr(lifnr)
                 .kunnr(kunnr)
@@ -81,6 +83,8 @@ public class OpenItemController {
         Map<String, Object> filters = new HashMap<>();
         if (type != null && !type.isBlank()) filters.put("type", type);
         if (status != null && !status.isBlank()) filters.put("status", status);
+        if (caseId != null) filters.put("caseId", caseId);
+        if (caseId != null) filters.put("related", true);
         Map<String, Object> tags = AuditRequestContext.listTags(page, size, sort, null, filters);
         String actorType = actorAgentId != null ? AuditEventConstants.ACTOR_AGENT : AuditEventConstants.ACTOR_HUMAN;
         auditWriter.log(tenantId, AuditEventConstants.CATEGORY_ACTION, AuditEventConstants.TYPE_OPENITEM_VIEW_LIST,
