@@ -27,11 +27,13 @@ import java.util.stream.Collectors;
 public class AuditEventQueryService {
 
     private final AuditEventLogRepository repository;
+    private final AuditCodeLabelResolver codeLabelResolver;
 
     public AuditEventPageDto search(Long tenantId, Instant from, Instant to,
                                    String category, String type, String outcome, String severity,
                                    Long actorUserId, String actorType,
                                    String resourceType, String resourceId,
+                                   Long caseId,
                                    Long runId,
                                    String traceId, String gatewayRequestId, String q, Pageable pageable) {
         Specification<AuditEventLog> spec = (root, query, cb) -> {
@@ -55,6 +57,14 @@ public class AuditEventQueryService {
             if (actorUserId != null) predicates.add(cb.equal(root.get("actorUserId"), actorUserId));
             if (resourceType != null && !resourceType.isBlank()) predicates.add(cb.equal(root.get("resourceType"), resourceType));
             if (resourceId != null && !resourceId.isBlank()) predicates.add(cb.equal(root.get("resourceId"), resourceId));
+            if (caseId != null) {
+                String caseIdStr = String.valueOf(caseId);
+                jakarta.persistence.criteria.Expression<String> tagsCaseId = cb.function(
+                        "jsonb_extract_path_text", String.class, root.get("tags"), cb.literal("caseId"));
+                predicates.add(cb.or(
+                        cb.and(cb.equal(root.get("resourceType"), "AGENT_CASE"), cb.equal(root.get("resourceId"), caseIdStr)),
+                        cb.equal(tagsCaseId, caseIdStr)));
+            }
             if (runId != null) {
                 jakarta.persistence.criteria.Expression<String> runIdExpr = cb.function(
                         "jsonb_extract_path_text", String.class, root.get("tags"), cb.literal("runId"));
@@ -63,11 +73,30 @@ public class AuditEventQueryService {
             if (traceId != null && !traceId.isBlank()) predicates.add(cb.equal(root.get("traceId"), traceId));
             if (gatewayRequestId != null && !gatewayRequestId.isBlank()) predicates.add(cb.equal(root.get("gatewayRequestId"), gatewayRequestId));
             if (q != null && !q.isBlank()) {
-                String qLower = "%" + q.toLowerCase() + "%";
+                String qTrim = q.trim();
                 List<Predicate> qPreds = new ArrayList<>();
-                qPreds.add(cb.like(cb.lower(cb.coalesce(root.get("resourceId"), "")), qLower));
-                qPreds.add(cb.like(cb.lower(cb.coalesce(root.get("traceId"), "")), qLower));
-                qPreds.add(cb.like(cb.lower(cb.coalesce(root.get("gatewayRequestId"), "")), qLower));
+                // OR 매칭: exact 또는 prefix. 인덱스 활용을 위해 prefix 우선.
+                qPreds.add(cb.or(
+                        cb.equal(root.get("resourceId"), qTrim),
+                        cb.like(cb.lower(cb.coalesce(root.get("resourceId"), "")), qTrim.toLowerCase() + "%")));
+                qPreds.add(cb.or(
+                        cb.equal(root.get("gatewayRequestId"), qTrim),
+                        cb.like(cb.lower(cb.coalesce(root.get("gatewayRequestId"), "")), qTrim.toLowerCase() + "%")));
+                qPreds.add(cb.or(
+                        cb.equal(root.get("traceId"), qTrim),
+                        cb.like(cb.lower(cb.coalesce(root.get("traceId"), "")), qTrim.toLowerCase() + "%")));
+                qPreds.add(cb.or(
+                        cb.equal(root.get("spanId"), qTrim),
+                        cb.like(cb.lower(cb.coalesce(root.get("spanId"), "")), qTrim.toLowerCase() + "%")));
+                qPreds.add(cb.or(
+                        cb.equal(root.get("actorAgentId"), qTrim),
+                        cb.like(cb.lower(cb.coalesce(root.get("actorAgentId"), "")), qTrim.toLowerCase() + "%")));
+                try {
+                    Long qAsLong = Long.parseLong(qTrim);
+                    qPreds.add(cb.equal(root.get("actorUserId"), qAsLong));
+                } catch (NumberFormatException ignored) {
+                    // q가 숫자 아니면 actor_user_id 제외
+                }
                 predicates.add(cb.or(qPreds.toArray(new Predicate[0])));
             }
             return cb.and(predicates.toArray(new Predicate[0]));
@@ -98,14 +127,20 @@ public class AuditEventQueryService {
                 .auditId(e.getAuditId())
                 .createdAt(e.getCreatedAt())
                 .eventCategory(e.getEventCategory())
+                .eventCategoryName(codeLabelResolver.getEventCategoryName(e.getEventCategory()))
                 .eventType(e.getEventType())
+                .eventTypeName(codeLabelResolver.getEventTypeName(e.getEventType()))
                 .resourceType(e.getResourceType())
+                .resourceTypeName(codeLabelResolver.getResourceTypeName(e.getResourceType()))
                 .resourceId(e.getResourceId())
                 .actorType(e.getActorType())
+                .actorTypeName(codeLabelResolver.getActorTypeName(e.getActorType()))
                 .actorUserId(e.getActorUserId())
                 .actorDisplayName(e.getActorDisplayName())
                 .outcome(e.getOutcome())
+                .outcomeName(codeLabelResolver.getOutcomeName(e.getOutcome()))
                 .severity(e.getSeverity())
+                .severityName(codeLabelResolver.getSeverityName(e.getSeverity()))
                 .evidenceJson(e.getEvidenceJson())
                 .build();
     }

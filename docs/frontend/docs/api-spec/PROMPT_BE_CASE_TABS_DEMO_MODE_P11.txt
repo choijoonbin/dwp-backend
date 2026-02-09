@@ -1,0 +1,110 @@
+[A) Backend Prompt (Spring)] CASE 탭 Non-Empty 검증용 DEMO 모드 추가(P1.1) — 원복 안전(Feature Flag) 포함
+
+파일 경로 / 생성 파일명
+- docs/prompts/CASE_TABS_DEMO_MODE_P11.md
+- (코드) dwp-backend: synapse/case 탭 컨트롤러/서비스 레이어 (프로젝트 구조 기준)
+
+결론/결정안(1~3줄)
+- 탭 화면 바인딩 검증을 위해 **SYNAPSE_DEMO_MODE** 플래그 기반으로 “Non-Empty 샘플 응답”을 반환한다.
+- DEMO 모드 OFF 시 기존 로직(현재 200+빈/fallback 포함)을 **그대로 유지**하여 원복 리스크를 0으로 만든다.
+- 운영/스테이징 안전을 위해 기본값은 OFF, 프로퍼티/환경변수로만 ON 가능하게 한다.
+
+Assumptions / Open Questions / Default
+- Assumption: 탭 API 4개는 이미 존재한다(/analysis, /confidence, /similar, /rag/evidence).
+- Open Question: “에이전트 스트림(SSE)” 탭은 이번 DEMO 범위에서 제외해도 된다.
+- Default: DEMO는 탭 4개만 적용(스트림은 별도).
+
+구현 범위(In/Out)
+IN
+- SYNAPSE_DEMO_MODE=true 일 때, caseId 유효하면 200 + Non-Empty 샘플 JSON 반환
+  1) GET /api/synapse/cases/{id}/analysis
+  2) GET /api/synapse/cases/{id}/confidence
+  3) GET /api/synapse/cases/{id}/similar
+  4) GET /api/synapse/cases/{id}/rag/evidence
+- DEMO 모드 OFF 시: 기존 Aura 호출/빈 fallback 포함 동작 유지(회귀 금지)
+- Audit-Ready: READ 이벤트는 필요 시만(기존 정책 우선). 추가하면 event_type은 CASE_VIEW_* 로 통일.
+
+OUT
+- SSE 프록시/스트림 이벤트 적재/실시간 Agent 실행 트리거
+
+API 스펙(샘플 응답 — 최소 구조)
+1) analysis (Non-Empty)
+{
+  "summary": "정책 위반 가능성이 있는 전표 조합입니다.",
+  "keyFindings": ["중복 지급 의심", "벤더 계좌 변경 직후 지급"],
+  "recommendations": [
+    {"action":"HOLD_PAYMENT","reason":"계좌 변경 72시간 룰 위반 가능"},
+    {"action":"REQUEST_DUAL_APPROVAL","reason":"고액 지급 승인 필요"}
+  ]
+}
+
+2) confidence
+{
+  "score": 72,
+  "severity": "MEDIUM",
+  "factors": [
+    {"label":"VendorAge","weight":0.3,"reason":"신규 거래처(7일 이내)"},
+    {"label":"AmountSpike","weight":0.4,"reason":"평균 대비 3.2배"},
+    {"label":"BankChanged","weight":0.3,"reason":"계좌 변경 이력 존재"}
+  ]
+}
+
+3) similar
+{
+  "items": [
+    {"caseId": 99901, "score": 0.82, "title": "신규 거래처 고액 지급"},
+    {"caseId": 99902, "score": 0.76, "title": "계좌 변경 직후 지급"}
+  ]
+}
+
+4) rag/evidence
+{
+  "items": [
+    {"title":"지급 통제 정책", "source":"PolicyHub", "excerpt":"계좌 변경 후 72시간 내 지급은 추가 승인 필요", "url":"/synapse/policy/123", "relevance":0.91},
+    {"title":"승인 프로세스 가이드", "source":"PolicyHub", "excerpt":"고액 지급은 CFO 승인 필수", "url":"/synapse/policy/456", "relevance":0.87}
+  ]
+}
+
+DB 매핑
+- 옵션 A(DEMO): DB 변경 없음
+
+백엔드 작업(상세)
+1) 플래그 추가
+- env/properties: SYNAPSE_DEMO_MODE (boolean, default=false)
+- 구성 클래스/서비스에서 주입(예: @ConfigurationProperties)
+
+2) 서비스 레이어 분기
+- 각 탭 서비스의 진입점에서:
+  - if (demoMode) return sampleDto(caseId)
+  - else return existingFlow(caseId)  // aura + fallback + existing 200 빈 구조 유지
+
+3) 회귀 방지 테스트
+- 통합 테스트 2개:
+  - DEMO OFF: 기존 응답과 동일(또는 최소 “기존 필드 존재/상태코드 동일”)을 assert
+  - DEMO ON: Non-Empty 조건(assert: arrays size > 0, score not null 등)
+
+4) 보안/테넌트 강제
+- 기존대로 X-Tenant-ID 스코프 유지(tenant_id 기반 조회/검증)
+
+스모크 플로우(클릭 경로 → API)
+- (데모 ON) 케이스 상세 진입 → 탭 클릭
+  → 4개 API 모두 200 + Non-Empty
+- (데모 OFF) 동일 동작
+  → 기존 흐름 유지(지금처럼 empty가 나와도 정상)
+
+체크리스트(완료 기준/엣지케이스)
+- [ ] 기본값 OFF로 빌드/배포 시 영향 없음
+- [ ] DEMO ON에서만 Non-Empty
+- [ ] tenant_id/caseId 불일치 시 404 또는 403(프로젝트 표준)
+- [ ] 401/403/404/500 표준 에러 포맷 준수
+- [ ] CI에서 테스트 통과
+
+테스트 방법(curl)
+- DEMO ON
+  SYNAPSE_DEMO_MODE=true ./run-backend
+  curl -H "Authorization: Bearer <TOKEN>" -H "X-Tenant-ID: 1" \
+    "http://localhost:8080/api/synapse/cases/<CASE_ID>/confidence"
+  → factors 3개 확인
+- DEMO OFF
+  SYNAPSE_DEMO_MODE=false ./run-backend
+  → 기존 결과 유지 확인

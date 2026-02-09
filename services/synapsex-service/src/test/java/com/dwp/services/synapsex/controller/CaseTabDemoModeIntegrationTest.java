@@ -20,6 +20,7 @@ import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -44,6 +45,10 @@ class CaseTabDemoModeIntegrationTest {
     @MockBean
     private com.dwp.services.synapsex.service.case_.CaseCommandService caseCommandService;
     @MockBean
+    private com.dwp.services.synapsex.service.analysis.CaseAnalysisService caseAnalysisService;
+    @MockBean
+    private com.dwp.services.synapsex.service.audit.AuditEventQueryService auditEventQueryService;
+    @MockBean
     private AuditWriter auditWriter;
     @MockBean
     private ScopeEnforcementService scopeEnforcementService;
@@ -54,6 +59,8 @@ class CaseTabDemoModeIntegrationTest {
     @BeforeEach
     void setUp() {
         when(scopeEnforcementService.resolveCompanyFilter(any(), any(), any())).thenReturn(List.of());
+        when(caseAnalysisService.getCaseAnalysis(eq(TENANT_ID), eq(CASE_ID), isNull()))
+                .thenReturn(com.dwp.services.synapsex.dto.analysis.CaseAnalysisDto.builder().build());
     }
 
     @Nested

@@ -12,7 +12,11 @@ import com.dwp.services.synapsex.service.case_.CaseQueryService.CaseListQuery;
 import com.dwp.services.synapsex.service.case_.CaseCommandService;
 import com.dwp.services.synapsex.service.case_.CaseQueryService;
 import com.dwp.services.synapsex.service.case_.CaseTabProxyService;
+import com.dwp.services.synapsex.service.audit.AuditEventQueryService;
 import com.dwp.services.synapsex.service.audit.AuditWriter;
+import com.dwp.services.synapsex.service.analysis.CaseAnalysisService;
+import com.dwp.services.synapsex.dto.audit.AuditEventPageDto;
+import com.dwp.services.synapsex.dto.analysis.CaseAnalysisDto;
 import com.dwp.services.synapsex.service.scope.ScopeEnforcementService;
 import com.dwp.services.synapsex.util.DrillDownParamUtil;
 import jakarta.servlet.http.HttpServletRequest;
@@ -26,6 +30,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import static com.dwp.services.synapsex.util.DrillDownParamUtil.parseIds;
 
@@ -40,6 +45,8 @@ public class CaseController {
     private final CaseQueryService caseQueryService;
     private final CaseCommandService caseCommandService;
     private final CaseTabProxyService caseTabProxyService;
+    private final AuditEventQueryService auditEventQueryService;
+    private final CaseAnalysisService caseAnalysisService;
     private final AuditWriter auditWriter;
     private final ScopeEnforcementService scopeEnforcementService;
 
@@ -179,7 +186,8 @@ public class CaseController {
     }
 
     /**
-     * P1) GET /api/synapse/cases/{caseId}/analysis — Aura 프록시
+     * P1/Phase2) GET /api/synapse/cases/{caseId}/analysis?runId={runId}
+     * Phase2: runId 기준 분석 결과. runId 없으면 최신 completed run 사용.
      */
     @GetMapping("/{caseId}/analysis")
     public ApiResponse<Object> getAnalysis(
@@ -188,7 +196,17 @@ public class CaseController {
             @RequestHeader(value = HeaderConstants.X_AGENT_ID, required = false) String actorAgentId,
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @PathVariable Long caseId,
+            @RequestParam(required = false) UUID runId,
             HttpServletRequest httpRequest) {
+        CaseAnalysisDto cached = caseAnalysisService.getCaseAnalysis(tenantId, caseId, runId);
+        if (cached.getScore() != null || (cached.getEvidence() != null && !cached.getEvidence().isEmpty()) || (cached.getProposals() != null && !cached.getProposals().isEmpty())) {
+            logTabAudit(tenantId, caseId, actorUserId, actorAgentId, AuditEventConstants.TYPE_VIEW_ANALYSIS, httpRequest);
+            return ApiResponse.success(cached);
+        }
+        if (Boolean.TRUE.equals(cached.getEmpty())) {
+            logTabAudit(tenantId, caseId, actorUserId, actorAgentId, AuditEventConstants.TYPE_VIEW_ANALYSIS, httpRequest);
+            return ApiResponse.success(cached);
+        }
         Object result = caseTabProxyService.getAnalysis(tenantId, caseId, authorization, actorUserId);
         logTabAudit(tenantId, caseId, actorUserId, actorAgentId, AuditEventConstants.TYPE_VIEW_ANALYSIS, httpRequest);
         return ApiResponse.success(result);
@@ -250,6 +268,26 @@ public class CaseController {
                 AuditEventConstants.OUTCOME_SUCCESS, AuditEventConstants.SEVERITY_INFO,
                 null, null, null, null, tags, AuditRequestContext.getIpAddress(httpRequest), AuditRequestContext.getUserAgent(httpRequest),
                 AuditRequestContext.getGatewayRequestId(httpRequest), AuditRequestContext.getTraceId(httpRequest), null);
+    }
+
+    /**
+     * GET /api/synapse/cases/{caseId}/audit-events
+     * 케이스 단위 감사 스트림 (감사 탭용). 최소 컬럼: auditId, createdAt, eventCategory, eventType, outcome, severity, actorType, actorDisplayName, resourceType, resourceId
+     */
+    @GetMapping("/{caseId}/audit-events")
+    public ApiResponse<AuditEventPageDto> getCaseAuditEvents(
+            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @PathVariable Long caseId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        caseQueryService.findCaseDetail(tenantId, caseId)
+                .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
+        var pageable = org.springframework.data.domain.PageRequest.of(page, size, org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt"));
+        var tr = DrillDownParamUtil.resolve(null, null, null);
+        AuditEventPageDto pageDto = auditEventQueryService.search(
+                tenantId, tr.from(), tr.to(), null, null, null, null,
+                null, null, null, null, caseId, null, null, null, null, pageable);
+        return ApiResponse.success(pageDto);
     }
 
     /**

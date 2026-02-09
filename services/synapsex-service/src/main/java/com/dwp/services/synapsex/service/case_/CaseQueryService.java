@@ -2,6 +2,7 @@ package com.dwp.services.synapsex.service.case_;
 
 import com.dwp.services.synapsex.dto.case_.CaseDetailDto;
 import com.dwp.services.synapsex.dto.case_.CaseListRowDto;
+import com.dwp.services.synapsex.dto.case_.DocumentLineItemDto;
 import com.dwp.services.synapsex.dto.case_.DocumentOrOpenItemDto;
 import com.dwp.services.synapsex.dto.case_.CaseTimelineDto;
 import com.dwp.services.synapsex.dto.common.PageInfo;
@@ -462,15 +463,20 @@ public class CaseQueryService {
                     tenantId, case_.getBukrs(), case_.getBelnr(), case_.getGjahr());
             if (headerOpt.isPresent()) {
                 var header = headerOpt.get();
-                var items = fiDocItemRepository.findByTenantIdAndBukrsAndBelnrAndGjahrOrderByBuzeiAsc(
+                List<FiDocItem> items = fiDocItemRepository.findByTenantIdAndBukrsAndBelnrAndGjahrOrderByBuzeiAsc(
                         tenantId, header.getBukrs(), header.getBelnr(), header.getGjahr());
                 BigDecimal docAmount = items.stream().map(FiDocItem::getWrbtr).filter(Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add);
+                String caseBuzei = case_.getBuzei();
+                List<DocumentLineItemDto> lineItems = items.stream()
+                        .map(i -> toDocumentLineItem(i, caseBuzei))
+                        .toList();
                 docOrOi = DocumentOrOpenItemDto.builder()
                         .type("DOCUMENT")
                         .docKey(docKey)
                         .headerSummary(Map.of("bukrs", header.getBukrs(), "belnr", header.getBelnr(), "gjahr", header.getGjahr(),
                                 "budat", header.getBudat() != null ? header.getBudat().toString() : "", "xblnr", header.getXblnr() != null ? header.getXblnr() : ""))
-                        .items(items.stream().map(i -> (Object) Map.of("buzei", i.getBuzei(), "lifnr", i.getLifnr() != null ? i.getLifnr() : "", "kunnr", i.getKunnr() != null ? i.getKunnr() : "", "wrbtr", i.getWrbtr() != null ? i.getWrbtr().toString() : "")).toList())
+                        .items(lineItems)
+                        .lineCount(lineItems.size())
                         .amount(docAmount.compareTo(BigDecimal.ZERO) > 0 ? docAmount : null)
                         .currency(header.getWaers())
                         .build();
@@ -484,6 +490,7 @@ public class CaseQueryService {
                             .docKey(docKey)
                             .headerSummary(Map.of("bukrs", oi.getBukrs(), "belnr", oi.getBelnr(), "gjahr", oi.getGjahr()))
                             .items(List.of())
+                            .lineCount(0)
                             .amount(oi.getOpenAmount())
                             .currency(oi.getCurrency())
                             .build();
@@ -522,6 +529,34 @@ public class CaseQueryService {
                 .relatedPartyIds(relatedPartyIds.stream().distinct().toList())
                 .amount(amountCurrency != null ? amountCurrency.amount() : null)
                 .currency(amountCurrency != null ? amountCurrency.currency() : null)
+                .build();
+    }
+
+    /** Phase A: fi_doc_item → DocumentLineItemDto (확장 필드 + isTarget) */
+    private DocumentLineItemDto toDocumentLineItem(FiDocItem i, String caseBuzei) {
+        boolean isTarget = caseBuzei != null && !caseBuzei.isBlank() && caseBuzei.equals(i.getBuzei());
+        return DocumentLineItemDto.builder()
+                .buzei(i.getBuzei())
+                .lifnr(i.getLifnr())
+                .kunnr(i.getKunnr())
+                .wrbtr(i.getWrbtr())
+                .hkont(i.getHkont())
+                .bschl(i.getBschl())
+                .shkzg(i.getShkzg())
+                .dmbtr(i.getDmbtr())
+                .waers(i.getWaers())
+                .mwskz(i.getMwskz())
+                .kostl(i.getKostl())
+                .prctr(i.getPrctr())
+                .aufnr(i.getAufnr())
+                .zterm(i.getZterm())
+                .zfbdt(i.getZfbdt())
+                .dueDate(i.getDueDate())
+                .paymentBlock(i.getPaymentBlock())
+                .disputeFlag(i.getDisputeFlag())
+                .zuonr(i.getZuonr())
+                .sgtxt(i.getSgtxt())
+                .isTarget(isTarget)
                 .build();
     }
 

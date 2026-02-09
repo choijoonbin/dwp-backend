@@ -104,6 +104,15 @@ public final class AuditEventConstants {
     public static final String TYPE_PROPOSE = "PROPOSE";
     public static final String TYPE_FAILED = "FAILED";
 
+    /** event_type - Case Analysis (Phase2) */
+    public static final String TYPE_ANALYSIS_RUN_STARTED = "ANALYSIS_RUN_STARTED";
+    public static final String TYPE_ANALYSIS_RUN_COMPLETED = "ANALYSIS_RUN_COMPLETED";
+    public static final String TYPE_ANALYSIS_RUN_FAILED = "ANALYSIS_RUN_FAILED";
+    public static final String TYPE_ACTION_PROPOSED = "ACTION_PROPOSED";
+    public static final String TYPE_ACTION_APPROVED = "ACTION_APPROVED";
+    public static final String TYPE_ACTION_REJECTED = "ACTION_REJECTED";
+    public static final String TYPE_ACTION_EXECUTED = "ACTION_EXECUTED";
+
     /** event_type - Run (Phase B) */
     public static final String TYPE_RUN_DETECT_STARTED = "RUN_DETECT_STARTED";
     public static final String TYPE_RUN_DETECT_COMPLETED = "RUN_DETECT_COMPLETED";

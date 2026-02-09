@@ -1,5 +1,6 @@
 package com.dwp.services.synapsex.scope;
 
+import com.dwp.services.synapsex.entity.AppCode;
 import com.dwp.services.synapsex.repository.AppCodeRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +21,7 @@ public class DrillDownCodeResolver {
 
     private final AppCodeRepository appCodeRepository;
 
+    public static final String GROUP_ACTION_TYPE = "ACTION_TYPE";
     public static final String GROUP_CASE_STATUS = "CASE_STATUS";
     public static final String GROUP_ACTION_STATUS = "ACTION_STATUS";
     public static final String GROUP_SEVERITY = "SEVERITY";
@@ -57,5 +59,15 @@ public class DrillDownCodeResolver {
     public boolean isValid(String groupKey, String value) {
         if (value == null || value.isBlank()) return false;
         return getValidCodes(groupKey).contains(value.toUpperCase());
+    }
+
+    /**
+     * groupKey+code에 해당하는 표시명(name) 반환. 없으면 code 그대로 반환.
+     */
+    public String getCodeName(String groupKey, String code) {
+        if (code == null || code.isBlank()) return null;
+        return appCodeRepository.findByGroupKeyAndCodeAndIsActiveTrue(groupKey, code.toUpperCase())
+                .map(AppCode::getName)
+                .orElse(code);
     }
 }

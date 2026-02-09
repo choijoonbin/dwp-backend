@@ -31,6 +31,12 @@ public class CaseCommandService {
     private final CaseCommentRepository caseCommentRepository;
     private final AuditWriter auditWriter;
 
+    /**
+     * 케이스 상태 변경. Phase A 감사 정책:
+     * - audit_event_log 1건: event_type=STATUS_CHANGE, resource_type=AGENT_CASE, resource_id=caseId
+     * - before_json/after_json/diff_json 모두 채움 (status 변경 포함)
+     * - outcome: SUCCESS/FAILURE, severity: INFO
+     */
     @Transactional
     public AgentCase updateCaseStatus(Long tenantId, Long caseId, String newStatus,
                                       Long actorUserId, String ipAddress, String userAgent, String gatewayRequestId) {

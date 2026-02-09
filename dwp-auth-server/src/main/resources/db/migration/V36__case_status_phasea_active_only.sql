@@ -1,0 +1,16 @@
+-- V36: PhaseA 케이스 상태 — 사용자 노출 대상만 active
+-- 목적: OPEN → IN_PROGRESS → RESOLVED | DISMISSED 표준 흐름. TRIAGED 등은 PhaseA에서 비노출.
+-- 참고: docs/api-spec/AUDIT_LOGS_Q_SEARCH_AND_CASE_STATUS_PHASEA.md
+
+-- PhaseA 노출: OPEN, IN_PROGRESS, RESOLVED, DISMISSED
+-- 비노출(is_active=false): TRIAGE, TRIAGED, PENDING, REVIEW, IN_REVIEW, PENDING_APPROVAL, APPROVED, REJECTED, EXECUTED, FAILED, COMPLETED, CLOSED, ARCHIVED
+
+UPDATE sys_codes SET is_active = false, updated_at = CURRENT_TIMESTAMP
+WHERE group_key = 'CASE_STATUS' AND code IN (
+    'TRIAGE', 'TRIAGED', 'PENDING', 'REVIEW', 'IN_REVIEW', 'PENDING_APPROVAL',
+    'APPROVED', 'REJECTED', 'EXECUTED', 'FAILED', 'COMPLETED', 'CLOSED', 'ARCHIVED'
+);
+
+-- PhaseA 노출 대상 확정
+UPDATE sys_codes SET is_active = true, updated_at = CURRENT_TIMESTAMP
+WHERE group_key = 'CASE_STATUS' AND code IN ('OPEN', 'IN_PROGRESS', 'RESOLVED', 'DISMISSED');

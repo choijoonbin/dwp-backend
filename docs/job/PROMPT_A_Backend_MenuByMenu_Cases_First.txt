@@ -1,0 +1,146 @@
+[A) Backend Prompt (Spring)] Menu-by-Menu Hardcoding Removal & E2E Enablement — START WITH /synapse/cases (Case Worklist → Case Detail → Tabs) 
+(프로젝트: SynapseX / DWP Backend, Tenant 강제 + Audit-Ready + HITL 우선)
+
+파일 경로/생성 파일명:
+- (수행 후 산출) docs/prompts/PHASE_Cases_Backend_MenuHardening_P0-P2.md
+- (코드 변경) 실제 소스 경로 기준(백엔드 zip 기준) — 변경 파일 목록을 PR에 포함
+
+목표:
+- work.txt에 적힌 E2E 순서대로 “배치→케이스 생성→케이스 정리함→케이스 상세→탭(AI분석/스트림/신뢰도/유사케이스/RAG)→시뮬레이션→연관 미결재 항목 링크→데이터 계보”가 모두 ‘실데이터’로 동작하도록 BE API를 점검/보완한다. fileciteturn28file0
+- FE 하드코딩 제거가 가능하도록 “필요 데이터/필터/조인키/페이지네이션/정렬/에러계약”을 OpenAPI 기준으로 확정한다.
+
+0) 결론/결정안(1~3줄)
+- 1차는 “Case Worklist/Detail 데이터 계약 확정 + 탭별 최소 API”를 만들고, 하드코딩을 제거한다.
+- Tenant Scope(X-Tenant-ID) + Audit_event_log 기록(조회/상세/탭조회/링크이동을 트리거하는 API)까지 포함한다.
+- 불확실한 AI 고도화(LLM RAG 성능/모델) 자체는 2차(Agentic 강화)로 두고, 1차는 “데이터 파이프+계약”을 완성한다.
+
+Assumptions(1줄): detect 배치가 agent_case(또는 동등 테이블)에 케이스 row를 생성하며 FE는 /synapse/cases, /synapse/cases/{id}로 조회한다.
+Open Questions(1줄): 현재 Case Detail 탭들의 데이터 소스(테이블/뷰)와 aura_event 스키마(스트림 payload)가 최신 소스에서 확정인지.
+Default(1줄): 1차에서는 각 탭 API는 “read-only 최소 스키마”로 제공하고, 계산/추천은 P1/P2로 분리.
+
+1) 구현 범위(In/Out)
+IN (P0)
+- Case Worklist API: 필터(status, severity, date range, search), paging/sort, summary(counts)
+- Case Detail API: 기본 메타 + 핵심 식별자(bukrs/belnr/gjahr/buzei/sourceType/dedup_key) + evidence_json
+- “관련 미결재항목” 링크가 ‘관련 필터’로 Open Items 조회되도록: /open-items?caseId= 또는 key-based filter 지원
+- “데이터 계보보기(Lineage)” 페이지가 케이스 키 기반으로 조회되도록: /lineage?caseId= 또는 (bukrs/belnr/gjahr)
+- Audit: VIEW_LIST/VIEW_DETAIL + 각 탭 조회도 최소 기록
+
+IN (P1)
+- Case Detail 탭 API 5종: 
+  1) AI 분석(analysis summary) — 초기엔 placeholder(규칙 기반 요약)라도 실데이터 구성
+  2) 에이전트 스트림 metadata (SSE는 aura, BE는 stream session 메타/lastEventId 저장)
+  3) 신뢰도(score breakdown) — score 구성요소 반환
+  4) 유사케이스(similar cases) — 최소: same vendor/amount range/time range 기반
+  5) RAG evidence list — 초기엔 DB evidence_json을 list 형태로 정규화해 반환
+
+IN (P2)
+- 시뮬레이션 모드: “write” 없이 what-if 계산 API(POST /cases/{id}/simulation) + audit 기록
+- 상태 전이/승인(HITL) API: approve/reject/execute 연계(존재 시)
+
+OUT (이번 라운드)
+- LLM 기반 자동분석/자동조치 실행(무승인) / 실시간 SAP JCo 연동(배치 우선) fileciteturn28file0
+
+2) API 스펙(초안, OpenAPI 스니펫 + 예시)
+※ 실제 소스의 기존 엔드포인트가 다르면 “기존 유지” 우선. 아래는 최소 계약 템플릿.
+
+2-1) Case Worklist
+GET /api/synapse/cases
+Headers: X-Tenant-ID, Authorization, X-User-ID, Accept-Language
+Query:
+- q, status[], severity[], dateFrom, dateTo, page, size, sort=createdAt,desc
+
+200 Response (data):
+{
+  "items":[
+    {
+      "caseId":"CS-85114",
+      "status":"NEW",
+      "severity":"MEDIUM",
+      "score":60,
+      "title":"...",
+      "detectedAt":"2026-02-06T...",
+      "sourceType":"WINDOW_DOC_ENTRY",
+      "bukrs":"1000","belnr":"1900000005","gjahr":"2024","buzei":null,
+      "dedupKey":"1:DOC_WINDOW:..."
+    }
+  ],
+  "page":{"page":0,"size":20,"totalElements":123,"totalPages":7},
+  "summary":{"total":123,"open":55,"triage":10,"inReview":5}
+}
+
+2-2) Case Detail
+GET /api/synapse/cases/{caseId}
+200:
+{
+  "caseId":"CS-85114",
+  "status":"NEW",
+  "severity":"MEDIUM",
+  "score":60,
+  "reasonText":"Detected in document window...",
+  "detectedAt":"...",
+  "keys":{"sourceType":"WINDOW_DOC_ENTRY","bukrs":"1000","belnr":"...","gjahr":"2024","buzei":null},
+  "evidence":{...}, 
+  "links":{"openItems":"/api/synapse/open-items?caseId=CS-85114","lineage":"/api/synapse/lineage?caseId=CS-85114"}
+}
+
+2-3) Case Tabs (P1 minimal)
+GET /api/synapse/cases/{caseId}/analysis
+GET /api/synapse/cases/{caseId}/confidence
+GET /api/synapse/cases/{caseId}/similar
+GET /api/synapse/cases/{caseId}/rag/evidence
+
+2-4) Simulation (P2)
+POST /api/synapse/cases/{caseId}/simulation
+Body: { "whatIf": { ... } }
+200: { "result":..., "explain":... }
+
+3) DB 매핑(테이블/컬럼/조인키 + 인덱스/제약)
+- agent_case (또는 동일): case_id(PK), tenant_id, status, severity, score, source_type, bukrs, belnr, gjahr, buzei, dedup_key(UNIQUE), detected_at, updated_at, evidence_json, last_detect_run_id
+- open_items: (tenant_id, bukrs, belnr, gjahr, buzei?) 또는 case_id FK(있다면)
+  - 없다면: Case keys로 open_items를 조회하도록 인덱스 필요: (tenant_id,bukrs,belnr,gjahr)
+- lineage tables: fi_doc_header/fi_doc_item 등의 키 기준 조회
+- audit_event_log: VIEW_LIST/VIEW_DETAIL 등
+
+인덱스(필수):
+- agent_case: (tenant_id, detected_at desc), (tenant_id, status), (tenant_id, severity), UNIQUE(tenant_id, dedup_key)
+- open_items: (tenant_id, bukrs, belnr, gjahr)
+
+4) 백엔드 작업(컨트롤러/서비스/리포지토리/검증/페이징/정렬/권한/테넌트)
+P0-1) Tenant 강제
+- 모든 repo 쿼리에 tenant_id 조건 포함 (X-Tenant-ID)
+
+P0-2) Case list/detail 계약 확정
+- list: paging/sort, filters 반영
+- detail: keys/evidence 포함
+
+P0-3) “관련 미결재 항목” 지원
+- /open-items?caseId= 지원 또는 keys 기반 필터 강제
+- FE 링크는 “관련 항목”을 반드시 가져오게 함
+
+P0-4) Lineage(데이터 계보) 실데이터 조회
+- /lineage?caseId= 또는 keys 기반으로 헤더/아이템/증빙 흐름 반환
+- 페이징/정렬 포함
+
+P0-5) Audit 기록
+- cases LIST/DETAIL, open-items filtered LIST, lineage 조회에 audit_event_log 남김
+- 표준 에러 계약(400/401/403/404/409/500) 유지
+
+P1) 탭 API 최소 구현
+- analysis/confidence/similar/rag-evidence: 하드코딩 금지, DB 기반 또는 규칙 기반 계산이라도 “실데이터 입력”으로 생성
+
+5) 스모크 플로우(클릭 경로 → API → 기대 audit_event_log)
+- /synapse/cases 진입 → GET /cases → audit CASE_VIEW_LIST
+- 케이스 클릭 → GET /cases/{id} → audit CASE_VIEW_DETAIL
+- “관련 미결재항목” 클릭 → GET /open-items?caseId=... → audit OPENITEM_VIEW_LIST(related=true)
+- “데이터 계보보기” 클릭 → GET /lineage?caseId=... → audit LINEAGE_VIEW
+
+6) 체크리스트(완료 기준/엣지케이스)
+- [ ] 케이스 5건 seed로 배치 2회 실행해도 중복 생성 없음(dedup_key) 
+- [ ] list/detail에서 하드코딩 필드 0개 (title/status/severity/score 포함)
+- [ ] open-items/lineage는 “관련 필터”가 적용됨(전체 조회 금지) fileciteturn28file0
+- [ ] 모든 API가 X-Tenant-ID 스코프 강제 + audit 기록
+- [ ] paging/sort/index 포함
+
+테스트 방법
+- curl로 list/detail/open-items(lineage) 호출 후 audit_event_log 쿼리로 적재 확인

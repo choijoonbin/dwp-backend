@@ -5,7 +5,6 @@ import com.dwp.services.synapsex.entity.AuditEventLog;
 import com.dwp.services.synapsex.repository.AuditEventLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,7 +15,7 @@ import java.util.Map;
 
 /**
  * Synapse 감사 로그 기록. SoT: dwp_aura.audit_event_log
- * self 참조: logCaseStatusChange 등에서 log() 호출 시 @Transactional(REQUIRES_NEW) 적용을 위해 프록시 경유 필요.
+ * REQUIRES_NEW 적용은 AuditWriteExecutor에 위임 (순환 참조 회피).
  */
 @Slf4j
 @Component
@@ -24,11 +23,8 @@ import java.util.Map;
 public class AuditWriter {
 
     private final AuditEventLogRepository auditEventLogRepository;
+    private final AuditWriteExecutor auditWriteExecutor;
 
-    @Lazy
-    private final AuditWriter self;
-
-    @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = false)
     public void log(Long tenantId,
                     String eventCategory,
                     String eventType,
@@ -51,36 +47,10 @@ public class AuditWriter {
                     String gatewayRequestId,
                     String traceId,
                     String spanId) {
-        try {
-            AuditEventLog e = AuditEventLog.builder()
-                    .tenantId(tenantId)
-                    .eventCategory(eventCategory != null ? eventCategory : AuditEventConstants.CATEGORY_ADMIN)
-                    .eventType(eventType != null ? eventType : AuditEventConstants.TYPE_UPDATE)
-                    .resourceType(resourceType)
-                    .resourceId(resourceId)
-                    .createdAt(Instant.now())
-                    .actorType(actorType != null ? actorType : AuditEventConstants.ACTOR_HUMAN)
-                    .actorUserId(actorUserId)
-                    .actorAgentId(actorAgentId)
-                    .actorDisplayName(actorDisplayName)
-                    .channel(channel != null ? channel : AuditEventConstants.CHANNEL_API)
-                    .outcome(outcome != null ? outcome : AuditEventConstants.OUTCOME_SUCCESS)
-                    .severity(severity != null ? severity : AuditEventConstants.SEVERITY_INFO)
-                    .beforeJson(beforeJson)
-                    .afterJson(afterJson)
-                    .diffJson(diffJson)
-                    .evidenceJson(evidenceJson)
-                    .tags(tags)
-                    .ipAddress(ipAddress)
-                    .userAgent(userAgent)
-                    .gatewayRequestId(gatewayRequestId)
-                    .traceId(traceId)
-                    .spanId(spanId)
-                    .build();
-            auditEventLogRepository.save(e);
-        } catch (Exception ex) {
-            log.warn("Audit log write failed: {}", ex.getMessage());
-        }
+        auditWriteExecutor.writeEvent(tenantId, eventCategory, eventType, resourceType, resourceId,
+                actorType, actorUserId, actorAgentId, actorDisplayName, channel, outcome, severity,
+                beforeJson, afterJson, diffJson, evidenceJson, tags,
+                ipAddress, userAgent, gatewayRequestId, traceId, spanId);
     }
 
     /** Admin 정책 변경 기록 (간편) */
@@ -244,7 +214,12 @@ public class AuditWriter {
                 null);
     }
 
-    /** Case 상태 변경 기록 (event_category=CASE, event_type=STATUS_CHANGE) */
+    /**
+     * Case 상태 변경 기록. Phase A 감사 정책 고정:
+     * - event_category=CASE, event_type=STATUS_CHANGE, resource_type=AGENT_CASE, resource_id=caseId
+     * - before_json/after_json/diff_json 모두 채움 (status 필드)
+     * - outcome=SUCCESS, severity=INFO
+     */
     public void logCaseStatusChange(Long tenantId, Long caseId, String oldStatus, String newStatus,
                                     Long actorUserId, String ipAddress, String userAgent, String gatewayRequestId) {
         Map<String, Object> beforeJson = new HashMap<>();
@@ -256,7 +231,7 @@ public class AuditWriter {
         Map<String, Object> tags = new HashMap<>();
         tags.put("module", "CASE");
         tags.put("caseId", caseId);
-        self.log(tenantId,
+        log(tenantId,
                 AuditEventConstants.CATEGORY_CASE,
                 AuditEventConstants.TYPE_STATUS_CHANGE,
                 "AGENT_CASE",

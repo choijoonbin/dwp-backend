@@ -1,0 +1,100 @@
+# BE 질문 답변 정리 (Phase2 DB/스키마/스펙 정합성) — 결론/결정안
+
+대상: BE가 back.txt(권장 스펙)와 현재 구현(case_analysis_run/result/proposal)을 비교하면서 던진 4개 질문에 대한 “결정”과 “권장 조치”를 확정합니다.
+
+---
+
+## 0) 총평 (현재 구현 정합성)
+- 핵심 구조(run/result/proposal)와 **UNIQUE(case_id, run_id, dedup_key)** 적용은 back.txt 권장안과 **동일 방향**이며, Phase2 요구사항을 충족합니다.
+- 네이밍/일부 컬럼(엔진/버전/트리거소스/stream_url)은 “Phase2 선택사항”으로 생략 가능하지만, **API 응답 스키마(202 + runId + streamUrl + engine/policyVersion/modelVersion)**를 안정적으로 운영하려면 최소한 “응답에 넣을 수 있는 수준”의 저장/전달 방식을 정해야 합니다.
+
+---
+
+## 1) Q1. rationale normalize: lower 적용 필요?
+### 결론(권장): **YES, 적용합니다.**
+- 이유: dedup_key 목적이 “동일 의미 제안 중복 방지”인데, rationale 대소문자만 달라도 중복으로 취급되면 운영/테스트에서 불필요한 누적이 발생할 수 있습니다.
+- 적용 범위: `ProposalDedupKeyUtil.normalizeRationale()`에서
+  - `trim()` + `\s+ -> ' '` + **`toLowerCase(Locale.ROOT)`** 를 적용
+- 주의: i18n(한글 등)에도 문제 없고, 영어/혼합 텍스트에서 안정적입니다.
+
+**DoD**
+- 같은 caseId/runId/type/payload에서 rationale이 “대문자/소문자만 다른 경우”에도 dedup가 동작(UNIQUE 충돌로 1건 유지).
+
+---
+
+## 2) Q2. engine / policy_version / model_version / trigger_source 컬럼 추가 필요?
+### 결론(권장): **Phase2에서 “선택”이지만, API 스펙 안정화를 위해 최소 2개는 권장**
+- Phase2 목표가 “FE/BE/AURA 계약 고정”이므로, 다음 전략 중 하나를 택합니다.
+
+### 옵션 A (권장/현실적): **DB 컬럼은 최소 추가 + API 응답에 포함**
+- `case_analysis_run`에 nullable 컬럼 추가:
+  - `engine` (LOCAL|AURA)
+  - `policy_version` (varchar)
+  - `model_version` (varchar)
+  - `trigger_source` (UI|BATCH|API)
+- 장점: runId 단위 재현성/감사/디버그가 훨씬 쉬움(“이 run은 어떤 엔진/정책/모델로 돌았나?”)
+- 비용: 마이그레이션 1회 + DTO/매핑 추가(경량)
+
+### 옵션 B (최소 변경): **DB 컬럼 추가 없이 run.mode + config로 응답 구성**
+- 현재 `mode(LIVE|SIMULATION)`만으로 engine/policy/model/trigger를 추론/고정값으로 채워서 API 응답에만 포함
+- 장점: 스키마 변경 최소
+- 단점: run별 재현성/감사성 떨어짐(나중에 2중 작업 가능)
+
+**이번 라운드 권장 결론**
+- 최소 `engine` + `trigger_source`는 추가 권장(P3)
+- `policy_version`/`model_version`은 “정책/모델 버전 관리”를 실제로 돌리기 시작할 때 추가(P3~P4).  
+  (지금은 기본값으로 응답에만 포함해도 됨)
+
+---
+
+## 3) Q3. stream_url 저장 필요?
+### 결론(권장): **DB 저장은 선택, “응답 스펙은 필수”**
+- Phase2 핵심 계약은 `POST analysis-runs` → **202 + runId + streamUrl** 입니다.
+- streamUrl은 규칙적으로 생성 가능하므로 DB에 꼭 저장할 필요는 없습니다.
+
+### 권장 방식
+- **응답에는 반드시 streamUrl 포함**
+- DB 저장은 아래 중 하나:
+  - (권장) **미저장**: streamUrl은 `runId`로 deterministic 생성(예: `/api/synapse/analysis-runs/{runId}/stream`)
+  - (선택) 저장: 운영에서 stream endpoint가 BE/Aura 혼합될 때 “run별 streamUrl 소스” 추적이 필요하면 추가
+
+**이번 라운드 결론**
+- 지금 단계에서는 **미저장 OK** (P3)
+- 단, AURA 연동 후 streamUrl이 `/api/synapse/...` 또는 `/api/aura/...`로 바뀔 수 있으면
+  - FE는 “응답 streamUrl을 그대로 사용”해야 하며, BE는 run 생성 시점에 streamUrl을 계산해 내려줘야 합니다.
+
+---
+
+## 4) Q4. analysis_result에 case_id denormalize 넣을지?
+### 결론(권장): **지금은 NO (불필요), 추후 성능/쿼리 요구가 생기면 YES**
+- 현재는 `run_id → case_id` 연결이 가능하고, 조회도 runId 기반으로 이루어져 Phase2 요구에 충분합니다.
+- case_id를 결과 테이블에 넣는 건 “조회 단순화”에는 좋지만, 무결성/중복 저장 비용이 있습니다.
+
+**권장**
+- Phase2: run_id 기준으로만 유지
+- Phase3+: “케이스별 최신 분석 결과 리스트” 같은 화면/쿼리가 자주 필요하면 denormalize 고려
+
+---
+
+## 5) 추가 권장 조치(확인하면 좋은 것)
+1) **INDEX 최적화**
+- 최신 run 조회가 잦으면 `INDEX(tenant_id, case_id, started_at desc)` 또는 `(tenant_id, case_id, started_at)` 추가 고려
+- 지금의 `ix_case_analysis_run_tenant_case(tenant_id, case_id)`는 기본은 충분하나, 정렬/limit이 많아지면 started_at 포함이 유리
+
+2) **proposal 상태 enum 정리**
+- back.txt 권장: PROPOSED/ACCEPTED/REJECTED/EXPIRED/SUPERSEDED
+- 현재: PROPOSED/APPROVED/REJECTED/EXECUTED/FAILED (+DRAFT)
+- Phase2에서는 동작 가능하나, “승인(Approve)”과 “수락(Accept)” 용어를 FE/BE/Aura 공통으로 맞추는 작업을 Phase3에서 정리 권장
+
+3) **FK(agent_case) 미설정**
+- tenant_id 스코프가 강하면 당장 큰 문제는 없지만, 데이터 무결성 강화 목적이면 P3~P4에서 FK 검토
+
+---
+
+## 6) BE에 전달할 ‘결정’ 요약(짧게)
+- Q1: rationale normalize에 **toLowerCase 적용 (YES)**
+- Q2: engine/triggerSource는 **추가 권장**, policy/model은 **응답 기본값으로 시작 후 필요 시 컬럼 추가**
+- Q3: stream_url은 **응답 필수 / DB 저장 선택(현재는 미저장 OK)**
+- Q4: analysis_result.case_id denormalize는 **Phase2는 NO**
+
+끝.

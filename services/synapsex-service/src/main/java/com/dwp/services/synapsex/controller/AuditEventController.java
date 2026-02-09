@@ -22,22 +22,25 @@ import java.util.Map;
 /**
  * Synapse Audit - 감사 이벤트 조회 API.
  * Gateway: /api/synapse/audit/** → /synapse/audit/**
+ * Path: /events 또는 /logs (동일)
  */
 @RestController
-@RequestMapping("/synapse/audit/events")
+@RequestMapping("/synapse/audit")
 @RequiredArgsConstructor
 public class AuditEventController {
 
     private final AuditEventQueryService queryService;
     private final AuditWriter auditWriter;
 
-    @GetMapping
+    @GetMapping(value = {"", "/events", "/logs"})
     public ApiResponse<AuditEventPageDto> search(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
             @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long currentUserId,
             @RequestHeader(value = HeaderConstants.X_AGENT_ID, required = false) String actorAgentId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
+            @RequestParam(value = "dateFrom", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant dateFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
+            @RequestParam(value = "dateTo", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant dateTo,
             @RequestParam(required = false) String range,
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String eventCategory,
@@ -49,6 +52,7 @@ public class AuditEventController {
             @RequestParam(required = false) String actorType,
             @RequestParam(required = false) String resourceType,
             @RequestParam(required = false) String resourceId,
+            @RequestParam(required = false) Long caseId,
             @RequestParam(required = false) Long runId,
             @RequestParam(required = false) String traceId,
             @RequestParam(required = false) String gatewayRequestId,
@@ -57,13 +61,15 @@ public class AuditEventController {
             HttpServletRequest httpRequest) {
         var cat = category != null && !category.isBlank() ? category : eventCategory;
         var typ = type != null && !type.isBlank() ? type : eventType;
-        com.dwp.services.synapsex.util.DrillDownParamUtil.validateRangeExclusive(range, from, to);
-        var tr = com.dwp.services.synapsex.util.DrillDownParamUtil.resolve(range, from, to);
+        Instant fromEffective = from != null ? from : dateFrom;
+        Instant toEffective = to != null ? to : dateTo;
+        com.dwp.services.synapsex.util.DrillDownParamUtil.validateRangeExclusive(range, fromEffective, toEffective);
+        var tr = com.dwp.services.synapsex.util.DrillDownParamUtil.resolve(range, fromEffective, toEffective);
         Instant fromResolved = tr.from();
         Instant toResolved = tr.to();
         AuditEventPageDto page = queryService.search(
                 tenantId, fromResolved, toResolved, cat, typ, outcome, severity,
-                filterActorUserId, actorType, resourceType, resourceId, runId, traceId, gatewayRequestId, q, pageable);
+                filterActorUserId, actorType, resourceType, resourceId, caseId, runId, traceId, gatewayRequestId, q, pageable);
         Map<String, Object> filters = new HashMap<>();
         if (cat != null && !cat.isBlank()) filters.put("category", cat);
         if (typ != null && !typ.isBlank()) filters.put("type", typ);
@@ -82,7 +88,7 @@ public class AuditEventController {
         return ApiResponse.success(page);
     }
 
-    @GetMapping("/{auditId}")
+    @GetMapping("/events/{auditId}")
     public ApiResponse<AuditEventDetailDto> getById(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
             @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,

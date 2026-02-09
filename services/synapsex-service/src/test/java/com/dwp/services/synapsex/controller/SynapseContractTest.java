@@ -77,6 +77,10 @@ class SynapseContractTest {
     private ScopeEnforcementService scopeEnforcementService;
     @MockBean
     private CaseTabProxyService caseTabProxyService;
+    @MockBean
+    private com.dwp.services.synapsex.service.analysis.CaseAnalysisService caseAnalysisService;
+    @MockBean
+    private com.dwp.services.synapsex.service.audit.AuditEventQueryService auditEventQueryService;
 
     private static final Long TENANT_ID = 1L;
 
@@ -84,6 +88,8 @@ class SynapseContractTest {
     void setUp() {
         when(scopeEnforcementService.resolveCompanyFilter(any(), any(), any()))
                 .thenReturn(List.of());
+        when(caseAnalysisService.getCaseAnalysis(any(), any(), any()))
+                .thenReturn(com.dwp.services.synapsex.dto.analysis.CaseAnalysisDto.builder().build());
     }
 
     @Nested

@@ -80,6 +80,19 @@ spring:
             - Path=/api/synapse/cases/**
           filters:
             - StripPrefix=1
+        # Phase2: 분석 실행 (analysis-runs, internal/aura 콜백)
+        - id: synapsex-analysis-runs
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/analysis-runs/**
+          filters:
+            - StripPrefix=1
+        - id: synapsex-internal
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/internal/**
+          filters:
+            - StripPrefix=1
         - id: synapsex-dashboard
           uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
           predicates:

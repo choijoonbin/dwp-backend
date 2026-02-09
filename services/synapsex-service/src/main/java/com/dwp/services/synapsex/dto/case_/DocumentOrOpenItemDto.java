@@ -20,7 +20,10 @@ public class DocumentOrOpenItemDto {
     private String type;  // DOCUMENT | OPEN_ITEM
     private String docKey;
     private Object headerSummary;
-    private List<Object> items;
+    /** Phase A: DocumentLineItemDto 확장 (금액 외 hkont, bschl, sgtxt 등) */
+    private List<DocumentLineItemDto> items;
+    /** 라인 수 (프론트 "라인 항목(n)" 표기용) */
+    private Integer lineCount;
     /** P0-3: 금액 (fi_doc_item wrbtr 합계 또는 fi_open_item open_amount) */
     private java.math.BigDecimal amount;
     /** P0-3: 통화 */
