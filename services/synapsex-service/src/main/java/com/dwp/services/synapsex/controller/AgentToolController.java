@@ -125,15 +125,27 @@ public class AgentToolController {
     }
 
     /**
-     * GET /agent-tools/lineage?caseId=...
+     * GET /agent-tools/lineage?caseId=... | ?docKey=... | ?bukrs=&belnr=&gjahr=
      * raw→ingestion→scoring→case→action
+     * 최소 1개 필요: caseId, docKey(bukrs-belnr-gjahr), 또는 bukrs+belnr+gjahr 조합.
      */
     @GetMapping("/lineage")
     public ApiResponse<LineageResponseDto> getLineage(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
-            @RequestParam Long caseId,
+            @RequestParam(required = false) Long caseId,
+            @RequestParam(required = false) String docKey,
+            @RequestParam(required = false) String bukrs,
+            @RequestParam(required = false) String belnr,
+            @RequestParam(required = false) String gjahr,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant asOf) {
-        LineageResponseDto result = agentToolQueryService.getLineage(tenantId, caseId, asOf);
+        if (caseId == null && (docKey == null || docKey.isBlank())
+                && (bukrs == null || bukrs.isBlank() || belnr == null || belnr.isBlank() || gjahr == null || gjahr.isBlank())) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
+                    "caseId, docKey(bukrs-belnr-gjahr), 또는 bukrs+belnr+gjahr 조합이 필요합니다. " +
+                            "Field 메타데이터 문자열을 전달하지 마세요.");
+        }
+        LineageResponseDto result = agentToolQueryService.getLineage(
+                tenantId, caseId, docKey, bukrs, belnr, gjahr, asOf);
         return ApiResponse.success(result);
     }
 

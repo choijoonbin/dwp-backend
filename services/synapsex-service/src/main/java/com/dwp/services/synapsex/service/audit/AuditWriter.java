@@ -5,6 +5,7 @@ import com.dwp.services.synapsex.entity.AuditEventLog;
 import com.dwp.services.synapsex.repository.AuditEventLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +16,7 @@ import java.util.Map;
 
 /**
  * Synapse 감사 로그 기록. SoT: dwp_aura.audit_event_log
+ * self 참조: logCaseStatusChange 등에서 log() 호출 시 @Transactional(REQUIRES_NEW) 적용을 위해 프록시 경유 필요.
  */
 @Slf4j
 @Component
@@ -22,6 +24,9 @@ import java.util.Map;
 public class AuditWriter {
 
     private final AuditEventLogRepository auditEventLogRepository;
+
+    @Lazy
+    private final AuditWriter self;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = false)
     public void log(Long tenantId,
@@ -242,12 +247,16 @@ public class AuditWriter {
     /** Case 상태 변경 기록 (event_category=CASE, event_type=STATUS_CHANGE) */
     public void logCaseStatusChange(Long tenantId, Long caseId, String oldStatus, String newStatus,
                                     Long actorUserId, String ipAddress, String userAgent, String gatewayRequestId) {
+        Map<String, Object> beforeJson = new HashMap<>();
+        beforeJson.put("status", oldStatus != null ? oldStatus : "");
+        Map<String, Object> afterJson = new HashMap<>();
+        afterJson.put("status", newStatus != null ? newStatus : "");
         Map<String, Object> diff = new HashMap<>();
         diff.put("status", Map.of("before", oldStatus != null ? oldStatus : "null", "after", newStatus != null ? newStatus : "null"));
         Map<String, Object> tags = new HashMap<>();
         tags.put("module", "CASE");
         tags.put("caseId", caseId);
-        log(tenantId,
+        self.log(tenantId,
                 AuditEventConstants.CATEGORY_CASE,
                 AuditEventConstants.TYPE_STATUS_CHANGE,
                 "AGENT_CASE",
@@ -259,8 +268,8 @@ public class AuditWriter {
                 AuditEventConstants.CHANNEL_API,
                 AuditEventConstants.OUTCOME_SUCCESS,
                 AuditEventConstants.SEVERITY_INFO,
-                Map.of("status", oldStatus != null ? oldStatus : ""),
-                Map.of("status", newStatus != null ? newStatus : ""),
+                beforeJson,
+                afterJson,
                 diff,
                 null,
                 tags,

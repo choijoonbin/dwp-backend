@@ -10,6 +10,8 @@ import com.dwp.services.synapsex.dto.entity.EntityListRowDto;
 import com.dwp.services.synapsex.dto.lineage.LineageResponseDto;
 import com.dwp.services.synapsex.dto.openitem.OpenItemDetailDto;
 import com.dwp.services.synapsex.dto.openitem.OpenItemListRowDto;
+import com.dwp.services.synapsex.service.audit.AuditWriter;
+import com.dwp.services.synapsex.service.case_.CaseQueryService;
 import com.dwp.services.synapsex.service.document.DocumentQueryService;
 import com.dwp.services.synapsex.service.entity.EntityQueryService;
 import com.dwp.services.synapsex.service.lineage.LineageQueryService;
@@ -21,6 +23,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
@@ -47,6 +50,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         LineageController.class
 })
 @Import(GlobalExceptionHandler.class)
+@ActiveProfiles("test")
 class Phase1ReadApiIntegrationTest {
 
     @Autowired
@@ -63,6 +67,12 @@ class Phase1ReadApiIntegrationTest {
 
     @MockBean
     private LineageQueryService lineageQueryService;
+
+    @MockBean
+    private AuditWriter auditWriter;
+
+    @MockBean
+    private CaseQueryService caseQueryService;
 
     private static final Long TENANT_ID = 1L;
 
@@ -90,7 +100,7 @@ class Phase1ReadApiIntegrationTest {
                     .andExpect(jsonPath("$.data.items").isArray())
                     .andExpect(jsonPath("$.data.items[0].links.docKey").value("1000-1900000001-2024"))
                     .andExpect(jsonPath("$.data.total").value(1))
-                    .andExpect(jsonPath("$.data.pageInfo.page").value(0))
+                    .andExpect(jsonPath("$.data.pageInfo.page").value(1))  // 1-based (PageResponse convention)
                     .andExpect(jsonPath("$.data.pageInfo.size").value(20))
                     .andExpect(jsonPath("$.data.pageInfo.hasNext").value(false));
 
@@ -143,6 +153,7 @@ class Phase1ReadApiIntegrationTest {
                     .gjahr("2024")
                     .buzei("001")
                     .openItemKey("1000-1900000001-2024-001")
+                    .docKey("1000-1900000001-2024")
                     .amount(BigDecimal.TEN)
                     .build();
             var pageResponse = PageResponse.of(List.of(row), 1L, 0, 20);
@@ -152,7 +163,7 @@ class Phase1ReadApiIntegrationTest {
             mockMvc.perform(get("/synapse/open-items")
                             .header("X-Tenant-ID", TENANT_ID.toString()))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.data.items[0].docLinkKey").value("1000-1900000001-2024"))
+                    .andExpect(jsonPath("$.data.items[0].docKey").value("1000-1900000001-2024"))
                     .andExpect(jsonPath("$.data.pageInfo").exists());
 
             verify(openItemQueryService).findOpenItems(eq(TENANT_ID), any());

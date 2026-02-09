@@ -26,6 +26,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
@@ -50,6 +51,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         ArchiveController.class
 })
 @Import(GlobalExceptionHandler.class)
+@ActiveProfiles("test")  // SynapseAdminGuardFilter 비활성화 (FeignClientFactory 의존 회피)
 class SynapseContractTest {
 
     @Autowired
@@ -131,10 +133,12 @@ class SynapseContractTest {
         }
 
         @Test
-        @DisplayName("GET /synapse/cases/{id}/analysis - 200, 최소 빈 구조")
+        @DisplayName("GET /synapse/cases/{id}/analysis - 200, 최소 빈 구조 (DEMO OFF)")
         void getAnalysis_returns200() throws Exception {
-            when(caseTabProxyService.getAnalysis(eq(TENANT_ID), eq(1L), any(), any()))
-                    .thenReturn(java.util.Map.of("summary", (Object) null, "sections", List.of()));
+            var empty = new java.util.HashMap<String, Object>();
+            empty.put("summary", null);
+            empty.put("sections", List.of());
+            when(caseTabProxyService.getAnalysis(eq(TENANT_ID), eq(1L), any(), any())).thenReturn(empty);
 
             mockMvc.perform(get("/synapse/cases/1/analysis").header("X-Tenant-ID", TENANT_ID.toString()))
                     .andExpect(status().isOk())
@@ -143,10 +147,12 @@ class SynapseContractTest {
         }
 
         @Test
-        @DisplayName("GET /synapse/cases/{id}/confidence - 200, factors 배열")
+        @DisplayName("GET /synapse/cases/{id}/confidence - 200, factors 배열 (DEMO OFF)")
         void getConfidence_returns200() throws Exception {
-            when(caseTabProxyService.getConfidence(eq(TENANT_ID), eq(1L), any(), any()))
-                    .thenReturn(java.util.Map.of("score", (Object) null, "factors", List.of()));
+            var empty = new java.util.HashMap<String, Object>();
+            empty.put("score", null);
+            empty.put("factors", List.of());
+            when(caseTabProxyService.getConfidence(eq(TENANT_ID), eq(1L), any(), any())).thenReturn(empty);
 
             mockMvc.perform(get("/synapse/cases/1/confidence").header("X-Tenant-ID", TENANT_ID.toString()))
                     .andExpect(status().isOk())

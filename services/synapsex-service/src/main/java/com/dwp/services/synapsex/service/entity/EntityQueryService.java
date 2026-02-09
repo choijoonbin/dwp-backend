@@ -229,6 +229,12 @@ public class EntityQueryService {
                 .map(party -> buildEntity360(tenantId, party));
     }
 
+    @Transactional(readOnly = true)
+    public Optional<Entity360Dto> findEntity360ByPartyCode(Long tenantId, String partyCode) {
+        return bpPartyRepository.findFirstByTenantIdAndPartyCode(tenantId, partyCode)
+                .map(party -> buildEntity360(tenantId, party));
+    }
+
     private Entity360Dto buildEntity360(Long tenantId, BpParty party) {
         List<FiOpenItem> openItems = getOpenItemsForParty(tenantId, party);
         BigDecimal totalOpen = openItems.stream()

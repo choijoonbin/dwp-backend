@@ -1,6 +1,7 @@
 package com.dwp.services.synapsex.controller;
 
 import com.dwp.services.synapsex.dto.admin.*;
+import com.dwp.services.synapsex.service.admin.ProfileScopeService;
 import com.dwp.services.synapsex.service.admin.TenantScopeService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
@@ -9,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
@@ -23,6 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * SynapseTenantScopeAdminController 테스트
  */
 @WebMvcTest(SynapseTenantScopeAdminController.class)
+@ActiveProfiles("test")
 class SynapseTenantScopeAdminControllerTest {
 
     @Autowired
@@ -30,6 +33,9 @@ class SynapseTenantScopeAdminControllerTest {
 
     @MockBean
     private TenantScopeService tenantScopeService;
+
+    @MockBean
+    private ProfileScopeService profileScopeService;
 
     @Autowired
     private ObjectMapper objectMapper;

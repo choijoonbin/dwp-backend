@@ -9,4 +9,7 @@ public interface BpPartyRepository extends JpaRepository<BpParty, Long> {
 
     Optional<BpParty> findByTenantIdAndPartyTypeAndPartyCode(
             Long tenantId, String partyType, String partyCode);
+
+    /** party_code로 조회 (V001, C001 등). VENDOR/CUSTOMER 중 첫 매칭 반환 */
+    Optional<BpParty> findFirstByTenantIdAndPartyCode(Long tenantId, String partyCode);
 }

@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -21,11 +22,14 @@ import java.io.IOException;
  * auth-server Feign으로 menu.admin.monitoring 권한 검증.
  * - GET: VIEW
  * - POST /detect/run: EXECUTE
+ *
+ * test 프로파일에서는 비활성화 (WebMvcTest 등에서 FeignClientFactory 의존 회피)
  */
 @Slf4j
 @Component
 @Order(-100)
 @RequiredArgsConstructor
+@Profile("!test")  // WebMvcTest 시 FeignClientFactory 의존 회피
 public class SynapseAdminGuardFilter extends OncePerRequestFilter {
 
     /** 배치 모니터링 API: menu.admin.batch-monitoring (통합 모니터링과 동일 권한 레벨) */

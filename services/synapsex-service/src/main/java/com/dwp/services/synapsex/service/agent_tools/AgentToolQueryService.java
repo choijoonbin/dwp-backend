@@ -100,9 +100,16 @@ public class AgentToolQueryService {
     }
 
     @Transactional(readOnly = true)
-    public LineageResponseDto getLineage(Long tenantId, Long caseId, Instant asOf) {
+    public LineageResponseDto getLineage(Long tenantId, Long caseId, String docKey,
+                                        String bukrs, String belnr, String gjahr, Instant asOf) {
+        String resolvedDocKey = (docKey != null && !docKey.isBlank()) ? docKey.trim() : null;
+        if (resolvedDocKey == null && bukrs != null && belnr != null && gjahr != null
+                && !bukrs.isBlank() && !belnr.isBlank() && !gjahr.isBlank()) {
+            resolvedDocKey = bukrs.trim() + "-" + belnr.trim() + "-" + gjahr.trim();
+        }
         var query = LineageQueryService.LineageQuery.builder()
                 .caseId(caseId)
+                .docKey(resolvedDocKey)
                 .asOf(asOf)
                 .build();
         return lineageQueryService.findLineage(tenantId, query);

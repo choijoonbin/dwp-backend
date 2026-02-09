@@ -57,6 +57,10 @@ auth:
 aura:
   base-url: ${AURA_BASE_URL:${AURA_PLATFORM_URL:http://localhost:9000}}
 
+# P1.1: 탭 Non-Empty 검증용 DEMO 모드 (기본 OFF)
+synapse:
+  demo-mode: ${SYNAPSE_DEMO_MODE:false}
+
 # Audit Redis (Aura 이벤트 수신)
 audit:
   redis:

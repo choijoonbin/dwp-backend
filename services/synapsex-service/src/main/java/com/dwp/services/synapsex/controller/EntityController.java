@@ -82,6 +82,20 @@ public class EntityController {
     }
 
     /**
+     * C2-alt) GET /api/synapse/entities/parties/{partyCode}
+     * partyCode로 조회 (V001, C001 등). 숫자가 아닌 경우 이 경로 사용.
+     */
+    @GetMapping("/parties/{partyCode}")
+    public ApiResponse<Entity360Dto> getEntity360ByPartyCode(
+            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @PathVariable String partyCode) {
+
+        Entity360Dto dto = entityQueryService.findEntity360ByPartyCode(tenantId, partyCode)
+                .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "거래처를 찾을 수 없습니다: " + partyCode));
+        return ApiResponse.success(dto);
+    }
+
+    /**
      * C3) GET /api/synapse/entities/{partyId}/change-logs 또는 /entities/parties/{partyId}/change-logs
      */
     @GetMapping({"/{partyId:[0-9]+}/change-logs", "/parties/{partyId:[0-9]+}/change-logs"})

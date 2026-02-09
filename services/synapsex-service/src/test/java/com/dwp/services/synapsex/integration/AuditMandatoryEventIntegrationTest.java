@@ -118,10 +118,22 @@ class AuditMandatoryEventIntegrationTest extends SynapseTestcontainersBase {
                     .andExpect(status().isOk());
 
             var logs = auditEventLogRepository.findByTenantId(TENANT_ID, org.springframework.data.domain.Pageable.unpaged());
-            assertThat(logs.getContent().stream()
-                    .anyMatch(e -> AuditEventConstants.TYPE_STATUS_CHANGE.equals(e.getEventType())))
-                    .as("CASE_STATUS_CHANGE 이벤트가 audit_event_log에 기록되어야 함")
-                    .isTrue();
+            var statusChangeLog = logs.getContent().stream()
+                    .filter(e -> AuditEventConstants.TYPE_STATUS_CHANGE.equals(e.getEventType()))
+                    .findFirst();
+            assertThat(statusChangeLog).isPresent();
+            assertThat(statusChangeLog.get().getBeforeJson())
+                    .as("before_json에 status 변경 전 값이 있어야 함")
+                    .isNotNull()
+                    .containsEntry("status", "OPEN");
+            assertThat(statusChangeLog.get().getAfterJson())
+                    .as("after_json에 status 변경 후 값이 있어야 함")
+                    .isNotNull()
+                    .containsEntry("status", "IN_PROGRESS");
+            assertThat(statusChangeLog.get().getDiffJson())
+                    .as("diff_json에 status before/after가 있어야 함")
+                    .isNotNull()
+                    .containsKey("status");
         }
     }
 

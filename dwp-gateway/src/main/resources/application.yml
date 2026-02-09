@@ -168,7 +168,7 @@ spring:
           predicates:
             - Path=/api/synapse/agent-tools/agents/**
           filters:
-            - RewritePath=/api/synapse/agent-tools/agents(?<segment>.*), /aura/agents$\{segment}
+            - RewritePath=/api/synapse/agent-tools/agents(?<segment>.*), /agents$\{segment}
         - id: synapsex-agent-tools
           uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
           predicates:
