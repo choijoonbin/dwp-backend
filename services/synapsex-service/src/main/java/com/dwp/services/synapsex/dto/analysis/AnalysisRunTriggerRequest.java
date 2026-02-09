@@ -1,5 +1,6 @@
 package com.dwp.services.synapsex.dto.analysis;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.AllArgsConstructor;
@@ -11,12 +12,14 @@ import java.util.Map;
 
 /**
  * POST /api/synapse/cases/{caseId}/analysis-runs 요청
+ * caseId는 경로에 있으므로 body의 caseId는 무시
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class AnalysisRunTriggerRequest {
 
     private String mode;       // LIVE | SIMULATION

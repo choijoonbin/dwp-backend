@@ -10,7 +10,7 @@ import java.util.UUID;
 
 /**
  * Aura POST /aura/cases/{caseId}/analysis-runs 호출용 요청
- * Aura 스펙: caseId, evidence snapshot, options(model, policyVersion)
+ * Aura 스펙: caseId, runId(필수), evidence, options
  */
 @Data
 @Builder

@@ -36,14 +36,15 @@ public class RequiredHeaderFilter implements GlobalFilter, Ordered {
     private static final String DEFAULT_SOURCE = "FRONTEND";
     private static final String DEFAULT_CALLER_TYPE = "USER";
 
-    // 필수 헤더 검증 제외 경로 (공개 API)
+    // 필수 헤더 검증 제외 경로 (공개 API, 내부 콜백)
     private static final String[] EXCLUDED_PATHS = {
         "/api/auth/login",
         "/api/auth/policy",
         "/api/auth/idp",
         "/api/monitoring/page-view",
         "/api/monitoring/event",
-        "/internal/"
+        "/internal/",
+        "/api/synapse/internal/"  // Aura → BE 콜백 (X-Tenant-ID 없음, runId로 tenant 추론)
     };
 
     @Override

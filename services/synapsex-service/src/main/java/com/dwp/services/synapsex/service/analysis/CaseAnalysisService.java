@@ -74,7 +74,9 @@ public class CaseAnalysisService {
         run = runRepository.save(run);
 
         UUID runId = run.getRunId();
-        String streamUrl = "/api/synapse/analysis-runs/" + runId + "/stream";
+        final String beStreamUrl = "/api/synapse/analysis-runs/" + runId + "/stream";
+        final String auraStreamUrl = "/api/aura/analysis-runs/" + runId + "/stream";
+        String streamUrl = demoMode ? beStreamUrl : auraStreamUrl;
 
         if (demoMode) {
             completeDemoRun(run);
@@ -102,13 +104,20 @@ public class CaseAnalysisService {
             if (auraRes != null) {
                 if ("disabled".equals(auraRes.getStatus())) {
                     failRunWithMessage(run, auraRes.getMessage());
+                    streamUrl = beStreamUrl;
                 } else if (auraRes.getStreamUrl() != null) {
                     streamUrl = auraRes.getStreamUrl();
                 }
             }
         } catch (FeignException e) {
-            log.warn("Aura analyze trigger failed, run created: runId={} status={}", runId, e.status());
-            failRunWithMessage(run, "Aura analyze trigger failed: " + e.status());
+            // 202 Accepted: Aura가 비동기 수락 → run 유지, 콜백 대기. 실패로 처리하지 않음
+            if (e.status() == 202) {
+                log.info("Aura analyze trigger accepted (202), run created: runId={}", runId);
+            } else {
+                log.warn("Aura analyze trigger failed, run created: runId={} status={}", runId, e.status());
+                failRunWithMessage(run, "Aura analyze trigger failed: " + e.status());
+                streamUrl = beStreamUrl;
+            }
         }
 
         logAudit(tenantId, caseId, runId, null,
@@ -202,7 +211,7 @@ public class CaseAnalysisService {
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
         List<CaseAnalysisRun> runs = runRepository.findByTenantIdAndCaseIdOrderByStartedAtDesc(tenantId, caseId);
         if (runs.isEmpty()) {
-            return latest ? Map.of("runId", (Object) null) : List.of();
+            return latest ? java.util.Collections.singletonMap("runId", null) : List.of();
         }
         if (latest) {
             return Map.of("runId", runs.get(0).getRunId());
@@ -259,8 +268,7 @@ public class CaseAnalysisService {
     }
 
     private void saveResultAndProposals(CaseAnalysisRun run, AuraCallbackPayload.FinalResult fr) {
-        ObjectNode confidenceJson = null;
-        if (fr.getConfidence() != null) confidenceJson = (ObjectNode) fr.getConfidence();
+        JsonNode confidenceJson = fr.getConfidence();
 
         ArrayNode evidenceJson = objectMapper.createArrayNode();
         if (fr.getEvidence() != null) fr.getEvidence().forEach(m -> evidenceJson.add(objectMapper.valueToTree(m)));

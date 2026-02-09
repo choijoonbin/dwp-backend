@@ -1,6 +1,8 @@
 package com.dwp.services.synapsex.dto.analysis;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import lombok.Data;
 
 import java.time.Instant;
@@ -10,8 +12,10 @@ import java.util.UUID;
 
 /**
  * Aura → BE 콜백 payload
+ * caseId 등 Aura가 추가로 보내는 필드는 무시 (runId로 BE가 조회)
  */
 @Data
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class AuraCallbackPayload {
 
     private UUID runId;
@@ -39,7 +43,8 @@ public class AuraCallbackPayload {
         private String riskLevel;
         private String rationale;
         private JsonNode payload;
-        /** Aura 스펙: createdAt 추가 */
+        /** Aura 스펙: createdAt 추가. 타임존 없을 때 UTC 가정 (LenientInstantDeserializer) */
+        @JsonDeserialize(using = LenientInstantDeserializer.class)
         private Instant createdAt;
         /** Aura 스펙: FE 승인 플로우용. 승인 필요 여부 */
         private Boolean requiresApproval;

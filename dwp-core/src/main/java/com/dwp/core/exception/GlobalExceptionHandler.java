@@ -10,6 +10,7 @@ import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -103,6 +104,21 @@ public class GlobalExceptionHandler {
                         String.format("파라미터 '%s'의 타입이 올바르지 않습니다.", e.getName()), traceId(request), gatewayRequestId(request)));
     }
     
+    /**
+     * JSON 역직렬화 실패 처리 (400) — UnrecognizedPropertyException 등
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Object>> handleHttpMessageNotReadable(
+            HttpMessageNotReadableException e, HttpServletRequest request) {
+        String msg = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
+        log.warn("JSON parse error: {}", msg);
+        String detail = (msg != null && msg.length() > 200) ? msg.substring(0, 200) + "..." : (msg != null ? msg : "");
+        return ResponseEntity
+                .status(ErrorCode.INVALID_FORMAT.getHttpStatus())
+                .body(ApiResponse.error(ErrorCode.INVALID_FORMAT,
+                        "요청 본문 형식이 올바르지 않습니다." + (detail.isEmpty() ? "" : " " + detail), traceId(request), gatewayRequestId(request)));
+    }
+
     /**
      * IllegalArgumentException 처리 (400)
      */
