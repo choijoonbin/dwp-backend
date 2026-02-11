@@ -1,5 +1,14 @@
 server:
   port: 8085
+  # SSE 스트림: 기본 10초 async timeout 방지 — SseEmitter 30분과 동일
+  servlet:
+    async:
+      request-timeout: 1800000   # 30 min (ms)
+  # Tomcat: 장시간 스트리밍 시 연결 유지
+  tomcat:
+    connection-timeout: 60000    # 60s (첫 요청 수락)
+    keep-alive-timeout: 300000   # 5 min (유휴 시 keep-alive 유지, -1=무제한은 비권장)
+    max-keep-alive-requests: 10000
 
 management:
   endpoints:
@@ -56,10 +65,16 @@ auth:
 # Aura Platform URL (Case 탭 프록시용 - analysis/confidence/similar/rag/evidence)
 aura:
   base-url: ${AURA_BASE_URL:${AURA_PLATFORM_URL:http://localhost:9000}}
+  # Phase3 트리거: 설정 시 POST /aura/internal/.../analysis-runs + callbacks 사용
+  phase3:
+    callback-base-url: ${AURA_PHASE3_CALLBACK_BASE_URL:}  # e.g. https://gateway/api/synapse/internal/aura/callback
+    callback-auth-token: ${AURA_PHASE3_CALLBACK_AUTH_TOKEN:}
 
 # P1.1: 탭 Non-Empty 검증용 DEMO 모드 (기본 OFF)
+# stream-url-use-aura-direct: true 시 POST analysis-runs 응답 streamUrl이 Aura 절대 URL (개발/로컬용). 기본 false = BE 프록시 경로 (옵션 B)
 synapse:
   demo-mode: ${SYNAPSE_DEMO_MODE:false}
+  stream-url-use-aura-direct: ${SYNAPSE_STREAM_URL_USE_AURA_DIRECT:false}
 
 # Audit Redis (Aura 이벤트 수신)
 audit:

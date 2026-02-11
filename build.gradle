@@ -25,7 +25,7 @@ subprojects {
     
     tasks.withType(JavaCompile).configureEach {
         options.encoding = 'UTF-8'
-        options.compilerArgs += ['-Xlint:all', '-Xlint:-processing']
+        options.compilerArgs += ['-parameters', '-Xlint:all', '-Xlint:-processing']
     }
     
     configurations {

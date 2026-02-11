@@ -160,6 +160,22 @@ public class ApiResponse<T> {
                 .build();
     }
 
+    /**
+     * 검증 실패 등 상세 데이터 포함 에러 (예: field -> message 맵)
+     */
+    public static <T> ApiResponse<T> error(ErrorCode errorCode, String customMessage, T errorData, String traceId, String gatewayRequestId) {
+        return ApiResponse.<T>builder()
+                .status("ERROR")
+                .message(customMessage)
+                .data(errorData)
+                .errorCode(errorCode.getCode())
+                .success(false)
+                .timestamp(LocalDateTime.now())
+                .traceId(traceId)
+                .gatewayRequestId(gatewayRequestId)
+                .build();
+    }
+
     public static <T> ApiResponse<T> error(ErrorCode errorCode, String traceId, String gatewayRequestId) {
         return error(errorCode, errorCode.getMessage(), traceId, gatewayRequestId);
     }

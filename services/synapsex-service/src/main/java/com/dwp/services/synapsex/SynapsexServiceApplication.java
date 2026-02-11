@@ -5,8 +5,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.context.ApplicationContext;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
@@ -15,7 +17,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
  * SynapseX 전용 백엔드. DB dwp_aura, 스키마 dwp_aura 사용.
  */
 @Slf4j
-@SpringBootApplication
+@SpringBootApplication(exclude = RedisRepositoriesAutoConfiguration.class)
+@EnableJpaRepositories(basePackages = "com.dwp.services.synapsex.repository")
 @EnableFeignClients(basePackages = "com.dwp.services.synapsex.client")
 @EnableScheduling
 public class SynapsexServiceApplication {

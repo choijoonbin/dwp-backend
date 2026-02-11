@@ -102,6 +102,16 @@ spring:
             - Path=/api/synapse/cases/**
           filters:
             - StripPrefix=1
+        # 분석 스트림 전용: 30분 타임아웃
+        - id: synapsex-analysis-runs-stream
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          order: -1
+          predicates:
+            - Path=/api/synapse/analysis-runs/*/stream
+          metadata:
+            response-timeout: 1800000
+          filters:
+            - StripPrefix=1
         # Phase2: 분석 실행 (analysis-runs, stream)
         - id: synapsex-analysis-runs
           uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}

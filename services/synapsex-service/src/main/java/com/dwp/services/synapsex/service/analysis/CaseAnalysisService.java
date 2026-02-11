@@ -5,17 +5,26 @@ import com.dwp.core.exception.BaseException;
 import com.dwp.services.synapsex.audit.AuditEventConstants;
 import com.dwp.services.synapsex.client.AuraCaseTabClient;
 import com.dwp.services.synapsex.dto.analysis.*;
+import com.dwp.services.synapsex.dto.lineage.LineageResponseDto;
 import com.dwp.services.synapsex.entity.AgentCase;
+import com.dwp.services.synapsex.entity.CaseActionExecution;
 import com.dwp.services.synapsex.entity.CaseActionProposal;
 import com.dwp.services.synapsex.entity.CaseAnalysisResult;
 import com.dwp.services.synapsex.entity.CaseAnalysisRun;
+import com.dwp.services.synapsex.dto.case_.DocumentOrOpenItemDto;
+import com.dwp.services.synapsex.entity.FiOpenItem;
 import com.dwp.services.synapsex.repository.AgentCaseRepository;
 import com.dwp.services.synapsex.repository.CaseActionProposalRepository;
+import com.dwp.services.synapsex.repository.FiOpenItemRepository;
 import com.dwp.services.synapsex.scope.DrillDownCodeResolver;
 import com.dwp.services.synapsex.repository.CaseAnalysisResultRepository;
 import com.dwp.services.synapsex.util.ProposalDedupKeyUtil;
+import com.dwp.services.synapsex.repository.CaseActionExecutionRepository;
 import com.dwp.services.synapsex.repository.CaseAnalysisRunRepository;
 import com.dwp.services.synapsex.service.audit.AuditWriter;
+import com.dwp.services.synapsex.service.case_.CaseQueryService;
+import com.dwp.services.synapsex.service.lineage.LineageQueryService;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -30,7 +39,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * Phase2: 케이스 분석 실행, 결과, 액션 제안
@@ -40,17 +48,35 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class CaseAnalysisService {
 
+    private static final String RESOURCE_TYPE_ACTION_PROPOSAL = "ACTION_PROPOSAL";
+
     private final CaseAnalysisRunRepository runRepository;
     private final CaseAnalysisResultRepository resultRepository;
     private final CaseActionProposalRepository proposalRepository;
+    private final CaseActionExecutionRepository executionRepository;
     private final AgentCaseRepository agentCaseRepository;
+    private final FiOpenItemRepository fiOpenItemRepository;
     private final AuraCaseTabClient auraCaseTabClient;
     private final AuditWriter auditWriter;
     private final ObjectMapper objectMapper;
     private final DrillDownCodeResolver drillDownCodeResolver;
+    private final CaseQueryService caseQueryService;
+    private final LineageQueryService lineageQueryService;
+    private final CaseAnalysisQueryService caseAnalysisQueryService;
 
     @Value("${synapse.demo-mode:false}")
     private boolean demoMode;
+
+    /** 운영 기본 false: streamUrl=BE 프록시. true(개발/로컬): Aura 직접 URL */
+    @Value("${synapse.stream-url-use-aura-direct:false}")
+    private boolean streamUrlUseAuraDirect;
+
+    @Value("${aura.base-url:http://localhost:9000}")
+    private String auraBaseUrl;
+    @Value("${aura.phase3.callback-base-url:}")
+    private String phase3CallbackBaseUrl;
+    @Value("${aura.phase3.callback-auth-token:}")
+    private String phase3CallbackAuthToken;
 
     @Transactional
     public AnalysisRunTriggerResponse triggerAnalysis(Long tenantId, Long caseId,
@@ -75,8 +101,7 @@ public class CaseAnalysisService {
 
         UUID runId = run.getRunId();
         final String beStreamUrl = "/api/synapse/analysis-runs/" + runId + "/stream";
-        final String auraStreamUrl = "/api/aura/analysis-runs/" + runId + "/stream";
-        String streamUrl = demoMode ? beStreamUrl : auraStreamUrl;
+        String streamUrl = beStreamUrl; // 운영 기본: 옵션 B (BE 프록시)
 
         if (demoMode) {
             completeDemoRun(run);
@@ -92,37 +117,67 @@ public class CaseAnalysisService {
             JsonNode evidenceSnapshot = (request != null && request.getEvidenceSnapshot() != null)
                     ? request.getEvidenceSnapshot()
                     : buildEvidenceSnapshot(agentCase);
-            AuraAnalyzeRequest auraReq = AuraAnalyzeRequest.builder()
-                    .caseId(caseId)
-                    .runId(runId)
-                    .mode(mode)
-                    .requestedBy(requestedBy)
-                    .evidence(evidenceSnapshot)
-                    .options(request != null ? request.getOptions() : null)
-                    .build();
-            AuraAnalyzeResponse auraRes = auraCaseTabClient.triggerAnalyze(caseId, tenantId, authorization, userId, auraReq);
-            if (auraRes != null) {
-                if ("disabled".equals(auraRes.getStatus())) {
-                    failRunWithMessage(run, auraRes.getMessage());
-                    streamUrl = beStreamUrl;
-                } else if (auraRes.getStreamUrl() != null) {
-                    streamUrl = auraRes.getStreamUrl();
+
+            if (phase3CallbackBaseUrl != null && !phase3CallbackBaseUrl.isBlank()) {
+                // Phase3: POST /aura/internal/.../analysis-runs, callbacks 포함
+                AuraPhase3TriggerRequest.Callbacks callbacks = AuraPhase3TriggerRequest.Callbacks.builder()
+                        .resultCallbackUrl(phase3CallbackBaseUrl.trim())
+                        .auth(phase3CallbackAuthToken != null && !phase3CallbackAuthToken.isBlank()
+                                ? AuraPhase3TriggerRequest.Auth.builder().type("BEARER").token(phase3CallbackAuthToken).build()
+                                : null)
+                        .build();
+                AuraPhase3TriggerRequest phase3Req = AuraPhase3TriggerRequest.builder()
+                        .runId(runId)
+                        .caseId(caseId)
+                        .requestedBy(requestedBy != null ? requestedBy : "HUMAN")
+                        .artifacts(evidenceSnapshot)
+                        .callbacks(callbacks)
+                        .options(request != null ? request.getOptions() : null)
+                        .build();
+                if (authorization == null || authorization.isBlank()) {
+                    log.warn("Phase3 trigger requires Authorization header");
+                    failRunWithMessage(run, "Phase3 trigger requires Authorization");
+                } else {
+                    AuraPhase3TriggerResponse phase3Res = auraCaseTabClient.triggerAnalyzePhase3(caseId, authorization, phase3Req);
+                    if (streamUrlUseAuraDirect && phase3Res != null && phase3Res.getStreamPath() != null) {
+                        String path = phase3Res.getStreamPath();
+                        streamUrl = path.startsWith("http") ? path : (auraBaseUrl + (path.startsWith("/") ? path : "/" + path));
+                    }
+                }
+            } else {
+                AuraAnalyzeRequest auraReq = AuraAnalyzeRequest.builder()
+                        .caseId(caseId)
+                        .runId(runId)
+                        .mode(mode)
+                        .requestedBy(requestedBy)
+                        .evidence(evidenceSnapshot)
+                        .options(request != null ? request.getOptions() : null)
+                        .build();
+                AuraAnalyzeResponse auraRes = auraCaseTabClient.triggerAnalyze(caseId, tenantId, authorization, userId, auraReq);
+                if (auraRes != null) {
+                    if ("disabled".equals(auraRes.getStatus())) {
+                        failRunWithMessage(run, auraRes.getMessage());
+                    } else if (streamUrlUseAuraDirect && auraRes.getStreamUrl() != null) {
+                        streamUrl = auraRes.getStreamUrl();
+                    }
                 }
             }
         } catch (FeignException e) {
-            // 202 Accepted: Aura가 비동기 수락 → run 유지, 콜백 대기. 실패로 처리하지 않음
             if (e.status() == 202) {
                 log.info("Aura analyze trigger accepted (202), run created: runId={}", runId);
             } else {
                 log.warn("Aura analyze trigger failed, run created: runId={} status={}", runId, e.status());
                 failRunWithMessage(run, "Aura analyze trigger failed: " + e.status());
-                streamUrl = beStreamUrl;
             }
         }
 
+        if (!streamUrlUseAuraDirect) {
+            streamUrl = beStreamUrl;
+        }
+
         logAudit(tenantId, caseId, runId, null,
-                run.getStatus().equals(CaseAnalysisRun.STATUS_FAILED) ? AuditEventConstants.TYPE_ANALYSIS_RUN_FAILED : AuditEventConstants.TYPE_ANALYSIS_RUN_STARTED,
-                "ANALYSIS_RUN", runId.toString(), Map.of("status", run.getStatus()));
+                run.getStatus().equals(CaseAnalysisRun.STATUS_FAILED) ? AuditEventConstants.TYPE_RUN_FAILED : AuditEventConstants.TYPE_RUN_STARTED,
+                "ANALYSIS_RUN", runId.toString(), Map.of("status", run.getStatus()), null);
 
         return AnalysisRunTriggerResponse.builder()
                 .runId(runId)
@@ -141,18 +196,72 @@ public class CaseAnalysisService {
     }
 
     /**
-     * 케이스 evidence snapshot 생성 — Aura 트리거 요청용.
-     * agent_case.evidence_json + rag_refs_json을 합쳐 전달.
+     * 케이스 evidence snapshot 생성 — Aura 트리거 요청용 (Phase3 입력 패키지 표준화).
+     * evidence, ragRefs, document(header+items), openItems, party, lineage, policies 포함.
+     * document 없음 케이스: open-item 기반 증적도 동일 구조(document 형태)로 매핑.
      */
     private JsonNode buildEvidenceSnapshot(AgentCase agentCase) {
+        Long tenantId = agentCase.getTenantId();
+        Long caseId = agentCase.getCaseId();
+        ObjectNode snapshot = objectMapper.createObjectNode();
+
         JsonNode evidence = agentCase.getEvidenceJson();
         JsonNode ragRefs = agentCase.getRagRefsJson();
-        if (evidence == null && ragRefs == null) {
-            return null;
-        }
-        ObjectNode snapshot = objectMapper.createObjectNode();
         if (evidence != null) snapshot.set("evidence", evidence);
         if (ragRefs != null) snapshot.set("ragRefs", ragRefs);
+
+        caseQueryService.findCaseDetail(tenantId, caseId).ifPresent(detail -> {
+            if (detail.getEvidence() != null && detail.getEvidence().getDocumentOrOpenItem() != null) {
+                DocumentOrOpenItemDto docOrOi = detail.getEvidence().getDocumentOrOpenItem();
+                ObjectNode document = objectMapper.createObjectNode();
+                document.set("header", objectMapper.valueToTree(docOrOi.getHeaderSummary() != null ? docOrOi.getHeaderSummary() : Map.of()));
+                document.set("items", objectMapper.valueToTree(docOrOi.getItems() != null ? docOrOi.getItems() : List.of()));
+                document.put("type", docOrOi.getType());
+                if (docOrOi.getDocKey() != null) document.put("docKey", docOrOi.getDocKey());
+                snapshot.set("document", document);
+            }
+            if (detail.getEvidence() != null && detail.getEvidence().getRelatedPartyIds() != null) {
+                snapshot.set("partyIds", objectMapper.valueToTree(detail.getEvidence().getRelatedPartyIds()));
+            }
+        });
+
+        if (agentCase.getBukrs() != null && agentCase.getBelnr() != null && agentCase.getGjahr() != null) {
+            List<FiOpenItem> openItems = fiOpenItemRepository.findByTenantIdAndBukrsAndBelnrAndGjahrOrderByBuzeiAsc(
+                    tenantId, agentCase.getBukrs(), agentCase.getBelnr(), agentCase.getGjahr());
+            ArrayNode openItemsArray = objectMapper.createArrayNode();
+            for (FiOpenItem oi : openItems) {
+                ObjectNode node = objectMapper.createObjectNode();
+                node.put("bukrs", oi.getBukrs());
+                node.put("belnr", oi.getBelnr());
+                node.put("gjahr", oi.getGjahr());
+                node.put("buzei", oi.getBuzei());
+                node.put("itemType", oi.getItemType());
+                if (oi.getLifnr() != null) node.put("lifnr", oi.getLifnr());
+                if (oi.getKunnr() != null) node.put("kunnr", oi.getKunnr());
+                if (oi.getDueDate() != null) node.put("dueDate", oi.getDueDate().toString());
+                if (oi.getOpenAmount() != null) node.put("openAmount", oi.getOpenAmount());
+                if (oi.getCurrency() != null) node.put("currency", oi.getCurrency());
+                node.put("paymentBlock", Boolean.TRUE.equals(oi.getPaymentBlock()));
+                node.put("disputeFlag", Boolean.TRUE.equals(oi.getDisputeFlag()));
+                openItemsArray.add(node);
+            }
+            snapshot.set("openItems", openItemsArray);
+        }
+
+        String docKey = (agentCase.getBukrs() != null && agentCase.getBelnr() != null && agentCase.getGjahr() != null)
+                ? agentCase.getBukrs() + "-" + agentCase.getBelnr() + "-" + agentCase.getGjahr() : null;
+        try {
+            var lineageQuery = LineageQueryService.LineageQuery.builder()
+                    .caseId(caseId)
+                    .docKey(docKey)
+                    .build();
+            LineageResponseDto lineage = lineageQueryService.findLineage(tenantId, lineageQuery);
+            snapshot.set("lineage", objectMapper.valueToTree(lineage));
+        } catch (Exception e) {
+            log.debug("Lineage not available for case {}: {}", caseId, e.getMessage());
+        }
+
+        snapshot.set("policies", objectMapper.createArrayNode());
         return snapshot;
     }
 
@@ -196,46 +305,33 @@ public class CaseAnalysisService {
                     .build();
             proposal = proposalRepository.save(proposal);
             logAudit(run.getTenantId(), run.getCaseId(), run.getRunId(), proposal.getProposalId(),
-                    AuditEventConstants.TYPE_ACTION_PROPOSED, "ACTION_PROPOSAL", proposal.getProposalId().toString(),
-                    Map.of("type", "HOLD_PAYMENT", "status", "PROPOSED"));
+                    AuditEventConstants.TYPE_PROPOSAL_UPSERTED, "ACTION_PROPOSAL", proposal.getProposalId().toString(),
+                    Map.of("type", "HOLD_PAYMENT", "status", "PROPOSED"), null);
         }
 
         logAudit(run.getTenantId(), run.getCaseId(), run.getRunId(), null,
-                AuditEventConstants.TYPE_ANALYSIS_RUN_COMPLETED, "ANALYSIS_RUN", run.getRunId().toString(),
-                Map.of("status", "COMPLETED", "score", 72));
+                AuditEventConstants.TYPE_RUN_COMPLETED, "ANALYSIS_RUN", run.getRunId().toString(),
+                Map.of("status", "COMPLETED", "score", 72), null);
     }
 
     @Transactional(readOnly = true)
     public Object getAnalysisRuns(Long tenantId, Long caseId, boolean latest) {
-        agentCaseRepository.findByCaseIdAndTenantId(caseId, tenantId)
-                .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
-        List<CaseAnalysisRun> runs = runRepository.findByTenantIdAndCaseIdOrderByStartedAtDesc(tenantId, caseId);
-        if (runs.isEmpty()) {
-            return latest ? java.util.Collections.singletonMap("runId", null) : List.of();
-        }
-        if (latest) {
-            return Map.of("runId", runs.get(0).getRunId());
-        }
-        return runs.stream()
-                .map(r -> Map.<String, Object>of(
-                        "runId", r.getRunId(),
-                        "status", r.getStatus(),
-                        "startedAt", r.getStartedAt()))
-                .toList();
+        return caseAnalysisQueryService.getAnalysisRuns(tenantId, caseId, latest);
     }
 
     @Transactional(readOnly = true)
     public AnalysisRunStatusDto getRunStatus(Long tenantId, UUID runId) {
-        CaseAnalysisRun run = runRepository.findByRunIdAndTenantId(runId, tenantId)
-                .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "분석 실행을 찾을 수 없습니다."));
-        return AnalysisRunStatusDto.builder()
-                .runId(run.getRunId())
-                .caseId(run.getCaseId())
-                .status(run.getStatus())
-                .startedAt(run.getStartedAt())
-                .finishedAt(run.getFinishedAt())
-                .error(run.getErrorMessage())
-                .build();
+        return caseAnalysisQueryService.getRunStatus(tenantId, runId);
+    }
+
+    @Transactional(readOnly = true)
+    public CaseAnalysisDto getCaseAnalysis(Long tenantId, Long caseId, UUID runId) {
+        return caseAnalysisQueryService.getCaseAnalysis(tenantId, caseId, runId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CaseActionProposalDto> getActionProposals(Long tenantId, Long caseId, UUID runId) {
+        return caseAnalysisQueryService.getActionProposals(tenantId, caseId, runId);
     }
 
     @Transactional
@@ -254,28 +350,62 @@ public class CaseAnalysisService {
         String status = payload.getStatus();
         run.setStatus("COMPLETED".equals(status) ? CaseAnalysisRun.STATUS_COMPLETED : CaseAnalysisRun.STATUS_FAILED);
         run.setFinishedAt(Instant.now());
-        run.setErrorMessage("FAILED".equals(status) ? "Aura callback status: FAILED" : null);
+        run.setErrorMessage(normalizeCallbackError("FAILED".equals(status), payload.getError()));
         if (payload.getAuraTraceId() != null) run.setAuraTraceId(payload.getAuraTraceId());
         runRepository.save(run);
 
-        if ("COMPLETED".equals(status) && payload.getFinalResult() != null) {
-            saveResultAndProposals(run, payload.getFinalResult());
+        if ("COMPLETED".equals(status)) {
+            if (payload.getAnalysis() != null) {
+                saveResultAndProposalsFromPhase3(run, payload.getAnalysis(), payload.getProposals());
+            } else if (payload.getFinalResult() != null) {
+                saveResultAndProposals(run, payload.getFinalResult());
+            }
         }
 
-        logAudit(run.getTenantId(), run.getCaseId(), run.getRunId(), null,
-                "COMPLETED".equals(status) ? AuditEventConstants.TYPE_ANALYSIS_RUN_COMPLETED : AuditEventConstants.TYPE_ANALYSIS_RUN_FAILED,
-                "ANALYSIS_RUN", runId.toString(), Map.of("status", status));
+                logAudit(run.getTenantId(), run.getCaseId(), run.getRunId(), null,
+                        "COMPLETED".equals(status) ? AuditEventConstants.TYPE_RUN_COMPLETED : AuditEventConstants.TYPE_RUN_FAILED,
+                        "ANALYSIS_RUN", runId.toString(), Map.of("status", status), null);
+    }
+
+    /** Aura FAILED 시 error 필드 정규화: 문자열/객체({ message, stage } 등) 모두 DB 저장용 문자열로 변환 */
+    private String normalizeCallbackError(boolean isFailed, JsonNode errorNode) {
+        if (!isFailed) return null;
+        if (errorNode == null || errorNode.isNull()) return "Aura callback status: FAILED";
+        if (errorNode.isTextual()) return errorNode.asText();
+        return errorNode.toString();
+    }
+
+    /** Phase3 콜백: analysis + proposals 구조 저장 */
+    private void saveResultAndProposalsFromPhase3(CaseAnalysisRun run,
+                                                   AuraCallbackPayload.AnalysisBlock analysis,
+                                                   List<AuraCallbackPayload.ProposalItem> proposals) {
+        JsonNode confidenceJson = analysis.getConfidence() != null
+                ? objectMapper.valueToTree(analysis.getConfidence()) : null;
+        ArrayNode evidenceJson = objectMapper.createArrayNode();
+        if (analysis.getEvidence() != null) analysis.getEvidence().forEach(m -> evidenceJson.add(objectMapper.valueToTree(m)));
+        ArrayNode ragRefsJson = objectMapper.createArrayNode();
+        if (analysis.getRagRefs() != null) analysis.getRagRefs().forEach(m -> ragRefsJson.add(objectMapper.valueToTree(m)));
+        CaseAnalysisResult result = CaseAnalysisResult.builder()
+                .runId(run.getRunId())
+                .score(analysis.getScore() != null ? BigDecimal.valueOf(analysis.getScore()) : null)
+                .severity(analysis.getSeverity())
+                .reasonText(analysis.getReasonText())
+                .confidenceJson(confidenceJson)
+                .evidenceJson(evidenceJson.isEmpty() ? null : evidenceJson)
+                .similarJson(null)
+                .ragRefsJson(ragRefsJson.isEmpty() ? null : ragRefsJson)
+                .createdAt(Instant.now())
+                .build();
+        resultRepository.save(result);
+        saveProposalsFromItems(run, proposals);
     }
 
     private void saveResultAndProposals(CaseAnalysisRun run, AuraCallbackPayload.FinalResult fr) {
         JsonNode confidenceJson = fr.getConfidence();
-
         ArrayNode evidenceJson = objectMapper.createArrayNode();
         if (fr.getEvidence() != null) fr.getEvidence().forEach(m -> evidenceJson.add(objectMapper.valueToTree(m)));
-
         ArrayNode similarJson = objectMapper.createArrayNode();
         if (fr.getSimilar() != null) fr.getSimilar().forEach(m -> similarJson.add(objectMapper.valueToTree(m)));
-
         ArrayNode ragRefsJson = objectMapper.createArrayNode();
         if (fr.getRagRefs() != null) fr.getRagRefs().forEach(m -> ragRefsJson.add(objectMapper.valueToTree(m)));
 
@@ -291,181 +421,201 @@ public class CaseAnalysisService {
                 .createdAt(Instant.now())
                 .build();
         resultRepository.save(result);
-
-        if (fr.getProposals() != null) {
-            for (AuraCallbackPayload.ProposalItem p : fr.getProposals()) {
-                String type = p.getType() != null ? p.getType() : "UNKNOWN";
-                String dedupKey = ProposalDedupKeyUtil.compute(type, p.getPayload(), p.getRationale());
-                if (proposalRepository.existsByCaseIdAndRunIdAndDedupKey(run.getCaseId(), run.getRunId(), dedupKey)) {
-                    continue; // 중복 제안 스킵 (BE dedup)
-                }
-                Instant createdAt = p.getCreatedAt() != null ? p.getCreatedAt() : Instant.now();
-                CaseActionProposal prop = CaseActionProposal.builder()
-                        .tenantId(run.getTenantId())
-                        .caseId(run.getCaseId())
-                        .runId(run.getRunId())
-                        .type(type)
-                        .dedupKey(dedupKey)
-                        .status(CaseActionProposal.STATUS_PROPOSED)
-                        .riskLevel(p.getRiskLevel())
-                        .rationale(p.getRationale())
-                        .payloadJson(p.getPayload())
-                        .requiresApproval(p.getRequiresApproval())
-                        .createdAt(createdAt)
-                        .updatedAt(Instant.now())
-                        .build();
-                prop = proposalRepository.save(prop);
-                logAudit(run.getTenantId(), run.getCaseId(), run.getRunId(), prop.getProposalId(),
-                        AuditEventConstants.TYPE_ACTION_PROPOSED, "ACTION_PROPOSAL", prop.getProposalId().toString(),
-                        Map.of("type", prop.getType(), "status", "PROPOSED"));
-            }
-        }
+        saveProposalsFromItems(run, fr.getProposals());
     }
 
-    @Transactional(readOnly = true)
-    public CaseAnalysisDto getCaseAnalysis(Long tenantId, Long caseId, UUID runId) {
-        agentCaseRepository.findByCaseIdAndTenantId(caseId, tenantId)
-                .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
-
-        if (runId != null) {
-            Optional<CaseAnalysisRun> runOpt = runRepository.findByRunIdAndTenantId(runId, tenantId);
-            if (runOpt.isPresent() && runOpt.get().getCaseId().equals(caseId)) {
-                CaseAnalysisRun run = runOpt.get();
-                Optional<CaseAnalysisResult> resOpt = resultRepository.findByRunId(runId);
-                if (resOpt.isPresent()) {
-                    return toCaseAnalysisDto(resOpt.get(), run, runId);
-                }
-                return CaseAnalysisDto.builder()
-                        .empty(true)
-                        .reason("해당 runId의 분석 결과가 아직 없습니다.")
-                        .build();
-            }
-            return CaseAnalysisDto.builder()
-                    .empty(true)
-                    .reason("해당 runId를 찾을 수 없습니다.")
+    /** Aura 콜백에서 제안 목록 저장 (Phase3 / FinalResult 공통). 중복 dedupKey 스킵. */
+    private void saveProposalsFromItems(CaseAnalysisRun run, List<AuraCallbackPayload.ProposalItem> items) {
+        if (items == null) return;
+        for (AuraCallbackPayload.ProposalItem p : items) {
+            String type = p.getType() != null ? p.getType() : "UNKNOWN";
+            String dedupKey = ProposalDedupKeyUtil.compute(type, p.getPayload(), p.getRationale());
+            if (proposalRepository.existsByCaseIdAndRunIdAndDedupKey(run.getCaseId(), run.getRunId(), dedupKey)) continue;
+            Instant createdAt = p.getCreatedAt() != null ? p.getCreatedAt() : Instant.now();
+            CaseActionProposal prop = CaseActionProposal.builder()
+                    .tenantId(run.getTenantId())
+                    .caseId(run.getCaseId())
+                    .runId(run.getRunId())
+                    .type(type)
+                    .dedupKey(dedupKey)
+                    .status(CaseActionProposal.STATUS_PROPOSED)
+                    .riskLevel(p.getRiskLevel())
+                    .rationale(p.getRationale())
+                    .payloadJson(p.getPayload())
+                    .requiresApproval(p.getRequiresApproval())
+                    .createdAt(createdAt)
+                    .updatedAt(Instant.now())
                     .build();
+            prop = proposalRepository.save(prop);
+            logAudit(run.getTenantId(), run.getCaseId(), run.getRunId(), prop.getProposalId(),
+                    AuditEventConstants.TYPE_PROPOSAL_UPSERTED, "ACTION_PROPOSAL", prop.getProposalId().toString(),
+                    Map.of("type", prop.getType(), "status", "PROPOSED"), null);
         }
-
-        List<CaseAnalysisRun> runs = runRepository.findByTenantIdAndCaseIdOrderByStartedAtDesc(tenantId, caseId);
-        for (CaseAnalysisRun run : runs) {
-            if (CaseAnalysisRun.STATUS_COMPLETED.equals(run.getStatus())) {
-                Optional<CaseAnalysisResult> resOpt = resultRepository.findByRunId(run.getRunId());
-                if (resOpt.isPresent()) {
-                    return toCaseAnalysisDto(resOpt.get(), run, run.getRunId());
-                }
-            }
-        }
-        return CaseAnalysisDto.builder()
-                .empty(true)
-                .reason("아직 분석 결과가 없습니다(Phase2-1: BE demo stream 단계).")
-                .build();
-    }
-
-    private CaseAnalysisDto toCaseAnalysisDto(CaseAnalysisResult r, CaseAnalysisRun run, UUID runIdFilter) {
-        List<CaseActionProposal> proposalList;
-        if (runIdFilter != null) {
-            proposalList = proposalRepository.findByTenantIdAndCaseIdAndRunIdOrderByCreatedAtDesc(run.getTenantId(), run.getCaseId(), runIdFilter);
-        } else {
-            proposalList = proposalRepository.findByTenantIdAndCaseIdOrderByCreatedAtDesc(run.getTenantId(), run.getCaseId()).stream()
-                    .filter(proposal -> run.getRunId().equals(proposal.getRunId()))
-                    .toList();
-        }
-        List<CaseActionProposalDto> proposals = proposalList.stream()
-                .map(proposal -> CaseActionProposalDto.builder()
-                        .proposalId(proposal.getProposalId())
-                        .runId(proposal.getRunId())
-                        .type(proposal.getType())
-                        .typeName(drillDownCodeResolver.getCodeName(DrillDownCodeResolver.GROUP_ACTION_TYPE, proposal.getType()))
-                        .status(proposal.getStatus())
-                        .riskLevel(proposal.getRiskLevel())
-                        .rationale(proposal.getRationale())
-                        .payload(proposal.getPayloadJson())
-                        .createdAt(proposal.getCreatedAt())
-                        .requiresApproval(proposal.getRequiresApproval())
-                        .build())
-                .collect(Collectors.toList());
-
-        List<Map<String, Object>> evidence = jsonToList(r.getEvidenceJson());
-        List<Map<String, Object>> similar = jsonToList(r.getSimilarJson());
-        List<Map<String, Object>> ragRefs = jsonToList(r.getRagRefsJson());
-
-        return CaseAnalysisDto.builder()
-                .score(r.getScore())
-                .severity(r.getSeverity())
-                .reasonText(r.getReasonText())
-                .confidenceBreakdown(r.getConfidenceJson())
-                .evidence(evidence)
-                .similarCases(similar)
-                .ragRefs(ragRefs)
-                .proposals(proposals)
-                .build();
-    }
-
-    @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> jsonToList(JsonNode node) {
-        if (node == null || !node.isArray()) return List.of();
-        List<Map<String, Object>> list = new ArrayList<>();
-        node.forEach(n -> list.add(objectMapper.convertValue(n, Map.class)));
-        return list;
-    }
-
-    @Transactional(readOnly = true)
-    public List<CaseActionProposalDto> getActionProposals(Long tenantId, Long caseId, UUID runId) {
-        agentCaseRepository.findByCaseIdAndTenantId(caseId, tenantId)
-                .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
-
-        List<CaseActionProposal> proposals = runId != null
-                ? proposalRepository.findByTenantIdAndCaseIdAndRunIdOrderByCreatedAtDesc(tenantId, caseId, runId)
-                : proposalRepository.findByTenantIdAndCaseIdOrderByCreatedAtDesc(tenantId, caseId);
-        return proposals.stream()
-                .map(proposal -> CaseActionProposalDto.builder()
-                        .proposalId(proposal.getProposalId())
-                        .runId(proposal.getRunId())
-                        .type(proposal.getType())
-                        .typeName(drillDownCodeResolver.getCodeName(DrillDownCodeResolver.GROUP_ACTION_TYPE, proposal.getType()))
-                        .status(proposal.getStatus())
-                        .riskLevel(proposal.getRiskLevel())
-                        .rationale(proposal.getRationale())
-                        .payload(proposal.getPayloadJson())
-                        .createdAt(proposal.getCreatedAt())
-                        .requiresApproval(proposal.getRequiresApproval())
-                        .build())
-                .collect(Collectors.toList());
     }
 
     @Transactional
-    public void approveProposal(Long tenantId, UUID proposalId, Long userId) {
+    public void approveProposal(Long tenantId, UUID proposalId, Long userId, String comment) {
         CaseActionProposal proposal = proposalRepository.findByProposalIdAndTenantId(proposalId, tenantId)
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "액션 제안을 찾을 수 없습니다."));
         proposal.setStatus(CaseActionProposal.STATUS_APPROVED);
         proposal.setUpdatedAt(Instant.now());
+        proposal.setDecidedBy(userId);
+        proposal.setDecidedAt(Instant.now());
+        proposal.setDecisionComment(comment);
         proposalRepository.save(proposal);
-        logAudit(tenantId, proposal.getCaseId(), proposal.getRunId(), proposalId, AuditEventConstants.TYPE_ACTION_APPROVED,
-                "ACTION_PROPOSAL", proposalId.toString(), Map.of("status", "APPROVED", "actorUserId", userId));
+        Map<String, Object> auditMeta = new HashMap<>(Map.of("status", "APPROVED"));
+        auditMeta.put("actorUserId", userId != null ? userId : "");
+        if (comment != null && !comment.isBlank()) auditMeta.put("comment", comment);
+        writeProposalDecidedAudit(tenantId, proposal, auditMeta);
     }
 
     @Transactional
-    public void rejectProposal(Long tenantId, UUID proposalId, Long userId) {
+    public void rejectProposal(Long tenantId, UUID proposalId, Long userId, String comment) {
         CaseActionProposal proposal = proposalRepository.findByProposalIdAndTenantId(proposalId, tenantId)
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "액션 제안을 찾을 수 없습니다."));
         proposal.setStatus(CaseActionProposal.STATUS_REJECTED);
         proposal.setUpdatedAt(Instant.now());
+        proposal.setDecidedBy(userId);
+        proposal.setDecidedAt(Instant.now());
+        proposal.setDecisionComment(comment);
         proposalRepository.save(proposal);
-        logAudit(tenantId, proposal.getCaseId(), proposal.getRunId(), proposalId, AuditEventConstants.TYPE_ACTION_REJECTED,
-                "ACTION_PROPOSAL", proposalId.toString(), Map.of("status", "REJECTED", "actorUserId", userId));
+        Map<String, Object> auditMeta = new HashMap<>(Map.of("status", "REJECTED"));
+        auditMeta.put("actorUserId", userId != null ? userId : "");
+        if (comment != null && !comment.isBlank()) auditMeta.put("comment", comment);
+        writeProposalDecidedAudit(tenantId, proposal, auditMeta);
     }
 
-    private void logAudit(Long tenantId, Long caseId, UUID runId, UUID proposalId, String eventType,
-                          String resourceType, String resourceId, Map<String, Object> afterJson) {
+    private void writeProposalDecidedAudit(Long tenantId, CaseActionProposal proposal, Map<String, Object> auditMeta) {
+        Long caseId = proposal.getCaseId();
+        UUID runId = proposal.getRunId();
+        UUID proposalId = proposal.getProposalId();
         Map<String, Object> tags = new HashMap<>();
         tags.put("module", "CASE_ANALYSIS");
         if (caseId != null) tags.put("caseId", caseId);
         if (runId != null) tags.put("runId", runId.toString());
         if (proposalId != null) tags.put("proposalId", proposalId.toString());
+        auditWriter.log(tenantId, AuditEventConstants.CATEGORY_CASE, AuditEventConstants.TYPE_PROPOSAL_DECIDED,
+                RESOURCE_TYPE_ACTION_PROPOSAL, proposalId.toString(),
+                AuditEventConstants.ACTOR_SYSTEM, null, null, null, AuditEventConstants.CHANNEL_API,
+                AuditEventConstants.OUTCOME_SUCCESS, AuditEventConstants.SEVERITY_INFO,
+                null, auditMeta, null, null, tags, null, null, null, null, null);
+    }
+
+    /**
+     * Phase3: 액션 제안 실행(시뮬레이션). APPROVED 제안만 실행 가능.
+     * case_action_execution에 결과 저장, proposal 상태 EXECUTED, ACTION_EXECUTED 감사.
+     * gatewayRequestId 있으면 저장·감사·멱등(동일 ID 재요청 시 기존 결과 반환).
+     */
+    @Transactional
+    public ProposalExecuteResponseDto executeProposal(Long tenantId, Long caseId, UUID proposalId, Long userId, String gatewayRequestId) {
+        if (gatewayRequestId != null && !gatewayRequestId.isBlank()) {
+            Optional<CaseActionExecution> existing = executionRepository.findByTenantIdAndGatewayRequestId(tenantId, gatewayRequestId);
+            if (existing.isPresent()) {
+                CaseActionExecution ex = existing.get();
+                Map<String, Object> sim = resultJsonToMap(ex.getResultJson());
+                return ProposalExecuteResponseDto.builder()
+                        .executionId(ex.getExecutionId())
+                        .actionId(ex.getExecutionId() != null ? ex.getExecutionId().toString() : null)
+                        .proposalId(ex.getProposalId())
+                        .status(ex.getStatus())
+                        .mode(ex.getMode())
+                        .executedAt(ex.getExecutedAt())
+                        .simulation(sim)
+                        .build();
+            }
+        }
+
+        CaseActionProposal proposal = proposalRepository.findByProposalIdAndTenantId(proposalId, tenantId)
+                .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "액션 제안을 찾을 수 없습니다."));
+        if (!proposal.getCaseId().equals(caseId)) {
+            throw new BaseException(ErrorCode.ENTITY_NOT_FOUND, "제안이 해당 케이스에 속하지 않습니다.");
+        }
+        if (!CaseActionProposal.STATUS_APPROVED.equals(proposal.getStatus())) {
+            logAudit(tenantId, caseId, proposal.getRunId(), proposalId, AuditEventConstants.TYPE_ACTION_FAILED,
+                    "ACTION_PROPOSAL", proposalId.toString(),
+                    Map.of("error", "승인된 제안만 실행할 수 있습니다.", "status", proposal.getStatus()), gatewayRequestId);
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
+                    "승인된 제안만 실행할 수 있습니다. 현재 상태: " + proposal.getStatus());
+        }
+
+        try {
+            Instant now = Instant.now();
+            CaseActionExecution execution = CaseActionExecution.builder()
+                    .tenantId(tenantId)
+                    .caseId(caseId)
+                    .runId(proposal.getRunId())
+                    .proposalId(proposalId)
+                    .mode(CaseActionExecution.MODE_SIMULATION)
+                    .status(CaseActionExecution.STATUS_COMPLETED)
+                    .resultJson(objectMapper.createObjectNode().put("simulated", true).put("proposalType", proposal.getType()))
+                    .executedBy(userId)
+                    .executedAt(now)
+                    .createdAt(now)
+                    .gatewayRequestId(gatewayRequestId != null && !gatewayRequestId.isBlank() ? gatewayRequestId : null)
+                    .build();
+            execution = executionRepository.save(execution);
+
+            proposal.setStatus(CaseActionProposal.STATUS_EXECUTED);
+            proposal.setUpdatedAt(now);
+            proposalRepository.save(proposal);
+
+            Map<String, Object> afterJson = new HashMap<>(Map.of(
+                    "executionId", execution.getExecutionId().toString(),
+                    "proposalId", proposalId.toString(),
+                    "status", CaseActionExecution.STATUS_COMPLETED,
+                    "mode", CaseActionExecution.MODE_SIMULATION,
+                    "actorUserId", userId != null ? userId : ""));
+            if (gatewayRequestId != null && !gatewayRequestId.isBlank()) afterJson.put("gatewayRequestId", gatewayRequestId);
+            logAudit(tenantId, caseId, proposal.getRunId(), proposalId, AuditEventConstants.TYPE_ACTION_EXECUTED,
+                    "ACTION_EXECUTION", execution.getExecutionId().toString(), afterJson, gatewayRequestId);
+
+            Map<String, Object> simulationMap = resultJsonToMap(execution.getResultJson());
+            return ProposalExecuteResponseDto.builder()
+                    .executionId(execution.getExecutionId())
+                    .actionId(execution.getExecutionId() != null ? execution.getExecutionId().toString() : null)
+                    .proposalId(proposalId)
+                    .status(execution.getStatus())
+                    .mode(execution.getMode())
+                    .executedAt(execution.getExecutedAt())
+                    .simulation(simulationMap)
+                    .build();
+        } catch (BaseException e) {
+            throw e;
+        } catch (Exception e) {
+            proposal.setStatus(CaseActionProposal.STATUS_FAILED);
+            proposal.setUpdatedAt(Instant.now());
+            proposalRepository.save(proposal);
+            String msg = e.getMessage() != null ? e.getMessage() : "실행 중 오류 발생";
+            logAudit(tenantId, caseId, proposal.getRunId(), proposalId, AuditEventConstants.TYPE_ACTION_FAILED,
+                    "ACTION_PROPOSAL", proposalId.toString(), Map.of("error", msg), gatewayRequestId);
+            throw new BaseException(ErrorCode.INTERNAL_SERVER_ERROR, msg);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> resultJsonToMap(JsonNode node) {
+        if (node == null || !node.isObject()) return null;
+        return objectMapper.convertValue(node, MapStringObjectTypeRef.INSTANCE);
+    }
+
+    private static final class MapStringObjectTypeRef extends TypeReference<Map<String, Object>> {
+        static final MapStringObjectTypeRef INSTANCE = new MapStringObjectTypeRef();
+    }
+
+    private void logAudit(Long tenantId, Long caseId, UUID runId, UUID proposalId, String eventType, String resourceType, String resourceId, Map<String, Object> afterJson, String gatewayRequestId) {
+        Map<String, Object> tags = new HashMap<>();
+        tags.put("module", "CASE_ANALYSIS");
+        if (caseId != null) tags.put("caseId", caseId);
+        if (runId != null) tags.put("runId", runId.toString());
+        if (proposalId != null) tags.put("proposalId", proposalId.toString());
+        String outcome = AuditEventConstants.TYPE_ACTION_FAILED.equals(eventType)
+                ? AuditEventConstants.OUTCOME_FAILED : AuditEventConstants.OUTCOME_SUCCESS;
+        String severity = AuditEventConstants.TYPE_ACTION_FAILED.equals(eventType)
+                ? AuditEventConstants.SEVERITY_WARN : AuditEventConstants.SEVERITY_INFO;
         auditWriter.log(tenantId, AuditEventConstants.CATEGORY_CASE, eventType,
                 resourceType, resourceId,
                 AuditEventConstants.ACTOR_SYSTEM, null, null, null, AuditEventConstants.CHANNEL_API,
-                AuditEventConstants.OUTCOME_SUCCESS, AuditEventConstants.SEVERITY_INFO,
-                null, afterJson, null, null, tags, null, null, null, null, null);
+                outcome, severity,
+                null, afterJson, null, null, tags, null, null, gatewayRequestId, null, null);
     }
 }

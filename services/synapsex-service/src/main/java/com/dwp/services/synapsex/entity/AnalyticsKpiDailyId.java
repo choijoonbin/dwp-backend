@@ -16,6 +16,8 @@ import java.time.LocalDate;
 @EqualsAndHashCode
 public class AnalyticsKpiDailyId implements Serializable {
 
+    private static final long serialVersionUID = 1L;
+
     private Long tenantId;
     private LocalDate ymd;
     private String metricKey;

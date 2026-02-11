@@ -15,6 +15,8 @@ import java.io.Serializable;
 @EqualsAndHashCode
 public class FiDocHeaderId implements Serializable {
 
+    private static final long serialVersionUID = 1L;
+
     private Long tenantId;
     private String bukrs;
     private String belnr;

@@ -104,14 +104,22 @@ public final class AuditEventConstants {
     public static final String TYPE_PROPOSE = "PROPOSE";
     public static final String TYPE_FAILED = "FAILED";
 
-    /** event_type - Case Analysis (Phase2) */
-    public static final String TYPE_ANALYSIS_RUN_STARTED = "ANALYSIS_RUN_STARTED";
-    public static final String TYPE_ANALYSIS_RUN_COMPLETED = "ANALYSIS_RUN_COMPLETED";
-    public static final String TYPE_ANALYSIS_RUN_FAILED = "ANALYSIS_RUN_FAILED";
-    public static final String TYPE_ACTION_PROPOSED = "ACTION_PROPOSED";
+    /** event_type - Case Analysis (Phase2) — 레거시 별칭 */
+    @Deprecated public static final String TYPE_ANALYSIS_RUN_STARTED = "RUN_STARTED";
+    @Deprecated public static final String TYPE_ANALYSIS_RUN_COMPLETED = "RUN_COMPLETED";
+    @Deprecated public static final String TYPE_ANALYSIS_RUN_FAILED = "RUN_FAILED";
+    @Deprecated public static final String TYPE_ACTION_PROPOSED = "PROPOSAL_UPSERTED";
     public static final String TYPE_ACTION_APPROVED = "ACTION_APPROVED";
     public static final String TYPE_ACTION_REJECTED = "ACTION_REJECTED";
     public static final String TYPE_ACTION_EXECUTED = "ACTION_EXECUTED";
+
+    /** event_type - Case Analysis Phase3 SoT (back.txt/문서와 일치) */
+    public static final String TYPE_RUN_STARTED = "RUN_STARTED";
+    public static final String TYPE_RUN_COMPLETED = "RUN_COMPLETED";
+    public static final String TYPE_RUN_FAILED = "RUN_FAILED";
+    public static final String TYPE_PROPOSAL_UPSERTED = "PROPOSAL_UPSERTED";
+    public static final String TYPE_PROPOSAL_DECIDED = "PROPOSAL_DECIDED";
+    public static final String TYPE_ACTION_FAILED = "ACTION_FAILED";
 
     /** event_type - Run (Phase B) */
     public static final String TYPE_RUN_DETECT_STARTED = "RUN_DETECT_STARTED";

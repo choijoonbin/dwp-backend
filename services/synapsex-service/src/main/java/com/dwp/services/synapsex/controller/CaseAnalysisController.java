@@ -1,12 +1,17 @@
 package com.dwp.services.synapsex.controller;
 
+import com.dwp.core.common.ErrorCode;
 import com.dwp.core.common.ApiResponse;
 import com.dwp.core.constant.HeaderConstants;
+import com.dwp.core.exception.BaseException;
 import com.dwp.services.synapsex.dto.analysis.*;
+import com.dwp.services.synapsex.service.analysis.AnalysisStreamProxyService;
 import com.dwp.services.synapsex.service.analysis.CaseAnalysisService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -20,13 +25,18 @@ import java.util.UUID;
  * Phase2: 케이스 분석 실행, 결과, 액션 제안 API
  * 202 표준: POST analysis-runs는 항상 202 Accepted
  */
+@Slf4j
 @RestController
 @RequestMapping("/synapse")
 @RequiredArgsConstructor
 public class CaseAnalysisController {
 
     private final CaseAnalysisService caseAnalysisService;
+    private final AnalysisStreamProxyService analysisStreamProxyService;
     private final ObjectMapper objectMapper;
+
+    @Value("${synapse.demo-mode:false}")
+    private boolean demoMode;
 
     /**
      * (1) 분석 트리거 — Phase2 202 표준: 항상 202 Accepted
@@ -34,10 +44,10 @@ public class CaseAnalysisController {
      */
     @PostMapping("/cases/{caseId}/analysis-runs")
     public ResponseEntity<ApiResponse<AnalysisRunTriggerResponse>> triggerAnalysis(
-            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(name = HeaderConstants.X_TENANT_ID) Long tenantId,
             @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long userId,
             @RequestHeader(value = "Authorization", required = false) String authorization,
-            @PathVariable Long caseId,
+            @PathVariable("caseId") Long caseId,
             @RequestBody(required = false) AnalysisRunTriggerRequest request) {
         AnalysisRunTriggerResponse res = caseAnalysisService.triggerAnalysis(tenantId, caseId, request, userId, authorization);
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(ApiResponse.success(res));
@@ -49,8 +59,8 @@ public class CaseAnalysisController {
      */
     @GetMapping("/cases/{caseId}/analysis-runs")
     public ApiResponse<Object> getAnalysisRuns(
-            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
-            @PathVariable Long caseId,
+            @RequestHeader(name = HeaderConstants.X_TENANT_ID) Long tenantId,
+            @PathVariable("caseId") Long caseId,
             @RequestParam(value = "latest", required = false) Boolean latest) {
         Object res = caseAnalysisService.getAnalysisRuns(tenantId, caseId, Boolean.TRUE.equals(latest));
         return ApiResponse.success(res);
@@ -62,20 +72,44 @@ public class CaseAnalysisController {
      */
     @GetMapping("/analysis-runs/{runId}")
     public ApiResponse<AnalysisRunStatusDto> getRunStatus(
-            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
-            @PathVariable UUID runId) {
+            @RequestHeader(name = HeaderConstants.X_TENANT_ID) Long tenantId,
+            @PathVariable("runId") UUID runId) {
         AnalysisRunStatusDto dto = caseAnalysisService.getRunStatus(tenantId, runId);
         return ApiResponse.success(dto);
     }
 
     /**
-     * (3) 분석 스트림 (SSE) — 최소 started/completed/failed
-     * GET /api/synapse/analysis-runs/{runId}/stream
+     * (3) 분석 스트림 (SSE) — 옵션 B: BE 프록시로 Aura 스트림 중계. demo 모드 시 폴링 목.
+     * GET /api/synapse/analysis-runs/{runId}/stream?caseId= (caseId 선택, 검증용)
      */
     @GetMapping(value = "/analysis-runs/{runId}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public ResponseEntity<org.springframework.web.servlet.mvc.method.annotation.SseEmitter> streamRun(
-            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
-            @PathVariable UUID runId) {
+            @RequestHeader(name = HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @PathVariable("runId") UUID runId,
+            @RequestParam(value = "caseId", required = false) Long caseId) {
+        log.info("SSE stream request received: runId={} caseId={} (suspected disconnect trace)", runId, caseId);
+        if (!demoMode) {
+            try {
+                org.springframework.web.servlet.mvc.method.annotation.SseEmitter emitter =
+                        analysisStreamProxyService.streamFromAura(tenantId, runId, caseId, authorization);
+                log.debug("SSE stream returning emitter to client: runId={}", runId);
+                return ResponseEntity.ok()
+                        .header(org.springframework.http.HttpHeaders.CACHE_CONTROL, "no-cache")
+                        .header(org.springframework.http.HttpHeaders.CONNECTION, "keep-alive")
+                        .body(emitter);
+            } catch (com.dwp.core.exception.BaseException e) {
+                // Accept: text/event-stream 요청에 JSON 예외 응답 시 HttpMediaTypeNotAcceptableException 발생 → 500 빈 body.
+                // SSE 형식으로 failed 이벤트 1회 전송 후 완료.
+                log.warn("SSE stream pre-start error: runId={} errorCode={} message={}", runId, e.getErrorCode(), e.getMessage());
+                org.springframework.web.servlet.mvc.method.annotation.SseEmitter failedEmitter =
+                        analysisStreamProxyService.createFailedEmitter(runId, e.getMessage());
+                return ResponseEntity.ok()
+                        .header(org.springframework.http.HttpHeaders.CACHE_CONTROL, "no-cache")
+                        .header(org.springframework.http.HttpHeaders.CONNECTION, "keep-alive")
+                        .body(failedEmitter);
+            }
+        }
         org.springframework.web.servlet.mvc.method.annotation.SseEmitter emitter = new org.springframework.web.servlet.mvc.method.annotation.SseEmitter(300_000L);
         String runIdStr = runId.toString();
         new java.util.Timer().schedule(new java.util.TimerTask() {
@@ -146,38 +180,99 @@ public class CaseAnalysisController {
      */
     @GetMapping("/cases/{caseId}/action-proposals")
     public ApiResponse<List<CaseActionProposalDto>> getActionProposals(
-            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
-            @PathVariable Long caseId,
-            @RequestParam(required = false) UUID runId) {
+            @RequestHeader(name = HeaderConstants.X_TENANT_ID) Long tenantId,
+            @PathVariable("caseId") Long caseId,
+            @RequestParam(value = "runId", required = false) UUID runId) {
         List<CaseActionProposalDto> list = caseAnalysisService.getActionProposals(tenantId, caseId, runId);
         return ApiResponse.success(list);
     }
 
     /**
+     * (5b) FE 요청: 단일 decision API
+     * POST /api/synapse/cases/{caseId}/action-proposals/{proposalId}/decision
+     * Body: { "decision": "APPROVE" | "REJECT", "comment"?: string }
+     */
+    @PostMapping("/cases/{caseId}/action-proposals/{proposalId}/decision")
+    public ApiResponse<Void> decisionProposal(
+            @RequestHeader(name = HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long userId,
+            @PathVariable("caseId") Long caseId,
+            @PathVariable("proposalId") UUID proposalId,
+            @RequestBody(required = false) ProposalDecisionBodyDto body) {
+        String comment = body != null ? body.getComment() : null;
+        if (body != null && "REJECT".equalsIgnoreCase(body.getDecision())) {
+            caseAnalysisService.rejectProposal(tenantId, proposalId, userId, comment);
+        } else {
+            caseAnalysisService.approveProposal(tenantId, proposalId, userId, comment);
+        }
+        return ApiResponse.success(null);
+    }
+
+    /**
      * (6) 액션 제안 승인
      * POST /api/synapse/cases/{caseId}/action-proposals/{proposalId}/approve
+     * Body(optional): { "comment": "..." }
      */
     @PostMapping("/cases/{caseId}/action-proposals/{proposalId}/approve")
     public ApiResponse<Void> approveProposal(
-            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(name = HeaderConstants.X_TENANT_ID) Long tenantId,
             @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long userId,
-            @PathVariable Long caseId,
-            @PathVariable UUID proposalId) {
-        caseAnalysisService.approveProposal(tenantId, proposalId, userId);
+            @PathVariable("caseId") Long caseId,
+            @PathVariable("proposalId") UUID proposalId,
+            @RequestBody(required = false) ProposalDecisionRequest body) {
+        String comment = body != null ? body.getComment() : null;
+        caseAnalysisService.approveProposal(tenantId, proposalId, userId, comment);
         return ApiResponse.success(null);
     }
 
     /**
      * (7) 액션 제안 거절
      * POST /api/synapse/cases/{caseId}/action-proposals/{proposalId}/reject
+     * Body(optional): { "comment": "..." }
      */
     @PostMapping("/cases/{caseId}/action-proposals/{proposalId}/reject")
     public ApiResponse<Void> rejectProposal(
-            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(name = HeaderConstants.X_TENANT_ID) Long tenantId,
             @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long userId,
-            @PathVariable Long caseId,
-            @PathVariable UUID proposalId) {
-        caseAnalysisService.rejectProposal(tenantId, proposalId, userId);
+            @PathVariable("caseId") Long caseId,
+            @PathVariable("proposalId") UUID proposalId,
+            @RequestBody(required = false) ProposalDecisionRequest body) {
+        String comment = body != null ? body.getComment() : null;
+        caseAnalysisService.rejectProposal(tenantId, proposalId, userId, comment);
         return ApiResponse.success(null);
+    }
+
+    /**
+     * (7b) FE 요청: body로 proposalId 전달
+     * POST /api/synapse/cases/{caseId}/actions/execute
+     * Body: { "proposalId": UUID, "runId"?: UUID, "mode"?: "SIMULATION" }
+     */
+    @PostMapping("/cases/{caseId}/actions/execute")
+    public ApiResponse<ProposalExecuteResponseDto> executeAction(
+            @RequestHeader(name = HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long userId,
+            @PathVariable("caseId") Long caseId,
+            @RequestBody ExecuteActionRequestDto body) {
+        if (body == null || body.getProposalId() == null) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "proposalId는 필수입니다.");
+        }
+        ProposalExecuteResponseDto result = caseAnalysisService.executeProposal(tenantId, caseId, body.getProposalId(), userId,
+                body.getGatewayRequestId());
+        return ApiResponse.success(result);
+    }
+
+    /**
+     * (8) Phase3: 액션 제안 실행(시뮬레이션)
+     * POST /api/synapse/cases/{caseId}/action-proposals/{proposalId}/execute
+     * APPROVED 제안만 실행 가능. 결과는 case_action_execution에 저장, ACTION_EXECUTED 감사.
+     */
+    @PostMapping("/cases/{caseId}/action-proposals/{proposalId}/execute")
+    public ApiResponse<ProposalExecuteResponseDto> executeProposal(
+            @RequestHeader(name = HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long userId,
+            @PathVariable("caseId") Long caseId,
+            @PathVariable("proposalId") UUID proposalId) {
+        ProposalExecuteResponseDto result = caseAnalysisService.executeProposal(tenantId, caseId, proposalId, userId, null);
+        return ApiResponse.success(result);
     }
 }

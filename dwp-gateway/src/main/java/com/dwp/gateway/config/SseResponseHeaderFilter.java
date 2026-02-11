@@ -4,12 +4,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
+import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.http.server.reactive.ServerHttpResponseDecorator;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 /**
@@ -77,7 +79,8 @@ public class SseResponseHeaderFilter implements GlobalFilter, Ordered {
         log.info("SSE stream started: method={}, path={}, correlationId={}, agentId={}, tenantId={}, userId={}", 
                 request.getMethod(), path, correlationId, agentId, tenantId, userId);
 
-        // 응답 헤더를 보장하기 위한 데코레이터 생성
+        // 응답 헤더 보장 + 스트림 종료 사유 로깅 (FE가 abort 없이 done=true 를 보는 경우 원인 구분용)
+        final String pathForSseLog = path;
         ServerHttpResponse originalResponse = exchange.getResponse();
         ServerHttpResponseDecorator decoratedResponse = new ServerHttpResponseDecorator(originalResponse) {
             @Override
@@ -118,6 +121,28 @@ public class SseResponseHeaderFilter implements GlobalFilter, Ordered {
                 }
                 
                 return headers;
+            }
+
+            @Override
+            @SuppressWarnings("null")
+            public Mono<Void> writeWith(org.reactivestreams.Publisher<? extends DataBuffer> body) {
+                // 끊김 의심 구간: 구독·첫 청크·종료 사유 상세 로깅 (FE done=true vs BE client disconnected 불일치 규명용)
+                log.info("SSE stream writeWith() called: path={} (suspected disconnect trace)", pathForSseLog);
+                return super.writeWith(
+                        Flux.from(body)
+                                .doOnSubscribe(s -> log.info("SSE stream body subscribed: path={} (suspected disconnect trace)", pathForSseLog))
+                                .index()
+                                .doOnNext(tuple -> {
+                                    if (tuple.getT1() == 0) {
+                                        log.info("SSE first chunk received from downstream: path={} size={} bytes (suspected disconnect trace)", 
+                                                pathForSseLog, tuple.getT2().readableByteCount());
+                                    }
+                                })
+                                .map(tuple -> tuple.getT2())
+                                .doOnCancel(() -> log.info("SSE stream cancelled by client (e.g. FE abort/navigate): path={} (suspected disconnect trace)", pathForSseLog))
+                                .doOnComplete(() -> log.info("SSE stream completed by downstream: path={} (suspected disconnect trace)", pathForSseLog))
+                                .doOnError(e -> log.error("SSE stream error: path={} {} (suspected disconnect trace)", pathForSseLog, e.getMessage(), e))
+                                .doFinally(signal -> log.info("SSE stream finalized: path={} signal={} (suspected disconnect trace)", pathForSseLog, signal)));
             }
         };
 

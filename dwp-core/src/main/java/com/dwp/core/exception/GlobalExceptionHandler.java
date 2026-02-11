@@ -58,7 +58,7 @@ public class GlobalExceptionHandler {
         log.warn("Validation error: {}", errors);
         return ResponseEntity
                 .status(ErrorCode.VALIDATION_ERROR.getHttpStatus())
-                .body(ApiResponse.error(ErrorCode.VALIDATION_ERROR, "입력값 검증에 실패했습니다.", traceId(request), gatewayRequestId(request)));
+                .body(ApiResponse.error(ErrorCode.VALIDATION_ERROR, "입력값 검증에 실패했습니다.", errors, traceId(request), gatewayRequestId(request)));
     }
     
     /**
@@ -76,7 +76,7 @@ public class GlobalExceptionHandler {
         log.warn("Bind error: {}", errors);
         return ResponseEntity
                 .status(ErrorCode.VALIDATION_ERROR.getHttpStatus())
-                .body(ApiResponse.error(ErrorCode.VALIDATION_ERROR, "입력값 검증에 실패했습니다.", traceId(request), gatewayRequestId(request)));
+                .body(ApiResponse.error(ErrorCode.VALIDATION_ERROR, "입력값 검증에 실패했습니다.", errors, traceId(request), gatewayRequestId(request)));
     }
     
     /**

@@ -80,7 +80,8 @@ public class ArchiveQueryService {
                 .offset((long) page * size)
                 .limit(size)
                 .fetch();
-        long total = queryFactory.selectFrom(a).where(predicate).fetchCount();
+        Long totalLong = queryFactory.select(a.count()).from(a).where(predicate).fetchOne();
+        long total = totalLong != null ? totalLong : 0L;
 
         List<ArchiveListRowDto> rows = actions.stream()
                 .map(action -> toArchiveRow(tenantId, action))

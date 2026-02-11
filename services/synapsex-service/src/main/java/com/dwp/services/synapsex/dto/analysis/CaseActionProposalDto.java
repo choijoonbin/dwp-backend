@@ -23,6 +23,16 @@ public class CaseActionProposalDto {
     private String rationale;
     private JsonNode payload;
     private Instant createdAt;
+    /** back.txt: 최종 수정 시각 (API 응답 updatedAt) */
+    private Instant updatedAt;
     /** 승인 필요 여부 (Aura proposals.requiresApproval) */
     private Boolean requiresApproval;
+    /** Phase3: 동일 run 내 중복 방지 식별자 (dedup_key와 동일, API 계약 fingerprint) */
+    private String fingerprint;
+    /** Phase3: 결정자 user_id (승인/거절 시) */
+    private Long decidedBy;
+    /** Phase3: 결정 시각 */
+    private Instant decidedAt;
+    /** Phase3: 승인/거절 코멘트 */
+    private String decisionComment;
 }

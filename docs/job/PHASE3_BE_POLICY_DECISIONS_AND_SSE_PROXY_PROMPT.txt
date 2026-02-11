@@ -1,0 +1,146 @@
+[PHASE3 Backend Follow-up Prompt] 정책 의사결정 답변 + SSE 프록시(옵션 B) 확정 + 문서/계약 업데이트 지시
+버전: v1.0 / 작성일: 2026-02-10
+대상: Backend(Spring) 담당 Cursor
+목적: back.txt 기반 Phase3 반영 완료 후, 남아있는 “의사결정/질문”을 일괄 정리하고 옵션 B(운영 기본) 기준으로 계약을 확정한다.
+주의: 본 프롬프트는 ‘정책/계약 확정 + 필요한 최소 코드/문서 보강’이 목적이다.
+
+======================================================================
+0) 결론(의사결정 확정)
+1) 스트림 연결 주체: ✅ 운영 기본은 “옵션 B(Backend SSE Proxy)”
+   - FE는 운영에서 Aura 절대 URL로 직접 SSE 연결하지 않는다.
+   - BE는 FE에게 내려주는 streamUrl을 “BE 프록시 SSE 엔드포인트”로 통일한다.
+   - 옵션 A(직접 Aura URL)는 “개발/로컬 디버그 전용 feature flag”로만 허용(운영 OFF).
+
+2) gatewayRequestId: ✅ 저장 + 감사(audit) 포함 (권장)
+   - execute(sim/real) 요청에 gatewayRequestId가 들어오면, BE는 실행 결과/감사 로그에 gatewayRequestId를 남겨 재시도/멱등/추적에 사용한다.
+   - gatewayRequestId 미입력 시 BE가 생성(선택)하거나 NULL 허용(권장: FE가 생성해서 전달).
+
+3) 감사 이벤트명: ✅ BE 상수를 “단일 진실(SoT)”로 하고, 문서(back.txt/결과 md)와 이벤트명을 일치시킨다.
+   - RUN_STARTED / RUN_COMPLETED / RUN_FAILED
+   - PROPOSAL_UPSERTED(or PROPOSAL_CREATED) / PROPOSAL_DECIDED
+   - ACTION_EXECUTED / ACTION_FAILED  ✅ 실패도 반드시 남긴다.
+
+4) 실행 실패 시: ✅ ACTION_FAILED 감사 로그 기록 + case_analysis_run 또는 action 테이블 상태 FAILED 업데이트.
+
+======================================================================
+1) SSE Proxy(옵션 B) — API 계약/엔드포인트 정의(필수)
+1-1. FE가 호출할 BE SSE 프록시 엔드포인트(권장 표준)
+- GET /api/synapse/analysis-runs/{runId}/stream
+  - Query: caseId(optional, 검증용)
+  - Response: text/event-stream (SSE)
+  - 동작: BE가 Aura SSE를 server-side로 연결하여 그대로 중계(pass-through)한다.
+  - 인증/헤더: 기존 DWP 인증(Authorization, X-Tenant-ID 등)을 그대로 사용.
+  - BE → Aura 호출 시 내부 인증/헤더 규칙을 사용(필요 시 X-User-ID/X-Agent-ID 포함).
+
+1-2. streamUrl 반환 정책(중요)
+- POST /api/synapse/cases/{caseId}/analysis-runs 응답의 streamUrl은 운영에서 항상:
+  - "/api/synapse/analysis-runs/{runId}/stream"
+- (개발 옵션 A) feature flag가 켜진 경우에만:
+  - "http://{AURA_HOST}/aura/cases/{caseId}/analysis/stream?runId={runId}"
+- 문서에 명시: “운영 기본은 BE 프록시 URL, 옵션 A는 로컬/디버그용”
+
+1-3. Proxy 구현 요구사항(운영 필수 체크)
+- 타임아웃:
+  - upstream(Aura) read timeout은 SSE 특성상 길게(예: 5~30분) 설정
+  - downstream(FE) keep-alive + idle timeout도 길게(예: 5~30분)
+- 버퍼링 금지:
+  - proxy/서버에서 SSE 응답이 버퍼링되어 ‘한 번에 몰아서’ 나오지 않도록 flush/streaming 유지
+- 헤더:
+  - Content-Type: text/event-stream
+  - Cache-Control: no-cache
+  - Connection: keep-alive
+- 오류 전파:
+  - Aura 연결 실패/중단 시 FE에 failed 이벤트를 SSE로 전달하거나, 502로 종료 후 FE 재연결 유도(권장: failed 이벤트 1회 전송)
+
+======================================================================
+2) gatewayRequestId 정책(멱등/추적)
+2-1. 저장 위치/용도
+- actions/execute 요청에서 gatewayRequestId 수신 시:
+  - 실행 결과 테이블(result_json 등)과 audit_event_log에 함께 기록
+  - 동일 gatewayRequestId로 재요청 시:
+    - “이미 처리됨” 응답 또는 기존 결과 반환(멱등) (가능하면)
+- DB가 이미 idempotency_key 테이블을 가지고 있다면 활용:
+  - UNIQUE(tenant_id, resource_type, resource_id, gateway_request_id)
+
+2-2. 감사 로그 포함 컬럼(권장)
+- audit_event_log.gateway_request_id 에 저장
+- trace_id/span_id가 있으면 같이 저장(분산추적 연계)
+
+======================================================================
+3) 감사 로그 이벤트명 통일(문서/상수/프론트)
+3-1. SoT
+- BE 상수(enum/constant)를 SoT로 고정하고, 문서(frontend/docs/api-spec/PHASE3_BE_BACK_TXT_MARUIRI_result.md 포함)에서 동일 문자열로 정리한다.
+
+3-2. 최소 이벤트 세트(Phase3 DoD)
+- RUN_STARTED: analysis-runs 생성 시
+- RUN_COMPLETED: Aura callback COMPLETED 저장 시
+- RUN_FAILED: Aura callback FAILED 저장 시
+- PROPOSAL_UPSERTED: callback proposals upsert 시(또는 created/updated 구분)
+- PROPOSAL_DECIDED: FE decision API 호출 성공 시
+- ACTION_EXECUTED: execute(sim/real) 성공 시
+- ACTION_FAILED: execute 실패 시 ✅ 필수
+
+3-3. before/after/diff 채움 규칙(권장)
+- decision/execute는 before_json/after_json/diff_json을 가능한 채운다(최소 diff_json)
+- callback의 PROPOSAL_UPSERTED는 after_json 중심으로 기록(대량이면 요약 + proposalId 목록)
+
+======================================================================
+4) BE가 FE/Aura/Infra에 요청해야 할 확인사항(질문 답변 포함)
+4-1. FE에 전달할 확인 포인트(요청)
+- FE는 아래 필드를 실제 UI/상태에 반영할 예정인가?
+  - runId: 분석/제안/스트림 탭의 ‘현재 실행’ 식별자
+  - updatedAt: 제안 merge(중복 방지/업데이트 표시)
+  - gatewayRequestId: execute 호출 시 FE에서 생성/전달(권장)
+  - actionId/simulation: 실행 결과 표시(시뮬 결과 확인)
+
+4-2. Aura는 추가 요구 없음(현 단계)
+- 단, 옵션 B에서는 FE가 Aura에 직접 붙지 않으므로, Aura SSE는 BE가 연결한다.
+- Aura는 SSE/콜백 안정성(끊김/실패 시 failed 이벤트)만 보장하면 됨.
+
+4-3. 인프라/Gateway(운영) 체크
+- BE SSE 프록시 엔드포인트를 게이트웨이/리버스프록시 레벨에서 SSE 친화적으로 설정:
+  - timeout/keep-alive 확장
+  - response buffering off
+  - HTTP/1.1 유지 또는 h2에서 SSE 호환 확인
+- 배포 경로: /api/synapse/analysis-runs/*/stream 라우팅/보안 규칙 포함
+
+======================================================================
+5) 이번 라운드에서 BE가 수행해야 할 “추가 작업(최소)”
+- [ ] (필수) BE SSE 프록시 엔드포인트 구현: GET /api/synapse/analysis-runs/{runId}/stream
+- [ ] (필수) POST analysis-runs 응답 streamUrl을 운영 기본 “BE 프록시 URL”로 변경
+- [ ] (필수) 옵션 A(직접 Aura) feature flag 추가(예: app.profile/dev 또는 설정값)
+- [ ] (필수) 감사 이벤트명 상수/문서 통일 + ACTION_FAILED 로그 추가
+- [ ] (권장) gatewayRequestId 저장 + 감사 포함 + 멱등 처리 가능하면 적용
+- [ ] (필수) docs 업데이트:
+  - 운영: streamUrl=BE proxy
+  - dev: streamUrl=Aura direct (옵션)
+  - proxy 요구사항(timeout/buffering) 명시
+
+======================================================================
+6) 검증용 curl(스모크)
+(1) run 생성
+curl -X POST "http://localhost:8080/api/synapse/cases/85114/analysis-runs" \
+  -H "Authorization: Bearer <token>" -H "X-Tenant-ID: 1" \
+  -H "Content-Type: application/json" \
+  -d "{}"
+- 기대: 202(or 200) + runId + streamUrl="/api/synapse/analysis-runs/{runId}/stream"
+
+(2) SSE 프록시 연결
+curl -N "http://localhost:8080/api/synapse/analysis-runs/<runId>/stream" \
+  -H "Authorization: Bearer <token>" -H "X-Tenant-ID: 1"
+- 기대: started/step/agent/completed(or failed) 이벤트 스트리밍
+
+(3) execute(sim) with gatewayRequestId
+curl -X POST "http://localhost:8080/api/synapse/cases/85114/actions/execute" \
+  -H "Authorization: Bearer <token>" -H "X-Tenant-ID: 1" \
+  -H "Content-Type: application/json" \
+  -d '{"proposalId":"<proposalId>","mode":"SIMULATION","gatewayRequestId":"gw-85114-001"}'
+- 기대: actionId/simulation 반환 + audit_event_log에 ACTION_EXECUTED 기록( gateway_request_id 포함 )
+- 실패 시: ACTION_FAILED 기록
+
+======================================================================
+7) 완료조건(DoD)
+- 운영 기본 옵션 B로 streamUrl 정책이 문서+코드에 반영됨
+- BE SSE 프록시로 FE에서 스트림 이벤트 확인 가능
+- decision/execute 이벤트가 audit_event_log에 일관된 event_type으로 기록됨(성공/실패 모두)
+- gatewayRequestId가 요청/응답/감사에 추적 가능

@@ -95,9 +95,10 @@ public class RagQueryService {
                 .limit(size)
                 .fetch();
 
-        long total = queryFactory.selectFrom(c)
+        Long totalLong = queryFactory.select(c.count()).from(c)
                 .where(c.tenantId.eq(tenantId), c.chunkText.likeIgnoreCase(pattern))
-                .fetchCount();
+                .fetchOne();
+        long total = totalLong != null ? totalLong : 0L;
 
         List<Long> docIds = chunks.stream().map(RagChunk::getDocId).distinct().toList();
         Map<Long, String> docTitles = ragDocumentRepository.findAllById(docIds).stream()

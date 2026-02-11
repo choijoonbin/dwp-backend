@@ -7,15 +7,17 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * GET /api/synapse/cases/{caseId}/analysis 응답
- * 캐시된 분석 결과 (score, severity, reasonText, evidence, similarCases, ragRefs, proposals)
+ * back.txt 스키마: runId, score, severity, reasonText, confidenceBreakdown, evidence, ragRefs, proposals
  */
 @Data
 @Builder
 public class CaseAnalysisDto {
 
+    private UUID runId;
     private BigDecimal score;
     private String severity;
     private String reasonText;

@@ -24,8 +24,9 @@ spring:
   cloud:
     gateway:
       # SSE(Server-Sent Events) 지원을 위한 타임아웃 설정
+      # 분석 스트림(/stream)은 라우트 메타데이터로 30분 적용
       httpclient:
-        response-timeout: 300s  # AI 스트리밍 응답을 위해 5분으로 설정
+        response-timeout: 300s  # 기본 5분
         connect-timeout: 10000  # 10초
       routes:
         # HITL API 라우팅 (Main Service) - 운영 환경
@@ -43,6 +44,16 @@ spring:
             - Path=/api/aura/dashboard/**
           filters:
             - RewritePath=/api/aura/dashboard(?<segment>.*), /synapse/dashboard$\{segment}
+        # 분석 스트림 전용: 30분 타임아웃 (FE SSE → BE 프록시)
+        - id: synapsex-analysis-runs-stream
+          uri: ${SERVICE_SYNAPSEX_URL:http://synapsex-service:8085}
+          order: -1
+          predicates:
+            - Path=/api/synapse/analysis-runs/*/stream
+          metadata:
+            response-timeout: 1800000
+          filters:
+            - StripPrefix=1
         # SynapseX API (cases, anomalies, actions, audit, agent, dashboard 등)
         - id: synapsex-api
           uri: ${SERVICE_SYNAPSEX_URL:http://synapsex-service:8085}

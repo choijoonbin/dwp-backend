@@ -114,7 +114,8 @@ public class AnomalyQueryService {
                 .offset((long) page * size)
                 .limit(size)
                 .fetch();
-        long total = queryFactory.selectFrom(c).where(predicate).fetchCount();
+        Long totalLong = queryFactory.select(c.count()).from(c).where(predicate).fetchOne();
+        long total = totalLong != null ? totalLong : 0L;
 
         List<AnomalyListRowDto> rows = cases.stream()
                 .map(case_ -> buildAnomalyRow(tenantId, case_))

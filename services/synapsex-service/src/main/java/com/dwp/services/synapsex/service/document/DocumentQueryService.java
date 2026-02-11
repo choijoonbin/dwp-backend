@@ -213,9 +213,8 @@ public class DocumentQueryService {
                 .limit(size)
                 .fetch();
 
-        long total = queryFactory.selectFrom(h)
-                .where(predicate)
-                .fetchCount();
+        Long totalLong = queryFactory.select(h.count()).from(h).where(predicate).fetchOne();
+        long total = totalLong != null ? totalLong : 0L;
 
         List<DocumentListRowDto> rows = buildDocumentListRows(tenantId, headers);
         return PageResponse.of(rows, total, page, size);

@@ -9,8 +9,10 @@ spring:
   cloud:
     gateway:
       # SSE(Server-Sent Events) 지원을 위한 타임아웃 설정
+      # 분석 스트림(/stream)은 라우트 메타데이터로 30분 적용. 나머지는 기본 5분
+      # SseHttpClientCustomizer: 청크 간 읽기 대기(responseTimeout) 30분으로 설정 → 첫 청크 후 끊김 완화
       httpclient:
-        response-timeout: 300s  # AI 스트리밍 응답을 위해 5분으로 설정
+        response-timeout: 300s  # 기본 5분 (analysis-runs/*/stream 은 per-route 30분)
         connect-timeout: 10000  # 10초
         # SSE 스트리밍 최적화: 커넥션 유지 및 버퍼링 비활성화
         pool:
@@ -78,6 +80,16 @@ spring:
           uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
           predicates:
             - Path=/api/synapse/cases/**
+          filters:
+            - StripPrefix=1
+        # 분석 스트림 전용: 30분 타임아웃 (FE SSE → BE 프록시, 긴 분석 대응)
+        - id: synapsex-analysis-runs-stream
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          order: -1
+          predicates:
+            - Path=/api/synapse/analysis-runs/*/stream
+          metadata:
+            response-timeout: 1800000
           filters:
             - StripPrefix=1
         # Phase2: 분석 실행 (analysis-runs, internal/aura 콜백)
@@ -286,6 +298,12 @@ cors:
   allowed-headers: ${CORS_ALLOWED_HEADERS:*}
   allow-credentials: ${CORS_ALLOW_CREDENTIALS:true}
   max-age: ${CORS_MAX_AGE:3600}
+
+# Gateway SSE: 재연결(id: 주입) 필터. 끊김 테스트 시 false로 두면 해당 구간 우회
+gateway:
+  sse:
+    reconnection:
+      enabled: true  # false 시 SseReconnectionFilter 비활성화 → body 가공 없음
 
 logging:
   level:

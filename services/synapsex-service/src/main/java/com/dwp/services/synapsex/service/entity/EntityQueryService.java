@@ -97,9 +97,8 @@ public class EntityQueryService {
                 .limit(size)
                 .fetch();
 
-        long total = queryFactory.selectFrom(p)
-                .where(predicate)
-                .fetchCount();
+        Long totalLong = queryFactory.select(p.count()).from(p).where(predicate).fetchOne();
+        long total = totalLong != null ? totalLong : 0L;
 
         List<EntityListRowDto> rows = buildEntityListRows(tenantId, parties);
         if (query.getRiskMin() != null || query.getRiskMax() != null) {

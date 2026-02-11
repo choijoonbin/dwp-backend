@@ -154,9 +154,8 @@ public class OpenItemQueryService {
                 .limit(size)
                 .fetch();
 
-        long total = queryFactory.selectFrom(oi)
-                .where(predicate)
-                .fetchCount();
+        Long totalLong = queryFactory.select(oi.count()).from(oi).where(predicate).fetchOne();
+        long total = totalLong != null ? totalLong : 0L;
 
         List<OpenItemListRowDto> rows = items.stream()
                 .map(item -> buildOpenItemListRow(tenantId, item))

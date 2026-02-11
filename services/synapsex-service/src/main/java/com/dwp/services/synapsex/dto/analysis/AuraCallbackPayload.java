@@ -19,10 +19,28 @@ import java.util.UUID;
 public class AuraCallbackPayload {
 
     private UUID runId;
+    private Long caseId;
     private String status;  // COMPLETED | FAILED
     private String auraTraceId;
     private List<Map<String, Object>> partialEvents;
+    /** Phase2: 단일 finalResult */
     private FinalResult finalResult;
+    /** Phase3: analysis + proposals + meta */
+    private AnalysisBlock analysis;
+    private List<ProposalItem> proposals;
+    private Map<String, Object> meta;
+    /** Phase3 FAILED 시. Aura가 문자열 또는 객체 { message, stage } 등으로 보낼 수 있음 → BE에서 문자열로 정규화 저장 */
+    private JsonNode error;
+
+    @Data
+    public static class AnalysisBlock {
+        private Double score;
+        private String severity;
+        private String reasonText;
+        private Object confidence;
+        private List<Map<String, Object>> evidence;
+        private List<Map<String, Object>> ragRefs;
+    }
 
     @Data
     public static class FinalResult {

@@ -58,6 +58,15 @@ public class CaseActionProposal {
     @Column(name = "requires_approval")
     private Boolean requiresApproval;
 
+    @Column(name = "decided_by")
+    private Long decidedBy;
+
+    @Column(name = "decided_at")
+    private Instant decidedAt;
+
+    @Column(name = "decision_comment", columnDefinition = "TEXT")
+    private String decisionComment;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 

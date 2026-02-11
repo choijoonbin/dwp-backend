@@ -1,11 +1,13 @@
 package com.dwp.core.autoconfig;
 
 import com.dwp.core.event.RedisEventPublisher;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
@@ -39,6 +41,7 @@ public class CoreRedisAutoConfiguration {
      * @ConditionalOnMissingBean으로 서비스별 override 허용 (Q3: B 전략)
      */
     @Bean
+    @Primary
     @ConditionalOnMissingBean
     public RedisTemplate<String, String> redisTemplate(RedisConnectionFactory connectionFactory) {
         RedisTemplate<String, String> template = new RedisTemplate<>();
@@ -58,7 +61,7 @@ public class CoreRedisAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(RedisEventPublisher.class)
     public RedisEventPublisher redisEventPublisher(RedisTemplate<String, String> redisTemplate,
-                                                    com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
+                                                    ObjectMapper objectMapper) {
         log.info("✅ DWP Core: RedisEventPublisher registered");
         return new RedisEventPublisher(redisTemplate, objectMapper);
     }

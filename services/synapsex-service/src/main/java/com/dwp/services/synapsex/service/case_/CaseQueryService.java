@@ -224,7 +224,8 @@ public class CaseQueryService {
                 .offset((long) page * size)
                 .limit(size)
                 .fetch();
-        long total = queryFactory.selectFrom(c).where(predicate).fetchCount();
+        Long totalLong = queryFactory.select(c.count()).from(c).where(predicate).fetchOne();
+        long total = totalLong != null ? totalLong : 0L;
         List<CaseListRowDto> rows = buildCaseListRows(tenantId, cases);
         Map<String, Object> filtersApplied = buildFiltersApplied(query);
         Map<String, Long> summary = buildCaseSummary(tenantId);
@@ -267,17 +268,21 @@ public class CaseQueryService {
 
     /** P0-2: Case list summary (total, open, triage, inReview) */
     private Map<String, Long> buildCaseSummary(Long tenantId) {
-        long total = queryFactory.selectFrom(c).where(c.tenantId.eq(tenantId)).fetchCount();
-        long open = queryFactory.selectFrom(c)
+        Long totalLong = queryFactory.select(c.count()).from(c).where(c.tenantId.eq(tenantId)).fetchOne();
+        long total = totalLong != null ? totalLong : 0L;
+        Long openLong = queryFactory.select(c.count()).from(c)
                 .where(c.tenantId.eq(tenantId)
                         .and(c.status.in(AgentCaseStatus.OPEN, AgentCaseStatus.IN_PROGRESS, AgentCaseStatus.IN_REVIEW, AgentCaseStatus.TRIAGED)))
-                .fetchCount();
-        long triage = queryFactory.selectFrom(c)
+                .fetchOne();
+        long open = openLong != null ? openLong : 0L;
+        Long triageLong = queryFactory.select(c.count()).from(c)
                 .where(c.tenantId.eq(tenantId).and(c.status.eq(AgentCaseStatus.TRIAGED)))
-                .fetchCount();
-        long inReview = queryFactory.selectFrom(c)
+                .fetchOne();
+        long triage = triageLong != null ? triageLong : 0L;
+        Long inReviewLong = queryFactory.select(c.count()).from(c)
                 .where(c.tenantId.eq(tenantId).and(c.status.eq(AgentCaseStatus.IN_REVIEW)))
-                .fetchCount();
+                .fetchOne();
+        long inReview = inReviewLong != null ? inReviewLong : 0L;
         return Map.of("total", total, "open", open, "triage", triage, "inReview", inReview);
     }
 

@@ -23,5 +23,6 @@ public class GuardrailUpsertRequest {
     @NotNull(message = "ruleJson is required")
     private JsonNode ruleJson;
 
+    @Builder.Default
     private Boolean isEnabled = true;
 }
