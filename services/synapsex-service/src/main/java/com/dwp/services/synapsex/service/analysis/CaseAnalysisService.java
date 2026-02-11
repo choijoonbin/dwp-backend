@@ -503,11 +503,17 @@ public class CaseAnalysisService {
 
     /**
      * Phase3: 액션 제안 실행(시뮬레이션). APPROVED 제안만 실행 가능.
-     * case_action_execution에 결과 저장, proposal 상태 EXECUTED, ACTION_EXECUTED 감사.
+     * case_action_execution에 결과 저장, ACTION_EXECUTE_SIM 감사.
      * gatewayRequestId 있으면 저장·감사·멱등(동일 ID 재요청 시 기존 결과 반환).
+     *
+     * @param requestJson 요청 본문(감사/추적용), null 가능
+     * @param runIdForValidation FE가 보낸 runId와 제안의 runId 일치 검증, null이면 검증 생략
      */
     @Transactional
-    public ProposalExecuteResponseDto executeProposal(Long tenantId, Long caseId, UUID proposalId, Long userId, String gatewayRequestId) {
+    public ProposalExecuteResponseDto executeProposal(Long tenantId, Long caseId, UUID proposalId, Long userId, String gatewayRequestId, JsonNode requestJson, UUID runIdForValidation) {
+        if (proposalId == null) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "proposalId는 필수입니다.");
+        }
         if (gatewayRequestId != null && !gatewayRequestId.isBlank()) {
             Optional<CaseActionExecution> existing = executionRepository.findByTenantIdAndGatewayRequestId(tenantId, gatewayRequestId);
             if (existing.isPresent()) {
@@ -537,6 +543,9 @@ public class CaseAnalysisService {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
                     "승인된 제안만 실행할 수 있습니다. 현재 상태: " + proposal.getStatus());
         }
+        if (runIdForValidation != null && proposal.getRunId() != null && !runIdForValidation.equals(proposal.getRunId())) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "runId가 제안의 runId와 일치하지 않습니다.");
+        }
 
         try {
             Instant now = Instant.now();
@@ -545,6 +554,8 @@ public class CaseAnalysisService {
                     .caseId(caseId)
                     .runId(proposal.getRunId())
                     .proposalId(proposalId)
+                    .actionType(proposal.getType())
+                    .requestJson(requestJson)
                     .mode(CaseActionExecution.MODE_SIMULATION)
                     .status(CaseActionExecution.STATUS_COMPLETED)
                     .resultJson(objectMapper.createObjectNode().put("simulated", true).put("proposalType", proposal.getType()))
@@ -566,8 +577,13 @@ public class CaseAnalysisService {
                     "mode", CaseActionExecution.MODE_SIMULATION,
                     "actorUserId", userId != null ? userId : ""));
             if (gatewayRequestId != null && !gatewayRequestId.isBlank()) afterJson.put("gatewayRequestId", gatewayRequestId);
-            logAudit(tenantId, caseId, proposal.getRunId(), proposalId, AuditEventConstants.TYPE_ACTION_EXECUTED,
-                    "ACTION_EXECUTION", execution.getExecutionId().toString(), afterJson, gatewayRequestId);
+            Map<String, Object> auditEvidence = new HashMap<>(Map.of(
+                    "runId", proposal.getRunId() != null ? proposal.getRunId().toString() : "",
+                    "actionType", proposal.getType() != null ? proposal.getType() : "",
+                    "simulate", true));
+            if (proposalId != null) auditEvidence.put("proposalId", proposalId.toString());
+            logAuditWithEvidence(tenantId, caseId, proposal.getRunId(), proposalId, AuditEventConstants.TYPE_ACTION_EXECUTE_SIM,
+                    "ACTION_EXECUTION", execution.getExecutionId().toString(), afterJson, gatewayRequestId, auditEvidence);
 
             Map<String, Object> simulationMap = resultJsonToMap(execution.getResultJson());
             return ProposalExecuteResponseDto.builder()
@@ -592,6 +608,110 @@ public class CaseAnalysisService {
         }
     }
 
+    /**
+     * Phase3 표준: POST /api/synapse/actions/execute 진입점.
+     * 권장 A: proposalId로 실행. 대안 B: actionType+payload로 실행(proposal 있으면 연결, 없으면 proposal_id null로 저장).
+     */
+    @Transactional
+    public ProposalExecuteResponseDto executeAction(Long tenantId, ExecuteActionRequestDto req, Long userId) {
+        if (req.getCaseId() == null) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "caseId는 필수입니다.");
+        }
+        Long caseId = req.getCaseId();
+        boolean simulate = req.getSimulate() != null ? req.getSimulate() : true;
+        String gatewayRequestId = req.getGatewayRequestId() != null && !req.getGatewayRequestId().isBlank() ? req.getGatewayRequestId() : null;
+
+        if (gatewayRequestId != null) {
+            Optional<CaseActionExecution> existing = executionRepository.findByTenantIdAndGatewayRequestId(tenantId, gatewayRequestId);
+            if (existing.isPresent()) {
+                CaseActionExecution ex = existing.get();
+                Map<String, Object> sim = resultJsonToMap(ex.getResultJson());
+                return ProposalExecuteResponseDto.builder()
+                        .executionId(ex.getExecutionId())
+                        .actionId(ex.getExecutionId() != null ? ex.getExecutionId().toString() : null)
+                        .proposalId(ex.getProposalId())
+                        .status(ex.getStatus())
+                        .mode(ex.getMode())
+                        .executedAt(ex.getExecutedAt())
+                        .simulation(sim)
+                        .build();
+            }
+        }
+
+        JsonNode requestJson = objectMapper.valueToTree(req);
+
+        if (req.getProposalId() != null) {
+            CaseActionProposal proposal = proposalRepository.findByProposalIdAndTenantId(req.getProposalId(), tenantId)
+                    .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "액션 제안을 찾을 수 없습니다."));
+            if (!proposal.getCaseId().equals(caseId)) {
+                throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "제안이 해당 케이스에 속하지 않습니다.");
+            }
+            if (req.getRunId() != null && !req.getRunId().equals(proposal.getRunId())) {
+                throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "runId가 제안의 runId와 일치하지 않습니다.");
+            }
+            return executeProposal(tenantId, caseId, req.getProposalId(), userId, gatewayRequestId, requestJson, req.getRunId());
+        }
+
+        if (req.getActionType() != null && !req.getActionType().isBlank()) {
+            if (req.getRunId() == null) {
+                throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "대안 B 사용 시 runId는 필수입니다.");
+            }
+            List<CaseActionProposal> proposals = proposalRepository.findByTenantIdAndCaseIdAndRunIdOrderByCreatedAtDesc(tenantId, caseId, req.getRunId());
+            Optional<CaseActionProposal> approved = proposals.stream()
+                    .filter(p -> CaseActionProposal.STATUS_APPROVED.equals(p.getStatus()) && req.getActionType().equals(p.getType()))
+                    .findFirst();
+            if (approved.isPresent()) {
+                return executeProposal(tenantId, caseId, approved.get().getProposalId(), userId, gatewayRequestId, requestJson, req.getRunId());
+            }
+            // B without matching proposal: record execution with proposal_id=null
+            Instant now = Instant.now();
+            ObjectNode resultNode = objectMapper.createObjectNode()
+                    .put("result", "BLOCK_WOULD_BE_APPLIED")
+                    .put("affected", 1);
+            resultNode.set("details", objectMapper.createObjectNode().put("rule", "PAYMENT_BLOCK_RULE_V1"));
+            CaseActionExecution execution = CaseActionExecution.builder()
+                    .tenantId(tenantId)
+                    .caseId(caseId)
+                    .runId(req.getRunId())
+                    .proposalId(null)
+                    .actionType(req.getActionType())
+                    .requestJson(requestJson)
+                    .mode(CaseActionExecution.MODE_SIMULATION)
+                    .status(CaseActionExecution.STATUS_COMPLETED)
+                    .resultJson(resultNode)
+                    .executedBy(userId)
+                    .executedAt(now)
+                    .createdAt(now)
+                    .gatewayRequestId(gatewayRequestId)
+                    .build();
+            execution = executionRepository.save(execution);
+            Map<String, Object> afterJson = new HashMap<>(Map.of(
+                    "executionId", execution.getExecutionId().toString(),
+                    "status", CaseActionExecution.STATUS_COMPLETED,
+                    "mode", CaseActionExecution.MODE_SIMULATION,
+                    "actionType", req.getActionType()));
+            if (gatewayRequestId != null) afterJson.put("gatewayRequestId", gatewayRequestId);
+            Map<String, Object> execEvidence = new HashMap<>(Map.of(
+                    "runId", req.getRunId().toString(),
+                    "actionType", req.getActionType(),
+                    "simulate", true));
+            logAuditWithEvidence(tenantId, caseId, req.getRunId(), null, AuditEventConstants.TYPE_ACTION_EXECUTE_SIM,
+                    "ACTION_EXECUTION", execution.getExecutionId().toString(), afterJson, gatewayRequestId, execEvidence);
+            Map<String, Object> simulationMap = resultJsonToMap(execution.getResultJson());
+            return ProposalExecuteResponseDto.builder()
+                    .executionId(execution.getExecutionId())
+                    .actionId(execution.getExecutionId() != null ? execution.getExecutionId().toString() : null)
+                    .proposalId(null)
+                    .status(execution.getStatus())
+                    .mode(execution.getMode())
+                    .executedAt(execution.getExecutedAt())
+                    .simulation(simulationMap)
+                    .build();
+        }
+
+        throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "proposalId 또는 actionType이 필요합니다.");
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> resultJsonToMap(JsonNode node) {
         if (node == null || !node.isObject()) return null;
@@ -603,6 +723,10 @@ public class CaseAnalysisService {
     }
 
     private void logAudit(Long tenantId, Long caseId, UUID runId, UUID proposalId, String eventType, String resourceType, String resourceId, Map<String, Object> afterJson, String gatewayRequestId) {
+        logAuditWithEvidence(tenantId, caseId, runId, proposalId, eventType, resourceType, resourceId, afterJson, gatewayRequestId, null);
+    }
+
+    private void logAuditWithEvidence(Long tenantId, Long caseId, UUID runId, UUID proposalId, String eventType, String resourceType, String resourceId, Map<String, Object> afterJson, String gatewayRequestId, Map<String, Object> evidenceJson) {
         Map<String, Object> tags = new HashMap<>();
         tags.put("module", "CASE_ANALYSIS");
         if (caseId != null) tags.put("caseId", caseId);
@@ -616,6 +740,6 @@ public class CaseAnalysisService {
                 resourceType, resourceId,
                 AuditEventConstants.ACTOR_SYSTEM, null, null, null, AuditEventConstants.CHANNEL_API,
                 outcome, severity,
-                null, afterJson, null, null, tags, null, null, gatewayRequestId, null, null);
+                null, afterJson, null, evidenceJson, tags, null, null, gatewayRequestId, null, null);
     }
 }

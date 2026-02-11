@@ -257,22 +257,43 @@ public class CaseAnalysisController {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "proposalId는 필수입니다.");
         }
         ProposalExecuteResponseDto result = caseAnalysisService.executeProposal(tenantId, caseId, body.getProposalId(), userId,
-                body.getGatewayRequestId());
+                body.getGatewayRequestId(), null, null);
         return ApiResponse.success(result);
     }
 
     /**
      * (8) Phase3: 액션 제안 실행(시뮬레이션)
      * POST /api/synapse/cases/{caseId}/action-proposals/{proposalId}/execute
-     * APPROVED 제안만 실행 가능. 결과는 case_action_execution에 저장, ACTION_EXECUTED 감사.
+     * Body(선택): { runId?, simulate?, gatewayRequestId? } — FE가 runId·simulate·gatewayRequestId 전송 시 멱등·검증에 활용.
+     * APPROVED 제안만 실행 가능. 결과는 case_action_execution에 저장, ACTION_EXECUTE_SIM 감사.
      */
     @PostMapping("/cases/{caseId}/action-proposals/{proposalId}/execute")
     public ApiResponse<ProposalExecuteResponseDto> executeProposal(
             @RequestHeader(name = HeaderConstants.X_TENANT_ID) Long tenantId,
             @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long userId,
             @PathVariable("caseId") Long caseId,
-            @PathVariable("proposalId") UUID proposalId) {
-        ProposalExecuteResponseDto result = caseAnalysisService.executeProposal(tenantId, caseId, proposalId, userId, null);
+            @PathVariable("proposalId") UUID proposalId,
+            @RequestBody(required = false) ExecuteProposalPathBodyDto body) {
+        String gatewayRequestId = body != null && body.getGatewayRequestId() != null && !body.getGatewayRequestId().isBlank()
+                ? body.getGatewayRequestId() : null;
+        UUID runIdForValidation = body != null ? body.getRunId() : null;
+        ProposalExecuteResponseDto result = caseAnalysisService.executeProposal(tenantId, caseId, proposalId, userId, gatewayRequestId, null, runIdForValidation);
+        return ApiResponse.success(result);
+    }
+
+    /**
+     * (9) Phase3 표준: POST /api/synapse/actions/execute (body에 caseId 포함)
+     * 권장 A: proposalId로 실행. 대안 B: actionType+payload로 실행.
+     */
+    @PostMapping("/actions/execute")
+    public ApiResponse<ProposalExecuteResponseDto> executeActionUnified(
+            @RequestHeader(name = HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long userId,
+            @RequestBody ExecuteActionRequestDto body) {
+        if (body == null) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "요청 본문이 필요합니다.");
+        }
+        ProposalExecuteResponseDto result = caseAnalysisService.executeAction(tenantId, body, userId);
         return ApiResponse.success(result);
     }
 }

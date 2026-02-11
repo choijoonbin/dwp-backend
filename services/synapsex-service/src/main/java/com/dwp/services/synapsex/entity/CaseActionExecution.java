@@ -35,8 +35,15 @@ public class CaseActionExecution {
     @Column(name = "run_id")
     private UUID runId;
 
-    @Column(name = "proposal_id", nullable = false)
+    @Column(name = "proposal_id")
     private UUID proposalId;
+
+    @Column(name = "action_type", length = 64)
+    private String actionType;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "request_json", columnDefinition = "jsonb")
+    private JsonNode requestJson;
 
     @Column(name = "mode", nullable = false, length = 20)
     @Builder.Default

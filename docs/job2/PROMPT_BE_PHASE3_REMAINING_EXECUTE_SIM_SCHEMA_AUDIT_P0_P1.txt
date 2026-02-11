@@ -1,0 +1,152 @@
+# [Cursor Prompt] BE — Phase3 잔여(P0/P1) Execute(sim) 스키마 확정 + DB 제약/감사 로그 강화
+
+목표
+- Execute(sim)이 “어떤 proposal을 실행했는지” 서버가 확실히 알 수 있게 스키마/DB/감사로그를 고정한다.
+- FE가 proposalId 기반으로 호출할 수 있으면 가장 안정적이며, 대안으로 actionType+payload도 지원한다.
+- 실행 결과(actionId/simulation)가 proposal과 연결되어 조회/감사 추적 가능해야 한다.
+
+운영 정책
+- 스트림은 옵션B(운영 기본): FE는 BE 프록시 URL만 사용.
+- Phase3에서는 simulate=true만 우선(실제 실행은 Phase4 이후 가능).
+
+---
+
+## 1) 결정해야 할 표준안(이번 라운드에서 확정)
+### 권장안(A) Proposal 기반 Execute
+- FE가 execute 요청에 proposalId를 보냄
+- BE는 proposalId로 proposal record를 조회하여:
+  - actionType/payload/rationale/fingerprint를 확정
+  - 실행 전 정합 검증(status/runId/caseId/tenant)
+  - 실행 기록(actionId) 생성
+  - simulate 결과(result_json) 저장
+
+### 대안안(B) ActionType+Payload 기반 Execute (레거시)
+- FE가 actionType + payload를 직접 보냄
+- BE는 fingerprint를 계산하여 중복을 제어(가능하면)
+
+결론: 기본은 A, B는 호환용으로 남기되 내부적으로 proposal 레코드가 있으면 연결.
+
+---
+
+## 2) API 스펙(필드명/예시 JSON 포함)
+### 2.1 POST /api/synapse/actions/execute
+Request (권장 A)
+{
+  "caseId": 85114,
+  "runId": "6da9d686-a126-4d39-91ac-dc111254fc01",
+  "proposalId": "prp_01HXYZ...",
+  "simulate": true,
+  "gatewayRequestId": "gw-req-123"
+}
+
+Request (대안 B)
+{
+  "caseId": 85114,
+  "runId": "6da9d686-a126-4d39-91ac-dc111254fc01",
+  "actionType": "PAYMENT_BLOCK",
+  "payload": { "bukrs":"1000","belnr":"1900000005","gjahr":"2024" },
+  "simulate": true,
+  "gatewayRequestId": "gw-req-123"
+}
+
+Response (성공)
+{
+  "status": "SUCCESS",
+  "message": "OK",
+  "data": {
+    "actionId": "act_01HXYZ...",
+    "proposalId": "prp_01HXYZ...",
+    "simulation": {
+      "result": "BLOCK_WOULD_BE_APPLIED",
+      "affected": 1,
+      "details": { "rule":"PAYMENT_BLOCK_RULE_V1" }
+    }
+  }
+}
+
+Response (실패)
+{
+  "status": "FAIL",
+  "message": "EXECUTE_FAILED",
+  "data": {
+    "actionId": null,
+    "proposalId": "prp_01HXYZ...",
+    "error": { "message":"Invalid payload", "stage":"EXECUTE_VALIDATE" }
+  }
+}
+
+---
+
+## 3) DB 설계/제약(DDL 예시 포함)
+### 3.1 신규 테이블: case_action_execution (권장)
+CREATE TABLE case_action_execution (
+  action_id            varchar(64) PRIMARY KEY,
+  tenant_id            bigint NOT NULL,
+  case_id              bigint NOT NULL,
+  run_id               uuid   NOT NULL,
+  proposal_id          varchar(64),
+  action_type          varchar(64) NOT NULL,
+  simulate             boolean NOT NULL DEFAULT true,
+  request_json         jsonb NOT NULL,
+  result_json          jsonb,
+  status               varchar(32) NOT NULL,      -- SUCCESS/FAILED
+  error_json           jsonb,
+  gateway_request_id   varchar(128),
+  created_by_user_id   bigint,
+  created_at           timestamptz NOT NULL DEFAULT now(),
+  updated_at           timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_case_action_exec_case_run ON case_action_execution (tenant_id, case_id, run_id, created_at DESC);
+CREATE INDEX idx_case_action_exec_proposal ON case_action_execution (tenant_id, proposal_id);
+
+-- (선택) 동일 proposal에 대한 simulate 1회 제한(정책 선택)
+-- CREATE UNIQUE INDEX ux_case_action_exec_proposal_sim
+--   ON case_action_execution(tenant_id, proposal_id, simulate)
+--   WHERE proposal_id IS NOT NULL;
+
+### 3.2 Flyway
+- V__add_case_action_execution.sql 로 추가
+- down은 요구하지 않음(표준)
+
+---
+
+## 4) 서버 로직(필수 P0)
+1) execute 요청 수신
+2) proposalId 있으면 proposal 조회 후 actionType/payload 확정
+3) simulate 실행(룰 기반)
+4) case_action_execution 저장
+5) audit_event_log 기록
+   - event_type: ACTION_EXECUTE_SIM (권장)
+   - resource_type: CASE, resource_id: caseId
+   - after_json: result_json(최소)
+   - evidence_json: { runId, proposalId, actionType, fingerprint, simulate }
+   - gateway_request_id 저장(있으면)
+
+---
+
+## 5) 중복 실행/중복 제안 정책(서버 기준)
+권장(안정적/일반적):
+- 동일 runId + 동일 proposalId에서 simulate 실행은 기본 허용(이력 누적)
+- 단, “사용자 실수 클릭” 방지 위해 FE에서 로딩 중 disable
+- 운영에서 강제 1회 제한 UNIQUE는 Phase4에서 결정(초기에는 피함)
+
+---
+
+## 6) 테스트(DoD)
+1) proposal 1개 대상으로 execute(sim) 호출
+2) case_action_execution 1행 생성
+3) audit_event_log ACTION_EXECUTE_SIM 생성
+4) 응답 actionId/simulation JSON 정상
+5) 실패 케이스(유효성 실패) 시 error_json 저장/반환 확인
+
+증적
+- 요청/응답 JSON
+- DB select 5행
+- audit_event_log select 5행
+
+---
+
+## 7) 제출물
+- Flyway + Controller/Service/DTO PR
+- docs/backend/docs/api-spec/PHASE3_EXECUTE_SIM_SPEC.md 문서(요청/응답/정책)

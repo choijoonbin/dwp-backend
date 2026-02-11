@@ -120,6 +120,8 @@ public final class AuditEventConstants {
     public static final String TYPE_PROPOSAL_UPSERTED = "PROPOSAL_UPSERTED";
     public static final String TYPE_PROPOSAL_DECIDED = "PROPOSAL_DECIDED";
     public static final String TYPE_ACTION_FAILED = "ACTION_FAILED";
+    /** event_type - Execute(sim) Phase3: 실행(시뮬) 수행 시 감사 */
+    public static final String TYPE_ACTION_EXECUTE_SIM = "ACTION_EXECUTE_SIM";
 
     /** event_type - Run (Phase B) */
     public static final String TYPE_RUN_DETECT_STARTED = "RUN_DETECT_STARTED";
