@@ -145,6 +145,7 @@ public class CaseAnalysisService {
                     }
                 }
             } else {
+                BodyEvidenceDto bodyEvidence = buildBodyEvidence(agentCase);
                 AuraAnalyzeRequest auraReq = AuraAnalyzeRequest.builder()
                         .caseId(caseId)
                         .runId(runId)
@@ -152,6 +153,7 @@ public class CaseAnalysisService {
                         .requestedBy(requestedBy)
                         .evidence(evidenceSnapshot)
                         .options(request != null ? request.getOptions() : null)
+                        .bodyEvidence(bodyEvidence)
                         .build();
                 AuraAnalyzeResponse auraRes = auraCaseTabClient.triggerAnalyze(caseId, tenantId, authorization, userId, auraReq);
                 if (auraRes != null) {
@@ -263,6 +265,19 @@ public class CaseAnalysisService {
 
         snapshot.set("policies", objectMapper.createArrayNode());
         return snapshot;
+    }
+
+    /**
+     * Aura Phase2 규격: body_evidence { doc_id, item_id } — doc_id=BELNR, item_id=BUZEI
+     */
+    private BodyEvidenceDto buildBodyEvidence(AgentCase agentCase) {
+        String docId = agentCase.getBelnr();
+        String itemId = agentCase.getBuzei();
+        if (docId == null && itemId == null) return null;
+        return BodyEvidenceDto.builder()
+                .docId(docId)
+                .itemId(itemId)
+                .build();
     }
 
     private void completeDemoRun(CaseAnalysisRun run) {

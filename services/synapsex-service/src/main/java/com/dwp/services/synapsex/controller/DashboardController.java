@@ -33,15 +33,15 @@ public class DashboardController {
     private final AuditWriter auditWriter;
 
     /**
-     * GET /api/synapse/dashboard/summary
-     * Agent Live Status, Financial Health Index 등 대시보드 요약
+     * GET /api/v1/synapse/dashboard/summary (Phase 5 ICC)
+     * KPI(오늘 4종), 최근 활동(10건, reasoning 포함), recon FAIL(건수+최신 5건) 한 번에 제공.
      */
     @GetMapping("/summary")
-    public ApiResponse<DashboardSummaryDto> getSummary(
+    public ApiResponse<SynapseDashboardSummaryDto> getSummary(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
             @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId) {
         logDashboardViewed(tenantId, actorUserId, AuditEventConstants.TYPE_DASHBOARD_VIEWED, "summary", Map.of("widget", "summary"));
-        DashboardSummaryDto dto = dashboardQueryService.getSummary(tenantId);
+        SynapseDashboardSummaryDto dto = dashboardQueryService.getSynapseDashboardSummary(tenantId);
         return ApiResponse.success(dto);
     }
 

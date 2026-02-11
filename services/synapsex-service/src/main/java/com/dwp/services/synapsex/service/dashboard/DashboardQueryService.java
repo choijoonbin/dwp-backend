@@ -5,12 +5,17 @@ import com.dwp.services.synapsex.client.AuthServerUserClient;
 import com.dwp.services.synapsex.dto.dashboard.*;
 import com.dwp.services.synapsex.entity.AgentAction;
 import com.dwp.services.synapsex.entity.AgentCase;
-import com.dwp.services.synapsex.entity.AuditEventLog;
 import com.dwp.services.synapsex.entity.AgentActivityLog;
+import com.dwp.services.synapsex.entity.AnalyticsKpiDaily;
+import com.dwp.services.synapsex.entity.AuditEventLog;
+import com.dwp.services.synapsex.entity.ReconResult;
 import com.dwp.services.synapsex.repository.AgentActionRepository;
 import com.dwp.services.synapsex.repository.AgentActivityLogRepository;
 import com.dwp.services.synapsex.repository.AgentCaseRepository;
+import com.dwp.services.synapsex.repository.AnalyticsKpiDailyRepository;
 import com.dwp.services.synapsex.repository.AuditEventLogRepository;
+import com.dwp.services.synapsex.repository.FiDocHeaderRepository;
+import com.dwp.services.synapsex.repository.ReconResultRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +28,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -42,10 +49,20 @@ public class DashboardQueryService {
     private static final List<String> FAIL_ACTION_STATUSES = List.of("FAILED", "ERROR");
     private static final List<String> PENDING_ACTION_STATUSES = List.of("PLANNED", "PENDING", "REVIEW", "WAITING_APPROVAL", "PROPOSED", "PENDING_APPROVAL");
 
+    private static final int ICC_KPI_MAX = 4;
+    private static final int ICC_ACTIVITY_LIMIT = 10;
+    private static final int ICC_RECON_FAIL_LATEST = 5;
+    private static final String RECON_STATUS_FAIL = "FAIL";
+    private static final String BELNR_PREFIX_VIOLATION = "DEMO";
+    private static final String BELNR_PREFIX_NORMAL = "NORM";
+
     private final AgentCaseRepository agentCaseRepository;
     private final AgentActionRepository agentActionRepository;
     private final AuditEventLogRepository auditEventLogRepository;
     private final AgentActivityLogRepository agentActivityLogRepository;
+    private final AnalyticsKpiDailyRepository analyticsKpiDailyRepository;
+    private final ReconResultRepository reconResultRepository;
+    private final FiDocHeaderRepository fiDocHeaderRepository;
     private final AuthServerUserClient authServerUserClient;
 
     private static final Map<String, String> CASE_TYPE_LABELS = Map.ofEntries(
@@ -142,6 +159,104 @@ public class DashboardQueryService {
                         .actionsPath("/actions?status=PENDING_APPROVAL")
                         .auditPath("/audit?category=ACTION")
                         .build())
+                .build();
+    }
+
+    /**
+     * ICC 대시보드 요약 — KPI(오늘 4종), 최근 활동(10건, reasoning 포함), recon FAIL(건수+최신 5건).
+     * tenant_id 모든 집계에 적용.
+     */
+    @Transactional(readOnly = true)
+    public SynapseDashboardSummaryDto getSynapseDashboardSummary(Long tenantId) {
+        Instant asOf = Instant.now();
+        LocalDate today = LocalDate.now(ZoneOffset.UTC);
+
+        List<KpiDailyItemDto> kpiDaily = buildKpiDaily(tenantId, today);
+        List<DashboardActivitySummaryDto> recentActivity = buildRecentActivity(tenantId);
+        ReconFailSummaryDto reconFail = buildReconFailSummary(tenantId);
+        FiDocScenarioStatsDto fiDocScenarioStats = buildFiDocScenarioStats(tenantId);
+
+        return SynapseDashboardSummaryDto.builder()
+                .asOf(asOf)
+                .kpiDaily(kpiDaily)
+                .recentActivity(recentActivity)
+                .reconFail(reconFail)
+                .fiDocScenarioStats(fiDocScenarioStats)
+                .build();
+    }
+
+    /** Phase 6: fi_doc_header 5건(위반 3, 정상 2) 등 시나리오 전표 위험도별 카운트 */
+    private FiDocScenarioStatsDto buildFiDocScenarioStats(Long tenantId) {
+        long total = fiDocHeaderRepository.countByTenantId(tenantId);
+        long violationCount = fiDocHeaderRepository.countByTenantIdAndBelnrStartingWith(tenantId, BELNR_PREFIX_VIOLATION);
+        long normalCount = fiDocHeaderRepository.countByTenantIdAndBelnrStartingWith(tenantId, BELNR_PREFIX_NORMAL);
+        return FiDocScenarioStatsDto.builder()
+                .total(total)
+                .violationCount(violationCount)
+                .normalCount(normalCount)
+                .build();
+    }
+
+    private List<KpiDailyItemDto> buildKpiDaily(Long tenantId, LocalDate today) {
+        List<AnalyticsKpiDaily> rows = analyticsKpiDailyRepository.findByTenantIdAndYmdBetweenOrderByMetricKeyAsc(
+                tenantId, today, today);
+        return rows.stream()
+                .limit(ICC_KPI_MAX)
+                .map(r -> KpiDailyItemDto.builder()
+                        .metricKey(r.getMetricKey())
+                        .metricValue(r.getMetricValue())
+                        .ymd(r.getYmd())
+                        .build())
+                .toList();
+    }
+
+    private List<DashboardActivitySummaryDto> buildRecentActivity(Long tenantId) {
+        Instant since = Instant.now().minus(30, ChronoUnit.DAYS);
+        List<AgentActivityLog> logs = agentActivityLogRepository.findByTenantIdAndOccurredAtAfterOrderByOccurredAtDesc(
+                tenantId, since, PageRequest.of(0, ICC_ACTIVITY_LIMIT, Sort.by(Sort.Direction.DESC, "occurredAt")));
+        return logs.stream()
+                .map(this::toDashboardActivitySummary)
+                .toList();
+    }
+
+    private DashboardActivitySummaryDto toDashboardActivitySummary(AgentActivityLog log) {
+        String reasoning = null;
+        if (log.getMetadataJson() != null) {
+            Object r = log.getMetadataJson().get("reasoning");
+            if (r != null) reasoning = r.toString();
+            if (reasoning == null) {
+                Object msg = log.getMetadataJson().get("message");
+                if (msg != null) reasoning = msg.toString();
+            }
+        }
+        return DashboardActivitySummaryDto.builder()
+                .activityId(log.getActivityId())
+                .occurredAt(log.getOccurredAt())
+                .stage(log.getStage())
+                .message(log.getMetadataJson() != null && log.getMetadataJson().get("message") != null
+                        ? log.getMetadataJson().get("message").toString() : null)
+                .reasoning(reasoning)
+                .resourceType(log.getResourceType())
+                .resourceId(log.getResourceId())
+                .build();
+    }
+
+    private ReconFailSummaryDto buildReconFailSummary(Long tenantId) {
+        long failCount = reconResultRepository.countByTenantIdAndStatus(tenantId, RECON_STATUS_FAIL);
+        List<ReconResult> latest = reconResultRepository.findByTenantIdAndStatusOrderByResultIdDesc(
+                tenantId, RECON_STATUS_FAIL, PageRequest.of(0, ICC_RECON_FAIL_LATEST));
+        List<ReconFailItemDto> items = latest.stream()
+                .map(r -> ReconFailItemDto.builder()
+                        .resultId(r.getResultId())
+                        .resourceType(r.getResourceType())
+                        .resourceKey(r.getResourceKey())
+                        .status(r.getStatus())
+                        .detailJson(r.getDetailJson())
+                        .build())
+                .toList();
+        return ReconFailSummaryDto.builder()
+                .failCount(failCount)
+                .latest(items)
                 .build();
     }
 

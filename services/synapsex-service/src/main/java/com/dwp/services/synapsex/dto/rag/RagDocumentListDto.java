@@ -15,6 +15,7 @@ public class RagDocumentListDto {
     private Long docId;
     private String title;
     private String sourceType;
+    private String docType;
     private String status;
     private Instant createdAt;
 }

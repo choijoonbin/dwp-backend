@@ -539,12 +539,12 @@ public class AuditWriter {
                                    String dashboardKey, Map<String, Object> evidenceJson) {
         Map<String, Object> evidence = evidenceJson != null ? new HashMap<>(evidenceJson) : new HashMap<>();
         evidence.put("resource_type", "DASHBOARD");
-        evidence.put("resource_id", dashboardKey != null ? dashboardKey : "command-center");
+        evidence.put("resource_id", dashboardKey != null ? dashboardKey : "workbench");
         log(tenantId,
                 AuditEventConstants.CATEGORY_DASHBOARD,
                 eventType != null ? eventType : AuditEventConstants.TYPE_DASHBOARD_VIEWED,
                 "DASHBOARD",
-                dashboardKey != null ? dashboardKey : "command-center",
+                dashboardKey != null ? dashboardKey : "workbench",
                 AuditEventConstants.ACTOR_HUMAN,
                 actorUserId,
                 null,

@@ -32,11 +32,19 @@ public class RagDocument {
     @Builder.Default
     private String sourceType = "UPLOAD";
 
+    /** 문서 성격: REGULATION, MANUAL, POLICY 등. Aura ingest 시 메타데이터 인덱싱용 */
+    @Column(name = "doc_type", length = 30)
+    private String docType;
+
     @Column(name = "s3_key")
     private String s3Key;
 
     @Column(name = "url")
     private String url;
+
+    /** 로컬 파일 저장 시 절대 경로. Aura document_path 전달용 */
+    @Column(name = "file_path")
+    private String filePath;
 
     @Column(name = "checksum", length = 64)
     private String checksum;

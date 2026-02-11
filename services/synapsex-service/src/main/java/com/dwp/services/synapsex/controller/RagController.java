@@ -8,12 +8,15 @@ import com.dwp.services.synapsex.dto.common.PageResponse;
 import com.dwp.services.synapsex.dto.rag.RagDocumentDetailDto;
 import com.dwp.services.synapsex.dto.rag.RagDocumentListDto;
 import com.dwp.services.synapsex.dto.rag.RagSearchResultDto;
+import com.dwp.services.synapsex.dto.rag.RagStatusCallbackRequest;
 import com.dwp.services.synapsex.dto.rag.RegisterRagDocumentRequest;
 import com.dwp.services.synapsex.service.rag.RagCommandService;
 import com.dwp.services.synapsex.service.rag.RagQueryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Phase 3 RAG API
@@ -36,7 +39,22 @@ public class RagController {
         return ApiResponse.success(result);
     }
 
-    @PostMapping("/documents")
+    /**
+     * 규정집 등록 (로컬 파일 업로드). MultipartFile 수신 → 로컬 저장 → DB 기록 → Aura 벡터화 트리거.
+     * 파일명 중복 방지: UUID_원본파일명. 저장 경로: storage.local.path (서버 기동 시 자동 생성).
+     */
+    @PostMapping(value = "/documents", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<RagDocumentDetailDto> uploadDocument(
+            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "title", required = false) String title,
+            @RequestParam(value = "docType", required = false) String docType) {
+        RagDocumentDetailDto dto = ragCommandService.registerDocumentFromFile(tenantId, file, title, docType);
+        return ApiResponse.success(dto);
+    }
+
+    /** S3/URL 등 메타데이터만 등록 시 (기존 JSON body). 로컬 파일은 POST /documents multipart 사용 */
+    @PostMapping(value = "/documents/register", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ApiResponse<RagDocumentDetailDto> registerDocument(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
             @Valid @RequestBody RegisterRagDocumentRequest request) {
@@ -51,6 +69,16 @@ public class RagController {
         RagDocumentDetailDto dto = ragQueryService.getDocumentDetail(tenantId, docId)
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "문서를 찾을 수 없습니다."));
         return ApiResponse.success(dto);
+    }
+
+    /**
+     * Phase 6: Aura RAG 상태 콜백.
+     * POST /api/synapse/rag/status — { docId, status, message } 수신 시 rag_document 갱신, 규정 벡터화 완료 시 WebSocket/SSE 알림 준비.
+     */
+    @PostMapping("/status")
+    public ApiResponse<Void> ragStatusCallback(@Valid @RequestBody RagStatusCallbackRequest request) {
+        ragCommandService.updateStatusFromCallback(request.getDocId(), request.getStatus(), request.getMessage());
+        return ApiResponse.success(null);
     }
 
     @GetMapping("/search")

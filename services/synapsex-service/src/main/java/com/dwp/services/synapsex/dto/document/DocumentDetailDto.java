@@ -58,6 +58,8 @@ public class DocumentDetailDto {
         private String kunnr;
         private String wrbtr;
         private String waers;
+        /** 라인 텍스트 (품목 내역, AI 적절성 판단용) */
+        private String sgtxt;
         private Boolean paymentBlock;
         private Boolean disputeFlag;
     }

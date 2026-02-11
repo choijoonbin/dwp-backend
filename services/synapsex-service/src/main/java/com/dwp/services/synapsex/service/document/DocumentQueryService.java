@@ -425,6 +425,7 @@ public class DocumentQueryService {
                                 .kunnr(item.getKunnr())
                                 .wrbtr(item.getWrbtr() != null ? item.getWrbtr().toString() : null)
                                 .waers(item.getWaers())
+                                .sgtxt(item.getSgtxt())
                                 .paymentBlock(item.getPaymentBlock())
                                 .disputeFlag(item.getDisputeFlag())
                                 .build())

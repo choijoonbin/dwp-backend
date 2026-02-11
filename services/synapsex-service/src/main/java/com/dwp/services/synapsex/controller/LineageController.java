@@ -4,6 +4,7 @@ import com.dwp.core.common.ApiResponse;
 import com.dwp.core.constant.HeaderConstants;
 import com.dwp.services.synapsex.audit.AuditEventConstants;
 import com.dwp.services.synapsex.audit.AuditRequestContext;
+import com.dwp.services.synapsex.dto.lineage.LineageGraphDto;
 import com.dwp.services.synapsex.dto.lineage.LineageResponseDto;
 import com.dwp.services.synapsex.service.audit.AuditWriter;
 import com.dwp.services.synapsex.service.lineage.LineageQueryService;
@@ -59,6 +60,31 @@ public class LineageController {
                 "LINEAGE", caseId != null ? String.valueOf(caseId) : docKey, actorType, actorUserId, actorAgentId, null, AuditEventConstants.CHANNEL_API,
                 AuditEventConstants.OUTCOME_SUCCESS, AuditEventConstants.SEVERITY_INFO,
                 null, null, null, null, tags, AuditRequestContext.getIpAddress(httpRequest), AuditRequestContext.getUserAgent(httpRequest),
+                AuditRequestContext.getGatewayRequestId(httpRequest), AuditRequestContext.getTraceId(httpRequest), null);
+
+        return ApiResponse.success(result);
+    }
+
+    /**
+     * Phase 3) GET /api/v1/synapse/lineage/{resourceKey}
+     * resourceKey = docKey (bukrs-belnr-gjahr). 전표 기준 계보 그래프 (Source -> Agent -> Case -> Action).
+     */
+    @GetMapping("/{resourceKey}")
+    public ApiResponse<LineageGraphDto> getLineageByResourceKey(
+            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
+            @RequestHeader(value = HeaderConstants.X_AGENT_ID, required = false) String actorAgentId,
+            @PathVariable String resourceKey,
+            HttpServletRequest httpRequest) {
+
+        LineageGraphDto result = lineageQueryService.findLineageGraphByResourceKey(tenantId, resourceKey);
+
+        String actorType = actorAgentId != null ? AuditEventConstants.ACTOR_AGENT : AuditEventConstants.ACTOR_HUMAN;
+        auditWriter.log(tenantId, AuditEventConstants.CATEGORY_ACTION, AuditEventConstants.TYPE_LINEAGE_VIEW,
+                "LINEAGE", resourceKey, actorType, actorUserId, actorAgentId, null, AuditEventConstants.CHANNEL_API,
+                AuditEventConstants.OUTCOME_SUCCESS, AuditEventConstants.SEVERITY_INFO,
+                null, null, null, null, Map.of("resourceKey", resourceKey),
+                AuditRequestContext.getIpAddress(httpRequest), AuditRequestContext.getUserAgent(httpRequest),
                 AuditRequestContext.getGatewayRequestId(httpRequest), AuditRequestContext.getTraceId(httpRequest), null);
 
         return ApiResponse.success(result);

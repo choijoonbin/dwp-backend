@@ -111,6 +111,24 @@ spring:
             - Path=/api/synapse/dashboard/**
           filters:
             - StripPrefix=1
+        # Workbench (Phase2: 케이스 목록/상세/이력, navigation)
+        - id: synapsex-workbench
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/workbench/**
+          filters:
+            - StripPrefix=1
+        # WebSocket 알림 브리지 (실시간 알림 센터)
+        - id: synapsex-ws-notifications
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/ws/**
+        - id: synapsex-notifications
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/notifications/**
+          filters:
+            - StripPrefix=1
         - id: synapsex-anomalies
           uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
           predicates:

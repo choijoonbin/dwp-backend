@@ -1,5 +1,6 @@
 package com.dwp.services.synapsex.dto.case_;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -7,10 +8,12 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 
 /**
- * A2) GET /cases/{caseId} 3-panel 응답
+ * A2) GET /cases/{caseId} 통합 응답 (Single Source of Truth).
+ * fiDocItems, actionHistory, aiThoughts를 한 번에 반환하여 탭별 개별 호출 제거.
  */
 @Data
 @Builder
@@ -24,9 +27,44 @@ public class CaseDetailDto {
     private CaseKeysDto keys;
     /** P0-2: 관련 링크 (openItems, lineage) — FE 하드코딩 제거용 */
     private CaseLinksDto links;
+    /** 전표 상세 내역 (buzei, hkont, wrbtr, sgtxt 준수). wrbtr은 숫자. */
+    @JsonProperty("fiDocItems")
+    private List<DocumentLineItemDto> fiDocItems;
+    /** 조치 이력 (agent_case_action_history 기반). actionAt은 ISO8601. */
+    @JsonProperty("actionHistory")
+    private List<CaseActionHistoryItemRefDto> actionHistory;
+    /** AI 추론 결과 (Aura/agent_activity_log 기반). occurredAt은 ISO8601. */
+    @JsonProperty("aiThoughts")
+    private List<AiThoughtItemDto> aiThoughts;
     private EvidencePanelDto evidence;
     private ReasoningPanelDto reasoning;
     private ActionPanelDto action;
+
+    /** 조치 이력 1건. actionAt/createdAt ISO8601, JSON camelCase. */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CaseActionHistoryItemRefDto {
+        private Long id;
+        private String actionType;
+        private String actorId;
+        private String commentText;
+        private Instant actionAt;
+        private Instant createdAt;
+    }
+
+    /** AI 추론 1건 (Aura 연동). occurredAt ISO8601, JSON camelCase. */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class AiThoughtItemDto {
+        private String stage;
+        private String eventType;
+        private String message;
+        private Instant occurredAt;
+    }
 
     @Data
     @Builder

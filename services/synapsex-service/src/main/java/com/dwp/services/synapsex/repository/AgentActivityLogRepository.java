@@ -14,4 +14,16 @@ public interface AgentActivityLogRepository extends JpaRepository<AgentActivityL
 
     List<AgentActivityLog> findByTenantIdAndOccurredAtAfterOrderByOccurredAtDesc(
             Long tenantId, Instant occurredAt, Pageable pageable);
+
+    /**
+     * Workbench 타임라인: 케이스별 활동 로그, occurred_at DESC, tenant 격리.
+     */
+    List<AgentActivityLog> findByTenantIdAndResourceTypeAndResourceIdOrderByOccurredAtDesc(
+            Long tenantId, String resourceType, String resourceId, Pageable pageable);
+
+    /**
+     * Lineage 그래프: 전표에 연결된 여러 케이스의 활동 로그를 한 번에 조회, occurred_at ASC (시간순).
+     */
+    List<AgentActivityLog> findByTenantIdAndResourceTypeAndResourceIdInOrderByOccurredAtAsc(
+            Long tenantId, String resourceType, List<String> resourceIds);
 }

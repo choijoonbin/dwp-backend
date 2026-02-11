@@ -149,7 +149,7 @@ public class AgentToolCommandService {
                 .orElseThrow();
 
         if (!requiresApproval) {
-            actionCommandService.approveAction(tenantId, action.getActionId(), actorUserId, null, null, null, null);
+            actionCommandService.approveAction(tenantId, action.getActionId(), actorUserId, null, null, null, null, null);
         }
 
         Map<String, Object> afterMap = new HashMap<>();

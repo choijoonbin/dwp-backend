@@ -1,6 +1,7 @@
 services:
   postgres:
-    image: postgres:15-alpine
+    # pgvector 사용: 기존 15와 호환되는 pgvector:pg15 (볼륨 유지 시 기존 DB/테이블 유지)
+    image: pgvector/pgvector:pg15
     container_name: dwp-postgres
     environment:
       POSTGRES_USER: dwp_user

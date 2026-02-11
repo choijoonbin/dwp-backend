@@ -64,7 +64,21 @@ AGENT_STREAM_PUSH_URL=http://localhost:8080/api/synapse/agent/events
 
 ---
 
-## 6. 관련 문서
+## 6. metadata_json 규격 (format_metadata)
+
+Aura에서 Audit → Agent 이벤트 변환 시 사용하는 표준 구조. Synapse는 이 규격을 그대로 저장·노출한다.
+
+| 항목 | Aura (core/agent_stream) | Synapse (BE/FE) |
+|------|-------------------------|-----------------|
+| **정의** | `metadata.py`: `format_metadata(title, reasoning, evidence=None, status="SUCCESS")` | `agent_activity_log.metadata_json` (JSONB) |
+| **반환 키** | `title`, `reasoning`, `evidence`, `status` | 동일. WorkbenchTimelineMetadataDto 등에서 매핑 |
+| **evidence** | 없으면 `{}` | 없으면 null 또는 빈 객체 |
+| **status** | SUCCESS \| WARNING \| ERROR만 허용, 그 외는 SUCCESS로 정규화 | 저장값 그대로 노출 (FE 파싱) |
+| **사용처** | `writer.py` — `_audit_event_to_agent_event`에서 payload를 format_metadata로 생성 | Workbench 타임라인, 대시보드 agent-activity 응답 |
+
+---
+
+## 7. 관련 문서
 
 - `aura.txt` — Aura Agent Stream 명세 (원본)
 - `AURA_SYNAPSE_HANDOFF.md` — Aura-Synapse 연동 규칙

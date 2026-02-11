@@ -5,6 +5,8 @@ import com.dwp.services.synapsex.dto.analysis.AuraAnalyzeRequest;
 import com.dwp.services.synapsex.dto.analysis.AuraAnalyzeResponse;
 import com.dwp.services.synapsex.dto.analysis.AuraPhase3TriggerRequest;
 import com.dwp.services.synapsex.dto.analysis.AuraPhase3TriggerResponse;
+import com.dwp.services.synapsex.dto.rag.AuraRagVectorizeRequest;
+import com.dwp.services.synapsex.dto.rag.AuraRagVectorizeResponse;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -69,4 +71,15 @@ public interface AuraCaseTabClient {
             @RequestHeader("X-Tenant-ID") Long tenantId,
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestHeader(value = "X-User-ID", required = false) Long userId);
+
+    /**
+     * Phase 6: RAG 문서 벡터화 트리거.
+     * POST /aura/rag/documents/{docId}/vectorize — 202 Accepted 시 BE에서 status = PROCESSING 으로 갱신.
+     */
+    @PostMapping("/aura/rag/documents/{docId}/vectorize")
+    AuraRagVectorizeResponse triggerRagVectorize(
+            @PathVariable("docId") Long docId,
+            @RequestHeader("X-Tenant-ID") Long tenantId,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestBody AuraRagVectorizeRequest request);
 }

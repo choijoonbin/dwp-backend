@@ -1,6 +1,7 @@
 package com.dwp.services.auth.controller;
 
 import com.dwp.core.common.ApiResponse;
+import com.dwp.services.auth.dto.MenuEntryDto;
 import com.dwp.services.auth.dto.MenuTreeResponse;
 import com.dwp.services.auth.service.MenuService;
 import lombok.RequiredArgsConstructor;
@@ -10,7 +11,10 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 /**
  * 메뉴 트리 API 컨트롤러
@@ -45,6 +49,23 @@ public class MenuController {
         
         MenuTreeResponse response = menuService.getMenuTree(userId, tenantId);
         return ApiResponse.success(response);
+    }
+
+    /**
+     * 메뉴 엔트리 조회 (워크벤치 deepLink 등 연동용).
+     * GET /api/auth/menus/entries?keys=menu.knowledge-policy.rag,menu.knowledge-policy.policies
+     * 요청한 keys 중 사용자가 VIEW 권한이 있는 메뉴만 반환 (menuKey, label, deepLink).
+     */
+    @GetMapping("/entries")
+    public ApiResponse<List<MenuEntryDto>> getMenuEntries(
+            Authentication authentication,
+            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantIdHeader,
+            @RequestParam("keys") List<String> keys) {
+        Jwt jwt = (Jwt) authentication.getPrincipal();
+        Long userId = Long.parseLong(jwt.getSubject());
+        Long tenantId = parseTenantId(tenantIdHeader, authentication);
+        List<MenuEntryDto> entries = menuService.getMenuEntries(userId, tenantId, keys);
+        return ApiResponse.success(entries);
     }
     
     /**

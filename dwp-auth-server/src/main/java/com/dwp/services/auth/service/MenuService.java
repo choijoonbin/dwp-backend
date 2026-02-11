@@ -1,6 +1,7 @@
 package com.dwp.services.auth.service;
 
 import com.dwp.core.util.LocaleUtil;
+import com.dwp.services.auth.dto.MenuEntryDto;
 import com.dwp.services.auth.dto.MenuNode;
 import com.dwp.services.auth.dto.MenuTreeResponse;
 import com.dwp.services.auth.entity.*;
@@ -206,6 +207,48 @@ public class MenuService {
         }
     }
     
+    /**
+     * 워크벤치 등 연동용: 요청한 메뉴 키 중 사용자가 VIEW 권한이 있는 메뉴만 반환 (deepLink = menu_path).
+     * is_visible 무관 — 숨겨진 메뉴도 권한 있으면 포함.
+     */
+    @Transactional(readOnly = true)
+    public List<MenuEntryDto> getMenuEntries(Long userId, Long tenantId, List<String> menuKeys) {
+        if (menuKeys == null || menuKeys.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Long> roleIds = roleMemberRepository.findRoleIdsByTenantIdAndUserId(tenantId, userId);
+        if (roleIds.isEmpty()) return Collections.emptyList();
+
+        Permission viewPermission = permissionRepository.findByCode("VIEW")
+                .orElseThrow(() -> new IllegalStateException("VIEW permission not found"));
+        List<RolePermission> rolePermissions = rolePermissionRepository.findByTenantIdAndRoleIdIn(tenantId, roleIds);
+        Set<Long> resourceIds = rolePermissions.stream()
+                .filter(rp -> viewPermission.getPermissionId().equals(rp.getPermissionId()))
+                .map(RolePermission::getResourceId)
+                .collect(Collectors.toSet());
+        if (resourceIds.isEmpty()) return Collections.emptyList();
+
+        List<Resource> resources = resourceRepository.findByResourceIdIn(new ArrayList<>(resourceIds));
+        String menuTypeCode = "MENU";
+        Set<String> allowedKeys = resources.stream()
+                .filter(r -> codeResolver.validate("RESOURCE_TYPE", r.getType()) && menuTypeCode.equals(r.getType()))
+                .map(Resource::getKey)
+                .collect(Collectors.toSet());
+
+        List<String> requested = menuKeys.stream().distinct().toList();
+        List<String> allowedRequested = requested.stream().filter(allowedKeys::contains).toList();
+        if (allowedRequested.isEmpty()) return Collections.emptyList();
+
+        List<Menu> menus = menuRepository.findByTenantIdAndMenuKeyInAnyVisibility(tenantId, allowedRequested);
+        return menus.stream()
+                .map(m -> MenuEntryDto.builder()
+                        .menuKey(m.getMenuKey())
+                        .label(LocaleUtil.resolveLabel(m.getMenuNameKo(), m.getMenuNameEn(), m.getMenuName()))
+                        .deepLink(m.getMenuPath())
+                        .build())
+                .toList();
+    }
+
     /**
      * 그룹 코드를 그룹명으로 변환
      */

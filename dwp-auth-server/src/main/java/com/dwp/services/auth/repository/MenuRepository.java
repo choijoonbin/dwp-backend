@@ -22,10 +22,16 @@ public interface MenuRepository extends JpaRepository<Menu, Long> {
     List<Menu> findByTenantIdAndActive(@Param("tenantId") Long tenantId);
     
     /**
-     * 테넌트별 메뉴 키 목록으로 조회
+     * 테넌트별 메뉴 키 목록으로 조회 (visible만)
      */
     @Query("SELECT m FROM Menu m WHERE m.tenantId = :tenantId AND m.menuKey IN :menuKeys AND m.isEnabled = 'Y' AND m.isVisible = 'Y' ORDER BY m.sortOrder ASC")
     List<Menu> findByTenantIdAndMenuKeyIn(@Param("tenantId") Long tenantId, @Param("menuKeys") List<String> menuKeys);
+
+    /**
+     * 테넌트·메뉴 키 목록으로 조회 (is_visible 무관 — deepLink/워크벤치 연동용)
+     */
+    @Query("SELECT m FROM Menu m WHERE m.tenantId = :tenantId AND m.menuKey IN :menuKeys AND m.isEnabled = 'Y' ORDER BY m.sortOrder ASC")
+    List<Menu> findByTenantIdAndMenuKeyInAnyVisibility(@Param("tenantId") Long tenantId, @Param("menuKeys") List<String> menuKeys);
     
     /**
      * 테넌트와 메뉴 키로 단일 조회

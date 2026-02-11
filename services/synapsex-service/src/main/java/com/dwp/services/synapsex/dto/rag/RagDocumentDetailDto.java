@@ -16,8 +16,11 @@ public class RagDocumentDetailDto {
     private Long docId;
     private String title;
     private String sourceType;
+    private String docType;
     private String s3Key;
     private String url;
+    /** 로컬 절대 경로 (source_type=UPLOAD 시) */
+    private String filePath;
     private String checksum;
     private String status;
     private Instant createdAt;

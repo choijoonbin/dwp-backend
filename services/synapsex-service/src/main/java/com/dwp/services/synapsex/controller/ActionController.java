@@ -3,6 +3,7 @@ package com.dwp.services.synapsex.controller;
 import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.constant.HeaderConstants;
+import com.dwp.services.synapsex.dto.action.ActionDecisionRequestDto;
 import com.dwp.services.synapsex.dto.action.ActionDetailDto;
 import com.dwp.services.synapsex.dto.action.ActionListRowDto;
 import com.dwp.services.synapsex.dto.action.CreateActionRequest;
@@ -194,16 +195,33 @@ public class ActionController {
     }
 
     /**
+     * HITL 별칭: POST /api/synapse/actions/hitl/{requestId}/approve
+     * FE 연동용 (requestId = actionId). Body (optional): { "comment": "승인 사유" }
+     */
+    @PostMapping("/hitl/{requestId}/approve")
+    public ResponseEntity<ApiResponse<ActionListRowDto>> approveHitlAction(
+            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
+            @PathVariable Long requestId,
+            @RequestBody(required = false) ActionDecisionRequestDto body,
+            HttpServletRequest httpRequest) {
+        return approveAction(tenantId, actorUserId, requestId, body, httpRequest);
+    }
+
+    /**
      * C3) POST /api/synapse/actions/{actionId}/approve
+     * Body (optional): { "comment": "조치 사유" }
      */
     @PostMapping("/{actionId}/approve")
     public ResponseEntity<ApiResponse<ActionListRowDto>> approveAction(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
             @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
             @PathVariable Long actionId,
+            @RequestBody(required = false) ActionDecisionRequestDto body,
             HttpServletRequest httpRequest) {
+        String comment = body != null ? body.getComment() : null;
         try {
-            var action = actionCommandService.approveAction(tenantId, actionId, actorUserId,
+            var action = actionCommandService.approveAction(tenantId, actionId, actorUserId, comment,
                     httpRequest.getRemoteAddr(), httpRequest.getHeader("User-Agent"), httpRequest.getHeader(HeaderConstants.X_GATEWAY_REQUEST_ID),
                     httpRequest.getHeader(HeaderConstants.X_TRACE_ID));
             return ResponseEntity.ok(ApiResponse.success(ActionListRowDto.builder()
@@ -238,17 +256,32 @@ public class ActionController {
     }
 
     /**
+     * HITL 별칭: POST /api/synapse/actions/hitl/{requestId}/reject
+     * FE 연동용 (requestId = actionId). Body (optional): { "comment": "거절 사유" }
+     */
+    @PostMapping("/hitl/{requestId}/reject")
+    public ApiResponse<ActionListRowDto> rejectHitlAction(
+            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
+            @PathVariable Long requestId,
+            @RequestBody(required = false) ActionDecisionRequestDto body,
+            HttpServletRequest httpRequest) {
+        return rejectAction(tenantId, actorUserId, requestId, body, httpRequest);
+    }
+
+    /**
      * POST /api/synapse/actions/{actionId}/reject
-     * 액션 반려 (CANCELED)
+     * 액션 반려 (CANCELED). Body (optional): { "comment": "조치 사유" }
      */
     @PostMapping("/{actionId}/reject")
     public ApiResponse<ActionListRowDto> rejectAction(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
             @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
             @PathVariable Long actionId,
+            @RequestBody(required = false) ActionDecisionRequestDto body,
             HttpServletRequest httpRequest) {
-
-        var action = actionCommandService.rejectAction(tenantId, actionId, actorUserId,
+        String comment = body != null ? body.getComment() : null;
+        var action = actionCommandService.rejectAction(tenantId, actionId, actorUserId, comment,
                 httpRequest != null ? httpRequest.getRemoteAddr() : null,
                 httpRequest != null ? httpRequest.getHeader("User-Agent") : null,
                 httpRequest != null ? httpRequest.getHeader(HeaderConstants.X_GATEWAY_REQUEST_ID) : null,

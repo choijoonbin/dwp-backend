@@ -9,6 +9,8 @@ import com.dwp.services.synapsex.dto.common.PageInfo;
 import com.dwp.services.synapsex.dto.common.PageResponse;
 import com.dwp.services.synapsex.entity.*;
 import com.dwp.services.synapsex.repository.*;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import com.dwp.services.synapsex.scope.DrillDownCodeResolver;
 import com.dwp.services.synapsex.util.DocKeyUtil;
 import org.springframework.data.domain.PageRequest;
@@ -18,7 +20,6 @@ import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,7 +44,13 @@ public class CaseQueryService {
     private final BpPartyRepository bpPartyRepository;
     private final CaseCommentRepository caseCommentRepository;
     private final AuditEventLogRepository auditEventLogRepository;
+    private final AgentCaseActionHistoryRepository agentCaseActionHistoryRepository;
+    private final AgentActivityLogRepository agentActivityLogRepository;
     private final DrillDownCodeResolver drillDownCodeResolver;
+
+    private static final String RESOURCE_TYPE_AGENT_CASE = "AGENT_CASE";
+    private static final int CASE_DETAIL_ACTION_HISTORY_LIMIT = 50;
+    private static final int CASE_DETAIL_AI_THOUGHTS_LIMIT = 50;
 
     private static final QAgentCase c = QAgentCase.agentCase;
     private static final QFiDocItem fi = QFiDocItem.fiDocItem;
@@ -54,6 +61,7 @@ public class CaseQueryService {
         BooleanBuilder predicate = new BooleanBuilder();
         predicate.and(c.tenantId.eq(tenantId));
 
+        // status 미전달 시 상태 필터 미적용 (모든 상태 조회). 전달 시 OPEN, IN_PROGRESS 등 복수 지원(쉼표 구분).
         List<String> statusList = drillDownCodeResolver.filterValid(DrillDownCodeResolver.GROUP_CASE_STATUS,
                 com.dwp.services.synapsex.util.DrillDownParamUtil.parseMulti(query.getStatus()));
         // Drill-down 계약: TRIAGE → TRIAGED 매핑 (DB enum은 TRIAGED)
@@ -438,6 +446,9 @@ public class CaseQueryService {
         String openItemsUrl = "/api/synapse/open-items?caseId=" + case_.getCaseId();
         String lineageUrl = "/api/synapse/lineage?caseId=" + case_.getCaseId();
 
+        List<CaseDetailDto.CaseActionHistoryItemRefDto> actionHistory = loadActionHistory(tenantId, case_.getCaseId());
+        List<CaseDetailDto.AiThoughtItemDto> aiThoughts = loadAiThoughts(tenantId, case_.getCaseId());
+
         return CaseDetailDto.builder()
                 .caseId(case_.getCaseId())
                 .status(case_.getStatus() != null ? case_.getStatus().name() : null)
@@ -453,10 +464,51 @@ public class CaseQueryService {
                         .openItems(openItemsUrl)
                         .lineage(lineageUrl)
                         .build())
+                .fiDocItems(evidence.getDocumentOrOpenItem() != null ? evidence.getDocumentOrOpenItem().getItems() : null)
+                .actionHistory(actionHistory)
+                .aiThoughts(aiThoughts)
                 .evidence(evidence)
                 .reasoning(reasoning)
                 .action(action)
                 .build();
+    }
+
+    private List<CaseDetailDto.CaseActionHistoryItemRefDto> loadActionHistory(Long tenantId, Long caseId) {
+        Pageable limit = PageRequest.of(0, CASE_DETAIL_ACTION_HISTORY_LIMIT);
+        return agentCaseActionHistoryRepository
+                .findByTenantIdAndCaseIdOrderByActionAtDesc(tenantId, caseId, limit)
+                .getContent().stream()
+                .map(h -> CaseDetailDto.CaseActionHistoryItemRefDto.builder()
+                        .id(h.getId())
+                        .actionType(h.getActionType())
+                        .actorId(h.getActorId())
+                        .commentText(h.getCommentText())
+                        .actionAt(h.getActionAt())
+                        .createdAt(h.getCreatedAt())
+                        .build())
+                .toList();
+    }
+
+    private List<CaseDetailDto.AiThoughtItemDto> loadAiThoughts(Long tenantId, Long caseId) {
+        Pageable limit = PageRequest.of(0, CASE_DETAIL_AI_THOUGHTS_LIMIT);
+        List<AgentActivityLog> logs = agentActivityLogRepository
+                .findByTenantIdAndResourceTypeAndResourceIdOrderByOccurredAtDesc(
+                        tenantId, RESOURCE_TYPE_AGENT_CASE, String.valueOf(caseId), limit);
+        return logs.stream()
+                .map(log -> {
+                    String message = null;
+                    if (log.getMetadataJson() != null && log.getMetadataJson().get("message") != null) {
+                        Object m = log.getMetadataJson().get("message");
+                        message = m != null ? m.toString() : null;
+                    }
+                    return CaseDetailDto.AiThoughtItemDto.builder()
+                            .stage(log.getStage())
+                            .eventType(log.getEventType())
+                            .message(message)
+                            .occurredAt(log.getOccurredAt())
+                            .build();
+                })
+                .toList();
     }
 
     private CaseDetailDto.EvidencePanelDto buildEvidencePanel(Long tenantId, AgentCase case_) {

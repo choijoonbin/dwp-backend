@@ -1,8 +1,12 @@
 package com.dwp.services.synapsex.service.lineage;
 
+import com.dwp.services.synapsex.dto.lineage.LineageEdgeDto;
+import com.dwp.services.synapsex.dto.lineage.LineageGraphDto;
+import com.dwp.services.synapsex.dto.lineage.LineageNodeDto;
 import com.dwp.services.synapsex.dto.lineage.LineageResponseDto;
 import com.dwp.services.synapsex.entity.*;
 import com.dwp.services.synapsex.repository.*;
+import com.dwp.services.synapsex.util.DocKeyUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -29,10 +33,13 @@ public class LineageQueryService {
             "Action Executed"
     );
 
+    private static final String RESOURCE_TYPE_AGENT_CASE = "AGENT_CASE";
+
     private final SapRawEventRepository sapRawEventRepository;
     private final IngestionErrorRepository ingestionErrorRepository;
     private final AgentCaseRepository agentCaseRepository;
     private final AgentActionRepository agentActionRepository;
+    private final AgentActivityLogRepository agentActivityLogRepository;
     private final FiDocHeaderRepository fiDocHeaderRepository;
     private final BpPartyRepository bpPartyRepository;
 
@@ -241,6 +248,121 @@ public class LineageQueryService {
                         "gjahr", h.getGjahr(),
                         "lastChangeTs", h.getLastChangeTs() != null ? h.getLastChangeTs().toString() : ""))
                 .orElse(null);
+    }
+
+    /**
+     * Phase 3: 전표 기준 계보 그래프. resourceKey = docKey (bukrs-belnr-gjahr).
+     * tenant_id 모든 조회에 적용. Source -> Agent -> Case -> Action 구조로 반환.
+     */
+    @Transactional(readOnly = true)
+    public LineageGraphDto findLineageGraphByResourceKey(Long tenantId, String resourceKey) {
+        DocKeyUtil.ParsedDocKey parsed = DocKeyUtil.parse(resourceKey);
+        if (parsed == null) {
+            throw new IllegalArgumentException("resourceKey 형식이 올바르지 않습니다. (예: bukrs-belnr-gjahr)");
+        }
+        String bukrs = parsed.getBukrs();
+        String belnr = parsed.getBelnr();
+        String gjahr = parsed.getGjahr();
+
+        List<LineageNodeDto> nodes = new ArrayList<>();
+        List<LineageEdgeDto> edges = new ArrayList<>();
+
+        String sourceId = "source-" + resourceKey;
+        Optional<FiDocHeader> headerOpt = fiDocHeaderRepository.findByTenantIdAndBukrsAndBelnrAndGjahr(tenantId, bukrs, belnr, gjahr);
+        Instant sourceOccurredAt = null;
+        String rawEventIdRef = null;
+        if (headerOpt.isPresent()) {
+            FiDocHeader h = headerOpt.get();
+            sourceOccurredAt = h.getCreatedAt() != null ? h.getCreatedAt() : h.getLastChangeTs();
+            if (h.getRawEventId() != null) rawEventIdRef = String.valueOf(h.getRawEventId());
+        }
+        nodes.add(LineageNodeDto.builder()
+                .id(sourceId)
+                .type("SOURCE")
+                .label("Document " + resourceKey)
+                .refId(rawEventIdRef)
+                .occurredAt(sourceOccurredAt)
+                .payload(rawEventIdRef != null ? Map.of("rawEventId", rawEventIdRef) : null)
+                .build());
+
+        List<AgentCase> cases = agentCaseRepository.findByTenantIdAndBukrsAndBelnrAndGjahr(tenantId, bukrs, belnr, gjahr);
+        if (cases.isEmpty()) {
+            return LineageGraphDto.builder()
+                    .resourceKey(resourceKey)
+                    .nodes(nodes)
+                    .edges(edges)
+                    .build();
+        }
+
+        List<Long> caseIds = cases.stream().map(AgentCase::getCaseId).toList();
+        List<String> caseIdStrs = caseIds.stream().map(String::valueOf).toList();
+
+        List<AgentActivityLog> activityLogs = new ArrayList<>();
+        activityLogs.addAll(agentActivityLogRepository.findByTenantIdAndResourceTypeAndResourceIdInOrderByOccurredAtAsc(
+                tenantId, RESOURCE_TYPE_AGENT_CASE, caseIdStrs));
+        activityLogs.addAll(agentActivityLogRepository.findByTenantIdAndResourceTypeAndResourceIdInOrderByOccurredAtAsc(
+                tenantId, "CASE", caseIdStrs));
+        activityLogs.sort(Comparator.comparing(AgentActivityLog::getOccurredAt, Comparator.nullsLast(Comparator.naturalOrder())));
+
+        for (AgentActivityLog log : activityLogs) {
+            String nodeId = "agent-" + log.getActivityId();
+            Map<String, Object> payload = new HashMap<>();
+            if (log.getStage() != null) payload.put("stage", log.getStage());
+            if (log.getEventType() != null) payload.put("eventType", log.getEventType());
+            if (log.getMetadataJson() != null && !log.getMetadataJson().isEmpty()) payload.put("metadata", log.getMetadataJson());
+            nodes.add(LineageNodeDto.builder()
+                    .id(nodeId)
+                    .type("AGENT")
+                    .label(log.getStage() != null ? log.getStage() : "Activity")
+                    .refId(String.valueOf(log.getActivityId()))
+                    .occurredAt(log.getOccurredAt())
+                    .payload(payload.isEmpty() ? null : payload)
+                    .build());
+            edges.add(LineageEdgeDto.builder().fromId(sourceId).toId(nodeId).build());
+            if (log.getResourceId() != null) {
+                edges.add(LineageEdgeDto.builder().fromId(nodeId).toId("case-" + log.getResourceId()).build());
+            }
+        }
+
+        for (AgentCase c : cases) {
+            String caseNodeId = "case-" + c.getCaseId();
+            nodes.add(LineageNodeDto.builder()
+                    .id(caseNodeId)
+                    .type("CASE")
+                    .label("Case " + c.getCaseId())
+                    .refId(String.valueOf(c.getCaseId()))
+                    .occurredAt(c.getDetectedAt())
+                    .payload(c.getDetectedAt() != null ? Map.of("detectedAt", c.getDetectedAt().toString()) : null)
+                    .build());
+        }
+
+        List<AgentAction> actions = agentActionRepository.findByTenantIdAndCaseIdIn(tenantId, caseIds);
+        for (AgentAction a : actions) {
+            String actionNodeId = "action-" + a.getActionId();
+            nodes.add(LineageNodeDto.builder()
+                    .id(actionNodeId)
+                    .type("ACTION")
+                    .label(a.getActionType() != null ? a.getActionType() : "Action")
+                    .refId(String.valueOf(a.getActionId()))
+                    .occurredAt(a.getExecutedAt() != null ? a.getExecutedAt() : a.getPlannedAt())
+                    .payload(buildActionPayload(a))
+                    .build());
+            edges.add(LineageEdgeDto.builder().fromId("case-" + a.getCaseId()).toId(actionNodeId).build());
+        }
+
+        return LineageGraphDto.builder()
+                .resourceKey(resourceKey)
+                .nodes(nodes)
+                .edges(edges)
+                .build();
+    }
+
+    private Map<String, Object> buildActionPayload(AgentAction a) {
+        Map<String, Object> p = new HashMap<>();
+        if (a.getActionType() != null) p.put("actionType", a.getActionType());
+        if (a.getStatus() != null) p.put("status", a.getStatus().name());
+        if (a.getExecutedAt() != null) p.put("executedAt", a.getExecutedAt().toString());
+        return p.isEmpty() ? null : p;
     }
 
     @lombok.Data

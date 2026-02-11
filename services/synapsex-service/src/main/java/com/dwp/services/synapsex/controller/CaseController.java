@@ -95,9 +95,18 @@ public class CaseController {
             @RequestParam(defaultValue = "desc") String order,
             HttpServletRequest httpRequest) {
 
-        var timeRange = DrillDownParamUtil.resolve(range, from != null ? from : dateFrom, to != null ? to : dateTo);
-        Instant resolvedFrom = timeRange.from();
-        Instant resolvedTo = timeRange.to();
+        // 조회 조건 미전달 시 날짜/시간 필터 미적용 (전체 기간 조회)
+        boolean hasTimeFilter = (range != null && !range.isBlank())
+                || from != null || to != null
+                || dateFrom != null || dateTo != null
+                || detectedFrom != null || detectedTo != null;
+        Instant resolvedFrom = null;
+        Instant resolvedTo = null;
+        if (hasTimeFilter) {
+            var timeRange = DrillDownParamUtil.resolve(range, from != null ? from : dateFrom, to != null ? to : dateTo);
+            resolvedFrom = timeRange.from();
+            resolvedTo = timeRange.to();
+        }
         var sortOrder = DrillDownParamUtil.parseSortAndOrder(sort, order, "createdAt", "desc");
 
         List<String> requestedCompany = DrillDownParamUtil.parseMulti(company);
@@ -125,10 +134,10 @@ public class CaseController {
                 .companyCode(companyCode != null ? companyCode : bukrs)
                 .company(resolvedCompany.isEmpty() ? null : resolvedCompany)
                 .waers(waers)
-                .dateFrom(resolvedFrom)
-                .dateTo(resolvedTo)
-                .detectedFrom(detectedFrom != null ? detectedFrom : resolvedFrom)
-                .detectedTo(detectedTo != null ? detectedTo : resolvedTo)
+                .dateFrom(hasTimeFilter ? (detectedFrom != null ? detectedFrom : resolvedFrom) : null)
+                .dateTo(hasTimeFilter ? (detectedTo != null ? detectedTo : resolvedTo) : null)
+                .detectedFrom(hasTimeFilter ? (detectedFrom != null ? detectedFrom : resolvedFrom) : null)
+                .detectedTo(hasTimeFilter ? (detectedTo != null ? detectedTo : resolvedTo) : null)
                 .bukrs(bukrs)
                 .belnr(belnr)
                 .gjahr(gjahr)
@@ -172,6 +181,11 @@ public class CaseController {
             @RequestHeader(value = HeaderConstants.X_AGENT_ID, required = false) String actorAgentId,
             @PathVariable Long caseId,
             HttpServletRequest httpRequest) {
+
+        // 상세 조회 시 OPEN → IN_PROGRESS 자동 전이 (State Transition)
+        caseCommandService.ensureInProgressWhenOpen(tenantId, caseId, actorUserId,
+                AuditRequestContext.getIpAddress(httpRequest), AuditRequestContext.getUserAgent(httpRequest),
+                AuditRequestContext.getGatewayRequestId(httpRequest));
 
         CaseDetailDto dto = caseQueryService.findCaseDetail(tenantId, caseId)
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));

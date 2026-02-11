@@ -58,6 +58,22 @@ public class CaseCommandService {
         return case_;
     }
 
+    /**
+     * 케이스 상세 조회 시 OPEN → IN_PROGRESS 자동 전이.
+     * 상태가 OPEN일 때만 IN_PROGRESS로 변경하고 감사 로그 기록 (actorUserId 등은 상세 조회 맥락에서 선택 전달).
+     */
+    @Transactional
+    public void ensureInProgressWhenOpen(Long tenantId, Long caseId, Long actorUserId, String ipAddress, String userAgent, String gatewayRequestId) {
+        AgentCase case_ = agentCaseRepository.findByCaseIdAndTenantId(caseId, tenantId).orElse(null);
+        if (case_ == null || case_.getStatus() != AgentCaseStatus.OPEN) return;
+        String oldStatus = AgentCaseStatus.OPEN.name();
+        case_.setStatus(AgentCaseStatus.IN_PROGRESS);
+        agentCaseRepository.save(case_);
+        auditWriter.logCaseStatusChange(tenantId, caseId, oldStatus, AgentCaseStatus.IN_PROGRESS.name(),
+                actorUserId, ipAddress, userAgent, gatewayRequestId);
+        log.debug("Case {} auto-transitioned OPEN → IN_PROGRESS on detail view", caseId);
+    }
+
     @Transactional
     public AgentCase assignCase(Long tenantId, Long caseId, Long assigneeUserId,
                                 Long actorUserId, String ipAddress, String userAgent, String gatewayRequestId) {

@@ -62,6 +62,19 @@ auth:
   server:
     url: ${SERVICE_AUTH_URL:http://localhost:8001}
 
+# RAG 업로드 원본 파일 보관 (S3 / 로컬)
+storage:
+  # 로컬 환경: 파일 시스템 경로. 서버 기동 시 없으면 자동 생성.
+  # 기본값: 프로세스 CWD 기준 상대 경로 (로컬/개발 환경). 운영은 RAG_STORAGE_LOCAL_PATH 로 절대 경로 지정.
+  local:
+    path: ${RAG_STORAGE_LOCAL_PATH:./storage/rag-documents}
+  rag:
+    type: ${RAG_STORAGE_TYPE:local}
+    s3:
+      bucket: ${RAG_UPLOAD_BUCKET:dwp-rag-uploads}
+      region: ${AWS_REGION:ap-northeast-2}
+      prefix: ${RAG_UPLOAD_PREFIX:rag/documents}
+
 # Aura Platform URL (Case 탭 프록시용 - analysis/confidence/similar/rag/evidence)
 aura:
   base-url: ${AURA_BASE_URL:${AURA_PLATFORM_URL:http://localhost:9000}}
@@ -69,6 +82,9 @@ aura:
   phase3:
     callback-base-url: ${AURA_PHASE3_CALLBACK_BASE_URL:}  # e.g. https://gateway/api/synapse/internal/aura/callback
     callback-auth-token: ${AURA_PHASE3_CALLBACK_AUTH_TOKEN:}
+  # 조치 완료 웹훅 (선택) — URL 설정 시 POST로 동일 payload 전송
+  webhook:
+    action-completed-url: ${AURA_ACTION_COMPLETED_WEBHOOK_URL:}
 
 # P1.1: 탭 Non-Empty 검증용 DEMO 모드 (기본 OFF)
 # stream-url-use-aura-direct: true 시 POST analysis-runs 응답 streamUrl이 Aura 절대 URL (개발/로컬용). 기본 false = BE 프록시 경로 (옵션 B)
@@ -81,6 +97,19 @@ audit:
   redis:
     enabled: ${AUDIT_REDIS_ENABLED:true}
     channel: ${AUDIT_REDIS_CHANNEL:audit:events:ingest}
+
+# Phase 6: 워크벤치 조치 완료 Redis Pub/Sub (Aura 규격과 채널 통일: workbench:case:action)
+workbench:
+  redis:
+    action-channel: ${WORKBENCH_ACTION_CHANNEL:workbench:case:action}
+
+# Real-time Notification Bridge (WebSocket + Redis)
+notification:
+  redis:
+    enabled: ${NOTIFICATION_REDIS_ENABLED:true}
+    workbench-pattern: ${NOTIFICATION_REDIS_WORKBENCH_PATTERN:workbench:*}
+  websocket:
+    allowed-origins: ${NOTIFICATION_WS_ORIGINS:*}
 
 # Phase B: Detect 배치 (기본 비활성 - 수동 트리거만)
 detect:

@@ -12,6 +12,12 @@ import java.util.Optional;
 
 public interface FiDocHeaderRepository extends JpaRepository<FiDocHeader, FiDocHeaderId> {
 
+    /** Phase 6 대시보드: tenant별 전표 총 건수 */
+    long countByTenantId(Long tenantId);
+
+    /** Phase 6 대시보드: belnr 접두어별 건수 (DEMO=위반 시나리오, NORM=정상 시나리오) */
+    long countByTenantIdAndBelnrStartingWith(Long tenantId, String belnrPrefix);
+
     /** Phase B: window 내 신규/변경 전표 */
     @Query("SELECT f FROM FiDocHeader f WHERE f.tenantId = :tenantId AND f.createdAt >= :from AND f.createdAt < :to")
     List<FiDocHeader> findByTenantIdAndCreatedAtBetween(@Param("tenantId") Long tenantId,
