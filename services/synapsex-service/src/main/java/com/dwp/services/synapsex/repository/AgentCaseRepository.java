@@ -25,4 +25,7 @@ public interface AgentCaseRepository extends JpaRepository<AgentCase, Long> {
 
     /** Phase B: dedup_key 기준 upsert */
     Optional<AgentCase> findByTenantIdAndDedupKey(Long tenantId, String dedupKey);
+
+    /** Demo/즉시 탐지: 해당 Run으로 생성/갱신된 케이스 목록 */
+    List<AgentCase> findByTenantIdAndLastDetectRunId(Long tenantId, Long lastDetectRunId);
 }

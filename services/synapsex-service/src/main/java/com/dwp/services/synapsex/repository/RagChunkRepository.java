@@ -7,7 +7,11 @@ import java.util.List;
 
 public interface RagChunkRepository extends JpaRepository<RagChunk, Long> {
 
+    List<RagChunk> findByTenantIdAndDocIdOrderByChunkIndexAscChunkIdAsc(Long tenantId, Long docId);
+
     List<RagChunk> findByTenantIdAndDocIdOrderByPageNoAscChunkIdAsc(Long tenantId, Long docId);
 
     long countByTenantIdAndDocId(Long tenantId, Long docId);
+
+    void deleteByTenantIdAndDocId(Long tenantId, Long docId);
 }

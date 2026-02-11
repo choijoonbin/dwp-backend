@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 @Data
 @Builder
@@ -32,8 +33,10 @@ public class RagDocumentDetailDto {
     @AllArgsConstructor
     public static class RagChunkDto {
         private Long chunkId;
+        private Integer chunkIndex;
         private Integer pageNo;
         private String chunkText;
         private String embeddingId;
+        private Map<String, Object> metadataJson;
     }
 }

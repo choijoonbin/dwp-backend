@@ -5,6 +5,7 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.services.synapsex.client.AuraCaseTabClient;
 import com.dwp.services.synapsex.dto.rag.AuraRagVectorizeRequest;
 import com.dwp.services.synapsex.dto.rag.RagDocumentDetailDto;
+import com.dwp.services.synapsex.dto.rag.RagStatusCallbackRequest;
 import com.dwp.services.synapsex.dto.rag.RegisterRagDocumentRequest;
 import com.dwp.services.synapsex.entity.RagDocument;
 import com.dwp.services.synapsex.event.RagDocumentStatusUpdatedEvent;
@@ -40,6 +41,7 @@ public class RagCommandService {
     private static final java.util.Set<String> ALLOWED_EXTENSIONS = java.util.Set.of("pdf", "txt", "md");
 
     private final RagDocumentRepository ragDocumentRepository;
+    private final RAGStorageService ragStorageService;
     private final AuraCaseTabClient auraCaseTabClient;
     private final ApplicationEventPublisher eventPublisher;
     private final LocalStorageConfig localStorageConfig;
@@ -155,9 +157,22 @@ public class RagCommandService {
     }
 
     /**
-     * Phase 6: Aura RAG 상태 콜백 처리.
-     * docId 기준으로 rag_document 상태 갱신 후, WebSocket/SSE용 이벤트 발행(규정 벡터화 완료 알림 준비).
-     * 유효하지 않은 docId 시 404 응답을 위해 예외 발생.
+     * Phase 6: Aura RAG 상태 콜백 처리 (단일 진입점).
+     * chunks가 있으면 RAGStorageService로 rag_chunk 저장 후, rag_document 상태 갱신 및 이벤트 발행.
+     */
+    @Transactional
+    public void handleStatusCallback(RagStatusCallbackRequest request) {
+        Long docId = resolveDocId(request);
+        RagDocument doc = ragDocumentRepository.findById(docId)
+                .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "RAG 문서를 찾을 수 없습니다. docId=" + docId));
+        if (request.getChunks() != null && !request.getChunks().isEmpty()) {
+            ragStorageService.saveChunks(doc.getTenantId(), docId, request.getChunks());
+        }
+        updateStatusFromCallback(docId, request.getStatus(), request.getMessage());
+    }
+
+    /**
+     * docId 기준으로 rag_document 상태 갱신 후, WebSocket/SSE용 이벤트 발행.
      */
     @Transactional
     public void updateStatusFromCallback(Long docId, String status, String message) {
@@ -171,5 +186,20 @@ public class RagCommandService {
             log.info("RAG status callback docId={} status={} message={}", docId, status, message);
         }
         eventPublisher.publishEvent(new RagDocumentStatusUpdatedEvent(this, doc.getDocId(), doc.getTenantId(), doc.getStatus(), message));
+    }
+
+    /** Aura 형식(rag_document_id string) 또는 docId(Long)에서 문서 ID 결정 */
+    private Long resolveDocId(RagStatusCallbackRequest request) {
+        if (request.getDocId() != null) {
+            return request.getDocId();
+        }
+        if (request.getRagDocumentId() != null && !request.getRagDocumentId().isBlank()) {
+            try {
+                return Long.parseLong(request.getRagDocumentId().trim());
+            } catch (NumberFormatException e) {
+                throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "rag_document_id는 숫자 형식이어야 합니다: " + request.getRagDocumentId());
+            }
+        }
+        throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "docId 또는 rag_document_id는 필수입니다.");
     }
 }

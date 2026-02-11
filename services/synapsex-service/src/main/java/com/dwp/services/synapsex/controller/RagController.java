@@ -77,7 +77,7 @@ public class RagController {
      */
     @PostMapping("/status")
     public ApiResponse<Void> ragStatusCallback(@Valid @RequestBody RagStatusCallbackRequest request) {
-        ragCommandService.updateStatusFromCallback(request.getDocId(), request.getStatus(), request.getMessage());
+        ragCommandService.handleStatusCallback(request);
         return ApiResponse.success(null);
     }
 

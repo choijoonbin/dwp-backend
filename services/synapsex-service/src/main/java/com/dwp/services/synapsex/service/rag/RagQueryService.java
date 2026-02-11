@@ -59,7 +59,7 @@ public class RagQueryService {
         return ragDocumentRepository.findById(docId)
                 .filter(d -> tenantId.equals(d.getTenantId()))
                 .map(doc -> {
-                    List<RagChunk> chunks = ragChunkRepository.findByTenantIdAndDocIdOrderByPageNoAscChunkIdAsc(tenantId, doc.getDocId());
+                    List<RagChunk> chunks = ragChunkRepository.findByTenantIdAndDocIdOrderByChunkIndexAscChunkIdAsc(tenantId, doc.getDocId());
                     return RagDocumentDetailDto.builder()
                             .docId(doc.getDocId())
                             .title(doc.getTitle())
@@ -74,9 +74,11 @@ public class RagQueryService {
                             .chunks(chunks.stream()
                                     .map(c -> RagDocumentDetailDto.RagChunkDto.builder()
                                             .chunkId(c.getChunkId())
+                                            .chunkIndex(c.getChunkIndex())
                                             .pageNo(c.getPageNo())
                                             .chunkText(c.getChunkText())
                                             .embeddingId(c.getEmbeddingId())
+                                            .metadataJson(c.getMetadataJson())
                                             .build())
                                     .toList())
                             .build();

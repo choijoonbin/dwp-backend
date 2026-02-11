@@ -40,7 +40,7 @@ public class CaseDetailDto {
     private ReasoningPanelDto reasoning;
     private ActionPanelDto action;
 
-    /** 조치 이력 1건. actionAt/createdAt ISO8601, JSON camelCase. */
+    /** 조치 이력 1건. DB action_at/created_at → API actionAt/createdAt (camelCase). */
     @Data
     @Builder
     @NoArgsConstructor
@@ -50,11 +50,13 @@ public class CaseDetailDto {
         private String actionType;
         private String actorId;
         private String commentText;
+        @JsonProperty("actionAt")
         private Instant actionAt;
+        @JsonProperty("createdAt")
         private Instant createdAt;
     }
 
-    /** AI 추론 1건 (Aura 연동). occurredAt ISO8601, JSON camelCase. */
+    /** AI 추론 1건 (Aura 연동). DB occurred_at → API occurredAt (camelCase). */
     @Data
     @Builder
     @NoArgsConstructor
@@ -63,6 +65,7 @@ public class CaseDetailDto {
         private String stage;
         private String eventType;
         private String message;
+        @JsonProperty("occurredAt")
         private Instant occurredAt;
     }
 

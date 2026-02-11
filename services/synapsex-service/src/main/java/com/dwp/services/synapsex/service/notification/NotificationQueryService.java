@@ -27,6 +27,15 @@ public class NotificationQueryService {
     }
 
     private static NotificationDto toDto(SysNotification n) {
+        Map<String, Object> payload = n.getPayloadJson() != null ? new HashMap<>(n.getPayloadJson()) : null;
+        String link = null;
+        if (payload != null && payload.get("link") instanceof String) {
+            link = (String) payload.get("link");
+        } else if (payload != null && payload.get("case_id") != null) {
+            link = "/synapse/cases/" + payload.get("case_id");
+        } else if (payload != null && payload.get("docId") != null) {
+            link = "/synapse/rag/documents/" + payload.get("docId");
+        }
         return NotificationDto.builder()
                 .id(n.getId())
                 .tenantId(n.getTenantId())
@@ -35,10 +44,11 @@ public class NotificationQueryService {
                 .content(n.getContent())
                 .type(n.getType())
                 .channel(n.getChannel())
+                .link(link)
                 .occurredAt(n.getOccurredAt())
                 .createdAt(n.getCreatedAt())
                 .readAt(n.getReadAt())
-                .payload(n.getPayloadJson() != null ? new HashMap<>(n.getPayloadJson()) : null)
+                .payload(payload)
                 .build();
     }
 }

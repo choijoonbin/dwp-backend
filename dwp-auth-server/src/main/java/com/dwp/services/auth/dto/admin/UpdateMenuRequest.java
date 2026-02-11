@@ -1,5 +1,7 @@
 package com.dwp.services.auth.dto.admin;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -12,11 +14,14 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class UpdateMenuRequest {
     
     private String menuName;
     private Long parentMenuId; // nullable (변경 시)
     private String parentMenuKey; // nullable (parentMenuId 대신 사용 가능)
+    /** menu_path. FE에서 path 로 보내도 수용 */
+    @JsonAlias("path")
     private String routePath;
     private String icon;
     private String menuGroup;

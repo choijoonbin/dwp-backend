@@ -1,6 +1,7 @@
 package com.dwp.services.synapsex.dto.workbench;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -21,6 +22,7 @@ import java.util.Map;
 public class WorkbenchTimelineItemDto {
 
     private Long activityId;
+    @JsonProperty("occurredAt")
     private Instant occurredAt;
     /** Aura 정의 stage (SCAN, DETECT, EXECUTE, SIMULATE, ANALYZE, MATCH 등) */
     private String stage;

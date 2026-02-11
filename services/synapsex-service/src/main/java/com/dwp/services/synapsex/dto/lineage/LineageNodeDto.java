@@ -1,6 +1,7 @@
 package com.dwp.services.synapsex.dto.lineage;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -10,7 +11,7 @@ import java.time.Instant;
 import java.util.Map;
 
 /**
- * Lineage 그래프 노드 1건. Source -> Agent -> Case -> Action 계층용.
+ * Lineage 그래프 노드 1건. DB occurred_at → API occurredAt (camelCase).
  */
 @Data
 @Builder
@@ -31,7 +32,8 @@ public class LineageNodeDto {
     /** 원본 식별자 (rawEventId, activityId, caseId, actionId) */
     private String refId;
 
-    /** 정렬/연결용 시각 (nullable) */
+    /** 정렬/연결용 시각 (nullable). API camelCase. */
+    @JsonProperty("occurredAt")
     private Instant occurredAt;
 
     /** type별 상세 (예: stage, eventType, severity) */
