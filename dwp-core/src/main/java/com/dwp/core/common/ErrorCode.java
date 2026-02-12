@@ -32,13 +32,16 @@ public enum ErrorCode {
     ROLE_IN_USE(HttpStatus.CONFLICT, "E3003", "역할이 사용 중입니다. 멤버나 권한을 먼저 제거해주세요."),
     RESOURCE_KEY_DUPLICATED(HttpStatus.CONFLICT, "E3004", "이미 존재하는 리소스 키입니다."),
     RESOURCE_HAS_CHILDREN(HttpStatus.CONFLICT, "E3005", "하위 리소스가 존재합니다. 하위 리소스를 먼저 제거해주세요."),
-    
+    AGENT_CREATE_FAILED(HttpStatus.BAD_REQUEST, "E3007", "에이전트 생성에 실패했습니다."),
+    AGENT_KEY_DUPLICATE(HttpStatus.CONFLICT, "E3008", "이미 사용 중인 에이전트 키입니다. 다른 agent_key를 사용하세요."),
+
     // 검증 에러 (4000번대)
     VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "E4000", "입력값 검증에 실패했습니다."),
     MISSING_REQUIRED_FIELD(HttpStatus.BAD_REQUEST, "E4001", "필수 필드가 누락되었습니다."),
     INVALID_FORMAT(HttpStatus.BAD_REQUEST, "E4002", "잘못된 형식입니다."),
     INVALID_CODE(HttpStatus.BAD_REQUEST, "E4003", "유효하지 않은 코드입니다."),
-    
+    PROMPT_VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "E4004", "프롬프트 검증에 실패했습니다. system_instruction을 확인하세요."),
+
     // 외부 서비스 에러 (5000번대)
     EXTERNAL_SERVICE_ERROR(HttpStatus.BAD_GATEWAY, "E5000", "외부 서비스 오류가 발생했습니다."),
     EXTERNAL_SERVICE_TIMEOUT(HttpStatus.GATEWAY_TIMEOUT, "E5001", "외부 서비스 응답 시간이 초과되었습니다.");

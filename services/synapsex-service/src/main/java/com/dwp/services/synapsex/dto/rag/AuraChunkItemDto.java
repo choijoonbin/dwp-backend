@@ -23,8 +23,8 @@ public class AuraChunkItemDto {
     @JsonAlias("chunk_index")
     private Integer chunkIndex;
 
-    /** 분할된 텍스트. Aura: content → DB chunk_text */
-    @JsonAlias({"chunk_content", "content"})
+    /** 분할된 텍스트. Aura: content / text / chunk_content → DB chunk_text */
+    @JsonAlias({"chunk_content", "content", "text"})
     private String chunkContent;
 
     /** OpenAI embedding 1536차원. Aura: embedding (number[]) */

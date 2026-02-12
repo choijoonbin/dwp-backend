@@ -375,6 +375,7 @@ public class CaseAnalysisService {
             } else if (payload.getFinalResult() != null) {
                 saveResultAndProposals(run, payload.getFinalResult());
             }
+            updateAgentCaseFromLatestResult(run);
         }
 
                 logAudit(run.getTenantId(), run.getCaseId(), run.getRunId(), null,
@@ -424,11 +425,22 @@ public class CaseAnalysisService {
         ArrayNode ragRefsJson = objectMapper.createArrayNode();
         if (fr.getRagRefs() != null) fr.getRagRefs().forEach(m -> ragRefsJson.add(objectMapper.valueToTree(m)));
 
+        Integer riskScore = null;
+        if (fr.getRisk_score() != null) {
+            riskScore = fr.getRisk_score() instanceof Integer ? (Integer) fr.getRisk_score()
+                    : (int) Math.round(fr.getRisk_score().doubleValue());
+            riskScore = Math.max(0, Math.min(100, riskScore));
+        }
+
         CaseAnalysisResult result = CaseAnalysisResult.builder()
                 .runId(run.getRunId())
                 .score(fr.getScore() != null ? BigDecimal.valueOf(fr.getScore()) : null)
                 .severity(fr.getSeverity())
                 .reasonText(fr.getReasonText())
+                .riskScore(riskScore)
+                .violationClause(fr.getViolation_clause() != null ? fr.getViolation_clause() : "")
+                .reasoningSummary(fr.getReasoning_summary())
+                .recommendedAction(fr.getRecommended_action())
                 .confidenceJson(confidenceJson)
                 .evidenceJson(evidenceJson.isEmpty() ? null : evidenceJson)
                 .similarJson(similarJson.isEmpty() ? null : similarJson)
@@ -437,6 +449,28 @@ public class CaseAnalysisService {
                 .build();
         resultRepository.save(result);
         saveProposalsFromItems(run, fr.getProposals());
+    }
+
+    /** 분석 완료 시 agent_case의 위반 등급·판단 근거·점수를 최신 case_analysis_result로 갱신. */
+    private void updateAgentCaseFromLatestResult(CaseAnalysisRun run) {
+        resultRepository.findByRunId(run.getRunId()).ifPresent(result -> {
+            agentCaseRepository.findByCaseIdAndTenantId(run.getCaseId(), run.getTenantId()).ifPresent(agentCase -> {
+                if (result.getSeverity() != null && !result.getSeverity().isBlank()) {
+                    agentCase.setSeverity(result.getSeverity());
+                }
+                if (result.getReasonText() != null) {
+                    agentCase.setReasonText(result.getReasonText());
+                }
+                if (result.getScore() != null) {
+                    agentCase.setScore(result.getScore());
+                }
+                if (result.getRagRefsJson() != null) {
+                    agentCase.setRagRefsJson(result.getRagRefsJson());
+                }
+                agentCase.setUpdatedAt(Instant.now());
+                agentCaseRepository.save(agentCase);
+            });
+        });
     }
 
     /** Aura 콜백에서 제안 목록 저장 (Phase3 / FinalResult 공통). 중복 dedupKey 스킵. */

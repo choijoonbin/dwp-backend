@@ -1,8 +1,8 @@
 package com.dwp.services.synapsex.entity;
 
-import com.pgvector.PGvector;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.Array;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -43,9 +43,11 @@ public class RagChunk {
     @Column(name = "chunk_text", nullable = false, columnDefinition = "TEXT")
     private String chunkText;
 
-    /** OpenAI embedding 1536차원 (pgvector). Aura 벡터화 결과 저장 */
+    /** OpenAI embedding 1536차원 (pgvector). Aura 벡터화 결과 저장. JdbcTypeCode(VECTOR)로 DB 역직렬화 오류 방지. */
     @Column(name = "embedding", columnDefinition = "vector(1536)")
-    private PGvector embedding;
+    @JdbcTypeCode(SqlTypes.VECTOR)
+    @Array(length = 1536)
+    private float[] embedding;
 
     /** 페이지 번호, 파일 경로 등 부가 메타데이터 (Aura 요구사항) */
     @JdbcTypeCode(SqlTypes.JSON)

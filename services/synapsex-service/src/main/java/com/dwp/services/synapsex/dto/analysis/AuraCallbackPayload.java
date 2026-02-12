@@ -53,6 +53,14 @@ public class AuraCallbackPayload {
         private List<Map<String, Object>> similar;
         /** proposals: BE dedup_key 기반 멱등 처리 */
         private List<ProposalItem> proposals;
+        /** Aura 신규: 위험 점수 0~100 (기존 score 0~1을 100 단위로 변환) */
+        private Number risk_score;
+        /** Aura 신규: 위반 규정 조항 (예: "제11조 2항", 없으면 "") */
+        private String violation_clause;
+        /** Aura 신규: 판단 근거 요약 (reasonText와 동일 내용) */
+        private String reasoning_summary;
+        /** Aura 신규: 권고 조치 요약 (proposals의 rationale을 "; "로 이어붙인 문자열) */
+        private String recommended_action;
     }
 
     @Data

@@ -113,10 +113,12 @@ public class DetectBatchService {
             List<FiOpenItem> openItems = fiOpenItemRepository.findByTenantIdAndLastUpdateTsBetween(tenantId, windowFrom, windowTo);
 
             for (FiDocHeader doc : docs) {
+                String firstBuzei = firstDocBuzei(tenantId, doc.getBukrs(), doc.getBelnr(), doc.getGjahr());
+                // dedup_key는 기존 형식 유지( buzei null → "_" )하여 기존 케이스와 호환
                 String dedupKey = buildDedupKey(tenantId, CASE_TYPE_DOC_WINDOW, SOURCE_TYPE_DOC, doc.getBukrs(), doc.getBelnr(), doc.getGjahr(), null);
                 BigDecimal amount = sumDocAmount(tenantId, doc.getBukrs(), doc.getBelnr(), doc.getGjahr());
                 int[] c = upsertCase(tenantId, run, dedupKey, CASE_TYPE_DOC_WINDOW, SOURCE_TYPE_DOC, RULE_ID_DOC,
-                        doc.getBukrs(), doc.getBelnr(), doc.getGjahr(), null, amount, doc.getWaers(), null);
+                        doc.getBukrs(), doc.getBelnr(), doc.getGjahr(), firstBuzei, amount, doc.getWaers(), null);
                 caseCreated += c[0];
                 caseUpdated += c[1];
             }
@@ -182,6 +184,13 @@ public class DetectBatchService {
                 .map(FiDocItem::getWrbtr)
                 .filter(java.util.Objects::nonNull)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /** 전표의 첫 라인 buzei (agent_case.buzei 및 dedup_key용). 없으면 "001". */
+    private String firstDocBuzei(Long tenantId, String bukrs, String belnr, String gjahr) {
+        List<FiDocItem> items = fiDocItemRepository.findByTenantIdAndBukrsAndBelnrAndGjahrOrderByBuzeiAsc(
+                tenantId, bukrs, belnr, gjahr);
+        return items.isEmpty() ? "001" : (items.get(0).getBuzei() != null ? items.get(0).getBuzei() : "001");
     }
 
     /** severity: amount 기반 (>=1억 HIGH, >=1천만 MEDIUM, else LOW). sys_codes SEVERITY 일치 */
@@ -270,9 +279,10 @@ public class DetectBatchService {
                 agentCaseRepository.save(existing);
                 return new int[]{0, 1};
             }
-            // P0: detected_at 유지, updated_at만 갱신
+            // P0: detected_at 유지, updated_at만 갱신 (buzei 보강: DOC 시 첫 라인 번호 반영)
             existing.setUpdatedAt(Instant.now());
             existing.setLastDetectRunId(run.getRunId());
+            if (buzei != null) existing.setBuzei(buzei);
             existing.setSeverity(severity);
             existing.setScore(score);
             existing.setReasonText(reasonText);

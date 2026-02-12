@@ -11,7 +11,7 @@ import java.util.UUID;
 
 /**
  * GET /api/synapse/cases/{caseId}/analysis 응답
- * back.txt 스키마: runId, score, severity, reasonText, confidenceBreakdown, evidence, ragRefs, proposals
+ * Aura finalResult 신규 4필드(riskScore, violationClause, reasoningSummary, recommendedAction) 포함.
  */
 @Data
 @Builder
@@ -21,6 +21,14 @@ public class CaseAnalysisDto {
     private BigDecimal score;
     private String severity;
     private String reasonText;
+    /** Aura 신규: 위험 점수 0~100 */
+    private Integer riskScore;
+    /** Aura 신규: 위반 규정 조항 (예: 제11조 2항) */
+    private String violationClause;
+    /** Aura 신규: 판단 근거 요약 */
+    private String reasoningSummary;
+    /** Aura 신규: 권고 조치 요약 */
+    private String recommendedAction;
     private JsonNode confidenceBreakdown;
     private List<Map<String, Object>> evidence;
     private List<Map<String, Object>> similarCases;

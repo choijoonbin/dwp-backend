@@ -55,7 +55,12 @@ public class GlobalExceptionHandler {
             errors.put(fieldName, errorMessage);
         });
         
-        log.warn("Validation error: {}", errors);
+        String path = request != null ? request.getRequestURI() : "";
+        if (path.contains("rag/chunks")) {
+            log.warn("RAG chunks callback validation failed: path={} errors={}", path, errors);
+        } else {
+            log.warn("Validation error: {}", errors);
+        }
         return ResponseEntity
                 .status(ErrorCode.VALIDATION_ERROR.getHttpStatus())
                 .body(ApiResponse.error(ErrorCode.VALIDATION_ERROR, "입력값 검증에 실패했습니다.", errors, traceId(request), gatewayRequestId(request)));
@@ -111,7 +116,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Object>> handleHttpMessageNotReadable(
             HttpMessageNotReadableException e, HttpServletRequest request) {
         String msg = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
-        log.warn("JSON parse error: {}", msg);
+        String path = request != null ? request.getRequestURI() : "";
+        if (path.contains("rag/chunks")) {
+            log.warn("RAG chunks callback JSON parse failed: path={} cause={}", path, msg);
+        } else {
+            log.warn("JSON parse error: {}", msg);
+        }
         String detail = (msg != null && msg.length() > 200) ? msg.substring(0, 200) + "..." : (msg != null ? msg : "");
         return ResponseEntity
                 .status(ErrorCode.INVALID_FORMAT.getHttpStatus())

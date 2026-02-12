@@ -3,6 +3,8 @@ package com.dwp.services.synapsex.service.analysis;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.synapsex.repository.CaseAnalysisRunRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,8 +17,10 @@ import java.net.URLEncoder;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.UUID;
+import java.time.Instant;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
+
 import java.util.concurrent.Executors;
 import java.util.stream.Stream;
 
@@ -40,11 +44,18 @@ public class AnalysisStreamProxyService {
     private static final Duration HTTP_CONNECT_TIMEOUT = Duration.ofSeconds(10);
     /** Aura 문서: Read timeout 5분 이상 권장. 30분 유지. */
     private static final Duration HTTP_READ_TIMEOUT = Duration.ofMinutes(30);
+    /** Thought Chain 이벤트 타입 — 이벤트명이 이 중 하나면 workbench:case:action에 thought_stream으로 발행 */
+    private static final Set<String> THOUGHT_EVENT_TYPES = Set.of("thought", "thought_stream", "step");
 
     private final CaseAnalysisRunRepository runRepository;
+    private final ObjectMapper objectMapper;
+    private final org.springframework.beans.factory.ObjectProvider<org.springframework.data.redis.core.RedisTemplate<String, String>> redisTemplateProvider;
+    private final org.springframework.beans.factory.ObjectProvider<ThoughtChainLogService> thoughtChainLogServiceProvider;
 
     @Value("${aura.base-url:http://localhost:9000}")
     private String auraBaseUrl;
+    @Value("${workbench.redis.action-channel:workbench:case:action}")
+    private String caseActionChannel;
 
     private final ExecutorService executor = Executors.newCachedThreadPool(r -> {
         Thread t = new Thread(r, "sse-proxy-" + r.hashCode());
@@ -55,8 +66,9 @@ public class AnalysisStreamProxyService {
     /**
      * Aura 분석 스트림을 프록시하여 SseEmitter로 전달.
      * runId로 run 조회 후 caseId로 Aura URL 구성, Authorization 전파.
+     * @param sandbox true면 Thought Chain 로그 DB 저장 생략(임시 세션). X-Sandbox: true 시 사용.
      */
-    public SseEmitter streamFromAura(Long tenantId, UUID runId, Long caseIdParam, String authorization) {
+    public SseEmitter streamFromAura(Long tenantId, UUID runId, Long caseIdParam, String authorization, boolean sandbox) {
         var run = runRepository.findByRunIdAndTenantId(runId, tenantId)
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "분석 실행을 찾을 수 없습니다."));
         if (caseIdParam != null && !run.getCaseId().equals(caseIdParam)) {
@@ -109,6 +121,7 @@ public class AnalysisStreamProxyService {
                 }
                 long totalBytes = 0;
                 long lineCount = 0;
+                List<String> eventLines = new ArrayList<>();
                 try (Stream<String> lines = response.body()) {
                     for (java.util.Iterator<String> it = lines.iterator(); it.hasNext(); ) {
                         String line = it.next();
@@ -121,25 +134,44 @@ public class AnalysisStreamProxyService {
                         if (log.isDebugEnabled()) {
                             log.debug("SSE line received: runId={} bytes={} total={}", runId, chunk.length, totalBytes);
                         }
+                        if (line.trim().isEmpty()) {
+                            // End of one SSE event: send buffered lines to client, then parse and optionally publish thought_stream
+                            for (String l : eventLines) {
+                                try {
+                                    String toSend = l + "\n";
+                                    emitter.send(toSend, MediaType.TEXT_EVENT_STREAM);
+                                } catch (IllegalStateException e) {
+                                    log.warn("SSE proxy client disconnected while forwarding: runId={}", runId);
+                                    try { emitter.complete(); } catch (IllegalStateException ignored) {}
+                                    return;
+                                }
+                            }
+                            try {
+                                String toSend = line + "\n";
+                                emitter.send(toSend, MediaType.TEXT_EVENT_STREAM);
+                            } catch (IllegalStateException e) {
+                                log.warn("SSE proxy client disconnected: runId={}", runId);
+                                try { emitter.complete(); } catch (IllegalStateException ignored) {}
+                                return;
+                            }
+                            publishThoughtStreamIfApplicable(tenantId, caseId, runId, eventLines, sandbox);
+                            eventLines.clear();
+                        } else {
+                            eventLines.add(line);
+                        }
                         if (lineCount == 1) {
                             log.info("SSE proxy about to send first chunk: runId={} bytes={} (write/flush trace)", runId, chunk.length);
                         }
-                        try {
-                            // String 사용: SseEmitter.send(Object,MediaType)는 HttpMessageConverter 사용. ByteBuffer는 converter 없음(No suitable converter for HeapByteBuffer). text/event-stream에는 String이 안전.
-                            String payload = new String(chunk, StandardCharsets.UTF_8);
-                            emitter.send(payload, MediaType.TEXT_EVENT_STREAM);
-                            if (lineCount == 1) {
-                                log.info("SSE proxy first chunk sent to client: runId={} bytes={} (suspected disconnect trace)", runId, chunk.length);
-                            }
-                        } catch (IllegalStateException e) {
-                            // 연결이 이미 끊어진 상태. 끊는 쪽은 Gateway 또는 FE(브라우저)이며, SynapseX는 전달만 함.
-                            log.warn("SSE proxy client disconnected while forwarding: runId={} totalBytesForwarded={} lineCount={} exception={} message={} (connection already closed by client or gateway)", runId, totalBytes, lineCount, e.getClass().getName(), e.getMessage(), e);
-                            log.info("SSE proxy completing emitter after client disconnect: runId={} (suspected disconnect trace)", runId);
+                    }
+                    if (!eventLines.isEmpty()) {
+                        for (String l : eventLines) {
                             try {
-                                emitter.complete();
-                            } catch (IllegalStateException ignored) {}
-                            return;
+                                emitter.send(l + "\n", MediaType.TEXT_EVENT_STREAM);
+                            } catch (IllegalStateException e) {
+                                break;
+                            }
                         }
+                        publishThoughtStreamIfApplicable(tenantId, caseId, runId, eventLines, sandbox);
                     }
                 }
                 log.info("SSE proxy Aura stream ended: runId={} totalBytesForwarded={} lineCount={} (0 bytes = Aura sent no data)", runId, totalBytes, lineCount);
@@ -166,6 +198,50 @@ public class AnalysisStreamProxyService {
         });
 
         return emitter;
+    }
+
+    /**
+     * SSE 이벤트 라인에서 event 타입과 data 추출. thought/step이면 workbench:case:action에 thought_stream 발행.
+     * data 필드: Aura가 보낸 "data:" 라인 내용을 그대로 포함(복수 라인이면 \n으로 결합).
+     * ThoughtChainUI는 payload.data를 파싱해 delta/텍스트 청크를 누락 없이 렌더링할 수 있음.
+     * sandbox true면 Thought Chain DB 저장 생략.
+     */
+    private void publishThoughtStreamIfApplicable(Long tenantId, Long caseId, UUID runId, List<String> eventLines, boolean sandbox) {
+        if (eventLines.isEmpty()) return;
+        String eventType = null;
+        StringBuilder dataPayload = new StringBuilder();
+        for (String l : eventLines) {
+            if (l.startsWith("event:")) {
+                eventType = l.substring(6).trim();
+            } else if (l.startsWith("data:")) {
+                if (dataPayload.length() > 0) dataPayload.append("\n");
+                dataPayload.append(l.substring(5).trim());
+            }
+        }
+        if (eventType == null || !THOUGHT_EVENT_TYPES.contains(eventType)) return;
+        final String eventTypeForPublish = eventType;
+        redisTemplateProvider.ifAvailable(template -> {
+            try {
+                Map<String, Object> payload = new HashMap<>();
+                payload.put("type", "thought_stream");
+                payload.put("category", "THOUGHT_STREAM");
+                payload.put("case_id", String.valueOf(caseId));
+                payload.put("run_id", runId != null ? runId.toString() : null);
+                payload.put("tenant_id", tenantId);
+                payload.put("event", eventTypeForPublish);
+                payload.put("data", dataPayload.toString());
+                payload.put("at", Instant.now().toString());
+                String json = objectMapper.writeValueAsString(payload);
+                template.convertAndSend(caseActionChannel, json);
+                if (log.isTraceEnabled()) {
+                    log.trace("Published thought_stream: caseId={} runId={} event={}", caseId, runId, eventTypeForPublish);
+                }
+            } catch (JsonProcessingException e) {
+                log.debug("Failed to publish thought_stream: {}", e.getMessage());
+            }
+        });
+        thoughtChainLogServiceProvider.ifAvailable(service ->
+                service.saveLog(runId, tenantId, caseId, eventTypeForPublish, dataPayload.toString(), sandbox));
     }
 
     private String toUserFriendlyMessage(Throwable e) {

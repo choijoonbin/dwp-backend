@@ -86,13 +86,15 @@ public class CaseAnalysisController {
     public ResponseEntity<org.springframework.web.servlet.mvc.method.annotation.SseEmitter> streamRun(
             @RequestHeader(name = HeaderConstants.X_TENANT_ID) Long tenantId,
             @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestHeader(value = HeaderConstants.X_SANDBOX, required = false) String sandboxHeader,
             @PathVariable("runId") UUID runId,
             @RequestParam(value = "caseId", required = false) Long caseId) {
-        log.info("SSE stream request received: runId={} caseId={} (suspected disconnect trace)", runId, caseId);
+        boolean sandbox = "true".equalsIgnoreCase(sandboxHeader != null ? sandboxHeader.trim() : "");
+        log.info("SSE stream request received: runId={} caseId={} sandbox={} (suspected disconnect trace)", runId, caseId, sandbox);
         if (!demoMode) {
             try {
                 org.springframework.web.servlet.mvc.method.annotation.SseEmitter emitter =
-                        analysisStreamProxyService.streamFromAura(tenantId, runId, caseId, authorization);
+                        analysisStreamProxyService.streamFromAura(tenantId, runId, caseId, authorization, sandbox);
                 log.debug("SSE stream returning emitter to client: runId={}", runId);
                 return ResponseEntity.ok()
                         .header(org.springframework.http.HttpHeaders.CACHE_CONTROL, "no-cache")

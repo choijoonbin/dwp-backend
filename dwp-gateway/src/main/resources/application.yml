@@ -117,6 +117,13 @@ spring:
             - Path=/api/synapse/demo/**
           filters:
             - StripPrefix=1
+        # /api/demo/** → synapse/demo/** (프론트 호출용 별칭)
+        - id: demo-alias
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/demo/**
+          filters:
+            - RewritePath=/api/demo(?<segment>.*), /synapse/demo${segment}
         # Workbench (Phase2: 케이스 목록/상세/이력, navigation)
         - id: synapsex-workbench
           uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
@@ -223,6 +230,21 @@ spring:
           predicates:
             - Path=/api/synapse/agent-tools/**
           filters:
+            - StripPrefix=1
+        # Agent Studio (에이전트 스튜디오) - CRUD·카탈로그: POST/PUT/GET /api/synapse/agents, /tools, /knowledge
+        - id: synapsex-agents
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/agents/**
+          filters:
+            - StripPrefix=1
+        # Agent Studio - Aura 런타임 조립용: GET /api/v1/agents/{id}/config
+        - id: synapsex-agents-v1
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/v1/agents/**
+          filters:
+            - RewritePath=/api/v1/agents(?<segment>.*), /api/synapse/agents$\{segment}
             - StripPrefix=1
         # Agent Stream REST push (Prompt C) - Aura → POST /api/synapse/agent/events
         - id: synapsex-agent-events

@@ -13,6 +13,7 @@ import java.util.UUID;
 
 /**
  * case_analysis_result 1건 요약. Workbench 상세 응답의 latestAnalysis용.
+ * Aura finalResult 신규 4필드 포함.
  */
 @Data
 @Builder
@@ -25,6 +26,14 @@ public class WorkbenchAnalysisResultDto {
     private BigDecimal score;
     private String severity;
     private String reasonText;
+    /** Aura 신규: 위험 점수 0~100 */
+    private Integer riskScore;
+    /** Aura 신규: 위반 규정 조항 */
+    private String violationClause;
+    /** Aura 신규: 판단 근거 요약 */
+    private String reasoningSummary;
+    /** Aura 신규: 권고 조치 요약 */
+    private String recommendedAction;
     private JsonNode confidenceJson;
     private JsonNode evidenceJson;
     private JsonNode similarJson;

@@ -5,6 +5,7 @@ import com.dwp.core.constant.HeaderConstants;
 import com.dwp.core.exception.BaseException;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.services.synapsex.dto.common.PageResponse;
+import com.dwp.services.synapsex.dto.rag.RagChunksCallbackRequest;
 import com.dwp.services.synapsex.dto.rag.RagDocumentDetailDto;
 import com.dwp.services.synapsex.dto.rag.RagDocumentListDto;
 import com.dwp.services.synapsex.dto.rag.RagSearchResultDto;
@@ -14,6 +15,7 @@ import com.dwp.services.synapsex.service.rag.RagCommandService;
 import com.dwp.services.synapsex.service.rag.RagQueryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -21,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 /**
  * Phase 3 RAG API
  */
+@Slf4j
 @RestController
 @RequestMapping("/synapse/rag")
 @RequiredArgsConstructor
@@ -72,11 +75,28 @@ public class RagController {
     }
 
     /**
+     * Aura RAG 청크 콜백 (전용).
+     * POST /api/synapse/rag/chunks — { "rag_document_id", "chunks", "batch_index", "total_batches" } 수신 시 rag_chunk에 INSERT.
+     * rag_document_id 유효성 검사 후 200 OK 반환.
+     */
+    @PostMapping("/chunks")
+    public ApiResponse<Void> ragChunksCallback(@Valid @RequestBody RagChunksCallbackRequest request) {
+        log.info("RAG chunks callback: rag_document_id={} batchIndex={} totalBatches={} chunksSize={}",
+                request.getRagDocumentId(), request.getBatchIndex(), request.getTotalBatches(),
+                request.getChunks() != null ? request.getChunks().size() : 0);
+        ragCommandService.processChunksCallback(request);
+        return ApiResponse.success(null);
+    }
+
+    /**
      * Phase 6: Aura RAG 상태 콜백.
-     * POST /api/synapse/rag/status — { docId, status, message } 수신 시 rag_document 갱신, 규정 벡터화 완료 시 WebSocket/SSE 알림 준비.
+     * POST /api/synapse/rag/status — { docId|rag_document_id, status, message, chunks } 수신 시 rag_document 갱신, chunks 있으면 rag_chunk 저장.
      */
     @PostMapping("/status")
     public ApiResponse<Void> ragStatusCallback(@Valid @RequestBody RagStatusCallbackRequest request) {
+        log.info("RAG status callback endpoint hit: docId={} ragDocumentId={} status={} chunksPresent={} chunksSize={}",
+                request.getDocId(), request.getRagDocumentId(), request.getStatus(),
+                request.getChunks() != null, request.getChunks() != null ? request.getChunks().size() : 0);
         ragCommandService.handleStatusCallback(request);
         return ApiResponse.success(null);
     }

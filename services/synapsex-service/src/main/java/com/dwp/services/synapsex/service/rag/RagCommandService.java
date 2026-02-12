@@ -4,10 +4,13 @@ import com.dwp.core.exception.BaseException;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.services.synapsex.client.AuraCaseTabClient;
 import com.dwp.services.synapsex.dto.rag.AuraRagVectorizeRequest;
+import com.dwp.services.synapsex.dto.rag.AuraChunkItemDto;
+import com.dwp.services.synapsex.dto.rag.RagChunksCallbackRequest;
 import com.dwp.services.synapsex.dto.rag.RagDocumentDetailDto;
 import com.dwp.services.synapsex.dto.rag.RagStatusCallbackRequest;
 import com.dwp.services.synapsex.dto.rag.RegisterRagDocumentRequest;
 import com.dwp.services.synapsex.entity.RagDocument;
+import com.dwp.services.synapsex.event.RagDocumentReadyForVectorizeEvent;
 import com.dwp.services.synapsex.event.RagDocumentStatusUpdatedEvent;
 import com.dwp.services.synapsex.repository.RagDocumentRepository;
 import com.dwp.services.synapsex.config.LocalStorageConfig;
@@ -19,10 +22,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * Phase 3 RAG 명령 서비스.
@@ -60,7 +64,7 @@ public class RagCommandService {
                 .build();
         doc = ragDocumentRepository.save(doc);
 
-        triggerVectorize(tenantId, doc);
+        eventPublisher.publishEvent(new RagDocumentReadyForVectorizeEvent(this, tenantId, doc.getDocId()));
 
         return toDetailDto(doc, List.of());
     }
@@ -103,9 +107,19 @@ public class RagCommandService {
                 .build();
         doc = ragDocumentRepository.save(doc);
 
-        triggerVectorize(tenantId, doc);
+        eventPublisher.publishEvent(new RagDocumentReadyForVectorizeEvent(this, tenantId, doc.getDocId()));
 
         return toDetailDto(doc, List.of());
+    }
+
+    /**
+     * 커밋 후 리스너에서 호출. docId로 문서를 다시 조회한 뒤 Aura 벡터화 트리거.
+     * 콜백이 findById로 문서를 찾을 수 있도록 트랜잭션 커밋 이후에만 호출됨.
+     */
+    public void triggerVectorizeForDocId(Long tenantId, Long docId) {
+        RagDocument doc = ragDocumentRepository.findById(docId)
+                .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "RAG 문서를 찾을 수 없습니다. docId=" + docId));
+        triggerVectorize(tenantId, doc);
     }
 
     private static String getExtension(String filename) {
@@ -135,6 +149,12 @@ public class RagCommandService {
      * 로컬 파일인 경우 documentPath(절대 경로) 전달.
      */
     private void triggerVectorize(Long tenantId, RagDocument doc) {
+        Long docId = doc.getDocId();
+        log.info("Aura RAG vectorize trigger start docId={} tenantId={} title={} sourceType={} hasFilePath={} hasS3Key={} hasUrl={}",
+                docId, tenantId, doc.getTitle(), doc.getSourceType(),
+                doc.getFilePath() != null && !doc.getFilePath().isBlank(),
+                doc.getS3Key() != null && !doc.getS3Key().isBlank(),
+                doc.getUrl() != null && !doc.getUrl().isBlank());
         try {
             AuraRagVectorizeRequest body = AuraRagVectorizeRequest.builder()
                     .tenantId(tenantId)
@@ -149,10 +169,20 @@ public class RagCommandService {
             auraCaseTabClient.triggerRagVectorize(doc.getDocId(), tenantId, null, body);
             doc.setStatus(STATUS_PROCESSING);
             ragDocumentRepository.save(doc);
+            log.info("Aura RAG vectorize trigger success docId={} status={}", docId, STATUS_PROCESSING);
         } catch (FeignException e) {
-            log.warn("Aura RAG vectorize trigger failed for docId={}, status remains READY: {}", doc.getDocId(), e.getMessage());
+            String responseBody = e.contentUTF8();
+            log.warn("Aura RAG vectorize trigger failed for docId={}, status remains READY: status={} message={} responseBody={}",
+                    docId, e.status(), e.getMessage(), responseBody != null && responseBody.length() > 500 ? responseBody.substring(0, 500) + "…" : responseBody);
+            if (log.isDebugEnabled()) {
+                log.debug("FeignException for docId={}", docId, e);
+            }
         } catch (Exception e) {
-            log.warn("Aura RAG vectorize trigger failed for docId={}: {}", doc.getDocId(), e.getMessage());
+            log.warn("Aura RAG vectorize trigger failed for docId={} exceptionType={} message={}",
+                    docId, e.getClass().getSimpleName(), e.getMessage());
+            if (log.isDebugEnabled()) {
+                log.debug("Exception for docId={}", docId, e);
+            }
         }
     }
 
@@ -163,12 +193,56 @@ public class RagCommandService {
     @Transactional
     public void handleStatusCallback(RagStatusCallbackRequest request) {
         Long docId = resolveDocId(request);
+        log.info("RAG status callback received docId={} status={} message={} chunksCount={}",
+                docId, request.getStatus(), request.getMessage(),
+                request.getChunks() != null ? request.getChunks().size() : 0);
         RagDocument doc = ragDocumentRepository.findById(docId)
-                .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "RAG 문서를 찾을 수 없습니다. docId=" + docId));
+                .orElseThrow(() -> {
+                    log.warn("RAG status callback: document not found docId={}", docId);
+                    return new BaseException(ErrorCode.ENTITY_NOT_FOUND, "RAG 문서를 찾을 수 없습니다. docId=" + docId);
+                });
         if (request.getChunks() != null && !request.getChunks().isEmpty()) {
             ragStorageService.saveChunks(doc.getTenantId(), docId, request.getChunks());
+            log.info("RAG status callback saved chunks docId={} count={}", docId, request.getChunks().size());
         }
         updateStatusFromCallback(docId, request.getStatus(), request.getMessage());
+    }
+
+    /**
+     * Aura 청크 전용 콜백: POST /api/synapse/rag/chunks.
+     * rag_document_id 유효성 검사 후 chunks를 rag_chunk에 저장. 배치(batch_index/total_batches) 지원.
+     */
+    @Transactional
+    public void processChunksCallback(RagChunksCallbackRequest request) {
+        log.info("processChunksCallback start: ragDocumentId={} batchIndex={} totalBatches={} chunksSize={}",
+                request.getRagDocumentId(), request.getBatchIndex(), request.getTotalBatches(),
+                request.getChunks() != null ? request.getChunks().size() : 0);
+        Long docId = parseDocIdFromRagDocumentId(request.getRagDocumentId());
+        RagDocument doc = ragDocumentRepository.findById(docId)
+                .orElseThrow(() -> {
+                    log.warn("RAG chunks callback: document not found rag_document_id={}", request.getRagDocumentId());
+                    return new BaseException(ErrorCode.ENTITY_NOT_FOUND, "RAG 문서를 찾을 수 없습니다. rag_document_id=" + request.getRagDocumentId());
+                });
+        int batchIndex = request.getBatchIndex() != null ? request.getBatchIndex() : 0;
+        int totalBatches = request.getTotalBatches() != null && request.getTotalBatches() > 0 ? request.getTotalBatches() : 1;
+        List<AuraChunkItemDto> chunks = request.getChunks() != null ? request.getChunks() : Collections.emptyList();
+        ragStorageService.saveChunkBatch(doc.getTenantId(), docId, chunks, batchIndex, totalBatches);
+    }
+
+    /** 문자열 또는 숫자(11, 11.0) 형식 모두 수용 */
+    private static Long parseDocIdFromRagDocumentId(String ragDocumentId) {
+        if (ragDocumentId == null || ragDocumentId.isBlank()) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "rag_document_id는 필수입니다.");
+        }
+        String s = ragDocumentId.trim();
+        try {
+            if (s.contains(".")) {
+                return (long) Double.parseDouble(s);
+            }
+            return Long.parseLong(s);
+        } catch (NumberFormatException e) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "rag_document_id는 숫자 형식이어야 합니다: " + ragDocumentId);
+        }
     }
 
     /**
@@ -197,9 +271,11 @@ public class RagCommandService {
             try {
                 return Long.parseLong(request.getRagDocumentId().trim());
             } catch (NumberFormatException e) {
+                log.warn("RAG callback invalid rag_document_id: value={}", request.getRagDocumentId());
                 throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "rag_document_id는 숫자 형식이어야 합니다: " + request.getRagDocumentId());
             }
         }
+        log.warn("RAG callback missing docId and rag_document_id");
         throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "docId 또는 rag_document_id는 필수입니다.");
     }
 }

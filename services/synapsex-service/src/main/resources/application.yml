@@ -102,6 +102,8 @@ audit:
 workbench:
   redis:
     action-channel: ${WORKBENCH_ACTION_CHANNEL:workbench:case:action}
+  # case_created 발행 후 analysis_started 트리거까지 지연(ms). FE 리스트 렌더링 후 분석 중 상태 도달하도록 기본 600ms.
+  analysis-trigger-delay-ms: ${WORKBENCH_ANALYSIS_TRIGGER_DELAY_MS:600}
 
 # Real-time Notification Bridge (WebSocket + Redis)
 notification:

@@ -44,7 +44,9 @@ public class RequiredHeaderFilter implements GlobalFilter, Ordered {
         "/api/monitoring/page-view",
         "/api/monitoring/event",
         "/internal/",
-        "/api/synapse/internal/"  // Aura → BE 콜백 (X-Tenant-ID 없음, runId로 tenant 추론)
+        "/api/synapse/internal/",  // Aura → BE 콜백 (X-Tenant-ID 없음, runId로 tenant 추론)
+        "/api/synapse/rag/chunks", // Aura RAG 청크 콜백 (X-Tenant-ID 없음, doc에서 tenant 추론)
+        "/api/synapse/rag/status"  // Aura RAG 상태 콜백 (동일)
     };
 
     @Override
@@ -60,7 +62,7 @@ public class RequiredHeaderFilter implements GlobalFilter, Ordered {
         // X-Tenant-ID 필수 검증
         String tenantId = request.getHeaders().getFirst(HEADER_TENANT_ID);
         if (tenantId == null || tenantId.trim().isEmpty()) {
-            log.warn("Missing required header X-Tenant-ID for path: {}", path);
+            log.warn("RequiredHeaderFilter: returning 400 Bad Request (missing X-Tenant-ID) path={}", path);
             exchange.getResponse().setStatusCode(HttpStatus.BAD_REQUEST);
             return exchange.getResponse().setComplete();
         }

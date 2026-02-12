@@ -10,7 +10,8 @@ import java.util.List;
 
 /**
  * 시연용 위반 시나리오 생성 결과.
- * 생성된 전표(doc) 및 탐지로 생성된 케이스 ID 목록, Run ID 포함.
+ * 탐지·Aura 분석은 비동기 실행. 응답 시점에는 detectRunStatus=ASYNC_STARTED, createdCaseIds=빈 목록.
+ * case_created·analysis_started 알림은 WebSocket /topic/notifications 로 실시간 전달.
  */
 @Data
 @Builder
@@ -22,13 +23,13 @@ public class GenerateViolationResponse {
     @Schema(description = "생성된 전표 식별자 목록 (bukrs-belnr-gjahr)")
     private List<String> createdDocKeys;
 
-    @Schema(description = "탐지 Run으로 생성/갱신된 케이스 ID 목록")
+    @Schema(description = "탐지로 생성된 케이스 ID 목록. 비동기 탐지 시 응답 시점에는 빈 목록, 완료 후 WebSocket 알림")
     private List<Long> createdCaseIds;
 
-    @Schema(description = "Detect Run ID (즉시 탐지 배치 실행 시)")
+    @Schema(description = "Detect Run ID. 비동기 탐지 시 null")
     private Long detectRunId;
 
-    @Schema(description = "Run 상태 (COMPLETED, FAILED, SKIPPED)")
+    @Schema(description = "Run 상태: ASYNC_STARTED(비동기 시작), COMPLETED, FAILED, SKIPPED")
     private String detectRunStatus;
 
     @Schema(description = "안내 메시지")

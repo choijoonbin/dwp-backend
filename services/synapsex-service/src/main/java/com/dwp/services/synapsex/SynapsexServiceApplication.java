@@ -9,6 +9,7 @@ import org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoCo
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.context.ApplicationContext;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
@@ -20,6 +21,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @SpringBootApplication(exclude = RedisRepositoriesAutoConfiguration.class)
 @EnableJpaRepositories(basePackages = "com.dwp.services.synapsex.repository")
 @EnableFeignClients(basePackages = "com.dwp.services.synapsex.client")
+@EnableAsync
 @EnableScheduling
 public class SynapsexServiceApplication {
 

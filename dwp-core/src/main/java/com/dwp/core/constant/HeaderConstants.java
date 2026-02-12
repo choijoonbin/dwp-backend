@@ -69,7 +69,13 @@ public class HeaderConstants {
      * FE가 ko|en을 보내면 해당 언어로 코드/메뉴 라벨 반환
      */
     public static final String ACCEPT_LANGUAGE = "Accept-Language";
-    
+
+    /**
+     * 샌드박스(테스트) 세션 여부. 값 "true" 시 대화/사고 로그 DB 저장 생략(임시 세션).
+     * 계약: docs/integration/AGENT_STUDIO_NAMING_AND_SANDBOX_CONTRACT.md
+     */
+    public static final String X_SANDBOX = "X-Sandbox";
+
     // ========================================
     // 호출자 타입 값
     // ========================================

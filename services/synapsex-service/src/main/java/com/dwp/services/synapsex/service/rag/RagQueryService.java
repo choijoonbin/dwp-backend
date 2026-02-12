@@ -7,7 +7,6 @@ import com.dwp.services.synapsex.dto.rag.RagSearchResultDto;
 import com.dwp.services.synapsex.entity.QRagChunk;
 import com.dwp.services.synapsex.entity.RagChunk;
 import com.dwp.services.synapsex.entity.RagDocument;
-import com.dwp.services.synapsex.repository.RagChunkRepository;
 import com.dwp.services.synapsex.repository.RagDocumentRepository;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +26,6 @@ import java.util.stream.Collectors;
 public class RagQueryService {
 
     private final RagDocumentRepository ragDocumentRepository;
-    private final RagChunkRepository ragChunkRepository;
     private final JPAQueryFactory queryFactory;
 
     @Transactional(readOnly = true)
@@ -59,7 +57,8 @@ public class RagQueryService {
         return ragDocumentRepository.findById(docId)
                 .filter(d -> tenantId.equals(d.getTenantId()))
                 .map(doc -> {
-                    List<RagChunk> chunks = ragChunkRepository.findByTenantIdAndDocIdOrderByChunkIndexAscChunkIdAsc(tenantId, doc.getDocId());
+                    // embedding 컬럼 제외 조회로 vector 역직렬화 오류 방지 (pgvector 컬럼은 JPA 기본 매핑 시 StreamCorruptedException 유발)
+                    List<RagDocumentDetailDto.RagChunkDto> chunkDtos = findChunkSummariesByTenantIdAndDocId(tenantId, doc.getDocId());
                     return RagDocumentDetailDto.builder()
                             .docId(doc.getDocId())
                             .title(doc.getTitle())
@@ -71,18 +70,30 @@ public class RagQueryService {
                             .checksum(doc.getChecksum())
                             .status(doc.getStatus())
                             .createdAt(doc.getCreatedAt())
-                            .chunks(chunks.stream()
-                                    .map(c -> RagDocumentDetailDto.RagChunkDto.builder()
-                                            .chunkId(c.getChunkId())
-                                            .chunkIndex(c.getChunkIndex())
-                                            .pageNo(c.getPageNo())
-                                            .chunkText(c.getChunkText())
-                                            .embeddingId(c.getEmbeddingId())
-                                            .metadataJson(c.getMetadataJson())
-                                            .build())
-                                    .toList())
+                            .chunks(chunkDtos)
                             .build();
                 });
+    }
+
+    /** embedding 제외 컬럼만 프로젝션하여 조회 (vector 컬럼 역직렬화 오류 회피). */
+    private List<RagDocumentDetailDto.RagChunkDto> findChunkSummariesByTenantIdAndDocId(Long tenantId, Long docId) {
+        var c = QRagChunk.ragChunk;
+        List<com.querydsl.core.Tuple> rows = queryFactory
+                .select(c.chunkId, c.chunkIndex, c.pageNo, c.chunkText, c.embeddingId, c.metadataJson)
+                .from(c)
+                .where(c.tenantId.eq(tenantId), c.docId.eq(docId))
+                .orderBy(c.chunkIndex.asc(), c.chunkId.asc())
+                .fetch();
+        return rows.stream()
+                .map(t -> RagDocumentDetailDto.RagChunkDto.builder()
+                        .chunkId(t.get(c.chunkId))
+                        .chunkIndex(t.get(c.chunkIndex))
+                        .pageNo(t.get(c.pageNo))
+                        .chunkText(t.get(c.chunkText))
+                        .embeddingId(t.get(c.embeddingId))
+                        .metadataJson(t.get(c.metadataJson))
+                        .build())
+                .toList();
     }
 
     @Transactional(readOnly = true)

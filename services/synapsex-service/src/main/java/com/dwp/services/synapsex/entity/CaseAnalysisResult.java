@@ -38,6 +38,18 @@ public class CaseAnalysisResult {
     @Column(name = "reason_text", columnDefinition = "TEXT")
     private String reasonText;
 
+    @Column(name = "risk_score")
+    private Integer riskScore;
+
+    @Column(name = "violation_clause", columnDefinition = "TEXT")
+    private String violationClause;
+
+    @Column(name = "reasoning_summary", columnDefinition = "TEXT")
+    private String reasoningSummary;
+
+    @Column(name = "recommended_action", columnDefinition = "TEXT")
+    private String recommendedAction;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "confidence_json", columnDefinition = "jsonb")
     private JsonNode confidenceJson;
