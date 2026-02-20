@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestParam;
 
 /**
  * Aura Platform Case 탭 API 프록시용 Feign 클라이언트
@@ -82,4 +83,17 @@ public interface AuraCaseTabClient {
             @RequestHeader("X-Tenant-ID") Long tenantId,
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestBody AuraRagVectorizeRequest request);
+
+    /**
+     * 에이전트 설정 캐시 무효화 (Refresh Signal)
+     * 에이전트 설정 변경 또는 지식 바인딩 시 Aura 엔진의 캐시를 무효화하여 최신 설정을 반영하도록 함.
+     * POST /aura/agents/{agentId}/refresh?tenant_id={tenantId}
+     * 
+     * 주의: 백엔드는 Gateway를 거치지 않고 Aura Platform에 직접 호출하므로 /api 프리픽스 없이 호출
+     */
+    @PostMapping("/aura/agents/{agentId}/refresh")
+    void refreshAgentConfig(
+            @PathVariable("agentId") Long agentId,
+            @RequestParam("tenant_id") Long tenantId,
+            @RequestHeader(value = "Authorization", required = false) String authorization);
 }

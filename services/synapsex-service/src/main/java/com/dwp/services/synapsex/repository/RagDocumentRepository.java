@@ -10,4 +10,6 @@ public interface RagDocumentRepository extends JpaRepository<RagDocument, Long> 
     List<RagDocument> findByTenantIdOrderByCreatedAtDesc(Long tenantId);
 
     List<RagDocument> findByTenantIdAndStatusOrderByCreatedAtDesc(Long tenantId, String status);
+
+    java.util.Optional<RagDocument> findByDocIdAndTenantId(Long docId, Long tenantId);
 }

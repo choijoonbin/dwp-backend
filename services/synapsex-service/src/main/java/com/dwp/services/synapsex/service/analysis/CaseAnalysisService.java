@@ -146,6 +146,13 @@ public class CaseAnalysisService {
                 }
             } else {
                 BodyEvidenceDto bodyEvidence = buildBodyEvidence(agentCase);
+                if (bodyEvidence == null) {
+                    log.warn("Aura analyze body_evidence missing: caseId={} runId={} belnr={} buzei={}",
+                            caseId, runId, agentCase.getBelnr(), agentCase.getBuzei());
+                } else {
+                    log.debug("Aura analyze body_evidence: caseId={} runId={} docId={} itemId={}",
+                            caseId, runId, bodyEvidence.getDocId(), bodyEvidence.getItemId());
+                }
                 AuraAnalyzeRequest auraReq = AuraAnalyzeRequest.builder()
                         .caseId(caseId)
                         .runId(runId)
@@ -363,6 +370,14 @@ public class CaseAnalysisService {
         }
 
         String status = payload.getStatus();
+        if ("FAILED".equals(status)) {
+            String errorMsg = payload.getError() != null ? payload.getError().toString() : "null";
+            log.warn("Aura callback FAILED: runId={} caseId={} error={} auraTraceId={} status={}", 
+                    runId, payload.getCaseId(), errorMsg, payload.getAuraTraceId(), status);
+        } else if (status == null) {
+            log.warn("Aura callback status is null: runId={} caseId={}", runId, payload.getCaseId());
+            status = "FAILED"; // null이면 FAILED로 처리
+        }
         run.setStatus("COMPLETED".equals(status) ? CaseAnalysisRun.STATUS_COMPLETED : CaseAnalysisRun.STATUS_FAILED);
         run.setFinishedAt(Instant.now());
         run.setErrorMessage(normalizeCallbackError("FAILED".equals(status), payload.getError()));

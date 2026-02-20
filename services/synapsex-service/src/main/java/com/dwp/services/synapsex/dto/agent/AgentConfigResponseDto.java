@@ -28,6 +28,7 @@ public class AgentConfigResponseDto {
     private String agentKey;
     private String name;
     private String domain;
+    private Long tenantId;
     private ModelConfigDto model;
     /** agent_prompt_history 최신(is_current=true) 프롬프트 본문. 있으면 Aura가 이 값을 사용. */
     @JsonProperty(value = "systemInstruction", required = false)
@@ -36,6 +37,9 @@ public class AgentConfigResponseDto {
     /** agent_prompt_history 현재 버전(version). Aura 콜백 등에서 agent_id·version 전달용. */
     private Integer version;
     private List<AgentToolItemDto> tools;
+    /** 에이전트에 연결된 RAG 문서 ID 목록 (Aura 엔진 RAG 검색 범위 제한용) */
+    @JsonInclude(JsonInclude.Include.ALWAYS)
+    private List<Long> docIds;
 
     @Data
     @Builder

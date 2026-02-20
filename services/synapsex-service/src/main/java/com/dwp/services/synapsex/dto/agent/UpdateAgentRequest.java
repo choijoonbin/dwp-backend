@@ -40,4 +40,7 @@ public class UpdateAgentRequest {
 
     /** 도구 매핑을 이 목록으로 교체. null이면 기존 유지 */
     private List<Long> toolIds;
+
+    /** 문서 매핑을 이 목록으로 교체. null이면 기존 유지 */
+    private List<Long> docIds;
 }

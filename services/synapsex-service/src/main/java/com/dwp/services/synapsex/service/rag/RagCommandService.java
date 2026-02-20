@@ -14,6 +14,7 @@ import com.dwp.services.synapsex.event.RagDocumentReadyForVectorizeEvent;
 import com.dwp.services.synapsex.event.RagDocumentStatusUpdatedEvent;
 import com.dwp.services.synapsex.repository.RagDocumentRepository;
 import com.dwp.services.synapsex.config.LocalStorageConfig;
+import com.dwp.services.synapsex.service.agent.AgentStudioCodeValidator;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -49,14 +50,23 @@ public class RagCommandService {
     private final AuraCaseTabClient auraCaseTabClient;
     private final ApplicationEventPublisher eventPublisher;
     private final LocalStorageConfig localStorageConfig;
+    private final AgentStudioCodeValidator codeValidator;
 
     @Transactional
     public RagDocumentDetailDto registerDocument(Long tenantId, RegisterRagDocumentRequest request) {
+        // docType 검증 및 기본값 설정
+        String docType = request.getDocType();
+        if (docType != null && !docType.isBlank()) {
+            codeValidator.validateDocType(docType);
+        } else {
+            docType = "GENERAL"; // 기본값
+        }
+        
         RagDocument doc = RagDocument.builder()
                 .tenantId(tenantId)
                 .title(request.getTitle())
                 .sourceType(request.getSourceType() != null ? request.getSourceType() : "UPLOAD")
-                .docType(request.getDocType())
+                .docType(docType)
                 .s3Key(request.getS3Key())
                 .url(request.getUrl())
                 .checksum(request.getChecksum())
@@ -97,11 +107,17 @@ public class RagCommandService {
         }
         String absolutePath = targetPath.toAbsolutePath().toString();
 
+        // docType 검증 및 기본값 설정
+        String finalDocType = docType != null && !docType.isBlank() ? docType : "GENERAL";
+        if (!"GENERAL".equals(finalDocType)) {
+            codeValidator.validateDocType(finalDocType);
+        }
+        
         RagDocument doc = RagDocument.builder()
                 .tenantId(tenantId)
                 .title(title != null && !title.isBlank() ? title : originalFilename)
                 .sourceType("UPLOAD")
-                .docType(docType != null && !docType.isBlank() ? docType : "GENERAL")
+                .docType(finalDocType)
                 .filePath(absolutePath)
                 .status(STATUS_READY)
                 .build();
@@ -150,8 +166,8 @@ public class RagCommandService {
      */
     private void triggerVectorize(Long tenantId, RagDocument doc) {
         Long docId = doc.getDocId();
-        log.info("Aura RAG vectorize trigger start docId={} tenantId={} title={} sourceType={} hasFilePath={} hasS3Key={} hasUrl={}",
-                docId, tenantId, doc.getTitle(), doc.getSourceType(),
+        log.info("Aura RAG vectorize trigger start docId={} tenantId={} title={} sourceType={} docType={} hasFilePath={} hasS3Key={} hasUrl={}",
+                docId, tenantId, doc.getTitle(), doc.getSourceType(), doc.getDocType(),
                 doc.getFilePath() != null && !doc.getFilePath().isBlank(),
                 doc.getS3Key() != null && !doc.getS3Key().isBlank(),
                 doc.getUrl() != null && !doc.getUrl().isBlank());
@@ -277,5 +293,50 @@ public class RagCommandService {
         }
         log.warn("RAG callback missing docId and rag_document_id");
         throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "docId 또는 rag_document_id는 필수입니다.");
+    }
+
+    /**
+     * 재청킹 요청: 기존 청크 삭제 후 새로운 전략으로 재벡터화
+     */
+    @Transactional
+    public com.dwp.services.synapsex.dto.rag.RechunkResponse rechunk(
+            Long tenantId, Long docId, com.dwp.services.synapsex.dto.rag.RechunkRequest request) {
+        
+        RagDocument doc = ragDocumentRepository.findByDocIdAndTenantId(docId, tenantId)
+                .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "문서를 찾을 수 없습니다. docId=" + docId));
+
+        if ("PROCESSING".equals(doc.getStatus()) || "VECTORIZING".equals(doc.getStatus())) {
+            throw new BaseException(ErrorCode.INVALID_STATE, "문서가 현재 처리 중입니다. 완료 후 재시도하세요.");
+        }
+
+        doc.setStatus("PROCESSING");
+        doc.setDocType(request.getStrategy());
+        ragDocumentRepository.save(doc);
+
+        try {
+            AuraRagVectorizeRequest vectorizeRequest = AuraRagVectorizeRequest.builder()
+                    .ragDocumentId(String.valueOf(docId))
+                    .documentPath(doc.getFilePath())
+                    .docType(request.getStrategy())
+                    .callbackUrl("/api/synapse/rag/status")
+                    .chunkSize(request.getChunkSize())
+                    .chunkOverlap(request.getChunkOverlap())
+                    .build();
+
+            auraCaseTabClient.triggerRagVectorize(docId, tenantId, null, vectorizeRequest);
+            log.info("Rechunk triggered: docId={} strategy={}", docId, request.getStrategy());
+
+            return com.dwp.services.synapsex.dto.rag.RechunkResponse.builder()
+                    .docId(docId)
+                    .status("PROCESSING")
+                    .message("재청킹이 시작되었습니다.")
+                    .build();
+
+        } catch (FeignException e) {
+            log.error("Rechunk Aura trigger failed: docId={} error={}", docId, e.getMessage());
+            doc.setStatus("FAILED");
+            ragDocumentRepository.save(doc);
+            throw new BaseException(ErrorCode.EXTERNAL_SERVICE_ERROR, "Aura 재청킹 요청 실패: " + e.getMessage());
+        }
     }
 }

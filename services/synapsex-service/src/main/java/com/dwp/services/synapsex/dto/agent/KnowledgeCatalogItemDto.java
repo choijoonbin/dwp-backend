@@ -23,5 +23,6 @@ public class KnowledgeCatalogItemDto {
     private String sourceType;
     private String docType;
     private String status;
+    private Boolean isBound;
     private Instant createdAt;
 }

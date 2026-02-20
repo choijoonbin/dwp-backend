@@ -33,6 +33,7 @@ public class AuraCallbackPayload {
     private JsonNode error;
 
     @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class AnalysisBlock {
         private Double score;
         private String severity;
@@ -43,6 +44,7 @@ public class AuraCallbackPayload {
     }
 
     @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class FinalResult {
         private Double score;
         private String severity;
@@ -64,6 +66,7 @@ public class AuraCallbackPayload {
     }
 
     @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class ProposalItem {
         private String type;
         private String riskLevel;

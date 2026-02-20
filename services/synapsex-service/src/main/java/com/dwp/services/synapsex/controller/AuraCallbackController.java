@@ -21,7 +21,21 @@ public class AuraCallbackController {
 
     @PostMapping("/callback")
     public ApiResponse<Void> handleCallback(@RequestBody AuraCallbackPayload payload) {
-        log.debug("Aura callback: runId={} status={}", payload.getRunId(), payload.getStatus());
+        if ("FAILED".equals(payload.getStatus())) {
+            log.warn("Aura callback FAILED: runId={} error={}", payload.getRunId(), payload.getError());
+            log.debug("Aura callback FAILED payload summary: runId={} caseId={} status={} hasError={} hasAuraTraceId={} hasAnalysis={} hasFinalResult={} proposalsSize={} partialEventsSize={}",
+                    payload.getRunId(),
+                    payload.getCaseId(),
+                    payload.getStatus(),
+                    payload.getError() != null && !payload.getError().isNull(),
+                    payload.getAuraTraceId() != null && !payload.getAuraTraceId().isBlank(),
+                    payload.getAnalysis() != null,
+                    payload.getFinalResult() != null,
+                    payload.getProposals() != null ? payload.getProposals().size() : 0,
+                    payload.getPartialEvents() != null ? payload.getPartialEvents().size() : 0);
+        } else {
+            log.debug("Aura callback: runId={} status={}", payload.getRunId(), payload.getStatus());
+        }
         caseAnalysisService.handleAuraCallback(payload);
         return ApiResponse.success(null);
     }

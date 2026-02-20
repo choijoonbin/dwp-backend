@@ -7,7 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
- * 에이전트 스튜디오: agent_master / knowledge_base_master 입력값을 dwp_aura.app_codes 기준으로 검증.
+ * 에이전트 스튜디오: agent_master 입력값을 dwp_aura.app_codes 기준으로 검증.
  * 하드코딩 제거, 코드 테이블 무결성 가드레일.
  */
 @Component

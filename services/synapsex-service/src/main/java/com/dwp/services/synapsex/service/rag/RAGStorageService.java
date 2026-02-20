@@ -39,13 +39,15 @@ public class RAGStorageService {
     private static final int BATCH_SIZE = 500;
 
     private static final String INSERT_SQL =
-            "INSERT INTO dwp_aura.rag_chunk (tenant_id, doc_id, chunk_index, page_no, chunk_text, embedding, metadata_json, created_at) "
-                    + "VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?)";
+            "INSERT INTO dwp_aura.rag_chunk (tenant_id, doc_id, chunk_index, page_no, chunk_text, embedding, metadata_json, " +
+                    "regulation_article, regulation_clause, search_text, node_type, search_tsv, created_at) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, to_tsvector('simple', COALESCE(?, '')), ?)";
 
     private final RagDocumentRepository ragDocumentRepository;
     private final RagChunkRepository ragChunkRepository;
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
+    private final RagMetadataExtractor metadataExtractor;
 
     /**
      * Aura 벡터화 결과를 받아 해당 doc_id의 기존 청크를 삭제한 뒤 Bulk Insert.
@@ -89,6 +91,8 @@ public class RAGStorageService {
                         log.warn("RAG chunk docId={} index={} embedding length {} != {}", docId, chunkIndex, dto.getEmbedding().length, EMBEDDING_DIM);
                     }
                     String metadataJsonStr = toJsonString(dto.getMetadataJson());
+                    
+                    RagMetadataExtractor.ExtractionResult extracted = metadataExtractor.extract(chunkText);
 
                     ps.setLong(1, tenantId);
                     ps.setLong(2, docId);
@@ -105,7 +109,12 @@ public class RAGStorageService {
                     } else {
                         ps.setNull(7, Types.OTHER);
                     }
-                    ps.setObject(8, OffsetDateTime.ofInstant(now, ZoneOffset.UTC), Types.TIMESTAMP_WITH_TIMEZONE);
+                    ps.setString(8, extracted.regulationArticle());
+                    ps.setString(9, extracted.regulationClause());
+                    ps.setString(10, extracted.searchText());
+                    ps.setString(11, extracted.nodeType());
+                    ps.setString(12, extracted.searchText());
+                    ps.setObject(13, OffsetDateTime.ofInstant(now, ZoneOffset.UTC), Types.TIMESTAMP_WITH_TIMEZONE);
                 }
 
                 @Override
@@ -172,6 +181,8 @@ public class RAGStorageService {
                         log.warn("RAG chunk docId={} index={} embedding length {} != {}", docId, chunkIndex, dto.getEmbedding().length, EMBEDDING_DIM);
                     }
                     String metadataJsonStr = toJsonString(dto.getMetadataJson());
+                    
+                    RagMetadataExtractor.ExtractionResult extracted = metadataExtractor.extract(chunkText);
 
                     ps.setLong(1, tenantId);
                     ps.setLong(2, docId);
@@ -188,7 +199,12 @@ public class RAGStorageService {
                     } else {
                         ps.setNull(7, Types.OTHER);
                     }
-                    ps.setObject(8, OffsetDateTime.ofInstant(now, ZoneOffset.UTC), Types.TIMESTAMP_WITH_TIMEZONE);
+                    ps.setString(8, extracted.regulationArticle());
+                    ps.setString(9, extracted.regulationClause());
+                    ps.setString(10, extracted.searchText());
+                    ps.setString(11, extracted.nodeType());
+                    ps.setString(12, extracted.searchText());
+                    ps.setObject(13, OffsetDateTime.ofInstant(now, ZoneOffset.UTC), Types.TIMESTAMP_WITH_TIMEZONE);
                 }
 
                 @Override

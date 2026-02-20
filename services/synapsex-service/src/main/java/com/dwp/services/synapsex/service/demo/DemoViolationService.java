@@ -61,7 +61,7 @@ public class DemoViolationService {
                     header.getBudat(), header.getCputm(), amount, now);
             // FK(fi_doc_item -> fi_doc_header) 보장: header를 먼저 flush 후 item 저장
             fiDocHeaderRepository.saveAndFlush(header);
-            fiDocItemRepository.save(item);
+            fiDocItemRepository.saveAndFlush(item);
             docKeys.add(BUKRS + "-" + belnr + "-" + gjahr);
         }
 

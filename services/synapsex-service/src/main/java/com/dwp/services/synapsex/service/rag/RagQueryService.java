@@ -132,4 +132,26 @@ public class RagQueryService {
                 .toList();
         return PageResponse.of(items, total, page, size);
     }
+
+    /**
+     * 청킹 상태 조회
+     */
+    @Transactional(readOnly = true)
+    public Optional<com.dwp.services.synapsex.dto.rag.ChunkingStatusResponse> getChunkingStatus(Long tenantId, Long docId) {
+        return ragDocumentRepository.findByDocIdAndTenantId(docId, tenantId)
+                .map(doc -> {
+                    var c = QRagChunk.ragChunk;
+                    Long chunkCount = queryFactory.select(c.count()).from(c)
+                            .where(c.tenantId.eq(tenantId), c.docId.eq(docId))
+                            .fetchOne();
+                    
+                    return com.dwp.services.synapsex.dto.rag.ChunkingStatusResponse.builder()
+                            .docId(docId)
+                            .status(doc.getStatus())
+                            .chunkCount(chunkCount != null ? chunkCount.intValue() : 0)
+                            .strategy(doc.getDocType())
+                            .docType(doc.getDocType())
+                            .build();
+                });
+    }
 }

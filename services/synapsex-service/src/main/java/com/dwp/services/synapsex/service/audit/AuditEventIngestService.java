@@ -99,9 +99,16 @@ public class AuditEventIngestService {
     private Instant parseCreatedAt(String s) {
         if (s == null || s.isBlank()) return null;
         try {
-            return Instant.parse(s);
+            // ISO-8601 형식 파싱 (타임존 없으면 UTC로 가정)
+            if (s.contains("Z") || s.contains("+") || s.contains("-") && s.lastIndexOf("-") > 10) {
+                // 타임존 포함: 2026-02-12T13:39:42.489284Z 또는 2026-02-12T13:39:42+09:00
+                return Instant.parse(s);
+            } else {
+                // 타임존 없음: 2026-02-12T13:39:42.489284 → UTC로 가정
+                return Instant.parse(s + "Z");
+            }
         } catch (DateTimeParseException e) {
-            log.debug("CreatedAt parse failed: {}", s);
+            log.warn("CreatedAt parse failed (value: {}): {}", s, e.getMessage());
             return null;
         }
     }

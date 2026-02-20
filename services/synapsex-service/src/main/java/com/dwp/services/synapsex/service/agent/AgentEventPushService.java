@@ -96,8 +96,8 @@ public class AgentEventPushService {
     }
 
     private String resolveResourceType(AgentEventPushRequest.AgentEventItem e) {
-        if (e.getCaseId() != null && !e.getCaseId().isBlank()) return "CASE";
-        if (e.getCaseKey() != null && !e.getCaseKey().isBlank()) return "CASE";
+        if (e.getCaseId() != null && !e.getCaseId().isBlank()) return "AGENT_CASE";
+        if (e.getCaseKey() != null && !e.getCaseKey().isBlank()) return "AGENT_CASE";
         if (e.getActionId() != null && !e.getActionId().isBlank()) return "ACTION";
         return null;
     }

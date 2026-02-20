@@ -35,6 +35,8 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         default_schema: dwp_aura
+        format_sql: true
+        use_sql_comments: true
     open-in-view: false
   flyway:
     enabled: true
@@ -138,3 +140,5 @@ springdoc:
 logging:
   level:
     "[com.dwp.services.synapsex]": DEBUG
+    org.hibernate.SQL: ${HIBERNATE_SQL_LOG_LEVEL:WARN}
+    org.hibernate.type.descriptor.sql.BasicBinder: ${HIBERNATE_PARAMETER_LOG_LEVEL:WARN}

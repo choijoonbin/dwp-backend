@@ -5,7 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 
-public interface RagChunkRepository extends JpaRepository<RagChunk, Long> {
+public interface RagChunkRepository extends JpaRepository<RagChunk, Long>, RagChunkRepositoryCustom {
 
     List<RagChunk> findByTenantIdAndDocIdOrderByChunkIndexAscChunkIdAsc(Long tenantId, Long docId);
 

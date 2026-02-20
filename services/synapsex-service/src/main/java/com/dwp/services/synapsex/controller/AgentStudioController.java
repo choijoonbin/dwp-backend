@@ -7,6 +7,7 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.services.synapsex.dto.agent.AgentCatalogResponseDto;
 import com.dwp.services.synapsex.dto.agent.AgentConfigResponseDto;
 import com.dwp.services.synapsex.dto.agent.AgentDetailDto;
+import com.dwp.services.synapsex.dto.agent.AgentDiscoveryResponseDto;
 import com.dwp.services.synapsex.dto.agent.AgentToolCatalogItemDto;
 import com.dwp.services.synapsex.dto.agent.CreateAgentRequest;
 import com.dwp.services.synapsex.dto.agent.KnowledgeCatalogItemDto;
@@ -20,6 +21,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -29,6 +31,7 @@ import java.util.stream.Collectors;
  * 에이전트 스튜디오 API — 생성/배포/설정 조회 및 카탈로그
  * Tenant Isolation: X-Tenant-ID 필수
  */
+@Slf4j
 @Tag(name = "Agent Studio", description = "에이전트 스튜디오 — CRUD, 설정 조회, 도구/지식 카탈로그")
 @RestController
 @RequestMapping("/synapse/agents")
@@ -39,10 +42,15 @@ public class AgentStudioController {
     private final AgentCommandService agentCommandService;
     private final RagQueryService ragQueryService;
 
-    @Operation(summary = "에이전트 목록 조회", description = "활성 에이전트 목록. 사이드바 카드 등 FE 목록용.")
+    @Operation(summary = "에이전트 목록 조회", description = "활성 에이전트 목록. 사이드바 카드 등 FE 목록용. discovery=true면 Aura용 디스커버리 형식 반환.")
     @GetMapping
-    public ApiResponse<List<AgentDetailDto>> listAgents(
-            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId) {
+    public ApiResponse<?> listAgents(
+            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestParam(value = "discovery", required = false, defaultValue = "false") boolean discovery) {
+        if (discovery) {
+            AgentDiscoveryResponseDto discoveryResponse = agentConfigQueryService.getAgentDiscovery(tenantId);
+            return ApiResponse.success(discoveryResponse);
+        }
         List<AgentDetailDto> list = agentConfigQueryService.listAgents(tenantId);
         return ApiResponse.success(list);
     }
@@ -62,11 +70,14 @@ public class AgentStudioController {
     public ApiResponse<AgentConfigResponseDto> getAgentConfigByKey(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
             @RequestParam(value = "agent_key", required = false) String agentKey) {
+        log.info("[AgentConfig] Request received: tenantId={} agentKey={}", tenantId, agentKey);
         if (agentKey == null || agentKey.isBlank()) {
             throw new BaseException(ErrorCode.VALIDATION_ERROR, "agent_key 쿼리 파라미터가 필요합니다.");
         }
         AgentConfigResponseDto config = agentConfigQueryService.getAgentConfigByKey(tenantId, agentKey.trim())
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "에이전트를 찾을 수 없거나 비활성 상태입니다."));
+        log.info("[AgentConfig] Response: tenantId={} agentKey={} agentId={} docIds={}", 
+                tenantId, agentKey, config.getAgentId(), config.getDocIds());
         return ApiResponse.success(config);
     }
 
@@ -121,24 +132,35 @@ public class AgentStudioController {
         return ApiResponse.success(list);
     }
 
-    @Operation(summary = "지식 베이스 카탈로그", description = "업로드된 RAG 문서 리스트 및 상태. FE '지식' 탭용. X-Tenant-ID 필수.")
+    @Operation(summary = "지식 베이스 카탈로그", description = "업로드된 RAG 문서 리스트 및 상태. FE '지식' 탭용. agent_id가 있으면 isBound 플래그 포함.")
     @GetMapping("/knowledge")
     public ApiResponse<List<KnowledgeCatalogItemDto>> getKnowledgeCatalog(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestParam(value = "agent_id", required = false) Long agentId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "100") int size) {
-        PageResponse<RagDocumentListDto> paged = ragQueryService.listDocuments(tenantId, null, page, size);
-        List<KnowledgeCatalogItemDto> list = paged.getItems().stream()
-                .map(d -> KnowledgeCatalogItemDto.builder()
-                        .docId(d.getDocId())
-                        .title(d.getTitle())
-                        .sourceType(d.getSourceType())
-                        .docType(d.getDocType())
-                        .status(d.getStatus())
-                        .createdAt(d.getCreatedAt())
-                        .build())
-                .collect(Collectors.toList());
+        List<KnowledgeCatalogItemDto> list = agentConfigQueryService.getKnowledgeCatalog(tenantId, agentId, page, size);
         return ApiResponse.success(list);
+    }
+
+    @Operation(summary = "문서를 에이전트에 연결", description = "특정 RAG 문서를 에이전트에 연결하여 RAG 검색 범위에 포함.")
+    @PostMapping("/{id}/knowledge/bind")
+    public ApiResponse<Void> bindDocument(
+            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @PathVariable("id") Long agentId,
+            @RequestParam("doc_id") Long docId) {
+        agentCommandService.bindDocument(tenantId, agentId, docId);
+        return ApiResponse.success("문서가 연결되었습니다.", null);
+    }
+
+    @Operation(summary = "문서 연결 해제", description = "에이전트에서 문서 연결을 해제.")
+    @DeleteMapping("/{id}/knowledge/unbind")
+    public ApiResponse<Void> unbindDocument(
+            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @PathVariable("id") Long agentId,
+            @RequestParam("doc_id") Long docId) {
+        agentCommandService.unbindDocument(tenantId, agentId, docId);
+        return ApiResponse.success("문서 연결이 해제되었습니다.", null);
     }
 
 }

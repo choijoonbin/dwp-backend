@@ -57,6 +57,26 @@ public class RagChunk {
     @Column(name = "embedding_id")
     private String embeddingId;
 
+    /** 규정 조항 (예: "제11조", "제3장") */
+    @Column(name = "regulation_article", length = 100)
+    private String regulationArticle;
+
+    /** 규정 항목 (예: "2항", "제1호") */
+    @Column(name = "regulation_clause", length = 100)
+    private String regulationClause;
+
+    /** prefix 제거된 정제 본문 (BM25/임베딩 검색용) */
+    @Column(name = "search_text", columnDefinition = "TEXT")
+    private String searchText;
+
+    /** 부모 청크 ID (조문-항/호 Parent-Child 관계) */
+    @Column(name = "parent_id")
+    private Long parentId;
+
+    /** 노드 유형: ARTICLE(조문), CLAUSE(항/호), PARAGRAPH(문단) */
+    @Column(name = "node_type", length = 20)
+    private String nodeType;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 

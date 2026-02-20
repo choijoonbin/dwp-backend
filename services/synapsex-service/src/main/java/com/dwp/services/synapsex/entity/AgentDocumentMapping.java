@@ -6,39 +6,40 @@ import lombok.*;
 import java.time.Instant;
 
 /**
- * knowledge_base_master — 에이전트 스튜디오: 지식 베이스 마스터 (tenant 격리)
+ * agent_document_mapping — 에이전트-문서 매핑 (복합키: agent_id, doc_id)
  */
 @Entity
-@Table(schema = "dwp_aura", name = "knowledge_base_master")
+@Table(schema = "dwp_aura", name = "agent_document_mapping")
+@IdClass(AgentDocumentMappingId.class)
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class KnowledgeBaseMaster {
+public class AgentDocumentMapping {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "knowledge_id")
-    private Long knowledgeId;
+    @Column(name = "agent_id", nullable = false)
+    private Long agentId;
+
+    @Id
+    @Column(name = "doc_id", nullable = false)
+    private Long docId;
 
     @Column(name = "tenant_id", nullable = false)
     private Long tenantId;
 
-    @Column(name = "name", nullable = false, length = 255)
-    private String name;
-
-    @Column(name = "doc_type", nullable = false, length = 50)
-    private String docType;
-
-    @Column(name = "owner_domain", length = 100)
-    private String ownerDomain;
-
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    @Column(name = "created_by")
+    private Long createdBy;
+
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    @Column(name = "updated_by")
+    private Long updatedBy;
 
     @PrePersist
     public void prePersist() {

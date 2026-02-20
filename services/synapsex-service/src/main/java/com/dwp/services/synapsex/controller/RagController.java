@@ -10,9 +10,15 @@ import com.dwp.services.synapsex.dto.rag.RagDocumentDetailDto;
 import com.dwp.services.synapsex.dto.rag.RagDocumentListDto;
 import com.dwp.services.synapsex.dto.rag.RagSearchResultDto;
 import com.dwp.services.synapsex.dto.rag.RagStatusCallbackRequest;
+import com.dwp.services.synapsex.dto.rag.RagHybridSearchRequest;
+import com.dwp.services.synapsex.dto.rag.RagHybridSearchResponse;
+import com.dwp.services.synapsex.dto.rag.RechunkRequest;
+import com.dwp.services.synapsex.dto.rag.RechunkResponse;
+import com.dwp.services.synapsex.dto.rag.ChunkingStatusResponse;
 import com.dwp.services.synapsex.dto.rag.RegisterRagDocumentRequest;
 import com.dwp.services.synapsex.service.rag.RagCommandService;
 import com.dwp.services.synapsex.service.rag.RagQueryService;
+import com.dwp.services.synapsex.service.rag.RagSearchService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +37,7 @@ public class RagController {
 
     private final RagQueryService ragQueryService;
     private final RagCommandService ragCommandService;
+    private final RagSearchService ragSearchService;
 
     @GetMapping("/documents")
     public ApiResponse<PageResponse<RagDocumentListDto>> listDocuments(
@@ -109,6 +116,48 @@ public class RagController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String sort) {
         PageResponse<RagSearchResultDto> result = ragQueryService.searchChunks(tenantId, q, page, size, sort);
+        return ApiResponse.success(result);
+    }
+
+    /**
+     * Enterprise RAG Hybrid Search
+     * POST /api/synapse/rag/search
+     * RRF(Reciprocal Rank Fusion) 알고리즘 적용: Vector(7) : Keyword(3)
+     */
+    @PostMapping("/search")
+    public ApiResponse<RagHybridSearchResponse> hybridSearch(
+            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @Valid @RequestBody RagHybridSearchRequest request) {
+        log.debug("RAG hybrid search: tenantId={} query={} strategy={}", 
+                tenantId, request.getQuery(), request.getStrategy());
+        RagHybridSearchResponse result = ragSearchService.search(tenantId, request);
+        return ApiResponse.success(result);
+    }
+
+    /**
+     * 재청킹 요청
+     * POST /api/synapse/rag/documents/{docId}/rechunk
+     */
+    @PostMapping("/documents/{docId}/rechunk")
+    public ApiResponse<RechunkResponse> rechunk(
+            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @PathVariable Long docId,
+            @Valid @RequestBody RechunkRequest request) {
+        log.info("Rechunk request: tenantId={} docId={} strategy={}", tenantId, docId, request.getStrategy());
+        RechunkResponse result = ragCommandService.rechunk(tenantId, docId, request);
+        return ApiResponse.success(result);
+    }
+
+    /**
+     * 청킹 상태 조회
+     * GET /api/synapse/rag/documents/{docId}/chunking-status
+     */
+    @GetMapping("/documents/{docId}/chunking-status")
+    public ApiResponse<ChunkingStatusResponse> getChunkingStatus(
+            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @PathVariable Long docId) {
+        ChunkingStatusResponse result = ragQueryService.getChunkingStatus(tenantId, docId)
+                .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "문서를 찾을 수 없습니다."));
         return ApiResponse.success(result);
     }
 }

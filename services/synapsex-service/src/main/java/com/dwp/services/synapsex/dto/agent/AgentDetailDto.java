@@ -25,6 +25,7 @@ public class AgentDetailDto {
     private String agentKey;
     private String name;
     private String domain;
+    private Long tenantId;
     private String modelName;
     private BigDecimal temperature;
     private Integer maxTokens;
