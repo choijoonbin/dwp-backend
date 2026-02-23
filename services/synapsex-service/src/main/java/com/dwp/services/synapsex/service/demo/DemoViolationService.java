@@ -61,7 +61,15 @@ public class DemoViolationService {
                     header.getBudat(), header.getCputm(), amount, now);
             // FK(fi_doc_item -> fi_doc_header) 보장: header를 먼저 flush 후 item 저장
             fiDocHeaderRepository.saveAndFlush(header);
-            fiDocItemRepository.saveAndFlush(item);
+            try {
+                fiDocItemRepository.saveAndFlush(item);
+                log.info("Demo violation saved fi_doc_item: tenantId={} bukrs={} belnr={} gjahr={} buzei={}", 
+                        tenantId, BUKRS, belnr, gjahr, item.getBuzei());
+            } catch (Exception e) {
+                log.error("Demo violation fi_doc_item save failed: tenantId={} belnr={} gjahr={} buzei={}", 
+                        tenantId, belnr, gjahr, item.getBuzei(), e);
+                throw e;
+            }
             docKeys.add(BUKRS + "-" + belnr + "-" + gjahr);
         }
 

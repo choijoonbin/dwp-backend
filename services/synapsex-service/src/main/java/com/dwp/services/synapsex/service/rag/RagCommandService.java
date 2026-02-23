@@ -21,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Collections;
@@ -51,6 +52,7 @@ public class RagCommandService {
     private final ApplicationEventPublisher eventPublisher;
     private final LocalStorageConfig localStorageConfig;
     private final AgentStudioCodeValidator codeValidator;
+    private final TransactionTemplate transactionTemplate;
 
     @Transactional
     public RagDocumentDetailDto registerDocument(Long tenantId, RegisterRagDocumentRequest request) {
@@ -221,7 +223,7 @@ public class RagCommandService {
             ragStorageService.saveChunks(doc.getTenantId(), docId, request.getChunks());
             log.info("RAG status callback saved chunks docId={} count={}", docId, request.getChunks().size());
         }
-        updateStatusFromCallback(docId, request.getStatus(), request.getMessage());
+        updateStatusFromCallback(doc.getTenantId(), docId, request.getStatus(), request.getMessage());
     }
 
     /**
@@ -243,6 +245,7 @@ public class RagCommandService {
         int totalBatches = request.getTotalBatches() != null && request.getTotalBatches() > 0 ? request.getTotalBatches() : 1;
         List<AuraChunkItemDto> chunks = request.getChunks() != null ? request.getChunks() : Collections.emptyList();
         ragStorageService.saveChunkBatch(doc.getTenantId(), docId, chunks, batchIndex, totalBatches);
+        // COMPLETED 갱신은 Aura가 청킹 완료 후 POST /rag/status 로 일원화함.
     }
 
     /** 문자열 또는 숫자(11, 11.0) 형식 모두 수용 */
@@ -263,19 +266,23 @@ public class RagCommandService {
 
     /**
      * docId 기준으로 rag_document 상태 갱신 후, WebSocket/SSE용 이벤트 발행.
+     * 직접 UPDATE 쿼리로 반영해 엔티티 캐시/리스너 예외로 인한 롤백 시에도 DB는 갱신되도록 함.
      */
     @Transactional
-    public void updateStatusFromCallback(Long docId, String status, String message) {
-        RagDocument doc = ragDocumentRepository.findById(docId)
-                .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "RAG 문서를 찾을 수 없습니다. docId=" + docId));
-        if (status != null && !status.isBlank()) {
-            doc.setStatus(status.trim().toUpperCase());
-            ragDocumentRepository.save(doc);
+    public void updateStatusFromCallback(Long tenantId, Long docId, String status, String message) {
+        if (status == null || status.isBlank()) {
+            return;
         }
-        if (message != null && !message.isBlank()) {
-            log.info("RAG status callback docId={} status={} message={}", docId, status, message);
+        String normalizedStatus = status.trim().toUpperCase();
+        int updated = ragDocumentRepository.updateStatusByDocId(docId, normalizedStatus);
+        if (updated > 0) {
+            log.info("RAG status callback docId={} status={} updated={} message={}", docId, normalizedStatus, updated, message != null ? message : "");
+            String statusInDb = ragDocumentRepository.findStatusByDocId(docId).orElse(null);
+            log.info("RAG status callback docId={} after UPDATE (same tx): statusInDb={}", docId, statusInDb);
+        } else {
+            log.warn("RAG status callback docId={} status={} — no row updated (document may not exist)", docId, normalizedStatus);
         }
-        eventPublisher.publishEvent(new RagDocumentStatusUpdatedEvent(this, doc.getDocId(), doc.getTenantId(), doc.getStatus(), message));
+        eventPublisher.publishEvent(new RagDocumentStatusUpdatedEvent(this, docId, tenantId, normalizedStatus, message));
     }
 
     /** Aura 형식(rag_document_id string) 또는 docId(Long)에서 문서 ID 결정 */
@@ -296,22 +303,35 @@ public class RagCommandService {
     }
 
     /**
-     * 재청킹 요청: 기존 청크 삭제 후 새로운 전략으로 재벡터화
+     * 재청킹 요청: 기존 청크 삭제 후 새로운 전략으로 재벡터화.
+     * PROCESSING 저장은 별도 트랜잭션에서 먼저 커밋한 뒤 Aura(Feign)를 호출하여,
+     * status 콜백(COMPLETED)이 나중에 커밋되어도 rechunk 트랜잭션이 덮어쓰지 않도록 함.
      */
-    @Transactional
     public com.dwp.services.synapsex.dto.rag.RechunkResponse rechunk(
             Long tenantId, Long docId, com.dwp.services.synapsex.dto.rag.RechunkRequest request) {
-        
+
         RagDocument doc = ragDocumentRepository.findByDocIdAndTenantId(docId, tenantId)
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "문서를 찾을 수 없습니다. docId=" + docId));
 
-        if ("PROCESSING".equals(doc.getStatus()) || "VECTORIZING".equals(doc.getStatus())) {
-            throw new BaseException(ErrorCode.INVALID_STATE, "문서가 현재 처리 중입니다. 완료 후 재시도하세요.");
+        String currentStatus = doc.getStatus();
+        log.info("Rechunk request: docId={} tenantId={} currentDocStatus={} (will set to PROCESSING)", docId, tenantId, currentStatus);
+
+        boolean forceRetry = Boolean.TRUE.equals(request.getForce());
+        if (!forceRetry && ("PROCESSING".equals(doc.getStatus()) || "VECTORIZING".equals(doc.getStatus()))) {
+            throw new BaseException(ErrorCode.INVALID_STATE, "문서가 현재 처리 중입니다. 완료 후 재시도하세요. 재시도하려면 force=true 로 요청하세요.");
+        }
+        if (forceRetry && ("PROCESSING".equals(doc.getStatus()) || "VECTORIZING".equals(doc.getStatus()))) {
+            log.info("Rechunk force=true: docId={} previous status={}, allowing retry", docId, doc.getStatus());
         }
 
-        doc.setStatus("PROCESSING");
-        doc.setDocType(request.getStrategy());
-        ragDocumentRepository.save(doc);
+        transactionTemplate.executeWithoutResult(status -> {
+            RagDocument d = ragDocumentRepository.findByDocIdAndTenantId(docId, tenantId)
+                    .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "문서를 찾을 수 없습니다. docId=" + docId));
+            d.setStatus("PROCESSING");
+            d.setDocType(request.getStrategy());
+            ragDocumentRepository.save(d);
+        });
+        log.info("Rechunk PROCESSING committed for docId={}, triggering Aura", docId);
 
         try {
             AuraRagVectorizeRequest vectorizeRequest = AuraRagVectorizeRequest.builder()
@@ -334,8 +354,13 @@ public class RagCommandService {
 
         } catch (FeignException e) {
             log.error("Rechunk Aura trigger failed: docId={} error={}", docId, e.getMessage());
-            doc.setStatus("FAILED");
-            ragDocumentRepository.save(doc);
+            transactionTemplate.executeWithoutResult(s -> {
+                RagDocument d = ragDocumentRepository.findByDocIdAndTenantId(docId, tenantId).orElse(null);
+                if (d != null) {
+                    d.setStatus("FAILED");
+                    ragDocumentRepository.save(d);
+                }
+            });
             throw new BaseException(ErrorCode.EXTERNAL_SERVICE_ERROR, "Aura 재청킹 요청 실패: " + e.getMessage());
         }
     }

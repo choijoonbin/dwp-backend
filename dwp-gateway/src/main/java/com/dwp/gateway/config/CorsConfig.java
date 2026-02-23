@@ -18,6 +18,9 @@ import java.util.List;
  * 환경 변수 CORS_ALLOWED_ORIGINS를 통해 허용할 Origin을 설정할 수 있습니다.
  * 여러 Origin을 허용하려면 콤마(,)로 구분하여 설정하세요.
  * 
+ * /ws/**: Gateway에서는 CORS 검사/추가를 하지 않음 (config=null로 스킵).
+ * 다운스트림(SynapseX) SockJS가 단독으로 Access-Control-Allow-Origin를 설정.
+ * 
  * 예시:
  * - 단일 Origin: CORS_ALLOWED_ORIGINS=http://localhost:4200
  * - 다중 Origin: CORS_ALLOWED_ORIGINS=http://localhost:4200,https://example.com,https://app.example.com
@@ -82,9 +85,16 @@ public class CorsConfig {
         // Preflight 요청 캐시 시간 (초)
         corsConfig.setMaxAge(maxAge);
         
-        // 모든 경로에 CORS 설정 적용
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", corsConfig);
+        UrlBasedCorsConfigurationSource delegate = new UrlBasedCorsConfigurationSource();
+        delegate.registerCorsConfiguration("/**", corsConfig);
+        // /ws/** 는 CORS config를 null로 반환 → CorsWebFilter가 검사/추가 없이 통과시킴 (403 방지)
+        org.springframework.web.cors.reactive.CorsConfigurationSource source = exchange -> {
+            String path = exchange.getRequest().getURI().getPath();
+            if (path != null && path.startsWith("/ws/")) {
+                return null;
+            }
+            return delegate.getCorsConfiguration(exchange);
+        };
         
         return new CorsWebFilter(source);
     }

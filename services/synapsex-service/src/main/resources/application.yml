@@ -113,7 +113,9 @@ notification:
     enabled: ${NOTIFICATION_REDIS_ENABLED:true}
     workbench-pattern: ${NOTIFICATION_REDIS_WORKBENCH_PATTERN:workbench:*}
   websocket:
-    allowed-origins: ${NOTIFICATION_WS_ORIGINS:*}
+    allowed-origins: ${NOTIFICATION_WS_ORIGINS:${CORS_ALLOWED_ORIGINS:http://localhost:4200,http://localhost:3000,http://localhost:5173}}
+    # SockJS 유휴 세션 유지 시간(ms). 기본 30분. 이 시간 동안 메시지 없으면 세션 종료.
+    disconnect-delay-ms: ${NOTIFICATION_WS_DISCONNECT_DELAY_MS:1800000}
 
 # Phase B: Detect 배치 (기본 비활성 - 수동 트리거만)
 detect:

@@ -4,6 +4,7 @@ import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.constant.HeaderConstants;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindException;
@@ -143,9 +144,20 @@ public class GlobalExceptionHandler {
     
     /**
      * 기타 예상치 못한 예외 처리 (500)
+     * /ws/ (WebSocket·SockJS) 요청이거나 응답이 이미 커밋된 경우 본문을 쓰지 않음.
+     * (SockJS xhr_streaming 등은 Content-Type: text/event-stream으로 이미 커밋된 뒤 예외 시
+     * JSON ApiResponse를 쓰면 HttpMessageNotWritableException 발생 → 연결 cancel 유발)
      */
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<Object>> handleException(Exception e, HttpServletRequest request) {
+    public ResponseEntity<ApiResponse<Object>> handleException(Exception e, HttpServletRequest request, HttpServletResponse response) {
+        String path = request != null ? request.getRequestURI() : "";
+        boolean wsPath = path != null && path.startsWith("/ws/");
+        boolean committed = response != null && response.isCommitted();
+        if (wsPath || committed) {
+            log.warn("Exception on {} path (wsPath={}, committed={}): {} - skipping JSON body to avoid converter error",
+                    path, wsPath, committed, e.getMessage());
+            return ResponseEntity.status(ErrorCode.INTERNAL_SERVER_ERROR.getHttpStatus()).build();
+        }
         log.error("Unexpected error: {}", e.getMessage(), e);
         return ResponseEntity
                 .status(ErrorCode.INTERNAL_SERVER_ERROR.getHttpStatus())

@@ -222,9 +222,9 @@ public class AgentConfigQueryService {
     @Transactional(readOnly = true)
     public AgentCatalogResponseDto getCatalog() {
         List<AppCode> codes = appCodeRepository.findByGroupKeyInAndIsActiveTrueOrderByGroupKeyAscSortOrderAsc(CATALOG_GROUP_KEYS);
-        List<AgentCatalogResponseDto.KeyValueItem> domains = codes.stream().filter(c -> "AGENT_DOMAIN".equals(c.getGroupKey())).map(c -> AgentCatalogResponseDto.KeyValueItem.builder().key(c.getCode()).value(c.getName()).build()).collect(Collectors.toList());
-        List<AgentCatalogResponseDto.KeyValueItem> docTypes = codes.stream().filter(c -> "DOC_TYPE".equals(c.getGroupKey())).map(c -> AgentCatalogResponseDto.KeyValueItem.builder().key(c.getCode()).value(c.getName()).build()).collect(Collectors.toList());
-        List<AgentCatalogResponseDto.KeyValueItem> models = codes.stream().filter(c -> "LLM_MODEL".equals(c.getGroupKey())).map(c -> AgentCatalogResponseDto.KeyValueItem.builder().key(c.getCode()).value(c.getName()).build()).collect(Collectors.toList());
+        List<AgentCatalogResponseDto.KeyValueItem> domains = codes.stream().filter(c -> "AGENT_DOMAIN".equals(c.getGroupKey())).map(c -> AgentCatalogResponseDto.KeyValueItem.builder().key(c.getCode()).value(c.getName()).description(c.getDescription()).build()).collect(Collectors.toList());
+        List<AgentCatalogResponseDto.KeyValueItem> docTypes = codes.stream().filter(c -> "DOC_TYPE".equals(c.getGroupKey())).map(c -> AgentCatalogResponseDto.KeyValueItem.builder().key(c.getCode()).value(c.getName()).description(c.getDescription()).build()).collect(Collectors.toList());
+        List<AgentCatalogResponseDto.KeyValueItem> models = codes.stream().filter(c -> "LLM_MODEL".equals(c.getGroupKey())).map(c -> AgentCatalogResponseDto.KeyValueItem.builder().key(c.getCode()).value(c.getName()).description(c.getDescription()).build()).collect(Collectors.toList());
         List<AgentToolCatalogItemDto> tools = getToolCatalog();
         return AgentCatalogResponseDto.builder().domains(domains).docTypes(docTypes).models(models).tools(tools).build();
     }

@@ -46,6 +46,8 @@ public class CaseQueryService {
     private final AuditEventLogRepository auditEventLogRepository;
     private final AgentCaseActionHistoryRepository agentCaseActionHistoryRepository;
     private final AgentActivityLogRepository agentActivityLogRepository;
+    private final CaseAnalysisRunRepository caseAnalysisRunRepository;
+    private final CaseAnalysisResultRepository caseAnalysisResultRepository;
     private final DrillDownCodeResolver drillDownCodeResolver;
 
     private static final String RESOURCE_TYPE_AGENT_CASE = "AGENT_CASE";
@@ -411,11 +413,18 @@ public class CaseQueryService {
 
     private CaseDetailDto buildCaseDetail(Long tenantId, AgentCase case_) {
         CaseDetailDto.EvidencePanelDto evidence = buildEvidencePanel(tenantId, case_);
+        // V65: 최신 case_analysis_result.evidence_map_json → FE 스플릿 뷰(Split-View) 필수. API 응답 필드명: evidenceMapJson(camelCase)
+        com.fasterxml.jackson.databind.JsonNode evidenceMapJson = findLatestEvidenceMapJson(tenantId, case_.getCaseId());
+        if (log.isDebugEnabled()) {
+            int size = (evidenceMapJson != null && evidenceMapJson.isArray()) ? evidenceMapJson.size() : 0;
+            log.debug("buildCaseDetail evidenceMapJson: caseId={} hasEvidenceMap={} entryCount={}", case_.getCaseId(), evidenceMapJson != null, size);
+        }
         CaseDetailDto.ReasoningPanelDto reasoning = CaseDetailDto.ReasoningPanelDto.builder()
                 .score(case_.getScore())
                 .reasonText(case_.getReasonText())
                 .evidenceJson(case_.getEvidenceJson())
                 .ragRefsJson(case_.getRagRefsJson())
+                .evidenceMapJson(evidenceMapJson)
                 .confidenceBreakdown(CaseDetailDto.ConfidenceBreakdownDto.builder()
                         .anomalyScore(case_.getScore() != null ? case_.getScore().doubleValue() : null)
                         .patternMatch(0.8)
@@ -494,13 +503,9 @@ public class CaseQueryService {
         List<AgentActivityLog> logs = agentActivityLogRepository
                 .findByTenantIdAndResourceTypeAndResourceIdOrderByOccurredAtDesc(
                         tenantId, RESOURCE_TYPE_AGENT_CASE, String.valueOf(caseId), limit);
-        return logs.stream()
+        List<CaseDetailDto.AiThoughtItemDto> list = logs.stream()
                 .map(log -> {
-                    String message = null;
-                    if (log.getMetadataJson() != null && log.getMetadataJson().get("message") != null) {
-                        Object m = log.getMetadataJson().get("message");
-                        message = m != null ? m.toString() : null;
-                    }
+                    String message = resolveMessageFromMetadata(log.getMetadataJson());
                     return CaseDetailDto.AiThoughtItemDto.builder()
                             .stage(log.getStage())
                             .eventType(log.getEventType())
@@ -509,6 +514,57 @@ public class CaseQueryService {
                             .build();
                 })
                 .toList();
+        // 동일 논리 이벤트 = event_type + message + occurred_at(1초 단위). CSV 분석: 동일 이벤트가 REST 푸시/감사 등으로 중복 적재됨.
+        return deduplicateAiThoughtsByLogicalEvent(list);
+    }
+
+    /**
+     * 동일 논리 이벤트 중복 제거. 조건: event_type + message + occurred_at(초 단위) 동일 시 1건만 유지.
+     * (같은 텍스트라도 다른 시각/다른 event_type이면 별도 이벤트로 유지.)
+     */
+    private static List<CaseDetailDto.AiThoughtItemDto> deduplicateAiThoughtsByLogicalEvent(List<CaseDetailDto.AiThoughtItemDto> list) {
+        if (list == null || list.isEmpty()) return list;
+        java.util.Set<String> seenKeys = new java.util.LinkedHashSet<>();
+        return list.stream()
+                .filter(dto -> {
+                    String eventType = dto.getEventType() != null ? dto.getEventType() : "";
+                    String message = dto.getMessage() != null ? dto.getMessage() : "";
+                    long epochSecond = dto.getOccurredAt() != null ? dto.getOccurredAt().getEpochSecond() : 0L;
+                    String key = eventType + "|" + message + "|" + epochSecond;
+                    return seenKeys.add(key);
+                })
+                .toList();
+    }
+
+    /** metadata_json에서 표시용 메시지 추출: thought_stream > reasoning > message 우선순위 */
+    private static String resolveMessageFromMetadata(Map<String, Object> metadataJson) {
+        if (metadataJson == null) return null;
+        Object v = metadataJson.get("thought_stream");
+        if (v != null && v.toString().length() > 0) return v.toString();
+        v = metadataJson.get("reasoning");
+        if (v != null && v.toString().length() > 0) return v.toString();
+        v = metadataJson.get("message");
+        return v != null ? v.toString() : null;
+    }
+
+    /** 케이스 최신 분석 결과의 evidence_map(사실-규정 1:1) 조회. 없으면 null */
+    private com.fasterxml.jackson.databind.JsonNode findLatestEvidenceMapJson(Long tenantId, Long caseId) {
+        List<CaseAnalysisRun> runs = caseAnalysisRunRepository.findByTenantIdAndCaseIdOrderByStartedAtDesc(tenantId, caseId);
+        if (runs.isEmpty()) {
+            if (log.isTraceEnabled()) log.trace("findLatestEvidenceMapJson: caseId={} no analysis runs", caseId);
+            return null;
+        }
+        Optional<CaseAnalysisResult> resultOpt = caseAnalysisResultRepository.findByRunId(runs.get(0).getRunId());
+        if (resultOpt.isEmpty()) {
+            if (log.isDebugEnabled()) log.debug("findLatestEvidenceMapJson: caseId={} runId={} no result row", caseId, runs.get(0).getRunId());
+            return null;
+        }
+        com.fasterxml.jackson.databind.JsonNode node = resultOpt.get().getEvidenceMapJson();
+        if (log.isTraceEnabled()) {
+            int count = (node != null && node.isArray()) ? node.size() : 0;
+            log.trace("findLatestEvidenceMapJson: caseId={} runId={} evidenceMapJson present={} entryCount={}", caseId, runs.get(0).getRunId(), node != null, count);
+        }
+        return node;
     }
 
     private CaseDetailDto.EvidencePanelDto buildEvidencePanel(Long tenantId, AgentCase case_) {

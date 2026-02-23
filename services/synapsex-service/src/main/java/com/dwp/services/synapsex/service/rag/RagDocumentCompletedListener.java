@@ -4,8 +4,9 @@ import com.dwp.services.synapsex.event.RagDocumentStatusUpdatedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
  * Phase 6+: RAG 문서 상태 갱신 이벤트 리스너.
@@ -21,7 +22,7 @@ public class RagDocumentCompletedListener {
 
     private final ObjectProvider<RagDocumentCacheInvalidator> cacheInvalidatorProvider;
 
-    @EventListener
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onRagDocumentStatusUpdated(RagDocumentStatusUpdatedEvent event) {
         if (!STATUS_COMPLETED.equals(event.getStatus())) {
             return;

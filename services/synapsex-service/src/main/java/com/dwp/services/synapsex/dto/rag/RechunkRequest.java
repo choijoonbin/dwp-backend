@@ -24,4 +24,7 @@ public class RechunkRequest {
 
     /** 청크 오버랩 (토큰 수, 기본값: 50) */
     private Integer chunkOverlap;
+
+    /** true면 PROCESSING/VECTORIZING 상태여도 재청킹 허용 (이전 작업이 끊겼을 때 재시도용) */
+    private Boolean force;
 }

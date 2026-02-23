@@ -5,12 +5,16 @@ import com.dwp.services.synapsex.service.audit.AuditWriter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 import com.dwp.core.common.ApiResponse;
+import com.dwp.core.common.ErrorCode;
 import com.dwp.core.constant.HeaderConstants;
 import com.dwp.services.synapsex.dto.dashboard.*;
 
@@ -108,6 +112,19 @@ public class DashboardController {
                 Map.of("range", range, "limit", limit));
         AgentActivityResponseDto response = dashboardQueryService.getAgentActivity(tenantId, range, limit);
         return ApiResponse.success(response);
+    }
+
+    /**
+     * 잘못된 경로 안내: FE가 agent-stream/stream 으로 SSE를 요청한 경우.
+     * 분석 SSE는 runId별로 제공되므로 GET /api/synapse/analysis-runs/{runId}/stream 를 사용해야 함.
+     */
+    @GetMapping("/agent-stream/stream")
+    public ResponseEntity<ApiResponse<Void>> getAgentStreamStream() {
+        String message = "분석 스트림(SSE)은 runId별로 제공됩니다. "
+                + "POST /api/synapse/cases/{caseId}/analysis-runs 로 run을 생성한 뒤 응답의 streamUrl(예: GET /api/synapse/analysis-runs/{runId}/stream)을 사용하세요.";
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(ErrorCode.INVALID_INPUT_VALUE, message));
     }
 
     private void logDashboardViewed(Long tenantId, Long actorUserId, String eventType, String dashboardKey, Map<String, Object> filters) {

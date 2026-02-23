@@ -398,11 +398,23 @@ public class CaseAnalysisService {
                         "ANALYSIS_RUN", runId.toString(), Map.of("status", status), null);
     }
 
-    /** Aura FAILED 시 error 필드 정규화: 문자열/객체({ message, stage } 등) 모두 DB 저장용 문자열로 변환 */
+    /** Aura FAILED 시 error 필드 정규화: 문자열 또는 객체 { "error"|"message", "stage" } → DB 저장용 단일 문자열.
+     * Aura 스키마: { "error": "메시지", "stage": "단계" } 또는 error가 문자열. BE는 error_message(TEXT)에 저장. */
     private String normalizeCallbackError(boolean isFailed, JsonNode errorNode) {
         if (!isFailed) return null;
         if (errorNode == null || errorNode.isNull()) return "Aura callback status: FAILED";
         if (errorNode.isTextual()) return errorNode.asText();
+        if (errorNode.isObject()) {
+            String msg = null;
+            if (errorNode.has("error") && !errorNode.get("error").isNull()) msg = errorNode.get("error").asText();
+            if (msg == null && errorNode.has("message") && !errorNode.get("message").isNull()) msg = errorNode.get("message").asText();
+            if (msg == null) msg = "Aura callback status: FAILED";
+            if (errorNode.has("stage") && !errorNode.get("stage").isNull()) {
+                String stage = errorNode.get("stage").asText();
+                if (stage != null && !stage.isBlank()) msg = msg + " (stage: " + stage + ")";
+            }
+            return msg;
+        }
         return errorNode.toString();
     }
 
@@ -416,6 +428,7 @@ public class CaseAnalysisService {
         if (analysis.getEvidence() != null) analysis.getEvidence().forEach(m -> evidenceJson.add(objectMapper.valueToTree(m)));
         ArrayNode ragRefsJson = objectMapper.createArrayNode();
         if (analysis.getRagRefs() != null) analysis.getRagRefs().forEach(m -> ragRefsJson.add(objectMapper.valueToTree(m)));
+        JsonNode evidenceMapJson = buildEvidenceMap(analysis.getEvidence(), analysis.getRagRefs());
         CaseAnalysisResult result = CaseAnalysisResult.builder()
                 .runId(run.getRunId())
                 .score(analysis.getScore() != null ? BigDecimal.valueOf(analysis.getScore()) : null)
@@ -425,6 +438,7 @@ public class CaseAnalysisService {
                 .evidenceJson(evidenceJson.isEmpty() ? null : evidenceJson)
                 .similarJson(null)
                 .ragRefsJson(ragRefsJson.isEmpty() ? null : ragRefsJson)
+                .evidenceMapJson(evidenceMapJson)
                 .createdAt(Instant.now())
                 .build();
         resultRepository.save(result);
@@ -441,29 +455,79 @@ public class CaseAnalysisService {
         if (fr.getRagRefs() != null) fr.getRagRefs().forEach(m -> ragRefsJson.add(objectMapper.valueToTree(m)));
 
         Integer riskScore = null;
-        if (fr.getRisk_score() != null) {
-            riskScore = fr.getRisk_score() instanceof Integer ? (Integer) fr.getRisk_score()
-                    : (int) Math.round(fr.getRisk_score().doubleValue());
+        if (fr.getRiskScore() != null) {
+            riskScore = fr.getRiskScore() instanceof Integer ? (Integer) fr.getRiskScore()
+                    : (int) Math.round(fr.getRiskScore().doubleValue());
             riskScore = Math.max(0, Math.min(100, riskScore));
         }
 
+        // V65: finalResult.decision_reason(구조화 JSON)이 있으면 그대로 evidence_map_json에 저장, 없으면 evidence/ragRefs로 1:1 매핑 생성
+        JsonNode evidenceMapJson = (fr.getDecisionReason() != null && !fr.getDecisionReason().isNull())
+                ? fr.getDecisionReason()
+                : buildEvidenceMap(fr.getEvidence(), fr.getRagRefs());
         CaseAnalysisResult result = CaseAnalysisResult.builder()
                 .runId(run.getRunId())
                 .score(fr.getScore() != null ? BigDecimal.valueOf(fr.getScore()) : null)
                 .severity(fr.getSeverity())
                 .reasonText(fr.getReasonText())
                 .riskScore(riskScore)
-                .violationClause(fr.getViolation_clause() != null ? fr.getViolation_clause() : "")
-                .reasoningSummary(fr.getReasoning_summary())
-                .recommendedAction(fr.getRecommended_action())
+                .violationClause(fr.getViolationClause() != null ? fr.getViolationClause() : "")
+                .reasoningSummary(fr.getReasoningSummary())
+                .recommendedAction(fr.getRecommendedAction())
                 .confidenceJson(confidenceJson)
                 .evidenceJson(evidenceJson.isEmpty() ? null : evidenceJson)
                 .similarJson(similarJson.isEmpty() ? null : similarJson)
                 .ragRefsJson(ragRefsJson.isEmpty() ? null : ragRefsJson)
+                .evidenceMapJson(evidenceMapJson)
                 .createdAt(Instant.now())
                 .build();
         resultRepository.save(result);
         saveProposalsFromItems(run, fr.getProposals());
+    }
+
+    /**
+     * 사실-규정 매핑: evidence[i](전표) ↔ ragRefs[i](규정 청크) 1:1.
+     * 반환: [{ docId, itemId, chunkId }, ...] (FE Side-by-Side/Split-View용).
+     * Aura 콜백 규격: evidence/ragRefs는 snake_case(doc_id, item_id, chunk_id) 사용. camelCase(docId, itemId, chunkId)도 지원.
+     */
+    private JsonNode buildEvidenceMap(List<Map<String, Object>> evidence, List<Map<String, Object>> ragRefs) {
+        if (evidence == null || evidence.isEmpty() || ragRefs == null || ragRefs.isEmpty()) return null;
+        ArrayNode arr = objectMapper.createArrayNode();
+        int len = Math.min(evidence.size(), ragRefs.size());
+        for (int i = 0; i < len; i++) {
+            Map<String, Object> ev = evidence.get(i);
+            Map<String, Object> ref = ragRefs.get(i);
+            String docId = getString(ev, "doc_id", "docId");
+            String itemId = getString(ev, "item_id", "itemId");
+            Long chunkId = getLong(ref, "chunk_id", "chunkId");
+            if (docId == null && itemId == null && chunkId == null) continue;
+            ObjectNode node = objectMapper.createObjectNode();
+            if (docId != null) node.put("docId", docId);
+            if (itemId != null) node.put("itemId", itemId);
+            if (chunkId != null) node.put("chunkId", chunkId);
+            arr.add(node);
+        }
+        return arr.isEmpty() ? null : arr;
+    }
+
+    private static String getString(Map<String, Object> m, String... keys) {
+        if (m == null) return null;
+        for (String k : keys) {
+            Object v = m.get(k);
+            if (v != null) return v.toString();
+        }
+        return null;
+    }
+
+    private static Long getLong(Map<String, Object> m, String... keys) {
+        if (m == null) return null;
+        for (String k : keys) {
+            Object v = m.get(k);
+            if (v == null) continue;
+            if (v instanceof Number) return ((Number) v).longValue();
+            try { return Long.parseLong(v.toString()); } catch (NumberFormatException ignored) {}
+        }
+        return null;
     }
 
     /** 분석 완료 시 agent_case의 위반 등급·판단 근거·점수를 최신 case_analysis_result로 갱신. */

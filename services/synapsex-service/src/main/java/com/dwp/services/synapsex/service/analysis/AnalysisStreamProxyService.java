@@ -20,8 +20,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
-
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Stream;
 
 /**
@@ -44,8 +45,8 @@ public class AnalysisStreamProxyService {
     private static final Duration HTTP_CONNECT_TIMEOUT = Duration.ofSeconds(10);
     /** Aura 문서: Read timeout 5분 이상 권장. 30분 유지. */
     private static final Duration HTTP_READ_TIMEOUT = Duration.ofMinutes(30);
-    /** Thought Chain 이벤트 타입 — 이벤트명이 이 중 하나면 workbench:case:action에 thought_stream으로 발행 */
-    private static final Set<String> THOUGHT_EVENT_TYPES = Set.of("thought", "thought_stream", "step");
+    /** Aura가 발행하는 이벤트 타입 Allow-list. step 외 thought_pending, AGENT_STREAM 포함 — 클라이언트 중계 + workbench:case:action 발행 */
+    private static final Set<String> THOUGHT_EVENT_TYPES = Set.of("thought", "thought_stream", "step", "thought_pending", "AGENT_STREAM");
 
     private final CaseAnalysisRunRepository runRepository;
     private final ObjectMapper objectMapper;
@@ -65,7 +66,12 @@ public class AnalysisStreamProxyService {
 
     /**
      * Aura 분석 스트림을 프록시하여 SseEmitter로 전달.
-     * runId로 run 조회 후 caseId로 Aura URL 구성, Authorization 전파.
+     * <ul>
+     *   <li><b>caseId 조회</b>: runId + tenantId로 DB에서 CaseAnalysisRun 조회 후 run.getCaseId()로 Aura 경로에 사용.
+     *       Aura 스트림 경로 규격: GET /aura/cases/{caseId}/analysis/stream?runId={runId}</li>
+     *   <li><b>쿼리 파라미 caseId</b>: 선택 검증용. 전달 시 run의 caseId와 일치해야 함.</li>
+     *   <li><b>인증</b>: 클라이언트 요청의 Authorization 헤더를 Aura로 그대로 전달. Aura가 서버 간 전용 토큰을 요구하면 별도 설정 필요.</li>
+     * </ul>
      * @param sandbox true면 Thought Chain 로그 DB 저장 생략(임시 세션). X-Sandbox: true 시 사용.
      */
     public SseEmitter streamFromAura(Long tenantId, UUID runId, Long caseIdParam, String authorization, boolean sandbox) {
@@ -97,6 +103,7 @@ public class AnalysisStreamProxyService {
                         .timeout(HTTP_READ_TIMEOUT)
                         .header("Accept", "text/event-stream")
                         .GET();
+                // 클라이언트(Gateway 경유) 요청의 Authorization 헤더를 Aura로 전달. 누락 시 Aura가 401/403 반환할 수 있음.
                 if (authorization != null && !authorization.isBlank()) {
                     reqBuilder.header("Authorization", authorization);
                 }
@@ -105,13 +112,12 @@ public class AnalysisStreamProxyService {
                 HttpResponse<Stream<String>> response = client.send(request,
                         HttpResponse.BodyHandlers.ofLines());
                 if (response.statusCode() != 200) {
-                    log.warn("SSE proxy Aura returned non-200: runId={} status={}", runId, response.statusCode());
+                    log.warn("SSE proxy Aura returned non-200: runId={} caseId={} status={} url={}", runId, caseId, response.statusCode(), auraUrl);
                     sendFailedEvent(emitter, runId, "Aura stream returned " + response.statusCode());
                     emitter.complete();
                     return;
                 }
                 log.info("SSE proxy Aura responded 200, streaming: runId={}", runId);
-                // work.txt §5: 서버가 flush 안 함(Spring에서 종종) → 연결 직후 빈 코멘트 1회 전송으로 flush 유도
                 try {
                     emitter.send(SseEmitter.event().comment("").build());
                 } catch (IllegalStateException e) {
@@ -122,35 +128,36 @@ public class AnalysisStreamProxyService {
                 long totalBytes = 0;
                 long lineCount = 0;
                 List<String> eventLines = new ArrayList<>();
+                AtomicInteger stepIndex = new AtomicInteger(0);
+                AtomicLong totalStepsRef = new AtomicLong(0);
                 try (Stream<String> lines = response.body()) {
                     for (java.util.Iterator<String> it = lines.iterator(); it.hasNext(); ) {
                         String line = it.next();
                         byte[] chunk = (line + "\n").getBytes(StandardCharsets.UTF_8);
                         totalBytes += chunk.length;
                         lineCount++;
-                        if (lineCount == 1) {
-                            log.debug("SSE proxy first line received: runId={} lineLength={}", runId, line.length());
-                        }
-                        if (log.isDebugEnabled()) {
-                            log.debug("SSE line received: runId={} bytes={} total={}", runId, chunk.length, totalBytes);
-                        }
+                        if (lineCount == 1) log.debug("SSE proxy first line received: runId={} lineLength={}", runId, line.length());
+                        if (log.isDebugEnabled()) log.debug("SSE line received: runId={} bytes={} total={}", runId, chunk.length, totalBytes);
                         if (line.trim().isEmpty()) {
-                            // End of one SSE event: send buffered lines to client, then parse and optionally publish thought_stream
-                            for (String l : eventLines) {
-                                try {
-                                    String toSend = l + "\n";
-                                    emitter.send(toSend, MediaType.TEXT_EVENT_STREAM);
-                                } catch (IllegalStateException e) {
-                                    log.warn("SSE proxy client disconnected while forwarding: runId={}", runId);
-                                    try { emitter.complete(); } catch (IllegalStateException ignored) {}
-                                    return;
+                            List<String> withMeta = injectStepCompletionRate(eventLines, stepIndex, totalStepsRef);
+                            StringBuilder eventBlock = new StringBuilder();
+                            for (String l : withMeta) eventBlock.append(l).append("\n");
+                            eventBlock.append("\n");
+                            // event: 라인은 수정하지 않음 → event: thought_pending 등이 SSE 프로토콜 상 그대로 FE에 전달됨
+                            if (log.isTraceEnabled()) {
+                                String eventType = withMeta.stream()
+                                        .filter(x -> x.startsWith("event:"))
+                                        .map(x -> x.length() > 6 ? x.substring(6).trim() : "")
+                                        .findFirst().orElse(null);
+                                if ("thought_pending".equals(eventType)) {
+                                    log.trace("SSE forwarding thought_pending: runId={} eventLine preserved for FE", runId);
                                 }
                             }
+                            // 라인별 \\n 유지 → 마크다운/멀티라인 data 내용 그대로 FE 전달
                             try {
-                                String toSend = line + "\n";
-                                emitter.send(toSend, MediaType.TEXT_EVENT_STREAM);
+                                emitter.send(eventBlock.toString(), MediaType.TEXT_EVENT_STREAM);
                             } catch (IllegalStateException e) {
-                                log.warn("SSE proxy client disconnected: runId={}", runId);
+                                log.warn("SSE proxy client disconnected while forwarding: runId={}", runId);
                                 try { emitter.complete(); } catch (IllegalStateException ignored) {}
                                 return;
                             }
@@ -159,18 +166,13 @@ public class AnalysisStreamProxyService {
                         } else {
                             eventLines.add(line);
                         }
-                        if (lineCount == 1) {
-                            log.info("SSE proxy about to send first chunk: runId={} bytes={} (write/flush trace)", runId, chunk.length);
-                        }
+                        if (lineCount == 1) log.info("SSE proxy about to send first chunk: runId={} bytes={}", runId, chunk.length);
                     }
                     if (!eventLines.isEmpty()) {
-                        for (String l : eventLines) {
-                            try {
-                                emitter.send(l + "\n", MediaType.TEXT_EVENT_STREAM);
-                            } catch (IllegalStateException e) {
-                                break;
-                            }
-                        }
+                        List<String> withMeta = injectStepCompletionRate(eventLines, stepIndex, totalStepsRef);
+                        StringBuilder eventBlock = new StringBuilder();
+                        for (String l : withMeta) eventBlock.append(l).append("\n");
+                        try { emitter.send(eventBlock.toString(), MediaType.TEXT_EVENT_STREAM); } catch (IllegalStateException e) { }
                         publishThoughtStreamIfApplicable(tenantId, caseId, runId, eventLines, sandbox);
                     }
                 }
@@ -186,7 +188,7 @@ public class AnalysisStreamProxyService {
                     // 이미 끊긴 연결에 complete 시도한 경우 무시
                 }
             } catch (Exception e) {
-                log.warn("SSE proxy Aura stream error: runId={} {}", runId, e.getMessage());
+                log.warn("SSE proxy Aura stream error: runId={} caseId={} url={} error={}", runId, caseId, auraUrl, e.getMessage());
                 String userMessage = toUserFriendlyMessage(e);
                 try {
                     sendFailedEvent(emitter, runId, userMessage);
@@ -198,6 +200,50 @@ public class AnalysisStreamProxyService {
         });
 
         return emitter;
+    }
+
+    /**
+     * 이벤트 라인에 step_completion_rate 메타데이터 주입. thought/step 이벤트 시 stepIndex 증가, data가 JSON이면 rate 추가.
+     */
+    private List<String> injectStepCompletionRate(List<String> eventLines, AtomicInteger stepIndex, AtomicLong totalStepsRef) {
+        if (eventLines.isEmpty()) return eventLines;
+        String eventType = null;
+        StringBuilder dataPayload = new StringBuilder();
+        for (String l : eventLines) {
+            if (l.startsWith("event:")) eventType = l.substring(6).trim();
+            else if (l.startsWith("data:")) {
+                if (dataPayload.length() > 0) dataPayload.append("\n");
+                dataPayload.append(l.substring(5).trim());
+            }
+        }
+        if (THOUGHT_EVENT_TYPES.contains(eventType)) stepIndex.incrementAndGet();
+        long totalSteps = totalStepsRef.get();
+        try {
+            com.fasterxml.jackson.databind.JsonNode node = objectMapper.readTree(dataPayload.toString());
+            if (node != null && node.isObject()) {
+                if (node.has("total_steps")) totalStepsRef.set(node.get("total_steps").asLong(0));
+                if (totalStepsRef.get() > 0) totalSteps = totalStepsRef.get();
+            }
+        } catch (Exception ignored) { }
+        Double stepCompletionRate = (totalSteps > 0) ? (stepIndex.get() * 100.0 / totalSteps) : null;
+        List<String> out = new ArrayList<>();
+        for (String l : eventLines) {
+            if (l.startsWith("data:") && stepCompletionRate != null) {
+                try {
+                    String content = l.substring(5).trim();
+                    com.fasterxml.jackson.databind.JsonNode node = objectMapper.readTree(content);
+                    if (node != null && node.isObject()) {
+                        ((com.fasterxml.jackson.databind.node.ObjectNode) node).put("step_completion_rate", Math.min(100.0, stepCompletionRate));
+                        out.add("data: " + objectMapper.writeValueAsString(node));
+                    } else out.add(l);
+                } catch (Exception e) {
+                    out.add(l);
+                }
+            } else {
+                out.add(l);
+            }
+        }
+        return out.isEmpty() ? eventLines : out;
     }
 
     /**

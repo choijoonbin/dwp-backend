@@ -3,9 +3,7 @@ package com.dwp.services.synapsex.service.audit;
 import com.dwp.services.synapsex.audit.AuditEventConstants;
 import com.dwp.services.synapsex.audit.AuraEventStageMapper;
 import com.dwp.services.synapsex.dto.audit.AuditEventIngestDto;
-import com.dwp.services.synapsex.entity.AgentActivityLog;
 import com.dwp.services.synapsex.entity.AuditEventLog;
-import com.dwp.services.synapsex.repository.AgentActivityLogRepository;
 import com.dwp.services.synapsex.repository.AuditEventLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +16,8 @@ import java.time.format.DateTimeParseException;
 
 /**
  * Redis Pub/Sub으로 수신한 AuditEvent를 audit_event_log에 저장.
+ * agent_activity_log는 REST 푸시(POST /api/synapse/agent/events)만 채우고, Redis 감사 경로에서는 저장하지 않음.
+ * (동일 이벤트를 Aura가 REST와 Redis 양쪽으로 보낼 때 중복 적재 방지)
  */
 @Slf4j
 @Service
@@ -25,7 +25,6 @@ import java.time.format.DateTimeParseException;
 public class AuditEventIngestService {
 
     private final AuditEventLogRepository repository;
-    private final AgentActivityLogRepository agentActivityLogRepository;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW, readOnly = false)
     public void ingest(AuditEventIngestDto dto) {
@@ -37,23 +36,6 @@ public class AuditEventIngestService {
             String stage = AuraEventStageMapper.toStage(dto.getEventType());
             Instant occurredAt = parseCreatedAt(dto.getCreatedAt());
             if (occurredAt == null) occurredAt = Instant.now();
-
-            Instant now = Instant.now();
-            AgentActivityLog activityLog = AgentActivityLog.builder()
-                    .tenantId(dto.getTenantId())
-                    .stage(stage)
-                    .eventType(dto.getEventType())
-                    .resourceType(dto.getResourceType())
-                    .resourceId(dto.getResourceId())
-                    .occurredAt(occurredAt)
-                    .actorAgentId(dto.getActorAgentId())
-                    .actorUserId(dto.getActorUserId())
-                    .actorDisplayName(dto.getActorDisplayName())
-                    .metadataJson(dto.getEvidenceJson() != null ? dto.getEvidenceJson() : dto.getAfterJson())
-                    .createdAt(now)
-                    .updatedAt(now)
-                    .build();
-            agentActivityLogRepository.save(activityLog);
 
             AuditEventLog entity = toEntity(dto, stage, occurredAt);
             repository.save(entity);

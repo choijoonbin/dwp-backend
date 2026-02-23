@@ -58,6 +58,8 @@ public class AgentEventPushRequest {
         @JsonAlias("action_id")
         private String actionId;
 
+        /** Aura 이벤트 메타데이터. thought_stream, reasoning 등 — metadata_json 키로도 수신 가능 */
+        @JsonAlias("metadata_json")
         private Map<String, Object> payload;
     }
 }

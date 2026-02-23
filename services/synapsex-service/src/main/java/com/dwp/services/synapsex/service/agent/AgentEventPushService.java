@@ -113,14 +113,47 @@ public class AgentEventPushService {
         return null;
     }
 
+    /**
+     * metadata_json 구성. thought_stream 또는 reasoning이 있으면 message보다 우선하여 message 필드에 반영.
+     * Aura가 payload 또는 metadata_json으로 보낸 thought_stream/reasoning을 우선 사용.
+     * LLM 추론 문장의 마크다운(**, \\n 등)은 인코딩/이스케이프 없이 그대로 저장 — JSON 직렬화 시 문자열 내 \\n·따옴표만 표준 이스케이프됨.
+     */
     private Map<String, Object> buildMetadata(AgentEventPushRequest.AgentEventItem e) {
         Map<String, Object> m = new HashMap<>();
-        m.put("message", e.getMessage() != null ? e.getMessage() : "");
+        // 1) 표시용 메시지: thought_stream > reasoning > message(본문) 우선순위
+        Object preferredMessage = null;
+        if (e.getPayload() != null && !e.getPayload().isEmpty()) {
+            Map<String, Object> payload = e.getPayload();
+            preferredMessage = payload.get("thought_stream");
+            if (preferredMessage == null || preferredMessage.toString().isBlank()) {
+                preferredMessage = payload.get("reasoning");
+            }
+            if (preferredMessage != null && preferredMessage.toString().isBlank()) preferredMessage = null;
+        }
+        String messageToStore = (preferredMessage != null)
+                ? preferredMessage.toString()
+                : (e.getMessage() != null ? e.getMessage() : "");
+        m.put("message", messageToStore);
+
         if (e.getSeverity() != null && !e.getSeverity().isBlank()) m.put("severity", e.getSeverity());
         if (e.getTraceId() != null && !e.getTraceId().isBlank()) m.put("traceId", e.getTraceId());
         if (e.getPayload() != null && !e.getPayload().isEmpty()) {
-            e.getPayload().forEach(m::put);
+            Map<String, Object> payload = e.getPayload();
+            payload.forEach((k, v) -> {
+                if ("stat_data".equals(k) || "stats".equals(k)) {
+                    if (v != null) m.put("stat_data", normalizeStatData(v));
+                } else if (!"message".equals(k)) {
+                    // message는 이미 thought_stream/reasoning 우선으로 설정됨 — 덮어쓰지 않음
+                    m.put(k, v);
+                }
+            });
         }
         return m;
+    }
+
+    /** FE 차트용 stat_data 정규화: Map/List/Number 그대로 보관 */
+    private Object normalizeStatData(Object v) {
+        if (v instanceof Map || v instanceof List || v instanceof Number) return v;
+        return v;
     }
 }

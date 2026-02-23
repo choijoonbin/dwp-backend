@@ -66,6 +66,11 @@ public class CaseAnalysisResult {
     @Column(name = "rag_refs_json", columnDefinition = "jsonb")
     private JsonNode ragRefsJson;
 
+    /** 사실-규정 매핑: fi_doc_item(docId, itemId) ↔ rag_chunk(chunk_id) 1:1 */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "evidence_map_json", columnDefinition = "jsonb")
+    private JsonNode evidenceMapJson;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 }

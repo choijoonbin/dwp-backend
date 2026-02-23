@@ -38,5 +38,7 @@ public class WorkbenchAnalysisResultDto {
     private JsonNode evidenceJson;
     private JsonNode similarJson;
     private JsonNode ragRefsJson;
+    /** 사실-규정 1:1 매핑 (Side-by-Side): [{ docId, itemId, chunkId }, ...] */
+    private JsonNode evidenceMapJson;
     private Instant createdAt;
 }

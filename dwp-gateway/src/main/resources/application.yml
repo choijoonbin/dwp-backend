@@ -335,11 +335,11 @@ spring:
 
 # CORS 설정
 # 환경 변수 CORS_ALLOWED_ORIGINS를 통해 허용할 Origin을 설정할 수 있습니다.
-# 기본값: http://localhost:4200 (로컬 개발 환경)
+# 기본값: 로컬 FE 포트(4200/3000/5173)
 # 여러 Origin을 허용하려면 콤마(,)로 구분하여 설정하세요.
 # 예시: CORS_ALLOWED_ORIGINS=http://localhost:4200,https://example.com
 cors:
-  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200}
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200,http://localhost:3000,http://localhost:5173}
   allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,DELETE,PATCH,OPTIONS}
   allowed-headers: ${CORS_ALLOWED_HEADERS:*}
   allow-credentials: ${CORS_ALLOW_CREDENTIALS:true}
@@ -355,4 +355,3 @@ logging:
   level:
     '[org.springframework.cloud.gateway]': DEBUG
     '[org.springframework.web]': DEBUG
-

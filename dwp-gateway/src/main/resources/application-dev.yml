@@ -151,6 +151,17 @@ spring:
             - Path=/api/synapse/workbench/**
           filters:
             - StripPrefix=1
+        # WebSocket 알림 브리지 (SockJS /ws/notifications, /ws/notifications/info 등)
+        - id: synapsex-ws-notifications
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/ws/**
+        - id: synapsex-notifications
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/notifications/**
+          filters:
+            - StripPrefix=1
         - id: synapsex-anomalies
           uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
           predicates:
@@ -295,9 +306,9 @@ spring:
             - StripPrefix=1
 
 # 개발 환경 CORS 설정
-# 기본값: http://localhost:4200 (Angular 기본 포트)
+# 기본값: 로컬 FE 포트(4200/3000/5173)
 cors:
-  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200,http://localhost:3000}
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:4200,http://localhost:3000,http://localhost:5173}
   allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,DELETE,PATCH,OPTIONS}
   allowed-headers: ${CORS_ALLOWED_HEADERS:*}
   allow-credentials: ${CORS_ALLOW_CREDENTIALS:true}

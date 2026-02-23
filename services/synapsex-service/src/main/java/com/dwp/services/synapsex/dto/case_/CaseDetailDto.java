@@ -123,6 +123,9 @@ public class CaseDetailDto {
         private String reasonText;
         private JsonNode evidenceJson;
         private JsonNode ragRefsJson;
+        /** 사실-규정 1:1 매핑 (Side-by-Side): [{ docId, itemId, chunkId }, ...]. API 응답 필드명: evidenceMapJson (camelCase) */
+        @JsonProperty("evidenceMapJson")
+        private JsonNode evidenceMapJson;
         private ConfidenceBreakdownDto confidenceBreakdown;
     }
 

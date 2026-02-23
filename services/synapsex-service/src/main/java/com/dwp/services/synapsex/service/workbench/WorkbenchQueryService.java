@@ -146,6 +146,7 @@ public class WorkbenchQueryService {
                 .evidenceJson(r.getEvidenceJson())
                 .similarJson(r.getSimilarJson())
                 .ragRefsJson(r.getRagRefsJson())
+                .evidenceMapJson(r.getEvidenceMapJson())
                 .createdAt(r.getCreatedAt())
                 .build();
     }

@@ -36,7 +36,7 @@ public class RequiredHeaderFilter implements GlobalFilter, Ordered {
     private static final String DEFAULT_SOURCE = "FRONTEND";
     private static final String DEFAULT_CALLER_TYPE = "USER";
 
-    // 필수 헤더 검증 제외 경로 (공개 API, 내부 콜백)
+    // 필수 헤더 검증 제외 경로 (공개 API, 내부 콜백, WebSocket)
     private static final String[] EXCLUDED_PATHS = {
         "/api/auth/login",
         "/api/auth/policy",
@@ -44,6 +44,7 @@ public class RequiredHeaderFilter implements GlobalFilter, Ordered {
         "/api/monitoring/page-view",
         "/api/monitoring/event",
         "/internal/",
+        "/ws/",  // WebSocket/SockJS 핸드셰이크 — 브라우저가 X-Tenant-ID 전송 불가, 연결 후 STOMP/메시지로 tenant 전달
         "/api/synapse/internal/",  // Aura → BE 콜백 (X-Tenant-ID 없음, runId로 tenant 추론)
         "/api/synapse/rag/chunks", // Aura RAG 청크 콜백 (X-Tenant-ID 없음, doc에서 tenant 추론)
         "/api/synapse/rag/status"  // Aura RAG 상태 콜백 (동일)
@@ -56,6 +57,9 @@ public class RequiredHeaderFilter implements GlobalFilter, Ordered {
 
         // 제외 경로 확인
         if (isExcludedPath(path)) {
+            if (path != null && path.startsWith("/ws/")) {
+                log.debug("RequiredHeaderFilter: skipping X-Tenant-ID check for WebSocket path={}", path);
+            }
             return chain.filter(exchange);
         }
 

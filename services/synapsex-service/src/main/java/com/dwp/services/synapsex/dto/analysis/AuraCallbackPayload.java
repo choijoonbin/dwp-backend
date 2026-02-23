@@ -1,6 +1,8 @@
 package com.dwp.services.synapsex.dto.analysis;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import lombok.Data;
@@ -56,13 +58,25 @@ public class AuraCallbackPayload {
         /** proposals: BE dedup_key 기반 멱등 처리 */
         private List<ProposalItem> proposals;
         /** Aura 신규: 위험 점수 0~100 (기존 score 0~1을 100 단위로 변환) */
-        private Number risk_score;
+        @JsonProperty("risk_score")
+        @JsonAlias("riskScore")
+        private Number riskScore;
         /** Aura 신규: 위반 규정 조항 (예: "제11조 2항", 없으면 "") */
-        private String violation_clause;
+        @JsonProperty("violation_clause")
+        @JsonAlias("violationClause")
+        private String violationClause;
         /** Aura 신규: 판단 근거 요약 (reasonText와 동일 내용) */
-        private String reasoning_summary;
+        @JsonProperty("reasoning_summary")
+        @JsonAlias("reasoningSummary")
+        private String reasoningSummary;
         /** Aura 신규: 권고 조치 요약 (proposals의 rationale을 "; "로 이어붙인 문자열) */
-        private String recommended_action;
+        @JsonProperty("recommended_action")
+        @JsonAlias("recommendedAction")
+        private String recommendedAction;
+        /** Aura 신규: 구조화된 판단 근거(Reason+Evidence+Citations). 전체 객체를 evidence_map_json에 그대로 저장 */
+        @JsonProperty("decision_reason")
+        @JsonAlias("decisionReason")
+        private JsonNode decisionReason;
     }
 
     @Data

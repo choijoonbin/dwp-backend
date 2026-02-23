@@ -28,5 +28,7 @@ public class AgentCatalogResponseDto {
     public static class KeyValueItem {
         private String key;
         private String value;
+        /** 코드 설명 (app_codes.description, FE 툴팁/도움말용) */
+        private String description;
     }
 }
