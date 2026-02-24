@@ -61,8 +61,8 @@ public class SseResponseHeaderFilter implements GlobalFilter, Ordered {
         // 2. POST 요청도 SSE를 지원하므로 (프론트엔드 요구사항), 경로로도 확인
         String path = request.getURI().getPath();
         boolean isStreamPath = path != null && path.contains("/stream");
-        // WebSocket SockJS xhr_streaming 등은 SSE 필터 적용 제외 (자체 Content-Type 사용)
-        boolean isWebSocketPath = path != null && path.startsWith("/ws/");
+        // WebSocket/SockJS 경로는 SSE 필터 적용 제외 (101 업그레이드·자체 Content-Type 사용)
+        boolean isWebSocketPath = path != null && (path.startsWith("/ws/") || path.startsWith("/api/synapse/ws-notifications"));
         
         // SSE 요청인지 판단 (Accept 헤더 또는 /stream 경로, 단 /ws/ 제외)
         boolean isSseRequest = !isWebSocketPath && (hasAcceptHeader || isStreamPath);

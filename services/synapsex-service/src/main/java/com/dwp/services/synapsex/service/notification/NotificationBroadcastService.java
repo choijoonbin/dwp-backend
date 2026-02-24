@@ -13,6 +13,8 @@ import java.util.Map;
 /**
  * 알림 DB 저장 + WebSocket 브로드캐스트.
  * Redis 수신 이벤트를 sys_notifications에 저장하고 /topic/notifications 로 전송.
+ * FE 구독 경로와 동일해야 함: client.subscribe('/topic/notifications', callback).
+ * 테넌트 격리 경로(/topic/notifications/{tenantId}) 미사용 — payload.tenantId로 FE에서 필터링.
  */
 @Slf4j
 @Service
@@ -22,6 +24,7 @@ public class NotificationBroadcastService {
     private final NotificationCommandService notificationCommandService;
     private final SimpMessagingTemplate messagingTemplate;
 
+    /** FE 구독 경로와 일치. 규격: docs/integration/NOTIFICATION_WEBSOCKET_SPEC.md */
     private static final String WS_TOPIC = "/topic/notifications";
 
     /**
@@ -36,9 +39,10 @@ public class NotificationBroadcastService {
         NotificationDto dto = toDto(saved);
         try {
             messagingTemplate.convertAndSend(WS_TOPIC, dto);
-            log.debug("Notification broadcast: type={} tenantId={} id={}", type, tenantId, saved.getId());
+            log.info("Notification broadcast succeeded destination={} type={} tenantId={} id={} (Redis→WS bridge, e.g. workbench:case:action)", WS_TOPIC, type, tenantId, saved.getId());
+            log.debug("Notification broadcast destination={} type={} tenantId={} id={}", WS_TOPIC, type, tenantId, saved.getId());
         } catch (Exception e) {
-            log.warn("Notification WebSocket send failed: {}", e.getMessage());
+            log.warn("Notification WebSocket send failed destination={} type={}: {}", WS_TOPIC, type, e.getMessage());
         }
     }
 

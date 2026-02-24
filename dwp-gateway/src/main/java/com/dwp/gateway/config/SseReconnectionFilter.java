@@ -50,6 +50,11 @@ public class SseReconnectionFilter implements GlobalFilter, Ordered {
         ServerHttpRequest request = exchange.getRequest();
         String acceptHeader = request.getHeaders().getFirst(HttpHeaders.ACCEPT);
         String path = request.getURI().getPath();
+
+        // WebSocket 경로는 SSE 필터 적용 제외 (101 업그레이드 간섭 방지)
+        if (path != null && (path.startsWith("/ws/") || path.startsWith("/api/synapse/ws-notifications"))) {
+            return chain.filter(exchange);
+        }
         
         // SSE 요청인지 확인
         boolean isSseRequest = (acceptHeader != null && acceptHeader.contains(TEXT_EVENT_STREAM))

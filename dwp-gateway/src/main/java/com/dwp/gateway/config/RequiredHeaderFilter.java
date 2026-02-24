@@ -45,6 +45,7 @@ public class RequiredHeaderFilter implements GlobalFilter, Ordered {
         "/api/monitoring/event",
         "/internal/",
         "/ws/",  // WebSocket/SockJS 핸드셰이크 — 브라우저가 X-Tenant-ID 전송 불가, 연결 후 STOMP/메시지로 tenant 전달
+        "/api/synapse/ws-notifications",  // WebSocket 별칭 경로 (동일 정책)
         "/api/synapse/internal/",  // Aura → BE 콜백 (X-Tenant-ID 없음, runId로 tenant 추론)
         "/api/synapse/rag/chunks", // Aura RAG 청크 콜백 (X-Tenant-ID 없음, doc에서 tenant 추론)
         "/api/synapse/rag/status"  // Aura RAG 상태 콜백 (동일)
@@ -57,8 +58,12 @@ public class RequiredHeaderFilter implements GlobalFilter, Ordered {
 
         // 제외 경로 확인
         if (isExcludedPath(path)) {
-            if (path != null && path.startsWith("/ws/")) {
+            if (path != null && (path.startsWith("/ws/") || path.startsWith("/api/synapse/ws-notifications"))) {
                 log.debug("RequiredHeaderFilter: skipping X-Tenant-ID check for WebSocket path={}", path);
+                // 101 핸드셰이크 확인: Upgrade: websocket 요청이 필터에 의해 변형 없이 다운스트림으로 전달됨을 로그
+                if ("websocket".equalsIgnoreCase(request.getHeaders().getFirst("Upgrade"))) {
+                    log.info("WebSocket upgrade request forwarded path={} (Upgrade header passed to downstream, WebsocketRoutingFilter will handle 101)", path);
+                }
             }
             return chain.filter(exchange);
         }

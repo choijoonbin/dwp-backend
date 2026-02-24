@@ -132,10 +132,36 @@ spring:
           filters:
             - StripPrefix=1
         # WebSocket 알림 브리지 (실시간 알림 센터)
+        # SockJS: /info 등은 일반 HTTP GET → http:// 로만 전달. Upgrade: websocket 있는 요청만 ws:// 로 전달.
         - id: synapsex-ws-notifications
-          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          uri: ${SERVICE_SYNAPSEX_WS_URL:ws://localhost:8085}
+          order: -1
           predicates:
             - Path=/ws/**
+            - Header=Upgrade, websocket
+        # SockJS HTTP 폴백: /ws/notifications/info, xhr_streaming 등 (Upgrade 없는 GET/POST)
+        - id: synapsex-ws-notifications-http
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          order: 0
+          predicates:
+            - Path=/ws/**
+        # FE 연결 경로 별칭: /api/synapse/ws-notifications → /ws/notifications (동일 ws:// 백엔드)
+        - id: synapsex-ws-notifications-alias
+          uri: ${SERVICE_SYNAPSEX_WS_URL:ws://localhost:8085}
+          order: -1
+          predicates:
+            - Path=/api/synapse/ws-notifications/**
+            - Header=Upgrade, websocket
+          filters:
+            - RewritePath=/api/synapse/ws-notifications(?<segment>.*),/ws/notifications${segment}
+        # SockJS HTTP 폴백 (별칭 경로)
+        - id: synapsex-ws-notifications-alias-http
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          order: 0
+          predicates:
+            - Path=/api/synapse/ws-notifications/**
+          filters:
+            - RewritePath=/api/synapse/ws-notifications(?<segment>.*),/ws/notifications${segment}
         - id: synapsex-notifications
           uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
           predicates:
@@ -355,3 +381,4 @@ logging:
   level:
     '[org.springframework.cloud.gateway]': DEBUG
     '[org.springframework.web]': DEBUG
+    '[reactor.netty.http.server]': DEBUG

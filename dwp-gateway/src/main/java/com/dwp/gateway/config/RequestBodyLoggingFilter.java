@@ -35,6 +35,11 @@ public class RequestBodyLoggingFilter implements GlobalFilter, Ordered {
         ServerHttpRequest request = exchange.getRequest();
         String path = request.getURI().getPath();
         String method = request.getMethod() != null ? request.getMethod().name() : "";
+
+        // WebSocket 핸드셰이크 경로는 body 읽기/데코레이트 제외 — 101 업그레이드 간섭 방지
+        if (path != null && (path.startsWith("/ws/") || path.startsWith("/api/synapse/ws-notifications"))) {
+            return chain.filter(exchange);
+        }
         
         // POST 요청에 대한 body 로깅 (Aura-Platform 및 Auth Server)
         boolean isAuraRequest = path.contains("/api/aura/");

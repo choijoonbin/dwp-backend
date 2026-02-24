@@ -44,6 +44,15 @@ public class StartupValidator {
         log.info("========================================");
         log.info("Gateway Startup Validation (C34)");
         log.info("========================================");
+
+        // WebSocket 업그레이드는 Netty 전용. Tomcat이 클래스패스에 있으면 500 ClassCastException 발생.
+        if (isTomcatOnClasspath()) {
+            log.error("""
+                ⚠️ Tomcat is on classpath — WebSocket /ws/** will return 500 (ClassCastException).
+                Run gateway with Netty only: ./gradlew :dwp-gateway:clean :dwp-gateway:bootRun
+                Or in IDE: use classpath of module 'dwp-gateway' only (no other module).""");
+        }
+
         log.info("Active Profile: {}", activeProfile);
         log.info("SERVICE_AUTH_URL: {}", serviceAuthUrl);
         log.info("SERVICE_MAIN_URL: {}", serviceMainUrl);
@@ -87,5 +96,15 @@ public class StartupValidator {
                 || serviceChatUrl.contains("localhost")
                 || serviceApprovalUrl.contains("localhost")
                 || auraPlatformUri.contains("localhost");
+    }
+
+    /** Tomcat(ResponseFacade)이 클래스패스에 있으면 WebSocket 업그레이드 시 ClassCastException 발생. */
+    private static boolean isTomcatOnClasspath() {
+        try {
+            Class.forName("org.apache.catalina.connector.ResponseFacade");
+            return true;
+        } catch (ClassNotFoundException e) {
+            return false;
+        }
     }
 }

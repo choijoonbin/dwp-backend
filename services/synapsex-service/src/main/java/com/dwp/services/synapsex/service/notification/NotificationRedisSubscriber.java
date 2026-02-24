@@ -31,7 +31,10 @@ public class NotificationRedisSubscriber implements MessageListener {
     @Override
     public void onMessage(Message message, byte[] pattern) {
         String channel = message.getChannel() != null ? new String(message.getChannel(), StandardCharsets.UTF_8) : "";
+        String patternStr = pattern != null ? new String(pattern, StandardCharsets.UTF_8) : "";
         String body = new String(message.getBody(), StandardCharsets.UTF_8);
+        log.info("Redis notification received channel={} pattern={}", channel, patternStr);
+        log.debug("Redis notification received channel={} pattern={} payload={}", channel, patternStr, body);
         try {
             JsonNode root = objectMapper.readTree(body);
             Long tenantId = root.has("tenant_id") && !root.get("tenant_id").isNull()

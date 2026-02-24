@@ -14,6 +14,7 @@ import org.springframework.data.redis.listener.adapter.MessageListenerAdapter;
 
 /**
  * 알림 브리지: Aura가 발행하는 workbench:* 채널을 패턴 구독(PSUBSCRIBE)하여 상시 수신.
+ * workbench:case:action 포함 — FE 알림은 Redis 수신 후 /topic/notifications 로 브로드캐스트.
  */
 @Slf4j
 @Configuration
@@ -31,7 +32,7 @@ public class NotificationRedisConfig {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
         container.addMessageListener(notificationListenerAdapter, new PatternTopic(workbenchPattern));
-        log.info("Notification Redis listener subscribed to pattern: {}", workbenchPattern);
+        log.info("Notification Redis listener subscribed to pattern: {} (includes workbench:case:action)", workbenchPattern);
         return container;
     }
 

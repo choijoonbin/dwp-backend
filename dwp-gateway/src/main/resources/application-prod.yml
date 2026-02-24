@@ -61,11 +61,37 @@ spring:
             - Path=/api/synapse/**
           filters:
             - StripPrefix=1
-        # WebSocket 알림 브리지 (SockJS /ws/notifications, /ws/notifications/info 등)
+        # WebSocket 알림 브리지 (SockJS /ws/notifications 등)
+        # Upgrade: websocket 있는 요청만 ws:// 로 전달. /info 등은 http:// 로 전달.
         - id: synapsex-ws-notifications
-          uri: ${SERVICE_SYNAPSEX_URL:http://synapsex-service:8085}
+          uri: ${SERVICE_SYNAPSEX_WS_URL:ws://synapsex-service:8085}
+          order: -1
           predicates:
             - Path=/ws/**
+            - Header=Upgrade, websocket
+        # SockJS HTTP 폴백
+        - id: synapsex-ws-notifications-http
+          uri: ${SERVICE_SYNAPSEX_URL:http://synapsex-service:8085}
+          order: 0
+          predicates:
+            - Path=/ws/**
+        # FE 연결 경로 별칭: /api/synapse/ws-notifications → /ws/notifications
+        - id: synapsex-ws-notifications-alias
+          uri: ${SERVICE_SYNAPSEX_WS_URL:ws://synapsex-service:8085}
+          order: -1
+          predicates:
+            - Path=/api/synapse/ws-notifications/**
+            - Header=Upgrade, websocket
+          filters:
+            - RewritePath=/api/synapse/ws-notifications(?<segment>.*),/ws/notifications${segment}
+        # SockJS HTTP 폴백 (별칭 경로)
+        - id: synapsex-ws-notifications-alias-http
+          uri: ${SERVICE_SYNAPSEX_URL:http://synapsex-service:8085}
+          order: 0
+          predicates:
+            - Path=/api/synapse/ws-notifications/**
+          filters:
+            - RewritePath=/api/synapse/ws-notifications(?<segment>.*),/ws/notifications${segment}
         # Aura Platform (AI Agent) 라우팅 - 운영 환경
         - id: aura-platform
           uri: ${AURA_PLATFORM_URI:http://aura-platform:9000}  # 포트 변경: 8000 → 9000

@@ -77,10 +77,17 @@ public class AnalysisStreamProxyService {
     public SseEmitter streamFromAura(Long tenantId, UUID runId, Long caseIdParam, String authorization, boolean sandbox) {
         var run = runRepository.findByRunIdAndTenantId(runId, tenantId)
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "분석 실행을 찾을 수 없습니다."));
+        // [NPE-DIAG] run.getCaseId() null → line 80 or 83 에서 NPE 발생 원인 확인
+        log.debug("[NPE-DIAG] run loaded: runId={} runCaseId={} runStatus={} tenantId={}",
+                runId, run.getCaseId(), run.getStatus(), tenantId);
         if (caseIdParam != null && !run.getCaseId().equals(caseIdParam)) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "caseId가 run과 일치하지 않습니다.");
         }
         Long caseId = run.getCaseId();
+        // [NPE-DIAG] caseId null 이면 URL이 "/aura/cases/null/..." 이 되어 Aura 404, 또는 saveLog에서 NPE 가능
+        if (caseId == null) {
+            log.warn("[NPE-DIAG] caseId is NULL for runId={} tenantId={} — DB 레코드 확인 필요", runId, tenantId);
+        }
         String path = "/aura/cases/" + caseId + "/analysis/stream?runId=" + URLEncoder.encode(runId.toString(), StandardCharsets.UTF_8);
         String auraUrl = auraBaseUrl.replaceAll("/$", "") + path;
         log.info("SSE proxy connecting to Aura: runId={} caseId={} url={}", runId, caseId, auraUrl);
@@ -111,6 +118,7 @@ public class AnalysisStreamProxyService {
                 // Aura 문서 권장: 스트리밍 읽기 — ofLines() 로 라인 단위 수신, 수신 즉시 FE 전달 (버퍼링 금지).
                 HttpResponse<Stream<String>> response = client.send(request,
                         HttpResponse.BodyHandlers.ofLines());
+                // body()는 한 번만 호출. 로그에서 호출하면 스트림이 소비되어 FE에 데이터가 전달되지 않음.
                 if (response.statusCode() != 200) {
                     log.warn("SSE proxy Aura returned non-200: runId={} caseId={} status={} url={}", runId, caseId, response.statusCode(), auraUrl);
                     sendFailedEvent(emitter, runId, "Aura stream returned " + response.statusCode());
@@ -130,9 +138,22 @@ public class AnalysisStreamProxyService {
                 List<String> eventLines = new ArrayList<>();
                 AtomicInteger stepIndex = new AtomicInteger(0);
                 AtomicLong totalStepsRef = new AtomicLong(0);
-                try (Stream<String> lines = response.body()) {
+                // [NPE-DIAG] response.body() null이면 lines.iterator() 에서 NPE 발생
+                Stream<String> bodyStream = response.body();
+                if (bodyStream == null) {
+                    log.warn("[NPE-DIAG] response.body() is NULL: runId={} caseId={} — stream 처리 불가", runId, caseId);
+                    sendFailedEvent(emitter, runId, "Aura response body is null");
+                    emitter.complete();
+                    return;
+                }
+                try (Stream<String> lines = bodyStream) {
                     for (java.util.Iterator<String> it = lines.iterator(); it.hasNext(); ) {
                         String line = it.next();
+                        if (line == null) {
+                            // [NPE-DIAG] it.next() null → line.trim() NPE 원인
+                            log.warn("[NPE-DIAG] null line from Aura stream iterator (skipped): runId={} lineCount={}", runId, lineCount);
+                            continue;
+                        }
                         byte[] chunk = (line + "\n").getBytes(StandardCharsets.UTF_8);
                         totalBytes += chunk.length;
                         lineCount++;
@@ -161,7 +182,13 @@ public class AnalysisStreamProxyService {
                                 try { emitter.complete(); } catch (IllegalStateException ignored) {}
                                 return;
                             }
-                            publishThoughtStreamIfApplicable(tenantId, caseId, runId, eventLines, sandbox);
+                            try {
+                                publishThoughtStreamIfApplicable(tenantId, caseId, runId, eventLines, sandbox);
+                            } catch (Exception pubEx) {
+                                // 로깅 및 Redis 발행 실패가 메인 스트리밍 루프를 중단시키지 않도록 보호
+                                log.warn("SSE proxy publishThoughtStream failed (non-fatal): runId={} {}",
+                                        runId, pubEx.getMessage(), pubEx);
+                            }
                             eventLines.clear();
                         } else {
                             eventLines.add(line);
@@ -173,7 +200,12 @@ public class AnalysisStreamProxyService {
                         StringBuilder eventBlock = new StringBuilder();
                         for (String l : withMeta) eventBlock.append(l).append("\n");
                         try { emitter.send(eventBlock.toString(), MediaType.TEXT_EVENT_STREAM); } catch (IllegalStateException e) { }
-                        publishThoughtStreamIfApplicable(tenantId, caseId, runId, eventLines, sandbox);
+                        try {
+                            publishThoughtStreamIfApplicable(tenantId, caseId, runId, eventLines, sandbox);
+                        } catch (Exception pubEx) {
+                            log.warn("SSE proxy publishThoughtStream (tail) failed (non-fatal): runId={} {}",
+                                    runId, pubEx.getMessage(), pubEx);
+                        }
                     }
                 }
                 log.info("SSE proxy Aura stream ended: runId={} totalBytesForwarded={} lineCount={} (0 bytes = Aura sent no data)", runId, totalBytes, lineCount);
@@ -188,7 +220,9 @@ public class AnalysisStreamProxyService {
                     // 이미 끊긴 연결에 complete 시도한 경우 무시
                 }
             } catch (Exception e) {
-                log.warn("SSE proxy Aura stream error: runId={} caseId={} url={} error={}", runId, caseId, auraUrl, e.getMessage());
+                // NPE 등 getMessage()=null 인 경우에도 스택 트레이스로 위치 특정 가능하도록 e 를 마지막 파라미터로 추가
+                log.warn("SSE proxy Aura stream error: runId={} caseId={} url={} error={}",
+                        runId, caseId, auraUrl, e.getMessage(), e);
                 String userMessage = toUserFriendlyMessage(e);
                 try {
                     sendFailedEvent(emitter, runId, userMessage);
@@ -206,6 +240,11 @@ public class AnalysisStreamProxyService {
      * 이벤트 라인에 step_completion_rate 메타데이터 주입. thought/step 이벤트 시 stepIndex 증가, data가 JSON이면 rate 추가.
      */
     private List<String> injectStepCompletionRate(List<String> eventLines, AtomicInteger stepIndex, AtomicLong totalStepsRef) {
+        // [NPE-DIAG] eventLines null 이면 NPE 발생 가능 (null 방어)
+        if (eventLines == null) {
+            log.warn("[NPE-DIAG] injectStepCompletionRate called with null eventLines");
+            return Collections.emptyList();
+        }
         if (eventLines.isEmpty()) return eventLines;
         String eventType = null;
         StringBuilder dataPayload = new StringBuilder();
@@ -216,7 +255,8 @@ public class AnalysisStreamProxyService {
                 dataPayload.append(l.substring(5).trim());
             }
         }
-        if (THOUGHT_EVENT_TYPES.contains(eventType)) stepIndex.incrementAndGet();
+        // eventType null 가능(이벤트 블록에 "event:" 라인 없을 때). Set.of()는 contains(null) 시 NPE.
+        if (eventType != null && THOUGHT_EVENT_TYPES.contains(eventType)) stepIndex.incrementAndGet();
         long totalSteps = totalStepsRef.get();
         try {
             com.fasterxml.jackson.databind.JsonNode node = objectMapper.readTree(dataPayload.toString());
@@ -265,6 +305,9 @@ public class AnalysisStreamProxyService {
             }
         }
         if (eventType == null || !THOUGHT_EVENT_TYPES.contains(eventType)) return;
+        // [NPE-DIAG] saveLog 호출 전 null 값 확인 — caseId/tenantId null → DB constraint 또는 NPE 원인
+        log.debug("[NPE-DIAG] publishThoughtStream: runId={} caseId={} tenantId={} eventType={} sandbox={}",
+                runId, caseId, tenantId, eventType, sandbox);
         final String eventTypeForPublish = eventType;
         redisTemplateProvider.ifAvailable(template -> {
             try {
@@ -286,8 +329,13 @@ public class AnalysisStreamProxyService {
                 log.debug("Failed to publish thought_stream: {}", e.getMessage());
             }
         });
-        thoughtChainLogServiceProvider.ifAvailable(service ->
-                service.saveLog(runId, tenantId, caseId, eventTypeForPublish, dataPayload.toString(), sandbox));
+        thoughtChainLogServiceProvider.ifAvailable(service -> {
+            // [NPE-DIAG] saveLog 직전 파라미터 null 확인 — caseId null이면 @Column(nullable=false) 위반 또는 NPE
+            log.debug("[NPE-DIAG] saveLog: runId={} tenantId={} caseId={} eventType={} dataLen={}",
+                    runId, tenantId, caseId, eventTypeForPublish,
+                    dataPayload.length());
+            service.saveLog(runId, tenantId, caseId, eventTypeForPublish, dataPayload.toString(), sandbox);
+        });
     }
 
     private String toUserFriendlyMessage(Throwable e) {

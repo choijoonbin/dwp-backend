@@ -1,6 +1,15 @@
+configurations.all {
+    // WebSocket 업그레이드 시 Netty(HttpServerResponse) 필요. Tomcat(ResponseFacade) 제거하여 ClassCastException 방지.
+    exclude group: 'org.springframework.boot', module: 'spring-boot-starter-tomcat'
+    exclude group: 'org.springframework.boot', module: 'spring-boot-starter-web'
+    exclude group: 'org.apache.tomcat.embed', module: 'tomcat-embed-core'
+}
+
 dependencies {
-    // Spring Cloud Gateway
-    implementation 'org.springframework.cloud:spring-cloud-starter-gateway'
+    // Spring Cloud Gateway (Reactor Netty 전용). Tomcat 제외로 Netty만 사용.
+    implementation('org.springframework.cloud:spring-cloud-starter-gateway') {
+        exclude group: 'org.springframework.boot', module: 'spring-boot-starter-tomcat'
+    }
     
     // Service Discovery (선택사항, 향후 확장용)
     // implementation 'org.springframework.cloud:spring-cloud-starter-netflix-eureka-client'
