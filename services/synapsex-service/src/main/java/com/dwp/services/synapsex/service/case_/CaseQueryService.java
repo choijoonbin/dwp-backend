@@ -23,6 +23,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fasterxml.jackson.databind.JsonNode;
+
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.*;
@@ -419,12 +421,16 @@ public class CaseQueryService {
             int size = (evidenceMapJson != null && evidenceMapJson.isArray()) ? evidenceMapJson.size() : 0;
             log.debug("buildCaseDetail evidenceMapJson: caseId={} hasEvidenceMap={} entryCount={}", case_.getCaseId(), evidenceMapJson != null, size);
         }
+        String summaryVerdict = parseSummaryVerdictFromEvidenceMap(evidenceMapJson);
+        List<String> keyGrounds = parseKeyGroundsFromEvidenceMap(evidenceMapJson);
         CaseDetailDto.ReasoningPanelDto reasoning = CaseDetailDto.ReasoningPanelDto.builder()
                 .score(case_.getScore())
                 .reasonText(case_.getReasonText())
                 .evidenceJson(case_.getEvidenceJson())
                 .ragRefsJson(case_.getRagRefsJson())
                 .evidenceMapJson(evidenceMapJson)
+                .summaryVerdict(summaryVerdict)
+                .keyGrounds(keyGrounds)
                 .confidenceBreakdown(CaseDetailDto.ConfidenceBreakdownDto.builder()
                         .anomalyScore(case_.getScore() != null ? case_.getScore().doubleValue() : null)
                         .patternMatch(0.8)
@@ -536,15 +542,59 @@ public class CaseQueryService {
                 .toList();
     }
 
-    /** metadata_json에서 표시용 메시지 추출: thought_stream > reasoning > message 우선순위 */
+    /**
+     * metadata_json에서 표시용 메시지 추출. thought_stream > reasoning > message 우선순위.
+     * "사고 중" 등 기술 로그는 배경용으로만 쓰고, API 응답에는 Aura 실제 추론 문장이 나가도록 기술 문구는 스킵.
+     */
     private static String resolveMessageFromMetadata(Map<String, Object> metadataJson) {
         if (metadataJson == null) return null;
-        Object v = metadataJson.get("thought_stream");
-        if (v != null && v.toString().length() > 0) return v.toString();
-        v = metadataJson.get("reasoning");
-        if (v != null && v.toString().length() > 0) return v.toString();
+        // thought_stream (또는 camelCase thoughtStream) 최우선
+        Object v = firstNonTechnical(metadataJson.get("thought_stream"));
+        if (v != null) return v.toString();
+        v = metadataJson.get("thoughtStream");
+        if (v != null && isRealContent(v.toString())) return v.toString();
+        v = firstNonTechnical(metadataJson.get("reasoning"));
+        if (v != null) return v.toString();
         v = metadataJson.get("message");
         return v != null ? v.toString() : null;
+    }
+
+    /** 기술용 플레이스홀더("사고 중" 등)면 null, 실제 내용이면 그대로 반환 */
+    private static Object firstNonTechnical(Object value) {
+        if (value == null) return null;
+        String s = value.toString();
+        return isRealContent(s) ? value : null;
+    }
+
+    private static final java.util.Set<String> TECHNICAL_PLACEHOLDERS = java.util.Set.of(
+            "사고 중", "thinking", "처리 중", "processing"
+    );
+
+    private static boolean isRealContent(String s) {
+        if (s == null || s.isBlank()) return false;
+        String trimmed = s.trim();
+        return !TECHNICAL_PLACEHOLDERS.contains(trimmed);
+    }
+
+    /** evidenceMapJson 객체에서 summary_verdict / summaryVerdict 추출 (보고서 탭 종합 판정). */
+    private String parseSummaryVerdictFromEvidenceMap(JsonNode evidenceMapJson) {
+        if (evidenceMapJson == null || !evidenceMapJson.isObject()) return null;
+        JsonNode v = evidenceMapJson.get("summary_verdict");
+        if (v == null || !v.isTextual()) v = evidenceMapJson.get("summaryVerdict");
+        return (v != null && v.isTextual()) ? v.asText() : null;
+    }
+
+    /** evidenceMapJson 객체에서 key_grounds / keyGrounds 문자열 배열 추출 (보고서 탭 핵심 근거). */
+    private List<String> parseKeyGroundsFromEvidenceMap(JsonNode evidenceMapJson) {
+        if (evidenceMapJson == null || !evidenceMapJson.isObject()) return null;
+        JsonNode arr = evidenceMapJson.get("key_grounds");
+        if (arr == null || !arr.isArray()) arr = evidenceMapJson.get("keyGrounds");
+        if (arr == null || !arr.isArray()) return null;
+        List<String> list = new ArrayList<>();
+        for (JsonNode el : arr) {
+            if (el != null && el.isTextual()) list.add(el.asText());
+        }
+        return list.isEmpty() ? null : list;
     }
 
     /** 케이스 최신 분석 결과의 evidence_map(사실-규정 1:1) 조회. 없으면 null */
@@ -581,7 +631,7 @@ public class CaseQueryService {
                 BigDecimal docAmount = items.stream().map(FiDocItem::getWrbtr).filter(Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add);
                 String caseBuzei = case_.getBuzei();
                 List<DocumentLineItemDto> lineItems = items.stream()
-                        .map(i -> toDocumentLineItem(i, caseBuzei))
+                        .map(i -> toDocumentLineItem(i, caseBuzei, docKey))
                         .toList();
                 docOrOi = DocumentOrOpenItemDto.builder()
                         .type("DOCUMENT")
@@ -645,10 +695,12 @@ public class CaseQueryService {
                 .build();
     }
 
-    /** Phase A: fi_doc_item → DocumentLineItemDto (확장 필드 + isTarget) */
-    private DocumentLineItemDto toDocumentLineItem(FiDocItem i, String caseBuzei) {
+    /** Phase A: fi_doc_item → DocumentLineItemDto (확장 필드 + isTarget + id for FE data-row-id) */
+    private DocumentLineItemDto toDocumentLineItem(FiDocItem i, String caseBuzei, String docKey) {
         boolean isTarget = caseBuzei != null && !caseBuzei.isBlank() && caseBuzei.equals(i.getBuzei());
+        String rowId = (docKey != null && !docKey.isBlank()) ? docKey + "-" + i.getBuzei() : i.getBuzei();
         return DocumentLineItemDto.builder()
+                .id(rowId)
                 .buzei(i.getBuzei())
                 .lifnr(i.getLifnr())
                 .kunnr(i.getKunnr())

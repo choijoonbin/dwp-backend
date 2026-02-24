@@ -1,5 +1,6 @@
 package com.dwp.services.synapsex.entity;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -66,7 +67,8 @@ public class CaseAnalysisResult {
     @Column(name = "rag_refs_json", columnDefinition = "jsonb")
     private JsonNode ragRefsJson;
 
-    /** 사실-규정 매핑: fi_doc_item(docId, itemId) ↔ rag_chunk(chunk_id) 1:1 */
+    /** 사실-규정 매핑: fi_doc_item(docId, itemId) ↔ rag_chunk(chunk_id) 1:1. API 응답 필드명: evidenceMapJson(camelCase) */
+    @JsonProperty("evidenceMapJson")
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "evidence_map_json", columnDefinition = "jsonb")
     private JsonNode evidenceMapJson;

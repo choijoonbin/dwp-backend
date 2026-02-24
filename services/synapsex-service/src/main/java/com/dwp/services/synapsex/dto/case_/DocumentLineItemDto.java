@@ -18,6 +18,8 @@ import java.time.LocalDate;
 @AllArgsConstructor
 public class DocumentLineItemDto {
 
+    /** 행 식별자. FE data-row-id fallback: docKey + "-" + buzei 또는 buzei만. */
+    private String id;
     private String buzei;
     private String lifnr;
     private String kunnr;

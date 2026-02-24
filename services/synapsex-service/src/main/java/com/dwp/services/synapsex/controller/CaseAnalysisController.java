@@ -99,6 +99,7 @@ public class CaseAnalysisController {
                 return ResponseEntity.ok()
                         .header(org.springframework.http.HttpHeaders.CACHE_CONTROL, "no-cache")
                         .header(org.springframework.http.HttpHeaders.CONNECTION, "keep-alive")
+                        .header("X-Accel-Buffering", "no")
                         .body(emitter);
             } catch (com.dwp.core.exception.BaseException e) {
                 // Accept: text/event-stream 요청에 JSON 예외 응답 시 HttpMediaTypeNotAcceptableException 발생 → 500 빈 body.
@@ -109,6 +110,7 @@ public class CaseAnalysisController {
                 return ResponseEntity.ok()
                         .header(org.springframework.http.HttpHeaders.CACHE_CONTROL, "no-cache")
                         .header(org.springframework.http.HttpHeaders.CONNECTION, "keep-alive")
+                        .header("X-Accel-Buffering", "no")
                         .body(failedEmitter);
             }
         }
@@ -165,7 +167,11 @@ public class CaseAnalysisController {
                 }
             }
         }, 0, 500);
-        return ResponseEntity.ok(emitter);
+        return ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CACHE_CONTROL, "no-cache")
+                .header(org.springframework.http.HttpHeaders.CONNECTION, "keep-alive")
+                .header("X-Accel-Buffering", "no")
+                .body(emitter);
     }
 
     private String toJson(Map<String, ?> map) {

@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 
 /**
  * Aura Phase2 분석 요청 규격: body_evidence — 특정 문서·항목 규정 준수 판단 시 사용.
- * 규격: { "body_evidence": { "doc_id": "BELNR_VALUE", "item_id": "BUZEI_VALUE" } }
+ * 규격: { "body_evidence": { "doc_id": "BUKRS-BELNR-GJAHR or BELNR", "item_id": "BUZEI_VALUE" } }
  */
 @Data
 @Builder

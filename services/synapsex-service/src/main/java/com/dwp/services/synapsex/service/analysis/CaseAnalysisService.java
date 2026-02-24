@@ -275,10 +275,19 @@ public class CaseAnalysisService {
     }
 
     /**
-     * Aura Phase2 규격: body_evidence { doc_id, item_id } — doc_id=BELNR, item_id=BUZEI
+     * Aura Phase2 규격: body_evidence { doc_id, item_id }.
+     * doc_id는 충돌 방지를 위해 BUKRS-BELNR-GJAHR(docKey) 우선, 불가 시 BELNR fallback.
      */
     private BodyEvidenceDto buildBodyEvidence(AgentCase agentCase) {
-        String docId = agentCase.getBelnr();
+        // Prefer composite doc key to avoid BELNR-only ambiguity across company code/fiscal year.
+        String docId = null;
+        if (agentCase.getBukrs() != null && !agentCase.getBukrs().isBlank()
+                && agentCase.getBelnr() != null && !agentCase.getBelnr().isBlank()
+                && agentCase.getGjahr() != null && !agentCase.getGjahr().isBlank()) {
+            docId = agentCase.getBukrs() + "-" + agentCase.getBelnr() + "-" + agentCase.getGjahr();
+        } else {
+            docId = agentCase.getBelnr();
+        }
         String itemId = agentCase.getBuzei();
         if (docId == null && itemId == null) return null;
         return BodyEvidenceDto.builder()

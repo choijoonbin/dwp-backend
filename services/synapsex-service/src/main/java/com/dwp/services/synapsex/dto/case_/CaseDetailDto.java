@@ -126,6 +126,10 @@ public class CaseDetailDto {
         /** 사실-규정 1:1 매핑 (Side-by-Side): [{ docId, itemId, chunkId }, ...]. API 응답 필드명: evidenceMapJson (camelCase) */
         @JsonProperty("evidenceMapJson")
         private JsonNode evidenceMapJson;
+        /** 보고서 탭 종합 판정. evidenceMapJson.summary_verdict / summaryVerdict 또는 reasonText fallback */
+        private String summaryVerdict;
+        /** 보고서 탭 핵심 근거. evidenceMapJson.key_grounds / keyGrounds */
+        private List<String> keyGrounds;
         private ConfidenceBreakdownDto confidenceBreakdown;
     }
 
