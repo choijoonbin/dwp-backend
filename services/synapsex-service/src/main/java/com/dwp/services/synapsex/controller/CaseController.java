@@ -182,7 +182,7 @@ public class CaseController {
             @PathVariable Long caseId,
             HttpServletRequest httpRequest) {
 
-        // 상세 조회 시 OPEN → IN_PROGRESS 자동 전이 (State Transition)
+        // 상세 조회 시 NEW(또는 레거시 OPEN) → IN_REVIEW 자동 전이 (표준 7개)
         caseCommandService.ensureInProgressWhenOpen(tenantId, caseId, actorUserId,
                 AuditRequestContext.getIpAddress(httpRequest), AuditRequestContext.getUserAgent(httpRequest),
                 AuditRequestContext.getGatewayRequestId(httpRequest));

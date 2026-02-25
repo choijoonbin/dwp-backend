@@ -116,7 +116,7 @@ spring:
           predicates:
             - Path=/api/synapse/demo/**
           filters:
-            - StripPrefix=1
+            - RewritePath=/api/synapse/demo(?<segment>.*),/synapse/demo${segment}
         # /api/demo/** → synapse/demo/** (프론트 호출용 별칭)
         - id: demo-alias
           uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}

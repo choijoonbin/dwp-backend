@@ -53,8 +53,13 @@ public class CaseQueryService {
     private final DrillDownCodeResolver drillDownCodeResolver;
 
     private static final String RESOURCE_TYPE_AGENT_CASE = "AGENT_CASE";
+    private static final String EVENT_TYPE_AGENT_STREAM = "AGENT_STREAM";
     private static final int CASE_DETAIL_ACTION_HISTORY_LIMIT = 50;
     private static final int CASE_DETAIL_AI_THOUGHTS_LIMIT = 50;
+    /** 사고 과정 전체 전달용 (절단 방지). 100건 이상 권장. */
+    private static final int REASONING_PROCESS_LIMIT = 500;
+    /** 이력 탭: 모든 이벤트 타입 수집 상한. */
+    private static final int ACTIVITY_HISTORY_LIMIT = 500;
 
     private static final QAgentCase c = QAgentCase.agentCase;
     private static final QFiDocItem fi = QFiDocItem.fiDocItem;
@@ -65,14 +70,14 @@ public class CaseQueryService {
         BooleanBuilder predicate = new BooleanBuilder();
         predicate.and(c.tenantId.eq(tenantId));
 
-        // status 미전달 시 상태 필터 미적용 (모든 상태 조회). 전달 시 OPEN, IN_PROGRESS 등 복수 지원(쉼표 구분).
-        List<String> statusList = drillDownCodeResolver.filterValid(DrillDownCodeResolver.GROUP_CASE_STATUS,
-                com.dwp.services.synapsex.util.DrillDownParamUtil.parseMulti(query.getStatus()));
-        // Drill-down 계약: TRIAGE → TRIAGED 매핑 (DB enum은 TRIAGED)
+        // status 미전달 시 상태 필터 미적용 (모든 상태 조회). 전달 시 표준 7개(ANALYZING, NEW, IN_REVIEW 등) 복수 지원(쉼표 구분).
+        List<String> statusList = com.dwp.services.synapsex.util.DrillDownParamUtil.parseMulti(query.getStatus());
+        // Drill-down 계약: TRIAGE/TRIAGED → NEW 매핑 (V72 표준 7개)
         statusList = statusList.stream()
-                .map(s -> "TRIAGE".equalsIgnoreCase(s) ? "TRIAGED" : s)
+                .map(s -> "TRIAGE".equalsIgnoreCase(s) || "TRIAGED".equalsIgnoreCase(s) ? "NEW" : s)
                 .distinct()
                 .toList();
+        statusList = drillDownCodeResolver.filterValid(DrillDownCodeResolver.GROUP_CASE_STATUS, statusList);
         if (!statusList.isEmpty()) {
             List<AgentCaseStatus> statusEnums = statusList.stream()
                     .map(AgentCaseStatus::fromString)
@@ -264,7 +269,7 @@ public class CaseQueryService {
 
     private List<Long> resolveAssigneeIdsBySlaRisk(Long tenantId, String slaRisk) {
         List<AgentCase> openCases = agentCaseRepository.findByTenantId(tenantId).stream()
-                .filter(c -> c.getStatus() != null && List.of(AgentCaseStatus.OPEN, AgentCaseStatus.IN_PROGRESS, AgentCaseStatus.IN_REVIEW, AgentCaseStatus.TRIAGED).contains(c.getStatus()))
+                .filter(c -> c.getStatus() != null && List.of(AgentCaseStatus.ANALYZING, AgentCaseStatus.NEW, AgentCaseStatus.IN_REVIEW, AgentCaseStatus.PENDING_EXPLANATION, AgentCaseStatus.PENDING_APPROVAL).contains(c.getStatus()))
                 .filter(c -> c.getAssigneeUserId() != null)
                 .toList();
         Map<Long, Long> countByAssignee = new java.util.HashMap<>();
@@ -284,7 +289,7 @@ public class CaseQueryService {
         long total = totalLong != null ? totalLong : 0L;
         Long openLong = queryFactory.select(c.count()).from(c)
                 .where(c.tenantId.eq(tenantId)
-                        .and(c.status.in(AgentCaseStatus.OPEN, AgentCaseStatus.IN_PROGRESS, AgentCaseStatus.IN_REVIEW, AgentCaseStatus.TRIAGED)))
+                        .and(c.status.in(AgentCaseStatus.ANALYZING, AgentCaseStatus.NEW, AgentCaseStatus.IN_REVIEW, AgentCaseStatus.PENDING_EXPLANATION, AgentCaseStatus.PENDING_APPROVAL)))
                 .fetchOne();
         long open = openLong != null ? openLong : 0L;
         Long triageLong = queryFactory.select(c.count()).from(c)
@@ -415,8 +420,9 @@ public class CaseQueryService {
 
     private CaseDetailDto buildCaseDetail(Long tenantId, AgentCase case_) {
         CaseDetailDto.EvidencePanelDto evidence = buildEvidencePanel(tenantId, case_);
+        Optional<CaseAnalysisResult> latestResult = findLatestAnalysisResult(tenantId, case_.getCaseId());
+        com.fasterxml.jackson.databind.JsonNode evidenceMapJson = latestResult.map(CaseAnalysisResult::getEvidenceMapJson).orElse(null);
         // V65: 최신 case_analysis_result.evidence_map_json → FE 스플릿 뷰(Split-View) 필수. API 응답 필드명: evidenceMapJson(camelCase)
-        com.fasterxml.jackson.databind.JsonNode evidenceMapJson = findLatestEvidenceMapJson(tenantId, case_.getCaseId());
         if (log.isDebugEnabled()) {
             int size = (evidenceMapJson != null && evidenceMapJson.isArray()) ? evidenceMapJson.size() : 0;
             log.debug("buildCaseDetail evidenceMapJson: caseId={} hasEvidenceMap={} entryCount={}", case_.getCaseId(), evidenceMapJson != null, size);
@@ -463,10 +469,20 @@ public class CaseQueryService {
 
         List<CaseDetailDto.CaseActionHistoryItemRefDto> actionHistory = loadActionHistory(tenantId, case_.getCaseId());
         List<CaseDetailDto.AiThoughtItemDto> aiThoughts = loadAiThoughts(tenantId, case_.getCaseId());
+        List<CaseDetailDto.AiThoughtItemDto> activityHistory = loadActivityHistory(tenantId, case_.getCaseId());
 
-        return CaseDetailDto.builder()
+        List<String> reasoningProcess = buildReasoningProcess(tenantId, case_.getCaseId());
+        List<CaseDetailDto.LogicCheckpointDto> logicCheckpoints = buildLogicCheckpoints(case_, latestResult);
+        List<CaseDetailDto.EvidenceLinkDto> evidenceLinks = buildEvidenceLinks(evidenceMapJson);
+        CaseDetailDto.FinalReportDto finalReport = buildFinalReport(case_);
+        CaseDetailDto.CaseContextDto context = parseContextFromEvidence(case_.getEvidenceJson());
+
+        CaseDetailDto dto = CaseDetailDto.builder()
                 .caseId(case_.getCaseId())
                 .status(case_.getStatus() != null ? case_.getStatus().name() : null)
+                .caseType(case_.getCaseType())
+                .reasonText(case_.getReasonText())
+                .analysisScore(case_.getScore())
                 .keys(CaseDetailDto.CaseKeysDto.builder()
                         .sourceType(sourceType)
                         .bukrs(case_.getBukrs())
@@ -485,6 +501,29 @@ public class CaseQueryService {
                 .evidence(evidence)
                 .reasoning(reasoning)
                 .action(action)
+                .reasoningProcess(reasoningProcess != null ? reasoningProcess : List.of())
+                .logicCheckpoints(logicCheckpoints != null ? logicCheckpoints : List.of())
+                .evidenceLinks(evidenceLinks != null ? evidenceLinks : List.of())
+                .finalReport(finalReport != null ? finalReport : CaseDetailDto.FinalReportDto.builder().summary("").verdict("").requestClarificationEnabled(false).closeCaseEnabled(false).build())
+                .activityHistory(activityHistory != null ? activityHistory : List.of())
+                .context(context != null ? context : CaseDetailDto.CaseContextDto.builder().build())
+                .build();
+        if (log.isDebugEnabled()) {
+            log.debug("buildCaseDetail caseId={} caseType={} reasonText={}", dto.getCaseId(), dto.getCaseType(), dto.getReasonText() != null ? "(present)" : "null");
+        }
+        return dto;
+    }
+
+    /** 규정 v2.0: agent_case.evidence_json에서 hr_status, mcc_code, budget_exceeded 추출 → CaseContextDto. */
+    private static CaseDetailDto.CaseContextDto parseContextFromEvidence(JsonNode evidenceJson) {
+        if (evidenceJson == null || !evidenceJson.isObject()) return CaseDetailDto.CaseContextDto.builder().build();
+        String hrStatus = evidenceJson.has("hr_status") && evidenceJson.get("hr_status").isTextual() ? evidenceJson.get("hr_status").asText() : null;
+        String mccCode = evidenceJson.has("mcc_code") && evidenceJson.get("mcc_code").isTextual() ? evidenceJson.get("mcc_code").asText() : null;
+        Boolean budgetExceeded = evidenceJson.has("budget_exceeded") && evidenceJson.get("budget_exceeded").isBoolean() ? evidenceJson.get("budget_exceeded").asBoolean() : null;
+        return CaseDetailDto.CaseContextDto.builder()
+                .hrStatus(hrStatus)
+                .mccCode(mccCode)
+                .budgetExceeded(budgetExceeded)
                 .build();
     }
 
@@ -504,11 +543,12 @@ public class CaseQueryService {
                 .toList();
     }
 
+    /** [추론 탭] AGENT_STREAM만 최신순(DESC), 기술 로그 제외, 비즈니스 추론만. */
     private List<CaseDetailDto.AiThoughtItemDto> loadAiThoughts(Long tenantId, Long caseId) {
         Pageable limit = PageRequest.of(0, CASE_DETAIL_AI_THOUGHTS_LIMIT);
         List<AgentActivityLog> logs = agentActivityLogRepository
-                .findByTenantIdAndResourceTypeAndResourceIdOrderByOccurredAtDesc(
-                        tenantId, RESOURCE_TYPE_AGENT_CASE, String.valueOf(caseId), limit);
+                .findByTenantIdAndResourceTypeAndResourceIdAndEventTypeOrderByOccurredAtDesc(
+                        tenantId, RESOURCE_TYPE_AGENT_CASE, String.valueOf(caseId), EVENT_TYPE_AGENT_STREAM, limit);
         List<CaseDetailDto.AiThoughtItemDto> list = logs.stream()
                 .map(log -> {
                     String message = resolveMessageFromMetadata(log.getMetadataJson());
@@ -519,9 +559,83 @@ public class CaseQueryService {
                             .occurredAt(log.getOccurredAt())
                             .build();
                 })
+                .filter(dto -> dto.getMessage() != null && isRealContent(dto.getMessage()))
                 .toList();
         // 동일 논리 이벤트 = event_type + message + occurred_at(1초 단위). CSV 분석: 동일 이벤트가 REST 푸시/감사 등으로 중복 적재됨.
         return deduplicateAiThoughtsByLogicalEvent(list);
+    }
+
+    /** [이력 탭] 모든 이벤트 타입(AGENT_STREAM, STATUS_CHANGE, 분석 시작/종료, 승인/반려 등) 시간순 ASC, 상한 500건. 표시 메시지 없으면 eventType/metadata 기반 문구 생성. */
+    private List<CaseDetailDto.AiThoughtItemDto> loadActivityHistory(Long tenantId, Long caseId) {
+        Pageable limit = PageRequest.of(0, ACTIVITY_HISTORY_LIMIT);
+        List<AgentActivityLog> logs = agentActivityLogRepository
+                .findByTenantIdAndResourceTypeAndResourceIdOrderByOccurredAtAsc(
+                        tenantId, RESOURCE_TYPE_AGENT_CASE, String.valueOf(caseId), limit);
+        if (logs == null) return List.of();
+        return logs.stream()
+                .map(log -> {
+                    String message = resolveMessageFromMetadata(log.getMetadataJson());
+                    if (message == null && log.getMetadataJson() != null && log.getMetadataJson().containsKey("message")) {
+                        Object m = log.getMetadataJson().get("message");
+                        if (m != null) message = m.toString();
+                    }
+                    if (message == null || message.isBlank()) {
+                        message = formatActivityHistoryMessage(log);
+                    }
+                    return CaseDetailDto.AiThoughtItemDto.builder()
+                            .stage(log.getStage())
+                            .eventType(log.getEventType())
+                            .message(message != null ? message : "")
+                            .occurredAt(log.getOccurredAt())
+                            .build();
+                })
+                .toList();
+    }
+
+    /** 이력 탭 표시용: eventType + metadata 기반 감사 추적 문구 생성. */
+    private static String formatActivityHistoryMessage(AgentActivityLog log) {
+        String et = log.getEventType() != null ? log.getEventType() : "";
+        Map<String, Object> meta = log.getMetadataJson();
+        String actor = log.getActorDisplayName() != null && !log.getActorDisplayName().isBlank()
+                ? log.getActorDisplayName()
+                : (meta != null && meta.containsKey("actor_display_name") && meta.get("actor_display_name") != null)
+                ? meta.get("actor_display_name").toString()
+                : (meta != null && meta.containsKey("actorDisplayName") && meta.get("actorDisplayName") != null)
+                ? meta.get("actorDisplayName").toString()
+                : null;
+        switch (et) {
+            case "STATUS_CHANGE":
+                if (meta != null && meta.containsKey("from_status") && meta.containsKey("to_status")) {
+                    String from = meta.get("from_status") != null ? meta.get("from_status").toString() : "";
+                    String to = meta.get("to_status") != null ? meta.get("to_status").toString() : "";
+                    return String.format("상태가 '%s'에서 '%s'(으)로 변경되었습니다.", from, to);
+                }
+                return "상태가 변경되었습니다.";
+            case "ANALYSIS_STARTED":
+            case "RUN_STARTED":
+                return "분석이 시작되었습니다.";
+            case "ANALYSIS_DONE":
+            case "RUN_COMPLETED":
+            case "RUN_COMPLETED_SUCCESS":
+                return "분석이 완료되었습니다.";
+            case "RUN_FAILED":
+            case "RUN_COMPLETED_FAILED":
+                return "분석이 실패하였습니다.";
+            case "ACTION_APPROVED":
+            case "APPROVAL":
+                return actor != null ? String.format("사용자 %s이(가) 분석 결과를 승인했습니다.", actor) : "분석 결과가 승인되었습니다.";
+            case "ACTION_REJECTED":
+            case "REJECTION":
+                return actor != null ? String.format("사용자 %s이(가) 반려했습니다.", actor) : "반려되었습니다.";
+            case "AGENT_STREAM":
+                return null;
+            default:
+                if (meta != null && meta.containsKey("message")) {
+                    Object m = meta.get("message");
+                    if (m != null && !m.toString().isBlank()) return m.toString();
+                }
+                return et.isBlank() ? "활동이 기록되었습니다." : String.format("[%s] 활동이 기록되었습니다.", et);
+        }
     }
 
     /**
@@ -567,7 +681,7 @@ public class CaseQueryService {
     }
 
     private static final java.util.Set<String> TECHNICAL_PLACEHOLDERS = java.util.Set.of(
-            "사고 중", "thinking", "처리 중", "processing"
+            "사고 중", "thinking", "처리 중", "processing", "데이터 분석 중"
     );
 
     private static boolean isRealContent(String s) {
@@ -615,6 +729,154 @@ public class CaseQueryService {
             log.trace("findLatestEvidenceMapJson: caseId={} runId={} evidenceMapJson present={} entryCount={}", caseId, runs.get(0).getRunId(), node != null, count);
         }
         return node;
+    }
+
+    /** 케이스 최신 분석 결과 전체 조회. 없으면 empty. */
+    private Optional<CaseAnalysisResult> findLatestAnalysisResult(Long tenantId, Long caseId) {
+        List<CaseAnalysisRun> runs = caseAnalysisRunRepository.findByTenantIdAndCaseIdOrderByStartedAtDesc(tenantId, caseId);
+        if (runs.isEmpty()) return Optional.empty();
+        return caseAnalysisResultRepository.findByRunId(runs.get(0).getRunId());
+    }
+
+    /** [사고 과정] AGENT_STREAM 로그만 시간순(ASC), message만 추출. 기술 문구도 포함하여 절단 없이 전체 전달. */
+    private List<String> buildReasoningProcess(Long tenantId, Long caseId) {
+        Pageable limit = PageRequest.of(0, REASONING_PROCESS_LIMIT);
+        List<AgentActivityLog> logs = agentActivityLogRepository
+                .findByTenantIdAndResourceTypeAndResourceIdAndEventTypeOrderByOccurredAtAsc(
+                        tenantId, RESOURCE_TYPE_AGENT_CASE, String.valueOf(caseId), EVENT_TYPE_AGENT_STREAM, limit);
+        if (logs == null) return List.of();
+        List<String> out = new ArrayList<>();
+        for (AgentActivityLog logEntry : logs) {
+            String message = resolveMessageFromMetadata(logEntry.getMetadataJson());
+            if (message == null && logEntry.getMetadataJson() != null && logEntry.getMetadataJson().containsKey("message")) {
+                Object m = logEntry.getMetadataJson().get("message");
+                if (m != null) message = m.toString();
+            }
+            if (message != null && !message.isBlank()) out.add(message);
+        }
+        return out;
+    }
+
+    /** [검토 로직] violation_clause 우선, 없으면 evidence_json에서 clause/status/description 추출 → LogicCheckpointDto 배열. */
+    private List<CaseDetailDto.LogicCheckpointDto> buildLogicCheckpoints(AgentCase case_, Optional<CaseAnalysisResult> resultOpt) {
+        if (resultOpt.isEmpty()) return List.of();
+        CaseAnalysisResult r = resultOpt.get();
+        String raw = r.getViolationClause();
+        if (raw != null && !raw.isBlank()) {
+            raw = raw.trim();
+            // JSON 배열 형태면 파싱 (예: [{"clause":"제1조 1항","status":"VIOLATED","description":"..."}])
+            if (raw.startsWith("[")) {
+                try {
+                    com.fasterxml.jackson.databind.JsonNode arr = new com.fasterxml.jackson.databind.ObjectMapper().readTree(raw);
+                    if (arr != null && arr.isArray()) {
+                        List<CaseDetailDto.LogicCheckpointDto> list = new ArrayList<>();
+                        for (JsonNode el : arr) {
+                            if (el == null || !el.isObject()) continue;
+                            String clause = el.has("clause") && el.get("clause").isTextual() ? el.get("clause").asText() : null;
+                            String status = el.has("status") && el.get("status").isTextual() ? el.get("status").asText() : "COMPLETED";
+                            String description = el.has("description") && el.get("description").isTextual() ? el.get("description").asText() : null;
+                            list.add(CaseDetailDto.LogicCheckpointDto.builder()
+                                    .clause(clause != null ? clause : "")
+                                    .status("VIOLATED".equalsIgnoreCase(status) ? "VIOLATED" : "COMPLETED")
+                                    .description(description != null ? description : "")
+                                    .build());
+                        }
+                        if (!list.isEmpty()) return list;
+                    }
+                } catch (Exception e) {
+                    if (log.isDebugEnabled()) log.debug("buildLogicCheckpoints parse violation_clause JSON failed: {}", e.getMessage());
+                }
+            }
+            // 단일 조항 문자열이면 1건으로
+            String status = case_.getSeverity() != null && !"LOW".equalsIgnoreCase(case_.getSeverity()) ? "VIOLATED" : "COMPLETED";
+            return List.of(CaseDetailDto.LogicCheckpointDto.builder()
+                    .clause(raw)
+                    .status(status)
+                    .description("")
+                    .build());
+        }
+        // violation_clause 없을 때 evidence_json에서 조항/상태/설명 추출
+        JsonNode evidenceJson = r.getEvidenceJson();
+        if (evidenceJson != null && evidenceJson.isArray()) {
+            List<CaseDetailDto.LogicCheckpointDto> list = new ArrayList<>();
+            for (JsonNode el : evidenceJson) {
+                if (el == null || !el.isObject()) continue;
+                String clause = el.has("clause") && el.get("clause").isTextual() ? el.get("clause").asText()
+                        : el.has("violation_clause") && el.get("violation_clause").isTextual() ? el.get("violation_clause").asText()
+                        : el.has("item") && el.get("item").isTextual() ? el.get("item").asText() : null;
+                String status = el.has("status") && el.get("status").isTextual() ? el.get("status").asText() : "COMPLETED";
+                String description = el.has("description") && el.get("description").isTextual() ? el.get("description").asText()
+                        : el.has("reason") && el.get("reason").isTextual() ? el.get("reason").asText() : null;
+                list.add(CaseDetailDto.LogicCheckpointDto.builder()
+                        .clause(clause != null ? clause : "")
+                        .status("VIOLATED".equalsIgnoreCase(status) ? "VIOLATED" : "COMPLETED")
+                        .description(description != null ? description : "")
+                        .build());
+            }
+            if (!list.isEmpty()) return list;
+        }
+        return List.of();
+    }
+
+    /** [증거 맵] evidence_map_json → EvidenceLinkDto 배열. 배열/객체(items|entries|evidence|links|results|data) 및 itemId/item_id/item_idx/buzei 지원. */
+    private List<CaseDetailDto.EvidenceLinkDto> buildEvidenceLinks(JsonNode evidenceMapJson) {
+        if (evidenceMapJson == null) return List.of();
+        List<CaseDetailDto.EvidenceLinkDto> list = new ArrayList<>();
+        if (evidenceMapJson.isArray()) {
+            addEvidenceLinkItems(evidenceMapJson, list);
+        } else if (evidenceMapJson.isObject()) {
+            JsonNode items = evidenceMapJson.get("items");
+            if (items == null) items = evidenceMapJson.get("entries");
+            if (items == null) items = evidenceMapJson.get("evidence");
+            if (items == null) items = evidenceMapJson.get("links");
+            if (items == null) items = evidenceMapJson.get("results");
+            if (items == null) items = evidenceMapJson.get("data");
+            if (items != null && items.isArray()) addEvidenceLinkItems(items, list);
+        }
+        return list;
+    }
+
+    private void addEvidenceLinkItems(JsonNode array, List<CaseDetailDto.EvidenceLinkDto> list) {
+        for (JsonNode el : array) {
+            if (el == null || !el.isObject()) continue;
+            String itemIdx = null;
+            if (el.has("itemId") && el.get("itemId").isTextual()) itemIdx = el.get("itemId").asText();
+            else if (el.has("item_id") && el.get("item_id").isTextual()) itemIdx = el.get("item_id").asText();
+            else if (el.has("item_id") && el.get("item_id").isNumber()) itemIdx = String.valueOf(el.get("item_id").asInt());
+            else if (el.has("item_idx") && el.get("item_idx").isTextual()) itemIdx = el.get("item_idx").asText();
+            else if (el.has("buzei") && el.get("buzei").isTextual()) itemIdx = el.get("buzei").asText();
+            String reason = el.has("reason") && el.get("reason").isTextual() ? el.get("reason").asText()
+                    : el.has("summary") && el.get("summary").isTextual() ? el.get("summary").asText()
+                    : el.has("key_ground") && el.get("key_ground").isTextual() ? el.get("key_ground").asText() : null;
+            String severity = el.has("severity") && el.get("severity").isTextual() ? el.get("severity").asText()
+                    : el.has("severity_level") && el.get("severity_level").isTextual() ? el.get("severity_level").asText() : null;
+            if (severity != null) {
+                String u = severity.toUpperCase();
+                if (!"HIGH".equals(u) && !"MEDIUM".equals(u) && !"LOW".equals(u)) severity = "MEDIUM";
+            } else severity = "MEDIUM";
+            list.add(CaseDetailDto.EvidenceLinkDto.builder()
+                    .itemIdx(itemIdx != null ? itemIdx : "")
+                    .reason(reason != null ? reason : "")
+                    .severity(severity)
+                    .build());
+        }
+    }
+
+    /** [분석 리포트] reason_text + status → FinalReportDto. 빈 객체 반환 가능. */
+    private CaseDetailDto.FinalReportDto buildFinalReport(AgentCase case_) {
+        String summary = case_.getReasonText() != null ? case_.getReasonText() : "";
+        String severity = case_.getSeverity() != null ? case_.getSeverity() : "";
+        String verdict = severity.isEmpty() ? "" : (case_.getScore() != null
+                ? severity + " (score: " + case_.getScore() + ")" : severity);
+        boolean resolvedOrClosed = case_.getStatus() == AgentCaseStatus.RESOLVED || case_.getStatus() == AgentCaseStatus.IGNORED;
+        boolean requestClarificationEnabled = !resolvedOrClosed;
+        boolean closeCaseEnabled = resolvedOrClosed || case_.getStatus() == AgentCaseStatus.IN_REVIEW || case_.getStatus() == AgentCaseStatus.NEW || case_.getStatus() == AgentCaseStatus.PENDING_EXPLANATION || case_.getStatus() == AgentCaseStatus.PENDING_APPROVAL;
+        return CaseDetailDto.FinalReportDto.builder()
+                .summary(summary)
+                .verdict(verdict)
+                .requestClarificationEnabled(requestClarificationEnabled)
+                .closeCaseEnabled(closeCaseEnabled)
+                .build();
     }
 
     private CaseDetailDto.EvidencePanelDto buildEvidencePanel(Long tenantId, AgentCase case_) {

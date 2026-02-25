@@ -5,7 +5,8 @@ package com.dwp.services.synapsex.entity;
  */
 public enum AgentCaseStatus {
     OPEN, IN_REVIEW, APPROVED, REJECTED, ACTIONED, CLOSED,
-    TRIAGED, IN_PROGRESS, RESOLVED, DISMISSED;
+    TRIAGED, IN_PROGRESS, RESOLVED, DISMISSED,
+    NEW, ANALYZING, PENDING_EXPLANATION, PENDING_APPROVAL, IGNORED;
 
     public static AgentCaseStatus fromString(String s) {
         if (s == null || s.isBlank()) return null;

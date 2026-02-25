@@ -16,5 +16,5 @@ import lombok.NoArgsConstructor;
 public class CaseStatusUpdateRequest {
 
     @NotBlank(message = "status is required")
-    private String status;  // TRIAGED, IN_PROGRESS, RESOLVED, DISMISSED
+    private String status;  // 표준 7개: ANALYZING, NEW, IN_REVIEW, PENDING_EXPLANATION, PENDING_APPROVAL, RESOLVED, IGNORED
 }

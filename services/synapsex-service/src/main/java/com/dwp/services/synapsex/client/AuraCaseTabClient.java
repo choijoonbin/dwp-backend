@@ -5,6 +5,10 @@ import com.dwp.services.synapsex.dto.analysis.AuraAnalyzeRequest;
 import com.dwp.services.synapsex.dto.analysis.AuraAnalyzeResponse;
 import com.dwp.services.synapsex.dto.analysis.AuraPhase3TriggerRequest;
 import com.dwp.services.synapsex.dto.analysis.AuraPhase3TriggerResponse;
+import com.dwp.services.synapsex.dto.detect.DetectScreenRequest;
+import com.dwp.services.synapsex.dto.detect.DetectScreenResponse;
+import com.dwp.services.synapsex.dto.detect.ScreenBatchItemRequest;
+import com.dwp.services.synapsex.dto.detect.ScreenBatchResponse;
 import com.dwp.services.synapsex.dto.rag.AuraRagVectorizeRequest;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -96,4 +100,22 @@ public interface AuraCaseTabClient {
             @PathVariable("agentId") Long agentId,
             @RequestParam("tenant_id") Long tenantId,
             @RequestHeader(value = "Authorization", required = false) String authorization);
+
+    /**
+     * Detect 스크리닝: 전표/아이템 핵심 필드를 보내고 Aura가 severity, score, reasonText, caseType 반환.
+     * POST /aura/detect/screen — 지연/에러 시 BE에서 금액 기반 fallback 사용.
+     */
+    @PostMapping("/aura/detect/screen")
+    DetectScreenResponse screen(
+            @RequestHeader("X-Tenant-ID") Long tenantId,
+            @RequestBody DetectScreenRequest request);
+
+    /**
+     * Detect 스크리닝 배치: 최대 50~100건 단위. 요청 본문은 순수 JSON 배열 [...] (items 래핑 없음).
+     * Flatten 필드: amount, occurredAt, expenseType, merchantName, caseId. 응답은 객체 { results, briefing_priority_case_id, briefing_insight }.
+     */
+    @PostMapping("/aura/detect/screen-batch")
+    ScreenBatchResponse screenBatch(
+            @RequestHeader("X-Tenant-ID") Long tenantId,
+            @RequestBody java.util.List<ScreenBatchItemRequest> body);
 }

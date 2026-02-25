@@ -101,7 +101,7 @@ class SynapseContractTest {
         void getCases_returnsPageResponseSchema() throws Exception {
             var row = CaseListRowDto.builder()
                     .caseId(1L)
-                    .status("OPEN")
+                    .status("NEW")
                     .severity("HIGH")
                     .build();
             var page = PageResponse.of(List.of(row), 1L, 0, 20);
@@ -129,13 +129,13 @@ class SynapseContractTest {
         @Test
         @DisplayName("GET /synapse/cases/{id} - 상세 조회")
         void getCaseDetail_returnsDetail() throws Exception {
-            var detail = CaseDetailDto.builder().caseId(1L).status("OPEN").build();
+            var detail = CaseDetailDto.builder().caseId(1L).status("NEW").build();
             when(caseQueryService.findCaseDetail(eq(TENANT_ID), eq(1L))).thenReturn(Optional.of(detail));
 
             mockMvc.perform(get("/synapse/cases/1").header("X-Tenant-ID", TENANT_ID.toString()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.caseId").value(1))
-                    .andExpect(jsonPath("$.data.status").value("OPEN"));
+                    .andExpect(jsonPath("$.data.status").value("NEW"));
         }
 
         @Test

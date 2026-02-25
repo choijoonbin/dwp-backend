@@ -1,5 +1,6 @@
 package com.dwp.services.synapsex.dto.case_;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.AllArgsConstructor;
@@ -23,6 +24,14 @@ public class CaseDetailDto {
 
     private Long caseId;
     private String status;
+    /** 스크리닝 결과(Detect/Aura). Aura 분석 시 분류 기준으로 사용. GET /agent-tools/cases/{id} 및 분석 run evidence에 포함. */
+    @JsonProperty("caseType")
+    @JsonAlias("case_type")
+    private String caseType;
+    /** 스크리닝 사유(agent_case.reason_text). Aura 분석 run evidence에 screening_reason_text로 전달 가능. */
+    @JsonProperty("reasonText")
+    @JsonAlias("screening_reason_text")
+    private String reasonText;
     /** P0-2: 핵심 식별자 (sourceType, bukrs, belnr, gjahr, buzei, dedupKey) */
     private CaseKeysDto keys;
     /** P0-2: 관련 링크 (openItems, lineage) — FE 하드코딩 제거용 */
@@ -33,12 +42,36 @@ public class CaseDetailDto {
     /** 조치 이력 (agent_case_action_history 기반). actionAt은 ISO8601. */
     @JsonProperty("actionHistory")
     private List<CaseActionHistoryItemRefDto> actionHistory;
-    /** AI 추론 결과 (Aura/agent_activity_log 기반). occurredAt은 ISO8601. */
+    /** [추론 탭] Aura 생각 흐름. event_type=AGENT_STREAM만, 기술 로그 제외, 최신순. occurredAt은 ISO8601. */
     @JsonProperty("aiThoughts")
     private List<AiThoughtItemDto> aiThoughts;
     private EvidencePanelDto evidence;
     private ReasoningPanelDto reasoning;
     private ActionPanelDto action;
+
+    /** [사고 과정] AGENT_STREAM 로그의 message 배열 (시간순, 기술 로그 제외). 없으면 []. */
+    @JsonProperty("reasoningProcess")
+    private List<String> reasoningProcess;
+    /** [검토 로직] 규정 조항 리스트. 없으면 []. */
+    @JsonProperty("logicCheckpoints")
+    private List<LogicCheckpointDto> logicCheckpoints;
+    /** [증거 맵] 그리드 매칭용 itemIdx/reason/severity. 없으면 []. */
+    @JsonProperty("evidenceLinks")
+    private List<EvidenceLinkDto> evidenceLinks;
+    /** [분석 리포트] 최종 감사 의견·판정·액션 버튼. 없으면 {}. */
+    @JsonProperty("finalReport")
+    private FinalReportDto finalReport;
+    /** [이력 탭] 상태 변경·분석 시작/종료·AGENT_STREAM 등 모든 이벤트 타입. 시간순(occurredAt ASC). 없으면 []. */
+    @JsonProperty("activityHistory")
+    private List<AiThoughtItemDto> activityHistory;
+
+    /** DB에 저장된 최신 분석 점수(agent_case.score). FE가 실시간 대신 저장값을 신뢰할 수 있도록 단일 필드 제공. */
+    @JsonProperty("analysisScore")
+    private BigDecimal analysisScore;
+
+    /** 규정 v2.0: evidence_json에 담긴 컨텍스트(근무/휴가, 업종, 한도초과). Aura metadata 전달/표시용. */
+    @JsonProperty("context")
+    private CaseContextDto context;
 
     /** 조치 이력 1건. DB action_at/created_at → API actionAt/createdAt (camelCase). */
     @Data
@@ -54,6 +87,20 @@ public class CaseDetailDto {
         private Instant actionAt;
         @JsonProperty("createdAt")
         private Instant createdAt;
+    }
+
+    /** 규정 v2.0: evidence_json → metadata 전달용 컨텍스트 (hr_status, mcc_code, budget_exceeded). */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class CaseContextDto {
+        @JsonProperty("hrStatus")
+        private String hrStatus;
+        @JsonProperty("mccCode")
+        private String mccCode;
+        @JsonProperty("budgetExceeded")
+        private Boolean budgetExceeded;
     }
 
     /** AI 추론 1건 (Aura 연동). DB occurred_at → API occurredAt (camelCase). */
@@ -174,5 +221,39 @@ public class CaseDetailDto {
         private String docKey;
         private Long rawEventId;
         private Long partyId;
+    }
+
+    /** [검토 로직] 규정 조항 1건. */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class LogicCheckpointDto {
+        private String clause;
+        private String status;
+        private String description;
+    }
+
+    /** [증거 맵] 그리드 행 좌표 1건. */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class EvidenceLinkDto {
+        private String itemIdx;
+        private String reason;
+        private String severity;
+    }
+
+    /** [분석 리포트] 최종 감사 의견·판정·액션 버튼. */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class FinalReportDto {
+        private String summary;
+        private String verdict;
+        private Boolean requestClarificationEnabled;
+        private Boolean closeCaseEnabled;
     }
 }

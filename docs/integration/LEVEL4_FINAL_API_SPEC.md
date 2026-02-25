@@ -120,7 +120,7 @@ Phase2 트리거 시 `CaseAnalysisService.buildBodyEvidence(agentCase)`에서 be
       "lifnr": null,
       "kunnr": null,
       "bschl": "40",
-      "shkzg": "S",
+      "shkzg": "H",
       "dmbtr": 1000.00,
       "waers": "KRW",
       "isTarget": true

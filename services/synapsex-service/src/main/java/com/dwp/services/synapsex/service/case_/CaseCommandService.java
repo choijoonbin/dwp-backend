@@ -24,8 +24,9 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class CaseCommandService {
 
+    /** 표준 CASE_STATUS 7개만 허용 (ANALYZING, NEW, IN_REVIEW, PENDING_EXPLANATION, PENDING_APPROVAL, RESOLVED, IGNORED) */
     private static final List<String> ALLOWED_STATUSES = List.of(
-            "OPEN", "TRIAGED", "IN_PROGRESS", "RESOLVED", "DISMISSED", "CLOSED", "IN_REVIEW", "APPROVED", "REJECTED", "ACTIONED");
+            "ANALYZING", "NEW", "IN_REVIEW", "PENDING_EXPLANATION", "PENDING_APPROVAL", "RESOLVED", "IGNORED");
 
     private final AgentCaseRepository agentCaseRepository;
     private final CaseCommentRepository caseCommentRepository;
@@ -59,19 +60,21 @@ public class CaseCommandService {
     }
 
     /**
-     * 케이스 상세 조회 시 OPEN → IN_PROGRESS 자동 전이.
-     * 상태가 OPEN일 때만 IN_PROGRESS로 변경하고 감사 로그 기록 (actorUserId 등은 상세 조회 맥락에서 선택 전달).
+     * 케이스 상세 조회 시 NEW(또는 레거시 OPEN) → IN_REVIEW 자동 전이.
+     * ANALYZING은 Aura 분석 완료 후 NEW로 바뀌므로, NEW일 때 감사관 열람 시 IN_REVIEW로 전이.
      */
     @Transactional
     public void ensureInProgressWhenOpen(Long tenantId, Long caseId, Long actorUserId, String ipAddress, String userAgent, String gatewayRequestId) {
         AgentCase case_ = agentCaseRepository.findByCaseIdAndTenantId(caseId, tenantId).orElse(null);
-        if (case_ == null || case_.getStatus() != AgentCaseStatus.OPEN) return;
-        String oldStatus = AgentCaseStatus.OPEN.name();
-        case_.setStatus(AgentCaseStatus.IN_PROGRESS);
+        if (case_ == null) return;
+        AgentCaseStatus s = case_.getStatus();
+        if (s != AgentCaseStatus.OPEN && s != AgentCaseStatus.NEW) return;
+        String oldStatus = s.name();
+        case_.setStatus(AgentCaseStatus.IN_REVIEW);
         agentCaseRepository.save(case_);
-        auditWriter.logCaseStatusChange(tenantId, caseId, oldStatus, AgentCaseStatus.IN_PROGRESS.name(),
+        auditWriter.logCaseStatusChange(tenantId, caseId, oldStatus, AgentCaseStatus.IN_REVIEW.name(),
                 actorUserId, ipAddress, userAgent, gatewayRequestId);
-        log.debug("Case {} auto-transitioned OPEN → IN_PROGRESS on detail view", caseId);
+        log.debug("Case {} auto-transitioned {} → IN_REVIEW on detail view", caseId, oldStatus);
     }
 
     @Transactional

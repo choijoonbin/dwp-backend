@@ -159,7 +159,7 @@
       "lifnr": null,
       "kunnr": null,
       "bschl": "40",
-      "shkzg": "S",
+      "shkzg": "H",
       "dmbtr": 1000.00,
       "waers": "KRW",
       "isTarget": true

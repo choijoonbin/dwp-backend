@@ -80,6 +80,9 @@ storage:
 # Aura Platform URL (Case 탭 프록시용 - analysis/confidence/similar/rag/evidence)
 aura:
   base-url: ${AURA_BASE_URL:${AURA_PLATFORM_URL:http://localhost:9000}}
+  # 배치/비동기 호출 시 Aura 인증용 내부 API 키 (X-Internal-Service-Key 헤더). 운영 시 AURA_INTERNAL_API_KEY 환경변수로 덮어서 사용
+  api:
+    internal-key: ${AURA_INTERNAL_API_KEY:aura-local-dev-secret-key-2026}
   # Phase3 트리거: 설정 시 POST /aura/internal/.../analysis-runs + callbacks 사용
   phase3:
     callback-base-url: ${AURA_PHASE3_CALLBACK_BASE_URL:}  # e.g. https://gateway/api/synapse/internal/aura/callback
@@ -123,13 +126,16 @@ detect:
     enabled: ${DETECT_BATCH_ENABLED:false}
     cron: ${DETECT_BATCH_CRON:0 */15 * * * *}
     interval-minutes: ${DETECT_BATCH_INTERVAL_MINUTES:15}
+  # Aura screen-batch 청크 크기 (50~100 권장). 단위: 건
+  screen-batch-chunk-size: ${DETECT_SCREEN_BATCH_CHUNK_SIZE:50}
 
 feign:
   client:
     config:
       aura-case-tab:
         connectTimeout: 3000
-        readTimeout: 5000
+        # readTimeout: LLM 배치(50건) 10~20초 소요 가정 — 최소 30초 이상 권장, 기본 60초
+        readTimeout: ${AURA_DETECT_READ_TIMEOUT:60000}
 
 springdoc:
   api-docs:

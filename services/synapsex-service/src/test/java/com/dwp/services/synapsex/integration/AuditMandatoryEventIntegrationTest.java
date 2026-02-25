@@ -65,7 +65,7 @@ class AuditMandatoryEventIntegrationTest extends SynapseTestcontainersBase {
                 .detectedAt(Instant.now())
                 .caseType("DUPLICATE_INVOICE")
                 .severity("HIGH")
-                .status(com.dwp.services.synapsex.entity.AgentCaseStatus.OPEN)
+                .status(com.dwp.services.synapsex.entity.AgentCaseStatus.NEW)
                 .build();
         c = agentCaseRepository.save(c);
         caseId = c.getCaseId();
@@ -114,7 +114,7 @@ class AuditMandatoryEventIntegrationTest extends SynapseTestcontainersBase {
                             .header("X-Tenant-ID", TENANT_ID.toString())
                             .header("X-User-ID", ACTOR_USER_ID.toString())
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"status\": \"IN_PROGRESS\"}"))
+                            .content("{\"status\": \"IN_REVIEW\"}"))
                     .andExpect(status().isOk());
 
             var logs = auditEventLogRepository.findByTenantId(TENANT_ID, org.springframework.data.domain.Pageable.unpaged());
@@ -125,11 +125,11 @@ class AuditMandatoryEventIntegrationTest extends SynapseTestcontainersBase {
             assertThat(statusChangeLog.get().getBeforeJson())
                     .as("before_json에 status 변경 전 값이 있어야 함")
                     .isNotNull()
-                    .containsEntry("status", "OPEN");
+                    .containsEntry("status", "NEW");
             assertThat(statusChangeLog.get().getAfterJson())
                     .as("after_json에 status 변경 후 값이 있어야 함")
                     .isNotNull()
-                    .containsEntry("status", "IN_PROGRESS");
+                    .containsEntry("status", "IN_REVIEW");
             assertThat(statusChangeLog.get().getDiffJson())
                     .as("diff_json에 status before/after가 있어야 함")
                     .isNotNull()

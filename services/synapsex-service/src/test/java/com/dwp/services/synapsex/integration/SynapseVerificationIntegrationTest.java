@@ -61,7 +61,7 @@ class SynapseVerificationIntegrationTest extends SynapseTestcontainersBase {
                 .detectedAt(Instant.now())
                 .caseType("DUPLICATE_INVOICE")
                 .severity("HIGH")
-                .status(com.dwp.services.synapsex.entity.AgentCaseStatus.OPEN)
+                .status(com.dwp.services.synapsex.entity.AgentCaseStatus.NEW)
                 .build();
         c1 = agentCaseRepository.save(c1);
         caseIdTenant1 = c1.getCaseId();
@@ -81,7 +81,7 @@ class SynapseVerificationIntegrationTest extends SynapseTestcontainersBase {
                 .detectedAt(Instant.now())
                 .caseType("DUPLICATE_INVOICE")
                 .severity("MEDIUM")
-                .status(com.dwp.services.synapsex.entity.AgentCaseStatus.OPEN)
+                .status(com.dwp.services.synapsex.entity.AgentCaseStatus.NEW)
                 .build();
         c2 = agentCaseRepository.save(c2);
         caseIdTenant2 = c2.getCaseId();
@@ -112,7 +112,7 @@ class SynapseVerificationIntegrationTest extends SynapseTestcontainersBase {
         void updateStatus_withoutTenant_returns400() throws Exception {
             mockMvc.perform(post("/synapse/cases/{caseId}/status", caseIdTenant1)
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"status\": \"IN_PROGRESS\"}"))
+                            .content("{\"status\": \"IN_REVIEW\"}"))
                     .andExpect(status().isBadRequest());
         }
 
@@ -155,7 +155,7 @@ class SynapseVerificationIntegrationTest extends SynapseTestcontainersBase {
                             .header("X-Tenant-ID", TENANT_1.toString())
                             .header("X-User-ID", ACTOR_USER_ID.toString())
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"status\": \"IN_PROGRESS\"}"))
+                            .content("{\"status\": \"IN_REVIEW\"}"))
                     .andExpect(status().isOk());
 
             var logs = auditEventLogRepository.findByTenantId(TENANT_1, PageRequest.of(0, 1000));
@@ -240,7 +240,7 @@ class SynapseVerificationIntegrationTest extends SynapseTestcontainersBase {
                             .header("X-Tenant-ID", TENANT_1.toString())
                             .header("X-User-ID", ACTOR_USER_ID.toString())
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content("{\"status\": \"IN_PROGRESS\"}"))
+                            .content("{\"status\": \"IN_REVIEW\"}"))
                     .andExpect(status().isBadRequest()); // IllegalArgumentException → 400
         }
 

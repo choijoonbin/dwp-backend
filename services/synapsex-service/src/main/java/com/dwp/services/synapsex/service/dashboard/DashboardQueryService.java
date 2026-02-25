@@ -43,8 +43,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class DashboardQueryService {
 
-    private static final List<String> OPEN_CASE_STATUSES = List.of("OPEN", "ACTIVE", "IN_PROGRESS", "IN_REVIEW", "TRIAGED");
-    private static final List<String> CLOSED_CASE_STATUSES = List.of("RESOLVED", "CLOSED", "APPROVED", "REJECTED", "ACTIONED", "DISMISSED");
+    private static final List<String> OPEN_CASE_STATUSES = List.of("ANALYZING", "NEW", "IN_REVIEW", "PENDING_EXPLANATION", "PENDING_APPROVAL");
+    private static final List<String> CLOSED_CASE_STATUSES = List.of("RESOLVED", "IGNORED");
     private static final List<String> SUCCESS_ACTION_STATUSES = List.of("SUCCEEDED", "SUCCESS", "EXECUTED", "DONE");
     private static final List<String> FAIL_ACTION_STATUSES = List.of("FAILED", "ERROR");
     private static final List<String> PENDING_ACTION_STATUSES = List.of("PLANNED", "PENDING", "REVIEW", "WAITING_APPROVAL", "PROPOSED", "PENDING_APPROVAL");
@@ -155,7 +155,7 @@ public class DashboardQueryService {
                 .avgLeadTime(avgLeadTime != null ? avgLeadTime : BigDecimal.valueOf(4.2))
                 .backlogCount((long) openCases.size())
                 .links(DashboardSummaryDto.SummaryLinks.builder()
-                        .casesPath("/cases?status=OPEN")
+                        .casesPath("/cases?status=IN_REVIEW")
                         .actionsPath("/actions?status=PENDING_APPROVAL")
                         .auditPath("/audit?category=ACTION")
                         .build())
@@ -435,7 +435,7 @@ public class DashboardQueryService {
                     .pendingApprovals(pendingCnt)
                     .topQueue(topQueue)
                     .links(TeamSnapshotItemDto.Links.builder()
-                            .casesPath("/cases?assignee=" + assigneeId + "&status=OPEN")
+                            .casesPath("/cases?assignee=" + assigneeId + "&status=IN_REVIEW")
                             .actionsPath("/actions?assignee=" + assigneeId + "&status=PENDING_APPROVAL")
                             .auditPath("/audit?actorUserId=" + assigneeId + "&from=" + fromIso + "&to=" + toIso)
                             .build())

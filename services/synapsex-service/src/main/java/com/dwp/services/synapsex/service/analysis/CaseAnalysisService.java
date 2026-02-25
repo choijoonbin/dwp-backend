@@ -4,6 +4,7 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.synapsex.audit.AuditEventConstants;
 import com.dwp.services.synapsex.client.AuraCaseTabClient;
+import com.dwp.services.synapsex.config.AuraTenantContext;
 import com.dwp.services.synapsex.dto.analysis.*;
 import com.dwp.services.synapsex.dto.lineage.LineageResponseDto;
 import com.dwp.services.synapsex.entity.AgentCase;
@@ -114,6 +115,8 @@ public class CaseAnalysisService {
         }
 
         try {
+            AuraTenantContext.setTenantId(tenantId);
+            try {
             JsonNode evidenceSnapshot = (request != null && request.getEvidenceSnapshot() != null)
                     ? request.getEvidenceSnapshot()
                     : buildEvidenceSnapshot(agentCase);
@@ -134,6 +137,9 @@ public class CaseAnalysisService {
                         .callbacks(callbacks)
                         .options(request != null ? request.getOptions() : null)
                         .build();
+                boolean artCaseType = evidenceSnapshot.has("caseType");
+                boolean artReasonText = evidenceSnapshot.has("reasonText");
+                log.info("analysis run sending to Aura (Phase3): caseId={} runId={} screening: caseType={} reasonTextIncluded={}", caseId, runId, artCaseType ? evidenceSnapshot.get("caseType").asText() : "null", artReasonText);
                 if (authorization == null || authorization.isBlank()) {
                     log.warn("Phase3 trigger requires Authorization header");
                     failRunWithMessage(run, "Phase3 trigger requires Authorization");
@@ -150,9 +156,16 @@ public class CaseAnalysisService {
                     log.warn("Aura analyze body_evidence missing: caseId={} runId={} belnr={} buzei={}",
                             caseId, runId, agentCase.getBelnr(), agentCase.getBuzei());
                 } else {
-                    log.debug("Aura analyze body_evidence: caseId={} runId={} docId={} itemId={}",
-                            caseId, runId, bodyEvidence.getDocId(), bodyEvidence.getItemId());
+                    log.debug("Aura analyze body_evidence: caseId={} runId={} docId={} itemId={} caseType={} reasonText={}",
+                            caseId, runId, bodyEvidence.getDocId(), bodyEvidence.getItemId(),
+                            bodyEvidence.getCaseType(), bodyEvidence.getReasonText() != null ? "(present)" : "null");
                 }
+                boolean beCaseType = bodyEvidence != null && bodyEvidence.getCaseType() != null && !bodyEvidence.getCaseType().isBlank();
+                boolean beReasonText = bodyEvidence != null && bodyEvidence.getReasonText() != null && !bodyEvidence.getReasonText().isBlank();
+                boolean evCaseType = evidenceSnapshot.has("caseType");
+                boolean evReasonText = evidenceSnapshot.has("reasonText");
+                log.info("analysis run sending to Aura (Phase2): caseId={} runId={} body_evidence: case_type={} reasonTextIncluded={} evidence: caseType={} reasonTextIncluded={}",
+                        caseId, runId, beCaseType && bodyEvidence != null ? bodyEvidence.getCaseType() : "null", beReasonText, evCaseType ? evidenceSnapshot.get("caseType").asText() : "null", evReasonText);
                 AuraAnalyzeRequest auraReq = AuraAnalyzeRequest.builder()
                         .caseId(caseId)
                         .runId(runId)
@@ -170,6 +183,9 @@ public class CaseAnalysisService {
                         streamUrl = auraRes.getStreamUrl();
                     }
                 }
+            }
+            } finally {
+                AuraTenantContext.clear();
             }
         } catch (FeignException e) {
             if (e.status() == 202) {
@@ -218,6 +234,19 @@ public class CaseAnalysisService {
         JsonNode ragRefs = agentCase.getRagRefsJson();
         if (evidence != null) snapshot.set("evidence", evidence);
         if (ragRefs != null) snapshot.set("ragRefs", ragRefs);
+        if (agentCase.getCaseType() != null && !agentCase.getCaseType().isBlank()) {
+            snapshot.put("caseType", agentCase.getCaseType());
+        }
+        if (agentCase.getReasonText() != null && !agentCase.getReasonText().isBlank()) {
+            snapshot.put("reasonText", agentCase.getReasonText());
+            snapshot.put("screening_reason_text", agentCase.getReasonText());
+        }
+        boolean hasCaseType = snapshot.has("caseType");
+        boolean hasReasonText = snapshot.has("reasonText");
+        log.info("screening result in evidence snapshot: caseId={} caseType={} reasonTextIncluded={}", caseId, hasCaseType ? snapshot.get("caseType").asText() : "null", hasReasonText);
+        log.debug("analysis run evidence snapshot caseId={} caseType={} reasonText={}", caseId,
+                snapshot.has("caseType") ? snapshot.get("caseType").asText() : "null",
+                snapshot.has("reasonText") ? "(present)" : "null");
 
         caseQueryService.findCaseDetail(tenantId, caseId).ifPresent(detail -> {
             if (detail.getEvidence() != null && detail.getEvidence().getDocumentOrOpenItem() != null) {
@@ -293,6 +322,8 @@ public class CaseAnalysisService {
         return BodyEvidenceDto.builder()
                 .docId(docId)
                 .itemId(itemId)
+                .caseType(agentCase.getCaseType() != null && !agentCase.getCaseType().isBlank() ? agentCase.getCaseType() : null)
+                .reasonText(agentCase.getReasonText() != null && !agentCase.getReasonText().isBlank() ? agentCase.getReasonText() : null)
                 .build();
     }
 

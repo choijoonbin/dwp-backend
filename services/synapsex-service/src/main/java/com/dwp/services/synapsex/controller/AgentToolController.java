@@ -17,8 +17,8 @@ import com.dwp.services.synapsex.dto.openitem.OpenItemListRowDto;
 import com.dwp.services.synapsex.entity.AgentAction;
 import com.dwp.services.synapsex.service.agent_tools.AgentToolCommandService;
 import com.dwp.services.synapsex.service.agent_tools.AgentToolQueryService;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
@@ -31,6 +31,7 @@ import java.time.LocalDate;
  * Base: /api/synapse/agent-tools/**
  * 공통: X-Tenant-ID 필수, X-User-ID 선택, ApiResponse&lt;T&gt;, 감사로그 기록
  */
+@Slf4j
 @RestController
 @RequestMapping("/synapse/agent-tools")
 @RequiredArgsConstructor
@@ -50,6 +51,10 @@ public class AgentToolController {
             @PathVariable Long caseId) {
         CaseDetailDto dto = agentToolQueryService.getCase(tenantId, caseId)
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
+        boolean hasCaseType = dto.getCaseType() != null && !dto.getCaseType().isBlank();
+        boolean hasReasonText = dto.getReasonText() != null && !dto.getReasonText().isBlank();
+        log.info("get_case screening result: caseId={} caseType={} reasonTextIncluded={}", caseId, hasCaseType ? dto.getCaseType() : "null", hasReasonText);
+        log.debug("get_case response caseId={} caseType={} reasonText={}", caseId, dto.getCaseType(), dto.getReasonText() != null ? "(present)" : "null");
         return ApiResponse.success(dto);
     }
 

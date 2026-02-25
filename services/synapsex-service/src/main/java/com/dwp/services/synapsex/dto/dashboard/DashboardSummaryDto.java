@@ -55,7 +55,7 @@ public class DashboardSummaryDto {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class SummaryLinks {
-        /** /cases?status=OPEN&severity=... */
+        /** /cases?status=IN_REVIEW&severity=... (표준 7개) */
         private String casesPath;
         /** /actions?status=PENDING_APPROVAL */
         private String actionsPath;

@@ -3,6 +3,7 @@ package com.dwp.services.synapsex.service.rag;
 import com.dwp.core.exception.BaseException;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.services.synapsex.client.AuraCaseTabClient;
+import com.dwp.services.synapsex.config.AuraTenantContext;
 import com.dwp.services.synapsex.dto.rag.AuraRagVectorizeRequest;
 import com.dwp.services.synapsex.dto.rag.AuraChunkItemDto;
 import com.dwp.services.synapsex.dto.rag.RagChunksCallbackRequest;
@@ -174,6 +175,8 @@ public class RagCommandService {
                 doc.getS3Key() != null && !doc.getS3Key().isBlank(),
                 doc.getUrl() != null && !doc.getUrl().isBlank());
         try {
+            AuraTenantContext.setTenantId(tenantId);
+            try {
             AuraRagVectorizeRequest body = AuraRagVectorizeRequest.builder()
                     .tenantId(tenantId)
                     .docId(doc.getDocId())
@@ -188,6 +191,9 @@ public class RagCommandService {
             doc.setStatus(STATUS_PROCESSING);
             ragDocumentRepository.save(doc);
             log.info("Aura RAG vectorize trigger success docId={} status={}", docId, STATUS_PROCESSING);
+            } finally {
+                AuraTenantContext.clear();
+            }
         } catch (FeignException e) {
             String responseBody = e.contentUTF8();
             log.warn("Aura RAG vectorize trigger failed for docId={}, status remains READY: status={} message={} responseBody={}",
@@ -334,6 +340,8 @@ public class RagCommandService {
         log.info("Rechunk PROCESSING committed for docId={}, triggering Aura", docId);
 
         try {
+            AuraTenantContext.setTenantId(tenantId);
+            try {
             AuraRagVectorizeRequest vectorizeRequest = AuraRagVectorizeRequest.builder()
                     .ragDocumentId(String.valueOf(docId))
                     .documentPath(doc.getFilePath())
@@ -351,7 +359,9 @@ public class RagCommandService {
                     .status("PROCESSING")
                     .message("재청킹이 시작되었습니다.")
                     .build();
-
+            } finally {
+                AuraTenantContext.clear();
+            }
         } catch (FeignException e) {
             log.error("Rechunk Aura trigger failed: docId={} error={}", docId, e.getMessage());
             transactionTemplate.executeWithoutResult(s -> {

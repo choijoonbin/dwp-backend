@@ -17,6 +17,7 @@ import com.dwp.services.synapsex.repository.AgentToolMappingRepository;
 import com.dwp.services.synapsex.repository.AgentDocumentMappingRepository;
 import com.dwp.services.synapsex.repository.RagDocumentRepository;
 import com.dwp.services.synapsex.client.AuraCaseTabClient;
+import com.dwp.services.synapsex.config.AuraTenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -278,8 +279,13 @@ public class AgentCommandService {
             return;
         }
         try {
-            auraCaseTabClient.refreshAgentConfig(agentId, tenantId, authorization);
-            log.debug("Aura refresh signal sent: agentId={} tenantId={}", agentId, tenantId);
+            AuraTenantContext.setTenantId(tenantId);
+            try {
+                auraCaseTabClient.refreshAgentConfig(agentId, tenantId, authorization);
+                log.debug("Aura refresh signal sent: agentId={} tenantId={}", agentId, tenantId);
+            } finally {
+                AuraTenantContext.clear();
+            }
         } catch (Exception e) {
             // 401 Unauthorized는 Aura Platform에 토큰이 필요하지만 현재 없을 때 발생
             // 비즈니스 로직에는 영향 없으므로 로그만 남김

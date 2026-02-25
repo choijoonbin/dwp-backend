@@ -73,6 +73,20 @@ public class FiDocHeader {
     @Column(name = "bktxt", length = 200)
     private String bktxt;
 
+    /** 데모 생성 시 시나리오 유형(예: SPLIT_PAYMENT). Aura evidence_json.intended_risk_type 전달용. */
+    @Column(name = "intended_risk_type", length = 50)
+    private String intendedRiskType;
+
+    /** 규정 v2.0: 근무/휴가 (WORK, LEAVE). Aura evidence/metadata 전달용. */
+    @Column(name = "hr_status", length = 20)
+    private String hrStatus;
+    /** 규정 v2.0: 업종 코드 또는 라벨 (예: RESTAURANT, GOLF). */
+    @Column(name = "mcc_code", length = 20)
+    private String mccCode;
+    /** 규정 v2.0: 한도초과 여부. */
+    @Column(name = "budget_exceeded")
+    private Boolean budgetExceeded;
+
     @Column(name = "status_code", length = 20)
     private String statusCode;
 

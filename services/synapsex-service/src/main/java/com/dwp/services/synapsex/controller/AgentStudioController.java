@@ -10,6 +10,7 @@ import com.dwp.services.synapsex.dto.agent.AgentDetailDto;
 import com.dwp.services.synapsex.dto.agent.AgentDiscoveryResponseDto;
 import com.dwp.services.synapsex.dto.agent.AgentToolCatalogItemDto;
 import com.dwp.services.synapsex.dto.agent.CreateAgentRequest;
+import com.dwp.services.synapsex.dto.agent.KnowledgeBindRequest;
 import com.dwp.services.synapsex.dto.agent.KnowledgeCatalogItemDto;
 import com.dwp.services.synapsex.dto.agent.UpdateAgentRequest;
 import com.dwp.services.synapsex.dto.common.PageResponse;
@@ -143,24 +144,40 @@ public class AgentStudioController {
         return ApiResponse.success(list);
     }
 
-    @Operation(summary = "문서를 에이전트에 연결", description = "특정 RAG 문서를 에이전트에 연결하여 RAG 검색 범위에 포함.")
+    @Operation(summary = "문서를 에이전트에 연결", description = "특정 RAG 문서를 에이전트에 연결하여 RAG 검색 범위에 포함. doc_id는 쿼리 파라미터(?doc_id=) 또는 본문(JSON: doc_id)으로 전달.")
     @PostMapping("/{id}/knowledge/bind")
     public ApiResponse<Void> bindDocument(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
             @PathVariable("id") Long agentId,
-            @RequestParam("doc_id") Long docId) {
+            @RequestParam(value = "doc_id", required = false) Long docIdParam,
+            @RequestBody(required = false) KnowledgeBindRequest body) {
+        Long docId = resolveDocId(docIdParam, body);
+        if (docId == null) {
+            throw new BaseException(ErrorCode.VALIDATION_ERROR, "doc_id를 쿼리 파라미터 또는 본문(JSON)으로 전달해 주세요.");
+        }
         agentCommandService.bindDocument(tenantId, agentId, docId);
         return ApiResponse.success("문서가 연결되었습니다.", null);
     }
 
-    @Operation(summary = "문서 연결 해제", description = "에이전트에서 문서 연결을 해제.")
+    @Operation(summary = "문서 연결 해제", description = "에이전트에서 문서 연결을 해제. doc_id는 쿼리 파라미터(?doc_id=) 또는 본문(JSON: doc_id)으로 전달.")
     @DeleteMapping("/{id}/knowledge/unbind")
     public ApiResponse<Void> unbindDocument(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
             @PathVariable("id") Long agentId,
-            @RequestParam("doc_id") Long docId) {
+            @RequestParam(value = "doc_id", required = false) Long docIdParam,
+            @RequestBody(required = false) KnowledgeBindRequest body) {
+        Long docId = resolveDocId(docIdParam, body);
+        if (docId == null) {
+            throw new BaseException(ErrorCode.VALIDATION_ERROR, "doc_id를 쿼리 파라미터 또는 본문(JSON)으로 전달해 주세요.");
+        }
         agentCommandService.unbindDocument(tenantId, agentId, docId);
         return ApiResponse.success("문서 연결이 해제되었습니다.", null);
+    }
+
+    private static Long resolveDocId(Long docIdParam, KnowledgeBindRequest body) {
+        if (docIdParam != null) return docIdParam;
+        if (body != null && body.getDocId() != null) return body.getDocId();
+        return null;
     }
 
 }
