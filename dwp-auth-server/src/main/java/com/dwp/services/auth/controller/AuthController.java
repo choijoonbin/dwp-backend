@@ -97,12 +97,25 @@ public class AuthController {
     @GetMapping("/permissions")
     public ApiResponse<List<PermissionDTO>> getMyPermissions(
             Authentication authentication,
-            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantIdHeader) {
+            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantIdHeader,
+            @RequestHeader(value = "X-User-ID", required = false) String userIdHeader) {
         Jwt jwt = (Jwt) authentication.getPrincipal();
         Long userId = Long.parseLong(jwt.getSubject());
         Long tenantId = parseTenantId(tenantIdHeader, jwt);
+        Long headerUserId = parseUserId(userIdHeader);
+        Object jwtTenantClaim = jwt.getClaim("tenant_id");
+
+        log.info("TRACE /auth/permissions input: jwtSubUserId={}, headerUserId={}, headerTenantId={}, jwtTenantClaim={}",
+                userId, headerUserId, tenantIdHeader, jwtTenantClaim);
+        if (headerUserId != null && !headerUserId.equals(userId)) {
+            log.warn("TRACE /auth/permissions mismatch: headerUserId={} != jwtSubUserId={}. JWT subject is used.",
+                    headerUserId, userId);
+        }
+        log.info("TRACE /auth/permissions resolved: effectiveUserId={}, effectiveTenantId={}", userId, tenantId);
         
         List<PermissionDTO> permissions = authService.getMyPermissions(userId, tenantId);
+        log.info("TRACE /auth/permissions result: effectiveUserId={}, effectiveTenantId={}, permissionCount={}",
+                userId, tenantId, permissions != null ? permissions.size() : 0);
         return ApiResponse.success(permissions);
     }
     
@@ -124,5 +137,17 @@ public class AuthController {
             return Long.parseLong(tid.toString());
         }
         throw new IllegalArgumentException("X-Tenant-ID 헤더 또는 JWT tenant_id 클레임이 필요합니다");
+    }
+
+    private Long parseUserId(String header) {
+        if (header == null || header.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(header.trim());
+        } catch (NumberFormatException e) {
+            log.warn("Invalid X-User-ID header: {}", header);
+            return null;
+        }
     }
 }

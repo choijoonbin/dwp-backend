@@ -14,6 +14,7 @@ import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import com.dwp.services.synapsex.service.security.OwnershipAccessService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -41,14 +42,28 @@ public class DocumentQueryService {
     private final AgentCaseRepository agentCaseRepository;
     private final IngestionErrorRepository ingestionErrorRepository;
     private final TenantScopeResolver tenantScopeResolver;
+    private final OwnershipAccessService ownershipAccessService;
 
     private static final QFiDocHeader h = QFiDocHeader.fiDocHeader;
     private static final QFiDocItem i = QFiDocItem.fiDocItem;
 
     @Transactional(readOnly = true)
     public PageResponse<DocumentListRowDto> findDocuments(Long tenantId, DocumentListQuery query) {
+        return findDocuments(tenantId, null, query);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<DocumentListRowDto> findDocuments(Long tenantId, Long actorUserId, DocumentListQuery query) {
         BooleanBuilder predicate = new BooleanBuilder();
         predicate.and(h.tenantId.eq(tenantId));
+        boolean isAdmin = ownershipAccessService.isAdmin(tenantId, actorUserId);
+        if (!isAdmin) {
+            if (actorUserId != null) {
+                predicate.and(h.userId.eq(actorUserId));
+            } else {
+                predicate.and(h.userId.eq(-1L));
+            }
+        }
 
         if (query.getDateFrom() != null) {
             predicate.and(h.budat.goe(query.getDateFrom()));
@@ -283,6 +298,7 @@ public class DocumentQueryService {
                     .blart(header.getBlart())
                     .tcode(header.getTcode())
                     .usnam(header.getUsnam())
+                    .userId(header.getUserId())
                     .kunnr(primaryKunnr)
                     .lifnr(primaryLifnr)
                     .counterpartyName(counterpartyName)
@@ -296,6 +312,7 @@ public class DocumentQueryService {
                     .reversedByDocKey(reversedByDocKey)
                     .linkedCasesCount(cases.size())
                     .statusCode(header.getStatusCode())
+                    .budgetExceededFlag(header.getBudgetExceededFlag())
                     .reversalBelnr(header.getReversalBelnr())
                     .lastChangeTs(header.getLastChangeTs())
                     .totals(DocumentListRowDto.DocumentTotalsDto.builder()
@@ -322,7 +339,14 @@ public class DocumentQueryService {
 
     @Transactional(readOnly = true)
     public Optional<DocumentDetailDto> findDocumentDetail(Long tenantId, String bukrs, String belnr, String gjahr) {
+        return findDocumentDetail(tenantId, null, bukrs, belnr, gjahr);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<DocumentDetailDto> findDocumentDetail(Long tenantId, Long actorUserId, String bukrs, String belnr, String gjahr) {
+        boolean isAdmin = ownershipAccessService.isAdmin(tenantId, actorUserId);
         return fiDocHeaderRepository.findByTenantIdAndBukrsAndBelnrAndGjahr(tenantId, bukrs, belnr, gjahr)
+                .filter(header -> isAdmin || (actorUserId != null && actorUserId.equals(header.getUserId())))
                 .map(header -> buildDocumentDetail(tenantId, header));
     }
 
@@ -407,12 +431,14 @@ public class DocumentQueryService {
                         .budat(header.getBudat() != null ? header.getBudat().toString() : null)
                         .bldat(header.getBldat() != null ? header.getBldat().toString() : null)
                         .usnam(header.getUsnam())
+                        .userId(header.getUserId())
                         .tcode(header.getTcode())
                         .blart(header.getBlart())
                         .waers(header.getWaers())
                         .xblnr(header.getXblnr())
                         .bktxt(header.getBktxt())
                         .statusCode(header.getStatusCode())
+                        .budgetExceededFlag(header.getBudgetExceededFlag())
                         .reversalBelnr(header.getReversalBelnr())
                         .lastChangeTs(header.getLastChangeTs() != null ? header.getLastChangeTs().toString() : null)
                         .rawEventId(header.getRawEventId())
@@ -474,10 +500,17 @@ public class DocumentQueryService {
 
     @Transactional(readOnly = true)
     public Optional<DocumentReversalChainDto> findReversalChain(Long tenantId, String docKey) {
+        return findReversalChain(tenantId, null, docKey);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<DocumentReversalChainDto> findReversalChain(Long tenantId, Long actorUserId, String docKey) {
         var parsed = com.dwp.services.synapsex.util.DocKeyUtil.parse(docKey);
         if (parsed == null) return Optional.empty();
+        boolean isAdmin = ownershipAccessService.isAdmin(tenantId, actorUserId);
         return fiDocHeaderRepository.findByTenantIdAndBukrsAndBelnrAndGjahr(
                         tenantId, parsed.getBukrs(), parsed.getBelnr(), parsed.getGjahr())
+                .filter(header -> isAdmin || (actorUserId != null && actorUserId.equals(header.getUserId())))
                 .map(header -> buildReversalChain(tenantId, header));
     }
 

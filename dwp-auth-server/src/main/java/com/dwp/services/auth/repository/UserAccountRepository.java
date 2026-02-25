@@ -34,4 +34,9 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, Long> 
      * 사용자 ID로 계정 목록 조회
      */
     java.util.List<UserAccount> findByUserId(Long userId);
+
+    /**
+     * tenant + principal(로그인ID) 기준 첫 계정 조회
+     */
+    Optional<UserAccount> findFirstByTenantIdAndPrincipalIgnoreCase(Long tenantId, String principal);
 }

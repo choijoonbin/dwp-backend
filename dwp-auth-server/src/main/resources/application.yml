@@ -47,7 +47,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: ${JPA_DDL_AUTO:validate}  # Flyway가 스키마 관리, JPA는 검증만
-    show-sql: ${JPA_SHOW_SQL:true}  # SQL 쿼리 출력 활성화
+    show-sql: ${JPA_SHOW_SQL:false}  # 기본값 비활성화 (필요 시 환경변수로만 활성화)
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -86,6 +86,6 @@ logging:
     "[com.dwp.services.auth.service.MonitoringService]": ${LOG_LEVEL_MONITORING:DEBUG}
     "[com.dwp.services.auth.service.monitoring.AdminMonitoringService]": ${LOG_LEVEL_MONITORING:DEBUG}
     "[org.springframework.security]": ${LOG_LEVEL_SECURITY:DEBUG}
-    "[org.hibernate.SQL]": ${LOG_LEVEL_SQL:DEBUG}  # SQL 쿼리 출력
-    "[org.hibernate.type.descriptor.sql.BasicBinder]": ${LOG_LEVEL_SQL_PARAM:TRACE}  # SQL 파라미터 바인딩 출력
-    "[org.hibernate.orm.jdbc.bind]": ${LOG_LEVEL_SQL_PARAM:TRACE}  # Hibernate 6.x 파라미터 바인딩 로그
+    "[org.hibernate.SQL]": ${LOG_LEVEL_SQL:WARN}  # SQL 쿼리 로그 비활성화
+    "[org.hibernate.type.descriptor.sql.BasicBinder]": ${LOG_LEVEL_SQL_PARAM:WARN}  # SQL 파라미터 로그 비활성화
+    "[org.hibernate.orm.jdbc.bind]": ${LOG_LEVEL_SQL_PARAM:WARN}  # Hibernate 6.x 파라미터 로그 비활성화

@@ -47,4 +47,25 @@ public class InternalPermissionController {
         boolean canAccess = adminGuardService.canAccess(effectiveUserId, effectiveTenantId, resourceKey, permissionCode);
         return ApiResponse.success(canAccess);
     }
+
+    /**
+     * ADMIN 역할 여부 확인
+     * GET /internal/permission/is-admin?tenantId=1&userId=10
+     */
+    @GetMapping("/is-admin")
+    public ApiResponse<Boolean> isAdmin(
+            @RequestHeader(value = HeaderConstants.X_TENANT_ID, required = false) Long headerTenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long headerUserId,
+            @RequestParam(required = false) Long tenantId,
+            @RequestParam(required = false) Long userId) {
+
+        Long effectiveTenantId = headerTenantId != null ? headerTenantId : tenantId;
+        Long effectiveUserId = headerUserId != null ? headerUserId : userId;
+
+        if (effectiveTenantId == null || effectiveUserId == null) {
+            return ApiResponse.success(false);
+        }
+
+        return ApiResponse.success(adminGuardService.hasAdminRole(effectiveTenantId, effectiveUserId));
+    }
 }

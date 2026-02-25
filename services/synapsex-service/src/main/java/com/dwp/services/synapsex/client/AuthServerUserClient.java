@@ -31,4 +31,12 @@ public interface AuthServerUserClient {
     ApiResponse<Map<String, String>> getDisplayNames(
             @RequestHeader("X-Tenant-ID") Long tenantId,
             @RequestParam("ids") String ids);
+
+    /**
+     * 로그인ID(principal)로 user_id 조회
+     */
+    @GetMapping("/internal/users/resolve-id")
+    ApiResponse<Long> resolveUserId(
+            @RequestHeader("X-Tenant-ID") Long tenantId,
+            @RequestParam("loginId") String loginId);
 }

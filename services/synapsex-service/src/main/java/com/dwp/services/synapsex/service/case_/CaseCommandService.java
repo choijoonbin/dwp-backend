@@ -3,15 +3,20 @@ package com.dwp.services.synapsex.service.case_;
 import com.dwp.services.synapsex.audit.AuditEventConstants;
 import com.dwp.services.synapsex.entity.AgentCase;
 import com.dwp.services.synapsex.entity.AgentCaseStatus;
+import com.dwp.services.synapsex.entity.CaseExplanation;
 import com.dwp.services.synapsex.entity.CaseComment;
 import com.dwp.services.synapsex.repository.AgentCaseRepository;
+import com.dwp.services.synapsex.repository.CaseExplanationRepository;
 import com.dwp.services.synapsex.repository.CaseCommentRepository;
+import com.dwp.services.synapsex.service.audit.AuthAuditLogBridgeService;
 import com.dwp.services.synapsex.service.audit.AuditWriter;
+import com.dwp.services.synapsex.service.security.OwnershipAccessService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,7 +35,10 @@ public class CaseCommandService {
 
     private final AgentCaseRepository agentCaseRepository;
     private final CaseCommentRepository caseCommentRepository;
+    private final CaseExplanationRepository caseExplanationRepository;
+    private final OwnershipAccessService ownershipAccessService;
     private final AuditWriter auditWriter;
+    private final AuthAuditLogBridgeService authAuditLogBridgeService;
 
     /**
      * 케이스 상태 변경. Phase A 감사 정책:
@@ -127,5 +135,58 @@ public class CaseCommandService {
                 ipAddress, userAgent, gatewayRequestId, null, null);
 
         return comment;
+    }
+
+    @Transactional
+    public AgentCase requestExplanation(Long tenantId, Long caseId, Long actorUserId,
+                                        String ipAddress, String userAgent, String gatewayRequestId) {
+        AgentCase case_ = loadAccessibleCase(tenantId, caseId, actorUserId);
+        String oldStatus = case_.getStatus() != null ? case_.getStatus().name() : null;
+        case_.setStatus(AgentCaseStatus.PENDING_EXPLANATION);
+        agentCaseRepository.save(case_);
+        auditWriter.logCaseStatusChange(tenantId, caseId, oldStatus, AgentCaseStatus.PENDING_EXPLANATION.name(),
+                actorUserId, ipAddress, userAgent, gatewayRequestId);
+        return case_;
+    }
+
+    @Transactional
+    public AgentCase submitExplanation(Long tenantId, Long caseId, Long actorUserId, String explanationText,
+                                       String evidenceAttachmentId, String ipAddress, String userAgent, String gatewayRequestId) {
+        if (actorUserId == null) {
+            throw new IllegalArgumentException("X-User-ID header is required");
+        }
+        AgentCase case_ = loadAccessibleCase(tenantId, caseId, actorUserId);
+
+        CaseExplanation explanation = CaseExplanation.builder()
+                .tenantId(tenantId)
+                .caseId(caseId)
+                .userId(actorUserId)
+                .explanationText(explanationText)
+                .evidenceAttachmentId(evidenceAttachmentId)
+                .createdAt(Instant.now())
+                .createdBy(actorUserId)
+                .updatedAt(Instant.now())
+                .updatedBy(actorUserId)
+                .build();
+        caseExplanationRepository.save(explanation);
+
+        String oldStatus = case_.getStatus() != null ? case_.getStatus().name() : null;
+        case_.setStatus(AgentCaseStatus.IN_REVIEW);
+        agentCaseRepository.save(case_);
+        auditWriter.logCaseStatusChange(tenantId, caseId, oldStatus, AgentCaseStatus.IN_REVIEW.name(),
+                actorUserId, ipAddress, userAgent, gatewayRequestId);
+        authAuditLogBridgeService.logUserExplanationSubmitted(
+                tenantId, actorUserId, caseId, evidenceAttachmentId, explanationText != null ? explanationText.length() : 0);
+        return case_;
+    }
+
+    private AgentCase loadAccessibleCase(Long tenantId, Long caseId, Long actorUserId) {
+        AgentCase case_ = agentCaseRepository.findByCaseIdAndTenantId(caseId, tenantId)
+                .orElseThrow(() -> new IllegalArgumentException("Case not found: " + caseId));
+        boolean isAdmin = ownershipAccessService.isAdmin(tenantId, actorUserId);
+        if (!isAdmin && (actorUserId == null || !actorUserId.equals(case_.getUserId()))) {
+            throw new IllegalArgumentException("No permission for case: " + caseId);
+        }
+        return case_;
     }
 }

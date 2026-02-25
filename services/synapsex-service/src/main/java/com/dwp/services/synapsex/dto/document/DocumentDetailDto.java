@@ -36,12 +36,14 @@ public class DocumentDetailDto {
         private String budat;
         private String bldat;
         private String usnam;
+        private Long userId;
         private String tcode;
         private String blart;
         private String waers;
         private String xblnr;
         private String bktxt;
         private String statusCode;
+        private String budgetExceededFlag;
         private String reversalBelnr;
         private String lastChangeTs;
         private Long rawEventId;

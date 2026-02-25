@@ -115,6 +115,7 @@ public class EntityController {
     @GetMapping({"/{partyId:[0-9]+}/documents", "/parties/{partyId:[0-9]+}/documents"})
     public ApiResponse<PageResponse<DocumentListRowDto>> getDocuments(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
             @PathVariable Long partyId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
@@ -124,7 +125,7 @@ public class EntityController {
                 .page(page)
                 .size(size)
                 .build();
-        PageResponse<DocumentListRowDto> result = documentQueryService.findDocuments(tenantId, query);
+        PageResponse<DocumentListRowDto> result = documentQueryService.findDocuments(tenantId, actorUserId, query);
         return ApiResponse.success(result);
     }
 
@@ -153,6 +154,7 @@ public class EntityController {
     @GetMapping({"/{partyId:[0-9]+}/cases", "/parties/{partyId:[0-9]+}/cases"})
     public ApiResponse<PageResponse<CaseListRowDto>> getCases(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
             @PathVariable Long partyId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
@@ -162,7 +164,7 @@ public class EntityController {
                 .page(page)
                 .size(size)
                 .build();
-        PageResponse<CaseListRowDto> result = caseQueryService.findCases(tenantId, query);
+        PageResponse<CaseListRowDto> result = caseQueryService.findCases(tenantId, actorUserId, query);
         return ApiResponse.success(result);
     }
 }

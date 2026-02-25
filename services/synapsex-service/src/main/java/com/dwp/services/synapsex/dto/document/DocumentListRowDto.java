@@ -29,6 +29,7 @@ public class DocumentListRowDto {
     private String blart;
     private String tcode;
     private String usnam;
+    private Long userId;
     /** Primary kunnr from items */
     private String kunnr;
     /** Primary lifnr from items */
@@ -49,6 +50,7 @@ public class DocumentListRowDto {
     private String reversedByDocKey;
     private Integer linkedCasesCount;
     private String statusCode;
+    private String budgetExceededFlag;
     private String reversalBelnr;
     private Instant lastChangeTs;
     private DocumentTotalsDto totals;

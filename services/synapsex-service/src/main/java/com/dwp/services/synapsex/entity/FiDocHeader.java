@@ -2,6 +2,8 @@ package com.dwp.services.synapsex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -55,6 +57,9 @@ public class FiDocHeader {
     @Column(name = "usnam", length = 12)
     private String usnam;
 
+    @Column(name = "user_id")
+    private Long userId;
+
     @Column(name = "tcode", length = 20)
     private String tcode;
 
@@ -83,9 +88,11 @@ public class FiDocHeader {
     /** 규정 v2.0: 업종 코드 또는 라벨 (예: RESTAURANT, GOLF). */
     @Column(name = "mcc_code", length = 20)
     private String mccCode;
-    /** 규정 v2.0: 한도초과 여부. */
-    @Column(name = "budget_exceeded")
-    private Boolean budgetExceeded;
+    /** 규정 v2.0: 한도초과 여부 (Y/N). */
+    @Builder.Default
+    @Column(name = "budget_exceeded_flag", columnDefinition = "char(1)")
+    @JdbcTypeCode(SqlTypes.CHAR)
+    private String budgetExceededFlag = "N";
 
     @Column(name = "status_code", length = 20)
     private String statusCode;
@@ -102,6 +109,30 @@ public class FiDocHeader {
     @Column(name = "created_at", nullable = false)
     private java.time.Instant createdAt;
 
+    @Column(name = "created_by")
+    private Long createdBy;
+
     @Column(name = "updated_at", nullable = false)
     private java.time.Instant updatedAt;
+
+    @Column(name = "updated_by")
+    private Long updatedBy;
+
+    /**
+     * 하위 호환: 기존 Boolean getter/setter 유지.
+     */
+    public Boolean getBudgetExceeded() {
+        if (budgetExceededFlag == null) {
+            return null;
+        }
+        return "Y".equalsIgnoreCase(budgetExceededFlag);
+    }
+
+    public void setBudgetExceeded(Boolean budgetExceeded) {
+        if (budgetExceeded == null) {
+            this.budgetExceededFlag = null;
+            return;
+        }
+        this.budgetExceededFlag = Boolean.TRUE.equals(budgetExceeded) ? "Y" : "N";
+    }
 }

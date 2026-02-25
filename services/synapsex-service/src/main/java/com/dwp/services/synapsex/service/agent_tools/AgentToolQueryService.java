@@ -35,12 +35,12 @@ public class AgentToolQueryService {
     private final LineageQueryService lineageQueryService;
 
     @Transactional(readOnly = true)
-    public Optional<CaseDetailDto> getCase(Long tenantId, Long caseId) {
-        return caseQueryService.findCaseDetail(tenantId, caseId);
+    public Optional<CaseDetailDto> getCase(Long tenantId, Long actorUserId, Long caseId) {
+        return caseQueryService.findCaseDetail(tenantId, actorUserId, caseId);
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<DocumentListRowDto> getDocuments(Long tenantId,
+    public PageResponse<DocumentListRowDto> getDocuments(Long tenantId, Long actorUserId,
                                                         String bukrs, String gjahr, Long vendorId, Long customerId,
                                                         LocalDate fromDate, LocalDate toDate,
                                                         BigDecimal amountMin, BigDecimal amountMax,
@@ -60,12 +60,12 @@ public class AgentToolQueryService {
                 .size(size)
                 .sort(sort)
                 .build();
-        return documentQueryService.findDocuments(tenantId, query);
+        return documentQueryService.findDocuments(tenantId, actorUserId, query);
     }
 
     @Transactional(readOnly = true)
-    public Optional<DocumentDetailDto> getDocumentDetail(Long tenantId, String bukrs, String belnr, String gjahr) {
-        return documentQueryService.findDocumentDetail(tenantId, bukrs.toUpperCase(), belnr, gjahr);
+    public Optional<DocumentDetailDto> getDocumentDetail(Long tenantId, Long actorUserId, String bukrs, String belnr, String gjahr) {
+        return documentQueryService.findDocumentDetail(tenantId, actorUserId, bukrs.toUpperCase(), belnr, gjahr);
     }
 
     @Transactional(readOnly = true)

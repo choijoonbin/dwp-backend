@@ -9,11 +9,11 @@ import com.dwp.services.synapsex.dto.common.PageInfo;
 import com.dwp.services.synapsex.dto.common.PageResponse;
 import com.dwp.services.synapsex.entity.*;
 import com.dwp.services.synapsex.repository.*;
+import com.dwp.services.synapsex.service.security.OwnershipAccessService;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import com.dwp.services.synapsex.scope.DrillDownCodeResolver;
 import com.dwp.services.synapsex.util.DocKeyUtil;
-import org.springframework.data.domain.PageRequest;
 import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
@@ -45,12 +45,14 @@ public class CaseQueryService {
     private final FiOpenItemRepository fiOpenItemRepository;
     private final BpPartyRepository bpPartyRepository;
     private final CaseCommentRepository caseCommentRepository;
+    private final CaseExplanationRepository caseExplanationRepository;
     private final AuditEventLogRepository auditEventLogRepository;
     private final AgentCaseActionHistoryRepository agentCaseActionHistoryRepository;
     private final AgentActivityLogRepository agentActivityLogRepository;
     private final CaseAnalysisRunRepository caseAnalysisRunRepository;
     private final CaseAnalysisResultRepository caseAnalysisResultRepository;
     private final DrillDownCodeResolver drillDownCodeResolver;
+    private final OwnershipAccessService ownershipAccessService;
 
     private static final String RESOURCE_TYPE_AGENT_CASE = "AGENT_CASE";
     private static final String EVENT_TYPE_AGENT_STREAM = "AGENT_STREAM";
@@ -67,8 +69,21 @@ public class CaseQueryService {
 
     @Transactional(readOnly = true)
     public PageResponse<CaseListRowDto> findCases(Long tenantId, CaseListQuery query) {
+        return findCases(tenantId, null, query);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponse<CaseListRowDto> findCases(Long tenantId, Long actorUserId, CaseListQuery query) {
         BooleanBuilder predicate = new BooleanBuilder();
         predicate.and(c.tenantId.eq(tenantId));
+        boolean isAdmin = ownershipAccessService.isAdmin(tenantId, actorUserId);
+        if (!isAdmin) {
+            if (actorUserId != null) {
+                predicate.and(c.userId.eq(actorUserId));
+            } else {
+                predicate.and(c.caseId.eq(-1L));
+            }
+        }
 
         // status 미전달 시 상태 필터 미적용 (모든 상태 조회). 전달 시 표준 7개(ANALYZING, NEW, IN_REVIEW 등) 복수 지원(쉼표 구분).
         List<String> statusList = com.dwp.services.synapsex.util.DrillDownParamUtil.parseMulti(query.getStatus());
@@ -222,7 +237,7 @@ public class CaseQueryService {
             cases = cases.stream().skip((long) page * size).limit(size).toList();
             List<CaseListRowDto> rows = buildCaseListRows(tenantId, cases);
             Map<String, Object> filtersApplied = buildFiltersApplied(query);
-            Map<String, Long> summary = buildCaseSummary(tenantId);
+            Map<String, Long> summary = buildCaseSummary(tenantId, actorUserId, isAdmin);
             boolean hasNext = (long) (page + 1) * size < total;
             return PageResponse.<CaseListRowDto>builder()
                     .items(rows)
@@ -245,7 +260,7 @@ public class CaseQueryService {
         long total = totalLong != null ? totalLong : 0L;
         List<CaseListRowDto> rows = buildCaseListRows(tenantId, cases);
         Map<String, Object> filtersApplied = buildFiltersApplied(query);
-        Map<String, Long> summary = buildCaseSummary(tenantId);
+        Map<String, Long> summary = buildCaseSummary(tenantId, actorUserId, isAdmin);
         boolean hasNext = (long) (page + 1) * size < total;
         return PageResponse.<CaseListRowDto>builder()
                 .items(rows)
@@ -284,20 +299,29 @@ public class CaseQueryService {
     }
 
     /** P0-2: Case list summary (total, open, triage, inReview) */
-    private Map<String, Long> buildCaseSummary(Long tenantId) {
-        Long totalLong = queryFactory.select(c.count()).from(c).where(c.tenantId.eq(tenantId)).fetchOne();
+    private Map<String, Long> buildCaseSummary(Long tenantId, Long actorUserId, boolean isAdmin) {
+        BooleanExpression visibility = c.tenantId.eq(tenantId);
+        if (!isAdmin) {
+            if (actorUserId != null) {
+                visibility = visibility.and(c.userId.eq(actorUserId));
+            } else {
+                visibility = visibility.and(c.caseId.eq(-1L));
+            }
+        }
+
+        Long totalLong = queryFactory.select(c.count()).from(c).where(visibility).fetchOne();
         long total = totalLong != null ? totalLong : 0L;
         Long openLong = queryFactory.select(c.count()).from(c)
-                .where(c.tenantId.eq(tenantId)
+                .where(visibility
                         .and(c.status.in(AgentCaseStatus.ANALYZING, AgentCaseStatus.NEW, AgentCaseStatus.IN_REVIEW, AgentCaseStatus.PENDING_EXPLANATION, AgentCaseStatus.PENDING_APPROVAL)))
                 .fetchOne();
         long open = openLong != null ? openLong : 0L;
         Long triageLong = queryFactory.select(c.count()).from(c)
-                .where(c.tenantId.eq(tenantId).and(c.status.eq(AgentCaseStatus.TRIAGED)))
+                .where(visibility.and(c.status.eq(AgentCaseStatus.TRIAGED)))
                 .fetchOne();
         long triage = triageLong != null ? triageLong : 0L;
         Long inReviewLong = queryFactory.select(c.count()).from(c)
-                .where(c.tenantId.eq(tenantId).and(c.status.eq(AgentCaseStatus.IN_REVIEW)))
+                .where(visibility.and(c.status.eq(AgentCaseStatus.IN_REVIEW)))
                 .fetchOne();
         long inReview = inReviewLong != null ? inReviewLong : 0L;
         return Map.of("total", total, "open", open, "triage", triage, "inReview", inReview);
@@ -414,11 +438,33 @@ public class CaseQueryService {
 
     @Transactional(readOnly = true)
     public Optional<CaseDetailDto> findCaseDetail(Long tenantId, Long caseId) {
+        return findCaseDetail(tenantId, null, caseId);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<CaseDetailDto> findCaseDetail(Long tenantId, Long actorUserId, Long caseId) {
+        boolean isAdmin = ownershipAccessService.isAdmin(tenantId, actorUserId);
         return agentCaseRepository.findByCaseIdAndTenantId(caseId, tenantId)
+                .filter(case_ -> canAccessCase(tenantId, actorUserId, isAdmin, case_))
                 .map(case_ -> buildCaseDetail(tenantId, case_));
     }
 
+    private boolean canAccessCase(Long tenantId, Long actorUserId, boolean isAdmin, AgentCase case_) {
+        if (isAdmin) {
+            return true;
+        }
+        if (actorUserId == null) {
+            return false;
+        }
+        return actorUserId.equals(case_.getUserId());
+    }
+
     private CaseDetailDto buildCaseDetail(Long tenantId, AgentCase case_) {
+        Optional<FiDocHeader> headerOpt = Optional.empty();
+        if (case_.getBukrs() != null && case_.getBelnr() != null && case_.getGjahr() != null) {
+            headerOpt = fiDocHeaderRepository.findByTenantIdAndBukrsAndBelnrAndGjahr(
+                    tenantId, case_.getBukrs(), case_.getBelnr(), case_.getGjahr());
+        }
         CaseDetailDto.EvidencePanelDto evidence = buildEvidencePanel(tenantId, case_);
         Optional<CaseAnalysisResult> latestResult = findLatestAnalysisResult(tenantId, case_.getCaseId());
         com.fasterxml.jackson.databind.JsonNode evidenceMapJson = latestResult.map(CaseAnalysisResult::getEvidenceMapJson).orElse(null);
@@ -474,12 +520,34 @@ public class CaseQueryService {
         List<String> reasoningProcess = buildReasoningProcess(tenantId, case_.getCaseId());
         List<CaseDetailDto.LogicCheckpointDto> logicCheckpoints = buildLogicCheckpoints(case_, latestResult);
         List<CaseDetailDto.EvidenceLinkDto> evidenceLinks = buildEvidenceLinks(evidenceMapJson);
+        List<CaseDetailDto.ExplanationHistoryItemDto> explanationHistory = caseExplanationRepository
+                .findByTenantIdAndCaseIdOrderByCreatedAtDesc(tenantId, case_.getCaseId())
+                .stream()
+                .map(e -> CaseDetailDto.ExplanationHistoryItemDto.builder()
+                        .explanationId(e.getExplanationId())
+                        .userId(e.getUserId())
+                        .explanationText(e.getExplanationText())
+                        .evidenceAttachmentId(e.getEvidenceAttachmentId())
+                        .createdAt(e.getCreatedAt())
+                        .build())
+                .toList();
         CaseDetailDto.FinalReportDto finalReport = buildFinalReport(case_);
         CaseDetailDto.CaseContextDto context = parseContextFromEvidence(case_.getEvidenceJson());
+        if ((context.getBudgetExceededFlag() == null || context.getBudgetExceededFlag().isBlank()) && headerOpt.isPresent()) {
+            String flag = headerOpt.get().getBudgetExceededFlag();
+            Boolean exceeded = flag != null ? "Y".equalsIgnoreCase(flag) : context.getBudgetExceeded();
+            context = CaseDetailDto.CaseContextDto.builder()
+                    .hrStatus(context.getHrStatus())
+                    .mccCode(context.getMccCode())
+                    .budgetExceeded(exceeded)
+                    .budgetExceededFlag(flag)
+                    .build();
+        }
 
         CaseDetailDto dto = CaseDetailDto.builder()
                 .caseId(case_.getCaseId())
                 .status(case_.getStatus() != null ? case_.getStatus().name() : null)
+                .userId(case_.getUserId() != null ? case_.getUserId() : headerOpt.map(FiDocHeader::getUserId).orElse(null))
                 .caseType(case_.getCaseType())
                 .reasonText(case_.getReasonText())
                 .analysisScore(case_.getScore())
@@ -506,6 +574,7 @@ public class CaseQueryService {
                 .evidenceLinks(evidenceLinks != null ? evidenceLinks : List.of())
                 .finalReport(finalReport != null ? finalReport : CaseDetailDto.FinalReportDto.builder().summary("").verdict("").requestClarificationEnabled(false).closeCaseEnabled(false).build())
                 .activityHistory(activityHistory != null ? activityHistory : List.of())
+                .explanationHistory(explanationHistory)
                 .context(context != null ? context : CaseDetailDto.CaseContextDto.builder().build())
                 .build();
         if (log.isDebugEnabled()) {
@@ -520,10 +589,17 @@ public class CaseQueryService {
         String hrStatus = evidenceJson.has("hr_status") && evidenceJson.get("hr_status").isTextual() ? evidenceJson.get("hr_status").asText() : null;
         String mccCode = evidenceJson.has("mcc_code") && evidenceJson.get("mcc_code").isTextual() ? evidenceJson.get("mcc_code").asText() : null;
         Boolean budgetExceeded = evidenceJson.has("budget_exceeded") && evidenceJson.get("budget_exceeded").isBoolean() ? evidenceJson.get("budget_exceeded").asBoolean() : null;
+        String budgetExceededFlag = evidenceJson.has("budget_exceeded_flag") && evidenceJson.get("budget_exceeded_flag").isTextual()
+                ? evidenceJson.get("budget_exceeded_flag").asText()
+                : null;
+        if (budgetExceeded == null && budgetExceededFlag != null) {
+            budgetExceeded = "Y".equalsIgnoreCase(budgetExceededFlag);
+        }
         return CaseDetailDto.CaseContextDto.builder()
                 .hrStatus(hrStatus)
                 .mccCode(mccCode)
                 .budgetExceeded(budgetExceeded)
+                .budgetExceededFlag(budgetExceededFlag)
                 .build();
     }
 

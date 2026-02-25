@@ -3,6 +3,7 @@ package com.dwp.services.auth.controller;
 import com.dwp.core.common.ApiResponse;
 import com.dwp.core.constant.HeaderConstants;
 import com.dwp.services.auth.entity.User;
+import com.dwp.services.auth.repository.UserAccountRepository;
 import com.dwp.services.auth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
 public class InternalUserController {
 
     private final UserRepository userRepository;
+    private final UserAccountRepository userAccountRepository;
 
     /**
      * 사용자 display_name 배치 조회
@@ -65,5 +67,25 @@ public class InternalUserController {
                 .collect(Collectors.toMap(u -> String.valueOf(u.getUserId()), User::getDisplayName, (a, b) -> a));
 
         return ApiResponse.success(result);
+    }
+
+    /**
+     * 로그인 식별자(principal 또는 email)로 user_id 조회
+     * GET /internal/users/resolve-id?loginId=synapsex_operator
+     */
+    @GetMapping("/resolve-id")
+    public ApiResponse<Long> resolveUserId(
+            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestParam("loginId") String loginId) {
+        if (loginId == null || loginId.isBlank()) {
+            return ApiResponse.success(null);
+        }
+        String normalized = loginId.trim();
+        return userAccountRepository.findFirstByTenantIdAndPrincipalIgnoreCase(tenantId, normalized)
+                .map(ua -> ApiResponse.success(ua.getUserId()))
+                .or(() -> userRepository.findByTenantIdAndEmail(tenantId, normalized)
+                        .map(User::getUserId)
+                        .map(ApiResponse::success))
+                .orElseGet(() -> ApiResponse.success(null));
     }
 }

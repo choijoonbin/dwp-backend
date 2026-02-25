@@ -49,19 +49,20 @@ public class DemoViolationService {
     public GenerateViolationResponse generateViolation(Long tenantId, GenerateViolationRequest request,
                                                        String authorization, Long userId) {
         ThreadLocalRandom rnd = ThreadLocalRandom.current();
+        Long ownerUserId = userId != null ? userId : 1L;
         GenerateViolationRequest.ScenarioType scenarioType = request.getScenarioType();
         String gjahr = String.valueOf(LocalDate.now().getYear());
         Instant now = Instant.now();
         List<String> docKeys = new ArrayList<>();
 
         switch (scenarioType) {
-            case HOLIDAY_USAGE, LATE_NIGHT, WEEKEND_MEAL -> generateHolidayUsage(tenantId, request, gjahr, now, rnd, docKeys);
-            case DUPLICATE_SUSPECT -> generateDuplicateSuspect(tenantId, request, gjahr, now, rnd, docKeys);
-            case SPLIT_PAYMENT -> generateSplitPayment(tenantId, request, gjahr, now, rnd, docKeys);
-            case PRIVATE_USE_RISK -> generatePrivateUseRisk(tenantId, request, gjahr, now, rnd, docKeys);
-            case LIMIT_EXCEED, OVER_LIMIT -> generateLimitExceed(tenantId, request, gjahr, now, rnd, docKeys);
-            case UNUSUAL_PATTERN -> generateUnusualPattern(tenantId, request, gjahr, now, rnd, docKeys);
-            default -> generateDefault(tenantId, request, gjahr, now, rnd, docKeys);
+            case HOLIDAY_USAGE, LATE_NIGHT, WEEKEND_MEAL -> generateHolidayUsage(tenantId, ownerUserId, request, gjahr, now, rnd, docKeys);
+            case DUPLICATE_SUSPECT -> generateDuplicateSuspect(tenantId, ownerUserId, request, gjahr, now, rnd, docKeys);
+            case SPLIT_PAYMENT -> generateSplitPayment(tenantId, ownerUserId, request, gjahr, now, rnd, docKeys);
+            case PRIVATE_USE_RISK -> generatePrivateUseRisk(tenantId, ownerUserId, request, gjahr, now, rnd, docKeys);
+            case LIMIT_EXCEED, OVER_LIMIT -> generateLimitExceed(tenantId, ownerUserId, request, gjahr, now, rnd, docKeys);
+            case UNUSUAL_PATTERN -> generateUnusualPattern(tenantId, ownerUserId, request, gjahr, now, rnd, docKeys);
+            default -> generateDefault(tenantId, ownerUserId, request, gjahr, now, rnd, docKeys);
         }
 
         Instant windowFrom = now.minusSeconds(120);
@@ -79,7 +80,7 @@ public class DemoViolationService {
     }
 
     /** HOLIDAY_USAGE: 결제 일자를 주말 또는 공휴일, 심야 시간으로 설정. */
-    private void generateHolidayUsage(Long tenantId, GenerateViolationRequest request, String gjahr, Instant now,
+    private void generateHolidayUsage(Long tenantId, Long ownerUserId, GenerateViolationRequest request, String gjahr, Instant now,
                                       ThreadLocalRandom rnd, List<String> docKeys) {
         int totalSec = 23 * 3600 + rnd.nextInt(4 * 3600);
         if (totalSec >= 86400) totalSec -= 86400;
@@ -99,12 +100,12 @@ public class DemoViolationService {
             setContextForScenario(header, GenerateViolationRequest.ScenarioType.HOLIDAY_USAGE);
             BigDecimal amount = resolveAmount(request, rnd);
             FiDocItem item = buildItem(tenantId, belnr, gjahr, merchantName, GenerateViolationRequest.ScenarioType.HOLIDAY_USAGE, budat, cputm, amount, now);
-            saveDocAndItem(tenantId, header, item, gjahr, docKeys);
+            saveDocAndItem(tenantId, ownerUserId, header, item, gjahr, docKeys);
         }
     }
 
     /** DUPLICATE_SUSPECT: count=중복 그룹 수. 각 그룹마다 동일 금액·동일 가맹점 전표를 2~4건(랜덤) 생성 → 총 건수는 count의 2배 이상. */
-    private void generateDuplicateSuspect(Long tenantId, GenerateViolationRequest request, String gjahr, Instant now,
+    private void generateDuplicateSuspect(Long tenantId, Long ownerUserId, GenerateViolationRequest request, String gjahr, Instant now,
                                           ThreadLocalRandom rnd, List<String> docKeys) {
         int groupCount = request.getCount() == null ? 1 : Math.max(1, request.getCount());
         for (int g = 0; g < groupCount; g++) {
@@ -123,13 +124,13 @@ public class DemoViolationService {
                 header.setIntendedRiskType(GenerateViolationRequest.ScenarioType.DUPLICATE_SUSPECT.name());
                 setContextForScenario(header, GenerateViolationRequest.ScenarioType.DUPLICATE_SUSPECT);
                 FiDocItem item = buildItem(tenantId, belnr, gjahr, merchantName, GenerateViolationRequest.ScenarioType.DUPLICATE_SUSPECT, sameDate, cputm, sameAmount, now);
-                saveDocAndItem(tenantId, header, item, gjahr, docKeys);
+                saveDocAndItem(tenantId, ownerUserId, header, item, gjahr, docKeys);
             }
         }
     }
 
     /** SPLIT_PAYMENT: count 무시. 한도를 초과하는 금액을 2~3건으로 쪼갠 전표 세트 생성. */
-    private void generateSplitPayment(Long tenantId, GenerateViolationRequest request, String gjahr, Instant now,
+    private void generateSplitPayment(Long tenantId, Long ownerUserId, GenerateViolationRequest request, String gjahr, Instant now,
                                       ThreadLocalRandom rnd, List<String> docKeys) {
         String merchantName = DemoMerchantPool.pickRandomRestaurant(rnd);
         LocalDate sameDate = randomWeekdayDate(rnd);
@@ -147,12 +148,12 @@ public class DemoViolationService {
             header.setIntendedRiskType(GenerateViolationRequest.ScenarioType.SPLIT_PAYMENT.name());
             setContextForScenario(header, GenerateViolationRequest.ScenarioType.SPLIT_PAYMENT);
             FiDocItem item = buildItem(tenantId, belnr, gjahr, merchantName, GenerateViolationRequest.ScenarioType.SPLIT_PAYMENT, sameDate, cputm, amount, now);
-            saveDocAndItem(tenantId, header, item, gjahr, docKeys);
+            saveDocAndItem(tenantId, ownerUserId, header, item, gjahr, docKeys);
         }
     }
 
     /** PRIVATE_USE_RISK: 유흥업소·골프장 등 사적 유용 의심 가맹점명(MCC) 사용. */
-    private void generatePrivateUseRisk(Long tenantId, GenerateViolationRequest request, String gjahr, Instant now,
+    private void generatePrivateUseRisk(Long tenantId, Long ownerUserId, GenerateViolationRequest request, String gjahr, Instant now,
                                          ThreadLocalRandom rnd, List<String> docKeys) {
         String merchantName = DemoMerchantPool.pickPrivateUseRisk(rnd);
         int count = request.getCount() == null ? 1 : Math.max(1, request.getCount());
@@ -164,12 +165,12 @@ public class DemoViolationService {
             BigDecimal amount = resolveAmount(request, rnd);
             FiDocItem item = buildItem(tenantId, belnr, gjahr, merchantName, GenerateViolationRequest.ScenarioType.PRIVATE_USE_RISK,
                     header.getBudat(), header.getCputm(), amount, now);
-            saveDocAndItem(tenantId, header, item, gjahr, docKeys);
+            saveDocAndItem(tenantId, ownerUserId, header, item, gjahr, docKeys);
         }
     }
 
     /** LIMIT_EXCEED: 설정된 limitAmountKrw를 초과하는 단건 전표 생성. */
-    private void generateLimitExceed(Long tenantId, GenerateViolationRequest request, String gjahr, Instant now,
+    private void generateLimitExceed(Long tenantId, Long ownerUserId, GenerateViolationRequest request, String gjahr, Instant now,
                                      ThreadLocalRandom rnd, List<String> docKeys) {
         int limit = request.getLimitAmountKrwResolved();
         int amountKr = (int) (limit * (1.01 + rnd.nextDouble() * 0.49));
@@ -182,11 +183,11 @@ public class DemoViolationService {
         setContextForScenario(header, GenerateViolationRequest.ScenarioType.LIMIT_EXCEED);
         FiDocItem item = buildItem(tenantId, belnr, gjahr, merchantName, GenerateViolationRequest.ScenarioType.LIMIT_EXCEED,
                 header.getBudat(), header.getCputm(), amount, now);
-        saveDocAndItem(tenantId, header, item, gjahr, docKeys);
+        saveDocAndItem(tenantId, ownerUserId, header, item, gjahr, docKeys);
     }
 
     /** UNUSUAL_PATTERN: 평소 거래 패턴과 동떨어진 고액 또는 원거리 결제. */
-    private void generateUnusualPattern(Long tenantId, GenerateViolationRequest request, String gjahr, Instant now,
+    private void generateUnusualPattern(Long tenantId, Long ownerUserId, GenerateViolationRequest request, String gjahr, Instant now,
                                          ThreadLocalRandom rnd, List<String> docKeys) {
         int limit = request.getLimitAmountKrwResolved();
         int amountKr = (int) (limit * (3 + rnd.nextDouble() * 7));
@@ -200,11 +201,11 @@ public class DemoViolationService {
         setContextForScenario(header, GenerateViolationRequest.ScenarioType.UNUSUAL_PATTERN);
         FiDocItem item = buildItem(tenantId, belnr, gjahr, merchantName, GenerateViolationRequest.ScenarioType.UNUSUAL_PATTERN,
                 header.getBudat(), header.getCputm(), amount, now);
-        saveDocAndItem(tenantId, header, item, gjahr, docKeys);
+        saveDocAndItem(tenantId, ownerUserId, header, item, gjahr, docKeys);
     }
 
     /** DEFAULT: count·intensity에 따른 일반 생성. */
-    private void generateDefault(Long tenantId, GenerateViolationRequest request, String gjahr, Instant now,
+    private void generateDefault(Long tenantId, Long ownerUserId, GenerateViolationRequest request, String gjahr, Instant now,
                                  ThreadLocalRandom rnd, List<String> docKeys) {
         int count = request.getCount() == null ? 1 : Math.max(1, request.getCount());
         for (int i = 0; i < count; i++) {
@@ -216,7 +217,7 @@ public class DemoViolationService {
             BigDecimal amount = resolveAmount(request, rnd);
             FiDocItem item = buildItem(tenantId, belnr, gjahr, merchantName, GenerateViolationRequest.ScenarioType.DEFAULT,
                     header.getBudat(), header.getCputm(), amount, now);
-            saveDocAndItem(tenantId, header, item, gjahr, docKeys);
+            saveDocAndItem(tenantId, ownerUserId, header, item, gjahr, docKeys);
         }
     }
 
@@ -280,9 +281,20 @@ public class DemoViolationService {
                 header.setBudgetExceeded(false);
             }
         }
+        // 시나리오와 무관하게 데모 다양성을 위해 50% 확률로 무작위 예산초과 플래그 재주입
+        if (ThreadLocalRandom.current().nextBoolean()) {
+            header.setBudgetExceededFlag("Y");
+        } else {
+            header.setBudgetExceededFlag("N");
+        }
     }
 
-    private void saveDocAndItem(Long tenantId, FiDocHeader header, FiDocItem item, String gjahr, List<String> docKeys) {
+    private void saveDocAndItem(Long tenantId, Long ownerUserId, FiDocHeader header, FiDocItem item, String gjahr, List<String> docKeys) {
+        header.setTenantId(tenantId);
+        header.setUserId(ownerUserId);
+        header.setUsnam(String.valueOf(ownerUserId));
+        header.setCreatedBy(ownerUserId);
+        header.setUpdatedBy(ownerUserId);
         fiDocHeaderRepository.saveAndFlush(header);
         try {
             fiDocItemRepository.saveAndFlush(item);

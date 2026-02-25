@@ -90,7 +90,7 @@ public class DocumentController {
                 .sort(sort)
                 .build();
 
-        PageResponse<DocumentListRowDto> result = documentQueryService.findDocuments(tenantId, query);
+        PageResponse<DocumentListRowDto> result = documentQueryService.findDocuments(tenantId, actorUserId, query);
         Map<String, Object> filters = new HashMap<>();
         if (bukrs != null && !bukrs.isBlank()) filters.put("bukrs", bukrs);
         if (statusCode != null && !statusCode.isBlank()) filters.put("statusCode", statusCode);
@@ -120,7 +120,7 @@ public class DocumentController {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "docKey 형식이 올바르지 않습니다. (예: bukrs-belnr-gjahr)");
         }
         DocumentDetailDto dto = documentQueryService.findDocumentDetail(
-                        tenantId, parsed.getBukrs().toUpperCase(), parsed.getBelnr(), parsed.getGjahr())
+                        tenantId, actorUserId, parsed.getBukrs().toUpperCase(), parsed.getBelnr(), parsed.getGjahr())
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "전표를 찾을 수 없습니다."));
         String actorType = actorAgentId != null ? AuditEventConstants.ACTOR_AGENT : AuditEventConstants.ACTOR_HUMAN;
         Map<String, Object> tags = Map.of("docKey", docKey);
@@ -145,7 +145,7 @@ public class DocumentController {
             @PathVariable String gjahr,
             HttpServletRequest httpRequest) {
 
-        DocumentDetailDto dto = documentQueryService.findDocumentDetail(tenantId, bukrs.toUpperCase(), belnr, gjahr)
+        DocumentDetailDto dto = documentQueryService.findDocumentDetail(tenantId, actorUserId, bukrs.toUpperCase(), belnr, gjahr)
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "전표를 찾을 수 없습니다."));
         String docKey = bukrs + "-" + belnr + "-" + gjahr;
         String actorType = actorAgentId != null ? AuditEventConstants.ACTOR_AGENT : AuditEventConstants.ACTOR_HUMAN;
@@ -169,7 +169,7 @@ public class DocumentController {
             @PathVariable String docKey,
             HttpServletRequest httpRequest) {
 
-        DocumentReversalChainDto dto = documentQueryService.findReversalChain(tenantId, docKey)
+        DocumentReversalChainDto dto = documentQueryService.findReversalChain(tenantId, actorUserId, docKey)
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "전표를 찾을 수 없습니다."));
         String actorType = actorAgentId != null ? AuditEventConstants.ACTOR_AGENT : AuditEventConstants.ACTOR_HUMAN;
         Map<String, Object> tags = Map.of("docKey", docKey);

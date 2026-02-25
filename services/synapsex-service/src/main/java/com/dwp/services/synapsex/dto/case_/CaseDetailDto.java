@@ -24,6 +24,7 @@ public class CaseDetailDto {
 
     private Long caseId;
     private String status;
+    private Long userId;
     /** 스크리닝 결과(Detect/Aura). Aura 분석 시 분류 기준으로 사용. GET /agent-tools/cases/{id} 및 분석 run evidence에 포함. */
     @JsonProperty("caseType")
     @JsonAlias("case_type")
@@ -65,6 +66,10 @@ public class CaseDetailDto {
     @JsonProperty("activityHistory")
     private List<AiThoughtItemDto> activityHistory;
 
+    /** 사용자 제출 소명 이력 (최신순). */
+    @JsonProperty("explanationHistory")
+    private List<ExplanationHistoryItemDto> explanationHistory;
+
     /** DB에 저장된 최신 분석 점수(agent_case.score). FE가 실시간 대신 저장값을 신뢰할 수 있도록 단일 필드 제공. */
     @JsonProperty("analysisScore")
     private BigDecimal analysisScore;
@@ -101,6 +106,8 @@ public class CaseDetailDto {
         private String mccCode;
         @JsonProperty("budgetExceeded")
         private Boolean budgetExceeded;
+        @JsonProperty("budgetExceededFlag")
+        private String budgetExceededFlag;
     }
 
     /** AI 추론 1건 (Aura 연동). DB occurred_at → API occurredAt (camelCase). */
@@ -255,5 +262,17 @@ public class CaseDetailDto {
         private String verdict;
         private Boolean requestClarificationEnabled;
         private Boolean closeCaseEnabled;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ExplanationHistoryItemDto {
+        private Long explanationId;
+        private Long userId;
+        private String explanationText;
+        private String evidenceAttachmentId;
+        private Instant createdAt;
     }
 }

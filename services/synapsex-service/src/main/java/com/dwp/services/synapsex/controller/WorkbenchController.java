@@ -39,6 +39,7 @@ public class WorkbenchController {
     @GetMapping
     public ApiResponse<PageResponse<CaseListRowDto>> getWorkbenchList(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String severity,
             @RequestParam(required = false) String caseType,
@@ -64,7 +65,7 @@ public class WorkbenchController {
                 .order("desc")
                 .build();
 
-        PageResponse<CaseListRowDto> result = caseQueryService.findCases(tenantId, query);
+        PageResponse<CaseListRowDto> result = caseQueryService.findCases(tenantId, actorUserId, query);
         return ApiResponse.success(result);
     }
 

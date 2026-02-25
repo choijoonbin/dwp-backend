@@ -61,6 +61,13 @@ spring:
             - Path=/api/synapse/**
           filters:
             - StripPrefix=1
+        # Synapse v1 별칭: /api/v1/synapse/** -> /api/synapse/**
+        - id: synapsex-v1-alias
+          uri: ${SERVICE_SYNAPSEX_URL:http://synapsex-service:8085}
+          predicates:
+            - Path=/api/v1/synapse/**
+          filters:
+            - RewritePath=/api/v1/synapse(?<segment>.*), /synapse${segment}
         # WebSocket 알림 브리지 (SockJS /ws/notifications 등)
         # Upgrade: websocket 있는 요청만 ws:// 로 전달. /info 등은 http:// 로 전달.
         - id: synapsex-ws-notifications

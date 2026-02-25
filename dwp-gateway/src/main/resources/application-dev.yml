@@ -102,6 +102,19 @@ spring:
             - Path=/api/synapse/cases/**
           filters:
             - StripPrefix=1
+        - id: synapsex-vouchers
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/vouchers/**
+          filters:
+            - StripPrefix=1
+        # Synapse v1 별칭: /api/v1/synapse/** -> /api/synapse/**
+        - id: synapsex-v1-alias
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/v1/synapse/**
+          filters:
+            - RewritePath=/api/v1/synapse(?<segment>.*), /synapse${segment}
         # 분석 스트림 전용: 30분 타임아웃
         - id: synapsex-analysis-runs-stream
           uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}

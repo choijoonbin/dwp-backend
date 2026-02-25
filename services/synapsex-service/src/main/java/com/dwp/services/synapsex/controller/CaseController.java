@@ -38,7 +38,7 @@ import static com.dwp.services.synapsex.util.DrillDownParamUtil.parseIds;
  * Phase 2 Cases API
  */
 @RestController
-@RequestMapping("/synapse/cases")
+@RequestMapping({"/synapse/cases", "/aura/cases"})
 @RequiredArgsConstructor
 public class CaseController {
 
@@ -156,7 +156,7 @@ public class CaseController {
                 .order(sortOrder[1])
                 .build();
 
-        PageResponse<CaseListRowDto> result = caseQueryService.findCases(tenantId, query);
+        PageResponse<CaseListRowDto> result = caseQueryService.findCases(tenantId, actorUserId, query);
         Map<String, Object> filters = new HashMap<>();
         if (status != null && !status.isBlank()) filters.put("status", status);
         if (severity != null && !severity.isBlank()) filters.put("severity", severity);
@@ -187,7 +187,7 @@ public class CaseController {
                 AuditRequestContext.getIpAddress(httpRequest), AuditRequestContext.getUserAgent(httpRequest),
                 AuditRequestContext.getGatewayRequestId(httpRequest));
 
-        CaseDetailDto dto = caseQueryService.findCaseDetail(tenantId, caseId)
+        CaseDetailDto dto = caseQueryService.findCaseDetail(tenantId, actorUserId, caseId)
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
         String actorType = actorAgentId != null ? AuditEventConstants.ACTOR_AGENT : AuditEventConstants.ACTOR_HUMAN;
         Map<String, Object> tags = Map.of("caseId", caseId);
@@ -291,10 +291,11 @@ public class CaseController {
     @GetMapping("/{caseId}/audit-events")
     public ApiResponse<AuditEventPageDto> getCaseAuditEvents(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
             @PathVariable Long caseId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        caseQueryService.findCaseDetail(tenantId, caseId)
+        caseQueryService.findCaseDetail(tenantId, actorUserId, caseId)
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
         var pageable = org.springframework.data.domain.PageRequest.of(page, size, org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt"));
         var tr = DrillDownParamUtil.resolve(null, null, null);
@@ -310,10 +311,13 @@ public class CaseController {
     @GetMapping("/{caseId}/timeline")
     public ApiResponse<List<CaseTimelineDto>> getTimeline(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
             @PathVariable Long caseId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
+        caseQueryService.findCaseDetail(tenantId, actorUserId, caseId)
+                .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
         List<CaseTimelineDto> timeline = caseQueryService.findTimeline(tenantId, caseId, page, size);
         return ApiResponse.success(timeline);
     }
@@ -354,7 +358,7 @@ public class CaseController {
 
         caseCommandService.updateCaseStatus(tenantId, caseId, request.getStatus(),
                 actorUserId, AuditRequestContext.getIpAddress(httpRequest), AuditRequestContext.getUserAgent(httpRequest), AuditRequestContext.getGatewayRequestId(httpRequest));
-        CaseDetailDto dto = caseQueryService.findCaseDetail(tenantId, caseId)
+        CaseDetailDto dto = caseQueryService.findCaseDetail(tenantId, actorUserId, caseId)
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
         return ApiResponse.success(dto);
     }
@@ -372,7 +376,7 @@ public class CaseController {
 
         caseCommandService.assignCase(tenantId, caseId, request.getAssigneeUserId(),
                 actorUserId, AuditRequestContext.getIpAddress(httpRequest), AuditRequestContext.getUserAgent(httpRequest), AuditRequestContext.getGatewayRequestId(httpRequest));
-        CaseDetailDto dto = caseQueryService.findCaseDetail(tenantId, caseId)
+        CaseDetailDto dto = caseQueryService.findCaseDetail(tenantId, actorUserId, caseId)
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
         return ApiResponse.success(dto);
     }
@@ -391,7 +395,45 @@ public class CaseController {
 
         caseCommandService.addComment(tenantId, caseId, request.getCommentText(),
                 actorUserId, actorAgentId, AuditRequestContext.getIpAddress(httpRequest), AuditRequestContext.getUserAgent(httpRequest), AuditRequestContext.getGatewayRequestId(httpRequest));
-        CaseDetailDto dto = caseQueryService.findCaseDetail(tenantId, caseId)
+        CaseDetailDto dto = caseQueryService.findCaseDetail(tenantId, actorUserId, caseId)
+                .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
+        return ApiResponse.success(dto);
+    }
+
+    /**
+     * PATCH /api/aura/cases/{id}/request-explanation
+     * 케이스 상태를 PENDING_EXPLANATION으로 변경.
+     */
+    @PatchMapping("/{caseId}/request-explanation")
+    public ApiResponse<CaseDetailDto> requestExplanation(
+            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
+            @PathVariable Long caseId,
+            HttpServletRequest httpRequest) {
+
+        caseCommandService.requestExplanation(tenantId, caseId, actorUserId,
+                AuditRequestContext.getIpAddress(httpRequest), AuditRequestContext.getUserAgent(httpRequest), AuditRequestContext.getGatewayRequestId(httpRequest));
+        CaseDetailDto dto = caseQueryService.findCaseDetail(tenantId, actorUserId, caseId)
+                .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
+        return ApiResponse.success(dto);
+    }
+
+    /**
+     * POST /api/aura/cases/{id}/explanations
+     * 소명 저장 + 케이스 상태 IN_REVIEW 변경.
+     */
+    @PostMapping("/{caseId}/explanations")
+    public ApiResponse<CaseDetailDto> submitExplanation(
+            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
+            @PathVariable Long caseId,
+            @Valid @RequestBody CaseExplanationCreateRequest request,
+            HttpServletRequest httpRequest) {
+
+        caseCommandService.submitExplanation(tenantId, caseId, actorUserId, request.getExplanationText(),
+                request.getEvidenceAttachmentId(), AuditRequestContext.getIpAddress(httpRequest),
+                AuditRequestContext.getUserAgent(httpRequest), AuditRequestContext.getGatewayRequestId(httpRequest));
+        CaseDetailDto dto = caseQueryService.findCaseDetail(tenantId, actorUserId, caseId)
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
         return ApiResponse.success(dto);
     }

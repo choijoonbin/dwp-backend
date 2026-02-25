@@ -31,4 +31,12 @@ public interface AuthServerPermissionClient {
             @RequestHeader("X-User-ID") Long userId,
             @RequestParam("resourceKey") String resourceKey,
             @RequestParam("permissionCode") String permissionCode);
+
+    /**
+     * ADMIN 역할 여부 확인
+     */
+    @GetMapping("/internal/permission/is-admin")
+    ApiResponse<Boolean> isAdmin(
+            @RequestHeader("X-Tenant-ID") Long tenantId,
+            @RequestHeader("X-User-ID") Long userId);
 }

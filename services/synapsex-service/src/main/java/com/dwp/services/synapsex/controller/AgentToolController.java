@@ -17,6 +17,7 @@ import com.dwp.services.synapsex.dto.openitem.OpenItemListRowDto;
 import com.dwp.services.synapsex.entity.AgentAction;
 import com.dwp.services.synapsex.service.agent_tools.AgentToolCommandService;
 import com.dwp.services.synapsex.service.agent_tools.AgentToolQueryService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -48,8 +49,9 @@ public class AgentToolController {
     @GetMapping("/cases/{caseId}")
     public ApiResponse<CaseDetailDto> getCase(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
             @PathVariable Long caseId) {
-        CaseDetailDto dto = agentToolQueryService.getCase(tenantId, caseId)
+        CaseDetailDto dto = agentToolQueryService.getCase(tenantId, actorUserId, caseId)
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
         boolean hasCaseType = dto.getCaseType() != null && !dto.getCaseType().isBlank();
         boolean hasReasonText = dto.getReasonText() != null && !dto.getReasonText().isBlank();
@@ -65,6 +67,7 @@ public class AgentToolController {
     @GetMapping("/documents")
     public ApiResponse<PageResponse<DocumentListRowDto>> getDocuments(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
             @RequestParam(required = false) String bukrs,
             @RequestParam(required = false) String gjahr,
             @RequestParam(required = false) Long vendorId,
@@ -78,7 +81,7 @@ public class AgentToolController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String sort) {
         PageResponse<DocumentListRowDto> result = agentToolQueryService.getDocuments(
-                tenantId, bukrs, gjahr, vendorId, customerId,
+                tenantId, actorUserId, bukrs, gjahr, vendorId, customerId,
                 fromDate, toDate, amountMin, amountMax, anomalyFlags,
                 page, size, sort);
         return ApiResponse.success(result);
@@ -91,10 +94,11 @@ public class AgentToolController {
     @GetMapping("/documents/{bukrs}/{belnr}/{gjahr}")
     public ApiResponse<DocumentDetailDto> getDocumentDetail(
             @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
             @PathVariable String bukrs,
             @PathVariable String belnr,
             @PathVariable String gjahr) {
-        DocumentDetailDto dto = agentToolQueryService.getDocumentDetail(tenantId, bukrs, belnr, gjahr)
+        DocumentDetailDto dto = agentToolQueryService.getDocumentDetail(tenantId, actorUserId, bukrs, belnr, gjahr)
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "전표를 찾을 수 없습니다."));
         return ApiResponse.success(dto);
     }

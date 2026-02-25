@@ -20,6 +20,7 @@ import com.dwp.services.synapsex.repository.FiDocItemRepository;
 import com.dwp.services.synapsex.repository.FiOpenItemRepository;
 import com.dwp.services.synapsex.repository.AppCodeRepository;
 import com.dwp.services.synapsex.service.audit.AuditWriter;
+import com.dwp.services.synapsex.service.security.UserIdentityMappingService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -89,6 +90,7 @@ public class DetectBatchService {
     private final FiOpenItemRepository fiOpenItemRepository;
     private final AgentCaseRepository agentCaseRepository;
     private final AuditWriter auditWriter;
+    private final UserIdentityMappingService userIdentityMappingService;
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
     private final org.springframework.beans.factory.ObjectProvider<org.springframework.data.redis.core.RedisTemplate<String, String>> redisTemplateProvider;
@@ -143,6 +145,7 @@ public class DetectBatchService {
 
         try {
             List<FiDocHeader> docs = fiDocHeaderRepository.findByTenantIdAndCreatedAtBetween(tenantId, windowFrom, windowTo);
+            enrichDocumentOwners(tenantId, docs);
             List<FiOpenItem> openItems = fiOpenItemRepository.findByTenantIdAndLastUpdateTsBetween(tenantId, windowFrom, windowTo);
 
             // 전표: 50건 단위 청킹 → Aura /aura/detect/screen-batch 호출. 실패 청크만 fallback
@@ -194,7 +197,7 @@ public class DetectBatchService {
                     String dedupKey = buildDedupKey(tenantId, outcome.caseType(), SOURCE_TYPE_DOC, doc.getBukrs(), doc.getBelnr(), doc.getGjahr(), null);
                     UpsertResult result = upsertCase(tenantId, run, dedupKey, outcome.caseType(), SOURCE_TYPE_DOC, RULE_ID_DOC,
                             doc.getBukrs(), doc.getBelnr(), doc.getGjahr(), ctx.firstBuzei(), ctx.amount(), ctx.waers(), null, outcome,
-                            doc.getIntendedRiskType(), doc.getHrStatus(), doc.getMccCode(), doc.getBudgetExceeded());
+                            doc.getIntendedRiskType(), doc.getHrStatus(), doc.getMccCode(), doc.getBudgetExceededFlag(), doc.getUserId());
                     caseCreated += result.created();
                     caseUpdated += result.updated();
                     if (outcome.score() != null && (chunkMaxScore == null || outcome.score().compareTo(chunkMaxScore) > 0)) {
@@ -219,7 +222,7 @@ public class DetectBatchService {
                         oi.getBukrs(), oi.getBelnr(), oi.getGjahr(), oi.getBuzei());
                 UpsertResult result = upsertCase(tenantId, run, dedupKey, outcome.caseType(), SOURCE_TYPE_OPEN_ITEM, RULE_ID_OPEN_ITEM,
                         oi.getBukrs(), oi.getBelnr(), oi.getGjahr(), oi.getBuzei(), oi.getOpenAmount(), oi.getCurrency(), oi.getDueDate(), outcome,
-                        null, null, null, null);
+                        null, null, null, null, null);
                 caseCreated += result.created();
                 caseUpdated += result.updated();
             }
@@ -264,6 +267,38 @@ public class DetectBatchService {
         return run;
     }
 
+    /**
+     * SAP 식별자(usnam) 기반 소유자 user_id 보강.
+     * 매핑 실패는 적재/탐지 실패 사유로 간주하지 않는다.
+     */
+    private void enrichDocumentOwners(Long tenantId, List<FiDocHeader> docs) {
+        if (docs == null || docs.isEmpty()) {
+            return;
+        }
+        for (FiDocHeader doc : docs) {
+            if (doc.getUserId() != null) {
+                continue;
+            }
+            String usnam = doc.getUsnam();
+            if (usnam == null || usnam.isBlank()) {
+                continue;
+            }
+            Long mappedUserId = null;
+            try {
+                mappedUserId = Long.parseLong(usnam.trim());
+            } catch (NumberFormatException ignored) {
+            }
+            if (mappedUserId == null) {
+                mappedUserId = userIdentityMappingService.resolveUserId(tenantId, usnam);
+            }
+            if (mappedUserId != null) {
+                doc.setUserId(mappedUserId);
+                doc.setUpdatedAt(Instant.now());
+                fiDocHeaderRepository.save(doc);
+            }
+        }
+    }
+
     /** P0: dedup_key = tenant:case_type:sourceType:bukrs-belnr-gjahr-buzei */
     private String buildDedupKey(Long tenantId, String caseType, String sourceType,
                                   String bukrs, String belnr, String gjahr, String buzei) {
@@ -306,7 +341,7 @@ public class DetectBatchService {
                 .caseId(null)
                 .hrStatus(doc.getHrStatus())
                 .mccCode(doc.getMccCode())
-                .budgetExceeded(doc.getBudgetExceeded())
+                .budgetExceeded("Y".equalsIgnoreCase(doc.getBudgetExceededFlag()))
                 .build();
     }
 
@@ -467,7 +502,7 @@ public class DetectBatchService {
 
     private JsonNode buildEvidenceJson(String source, String window, String bukrs, String belnr, String gjahr, String buzei,
                                        BigDecimal amount, String currency, java.time.LocalDate dueDate, String vendor, String customer,
-                                       String intendedRiskType, String hrStatus, String mccCode, Boolean budgetExceeded) {
+                                       String intendedRiskType, String hrStatus, String mccCode, String budgetExceededFlag) {
         ObjectNode root = com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.objectNode();
         root.put("source", source);
         root.put("window", window);
@@ -484,15 +519,18 @@ public class DetectBatchService {
         if (intendedRiskType != null && !intendedRiskType.isBlank()) root.put("intended_risk_type", intendedRiskType);
         if (hrStatus != null && !hrStatus.isBlank()) root.put("hr_status", hrStatus);
         if (mccCode != null && !mccCode.isBlank()) root.put("mcc_code", mccCode);
-        if (budgetExceeded != null) root.put("budget_exceeded", budgetExceeded);
+        if (budgetExceededFlag != null && !budgetExceededFlag.isBlank()) {
+            root.put("budget_exceeded_flag", budgetExceededFlag);
+            root.put("budget_exceeded", "Y".equalsIgnoreCase(budgetExceededFlag));
+        }
         return root;
     }
 
-    /** @return UpsertResult(created, updated, caseId). severity/score/reasonText/caseType는 Aura 스크리닝 또는 fallback으로 이미 결정된 outcome 사용. intendedRiskType 및 규정 v2.0 context(hrStatus, mccCode, budgetExceeded)는 evidence에 포함. */
+    /** @return UpsertResult(created, updated, caseId). severity/score/reasonText/caseType는 Aura 스크리닝 또는 fallback으로 이미 결정된 outcome 사용. intendedRiskType 및 규정 v2.0 context(hrStatus, mccCode, budgetExceededFlag)는 evidence에 포함. */
     private UpsertResult upsertCase(Long tenantId, DetectRun run, String dedupKey, String caseType, String sourceType, String ruleId,
                              String bukrs, String belnr, String gjahr, String buzei,
                              BigDecimal amount, String currency, java.time.LocalDate dueDate, ScreeningOutcome outcome,
-                             String intendedRiskType, String hrStatus, String mccCode, Boolean budgetExceeded) {
+                             String intendedRiskType, String hrStatus, String mccCode, String budgetExceededFlag, Long userId) {
         AgentCase existing = agentCaseRepository.findByTenantIdAndDedupKey(tenantId, dedupKey).orElse(null);
 
         String severity = outcome.severity();
@@ -502,7 +540,7 @@ public class DetectBatchService {
         String window = "DOC".equals(sourceType) ? RULE_ID_DOC : RULE_ID_OPEN_ITEM;
 
         if (existing == null) {
-            JsonNode evidence = buildEvidenceJson(source, window, bukrs, belnr, gjahr, buzei, amount, currency, dueDate, null, null, intendedRiskType, hrStatus, mccCode, budgetExceeded);
+            JsonNode evidence = buildEvidenceJson(source, window, bukrs, belnr, gjahr, buzei, amount, currency, dueDate, null, null, intendedRiskType, hrStatus, mccCode, budgetExceededFlag);
             AgentCase created = AgentCase.builder()
                     .tenantId(tenantId)
                     .detectedAt(run.getStartedAt() != null ? run.getStartedAt() : Instant.now())
@@ -517,6 +555,7 @@ public class DetectBatchService {
                     .evidenceJson(evidence)
                     .ragRefsJson(com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.arrayNode())
                     .status(AgentCaseStatus.ANALYZING)
+                    .userId(userId)
                     .dedupKey(dedupKey)
                     .lastDetectRunId(run.getRunId())
                     .createdAt(Instant.now())
@@ -546,10 +585,13 @@ public class DetectBatchService {
             existing.setUpdatedAt(Instant.now());
             existing.setLastDetectRunId(run.getRunId());
             if (buzei != null) existing.setBuzei(buzei);
+            if (existing.getUserId() == null && userId != null) {
+                existing.setUserId(userId);
+            }
             existing.setSeverity(severity);
             existing.setScore(score);
             existing.setReasonText(reasonText);
-            existing.setEvidenceJson(buildEvidenceJson(source, window, bukrs, belnr, gjahr, buzei, amount, currency, dueDate, null, null, intendedRiskType, hrStatus, mccCode, budgetExceeded));
+            existing.setEvidenceJson(buildEvidenceJson(source, window, bukrs, belnr, gjahr, buzei, amount, currency, dueDate, null, null, intendedRiskType, hrStatus, mccCode, budgetExceededFlag));
             agentCaseRepository.save(existing);
 
             String entityKey = buzei != null ? bukrs + "-" + belnr + "-" + gjahr + "-" + buzei : bukrs + "-" + belnr + "-" + gjahr;

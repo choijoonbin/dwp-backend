@@ -41,13 +41,27 @@ public class MenuController {
     @GetMapping("/tree")
     public ApiResponse<MenuTreeResponse> getMenuTree(
             Authentication authentication,
-            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantIdHeader) {
+            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantIdHeader,
+            @RequestHeader(value = "X-User-ID", required = false) String userIdHeader) {
         
         Jwt jwt = (Jwt) authentication.getPrincipal();
         Long userId = Long.parseLong(jwt.getSubject());
         Long tenantId = parseTenantId(tenantIdHeader, authentication);
+        Long headerUserId = parseUserId(userIdHeader);
+        Object jwtTenantClaim = jwt.getClaim("tenant_id");
+
+        log.info("TRACE /auth/menus/tree input: jwtSubUserId={}, headerUserId={}, headerTenantId={}, jwtTenantClaim={}",
+                userId, headerUserId, tenantIdHeader, jwtTenantClaim);
+        if (headerUserId != null && !headerUserId.equals(userId)) {
+            log.warn("TRACE /auth/menus/tree mismatch: headerUserId={} != jwtSubUserId={}. JWT subject is used.",
+                    headerUserId, userId);
+        }
+        log.info("TRACE /auth/menus/tree resolved: effectiveUserId={}, effectiveTenantId={}", userId, tenantId);
         
         MenuTreeResponse response = menuService.getMenuTree(userId, tenantId);
+        int rootCount = response != null && response.getMenus() != null ? response.getMenus().size() : 0;
+        log.info("TRACE /auth/menus/tree result: effectiveUserId={}, effectiveTenantId={}, rootMenuCount={}",
+                userId, tenantId, rootCount);
         return ApiResponse.success(response);
     }
 
@@ -60,11 +74,21 @@ public class MenuController {
     public ApiResponse<List<MenuEntryDto>> getMenuEntries(
             Authentication authentication,
             @RequestHeader(value = "X-Tenant-ID", required = false) String tenantIdHeader,
+            @RequestHeader(value = "X-User-ID", required = false) String userIdHeader,
             @RequestParam("keys") List<String> keys) {
         Jwt jwt = (Jwt) authentication.getPrincipal();
         Long userId = Long.parseLong(jwt.getSubject());
         Long tenantId = parseTenantId(tenantIdHeader, authentication);
+        Long headerUserId = parseUserId(userIdHeader);
+        log.info("TRACE /auth/menus/entries input: jwtSubUserId={}, headerUserId={}, headerTenantId={}, requestedKeys={}",
+                userId, headerUserId, tenantIdHeader, keys != null ? keys.size() : 0);
+        if (headerUserId != null && !headerUserId.equals(userId)) {
+            log.warn("TRACE /auth/menus/entries mismatch: headerUserId={} != jwtSubUserId={}. JWT subject is used.",
+                    headerUserId, userId);
+        }
         List<MenuEntryDto> entries = menuService.getMenuEntries(userId, tenantId, keys);
+        log.info("TRACE /auth/menus/entries result: effectiveUserId={}, effectiveTenantId={}, entryCount={}",
+                userId, tenantId, entries != null ? entries.size() : 0);
         return ApiResponse.success(entries);
     }
     
@@ -103,5 +127,17 @@ public class MenuController {
         // 3. Fallback: 개발 환경 기본값
         log.warn("Tenant ID not found in header or JWT, using fallback: 1L");
         return 1L;
+    }
+
+    private Long parseUserId(String header) {
+        if (header == null || header.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(header.trim());
+        } catch (NumberFormatException e) {
+            log.warn("Invalid X-User-ID header: {}", header);
+            return null;
+        }
     }
 }
