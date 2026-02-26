@@ -11,6 +11,8 @@ import java.util.UUID;
 public class RagConflictDiagnosticsResult {
     private Boolean policyRagConflict;
     private List<String> conflictReasons;
+    private String conflictType;
+    private String recommendedAction;
     private String caseType;
     private String reasonText;
     private UUID resolvedRunId;
@@ -18,5 +20,5 @@ public class RagConflictDiagnosticsResult {
     private Boolean ragHasReferences;
     private Boolean policyReevalApplied;
     private String decisionCode;
+    private List<String> evidenceRefs;
 }
-

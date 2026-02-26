@@ -28,6 +28,7 @@ public class HeaderPropagationFilter implements GlobalFilter, Ordered {
     private static final String HEADER_DWP_SOURCE = "X-DWP-Source";
     private static final String HEADER_DWP_CALLER_TYPE = "X-DWP-Caller-Type";
     private static final String HEADER_USER_ID = "X-User-ID";
+    private static final String HEADER_TRACE_ID = "X-Trace-Id";
     private static final String HEADER_AGENT_ID = "X-Agent-ID";  // Aura 에이전트 세션 식별자
     private static final String HEADER_LAST_EVENT_ID = "Last-Event-ID";  // SSE 재연결 지원
 
@@ -82,6 +83,7 @@ public class HeaderPropagationFilter implements GlobalFilter, Ordered {
 
         // 요청 경로 로깅 (디버깅용)
         String path = request.getURI().getPath();
+        String traceId = request.getHeaders().getFirst(HEADER_TRACE_ID);
         if (path.contains("/api/aura/")) {
             log.info("Routing to Aura-Platform: {} with headers: Authorization={}, X-Tenant-ID={}, X-DWP-Source={}, X-DWP-Caller-Type={}",
                     path,
@@ -89,6 +91,13 @@ public class HeaderPropagationFilter implements GlobalFilter, Ordered {
                     tenantId != null ? tenantId : "missing",
                     source != null ? source : "missing",
                     callerType != null ? callerType : "missing");
+        }
+        if (path.startsWith("/api/mcp/tools/v2/")) {
+            log.info("Routing to MCP(v2): path={} traceId={} tenantId={} userId={}",
+                    path,
+                    traceId != null ? traceId : "missing",
+                    tenantId != null ? tenantId : "missing",
+                    userId != null ? userId : "missing");
         }
 
         // Gateway는 기본적으로 모든 헤더를 전파하므로 requestBuilder를 변경할 필요 없음

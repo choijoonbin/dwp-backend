@@ -15,13 +15,16 @@ import com.dwp.services.synapsex.service.case_.CaseTabProxyService;
 import com.dwp.services.synapsex.service.audit.AuditEventQueryService;
 import com.dwp.services.synapsex.service.audit.AuditWriter;
 import com.dwp.services.synapsex.service.analysis.CaseAnalysisService;
+import com.dwp.services.synapsex.service.analysis.ShadowCompareService;
 import com.dwp.services.synapsex.dto.audit.AuditEventPageDto;
 import com.dwp.services.synapsex.dto.analysis.CaseAnalysisDto;
+import com.dwp.services.synapsex.service.agent.AgentEventQueryService;
 import com.dwp.services.synapsex.service.scope.ScopeEnforcementService;
 import com.dwp.services.synapsex.util.DrillDownParamUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
 
@@ -40,6 +43,7 @@ import static com.dwp.services.synapsex.util.DrillDownParamUtil.parseIds;
 @RestController
 @RequestMapping({"/synapse/cases", "/aura/cases"})
 @RequiredArgsConstructor
+@Slf4j
 public class CaseController {
 
     private final CaseQueryService caseQueryService;
@@ -47,6 +51,8 @@ public class CaseController {
     private final CaseTabProxyService caseTabProxyService;
     private final AuditEventQueryService auditEventQueryService;
     private final CaseAnalysisService caseAnalysisService;
+    private final ShadowCompareService shadowCompareService;
+    private final AgentEventQueryService agentEventQueryService;
     private final AuditWriter auditWriter;
     private final ScopeEnforcementService scopeEnforcementService;
 
@@ -224,6 +230,52 @@ public class CaseController {
         Object result = caseTabProxyService.getAnalysis(tenantId, caseId, authorization, actorUserId);
         logTabAudit(tenantId, caseId, actorUserId, actorAgentId, AuditEventConstants.TYPE_VIEW_ANALYSIS, httpRequest);
         return ApiResponse.success(result);
+    }
+
+    /**
+     * GET /api/synapse/cases/{caseId}/agent-events?runId=...
+     * 표준 AGENT_EVENT 타임라인 조회 (기본: 최신 run).
+     */
+    @GetMapping("/{caseId}/agent-events")
+    public ApiResponse<List<AgentEventDto>> getCaseAgentEvents(
+            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
+            @PathVariable Long caseId,
+            @RequestParam(required = false) UUID runId,
+            @RequestParam(defaultValue = "true") boolean latestIfMissing,
+            HttpServletRequest httpRequest) {
+        (actorUserId != null ? caseQueryService.findCaseDetail(tenantId, actorUserId, caseId) : caseQueryService.findCaseDetail(tenantId, caseId))
+                .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
+
+        String traceId = AuditRequestContext.getTraceId(httpRequest);
+        log.info("AGENT_EVENT timeline request: traceId={} tenantId={} caseId={} runId={}",
+                traceId, tenantId, caseId, runId);
+        List<AgentEventDto> items = agentEventQueryService.findCaseAgentEvents(tenantId, caseId, runId, latestIfMissing);
+        log.info("AGENT_EVENT timeline response: traceId={} tenantId={} caseId={} runId={} count={}",
+                traceId, tenantId, caseId, runId, items.size());
+        return ApiResponse.success(items);
+    }
+
+    /**
+     * GET /api/synapse/cases/{caseId}/shadow-compare?runId=...
+     * 동일 케이스의 primary vs shadow 분석 비교 요약.
+     */
+    @GetMapping("/{caseId}/shadow-compare")
+    public ApiResponse<ShadowCompareDto> getCaseShadowCompare(
+            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @RequestHeader(value = HeaderConstants.X_USER_ID, required = false) Long actorUserId,
+            @PathVariable Long caseId,
+            @RequestParam(required = false) UUID runId,
+            HttpServletRequest httpRequest) {
+        (actorUserId != null ? caseQueryService.findCaseDetail(tenantId, actorUserId, caseId) : caseQueryService.findCaseDetail(tenantId, caseId))
+                .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
+
+        String traceId = AuditRequestContext.getTraceId(httpRequest);
+        log.info("SHADOW compare request: traceId={} tenantId={} caseId={} runId={}", traceId, tenantId, caseId, runId);
+        ShadowCompareDto dto = shadowCompareService.compare(tenantId, caseId, runId);
+        log.info("SHADOW compare response: traceId={} tenantId={} caseId={} runId={} verdictMatch={} scoreDelta={} citationCoverageDelta={}",
+                traceId, tenantId, caseId, runId, dto.getVerdictMatch(), dto.getScoreDelta(), dto.getCitationCoverageDelta());
+        return ApiResponse.success(dto);
     }
 
     /**

@@ -22,6 +22,10 @@ mcp:
     service-account-user-ids: ${MCP_SERVICE_ACCOUNT_USER_IDS:}
     # allowlist user에 대해 허용할 tenant_id 목록(CSV). 비우면 전체 tenant 허용.
     service-account-tenant-ids: ${MCP_SERVICE_ACCOUNT_TENANT_IDS:}
+  shadow:
+    default-agent-mode: ${MCP_SHADOW_DEFAULT_AGENT_MODE:agentic_shadow}
+    default-model-version: ${MCP_SHADOW_DEFAULT_MODEL_VERSION:unknown}
+    default-policy-version: ${MCP_SHADOW_DEFAULT_POLICY_VERSION:unknown}
 
 springdoc:
   api-docs:

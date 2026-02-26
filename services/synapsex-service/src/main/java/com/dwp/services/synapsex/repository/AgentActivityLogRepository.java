@@ -1,11 +1,14 @@
 package com.dwp.services.synapsex.repository;
 
 import com.dwp.services.synapsex.entity.AgentActivityLog;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * agent_activity_log 조회
@@ -43,4 +46,43 @@ public interface AgentActivityLogRepository extends JpaRepository<AgentActivityL
      */
     List<AgentActivityLog> findByTenantIdAndResourceTypeAndResourceIdOrderByOccurredAtAsc(
             Long tenantId, String resourceType, String resourceId, Pageable pageable);
+
+    @Query(value = """
+            SELECT EXISTS (
+              SELECT 1
+                FROM dwp_aura.agent_activity_log a
+               WHERE a.tenant_id = :tenantId
+                 AND a.event_type = 'AGENT_EVENT'
+                 AND a.resource_type = :resourceType
+                 AND a.resource_id = :resourceId
+                 AND COALESCE(a.metadata_json->>'run_id','') = COALESCE(:runId,'')
+                 AND COALESCE(a.metadata_json->>'event_type','') = COALESCE(:eventType,'')
+                 AND COALESCE(a.metadata_json->>'node','') = COALESCE(:node,'')
+                 AND COALESCE(a.metadata_json->>'input_hash','') = COALESCE(:inputHash,'')
+            )
+            """, nativeQuery = true)
+    boolean existsAgentEventDuplicate(
+            @Param("tenantId") Long tenantId,
+            @Param("resourceType") String resourceType,
+            @Param("resourceId") String resourceId,
+            @Param("runId") String runId,
+            @Param("eventType") String eventType,
+            @Param("node") String node,
+            @Param("inputHash") String inputHash);
+
+    @Query(value = """
+            SELECT a.metadata_json->>'run_id'
+              FROM dwp_aura.agent_activity_log a
+             WHERE a.tenant_id = :tenantId
+               AND a.event_type = 'AGENT_EVENT'
+               AND a.resource_type = :resourceType
+               AND a.resource_id = :resourceId
+               AND COALESCE(a.metadata_json->>'run_id', '') <> ''
+             ORDER BY a.occurred_at DESC, a.created_at DESC
+             LIMIT 1
+            """, nativeQuery = true)
+    Optional<String> findLatestRunIdByAgentEvent(
+            @Param("tenantId") Long tenantId,
+            @Param("resourceType") String resourceType,
+            @Param("resourceId") String resourceId);
 }

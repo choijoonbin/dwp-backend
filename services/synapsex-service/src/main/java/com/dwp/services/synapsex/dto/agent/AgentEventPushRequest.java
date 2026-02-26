@@ -2,7 +2,6 @@ package com.dwp.services.synapsex.dto.agent;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -31,17 +30,14 @@ public class AgentEventPushRequest {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class AgentEventItem {
-        @NotBlank(message = "tenantId는 필수입니다.")
         @JsonAlias("tenant_id")
         private String tenantId;
 
-        @NotBlank(message = "timestamp는 필수입니다.")
+        @JsonAlias("occurred_at")
         private String timestamp;
 
-        @NotBlank(message = "stage는 필수입니다.")
         private String stage;  // SCAN|DETECT|EXECUTE|SIMULATE|ANALYZE|MATCH
 
-        @NotBlank(message = "message는 필수입니다.")
         private String message;
 
         @JsonAlias("case_key")
@@ -57,6 +53,30 @@ public class AgentEventPushRequest {
 
         @JsonAlias("action_id")
         private String actionId;
+
+        /** 표준 AGENT_EVENT 필드 (top-level 수용) */
+        @JsonAlias("event_type")
+        private String eventType;
+        private String node;
+        private String tool;
+        @JsonAlias("decision_code")
+        private String decisionCode;
+        @JsonAlias("input_hash")
+        private String inputHash;
+        @JsonAlias("output_ref")
+        private String outputRef;
+        @JsonAlias("evidence_ids")
+        private List<String> evidenceIds;
+        @JsonAlias("run_id")
+        private String runId;
+        @JsonAlias("latency_ms")
+        private Long latencyMs;
+        @JsonAlias("summary_message")
+        private String summaryMessage;
+        @JsonAlias("error_code")
+        private String errorCode;
+        @JsonAlias("error_message")
+        private String errorMessage;
 
         /** Aura 이벤트 메타데이터. thought_stream, reasoning 등 — metadata_json 키로도 수신 가능 */
         @JsonAlias("metadata_json")

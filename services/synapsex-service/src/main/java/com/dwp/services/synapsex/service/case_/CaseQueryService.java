@@ -861,7 +861,7 @@ public class CaseQueryService {
                                     .description(description != null ? description : "")
                                     .build());
                         }
-                        if (!list.isEmpty()) return list;
+                        if (!list.isEmpty()) return deduplicateLogicCheckpoints(list);
                     }
                 } catch (Exception e) {
                     if (log.isDebugEnabled()) log.debug("buildLogicCheckpoints parse violation_clause JSON failed: {}", e.getMessage());
@@ -869,11 +869,11 @@ public class CaseQueryService {
             }
             // 단일 조항 문자열이면 1건으로
             String status = case_.getSeverity() != null && !"LOW".equalsIgnoreCase(case_.getSeverity()) ? "VIOLATED" : "COMPLETED";
-            return List.of(CaseDetailDto.LogicCheckpointDto.builder()
+            return deduplicateLogicCheckpoints(List.of(CaseDetailDto.LogicCheckpointDto.builder()
                     .clause(raw)
                     .status(status)
                     .description("")
-                    .build());
+                    .build()));
         }
         // violation_clause 없을 때 evidence_json에서 조항/상태/설명 추출
         JsonNode evidenceJson = r.getEvidenceJson();
@@ -893,7 +893,7 @@ public class CaseQueryService {
                         .description(description != null ? description : "")
                         .build());
             }
-            if (!list.isEmpty()) return list;
+            if (!list.isEmpty()) return deduplicateLogicCheckpoints(list);
         }
         return List.of();
     }
@@ -908,12 +908,46 @@ public class CaseQueryService {
                 JsonNode regArr = evidenceMapJson.get("regulation_checkpoints");
                 if (regArr == null) regArr = evidenceMapJson.get("regulationCheckpoints");
                 if (regArr != null && regArr.isArray()) {
-                    List<CaseDetailDto.RegulationCheckpointDto> list = parseRegulationCheckpointsFromJson(regArr);
+                    List<CaseDetailDto.RegulationCheckpointDto> list = deduplicateRegulationCheckpoints(parseRegulationCheckpointsFromJson(regArr));
                     if (!list.isEmpty()) return alignRegulationStatusWithFinalDecision(list, holdDecision);
                 }
             }
         }
-        return alignRegulationStatusWithFinalDecision(convertLogicCheckpointsToRegulationCheckpoints(logicCheckpoints), holdDecision);
+        // regulationCheckpoints가 비어있을 때만 logicCheckpoints fallback
+        List<CaseDetailDto.RegulationCheckpointDto> fallback = deduplicateRegulationCheckpoints(
+                convertLogicCheckpointsToRegulationCheckpoints(logicCheckpoints)
+        );
+        return alignRegulationStatusWithFinalDecision(fallback, holdDecision);
+    }
+
+    private List<CaseDetailDto.LogicCheckpointDto> deduplicateLogicCheckpoints(List<CaseDetailDto.LogicCheckpointDto> input) {
+        if (input == null || input.isEmpty()) return List.of();
+        List<CaseDetailDto.LogicCheckpointDto> out = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (CaseDetailDto.LogicCheckpointDto cp : input) {
+            if (cp == null) continue;
+            String key = (cp.getClause() != null ? cp.getClause().trim() : "")
+                    + "||" + (cp.getStatus() != null ? cp.getStatus().trim().toUpperCase() : "")
+                    + "||" + (cp.getDescription() != null ? cp.getDescription().trim() : "");
+            if (!seen.add(key)) continue;
+            out.add(cp);
+        }
+        return out;
+    }
+
+    private List<CaseDetailDto.RegulationCheckpointDto> deduplicateRegulationCheckpoints(List<CaseDetailDto.RegulationCheckpointDto> input) {
+        if (input == null || input.isEmpty()) return List.of();
+        List<CaseDetailDto.RegulationCheckpointDto> out = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
+        for (CaseDetailDto.RegulationCheckpointDto cp : input) {
+            if (cp == null) continue;
+            String key = (cp.getClause() != null ? cp.getClause().trim() : "")
+                    + "||" + (cp.getStatus() != null ? cp.getStatus().trim().toUpperCase() : "")
+                    + "||" + (cp.getDescription() != null ? cp.getDescription().trim() : "");
+            if (!seen.add(key)) continue;
+            out.add(cp);
+        }
+        return out;
     }
 
     /**

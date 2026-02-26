@@ -3,12 +3,16 @@ package com.dwp.services.mcp.service;
 import com.dwp.services.mcp.dto.mcp.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PostConstruct;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.sql.Date;
@@ -30,6 +34,35 @@ public class McpToolService {
 
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
+
+    @Value("${mcp.shadow.default-agent-mode:agentic_shadow}")
+    private String defaultAgentMode;
+    @Value("${mcp.shadow.default-model-version:unknown}")
+    private String defaultModelVersion;
+    @Value("${mcp.shadow.default-policy-version:unknown}")
+    private String defaultPolicyVersion;
+
+    @PostConstruct
+    public void ensureShadowMetaTable() {
+        jdbcTemplate.execute("""
+                CREATE TABLE IF NOT EXISTS dwp_aura.mcp_shadow_run_meta (
+                  id BIGSERIAL PRIMARY KEY,
+                  tenant_id BIGINT NOT NULL,
+                  run_id UUID NOT NULL,
+                  case_id BIGINT,
+                  requested_agent_mode VARCHAR(30),
+                  resolved_agent_mode VARCHAR(30) NOT NULL,
+                  trace_id VARCHAR(120),
+                  requested_model_version VARCHAR(120),
+                  resolved_model_version VARCHAR(120) NOT NULL,
+                  requested_policy_version VARCHAR(120),
+                  resolved_policy_version VARCHAR(120) NOT NULL,
+                  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                )
+                """);
+        jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS ix_mcp_shadow_meta_tenant_created ON dwp_aura.mcp_shadow_run_meta(tenant_id, created_at DESC)");
+        jdbcTemplate.execute("CREATE INDEX IF NOT EXISTS ix_mcp_shadow_meta_run ON dwp_aura.mcp_shadow_run_meta(run_id)");
+    }
 
     public PolicyLookupResult policyLookup(Long tenantId, PolicyLookupRequest request) {
         // 정책 시점판정은 KST(Asia/Seoul) 기준으로 고정
@@ -141,18 +174,19 @@ public class McpToolService {
     }
 
     public CaseContextResult caseContext(Long tenantId, CaseContextRequest request) {
-        // 현재 SoT는 fi_doc_header.created_at 이며, occurred_at 컬럼이 도입되면 이 기준으로 전환한다.
         Instant occurredAt = request.getOccurredAt() != null ? request.getOccurredAt() : Instant.now();
         Instant from10m = occurredAt.minusSeconds(10 * 60L);
         Instant from24h = occurredAt.minusSeconds(24 * 60 * 60L);
         Instant from30d = occurredAt.minusSeconds(30L * 24 * 60 * 60);
         Long userId = request.getUserId();
+        String mccCode = normalizeMccCode(request.getMccCode());
+        BigDecimal currentAmount = request.getAmount();
         String merchant = trimToNull(request.getMerchantName());
         String source = "INPUT";
 
         if ((userId == null || merchant == null) && request.getCaseId() != null) {
             Map<String, Object> row = jdbcTemplate.query("""
-                            SELECT c.user_id, h.bktxt, h.xblnr
+                            SELECT c.user_id, h.bktxt, h.xblnr, h.mcc_code
                             FROM dwp_aura.agent_case c
                             LEFT JOIN dwp_aura.fi_doc_header h
                               ON h.tenant_id = c.tenant_id
@@ -166,25 +200,82 @@ public class McpToolService {
                         ps.setLong(1, tenantId);
                         ps.setLong(2, request.getCaseId());
                     },
-                    rs -> rs.next() ? Map.of(
-                            "user_id", rs.getObject("user_id"),
-                            "bktxt", rs.getString("bktxt"),
-                            "xblnr", rs.getString("xblnr")) : null);
+                    rs -> {
+                        if (!rs.next()) return null;
+                        Map<String, Object> out = new HashMap<>();
+                        out.put("user_id", rs.getObject("user_id"));
+                        out.put("bktxt", rs.getString("bktxt"));
+                        out.put("xblnr", rs.getString("xblnr"));
+                        out.put("mcc_code", rs.getString("mcc_code"));
+                        return out;
+                    });
             if (row != null) {
                 if (userId == null && row.get("user_id") != null) userId = ((Number) row.get("user_id")).longValue();
                 if (merchant == null) merchant = trimToNull((String) row.get("bktxt")) != null ? (String) row.get("bktxt") : trimToNull((String) row.get("xblnr"));
+                if (mccCode == null) mccCode = normalizeMccCode((String) row.get("mcc_code"));
                 source = "CASE_CONTEXT";
             }
         }
 
+        if ((userId == null || mccCode == null || currentAmount == null) && request.getDocKey() != null) {
+            String[] parts = request.getDocKey().split("-");
+            if (parts.length >= 3) {
+                String bukrs = parts[0];
+                String belnr = parts[1];
+                String gjahr = parts[2];
+                Map<String, Object> row = jdbcTemplate.query("""
+                                SELECT h.user_id, h.mcc_code, COALESCE(SUM(ABS(i.wrbtr)),0) AS doc_amount
+                                FROM dwp_aura.fi_doc_header h
+                                LEFT JOIN dwp_aura.fi_doc_item i
+                                  ON i.tenant_id=h.tenant_id AND i.bukrs=h.bukrs AND i.belnr=h.belnr AND i.gjahr=h.gjahr
+                                WHERE h.tenant_id=? AND h.bukrs=? AND h.belnr=? AND h.gjahr=?
+                                GROUP BY h.user_id, h.mcc_code
+                                LIMIT 1
+                                """,
+                        ps -> {
+                            ps.setLong(1, tenantId);
+                            ps.setString(2, bukrs);
+                            ps.setString(3, belnr);
+                            ps.setString(4, gjahr);
+                        },
+                        rs -> {
+                            if (!rs.next()) return null;
+                            Map<String, Object> out = new HashMap<>();
+                            out.put("user_id", rs.getObject("user_id"));
+                            out.put("mcc_code", rs.getString("mcc_code"));
+                            out.put("doc_amount", rs.getBigDecimal("doc_amount"));
+                            return out;
+                        });
+                if (row != null) {
+                    if (userId == null && row.get("user_id") instanceof Number n) userId = n.longValue();
+                    if (mccCode == null) mccCode = normalizeMccCode((String) row.get("mcc_code"));
+                    if (currentAmount == null && row.get("doc_amount") instanceof BigDecimal b) currentAmount = b;
+                    source = "DOC_KEY";
+                }
+            }
+        }
+
         Integer c10 = 0;
+        Integer c24Txn = 0;
+        Integer c30Txn = 0;
         Integer c24 = 0;
         BigDecimal baseline = BigDecimal.ZERO;
+        BigDecimal peerPercentile = null;
+        String decisionCode = "OK";
+        List<String> evidenceRefs = new ArrayList<>();
         if (userId != null) {
             c10 = jdbcTemplate.queryForObject("""
                     SELECT COUNT(*) FROM dwp_aura.fi_doc_header
                     WHERE tenant_id = ? AND user_id = ? AND created_at >= ? AND created_at <= ?
                     """, Integer.class, tenantId, userId, Timestamp.from(from10m), Timestamp.from(occurredAt));
+            c24Txn = jdbcTemplate.queryForObject("""
+                    SELECT COUNT(*) FROM dwp_aura.fi_doc_header
+                    WHERE tenant_id = ? AND user_id = ? AND created_at >= ? AND created_at <= ?
+                    """, Integer.class, tenantId, userId, Timestamp.from(from24h), Timestamp.from(occurredAt));
+            c30Txn = jdbcTemplate.queryForObject("""
+                    SELECT COUNT(*) FROM dwp_aura.fi_doc_header
+                    WHERE tenant_id = ? AND user_id = ? AND created_at >= ? AND created_at <= ?
+                    """, Integer.class, tenantId, userId, Timestamp.from(from30d), Timestamp.from(occurredAt));
             baseline = jdbcTemplate.queryForObject("""
                     SELECT COALESCE(AVG(t.doc_amount), 0)
                     FROM (
@@ -196,6 +287,8 @@ public class McpToolService {
                       GROUP BY h.bukrs, h.belnr, h.gjahr
                     ) t
                     """, BigDecimal.class, tenantId, userId, Timestamp.from(from30d), Timestamp.from(occurredAt));
+            evidenceRefs.add("fi_doc_header:user_windows");
+            evidenceRefs.add("fi_doc_item:user_avg_30d");
         }
         if (userId != null && merchant != null) {
             c24 = jdbcTemplate.queryForObject("""
@@ -203,18 +296,74 @@ public class McpToolService {
                     WHERE tenant_id = ? AND user_id = ? AND created_at >= ? AND created_at <= ?
                       AND LOWER(COALESCE(NULLIF(TRIM(bktxt), ''), NULLIF(TRIM(xblnr), ''), '')) = LOWER(?)
                     """, Integer.class, tenantId, userId, Timestamp.from(from24h), Timestamp.from(occurredAt), merchant);
+            evidenceRefs.add("fi_doc_header:user_same_merchant_24h");
+        }
+        if (mccCode != null && currentAmount != null) {
+            Integer sample = jdbcTemplate.queryForObject("""
+                    SELECT COUNT(*)
+                    FROM (
+                      SELECT h.bukrs, h.belnr, h.gjahr, COALESCE(SUM(ABS(i.wrbtr)),0) AS doc_amount
+                      FROM dwp_aura.fi_doc_header h
+                      LEFT JOIN dwp_aura.fi_doc_item i
+                        ON i.tenant_id=h.tenant_id AND i.bukrs=h.bukrs AND i.belnr=h.belnr AND i.gjahr=h.gjahr
+                      WHERE h.tenant_id=? AND UPPER(COALESCE(h.mcc_code,''))=UPPER(?)
+                        AND h.created_at>=? AND h.created_at<=?
+                      GROUP BY h.bukrs,h.belnr,h.gjahr
+                    ) t
+                    """, Integer.class, tenantId, mccCode, Timestamp.from(from30d), Timestamp.from(occurredAt));
+            if (sample != null && sample >= 30) {
+                Double pct = jdbcTemplate.queryForObject("""
+                        SELECT 100.0 * AVG(CASE WHEN t.doc_amount <= ? THEN 1.0 ELSE 0.0 END)
+                        FROM (
+                          SELECT h.bukrs, h.belnr, h.gjahr, COALESCE(SUM(ABS(i.wrbtr)),0) AS doc_amount
+                          FROM dwp_aura.fi_doc_header h
+                          LEFT JOIN dwp_aura.fi_doc_item i
+                            ON i.tenant_id=h.tenant_id AND i.bukrs=h.bukrs AND i.belnr=h.belnr AND i.gjahr=h.gjahr
+                          WHERE h.tenant_id=? AND UPPER(COALESCE(h.mcc_code,''))=UPPER(?)
+                            AND h.created_at>=? AND h.created_at<=?
+                          GROUP BY h.bukrs,h.belnr,h.gjahr
+                        ) t
+                        """, Double.class, currentAmount, tenantId, mccCode, Timestamp.from(from30d), Timestamp.from(occurredAt));
+                if (pct != null) {
+                    peerPercentile = BigDecimal.valueOf(pct).setScale(1, RoundingMode.HALF_UP);
+                }
+            } else {
+                decisionCode = "NO_DATA";
+            }
+            evidenceRefs.add("fi_doc_header+fi_doc_item:peer_group_30d");
+        } else {
+            decisionCode = "NO_DATA";
         }
         return CaseContextResult.builder()
                 .window10mTxnCount(c10 != null ? c10 : 0)
                 .window24hSameMerchantCount(c24 != null ? c24 : 0)
                 .user30dBaselineAmount(baseline != null ? baseline : BigDecimal.ZERO)
+                .window24hTxnCount(c24Txn != null ? c24Txn : 0)
+                .window30dTxnCount(c30Txn != null ? c30Txn : 0)
+                .avgAmount30d(baseline != null ? baseline : BigDecimal.ZERO)
+                .peerGroupPercentile(peerPercentile)
+                .decisionCode(decisionCode)
+                .evidenceRefs(evidenceRefs)
                 .decisionSource(source)
                 .build();
     }
 
     public EvidenceVerificationResult evidenceVerification(Long tenantId, EvidenceVerificationRequest request) {
+        return evidenceVerification(tenantId, null, request);
+    }
+
+    public EvidenceVerificationResult evidenceVerification(Long tenantId, String traceId, EvidenceVerificationRequest request) {
         List<String> reasons = new ArrayList<>();
-        List<String> reqIds = request.getCitationIds() != null ? request.getCitationIds() : List.of();
+        List<String> ungroundedSentences = new ArrayList<>();
+        List<String> reqIds = new ArrayList<>();
+
+        if (request.getCitationIds() != null) reqIds.addAll(request.getCitationIds());
+        if ((request.getCitations() != null && request.getCitations().isArray()) && reqIds.isEmpty()) {
+            for (JsonNode c : request.getCitations()) {
+                String id = textAny(c, "citation_id", "citationId", "id");
+                if (id != null) reqIds.add(id);
+            }
+        }
         if (reqIds.isEmpty()) reasons.add("EMPTY_CITATIONS");
 
         UUID runId = resolveRunId(tenantId, request.getCaseId(), request.getRunId());
@@ -232,16 +381,56 @@ public class McpToolService {
         boolean articleMatched = isArticleMatched(request.getArticle(), ragRefs);
         if (trimToNull(request.getArticle()) != null && !articleMatched) reasons.add("ARTICLE_MISMATCH");
 
-        boolean valid = reasons.isEmpty();
+        int totalSentences = 0;
+        int groundedSentences = 0;
+        JsonNode scm = request.getSentenceCitationMap();
+        if (scm != null && scm.isArray()) {
+            totalSentences = scm.size();
+            for (JsonNode s : scm) {
+                JsonNode ids = s.get("citation_ids");
+                boolean grounded = ids != null && ids.isArray() && ids.size() > 0;
+                if (!grounded) {
+                    String txt = textAny(s, "sentence", "text");
+                    if (txt != null) ungroundedSentences.add(txt);
+                } else groundedSentences++;
+            }
+            if (!ungroundedSentences.isEmpty()) reasons.add("SENTENCE_CITATION_MISSING");
+        } else if (request.getSentence() != null && !request.getSentence().isBlank()) {
+            totalSentences = 1;
+            groundedSentences = matched > 0 ? 1 : 0;
+            if (groundedSentences == 0) ungroundedSentences.add(request.getSentence());
+        }
+
+        BigDecimal coverage = totalSentences > 0
+                ? BigDecimal.valueOf((double) groundedSentences / (double) totalSentences).setScale(4, RoundingMode.HALF_UP)
+                : null;
+
+        String decisionCode;
+        if ((request.getRiskType() == null || request.getRegulationVersion() == null)
+                && (request.getSentenceCitationMap() == null && (request.getSentence() == null || request.getSentence().isBlank()))) {
+            decisionCode = "PARTIAL";
+        } else if (reasons.isEmpty()) {
+            decisionCode = "OK";
+        } else {
+            decisionCode = "MISMATCH";
+        }
+        boolean valid = "OK".equals(decisionCode);
+        log.info("MCP verification summary: traceId={} groundedCoverageRatio={} mismatchCount={}",
+                traceId != null ? traceId : (request.getRunId() != null ? request.getRunId() : request.getCaseId()),
+                coverage, reasons.size());
         return EvidenceVerificationResult.builder()
+                .verified(valid)
                 .isValid(valid)
                 .mismatchReasons(reasons)
+                .groundedCoverageRatio(coverage)
+                .ungroundedSentences(ungroundedSentences)
                 .resolvedRunId(runId)
                 .matchedCitationCount(matched)
                 .requestedCitationCount(reqIds.size())
                 .articleMatched(articleMatched)
-                .decisionCode(valid ? "OK" : (reasons.contains("CITATION_NOT_FOUND") ? "POLICY_CONFLICT" : "EVIDENCE_MISSING"))
+                .decisionCode(decisionCode)
                 .evidenceHash(buildHash(request))
+                .evidenceRefs(List.of("case_analysis_result.rag_refs_json", "request.sentenceCitationMap"))
                 .build();
     }
 
@@ -281,9 +470,23 @@ public class McpToolService {
         if (sentenceMissing) reasons.add("SENTENCE_CITATION_MISSING");
 
         boolean conflict = !reasons.isEmpty();
+        String conflictType = "NONE";
+        String recommendedAction = "PASS";
+        if (qualityGateCodes.contains("POLICY_CONFLICT") || qualityGateCodes.contains("POLICY_CONFLICT_DETECTED")) {
+            conflictType = "POLICY_CONFLICT";
+            recommendedAction = "HOLD";
+        } else if (qualityGateCodes.contains("RISK_ARTICLE_MISMATCH")) {
+            conflictType = "RISK_ARTICLE_MISMATCH";
+            recommendedAction = "REEVAL";
+        } else if (conflict) {
+            conflictType = "POLICY_CONFLICT";
+            recommendedAction = "HOLD";
+        }
         return RagConflictDiagnosticsResult.builder()
                 .policyRagConflict(conflict)
                 .conflictReasons(reasons)
+                .conflictType(conflictType)
+                .recommendedAction(recommendedAction)
                 .caseType(caseType)
                 .reasonText(reasonText)
                 .resolvedRunId(runId)
@@ -291,6 +494,136 @@ public class McpToolService {
                 .ragHasReferences(ragHasRefs)
                 .policyReevalApplied(reeval)
                 .decisionCode(conflict ? "POLICY_CONFLICT" : "OK")
+                .evidenceRefs(List.of("case_analysis_result.quality_gate_codes", "case_analysis_result.rag_refs_json"))
+                .build();
+    }
+
+    public ShadowRunMetadataResult saveShadowRunMetadata(Long tenantId, ShadowRunMetadataRequest request) {
+        String requestedAgentMode = trimToNull(request.getAgentMode());
+        String requestedModelVersion = trimToNull(request.getModelVersion());
+        String requestedPolicyVersion = trimToNull(request.getPolicyVersion());
+        String resolvedAgentMode = requestedAgentMode != null ? requestedAgentMode : defaultAgentMode;
+        String resolvedModelVersion = requestedModelVersion != null ? requestedModelVersion : defaultModelVersion;
+        String resolvedPolicyVersion = requestedPolicyVersion != null ? requestedPolicyVersion : defaultPolicyVersion;
+
+        jdbcTemplate.update("""
+                        INSERT INTO dwp_aura.mcp_shadow_run_meta (
+                          tenant_id, run_id, case_id,
+                          requested_agent_mode, resolved_agent_mode,
+                          trace_id,
+                          requested_model_version, resolved_model_version,
+                          requested_policy_version, resolved_policy_version
+                        ) VALUES (?,?,?,?,?,?,?,?,?,?)
+                        """,
+                tenantId, request.getRunId(), request.getCaseId(),
+                requestedAgentMode, resolvedAgentMode,
+                trimToNull(request.getTraceId()),
+                requestedModelVersion, resolvedModelVersion,
+                requestedPolicyVersion, resolvedPolicyVersion);
+
+        return ShadowRunMetadataResult.builder()
+                .runId(request.getRunId())
+                .caseId(request.getCaseId())
+                .traceId(trimToNull(request.getTraceId()))
+                .requestedAgentMode(requestedAgentMode)
+                .resolvedAgentMode(resolvedAgentMode)
+                .requestedModelVersion(requestedModelVersion)
+                .resolvedModelVersion(resolvedModelVersion)
+                .requestedPolicyVersion(requestedPolicyVersion)
+                .resolvedPolicyVersion(resolvedPolicyVersion)
+                .decisionCode("OK")
+                .evidenceRefs(List.of("mcp_shadow_run_meta"))
+                .savedAt(Instant.now())
+                .build();
+    }
+
+    public ShadowCompareResult shadowCompare(Long tenantId, Instant from, Instant to) {
+        Instant fromTs = from != null ? from : Instant.now().minusSeconds(30L * 24 * 60 * 60);
+        Instant toTs = to != null ? to : Instant.now();
+
+        Long total = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*) FROM dwp_aura.mcp_shadow_run_meta
+                WHERE tenant_id=? AND created_at>=? AND created_at<=?
+                """, Long.class, tenantId, Timestamp.from(fromTs), Timestamp.from(toTs));
+
+        if (total == null || total == 0L) {
+            return ShadowCompareResult.builder()
+                    .from(fromTs)
+                    .to(toTs)
+                    .total(0L)
+                    .sameVerdictRate(BigDecimal.ZERO)
+                    .citationMismatchRate(BigDecimal.ZERO)
+                    .ragZeroRate(BigDecimal.ZERO)
+                    .holdRate(BigDecimal.ZERO)
+                    .decisionCode("NO_DATA")
+                    .evidenceRefs(List.of("mcp_shadow_run_meta"))
+                    .build();
+        }
+
+        Map<String, Object> row = jdbcTemplate.query("""
+                WITH shadow AS (
+                  SELECT m.run_id, m.case_id
+                  FROM dwp_aura.mcp_shadow_run_meta m
+                  WHERE m.tenant_id=? AND m.created_at>=? AND m.created_at<=?
+                ),
+                shadow_res AS (
+                  SELECT s.run_id, s.case_id, ar.severity, ar.quality_gate_codes, ar.reason_text
+                  FROM shadow s
+                  JOIN dwp_aura.case_analysis_result ar
+                    ON ar.run_id = s.run_id AND ar.tenant_id=?
+                ),
+                legacy_res AS (
+                  SELECT DISTINCT ON (r.case_id) r.case_id, ar.severity
+                  FROM dwp_aura.case_analysis_run r
+                  JOIN dwp_aura.case_analysis_result ar
+                    ON ar.run_id=r.run_id AND ar.tenant_id=r.tenant_id
+                  WHERE r.tenant_id=? AND r.mode='LIVE'
+                  ORDER BY r.case_id, r.started_at DESC
+                )
+                SELECT
+                  SUM(CASE WHEN l.severity IS NOT NULL AND l.severity = s.severity THEN 1 ELSE 0 END) AS same_verdict_count,
+                  SUM(CASE WHEN s.quality_gate_codes IS NOT NULL AND jsonb_exists(s.quality_gate_codes,'SENTENCE_CITATION_MISSING') THEN 1 ELSE 0 END) AS citation_mismatch_count,
+                  SUM(CASE WHEN s.quality_gate_codes IS NOT NULL AND jsonb_exists(s.quality_gate_codes,'RAG_ZERO') THEN 1 ELSE 0 END) AS rag_zero_count,
+                  SUM(CASE WHEN (s.quality_gate_codes IS NOT NULL AND (
+                                jsonb_exists(s.quality_gate_codes,'POLICY_CONFLICT')
+                             OR jsonb_exists(s.quality_gate_codes,'POLICY_CONFLICT_DETECTED')
+                             OR jsonb_exists(s.quality_gate_codes,'EVIDENCE_COVERAGE_LOW')
+                             OR jsonb_exists(s.quality_gate_codes,'SENTENCE_CITATION_MISSING')
+                           ))
+                           OR LOWER(COALESCE(s.reason_text,'')) LIKE '%보류%'
+                           OR LOWER(COALESCE(s.reason_text,'')) LIKE '%재검토%'
+                           THEN 1 ELSE 0 END) AS hold_count
+                FROM shadow_res s
+                LEFT JOIN legacy_res l ON l.case_id = s.case_id
+                """,
+                ps -> {
+                    ps.setLong(1, tenantId);
+                    ps.setTimestamp(2, Timestamp.from(fromTs));
+                    ps.setTimestamp(3, Timestamp.from(toTs));
+                    ps.setLong(4, tenantId);
+                    ps.setLong(5, tenantId);
+                },
+                rs -> rs.next() ? Map.of(
+                        "same", rs.getLong("same_verdict_count"),
+                        "citation", rs.getLong("citation_mismatch_count"),
+                        "ragZero", rs.getLong("rag_zero_count"),
+                        "hold", rs.getLong("hold_count")) : Map.of());
+
+        long same = ((Number) row.getOrDefault("same", 0L)).longValue();
+        long citation = ((Number) row.getOrDefault("citation", 0L)).longValue();
+        long ragZero = ((Number) row.getOrDefault("ragZero", 0L)).longValue();
+        long hold = ((Number) row.getOrDefault("hold", 0L)).longValue();
+
+        return ShadowCompareResult.builder()
+                .from(fromTs)
+                .to(toTs)
+                .total(total)
+                .sameVerdictRate(ratio(same, total))
+                .citationMismatchRate(ratio(citation, total))
+                .ragZeroRate(ratio(ragZero, total))
+                .holdRate(ratio(hold, total))
+                .decisionCode("OK")
+                .evidenceRefs(List.of("mcp_shadow_run_meta", "case_analysis_result", "case_analysis_run"))
                 .build();
     }
 
@@ -566,5 +899,10 @@ public class McpToolService {
         if (s == null) return null;
         String t = s.trim();
         return t.isEmpty() ? null : t;
+    }
+
+    private BigDecimal ratio(long numerator, long denominator) {
+        if (denominator <= 0L) return BigDecimal.ZERO;
+        return BigDecimal.valueOf((double) numerator / (double) denominator).setScale(4, RoundingMode.HALF_UP);
     }
 }
