@@ -10,6 +10,7 @@ import com.dwp.services.synapsex.repository.RagDocumentRepository;
 import com.dwp.services.synapsex.repository.RagEvalRunRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,6 +21,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class RagGovernanceService {
 
     private static final BigDecimal ZERO_RATE_THRESHOLD = new BigDecimal("0.20");
@@ -34,9 +36,15 @@ public class RagGovernanceService {
         if (report == null || report.isNull()) return;
 
         RagDocument doc = ragDocumentRepository.findByDocIdAndTenantId(docId, tenantId).orElse(null);
+        if (doc == null) {
+            log.warn("RAG quality_report doc lookup by tenant/doc failed. fallback by docId only. tenantId={} docId={}", tenantId, docId);
+            doc = ragDocumentRepository.findById(docId).orElse(null);
+        }
         if (doc == null) return;
 
-        boolean gatePassed = readBoolean(report, "quality_gate_passed", false);
+        boolean gatePassed = readBooleanAny(report, false, "quality_gate_passed", "qualityGatePassed");
+        log.info("RAG quality_report parse docId={} runId={} quality_gate_passed={} raw_has_field={}",
+                docId, runId, gatePassed, report.has("quality_gate_passed") || report.has("qualityGatePassed"));
         int inputChunks = readInt(report, "input_chunks", 0);
         int finalChunks = readInt(report, "final_chunks", 0);
         BigDecimal articleCoverage = readDecimal(report, "article_coverage", BigDecimal.ZERO);
@@ -75,6 +83,8 @@ public class RagGovernanceService {
         doc.setLastQualityScore(scale4(articleCoverage.subtract(noiseRate.add(duplicateRate).add(shortChunkRate))));
         doc.setLastQualityReportJson(report);
         ragDocumentRepository.save(doc);
+        log.info("RAG document quality updated docId={} qualityGatePassed={} lastQualityScore={}",
+                docId, doc.getQualityGatePassed(), doc.getLastQualityScore());
     }
 
     @Transactional
@@ -144,6 +154,17 @@ public class RagGovernanceService {
         if (v.isBoolean()) return v.asBoolean();
         String s = v.asText();
         return "true".equalsIgnoreCase(s) || "y".equalsIgnoreCase(s) || "1".equals(s);
+    }
+
+    private static boolean readBooleanAny(JsonNode root, boolean defaultValue, String... keys) {
+        if (root == null || keys == null || keys.length == 0) return defaultValue;
+        for (String key : keys) {
+            if (key == null || key.isBlank()) continue;
+            if (root.has(key) && !root.get(key).isNull()) {
+                return readBoolean(root, key, defaultValue);
+            }
+        }
+        return defaultValue;
     }
 
     private static BigDecimal scale4(BigDecimal v) {

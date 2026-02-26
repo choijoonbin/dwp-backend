@@ -243,7 +243,26 @@ public class RagCommandService {
             log.info("RAG status callback using top-level quality_gate_passed fallback docId={} runId={} gatePassed={}",
                     docId, request.getRunId(), request.getQualityGatePassed());
         }
+        if (qualityReport != null
+                && qualityReport.isObject()
+                && request.getQualityGatePassed() != null
+                && !qualityReport.has("quality_gate_passed")
+                && !qualityReport.has("qualityGatePassed")) {
+            ((com.fasterxml.jackson.databind.node.ObjectNode) qualityReport)
+                    .put("quality_gate_passed", request.getQualityGatePassed());
+            log.info("RAG status callback merged top-level quality_gate_passed into quality_report docId={} runId={} gatePassed={}",
+                    docId, request.getRunId(), request.getQualityGatePassed());
+        }
+        if ((qualityReport == null || qualityReport.isNull()) && request.getQualityGatePassed() == null) {
+            log.warn("RAG status callback quality payload missing docId={} runId={} (quality_report/top-level quality_gate_passed both absent)",
+                    docId, request.getRunId());
+        }
         if (qualityReport != null && !qualityReport.isNull()) {
+            log.info("RAG status callback quality payload docId={} runId={} has_quality_gate_passed_field={} top_level_quality_gate_passed={}",
+                    docId,
+                    request.getRunId(),
+                    qualityReport.has("quality_gate_passed"),
+                    request.getQualityGatePassed());
             ragGovernanceService.persistQualityReport(doc.getTenantId(), docId, request.getRunId(), qualityReport);
             log.info("RAG quality_report saved docId={} runId={}", docId, request.getRunId());
         }
