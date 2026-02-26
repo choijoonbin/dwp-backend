@@ -69,6 +69,7 @@ public class CaseAnalysisService {
     private final AuraCaseTabClient auraCaseTabClient;
     private final AuditWriter auditWriter;
     private final ObjectMapper objectMapper;
+    private final AnalysisQualitySignalMapper analysisQualitySignalMapper;
     private final DrillDownCodeResolver drillDownCodeResolver;
     private final CaseQueryService caseQueryService;
     private final LineageQueryService lineageQueryService;
@@ -152,6 +153,13 @@ public class CaseAnalysisService {
                         caseId, runId,
                         artCaseType ? evidenceSnapshot.get("case_type").asText() : "null",
                         artReasonText);
+                try {
+                    log.info("analysis run outbound payload (Aura Phase3): caseId={} runId={} payload={}",
+                            caseId, runId, objectMapper.writeValueAsString(phase3Req));
+                } catch (Exception e) {
+                    log.warn("analysis run outbound payload serialization failed (Phase3): caseId={} runId={} reason={}",
+                            caseId, runId, e.getMessage());
+                }
                 if (authorization == null || authorization.isBlank()) {
                     log.warn("Phase3 trigger requires Authorization header");
                     failRunWithMessage(run, "Phase3 trigger requires Authorization");
@@ -597,6 +605,12 @@ public class CaseAnalysisService {
             log.warn("Aura callback runId not found: {}", runId);
             return;
         }
+        log.info("Aura callback received: runId={} caseId={} tenantId={} status={} hasAnalysis={} hasFinalResult={} proposalsSize={} partialEventsSize={} auraTraceId={}",
+                runId, run.getCaseId(), run.getTenantId(), payload.getStatus(),
+                payload.getAnalysis() != null, payload.getFinalResult() != null,
+                payload.getProposals() != null ? payload.getProposals().size() : 0,
+                payload.getPartialEvents() != null ? payload.getPartialEvents().size() : 0,
+                payload.getAuraTraceId());
 
         String status = payload.getStatus();
         if ("FAILED".equals(status)) {
@@ -672,6 +686,10 @@ public class CaseAnalysisService {
                 .createdAt(Instant.now())
                 .build();
         resultRepository.save(result);
+        log.info("Aura callback finalResult saved (Phase3): runId={} caseId={} score={} severity={} evidenceCount={} ragRefsCount={} qualityGateCodesCount={} sentenceCitationMapCount={}",
+                run.getRunId(), run.getCaseId(), result.getScore(), result.getSeverity(),
+                jsonNodeCount(result.getEvidenceJson()), jsonNodeCount(result.getRagRefsJson()),
+                0, 0);
         saveProposalsFromItems(run, proposals);
     }
 
@@ -695,6 +713,19 @@ public class CaseAnalysisService {
         JsonNode evidenceMapJson = (fr.getDecisionReason() != null && !fr.getDecisionReason().isNull())
                 ? fr.getDecisionReason()
                 : buildEvidenceMap(fr.getEvidence(), fr.getRagRefs());
+        // regulation_checkpoints top-level 수신 시 evidence_map_json에 병합 (판단 규정 탭)
+        if (fr.getRegulationCheckpoints() != null && !fr.getRegulationCheckpoints().isEmpty()) {
+            com.fasterxml.jackson.databind.node.ObjectNode obj;
+            if (evidenceMapJson.isObject() && !evidenceMapJson.has("regulation_checkpoints")) {
+                obj = (com.fasterxml.jackson.databind.node.ObjectNode) evidenceMapJson;
+                obj.set("regulation_checkpoints", objectMapper.valueToTree(fr.getRegulationCheckpoints()));
+            } else if (!evidenceMapJson.isObject()) {
+                obj = objectMapper.createObjectNode();
+                obj.set("evidence", evidenceMapJson);
+                obj.set("regulation_checkpoints", objectMapper.valueToTree(fr.getRegulationCheckpoints()));
+                evidenceMapJson = obj;
+            }
+        }
         JsonNode sentenceCitationMap = fr.getSentenceCitationMap();
         if ((sentenceCitationMap == null || sentenceCitationMap.isNull()) && fr.getDecisionReason() != null && fr.getDecisionReason().isObject()) {
             sentenceCitationMap = fr.getDecisionReason().get("sentence_citation_map");
@@ -707,6 +738,12 @@ public class CaseAnalysisService {
         if ((qualityGateCodes == null || qualityGateCodes.isNull()) && fr.getDecisionReason() != null && fr.getDecisionReason().isObject()) {
             qualityGateCodes = fr.getDecisionReason().get("quality_gate_codes");
         }
+        JsonNode analysisQualitySignals = fr.getAnalysisQualitySignals();
+        if ((analysisQualitySignals == null || analysisQualitySignals.isNull()) && fr.getDecisionReason() != null && fr.getDecisionReason().isObject()) {
+            analysisQualitySignals = fr.getDecisionReason().get("analysis_quality_signals");
+        }
+        ArrayNode normalizedQualityGateCodes = analysisQualitySignalMapper.normalizeCodes(qualityGateCodes);
+        ArrayNode normalizedAnalysisQualitySignals = analysisQualitySignalMapper.buildSignals(normalizedQualityGateCodes, analysisQualitySignals);
         BigDecimal groundingCoverageRatio = fr.getGroundingCoverageRatio() != null
                 ? BigDecimal.valueOf(fr.getGroundingCoverageRatio().doubleValue()) : null;
         Integer ungroundedClaimSentences = fr.getUngroundedClaimSentences();
@@ -728,6 +765,9 @@ public class CaseAnalysisService {
         if (qualityGateCodes == null || qualityGateCodes.isNull()) {
             log.warn("Aura callback missing quality_gate_codes: runId={} caseId={}", run.getRunId(), run.getCaseId());
         }
+        if (analysisQualitySignals == null || analysisQualitySignals.isNull()) {
+            log.warn("Aura callback missing analysis_quality_signals: runId={} caseId={}", run.getRunId(), run.getCaseId());
+        }
         CaseAnalysisResult result = CaseAnalysisResult.builder()
                 .runId(run.getRunId())
                 .tenantId(run.getTenantId())
@@ -745,13 +785,26 @@ public class CaseAnalysisService {
                 .evidenceMapJson(evidenceMapJson)
                 .sentenceCitationMap(sentenceCitationMap)
                 .analysisScoreBreakdown(analysisScoreBreakdown)
-                .qualityGateCodes(qualityGateCodes)
+                .qualityGateCodes(normalizedQualityGateCodes)
+                .analysisQualitySignals(normalizedAnalysisQualitySignals)
                 .groundingCoverageRatio(groundingCoverageRatio)
                 .ungroundedClaimSentences(ungroundedClaimSentences)
                 .createdAt(Instant.now())
                 .build();
         resultRepository.save(result);
+        log.info("Aura callback finalResult saved: runId={} caseId={} score={} severity={} riskScore={} evidenceCount={} ragRefsCount={} qualityGateCodesCount={} analysisQualitySignalsCount={} sentenceCitationMapCount={} groundingCoverageRatio={} ungroundedClaimSentences={}",
+                run.getRunId(), run.getCaseId(), result.getScore(), result.getSeverity(), result.getRiskScore(),
+                jsonNodeCount(result.getEvidenceJson()), jsonNodeCount(result.getRagRefsJson()),
+                jsonNodeCount(result.getQualityGateCodes()), jsonNodeCount(result.getAnalysisQualitySignals()), jsonNodeCount(result.getSentenceCitationMap()),
+                result.getGroundingCoverageRatio(), result.getUngroundedClaimSentences());
         saveProposalsFromItems(run, fr.getProposals());
+    }
+
+    private int jsonNodeCount(JsonNode node) {
+        if (node == null || node.isNull()) return 0;
+        if (node.isArray()) return node.size();
+        if (node.isObject()) return node.size();
+        return 1;
     }
 
     /**

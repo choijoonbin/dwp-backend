@@ -39,6 +39,8 @@ public class RagDocumentDetailDto {
     private Boolean qualityGatePassed;
     /** 최신 품질 리포트(JSON 원문) */
     private JsonNode qualityReport;
+    /** 에이전트 문서 매핑 기준 참조 수 */
+    private Long refCount;
     private Instant createdAt;
     private Instant updatedAt;
     private List<RagChunkDto> chunks;

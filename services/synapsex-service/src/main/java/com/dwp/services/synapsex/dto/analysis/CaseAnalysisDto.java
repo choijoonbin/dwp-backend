@@ -1,6 +1,7 @@
 package com.dwp.services.synapsex.dto.analysis;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Data;
 
@@ -32,7 +33,11 @@ public class CaseAnalysisDto {
     /** Aura 품질 근거: 문장-근거 매핑 */
     private JsonNode sentenceCitationMap;
     /** Aura 품질 근거: 품질 게이트 코드 목록 */
+    @Schema(description = "내부 코드 배열. 항상 배열로 응답(없으면 빈 배열). 예: [\"RAG_ZERO\",\"POLICY_REEVAL_APPLIED\"]")
     private JsonNode qualityGateCodes;
+    /** Aura 사용자 노출: 분석 신뢰 신호 목록 */
+    @Schema(description = "사용자 노출용 신호 배열. 항상 배열로 응답(없으면 [\"정상\"] 또는 빈 배열 정책 적용).")
+    private JsonNode analysisQualitySignals;
     /** Aura 품질 근거: 점수 분해 */
     private JsonNode analysisScoreBreakdown;
     /** citation_id 매핑 원본 배열 */

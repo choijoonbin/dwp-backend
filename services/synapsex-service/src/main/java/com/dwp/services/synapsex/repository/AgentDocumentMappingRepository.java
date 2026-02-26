@@ -34,4 +34,11 @@ public interface AgentDocumentMappingRepository extends JpaRepository<AgentDocum
     /** 테넌트별 에이전트의 문서 연결 조회 */
     @Query("SELECT adm FROM AgentDocumentMapping adm WHERE adm.tenantId = :tenantId AND adm.agentId = :agentId")
     List<AgentDocumentMapping> findByTenantIdAndAgentId(@Param("tenantId") Long tenantId, @Param("agentId") Long agentId);
+
+    /** 문서별 참조(매핑) 수 */
+    long countByTenantIdAndDocId(Long tenantId, Long docId);
+
+    /** 목록 조회용: doc_id별 참조(매핑) 수 집계 */
+    @Query("SELECT adm.docId, COUNT(adm) FROM AgentDocumentMapping adm WHERE adm.tenantId = :tenantId AND adm.docId IN :docIds GROUP BY adm.docId")
+    List<Object[]> countByTenantIdAndDocIds(@Param("tenantId") Long tenantId, @Param("docIds") List<Long> docIds);
 }

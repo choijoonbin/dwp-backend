@@ -91,6 +91,11 @@ public class CaseAnalysisResult {
     @Column(name = "quality_gate_codes", columnDefinition = "jsonb")
     private JsonNode qualityGateCodes;
 
+    /** 사용자 노출용 분석 신뢰 신호 목록(JSON 배열) */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "analysis_quality_signals", columnDefinition = "jsonb")
+    private JsonNode analysisQualitySignals;
+
     /** 근거 커버리지 비율(0~1) */
     @Column(name = "grounding_coverage_ratio", precision = 5, scale = 4)
     private BigDecimal groundingCoverageRatio;

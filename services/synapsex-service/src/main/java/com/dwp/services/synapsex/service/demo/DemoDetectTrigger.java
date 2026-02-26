@@ -40,7 +40,7 @@ public class DemoDetectTrigger {
     public void runDetectThenPublish(Long tenantId, Instant windowFrom, Instant windowTo,
                                      String authorization, Long userId) {
         try {
-            DetectRun run = detectBatchService.runDetectBatch(tenantId, windowFrom, windowTo);
+            DetectRun run = detectBatchService.runDetectBatch(tenantId, windowFrom, windowTo, DetectBatchService.TRIGGER_SOURCE_DEMO);
             if (run == null) {
                 log.debug("Demo detect skipped: lock not acquired tenant={}", tenantId);
                 return;

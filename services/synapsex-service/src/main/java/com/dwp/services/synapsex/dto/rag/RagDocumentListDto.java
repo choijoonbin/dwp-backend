@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import com.fasterxml.jackson.databind.JsonNode;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -18,6 +19,9 @@ public class RagDocumentListDto {
     private String sourceType;
     private String docType;
     private String status;
+    private Boolean qualityGatePassed;
+    private JsonNode qualityReport;
+    private Long refCount;
     private String version;
     private LocalDate effectiveFrom;
     private LocalDate effectiveTo;

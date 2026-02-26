@@ -1,53 +1,65 @@
 {
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "type": "java",
-            "name": "SynapsexServiceApplication (Gradle)",
-            "request": "launch",
-            "mainClass": "com.dwp.services.synapsex.SynapsexServiceApplication",
-            "projectName": "synapsex-service",
-            "args": "",
-            "vmArgs": "",
-            "env": {},
-            "console": "internalConsole",
-            "internalConsoleOptions": "openOnSessionStart"
-        },
-        {
-            "type": "java",
-            "name": "MainServiceApplication (Gradle)",
-            "request": "launch",
-            "mainClass": "com.dwp.services.main.MainServiceApplication",
-            "projectName": "dwp-main-service",
-            "args": "--spring.profiles.active=dev",
-            "vmArgs": "",
-            "env": {},
-            "console": "internalConsole",
-            "internalConsoleOptions": "openOnSessionStart"
-        },
-        {
-            "type": "java",
-            "name": "GatewayApplication (Gradle)",
-            "request": "launch",
-            "mainClass": "com.dwp.gateway.GatewayApplication",
-            "projectName": "dwp-gateway",
-            "args": "--spring.profiles.active=dev",
-            "vmArgs": "",
-            "env": {},
-            "console": "internalConsole",
-            "internalConsoleOptions": "openOnSessionStart"
-        },
-        {
-            "type": "java",
-            "name": "AuthServerApplication (Gradle)",
-            "request": "launch",
-            "mainClass": "com.dwp.services.auth.AuthServerApplication",
-            "projectName": "dwp-auth-server",
-            "args": "--spring.profiles.active=dev",
-            "vmArgs": "",
-            "env": {},
-            "console": "internalConsole",
-            "internalConsoleOptions": "openOnSessionStart"
-        }
-    ]
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "SynapsexServiceApplication (Gradle)",
+      "request": "launch",
+      "mainClass": "com.dwp.services.synapsex.SynapsexServiceApplication",
+      "projectName": "synapsex-service",
+      "args": "",
+      "vmArgs": "",
+      "env": {},
+      "console": "internalConsole",
+      "internalConsoleOptions": "openOnSessionStart"
+    },
+    {
+      "type": "java",
+      "name": "MainServiceApplication (Gradle)",
+      "request": "launch",
+      "mainClass": "com.dwp.services.main.MainServiceApplication",
+      "projectName": "dwp-main-service",
+      "args": "--spring.profiles.active=dev",
+      "vmArgs": "",
+      "env": {},
+      "console": "internalConsole",
+      "internalConsoleOptions": "openOnSessionStart"
+    },
+    {
+      "type": "java",
+      "name": "GatewayApplication (Gradle)",
+      "request": "launch",
+      "mainClass": "com.dwp.gateway.GatewayApplication",
+      "projectName": "dwp-gateway",
+      "args": "--spring.profiles.active=dev",
+      "vmArgs": "",
+      "env": {},
+      "console": "internalConsole",
+      "internalConsoleOptions": "openOnSessionStart"
+    },
+    {
+      "type": "java",
+      "name": "AuthServerApplication (Gradle)",
+      "request": "launch",
+      "mainClass": "com.dwp.services.auth.AuthServerApplication",
+      "projectName": "dwp-auth-server",
+      "args": "--spring.profiles.active=dev",
+      "vmArgs": "",
+      "env": {},
+      "console": "internalConsole",
+      "internalConsoleOptions": "openOnSessionStart"
+    },
+    {
+      "type": "java",
+      "name": "McpServerApplication (Gradle)",
+      "request": "launch",
+      "mainClass": "com.dwp.services.mcp.McpServerApplication",
+      "projectName": "dwp-mcp-server",
+      "args": "",
+      "vmArgs": "",
+      "env": {},
+      "console": "internalConsole",
+      "internalConsoleOptions": "openOnSessionStart"
+    }
+  ]
 }

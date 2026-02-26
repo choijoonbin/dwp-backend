@@ -521,6 +521,7 @@ public class CaseQueryService {
 
         List<String> reasoningProcess = buildReasoningProcess(tenantId, case_.getCaseId());
         List<CaseDetailDto.LogicCheckpointDto> logicCheckpoints = buildLogicCheckpoints(case_, latestResult);
+        List<CaseDetailDto.RegulationCheckpointDto> regulationCheckpoints = buildRegulationCheckpoints(case_, latestResult, logicCheckpoints);
         List<CaseDetailDto.EvidenceLinkDto> evidenceLinks = buildEvidenceLinks(evidenceMapJson);
         List<CaseDetailDto.ExplanationHistoryItemDto> explanationHistory = caseExplanationRepository
                 .findByTenantIdAndCaseIdOrderByCreatedAtDesc(tenantId, case_.getCaseId())
@@ -573,6 +574,7 @@ public class CaseQueryService {
                 .action(action)
                 .reasoningProcess(reasoningProcess != null ? reasoningProcess : List.of())
                 .logicCheckpoints(logicCheckpoints != null ? logicCheckpoints : List.of())
+                .regulationCheckpoints(regulationCheckpoints != null ? regulationCheckpoints : List.of())
                 .evidenceLinks(evidenceLinks != null ? evidenceLinks : List.of())
                 .finalReport(finalReport != null ? finalReport : CaseDetailDto.FinalReportDto.builder().summary("").verdict("").requestClarificationEnabled(false).closeCaseEnabled(false).build())
                 .activityHistory(activityHistory != null ? activityHistory : List.of())
@@ -894,6 +896,113 @@ public class CaseQueryService {
             if (!list.isEmpty()) return list;
         }
         return List.of();
+    }
+
+    /** [판단 규정 탭] regulation_checkpoints 우선(evidence_map_json.regulation_checkpoints), 없으면 logicCheckpoints를 RegulationCheckpointDto로 변환. */
+    private List<CaseDetailDto.RegulationCheckpointDto> buildRegulationCheckpoints(
+            AgentCase case_, Optional<CaseAnalysisResult> resultOpt, List<CaseDetailDto.LogicCheckpointDto> logicCheckpoints) {
+        if (resultOpt.isPresent()) {
+            JsonNode evidenceMapJson = resultOpt.get().getEvidenceMapJson();
+            if (evidenceMapJson != null && evidenceMapJson.isObject()) {
+                JsonNode regArr = evidenceMapJson.get("regulation_checkpoints");
+                if (regArr == null) regArr = evidenceMapJson.get("regulationCheckpoints");
+                if (regArr != null && regArr.isArray()) {
+                    List<CaseDetailDto.RegulationCheckpointDto> list = parseRegulationCheckpointsFromJson(regArr);
+                    if (!list.isEmpty()) return list;
+                }
+            }
+        }
+        return convertLogicCheckpointsToRegulationCheckpoints(logicCheckpoints);
+    }
+
+    private List<CaseDetailDto.RegulationCheckpointDto> parseRegulationCheckpointsFromJson(JsonNode arr) {
+        List<CaseDetailDto.RegulationCheckpointDto> list = new ArrayList<>();
+        for (JsonNode el : arr) {
+            if (el == null || !el.isObject()) continue;
+            String ruleId = getText(el, "ruleId", "rule_id");
+            String version = getText(el, "version");
+            String chapter = getText(el, "chapter");
+            String article = getText(el, "article");
+            String clause = getText(el, "clause");
+            String title = getText(el, "title");
+            String status = normalizeRegulationStatus(getText(el, "status"));
+            String statusReason = getText(el, "statusReason", "status_reason");
+            String description = getText(el, "description");
+            List<String> evidenceRefs = getStringArray(el, "evidenceRefs", "evidence_refs");
+            List<String> qualitySignals = getStringArray(el, "qualitySignals", "quality_signals");
+            Boolean applied = el.has("applied") && !el.get("applied").isNull() ? el.get("applied").asBoolean() : null;
+            Integer priority = el.has("priority") && !el.get("priority").isNull() ? el.get("priority").asInt() : null;
+            list.add(CaseDetailDto.RegulationCheckpointDto.builder()
+                    .ruleId(ruleId)
+                    .version(version)
+                    .chapter(chapter)
+                    .article(article)
+                    .clause(clause)
+                    .title(title)
+                    .status(status != null ? status : "NEEDS_REVIEW")
+                    .statusReason(statusReason)
+                    .description(description)
+                    .evidenceRefs(evidenceRefs != null ? evidenceRefs : List.of())
+                    .qualitySignals(qualitySignals != null ? qualitySignals : List.of())
+                    .applied(applied)
+                    .priority(priority)
+                    .build());
+        }
+        return list;
+    }
+
+    private static String getText(JsonNode n, String... keys) {
+        for (String k : keys) {
+            if (n.has(k) && n.get(k).isTextual()) return n.get(k).asText();
+        }
+        return null;
+    }
+
+    private static List<String> getStringArray(JsonNode n, String... keys) {
+        JsonNode arr = null;
+        for (String k : keys) {
+            if (n.has(k)) { arr = n.get(k); break; }
+        }
+        if (arr == null || !arr.isArray()) return null;
+        List<String> out = new ArrayList<>();
+        for (JsonNode x : arr) {
+            if (x != null && x.isTextual()) out.add(x.asText());
+        }
+        return out.isEmpty() ? null : out;
+    }
+
+    private static String normalizeRegulationStatus(String s) {
+        if (s == null || s.isBlank()) return null;
+        return switch (s.toUpperCase()) {
+            case "COMPLIANT", "COMPLETED", "OK" -> "COMPLIANT";
+            case "VIOLATION", "VIOLATED" -> "VIOLATION";
+            case "HOLD" -> "HOLD";
+            case "CONFLICT" -> "CONFLICT";
+            case "NEEDS_REVIEW", "NEED_REVIEW" -> "NEEDS_REVIEW";
+            default -> s;
+        };
+    }
+
+    private List<CaseDetailDto.RegulationCheckpointDto> convertLogicCheckpointsToRegulationCheckpoints(
+            List<CaseDetailDto.LogicCheckpointDto> logicCheckpoints) {
+        if (logicCheckpoints == null || logicCheckpoints.isEmpty()) return List.of();
+        List<CaseDetailDto.RegulationCheckpointDto> list = new ArrayList<>();
+        int idx = 0;
+        for (CaseDetailDto.LogicCheckpointDto lp : logicCheckpoints) {
+            String status = normalizeRegulationStatus(lp.getStatus());
+            if (status == null) status = "NEEDS_REVIEW";
+            list.add(CaseDetailDto.RegulationCheckpointDto.builder()
+                    .clause(lp.getClause())
+                    .status(status)
+                    .description(lp.getDescription())
+                    .applied(true)
+                    .priority(idx + 1)
+                    .evidenceRefs(List.of())
+                    .qualitySignals(List.of())
+                    .build());
+            idx++;
+        }
+        return list;
     }
 
     /** [증거 맵] evidence_map_json → EvidenceLinkDto 배열. 배열/객체(items|entries|evidence|links|results|data) 및 itemId/item_id/item_idx/buzei 지원. */

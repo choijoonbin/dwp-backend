@@ -55,3 +55,9 @@ Closes #
 
 ## 추가 정보
 <!-- 리뷰어가 알아야 할 추가 정보를 작성해주세요 -->
+
+
+GET /api/synapse/rag/documents
+문서의 상태나 품질 참조횟수 관련해서는 전달이 어떤 api 되고 있나요?
+
+qualityGatePassed, qualityReport, refCount

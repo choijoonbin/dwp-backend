@@ -1,6 +1,5 @@
 package com.dwp.services.synapsex.dto.common;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -11,7 +10,7 @@ import java.util.Map;
 
 /**
  * List 응답 표준 형식 (Drill-down 계약)
- * { data/items: [...], page, size, total, sort, order, filtersApplied }
+ * { items: [...], total, pageInfo, sort, order, filtersApplied }
  */
 @Data
 @Builder
@@ -30,10 +29,6 @@ public class PageResponse<T> {
 
     /** P0-2: Case list용 summary (total, open, triage, inReview) — optional */
     private Map<String, Long> summary;
-
-    /** FE 계약: data는 items와 동일 */
-    @JsonProperty("data")
-    public List<T> getData() { return items; }
 
     public static <T> PageResponse<T> of(List<T> items, long total, int page, int size) {
         return of(items, total, page, size, "createdAt", "desc", null);

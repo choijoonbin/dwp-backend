@@ -101,8 +101,16 @@ public class DetectBatchService {
     private final ObjectMapper objectMapper;
     private final org.springframework.beans.factory.ObjectProvider<org.springframework.data.redis.core.RedisTemplate<String, String>> redisTemplateProvider;
 
+    /** 트리거 출처: DEMO = 테스트 데이터 생성 시, null = 스케줄/수동 탐지 */
+    public static final String TRIGGER_SOURCE_DEMO = "DEMO";
+
     @Transactional
     public DetectRun runDetectBatch(Long tenantId, Instant windowFrom, Instant windowTo) {
+        return runDetectBatch(tenantId, windowFrom, windowTo, null);
+    }
+
+    @Transactional
+    public DetectRun runDetectBatch(Long tenantId, Instant windowFrom, Instant windowTo, String triggerSource) {
         long lockKey = ADVISORY_LOCK_BASE + tenantId;
         Boolean acquired = jdbcTemplate.queryForObject("SELECT pg_try_advisory_lock(?)", Boolean.class, lockKey);
         if (!Boolean.TRUE.equals(acquired)) {
@@ -110,7 +118,7 @@ public class DetectBatchService {
             return null;
         }
         try {
-            return runDetectBatchInternal(tenantId, windowFrom, windowTo);
+            return runDetectBatchInternal(tenantId, windowFrom, windowTo, triggerSource);
         } finally {
             jdbcTemplate.execute("SELECT pg_advisory_unlock(" + lockKey + ")");
         }
@@ -123,7 +131,7 @@ public class DetectBatchService {
 
     public record SkippedRunInfo(Long runId, Instant startedAt) {}
 
-    private DetectRun runDetectBatchInternal(Long tenantId, Instant windowFrom, Instant windowTo) {
+    private DetectRun runDetectBatchInternal(Long tenantId, Instant windowFrom, Instant windowTo, String triggerSource) {
         Instant now = Instant.now();
         DetectRun run = DetectRun.builder()
                 .tenantId(tenantId)
@@ -175,6 +183,7 @@ public class DetectBatchService {
                         responses = (batchResponse != null && batchResponse.getResults() != null)
                                 ? batchResponse.getResults()
                                 : null;
+                        logScreenBatchResponse(tenantId, chunk, batchResponse);
                     } finally {
                         AuraTenantContext.clear();
                     }
@@ -253,7 +262,7 @@ public class DetectBatchService {
                     Map.of("runId", run.getRunId(), "caseCreated", caseCreated, "caseUpdated", caseUpdated),
                     doneTags);
 
-            publishDetectCompleted(tenantId, run.getRunId(), caseCreated, caseUpdated, globalPriorityId, globalBriefingInsight);
+            publishDetectCompleted(tenantId, run.getRunId(), caseCreated, caseUpdated, globalPriorityId, globalBriefingInsight, triggerSource);
 
         } catch (Exception e) {
             log.error("Detect batch failed tenant={} runId={}", tenantId, run.getRunId(), e);
@@ -588,6 +597,50 @@ public class DetectBatchService {
         }
     }
 
+    /** Aura /detect/screen-batch 응답 핵심 필드/원문 미리보기 로그 */
+    private void logScreenBatchResponse(Long tenantId, List<DocContext> chunk, ScreenBatchResponse batchResponse) {
+        if (batchResponse == null) {
+            log.warn("Aura screen-batch response is null: tenantId={} requestSize={}", tenantId, chunk.size());
+            return;
+        }
+        List<DetectScreenResponse> results = batchResponse.getResults();
+        int size = results != null ? results.size() : 0;
+        int highOrCritical = 0;
+        int missingCaseType = 0;
+        int missingReasonText = 0;
+        String sample = "[]";
+
+        if (results != null && !results.isEmpty()) {
+            sample = results.stream()
+                    .limit(3)
+                    .map(r -> "{severity=" + r.getSeverity() + ", score=" + r.getScore()
+                            + ", caseType=" + r.getCaseType() + ", reasonText=" + r.getReasonText() + "}")
+                    .reduce((a, b) -> a + ", " + b)
+                    .orElse("[]");
+            for (DetectScreenResponse r : results) {
+                if (r == null) continue;
+                if ("HIGH".equals(r.getSeverity()) || "CRITICAL".equals(r.getSeverity())) highOrCritical++;
+                if (r.getCaseType() == null || r.getCaseType().isBlank()) missingCaseType++;
+                if (r.getReasonText() == null || r.getReasonText().isBlank()) missingReasonText++;
+            }
+        }
+
+        log.info("Aura screen-batch response fields: tenantId={} requestSize={} responseSize={} highOrCritical={} missingCaseType={} missingReasonText={} briefingPriorityCaseId={} briefingInsightPresent={} sample={}",
+                tenantId, chunk.size(), size, highOrCritical, missingCaseType, missingReasonText,
+                batchResponse.getBriefingPriorityCaseId(),
+                batchResponse.getBriefingInsight() != null && !batchResponse.getBriefingInsight().isBlank(),
+                sample);
+        try {
+            String rawJsonPreview = objectMapper.writeValueAsString(batchResponse);
+            if (rawJsonPreview.length() > 4000) {
+                rawJsonPreview = rawJsonPreview.substring(0, 4000) + "...(truncated)";
+            }
+            log.info("Aura screen-batch response raw-json preview tenantId={} payload={}", tenantId, rawJsonPreview);
+        } catch (Exception e) {
+            log.warn("Aura screen-batch response raw-json preview failed tenantId={}: {}", tenantId, e.getMessage());
+        }
+    }
+
     /** 배치 응답 중 HIGH/CRITICAL 심각도 건의 reasonText를 서버 로그로 남겨 모니터링. 테넌트 ID 포함으로 고객사 식별 가능 */
     private void logHighSeverityFromBatch(Long tenantId, List<DocContext> chunk, List<DetectScreenResponse> responses) {
         for (int i = 0; i < Math.min(chunk.size(), responses.size()); i++) {
@@ -669,9 +722,14 @@ public class DetectBatchService {
         return result;
     }
 
-    /** 배치 완료 시 Redis workbench:case:action 발행 — 전체 탐지 완료 알림. briefing 필드는 Aura가 제공 시 FE 워크벤치 주목 가이드용으로 포함 */
+    /** 배치 완료 시 Redis workbench:case:action 발행. triggerSource=DEMO 시 테스트 데이터 생성 문구 사용 */
     private void publishDetectCompleted(Long tenantId, Long runId, int caseCreated, int caseUpdated,
-                                        Long briefingPriorityCaseId, String briefingInsight) {
+                                        Long briefingPriorityCaseId, String briefingInsight, String triggerSource) {
+        boolean isDemo = TRIGGER_SOURCE_DEMO.equals(triggerSource);
+        String title = isDemo ? "테스트 데이터 생성 완료" : "전체 탐지 완료";
+        String message = isDemo
+                ? String.format("테스트 데이터 생성 및 탐지 완료. 케이스 생성 %d건, 갱신 %d건", caseCreated, caseUpdated)
+                : String.format("탐지 배치 완료. 생성 %d건, 갱신 %d건", caseCreated, caseUpdated);
         redisTemplateProvider.ifAvailable(template -> {
             try {
                 Map<String, Object> payload = new HashMap<>();
@@ -683,8 +741,8 @@ public class DetectBatchService {
                 payload.put("case_updated", caseUpdated);
                 if (briefingPriorityCaseId != null) payload.put("briefing_priority_case_id", briefingPriorityCaseId);
                 if (briefingInsight != null && !briefingInsight.isBlank()) payload.put("briefing_insight", briefingInsight);
-                payload.put("title", "전체 탐지 완료");
-                payload.put("message", String.format("탐지 배치 완료. 생성 %d건, 갱신 %d건", caseCreated, caseUpdated));
+                payload.put("title", title);
+                payload.put("message", message);
                 payload.put("at", Instant.now().toString());
                 String json = objectMapper.writeValueAsString(payload);
                 template.convertAndSend(workbenchActionChannel, json);

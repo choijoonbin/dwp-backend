@@ -38,6 +38,7 @@ public class CaseAnalysisQueryService {
     private final CaseActionProposalRepository proposalRepository;
     private final AgentCaseRepository agentCaseRepository;
     private final ObjectMapper objectMapper;
+    private final AnalysisQualitySignalMapper analysisQualitySignalMapper;
     private final DrillDownCodeResolver drillDownCodeResolver;
 
     @Transactional(readOnly = true)
@@ -140,6 +141,8 @@ public class CaseAnalysisQueryService {
         List<Map<String, Object>> ragRefs = jsonToList(r.getRagRefsJson());
         JsonNode citations = extractCitations(r);
         boolean grounded = hasCitationLinks(r.getSentenceCitationMap());
+        JsonNode qualityGateCodes = analysisQualitySignalMapper.normalizeCodes(r.getQualityGateCodes());
+        JsonNode analysisQualitySignals = analysisQualitySignalMapper.buildSignals(qualityGateCodes, r.getAnalysisQualitySignals());
 
         return CaseAnalysisDto.builder()
                 .runId(r.getRunId())
@@ -151,7 +154,8 @@ public class CaseAnalysisQueryService {
                 .reasoningSummary(r.getReasoningSummary())
                 .recommendedAction(r.getRecommendedAction())
                 .sentenceCitationMap(r.getSentenceCitationMap())
-                .qualityGateCodes(r.getQualityGateCodes())
+                .qualityGateCodes(qualityGateCodes)
+                .analysisQualitySignals(analysisQualitySignals)
                 .analysisScoreBreakdown(r.getAnalysisScoreBreakdown())
                 .citations(citations)
                 .grounded(grounded)

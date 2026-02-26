@@ -7,6 +7,7 @@ import com.dwp.services.synapsex.dto.rag.RagSearchResultDto;
 import com.dwp.services.synapsex.entity.QRagChunk;
 import com.dwp.services.synapsex.entity.RagChunk;
 import com.dwp.services.synapsex.entity.RagDocument;
+import com.dwp.services.synapsex.repository.AgentDocumentMappingRepository;
 import com.dwp.services.synapsex.repository.RagDocumentRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -27,6 +28,7 @@ import java.util.stream.Collectors;
 public class RagQueryService {
 
     private final RagDocumentRepository ragDocumentRepository;
+    private final AgentDocumentMappingRepository agentDocumentMappingRepository;
     private final JPAQueryFactory queryFactory;
 
     @Transactional(readOnly = true)
@@ -39,6 +41,8 @@ public class RagQueryService {
         int from = Math.max(0, page * size);
         int to = Math.min(from + size, docs.size());
         List<RagDocument> paged = docs.subList(from, to);
+        List<Long> docIds = paged.stream().map(RagDocument::getDocId).toList();
+        Map<Long, Long> refCounts = fetchRefCounts(tenantId, docIds);
 
         List<RagDocumentListDto> items = paged.stream()
                 .map(d -> RagDocumentListDto.builder()
@@ -47,6 +51,9 @@ public class RagQueryService {
                         .sourceType(d.getSourceType())
                         .docType(d.getDocType())
                         .status(d.getStatus())
+                        .qualityGatePassed(d.getQualityGatePassed())
+                        .qualityReport(d.getLastQualityReportJson())
+                        .refCount(refCounts.getOrDefault(d.getDocId(), 0L))
                         .version(d.getVersion())
                         .effectiveFrom(d.getEffectiveFrom())
                         .effectiveTo(d.getEffectiveTo())
@@ -80,6 +87,7 @@ public class RagQueryService {
                             .chunkingStrategy(resolveChunkingStrategy(doc))
                             .qualityGatePassed(doc.getQualityGatePassed())
                             .qualityReport(doc.getLastQualityReportJson())
+                            .refCount(agentDocumentMappingRepository.countByTenantIdAndDocId(tenantId, doc.getDocId()))
                             .createdAt(doc.getCreatedAt())
                             .updatedAt(doc.getUpdatedAt())
                             .chunks(chunkDtos)
@@ -97,6 +105,15 @@ public class RagQueryService {
         }
         // 별도 전략 컬럼이 없어 문서 유형을 fallback으로 사용
         return doc.getDocType();
+    }
+
+    private Map<Long, Long> fetchRefCounts(Long tenantId, List<Long> docIds) {
+        if (docIds == null || docIds.isEmpty()) return Map.of();
+        return agentDocumentMappingRepository.countByTenantIdAndDocIds(tenantId, docIds).stream()
+                .collect(Collectors.toMap(
+                        row -> (Long) row[0],
+                        row -> (Long) row[1]
+                ));
     }
 
     /** embedding 제외 컬럼만 프로젝션하여 조회 (vector 컬럼 역직렬화 오류 회피). */

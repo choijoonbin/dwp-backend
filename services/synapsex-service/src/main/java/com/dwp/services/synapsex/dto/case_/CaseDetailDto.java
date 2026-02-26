@@ -56,6 +56,10 @@ public class CaseDetailDto {
     /** [검토 로직] 규정 조항 리스트. 없으면 []. */
     @JsonProperty("logicCheckpoints")
     private List<LogicCheckpointDto> logicCheckpoints;
+    /** [판단 규정 탭] 규정 적용 결과 + 근거 정합성. regulationCheckpoints 우선, 없으면 logicCheckpoints fallback. */
+    @JsonProperty("regulationCheckpoints")
+    @JsonAlias("regulation_checkpoints")
+    private List<RegulationCheckpointDto> regulationCheckpoints;
     /** [증거 맵] 그리드 매칭용 itemIdx/reason/severity. 없으면 []. */
     @JsonProperty("evidenceLinks")
     private List<EvidenceLinkDto> evidenceLinks;
@@ -239,6 +243,27 @@ public class CaseDetailDto {
         private String clause;
         private String status;
         private String description;
+    }
+
+    /** [판단 규정 탭] 규정 적용 결과 1건. status: COMPLIANT|VIOLATION|HOLD|CONFLICT|NEEDS_REVIEW */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class RegulationCheckpointDto {
+        private String ruleId;
+        private String version;
+        private String chapter;
+        private String article;
+        private String clause;
+        private String title;
+        private String status;
+        private String statusReason;
+        private String description;
+        private List<String> evidenceRefs;
+        private List<String> qualitySignals;
+        private Boolean applied;
+        private Integer priority;
     }
 
     /** [증거 맵] 그리드 행 좌표 1건. */

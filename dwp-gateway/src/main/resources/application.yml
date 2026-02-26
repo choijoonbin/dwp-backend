@@ -33,6 +33,20 @@ spring:
             - Path=/api/monitoring/**
           filters:
             - StripPrefix=1
+        # MCP Server (Aura tool 호출) - /api/mcp/**
+        - id: mcp-server
+          uri: ${SERVICE_MCP_URL:http://localhost:8086}
+          predicates:
+            - Path=/api/mcp/**
+          filters:
+            - StripPrefix=1
+        # MCP v1 별칭: /api/v1/mcp/** -> /api/mcp/**
+        - id: mcp-v1-alias
+          uri: ${SERVICE_MCP_URL:http://localhost:8086}
+          predicates:
+            - Path=/api/v1/mcp/**
+          filters:
+            - RewritePath=/api/v1/mcp(?<segment>.*), /mcp${segment}
         # SynapseX Service (Admin/통화·PII 정책, Audit 감사로그) - 프론트 제공 API: /api/synapse/**
         - id: synapsex-admin
           uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}

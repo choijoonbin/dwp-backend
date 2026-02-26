@@ -93,6 +93,11 @@ public class AuraCallbackPayload {
         @JsonAlias("qualityGateCodes")
         private JsonNode qualityGateCodes;
 
+        /** Aura 사용자 노출용 분석 신뢰 신호 목록 */
+        @JsonProperty("analysis_quality_signals")
+        @JsonAlias("analysisQualitySignals")
+        private JsonNode analysisQualitySignals;
+
         /** 근거 커버리지 비율(선택) */
         @JsonProperty("grounding_coverage_ratio")
         @JsonAlias("groundingCoverageRatio")
@@ -102,6 +107,11 @@ public class AuraCallbackPayload {
         @JsonProperty("ungrounded_claim_sentences")
         @JsonAlias("ungroundedClaimSentences")
         private Integer ungroundedClaimSentences;
+
+        /** 판단 규정 탭: 규정 적용 결과 배열. decision_reason 내 regulation_checkpoints 또는 top-level. */
+        @JsonProperty("regulation_checkpoints")
+        @JsonAlias("regulationCheckpoints")
+        private List<Map<String, Object>> regulationCheckpoints;
     }
 
     @Data
