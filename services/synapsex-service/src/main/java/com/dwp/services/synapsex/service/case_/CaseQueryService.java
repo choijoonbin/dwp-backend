@@ -901,6 +901,7 @@ public class CaseQueryService {
     /** [판단 규정 탭] regulation_checkpoints 우선(evidence_map_json.regulation_checkpoints), 없으면 logicCheckpoints를 RegulationCheckpointDto로 변환. */
     private List<CaseDetailDto.RegulationCheckpointDto> buildRegulationCheckpoints(
             AgentCase case_, Optional<CaseAnalysisResult> resultOpt, List<CaseDetailDto.LogicCheckpointDto> logicCheckpoints) {
+        boolean holdDecision = isHoldOrReevaluationDecision(case_, resultOpt);
         if (resultOpt.isPresent()) {
             JsonNode evidenceMapJson = resultOpt.get().getEvidenceMapJson();
             if (evidenceMapJson != null && evidenceMapJson.isObject()) {
@@ -908,11 +909,80 @@ public class CaseQueryService {
                 if (regArr == null) regArr = evidenceMapJson.get("regulationCheckpoints");
                 if (regArr != null && regArr.isArray()) {
                     List<CaseDetailDto.RegulationCheckpointDto> list = parseRegulationCheckpointsFromJson(regArr);
-                    if (!list.isEmpty()) return list;
+                    if (!list.isEmpty()) return alignRegulationStatusWithFinalDecision(list, holdDecision);
                 }
             }
         }
-        return convertLogicCheckpointsToRegulationCheckpoints(logicCheckpoints);
+        return alignRegulationStatusWithFinalDecision(convertLogicCheckpointsToRegulationCheckpoints(logicCheckpoints), holdDecision);
+    }
+
+    /**
+     * "준수"와 "확정 보류/재검토" 동시 노출 방지:
+     * 최종 판단이 보류/재검토 계열이면 COMPLIANT를 NEEDS_REVIEW로 강등.
+     */
+    private List<CaseDetailDto.RegulationCheckpointDto> alignRegulationStatusWithFinalDecision(
+            List<CaseDetailDto.RegulationCheckpointDto> checkpoints, boolean holdDecision) {
+        if (!holdDecision || checkpoints == null || checkpoints.isEmpty()) return checkpoints != null ? checkpoints : List.of();
+        List<CaseDetailDto.RegulationCheckpointDto> out = new ArrayList<>(checkpoints.size());
+        for (CaseDetailDto.RegulationCheckpointDto cp : checkpoints) {
+            if (cp == null) continue;
+            String status = cp.getStatus();
+            if ("COMPLIANT".equalsIgnoreCase(status)) {
+                out.add(CaseDetailDto.RegulationCheckpointDto.builder()
+                        .ruleId(cp.getRuleId())
+                        .version(cp.getVersion())
+                        .chapter(cp.getChapter())
+                        .article(cp.getArticle())
+                        .clause(cp.getClause())
+                        .title(cp.getTitle())
+                        .status("NEEDS_REVIEW")
+                        .statusReason(cp.getStatusReason() != null && !cp.getStatusReason().isBlank()
+                                ? cp.getStatusReason()
+                                : "최종 판단이 보류/재검토 상태여서 규정 상태를 재검토로 정렬")
+                        .description(cp.getDescription())
+                        .evidenceRefs(cp.getEvidenceRefs() != null ? cp.getEvidenceRefs() : List.of())
+                        .qualitySignals(cp.getQualitySignals() != null ? cp.getQualitySignals() : List.of())
+                        .applied(cp.getApplied())
+                        .priority(cp.getPriority())
+                        .build());
+            } else {
+                out.add(cp);
+            }
+        }
+        return out;
+    }
+
+    private boolean isHoldOrReevaluationDecision(AgentCase case_, Optional<CaseAnalysisResult> resultOpt) {
+        if (resultOpt.isEmpty()) return false;
+        CaseAnalysisResult r = resultOpt.get();
+        if (hasHoldSignals(r.getQualityGateCodes())) return true;
+        return containsHoldKeyword(r.getReasonText())
+                || containsHoldKeyword(r.getReasoningSummary())
+                || containsHoldKeyword(case_ != null ? case_.getReasonText() : null);
+    }
+
+    private static boolean hasHoldSignals(JsonNode codes) {
+        if (codes == null || !codes.isArray()) return false;
+        for (JsonNode n : codes) {
+            if (n == null || !n.isTextual()) continue;
+            String c = n.asText();
+            if ("SENTENCE_CITATION_MISSING".equals(c)
+                    || "EVIDENCE_COVERAGE_LOW".equals(c)
+                    || "POLICY_CONFLICT".equals(c)
+                    || "POLICY_CONFLICT_DETECTED".equals(c)
+                    || "RAG_ZERO".equals(c)
+                    || "EVIDENCE_MISSING".equals(c)
+                    || "INPUT_PARTIAL".equals(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean containsHoldKeyword(String text) {
+        if (text == null || text.isBlank()) return false;
+        String t = text.toLowerCase();
+        return t.contains("보류") || t.contains("재검토");
     }
 
     private List<CaseDetailDto.RegulationCheckpointDto> parseRegulationCheckpointsFromJson(JsonNode arr) {
