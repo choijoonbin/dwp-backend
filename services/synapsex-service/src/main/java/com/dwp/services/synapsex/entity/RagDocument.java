@@ -2,8 +2,12 @@ package com.dwp.services.synapsex.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
+import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 
 /**
  * rag_document — RAG 문서 메타데이터
@@ -53,11 +57,46 @@ public class RagDocument {
     @Builder.Default
     private String status = "PENDING";
 
+    @Column(name = "version", length = 64)
+    private String version;
+
+    @Column(name = "effective_from")
+    private LocalDate effectiveFrom;
+
+    @Column(name = "effective_to")
+    private LocalDate effectiveTo;
+
+    /** 운영 라이프사이클 상태(ACTIVE/INACTIVE/DEPRECATED). 처리상태(status)와 분리. */
+    @Column(name = "lifecycle_status", nullable = false, length = 20)
+    @Builder.Default
+    private String lifecycleStatus = "ACTIVE";
+
+    @Column(name = "active_from")
+    private Instant activeFrom;
+
+    @Column(name = "active_to")
+    private Instant activeTo;
+
+    @Column(name = "quality_gate_passed", nullable = false)
+    @Builder.Default
+    private Boolean qualityGatePassed = false;
+
+    @Column(name = "last_quality_score", precision = 5, scale = 4)
+    private BigDecimal lastQualityScore;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "last_quality_report_json", columnDefinition = "jsonb")
+    private com.fasterxml.jackson.databind.JsonNode lastQualityReportJson;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
 
     @PrePersist
     public void prePersist() {
         if (createdAt == null) createdAt = Instant.now();
+        if (updatedAt == null) updatedAt = Instant.now();
     }
 }

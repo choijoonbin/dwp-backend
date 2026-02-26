@@ -13,9 +13,12 @@ import com.dwp.services.synapsex.dto.rag.RegisterRagDocumentRequest;
 import com.dwp.services.synapsex.entity.RagDocument;
 import com.dwp.services.synapsex.event.RagDocumentReadyForVectorizeEvent;
 import com.dwp.services.synapsex.event.RagDocumentStatusUpdatedEvent;
+import com.dwp.services.synapsex.repository.RagChunkRepository;
 import com.dwp.services.synapsex.repository.RagDocumentRepository;
 import com.dwp.services.synapsex.config.LocalStorageConfig;
 import com.dwp.services.synapsex.service.agent.AgentStudioCodeValidator;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -48,12 +51,15 @@ public class RagCommandService {
     private static final java.util.Set<String> ALLOWED_EXTENSIONS = java.util.Set.of("pdf", "txt", "md");
 
     private final RagDocumentRepository ragDocumentRepository;
+    private final RagChunkRepository ragChunkRepository;
     private final RAGStorageService ragStorageService;
+    private final RagGovernanceService ragGovernanceService;
     private final AuraCaseTabClient auraCaseTabClient;
     private final ApplicationEventPublisher eventPublisher;
     private final LocalStorageConfig localStorageConfig;
     private final AgentStudioCodeValidator codeValidator;
     private final TransactionTemplate transactionTemplate;
+    private final ObjectMapper objectMapper;
 
     @Transactional
     public RagDocumentDetailDto registerDocument(Long tenantId, RegisterRagDocumentRequest request) {
@@ -229,6 +235,18 @@ public class RagCommandService {
             ragStorageService.saveChunks(doc.getTenantId(), docId, request.getChunks());
             log.info("RAG status callback saved chunks docId={} count={}", docId, request.getChunks().size());
         }
+        JsonNode qualityReport = request.getQualityReport();
+        if ((qualityReport == null || qualityReport.isNull()) && request.getQualityGatePassed() != null) {
+            var fallbackReport = objectMapper.createObjectNode();
+            fallbackReport.put("quality_gate_passed", request.getQualityGatePassed());
+            qualityReport = fallbackReport;
+            log.info("RAG status callback using top-level quality_gate_passed fallback docId={} runId={} gatePassed={}",
+                    docId, request.getRunId(), request.getQualityGatePassed());
+        }
+        if (qualityReport != null && !qualityReport.isNull()) {
+            ragGovernanceService.persistQualityReport(doc.getTenantId(), docId, request.getRunId(), qualityReport);
+            log.info("RAG quality_report saved docId={} runId={}", docId, request.getRunId());
+        }
         updateStatusFromCallback(doc.getTenantId(), docId, request.getStatus(), request.getMessage());
     }
 
@@ -373,5 +391,55 @@ public class RagCommandService {
             });
             throw new BaseException(ErrorCode.EXTERNAL_SERVICE_ERROR, "Aura 재청킹 요청 실패: " + e.getMessage());
         }
+    }
+
+    /**
+     * 문서 단위 교체 적재 API:
+     * - 기존 active 청크를 inactive 처리
+     * - 신규 청크를 active로 INSERT
+     * - 트랜잭션 경계에서 원자적 전환
+     */
+    @Transactional
+    public void replaceDocumentChunks(Long tenantId, Long docId, List<AuraChunkItemDto> chunks) {
+        RagDocument doc = ragDocumentRepository.findByDocIdAndTenantId(docId, tenantId)
+                .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "문서를 찾을 수 없습니다. docId=" + docId));
+        List<AuraChunkItemDto> safeChunks = chunks != null ? chunks : Collections.emptyList();
+        ragStorageService.saveChunks(tenantId, doc.getDocId(), safeChunks);
+    }
+
+    /**
+     * 비활성 버전을 활성 버전으로 전환.
+     * - 현재 active 청크 비활성화
+     * - 요청 version 청크 활성화
+     */
+    @Transactional
+    public void activateChunkVersion(Long tenantId, Long docId, String version) {
+        if (version == null || version.isBlank()) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "version은 필수입니다.");
+        }
+        String normalizedVersion = version.trim();
+        RagDocument doc = ragDocumentRepository.findByDocIdAndTenantId(docId, tenantId)
+                .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "문서를 찾을 수 없습니다. docId=" + docId));
+
+        long targetCount = ragChunkRepository.countByTenantIdAndDocIdAndVersion(tenantId, docId, normalizedVersion);
+        if (targetCount <= 0) {
+            throw new BaseException(ErrorCode.ENTITY_NOT_FOUND, "활성 전환할 버전을 찾을 수 없습니다. version=" + normalizedVersion);
+        }
+
+        ragChunkRepository.deactivateActiveByTenantIdAndDocId(tenantId, docId);
+        int activated = ragChunkRepository.activateByTenantIdAndDocIdAndVersion(tenantId, docId, normalizedVersion);
+        if (activated <= 0) {
+            throw new BaseException(ErrorCode.INTERNAL_SERVER_ERROR, "버전 활성화에 실패했습니다. version=" + normalizedVersion);
+        }
+
+        doc.setVersion(normalizedVersion);
+        doc.setLifecycleStatus("ACTIVE");
+        doc.setActiveFrom(java.time.Instant.now());
+        doc.setActiveTo(null);
+        doc.setUpdatedAt(java.time.Instant.now());
+        ragDocumentRepository.save(doc);
+
+        log.info("RAG chunk version activated: tenantId={} docId={} version={} activatedCount={}",
+                tenantId, docId, normalizedVersion, activated);
     }
 }

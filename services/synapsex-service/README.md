@@ -54,6 +54,8 @@ com.dwp.services.synapsex/
 | `/api/synapse/admin/**` | synapsex-service:8085 | Admin Console API |
 | `/api/synapse/audit/**` | synapsex-service:8085 | 감사 로그 조회 |
 | `/api/synapse/entities/**` | synapsex-service:8085 | FI 전표/미결제/케이스/조치 조회 |
+| `/api/synapse/vouchers/**` | synapsex-service:8085 | 일반 사용자 나의 전표/케이스 조회 |
+| `/api/v1/synapse/**` | gateway alias | `/api/synapse/**` 호환 경로 |
 
 ### 2.3 DB 마이그레이션 (Flyway)
 
@@ -149,6 +151,14 @@ com.dwp.services.synapsex/
 | GET | `/fi-open-items` | tenant_id + bukrs IN scope + currency IN scope |
 | GET | `/cases` | tenant_id + bukrs IN scope |
 | GET | `/actions` | case 조인, case bukrs IN scope |
+
+### 4.4 My Audit API (`/api/synapse/`)
+
+| Method | Path | 설명 |
+|--------|------|------|
+| GET | `/vouchers/my` | 로그인 사용자 기준 전표 + 연관 케이스 목록 (`statusFilter=ALL/PENDING_EXPLANATION`) |
+| PATCH | `/cases/{caseId}/request-explanation` | 감사자 소명 요청 (`PENDING_EXPLANATION`) |
+| POST | `/cases/{caseId}/explanations` | 사용자 소명 제출 (`case_explanation` 저장 + `IN_REVIEW` 전이) |
 
 ---
 

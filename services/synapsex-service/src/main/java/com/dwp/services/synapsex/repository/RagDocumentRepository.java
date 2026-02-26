@@ -18,7 +18,7 @@ public interface RagDocumentRepository extends JpaRepository<RagDocument, Long> 
 
     /** 콜백에서 상태만 확실히 반영 (엔티티 캐시 없이 직접 UPDATE). */
     @Modifying
-    @Query("UPDATE RagDocument d SET d.status = :status WHERE d.docId = :docId")
+    @Query("UPDATE RagDocument d SET d.status = :status, d.updatedAt = CURRENT_TIMESTAMP WHERE d.docId = :docId")
     int updateStatusByDocId(@Param("docId") Long docId, @Param("status") String status);
 
     /** 추적용: docId 기준으로 DB에 저장된 status만 조회 */

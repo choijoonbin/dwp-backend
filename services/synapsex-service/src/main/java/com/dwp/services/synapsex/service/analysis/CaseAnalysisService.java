@@ -13,10 +13,15 @@ import com.dwp.services.synapsex.entity.CaseActionProposal;
 import com.dwp.services.synapsex.entity.CaseAnalysisResult;
 import com.dwp.services.synapsex.entity.CaseAnalysisRun;
 import com.dwp.services.synapsex.dto.case_.DocumentOrOpenItemDto;
+import com.dwp.services.synapsex.entity.FiDocHeader;
 import com.dwp.services.synapsex.entity.FiOpenItem;
+import com.dwp.services.synapsex.entity.MccMaster;
 import com.dwp.services.synapsex.repository.AgentCaseRepository;
+import com.dwp.services.synapsex.repository.AppCodeRepository;
 import com.dwp.services.synapsex.repository.CaseActionProposalRepository;
+import com.dwp.services.synapsex.repository.FiDocHeaderRepository;
 import com.dwp.services.synapsex.repository.FiOpenItemRepository;
+import com.dwp.services.synapsex.repository.MccMasterRepository;
 import com.dwp.services.synapsex.scope.DrillDownCodeResolver;
 import com.dwp.services.synapsex.repository.CaseAnalysisResultRepository;
 import com.dwp.services.synapsex.util.ProposalDedupKeyUtil;
@@ -39,6 +44,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.*;
 
 /**
@@ -56,7 +62,10 @@ public class CaseAnalysisService {
     private final CaseActionProposalRepository proposalRepository;
     private final CaseActionExecutionRepository executionRepository;
     private final AgentCaseRepository agentCaseRepository;
+    private final AppCodeRepository appCodeRepository;
+    private final FiDocHeaderRepository fiDocHeaderRepository;
     private final FiOpenItemRepository fiOpenItemRepository;
+    private final MccMasterRepository mccMasterRepository;
     private final AuraCaseTabClient auraCaseTabClient;
     private final AuditWriter auditWriter;
     private final ObjectMapper objectMapper;
@@ -137,9 +146,12 @@ public class CaseAnalysisService {
                         .callbacks(callbacks)
                         .options(request != null ? request.getOptions() : null)
                         .build();
-                boolean artCaseType = evidenceSnapshot.has("caseType");
-                boolean artReasonText = evidenceSnapshot.has("reasonText");
-                log.info("analysis run sending to Aura (Phase3): caseId={} runId={} screening: caseType={} reasonTextIncluded={}", caseId, runId, artCaseType ? evidenceSnapshot.get("caseType").asText() : "null", artReasonText);
+                boolean artCaseType = evidenceSnapshot.has("case_type");
+                boolean artReasonText = evidenceSnapshot.has("screening_reason_text");
+                log.info("analysis run sending to Aura (Phase3): caseId={} runId={} screening: case_type={} screeningReasonIncluded={}",
+                        caseId, runId,
+                        artCaseType ? evidenceSnapshot.get("case_type").asText() : "null",
+                        artReasonText);
                 if (authorization == null || authorization.isBlank()) {
                     log.warn("Phase3 trigger requires Authorization header");
                     failRunWithMessage(run, "Phase3 trigger requires Authorization");
@@ -151,21 +163,12 @@ public class CaseAnalysisService {
                     }
                 }
             } else {
-                BodyEvidenceDto bodyEvidence = buildBodyEvidence(agentCase);
-                if (bodyEvidence == null) {
-                    log.warn("Aura analyze body_evidence missing: caseId={} runId={} belnr={} buzei={}",
-                            caseId, runId, agentCase.getBelnr(), agentCase.getBuzei());
-                } else {
-                    log.debug("Aura analyze body_evidence: caseId={} runId={} docId={} itemId={} caseType={} reasonText={}",
-                            caseId, runId, bodyEvidence.getDocId(), bodyEvidence.getItemId(),
-                            bodyEvidence.getCaseType(), bodyEvidence.getReasonText() != null ? "(present)" : "null");
-                }
-                boolean beCaseType = bodyEvidence != null && bodyEvidence.getCaseType() != null && !bodyEvidence.getCaseType().isBlank();
-                boolean beReasonText = bodyEvidence != null && bodyEvidence.getReasonText() != null && !bodyEvidence.getReasonText().isBlank();
-                boolean evCaseType = evidenceSnapshot.has("caseType");
-                boolean evReasonText = evidenceSnapshot.has("reasonText");
-                log.info("analysis run sending to Aura (Phase2): caseId={} runId={} body_evidence: case_type={} reasonTextIncluded={} evidence: caseType={} reasonTextIncluded={}",
-                        caseId, runId, beCaseType && bodyEvidence != null ? bodyEvidence.getCaseType() : "null", beReasonText, evCaseType ? evidenceSnapshot.get("caseType").asText() : "null", evReasonText);
+                boolean evCaseType = evidenceSnapshot.has("case_type");
+                boolean evReasonText = evidenceSnapshot.has("screening_reason_text");
+                log.info("analysis run sending to Aura (Phase2): caseId={} runId={} evidence: case_type={} screeningReasonIncluded={}",
+                        caseId, runId,
+                        evCaseType ? evidenceSnapshot.get("case_type").asText() : "null",
+                        evReasonText);
                 AuraAnalyzeRequest auraReq = AuraAnalyzeRequest.builder()
                         .caseId(caseId)
                         .runId(runId)
@@ -173,8 +176,14 @@ public class CaseAnalysisService {
                         .requestedBy(requestedBy)
                         .evidence(evidenceSnapshot)
                         .options(request != null ? request.getOptions() : null)
-                        .bodyEvidence(bodyEvidence)
                         .build();
+                try {
+                    log.info("analysis run outbound payload (Aura Phase2): caseId={} runId={} payload={}",
+                            caseId, runId, objectMapper.writeValueAsString(auraReq));
+                } catch (Exception e) {
+                    log.warn("analysis run outbound payload serialization failed: caseId={} runId={} reason={}",
+                            caseId, runId, e.getMessage());
+                }
                 AuraAnalyzeResponse auraRes = auraCaseTabClient.triggerAnalyze(caseId, tenantId, authorization, userId, auraReq);
                 if (auraRes != null) {
                     if ("disabled".equals(auraRes.getStatus())) {
@@ -234,29 +243,116 @@ public class CaseAnalysisService {
         JsonNode ragRefs = agentCase.getRagRefsJson();
         if (evidence != null) snapshot.set("evidence", evidence);
         if (ragRefs != null) snapshot.set("ragRefs", ragRefs);
-        if (agentCase.getCaseType() != null && !agentCase.getCaseType().isBlank()) {
-            snapshot.put("caseType", agentCase.getCaseType());
+
+        String docId = null;
+        if (agentCase.getBukrs() != null && !agentCase.getBukrs().isBlank()
+                && agentCase.getBelnr() != null && !agentCase.getBelnr().isBlank()
+                && agentCase.getGjahr() != null && !agentCase.getGjahr().isBlank()) {
+            docId = agentCase.getBukrs() + "-" + agentCase.getBelnr() + "-" + agentCase.getGjahr();
+        } else if (agentCase.getBelnr() != null && !agentCase.getBelnr().isBlank()) {
+            docId = agentCase.getBelnr();
         }
-        if (agentCase.getReasonText() != null && !agentCase.getReasonText().isBlank()) {
-            snapshot.put("reasonText", agentCase.getReasonText());
-            snapshot.put("screening_reason_text", agentCase.getReasonText());
+        if (docId != null) {
+            snapshot.put("doc_id", docId);          // Aura legacy/contract key
+            snapshot.put("voucher_key", docId);     // Voucher domain alias
         }
-        boolean hasCaseType = snapshot.has("caseType");
-        boolean hasReasonText = snapshot.has("reasonText");
-        log.info("screening result in evidence snapshot: caseId={} caseType={} reasonTextIncluded={}", caseId, hasCaseType ? snapshot.get("caseType").asText() : "null", hasReasonText);
-        log.debug("analysis run evidence snapshot caseId={} caseType={} reasonText={}", caseId,
-                snapshot.has("caseType") ? snapshot.get("caseType").asText() : "null",
-                snapshot.has("reasonText") ? "(present)" : "null");
+        if (agentCase.getBuzei() != null && !agentCase.getBuzei().isBlank()) {
+            snapshot.put("item_id", agentCase.getBuzei());           // Aura legacy/contract key
+            snapshot.put("voucher_item_no", agentCase.getBuzei());   // Voucher domain alias
+        }
+        if (agentCase.getCaseType() != null && !agentCase.getCaseType().isBlank()) snapshot.put("case_type", agentCase.getCaseType());
+        if (agentCase.getReasonText() != null && !agentCase.getReasonText().isBlank()) snapshot.put("screening_reason_text", agentCase.getReasonText());
+
+        Optional<FiDocHeader> headerOpt = Optional.empty();
+        if (agentCase.getBukrs() != null && agentCase.getBelnr() != null && agentCase.getGjahr() != null) {
+            headerOpt = fiDocHeaderRepository.findByTenantIdAndBukrsAndBelnrAndGjahr(
+                    tenantId, agentCase.getBukrs(), agentCase.getBelnr(), agentCase.getGjahr());
+        }
+        headerOpt.ifPresent(h -> {
+            if (h.getBudat() != null) {
+                java.time.LocalTime time = h.getCputm() != null ? h.getCputm() : java.time.LocalTime.MIDNIGHT;
+                java.time.OffsetDateTime odt = h.getBudat().atTime(time).atOffset(java.time.ZoneOffset.ofHours(9));
+                snapshot.put("occurredAt", odt.format(java.time.format.DateTimeFormatter.ISO_OFFSET_DATE_TIME));
+            }
+            if (h.getBlart() != null && !h.getBlart().isBlank()) snapshot.put("expenseType", h.getBlart());
+            if (h.getBktxt() != null && !h.getBktxt().isBlank()) snapshot.put("merchantName", h.getBktxt());
+            else if (h.getXblnr() != null && !h.getXblnr().isBlank()) snapshot.put("merchantName", h.getXblnr());
+        });
+
+        if (evidence != null && evidence.isObject()) {
+            if (!snapshot.has("amount")) copyNumberIfPresent(snapshot, evidence, "amount", "amount");
+            if (!snapshot.has("expenseType")) copyTextIfPresent(snapshot, evidence, "expenseType", "expenseType");
+            copyTextIfPresent(snapshot, evidence, "expenseTypeName", "expenseTypeName");
+            if (!snapshot.has("merchantName")) copyTextIfPresent(snapshot, evidence, "merchantName", "merchantName");
+            copyTextIfPresent(snapshot, evidence, "hr_status", "hrStatus");
+            copyTextIfPresent(snapshot, evidence, "mcc_code", "mccCode");
+            copyTextIfPresent(snapshot, evidence, "mcc_name", "mccName");
+            copyBooleanIfPresent(snapshot, evidence, "budget_exceeded", "budgetExceeded");
+            copyTextIfPresent(snapshot, evidence, "intended_risk_type", "intended_risk_type");
+        }
+        if (snapshot.has("expenseType") && !snapshot.has("expenseTypeName")) {
+            String expenseTypeCode = snapshot.get("expenseType").asText(null);
+            String expenseTypeName = resolveExpenseTypeName(expenseTypeCode);
+            if (expenseTypeName != null && !expenseTypeName.isBlank()) {
+                snapshot.put("expenseTypeName", expenseTypeName);
+            }
+        }
+        String hrRaw = snapshot.has("hrStatus") ? snapshot.get("hrStatus").asText(null) : null;
+        String hrNormalized = normalizeHrStatusForAura(hrRaw);
+        if (hrNormalized != null && !hrNormalized.isBlank()) {
+            snapshot.put("hrStatusRaw", hrRaw);
+            snapshot.put("hrStatus", hrNormalized);
+        }
+        LocalDate budat = headerOpt.map(FiDocHeader::getBudat).orElse(null);
+        snapshot.put("isHoliday", deriveIsHoliday(hrRaw, hrNormalized, budat));
+
+        String rawMccCode = snapshot.has("mccCode") ? snapshot.get("mccCode").asText(null) : null;
+        String mccCode = normalizeMccCodeForAura(rawMccCode);
+        if (mccCode != null && !mccCode.isBlank()) {
+            if (rawMccCode != null && (!rawMccCode.equals(mccCode) || !rawMccCode.matches("\\d{4}"))) {
+                snapshot.put("mccCodeRaw", rawMccCode);
+            }
+            snapshot.put("mccCode", mccCode);
+        }
+        if (mccCode != null && !mccCode.isBlank()) {
+            Optional<MccMaster> mccMasterOpt = mccMasterRepository.findFirstByTenantIdAndMccCode(tenantId, mccCode);
+            mccMasterOpt.ifPresent(mcc -> {
+                if (!snapshot.has("mccName") && mcc.getMccName() != null && !mcc.getMccName().isBlank()) {
+                    snapshot.put("mccName", mcc.getMccName());
+                }
+                if (mcc.getRelatedArticle() != null && !mcc.getRelatedArticle().isBlank()) {
+                    snapshot.put("mcc_related_article", mcc.getRelatedArticle());
+                }
+                if (mcc.getRiskCategory() != null && !mcc.getRiskCategory().isBlank()) {
+                    snapshot.put("risk_category", mcc.getRiskCategory());
+                }
+                if (mcc.getIsWeekendAllowed() != null) {
+                    snapshot.put("is_weekend_allowed", String.valueOf(mcc.getIsWeekendAllowed()));
+                }
+            });
+        }
+        boolean hasCaseType = snapshot.has("case_type");
+        boolean hasReasonText = snapshot.has("screening_reason_text");
+        log.info("screening result in evidence snapshot: caseId={} case_type={} screeningReasonIncluded={}", caseId, hasCaseType ? snapshot.get("case_type").asText() : "null", hasReasonText);
+        log.debug("analysis run evidence snapshot caseId={} case_type={} screening_reason_text={}", caseId,
+                snapshot.has("case_type") ? snapshot.get("case_type").asText() : "null",
+                snapshot.has("screening_reason_text") ? "(present)" : "null");
 
         caseQueryService.findCaseDetail(tenantId, caseId).ifPresent(detail -> {
             if (detail.getEvidence() != null && detail.getEvidence().getDocumentOrOpenItem() != null) {
                 DocumentOrOpenItemDto docOrOi = detail.getEvidence().getDocumentOrOpenItem();
+                if (!snapshot.has("amount") && docOrOi.getAmount() != null) snapshot.put("amount", docOrOi.getAmount());
+                if (!snapshot.has("merchantName") && docOrOi.getHeaderSummary() != null) {
+                    String merchant = extractMerchantNameFromHeaderSummary(docOrOi.getHeaderSummary());
+                    if (merchant != null) snapshot.put("merchantName", merchant);
+                }
                 ObjectNode document = objectMapper.createObjectNode();
                 document.set("header", objectMapper.valueToTree(docOrOi.getHeaderSummary() != null ? docOrOi.getHeaderSummary() : Map.of()));
                 document.set("items", objectMapper.valueToTree(docOrOi.getItems() != null ? docOrOi.getItems() : List.of()));
                 document.put("type", docOrOi.getType());
                 if (docOrOi.getDocKey() != null) document.put("docKey", docOrOi.getDocKey());
-                snapshot.set("document", document);
+                snapshot.set("document", document);     // Aura legacy/contract key
+                snapshot.set("voucher", document);      // Voucher domain alias
             }
             if (detail.getEvidence() != null && detail.getEvidence().getRelatedPartyIds() != null) {
                 snapshot.set("partyIds", objectMapper.valueToTree(detail.getEvidence().getRelatedPartyIds()));
@@ -303,6 +399,98 @@ public class CaseAnalysisService {
         return snapshot;
     }
 
+    private static void copyTextIfPresent(ObjectNode target, JsonNode source, String sourceKey, String targetKey) {
+        if (source.has(sourceKey) && source.get(sourceKey).isTextual() && !source.get(sourceKey).asText().isBlank()) {
+            target.put(targetKey, source.get(sourceKey).asText());
+        }
+    }
+
+    private static void copyBooleanIfPresent(ObjectNode target, JsonNode source, String sourceKey, String targetKey) {
+        if (source.has(sourceKey) && source.get(sourceKey).isBoolean()) {
+            target.put(targetKey, source.get(sourceKey).asBoolean());
+        }
+    }
+
+    private static void copyNumberIfPresent(ObjectNode target, JsonNode source, String sourceKey, String targetKey) {
+        if (source.has(sourceKey) && source.get(sourceKey).isNumber()) {
+            target.set(targetKey, source.get(sourceKey));
+        } else if (source.has(sourceKey) && source.get(sourceKey).isTextual()) {
+            String raw = source.get(sourceKey).asText();
+            try {
+                java.math.BigDecimal amount = new java.math.BigDecimal(raw);
+                target.put(targetKey, amount);
+            } catch (NumberFormatException ignored) {
+            }
+        }
+    }
+
+    private static String extractMerchantNameFromHeaderSummary(Object headerSummary) {
+        if (!(headerSummary instanceof Map<?, ?> map)) return null;
+        Object bktxt = map.get("bktxt");
+        if (bktxt instanceof String s1 && !s1.isBlank()) return s1;
+        Object xblnr = map.get("xblnr");
+        if (xblnr instanceof String s2 && !s2.isBlank()) return s2;
+        return null;
+    }
+
+    private static String normalizeHrStatusForAura(String raw) {
+        if (raw == null || raw.isBlank()) return raw;
+        String v = raw.trim().toUpperCase(Locale.ROOT);
+        return switch (v) {
+            case "WORKING", "BUSINESS_TRIP", "WORK" -> "WORK";
+            case "VACATION", "OFF", "LEAVE" -> "LEAVE";
+            default -> v;
+        };
+    }
+
+    private static String normalizeMccCodeForAura(String raw) {
+        if (raw == null || raw.isBlank()) return raw;
+        String v = raw.trim().toUpperCase(Locale.ROOT);
+        if (v.matches("\\d{4}")) return v;
+        return switch (v) {
+            case "BAR", "PUB" -> "5813";
+            case "GOLF", "GOLF_CLUB", "GOLFCOURSE" -> "7992";
+            case "RESTAURANT", "DINING" -> "5812";
+            case "FASTFOOD", "FAST_FOOD" -> "5814";
+            default -> v;
+        };
+    }
+
+    private String resolveExpenseTypeName(String expenseTypeCode) {
+        if (expenseTypeCode == null || expenseTypeCode.isBlank()) return null;
+        String code = expenseTypeCode.trim().toUpperCase(Locale.ROOT);
+        for (String groupKey : List.of("EXPENSE_TYPE", "DOC_TYPE", "BLART_TYPE")) {
+            Optional<com.dwp.services.synapsex.entity.AppCode> codeOpt =
+                    appCodeRepository.findByGroupKeyAndCodeAndIsActiveTrue(groupKey, code);
+            if (codeOpt.isPresent() && codeOpt.get().getName() != null && !codeOpt.get().getName().isBlank()) {
+                return codeOpt.get().getName();
+            }
+        }
+        return switch (code) {
+            case "SA" -> "G/L Account Document";
+            case "KR" -> "Vendor Invoice";
+            case "DR" -> "Customer Invoice";
+            default -> code;
+        };
+    }
+
+    private static boolean deriveIsHoliday(String hrRaw, String hrNormalized, LocalDate budat) {
+        if (hrRaw != null && !hrRaw.isBlank()) {
+            String v = hrRaw.trim().toUpperCase(Locale.ROOT);
+            if ("OFF".equals(v)) return true;
+            if ("VACATION".equals(v)) return false;
+        }
+        if (hrNormalized != null && !hrNormalized.isBlank()) {
+            String v = hrNormalized.trim().toUpperCase(Locale.ROOT);
+            if ("WORK".equals(v)) return false;
+        }
+        if (budat != null) {
+            java.time.DayOfWeek dow = budat.getDayOfWeek();
+            if (dow == java.time.DayOfWeek.SATURDAY || dow == java.time.DayOfWeek.SUNDAY) return true;
+        }
+        return false;
+    }
+
     /**
      * Aura Phase2 규격: body_evidence { doc_id, item_id }.
      * doc_id는 충돌 방지를 위해 BUKRS-BELNR-GJAHR(docKey) 우선, 불가 시 BELNR fallback.
@@ -334,6 +522,7 @@ public class CaseAnalysisService {
 
         CaseAnalysisResult result = CaseAnalysisResult.builder()
                 .runId(run.getRunId())
+                .tenantId(run.getTenantId())
                 .score(BigDecimal.valueOf(72))
                 .severity("MEDIUM")
                 .reasonText("정책 위반 가능성이 있는 전표 조합입니다.")
@@ -471,6 +660,7 @@ public class CaseAnalysisService {
         JsonNode evidenceMapJson = buildEvidenceMap(analysis.getEvidence(), analysis.getRagRefs());
         CaseAnalysisResult result = CaseAnalysisResult.builder()
                 .runId(run.getRunId())
+                .tenantId(run.getTenantId())
                 .score(analysis.getScore() != null ? BigDecimal.valueOf(analysis.getScore()) : null)
                 .severity(analysis.getSeverity())
                 .reasonText(analysis.getReasonText())
@@ -505,8 +695,42 @@ public class CaseAnalysisService {
         JsonNode evidenceMapJson = (fr.getDecisionReason() != null && !fr.getDecisionReason().isNull())
                 ? fr.getDecisionReason()
                 : buildEvidenceMap(fr.getEvidence(), fr.getRagRefs());
+        JsonNode sentenceCitationMap = fr.getSentenceCitationMap();
+        if ((sentenceCitationMap == null || sentenceCitationMap.isNull()) && fr.getDecisionReason() != null && fr.getDecisionReason().isObject()) {
+            sentenceCitationMap = fr.getDecisionReason().get("sentence_citation_map");
+        }
+        JsonNode analysisScoreBreakdown = fr.getAnalysisScoreBreakdown();
+        if ((analysisScoreBreakdown == null || analysisScoreBreakdown.isNull()) && fr.getDecisionReason() != null && fr.getDecisionReason().isObject()) {
+            analysisScoreBreakdown = fr.getDecisionReason().get("analysis_score_breakdown");
+        }
+        JsonNode qualityGateCodes = fr.getQualityGateCodes();
+        if ((qualityGateCodes == null || qualityGateCodes.isNull()) && fr.getDecisionReason() != null && fr.getDecisionReason().isObject()) {
+            qualityGateCodes = fr.getDecisionReason().get("quality_gate_codes");
+        }
+        BigDecimal groundingCoverageRatio = fr.getGroundingCoverageRatio() != null
+                ? BigDecimal.valueOf(fr.getGroundingCoverageRatio().doubleValue()) : null;
+        Integer ungroundedClaimSentences = fr.getUngroundedClaimSentences();
+        if ((groundingCoverageRatio == null || ungroundedClaimSentences == null) && fr.getDecisionReason() != null && fr.getDecisionReason().isObject()) {
+            JsonNode decision = fr.getDecisionReason();
+            if (groundingCoverageRatio == null && decision.has("grounding_coverage_ratio") && !decision.get("grounding_coverage_ratio").isNull()) {
+                groundingCoverageRatio = BigDecimal.valueOf(decision.get("grounding_coverage_ratio").asDouble());
+            }
+            if (ungroundedClaimSentences == null && decision.has("ungrounded_claim_sentences") && !decision.get("ungrounded_claim_sentences").isNull()) {
+                ungroundedClaimSentences = decision.get("ungrounded_claim_sentences").asInt();
+            }
+        }
+        if (sentenceCitationMap == null || sentenceCitationMap.isNull()) {
+            log.warn("Aura callback missing sentence_citation_map: runId={} caseId={}", run.getRunId(), run.getCaseId());
+        }
+        if (analysisScoreBreakdown == null || analysisScoreBreakdown.isNull()) {
+            log.warn("Aura callback missing analysis_score_breakdown: runId={} caseId={}", run.getRunId(), run.getCaseId());
+        }
+        if (qualityGateCodes == null || qualityGateCodes.isNull()) {
+            log.warn("Aura callback missing quality_gate_codes: runId={} caseId={}", run.getRunId(), run.getCaseId());
+        }
         CaseAnalysisResult result = CaseAnalysisResult.builder()
                 .runId(run.getRunId())
+                .tenantId(run.getTenantId())
                 .score(fr.getScore() != null ? BigDecimal.valueOf(fr.getScore()) : null)
                 .severity(fr.getSeverity())
                 .reasonText(fr.getReasonText())
@@ -519,6 +743,11 @@ public class CaseAnalysisService {
                 .similarJson(similarJson.isEmpty() ? null : similarJson)
                 .ragRefsJson(ragRefsJson.isEmpty() ? null : ragRefsJson)
                 .evidenceMapJson(evidenceMapJson)
+                .sentenceCitationMap(sentenceCitationMap)
+                .analysisScoreBreakdown(analysisScoreBreakdown)
+                .qualityGateCodes(qualityGateCodes)
+                .groundingCoverageRatio(groundingCoverageRatio)
+                .ungroundedClaimSentences(ungroundedClaimSentences)
                 .createdAt(Instant.now())
                 .build();
         resultRepository.save(result);

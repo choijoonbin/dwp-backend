@@ -7,6 +7,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Map;
 
 /**
@@ -73,9 +74,38 @@ public class RagChunk {
     @Column(name = "parent_id")
     private Long parentId;
 
+    /** 외부 시스템이 문자열 키를 쓰는 경우를 위한 부모 청크 문자열 키 */
+    @Column(name = "parent_chunk_id", length = 128)
+    private String parentChunkId;
+
+    @Column(name = "parent_article", length = 64)
+    private String parentArticle;
+
+    @Column(name = "parent_title", length = 255)
+    private String parentTitle;
+
+    @Column(name = "child_index")
+    private Integer childIndex;
+
+    @Column(name = "chunk_level", length = 16)
+    private String chunkLevel;
+
     /** 노드 유형: ARTICLE(조문), CLAUSE(항/호), PARAGRAPH(문단) */
-    @Column(name = "node_type", length = 20)
+    @Column(name = "node_type", length = 32)
     private String nodeType;
+
+    @Column(name = "version", length = 64)
+    private String version;
+
+    @Column(name = "effective_from")
+    private LocalDate effectiveFrom;
+
+    @Column(name = "effective_to")
+    private LocalDate effectiveTo;
+
+    @Column(name = "is_active", nullable = false)
+    @Builder.Default
+    private Boolean isActive = true;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;

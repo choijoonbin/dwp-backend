@@ -36,7 +36,8 @@ public class AgentToolQueryService {
 
     @Transactional(readOnly = true)
     public Optional<CaseDetailDto> getCase(Long tenantId, Long actorUserId, Long caseId) {
-        return caseQueryService.findCaseDetail(tenantId, actorUserId, caseId);
+        // Aura agent-tools 호출은 actorUserId와 무관하게 caseId 기준으로 조회한다.
+        return caseQueryService.findCaseDetail(tenantId, caseId);
     }
 
     @Transactional(readOnly = true)

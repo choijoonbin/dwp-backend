@@ -8,6 +8,7 @@ import com.dwp.services.synapsex.entity.QRagChunk;
 import com.dwp.services.synapsex.entity.RagChunk;
 import com.dwp.services.synapsex.entity.RagDocument;
 import com.dwp.services.synapsex.repository.RagDocumentRepository;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -46,7 +47,11 @@ public class RagQueryService {
                         .sourceType(d.getSourceType())
                         .docType(d.getDocType())
                         .status(d.getStatus())
+                        .version(d.getVersion())
+                        .effectiveFrom(d.getEffectiveFrom())
+                        .effectiveTo(d.getEffectiveTo())
                         .createdAt(d.getCreatedAt())
+                        .updatedAt(d.getUpdatedAt())
                         .build())
                 .toList();
         return PageResponse.of(items, total, page, size);
@@ -69,10 +74,29 @@ public class RagQueryService {
                             .filePath(doc.getFilePath())
                             .checksum(doc.getChecksum())
                             .status(doc.getStatus())
+                            .version(doc.getVersion())
+                            .effectiveFrom(doc.getEffectiveFrom())
+                            .effectiveTo(doc.getEffectiveTo())
+                            .chunkingStrategy(resolveChunkingStrategy(doc))
+                            .qualityGatePassed(doc.getQualityGatePassed())
+                            .qualityReport(doc.getLastQualityReportJson())
                             .createdAt(doc.getCreatedAt())
+                            .updatedAt(doc.getUpdatedAt())
                             .chunks(chunkDtos)
                             .build();
                 });
+    }
+
+    private static String resolveChunkingStrategy(RagDocument doc) {
+        JsonNode report = doc.getLastQualityReportJson();
+        if (report != null && report.isObject()) {
+            JsonNode v = report.get("chunking_strategy");
+            if (v == null || v.isNull() || !v.isTextual()) v = report.get("chunkingStrategy");
+            if (v == null || v.isNull() || !v.isTextual()) v = report.get("strategy");
+            if (v != null && v.isTextual() && !v.asText().isBlank()) return v.asText();
+        }
+        // 별도 전략 컬럼이 없어 문서 유형을 fallback으로 사용
+        return doc.getDocType();
     }
 
     /** embedding 제외 컬럼만 프로젝션하여 조회 (vector 컬럼 역직렬화 오류 회피). */
@@ -81,7 +105,7 @@ public class RagQueryService {
         List<com.querydsl.core.Tuple> rows = queryFactory
                 .select(c.chunkId, c.chunkIndex, c.pageNo, c.chunkText, c.embeddingId, c.metadataJson)
                 .from(c)
-                .where(c.tenantId.eq(tenantId), c.docId.eq(docId))
+                .where(c.tenantId.eq(tenantId), c.docId.eq(docId), c.isActive.isTrue())
                 .orderBy(c.chunkIndex.asc(), c.chunkId.asc())
                 .fetch();
         return rows.stream()
@@ -105,14 +129,14 @@ public class RagQueryService {
         String pattern = "%" + q + "%";
 
         var chunks = queryFactory.selectFrom(c)
-                .where(c.tenantId.eq(tenantId), c.chunkText.likeIgnoreCase(pattern))
+                .where(c.tenantId.eq(tenantId), c.isActive.isTrue(), c.chunkText.likeIgnoreCase(pattern))
                 .orderBy(c.docId.asc(), c.pageNo.asc())
                 .offset((long) page * size)
                 .limit(size)
                 .fetch();
 
         Long totalLong = queryFactory.select(c.count()).from(c)
-                .where(c.tenantId.eq(tenantId), c.chunkText.likeIgnoreCase(pattern))
+                .where(c.tenantId.eq(tenantId), c.isActive.isTrue(), c.chunkText.likeIgnoreCase(pattern))
                 .fetchOne();
         long total = totalLong != null ? totalLong : 0L;
 
@@ -142,7 +166,7 @@ public class RagQueryService {
                 .map(doc -> {
                     var c = QRagChunk.ragChunk;
                     Long chunkCount = queryFactory.select(c.count()).from(c)
-                            .where(c.tenantId.eq(tenantId), c.docId.eq(docId))
+                            .where(c.tenantId.eq(tenantId), c.docId.eq(docId), c.isActive.isTrue())
                             .fetchOne();
                     
                     return com.dwp.services.synapsex.dto.rag.ChunkingStatusResponse.builder()

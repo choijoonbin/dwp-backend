@@ -192,7 +192,6 @@ ON CONFLICT (tenant_id, email) DO UPDATE SET
     display_name = EXCLUDED.display_name,
     status = EXCLUDED.status,
     updated_at = CURRENT_TIMESTAMP;
-
 -- ========================================
 -- 7. com_user_accounts - LOCAL 로그인 계정 (비밀번호: admin1234!)
 -- ========================================

@@ -6,8 +6,11 @@ import com.dwp.core.exception.BaseException;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.services.synapsex.dto.common.PageResponse;
 import com.dwp.services.synapsex.dto.rag.RagChunksCallbackRequest;
+import com.dwp.services.synapsex.dto.rag.RagChunkReplaceRequest;
 import com.dwp.services.synapsex.dto.rag.RagDocumentDetailDto;
 import com.dwp.services.synapsex.dto.rag.RagDocumentListDto;
+import com.dwp.services.synapsex.dto.rag.RagEvalRunDto;
+import com.dwp.services.synapsex.dto.rag.RagEvalRunUpsertRequest;
 import com.dwp.services.synapsex.dto.rag.RagSearchResultDto;
 import com.dwp.services.synapsex.dto.rag.RagStatusCallbackRequest;
 import com.dwp.services.synapsex.dto.rag.RagHybridSearchRequest;
@@ -17,6 +20,7 @@ import com.dwp.services.synapsex.dto.rag.RechunkResponse;
 import com.dwp.services.synapsex.dto.rag.ChunkingStatusResponse;
 import com.dwp.services.synapsex.dto.rag.RegisterRagDocumentRequest;
 import com.dwp.services.synapsex.service.rag.RagCommandService;
+import com.dwp.services.synapsex.service.rag.RagGovernanceService;
 import com.dwp.services.synapsex.service.rag.RagQueryService;
 import com.dwp.services.synapsex.service.rag.RagSearchService;
 import jakarta.validation.Valid;
@@ -37,6 +41,7 @@ public class RagController {
 
     private final RagQueryService ragQueryService;
     private final RagCommandService ragCommandService;
+    private final RagGovernanceService ragGovernanceService;
     private final RagSearchService ragSearchService;
 
     @GetMapping("/documents")
@@ -159,5 +164,53 @@ public class RagController {
         ChunkingStatusResponse result = ragQueryService.getChunkingStatus(tenantId, docId)
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "문서를 찾을 수 없습니다."));
         return ApiResponse.success(result);
+    }
+
+    /**
+     * 문서 단위 청크 교체 적재(원자적 전환)
+     * - 기존 active 청크 inactive 처리
+     * - 신규 청크 active 저장
+     */
+    @PostMapping("/documents/{docId}/chunks/replace")
+    public ApiResponse<Void> replaceDocumentChunks(
+            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @PathVariable Long docId,
+            @Valid @RequestBody RagChunkReplaceRequest request) {
+        ragCommandService.replaceDocumentChunks(tenantId, docId, request.getChunks());
+        return ApiResponse.success(null);
+    }
+
+    /**
+     * 비활성 버전을 활성 버전으로 전환
+     * 예: POST /api/synapse/rag/documents/{docId}/versions/activate?version=v2026.02
+     */
+    @PostMapping("/documents/{docId}/versions/activate")
+    public ApiResponse<Void> activateChunkVersion(
+            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @PathVariable Long docId,
+            @RequestParam("version") String version) {
+        ragCommandService.activateChunkVersion(tenantId, docId, version);
+        return ApiResponse.success(null);
+    }
+
+    /**
+     * RAG 리플레이 평가 결과 저장(배포 게이트 판단 포함)
+     */
+    @PostMapping("/eval-runs")
+    public ApiResponse<RagEvalRunDto> upsertEvalRun(
+            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId,
+            @Valid @RequestBody RagEvalRunUpsertRequest request) {
+        RagEvalRunDto saved = ragGovernanceService.saveEvalRun(tenantId, request);
+        return ApiResponse.success(saved);
+    }
+
+    /**
+     * 최신 RAG 평가 결과 조회
+     */
+    @GetMapping("/eval-runs/latest")
+    public ApiResponse<RagEvalRunDto> getLatestEvalRun(
+            @RequestHeader(HeaderConstants.X_TENANT_ID) Long tenantId) {
+        RagEvalRunDto latest = ragGovernanceService.getLatestEvalRun(tenantId).orElse(null);
+        return ApiResponse.success(latest);
     }
 }

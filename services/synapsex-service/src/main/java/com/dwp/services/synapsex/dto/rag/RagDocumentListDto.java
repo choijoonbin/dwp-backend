@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.time.LocalDate;
 
 @Data
 @Builder
@@ -17,5 +18,9 @@ public class RagDocumentListDto {
     private String sourceType;
     private String docType;
     private String status;
+    private String version;
+    private LocalDate effectiveFrom;
+    private LocalDate effectiveTo;
     private Instant createdAt;
+    private Instant updatedAt;
 }

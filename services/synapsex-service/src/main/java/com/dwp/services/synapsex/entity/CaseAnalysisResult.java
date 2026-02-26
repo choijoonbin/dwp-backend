@@ -30,6 +30,9 @@ public class CaseAnalysisResult {
     @Column(name = "run_id")
     private UUID runId;
 
+    @Column(name = "tenant_id")
+    private Long tenantId;
+
     @Column(name = "score", precision = 5, scale = 2)
     private BigDecimal score;
 
@@ -72,6 +75,29 @@ public class CaseAnalysisResult {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "evidence_map_json", columnDefinition = "jsonb")
     private JsonNode evidenceMapJson;
+
+    /** 문장별 근거 매핑 */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "sentence_citation_map", columnDefinition = "jsonb")
+    private JsonNode sentenceCitationMap;
+
+    /** 분석 점수 상세 분해 */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "analysis_score_breakdown", columnDefinition = "jsonb")
+    private JsonNode analysisScoreBreakdown;
+
+    /** 품질 게이트 코드 목록(JSON 배열) */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "quality_gate_codes", columnDefinition = "jsonb")
+    private JsonNode qualityGateCodes;
+
+    /** 근거 커버리지 비율(0~1) */
+    @Column(name = "grounding_coverage_ratio", precision = 5, scale = 4)
+    private BigDecimal groundingCoverageRatio;
+
+    /** 근거 미연결 claim 문장 수 */
+    @Column(name = "ungrounded_claim_sentences")
+    private Integer ungroundedClaimSentences;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;

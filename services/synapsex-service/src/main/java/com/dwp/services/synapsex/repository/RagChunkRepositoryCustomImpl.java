@@ -28,6 +28,7 @@ public class RagChunkRepositoryCustomImpl implements RagChunkRepositoryCustom {
             SELECT c.chunk_id, ts_rank_cd(c.search_tsv, websearch_to_tsquery('simple', :query)) as score
             FROM dwp_aura.rag_chunk c
             WHERE c.tenant_id = :tenantId
+              AND c.is_active = true
               AND c.search_tsv @@ websearch_to_tsquery('simple', :query)
             """);
 
@@ -63,6 +64,7 @@ public class RagChunkRepositoryCustomImpl implements RagChunkRepositoryCustom {
             SELECT c.chunk_id, 1 - (c.embedding <=> :embedding::vector) as score
             FROM dwp_aura.rag_chunk c
             WHERE c.tenant_id = :tenantId
+              AND c.is_active = true
               AND c.embedding IS NOT NULL
             """);
 
@@ -97,6 +99,7 @@ public class RagChunkRepositoryCustomImpl implements RagChunkRepositoryCustom {
             SELECT c.chunk_id, c.doc_id, c.node_type, c.chunk_text, c.regulation_article, c.chunk_index
             FROM dwp_aura.rag_chunk c
             WHERE c.tenant_id = :tenantId
+              AND c.is_active = true
               AND c.chunk_id IN (:parentIds)
             ORDER BY c.doc_id, c.chunk_index
             """;

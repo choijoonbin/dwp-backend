@@ -77,6 +77,31 @@ public class AuraCallbackPayload {
         @JsonProperty("decision_reason")
         @JsonAlias("decisionReason")
         private JsonNode decisionReason;
+
+        /** Aura 품질 근거: 문장-근거 매핑 */
+        @JsonProperty("sentence_citation_map")
+        @JsonAlias("sentenceCitationMap")
+        private JsonNode sentenceCitationMap;
+
+        /** Aura 품질 근거: 분석 점수 분해 */
+        @JsonProperty("analysis_score_breakdown")
+        @JsonAlias("analysisScoreBreakdown")
+        private JsonNode analysisScoreBreakdown;
+
+        /** Aura 품질 게이트 코드 목록 */
+        @JsonProperty("quality_gate_codes")
+        @JsonAlias("qualityGateCodes")
+        private JsonNode qualityGateCodes;
+
+        /** 근거 커버리지 비율(선택) */
+        @JsonProperty("grounding_coverage_ratio")
+        @JsonAlias("groundingCoverageRatio")
+        private Number groundingCoverageRatio;
+
+        /** 근거 미연결 문장 수(선택) */
+        @JsonProperty("ungrounded_claim_sentences")
+        @JsonAlias("ungroundedClaimSentences")
+        private Integer ungroundedClaimSentences;
     }
 
     @Data

@@ -46,6 +46,12 @@ spring:
             - Path=/api/synapse/audit/**
           filters:
             - StripPrefix=1
+        - id: synapsex-aura
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/aura/**
+          filters:
+            - StripPrefix=1
         - id: synapsex-entities
           uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
           predicates:
@@ -86,6 +92,13 @@ spring:
           uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
           predicates:
             - Path=/api/synapse/vouchers/**
+          filters:
+            - StripPrefix=1
+        # Synapse API 캐치올(안전망): 신규 하위 경로 누락 시에도 synapse 서비스로 전달
+        - id: synapsex-api-catchall
+          uri: ${SERVICE_SYNAPSEX_URL:http://localhost:8085}
+          predicates:
+            - Path=/api/synapse/**
           filters:
             - StripPrefix=1
         # Synapse v1 별칭: /api/v1/synapse/** -> /api/synapse/**

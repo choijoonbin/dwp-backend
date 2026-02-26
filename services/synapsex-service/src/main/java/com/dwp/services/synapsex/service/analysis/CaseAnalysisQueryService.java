@@ -138,6 +138,8 @@ public class CaseAnalysisQueryService {
         List<Map<String, Object>> evidence = jsonToList(r.getEvidenceJson());
         List<Map<String, Object>> similar = jsonToList(r.getSimilarJson());
         List<Map<String, Object>> ragRefs = jsonToList(r.getRagRefsJson());
+        JsonNode citations = extractCitations(r);
+        boolean grounded = hasCitationLinks(r.getSentenceCitationMap());
 
         return CaseAnalysisDto.builder()
                 .runId(r.getRunId())
@@ -148,12 +150,47 @@ public class CaseAnalysisQueryService {
                 .violationClause(r.getViolationClause())
                 .reasoningSummary(r.getReasoningSummary())
                 .recommendedAction(r.getRecommendedAction())
+                .sentenceCitationMap(r.getSentenceCitationMap())
+                .qualityGateCodes(r.getQualityGateCodes())
+                .analysisScoreBreakdown(r.getAnalysisScoreBreakdown())
+                .citations(citations)
+                .grounded(grounded)
                 .confidenceBreakdown(r.getConfidenceJson())
                 .evidence(evidence)
                 .similarCases(similar)
                 .ragRefs(ragRefs)
                 .proposals(proposals)
                 .build();
+    }
+
+    private JsonNode extractCitations(CaseAnalysisResult result) {
+        JsonNode map = result.getEvidenceMapJson();
+        if (map == null || map.isNull() || !map.isObject()) return null;
+        JsonNode citations = map.get("citations");
+        if (citations == null || citations.isNull()) {
+            citations = map.get("citation_list");
+        }
+        return (citations != null && !citations.isNull()) ? citations : null;
+    }
+
+    private boolean hasCitationLinks(JsonNode node) {
+        if (node == null || node.isNull()) return false;
+        if (node.isArray()) {
+            for (JsonNode child : node) {
+                if (hasCitationLinks(child)) return true;
+            }
+            return false;
+        }
+        if (node.isObject()) {
+            JsonNode ids = node.get("citation_ids");
+            if (ids != null && ids.isArray() && !ids.isEmpty()) return true;
+            var fields = node.fields();
+            while (fields.hasNext()) {
+                var entry = fields.next();
+                if (hasCitationLinks(entry.getValue())) return true;
+            }
+        }
+        return false;
     }
 
     public CaseActionProposalDto toProposalDto(CaseActionProposal proposal) {

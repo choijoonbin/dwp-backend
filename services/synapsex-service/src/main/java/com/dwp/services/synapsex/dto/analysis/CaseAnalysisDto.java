@@ -29,6 +29,16 @@ public class CaseAnalysisDto {
     private String reasoningSummary;
     /** Aura 신규: 권고 조치 요약 */
     private String recommendedAction;
+    /** Aura 품질 근거: 문장-근거 매핑 */
+    private JsonNode sentenceCitationMap;
+    /** Aura 품질 근거: 품질 게이트 코드 목록 */
+    private JsonNode qualityGateCodes;
+    /** Aura 품질 근거: 점수 분해 */
+    private JsonNode analysisScoreBreakdown;
+    /** citation_id 매핑 원본 배열 */
+    private JsonNode citations;
+    /** grounded 여부(근거 인용 존재 여부) */
+    private Boolean grounded;
     private JsonNode confidenceBreakdown;
     private List<Map<String, Object>> evidence;
     private List<Map<String, Object>> similarCases;

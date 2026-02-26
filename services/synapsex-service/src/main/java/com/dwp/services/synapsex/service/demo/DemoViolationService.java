@@ -2,10 +2,15 @@ package com.dwp.services.synapsex.service.demo;
 
 import com.dwp.services.synapsex.dto.demo.GenerateViolationRequest;
 import com.dwp.services.synapsex.dto.demo.GenerateViolationResponse;
+import com.dwp.services.synapsex.entity.BpParty;
 import com.dwp.services.synapsex.entity.FiDocHeader;
 import com.dwp.services.synapsex.entity.FiDocItem;
+import com.dwp.services.synapsex.entity.MccMaster;
+import com.dwp.services.synapsex.repository.BpPartyRepository;
 import com.dwp.services.synapsex.repository.FiDocHeaderRepository;
 import com.dwp.services.synapsex.repository.FiDocItemRepository;
+import com.dwp.services.synapsex.repository.MccMasterRepository;
+import com.dwp.services.synapsex.repository.UserHrCalendarRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -36,9 +41,14 @@ public class DemoViolationService {
     private static final String SHKZG = "H";
     /** fi_doc_item PK 필수 — 라인번호(1건당 001) */
     private static final String BUZEI_FIRST_LINE = "001";
+    private static final LocalDate HR_SEED_START = LocalDate.of(2026, 2, 1);
+    private static final LocalDate HR_SEED_END = LocalDate.of(2026, 3, 31);
 
     private final FiDocHeaderRepository fiDocHeaderRepository;
     private final FiDocItemRepository fiDocItemRepository;
+    private final BpPartyRepository bpPartyRepository;
+    private final MccMasterRepository mccMasterRepository;
+    private final UserHrCalendarRepository userHrCalendarRepository;
     private final DemoDetectTrigger demoDetectTrigger;
 
     /**
@@ -97,7 +107,7 @@ public class DemoViolationService {
             header.setCputm(cputm);
             header.setBktxt(merchantName + " / 심야 식대");
             header.setIntendedRiskType(GenerateViolationRequest.ScenarioType.HOLIDAY_USAGE.name());
-            setContextForScenario(header, GenerateViolationRequest.ScenarioType.HOLIDAY_USAGE);
+            setContextForScenario(header, tenantId, ownerUserId, GenerateViolationRequest.ScenarioType.HOLIDAY_USAGE, rnd);
             BigDecimal amount = resolveAmount(request, rnd);
             FiDocItem item = buildItem(tenantId, belnr, gjahr, merchantName, GenerateViolationRequest.ScenarioType.HOLIDAY_USAGE, budat, cputm, amount, now);
             saveDocAndItem(tenantId, ownerUserId, header, item, gjahr, docKeys);
@@ -122,7 +132,7 @@ public class DemoViolationService {
                 FiDocHeader header = buildHeaderForScenario(tenantId, belnr, gjahr, GenerateViolationRequest.ScenarioType.DUPLICATE_SUSPECT, merchantName, sameDate, cputm, now, rnd);
                 header.setBktxt(merchantName + " / 중복 청구 의심");
                 header.setIntendedRiskType(GenerateViolationRequest.ScenarioType.DUPLICATE_SUSPECT.name());
-                setContextForScenario(header, GenerateViolationRequest.ScenarioType.DUPLICATE_SUSPECT);
+                setContextForScenario(header, tenantId, ownerUserId, GenerateViolationRequest.ScenarioType.DUPLICATE_SUSPECT, rnd);
                 FiDocItem item = buildItem(tenantId, belnr, gjahr, merchantName, GenerateViolationRequest.ScenarioType.DUPLICATE_SUSPECT, sameDate, cputm, sameAmount, now);
                 saveDocAndItem(tenantId, ownerUserId, header, item, gjahr, docKeys);
             }
@@ -146,7 +156,7 @@ public class DemoViolationService {
             FiDocHeader header = buildHeaderForScenario(tenantId, belnr, gjahr, GenerateViolationRequest.ScenarioType.SPLIT_PAYMENT, merchantName, sameDate, cputm, now, rnd);
             header.setBktxt(merchantName + " / 분할 결제");
             header.setIntendedRiskType(GenerateViolationRequest.ScenarioType.SPLIT_PAYMENT.name());
-            setContextForScenario(header, GenerateViolationRequest.ScenarioType.SPLIT_PAYMENT);
+            setContextForScenario(header, tenantId, ownerUserId, GenerateViolationRequest.ScenarioType.SPLIT_PAYMENT, rnd);
             FiDocItem item = buildItem(tenantId, belnr, gjahr, merchantName, GenerateViolationRequest.ScenarioType.SPLIT_PAYMENT, sameDate, cputm, amount, now);
             saveDocAndItem(tenantId, ownerUserId, header, item, gjahr, docKeys);
         }
@@ -161,7 +171,7 @@ public class DemoViolationService {
             String belnr = nextUniqueBelnr(tenantId, gjahr, rnd);
             FiDocHeader header = buildHeader(tenantId, belnr, gjahr, GenerateViolationRequest.ScenarioType.PRIVATE_USE_RISK, merchantName, now, rnd);
             header.setIntendedRiskType(GenerateViolationRequest.ScenarioType.PRIVATE_USE_RISK.name());
-            setContextForScenario(header, GenerateViolationRequest.ScenarioType.PRIVATE_USE_RISK);
+            setContextForScenario(header, tenantId, ownerUserId, GenerateViolationRequest.ScenarioType.PRIVATE_USE_RISK, rnd);
             BigDecimal amount = resolveAmount(request, rnd);
             FiDocItem item = buildItem(tenantId, belnr, gjahr, merchantName, GenerateViolationRequest.ScenarioType.PRIVATE_USE_RISK,
                     header.getBudat(), header.getCputm(), amount, now);
@@ -180,7 +190,7 @@ public class DemoViolationService {
         String belnr = nextUniqueBelnr(tenantId, gjahr, rnd);
         FiDocHeader header = buildHeader(tenantId, belnr, gjahr, GenerateViolationRequest.ScenarioType.LIMIT_EXCEED, merchantName, now, rnd);
         header.setIntendedRiskType(GenerateViolationRequest.ScenarioType.LIMIT_EXCEED.name());
-        setContextForScenario(header, GenerateViolationRequest.ScenarioType.LIMIT_EXCEED);
+        setContextForScenario(header, tenantId, ownerUserId, GenerateViolationRequest.ScenarioType.LIMIT_EXCEED, rnd);
         FiDocItem item = buildItem(tenantId, belnr, gjahr, merchantName, GenerateViolationRequest.ScenarioType.LIMIT_EXCEED,
                 header.getBudat(), header.getCputm(), amount, now);
         saveDocAndItem(tenantId, ownerUserId, header, item, gjahr, docKeys);
@@ -198,7 +208,7 @@ public class DemoViolationService {
         FiDocHeader header = buildHeader(tenantId, belnr, gjahr, GenerateViolationRequest.ScenarioType.UNUSUAL_PATTERN, merchantName, now, rnd);
         header.setBktxt(merchantName + " / 고액 또는 원거리 결제");
         header.setIntendedRiskType(GenerateViolationRequest.ScenarioType.UNUSUAL_PATTERN.name());
-        setContextForScenario(header, GenerateViolationRequest.ScenarioType.UNUSUAL_PATTERN);
+        setContextForScenario(header, tenantId, ownerUserId, GenerateViolationRequest.ScenarioType.UNUSUAL_PATTERN, rnd);
         FiDocItem item = buildItem(tenantId, belnr, gjahr, merchantName, GenerateViolationRequest.ScenarioType.UNUSUAL_PATTERN,
                 header.getBudat(), header.getCputm(), amount, now);
         saveDocAndItem(tenantId, ownerUserId, header, item, gjahr, docKeys);
@@ -213,7 +223,7 @@ public class DemoViolationService {
             String merchantName = DemoMerchantPool.pickByScenario(false, rnd);
             FiDocHeader header = buildHeader(tenantId, belnr, gjahr, GenerateViolationRequest.ScenarioType.DEFAULT, merchantName, now, rnd);
             header.setIntendedRiskType(GenerateViolationRequest.ScenarioType.DEFAULT.name());
-            setContextForScenario(header, GenerateViolationRequest.ScenarioType.DEFAULT);
+            setContextForScenario(header, tenantId, ownerUserId, GenerateViolationRequest.ScenarioType.DEFAULT, rnd);
             BigDecimal amount = resolveAmount(request, rnd);
             FiDocItem item = buildItem(tenantId, belnr, gjahr, merchantName, GenerateViolationRequest.ScenarioType.DEFAULT,
                     header.getBudat(), header.getCputm(), amount, now);
@@ -241,52 +251,72 @@ public class DemoViolationService {
         return out;
     }
 
-    /** 규정 v2.0: 시나리오별 hrStatus, mccCode, budgetExceeded 주입 (Aura evidence/metadata 전달용). */
-    private void setContextForScenario(FiDocHeader header, GenerateViolationRequest.ScenarioType scenarioType) {
+    /** 규정 v2.0: 시나리오별 hrStatus/mccCode/budgetExceededFlag를 마스터 기반으로 주입. */
+    private void setContextForScenario(FiDocHeader header, Long tenantId, Long ownerUserId,
+                                       GenerateViolationRequest.ScenarioType scenarioType, ThreadLocalRandom rnd) {
         if (header == null) return;
-        switch (scenarioType) {
-            case HOLIDAY_USAGE, LATE_NIGHT, WEEKEND_MEAL -> {
-                header.setHrStatus("LEAVE");
-                header.setMccCode("BAR");
-                header.setBudgetExceeded(false);
-            }
-            case DUPLICATE_SUSPECT -> {
-                header.setHrStatus("WORK");
-                header.setMccCode("RESTAURANT");
-                header.setBudgetExceeded(false);
-            }
-            case SPLIT_PAYMENT -> {
-                header.setHrStatus("WORK");
-                header.setMccCode("RESTAURANT");
-                header.setBudgetExceeded(true);
-            }
-            case PRIVATE_USE_RISK -> {
-                header.setHrStatus("WORK");
-                header.setMccCode("ENTERTAINMENT");
-                header.setBudgetExceeded(false);
-            }
-            case LIMIT_EXCEED, OVER_LIMIT -> {
-                header.setHrStatus("WORK");
-                header.setMccCode("RESTAURANT");
-                header.setBudgetExceeded(true);
-            }
-            case UNUSUAL_PATTERN -> {
-                header.setHrStatus("WORK");
-                header.setMccCode("HIGH_VALUE");
-                header.setBudgetExceeded(true);
-            }
-            default -> {
-                header.setHrStatus("WORK");
-                header.setMccCode("RESTAURANT");
-                header.setBudgetExceeded(false);
+        String hrStatus = resolveHrStatus(tenantId, ownerUserId, header.getBudat());
+        String mccCode = resolveMccCode(tenantId, scenarioType, rnd);
+        String budgetExceededFlag = resolveBudgetExceededFlag(scenarioType, rnd);
+
+        header.setHrStatus(hrStatus);
+        header.setMccCode(mccCode);
+        header.setBudgetExceededFlag(budgetExceededFlag);
+        header.setBudgetExceeded("Y".equalsIgnoreCase(budgetExceededFlag));
+    }
+
+    private String resolveHrStatus(Long tenantId, Long userId, LocalDate eventDate) {
+        if (tenantId != null && userId != null && eventDate != null) {
+            return userHrCalendarRepository.findByTenantIdAndUserIdAndEventDate(tenantId, userId, eventDate)
+                    .map(cal -> cal.getStatusCode() != null ? cal.getStatusCode() : "WORKING")
+                    .orElseGet(() -> fallbackHrStatus(eventDate));
+        }
+        return fallbackHrStatus(eventDate);
+    }
+
+    private static String fallbackHrStatus(LocalDate eventDate) {
+        if (eventDate == null) return "WORKING";
+        return switch (eventDate.getDayOfWeek()) {
+            case SATURDAY, SUNDAY -> "OFF";
+            default -> "WORKING";
+        };
+    }
+
+    private String resolveMccCode(Long tenantId, GenerateViolationRequest.ScenarioType scenarioType, ThreadLocalRandom rnd) {
+        List<String> preferredCodes = preferredMccCodes(scenarioType);
+        if (tenantId != null && !preferredCodes.isEmpty()) {
+            List<MccMaster> preferred = mccMasterRepository.findByTenantIdAndMccCodeIn(tenantId, preferredCodes);
+            if (!preferred.isEmpty()) {
+                return preferred.get(rnd.nextInt(preferred.size())).getMccCode();
             }
         }
-        // 시나리오와 무관하게 데모 다양성을 위해 50% 확률로 무작위 예산초과 플래그 재주입
-        if (ThreadLocalRandom.current().nextBoolean()) {
-            header.setBudgetExceededFlag("Y");
-        } else {
-            header.setBudgetExceededFlag("N");
+        if (tenantId != null) {
+            List<MccMaster> all = mccMasterRepository.findByTenantId(tenantId);
+            if (!all.isEmpty()) {
+                return all.get(rnd.nextInt(all.size())).getMccCode();
+            }
         }
+        return "5812";
+    }
+
+    private static List<String> preferredMccCodes(GenerateViolationRequest.ScenarioType scenarioType) {
+        return switch (scenarioType) {
+            case HOLIDAY_USAGE, LATE_NIGHT, WEEKEND_MEAL -> List.of("5813", "5812", "5814");
+            case DUPLICATE_SUSPECT -> List.of("5812", "5814");
+            case SPLIT_PAYMENT -> List.of("5812");
+            case PRIVATE_USE_RISK -> List.of("7992", "5813", "7011");
+            case LIMIT_EXCEED, OVER_LIMIT -> List.of("7011", "4722", "5812");
+            case UNUSUAL_PATTERN -> List.of("4722", "7011", "7992", "5813");
+            case DEFAULT, NORMAL -> List.of("5812", "5814");
+        };
+    }
+
+    private static String resolveBudgetExceededFlag(GenerateViolationRequest.ScenarioType scenarioType, ThreadLocalRandom rnd) {
+        return switch (scenarioType) {
+            case SPLIT_PAYMENT, LIMIT_EXCEED, OVER_LIMIT -> "Y";
+            case UNUSUAL_PATTERN -> rnd.nextBoolean() ? "Y" : "N";
+            default -> "N";
+        };
     }
 
     private void saveDocAndItem(Long tenantId, Long ownerUserId, FiDocHeader header, FiDocItem item, String gjahr, List<String> docKeys) {
@@ -409,7 +439,7 @@ public class DemoViolationService {
                 bktxt = merchantName + " / 심야 식대";
             }
             case LATE_NIGHT -> {
-                budat = LocalDate.now().minusDays(rnd.nextInt(1, 60));
+                budat = randomDateInWindow(rnd, false);
                 int secFrom2300 = rnd.nextInt(5 * 3600);
                 int totalSec = 23 * 3600 + secFrom2300;
                 if (totalSec >= 86400) {
@@ -421,8 +451,7 @@ public class DemoViolationService {
                 bktxt = merchantName + " / 심야 식대";
             }
             case LIMIT_EXCEED, OVER_LIMIT -> {
-                long daysAgo = rnd.nextLong(1, 31);
-                budat = LocalDate.now().minusDays(daysAgo);
+                budat = randomWeekdayDate(rnd);
                 int min = rnd.nextInt(60);
                 int sec = rnd.nextInt(60);
                 cputm = LocalTime.of(12, min, sec);
@@ -445,7 +474,7 @@ public class DemoViolationService {
                 bktxt = merchantName + " / 업무 무관 가맹점";
             }
             case UNUSUAL_PATTERN -> {
-                budat = LocalDate.now().minusDays(rnd.nextInt(1, 14));
+                budat = randomWeekdayDate(rnd);
                 int hour = 8 + rnd.nextInt(12);
                 int min = rnd.nextInt(60);
                 int sec = rnd.nextInt(60);
@@ -507,7 +536,7 @@ public class DemoViolationService {
         } else if (scenarioType == GenerateViolationRequest.ScenarioType.UNUSUAL_PATTERN) {
             sgtxt = merchantName + " 이상 패턴";
         }
-        return FiDocItem.builder()
+        FiDocItem item = FiDocItem.builder()
                 .tenantId(tenantId)
                 .bukrs(BUKRS)
                 .belnr(belnr)
@@ -524,21 +553,47 @@ public class DemoViolationService {
                 .disputeFlag(false)
                 .createdAt(createdAt)
                 .build();
+        assignRandomParty(item, tenantId);
+        return item;
+    }
+
+    /**
+     * 테스트 전표 라인을 bp_party 시드와 연결하기 위해 lifnr/kunnr를 무작위 주입한다.
+     * - VENDOR면 lifnr, CUSTOMER면 kunnr를 채운다.
+     * - 시드가 없으면 null 유지(기존 동작과 호환).
+     */
+    private void assignRandomParty(FiDocItem item, Long tenantId) {
+        if (tenantId == null || item == null) return;
+        List<BpParty> parties = bpPartyRepository.findByTenantIdAndPartyTypeInOrderByPartyCodeAsc(
+                tenantId, List.of("VENDOR", "CUSTOMER"));
+        if (parties.isEmpty()) return;
+        BpParty selected = parties.get(ThreadLocalRandom.current().nextInt(parties.size()));
+        if ("VENDOR".equalsIgnoreCase(selected.getPartyType())) {
+            item.setLifnr(selected.getPartyCode());
+            item.setKunnr(null);
+        } else if ("CUSTOMER".equalsIgnoreCase(selected.getPartyType())) {
+            item.setKunnr(selected.getPartyCode());
+            item.setLifnr(null);
+        }
     }
 
     private static LocalDate randomWeekendDate(ThreadLocalRandom rnd) {
-        LocalDate base = LocalDate.now().minusDays(rnd.nextInt(1, 60));
-        while (base.getDayOfWeek() != DayOfWeek.SATURDAY && base.getDayOfWeek() != DayOfWeek.SUNDAY) {
-            base = base.minusDays(1);
-        }
-        return base;
+        return randomDateInWindow(rnd, true);
     }
 
     private static LocalDate randomWeekdayDate(ThreadLocalRandom rnd) {
-        LocalDate base = LocalDate.now().minusDays(rnd.nextInt(1, 60));
-        while (base.getDayOfWeek() == DayOfWeek.SATURDAY || base.getDayOfWeek() == DayOfWeek.SUNDAY) {
-            base = base.minusDays(1);
+        return randomDateInWindow(rnd, false);
+    }
+
+    private static LocalDate randomDateInWindow(ThreadLocalRandom rnd, boolean weekend) {
+        long days = java.time.temporal.ChronoUnit.DAYS.between(HR_SEED_START, HR_SEED_END);
+        for (int i = 0; i < 200; i++) {
+            LocalDate date = HR_SEED_START.plusDays(rnd.nextLong(days + 1));
+            boolean isWeekend = date.getDayOfWeek() == DayOfWeek.SATURDAY || date.getDayOfWeek() == DayOfWeek.SUNDAY;
+            if (weekend == isWeekend) {
+                return date;
+            }
         }
-        return base;
+        return weekend ? HR_SEED_START.with(DayOfWeek.SATURDAY) : HR_SEED_START.with(DayOfWeek.MONDAY);
     }
 }

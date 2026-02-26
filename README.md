@@ -72,6 +72,7 @@ dwp-backend/
 ├── dwp-auth-server/             # 인증 서버 (포트: 8001) - JWT 검증/인가
 ├── dwp-main-service/            # 메인 서비스 (포트: 8081) - AgentTask/HITL/장기 작업 상태 관리
 └── services/
+    ├── synapsex-service/        # SynapseX 도메인 서비스 (포트: 8085)
     ├── mail-service/            # 메일 서비스 (포트: 8082)
     ├── chat-service/            # 채팅 서비스 (포트: 8083)
     └── approval-service/        # 승인 서비스 (포트: 8084)
@@ -139,6 +140,9 @@ Spring Cloud Gateway를 사용한 API Gateway입니다.
 - `/api/aura/**` → `aura-platform` (포트 9000, AI 에이전트)
   - `/api/aura/test/stream` → SSE 스트리밍 엔드포인트
   - `/api/aura/hitl/**` → HITL 승인/거절 API (dwp-main-service로 라우팅)
+- `/api/synapse/**` → `synapsex-service` (포트 8085)
+  - 예: `/api/synapse/cases/**`, `/api/synapse/vouchers/my`
+- `/api/v1/synapse/**` → Gateway alias로 `/api/synapse/**`와 호환
 - `/api/main/**` → `dwp-main-service` (포트 8081)
 - `/api/auth/**` → `dwp-auth-server` (포트 8001)
 - `/api/monitoring/**` → `dwp-auth-server` (포트 8001, 모니터링 수집 API)
@@ -729,4 +733,3 @@ export DB_PASSWORD=dwp_password
 ## 라이선스
 
 Copyright (c) 2024 DWP
-

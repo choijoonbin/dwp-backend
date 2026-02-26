@@ -20,9 +20,11 @@ import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Types;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 
 /**
  * RAG 청크 저장 소유권: 백엔드.
@@ -39,9 +41,12 @@ public class RAGStorageService {
     private static final int BATCH_SIZE = 500;
 
     private static final String INSERT_SQL =
-            "INSERT INTO dwp_aura.rag_chunk (tenant_id, doc_id, chunk_index, page_no, chunk_text, embedding, metadata_json, " +
-                    "regulation_article, regulation_clause, search_text, node_type, search_tsv, created_at) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, to_tsvector('simple', COALESCE(?, '')), ?)";
+            "INSERT INTO dwp_aura.rag_chunk (" +
+                    "tenant_id, doc_id, chunk_index, page_no, chunk_text, embedding, metadata_json, " +
+                    "regulation_article, regulation_clause, search_text, node_type, search_tsv, " +
+                    "parent_id, parent_chunk_id, parent_article, parent_title, child_index, chunk_level, " +
+                    "version, effective_from, effective_to, is_active, created_at" +
+                    ") VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, to_tsvector('simple', COALESCE(?, '')), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
     private final RagDocumentRepository ragDocumentRepository;
     private final RagChunkRepository ragChunkRepository;
@@ -65,9 +70,12 @@ public class RAGStorageService {
             return;
         }
 
-        ragChunkRepository.deleteByTenantIdAndDocId(tenantId, docId);
+        ragChunkRepository.deactivateActiveByTenantIdAndDocId(tenantId, docId);
 
         final Instant now = Instant.now();
+        final String docVersion = doc.getVersion();
+        final LocalDate docEffectiveFrom = doc.getEffectiveFrom();
+        final LocalDate docEffectiveTo = doc.getEffectiveTo();
         for (int offset = 0; offset < chunks.size(); offset += BATCH_SIZE) {
             final int batchOffset = offset;
             int end = Math.min(offset + BATCH_SIZE, chunks.size());
@@ -91,8 +99,11 @@ public class RAGStorageService {
                         log.warn("RAG chunk docId={} index={} embedding length {} != {}", docId, chunkIndex, dto.getEmbedding().length, EMBEDDING_DIM);
                     }
                     String metadataJsonStr = toJsonString(dto.getMetadataJson());
-                    
                     RagMetadataExtractor.ExtractionResult extracted = metadataExtractor.extract(chunkText);
+                    GovernanceMeta governanceMeta = extractGovernanceMeta(dto.getMetadataJson(), extracted);
+                    String version = governanceMeta.version() != null ? governanceMeta.version() : docVersion;
+                    LocalDate effectiveFrom = governanceMeta.effectiveFrom() != null ? governanceMeta.effectiveFrom() : docEffectiveFrom;
+                    LocalDate effectiveTo = governanceMeta.effectiveTo() != null ? governanceMeta.effectiveTo() : docEffectiveTo;
 
                     ps.setLong(1, tenantId);
                     ps.setLong(2, docId);
@@ -114,7 +125,17 @@ public class RAGStorageService {
                     ps.setString(10, extracted.searchText());
                     ps.setString(11, extracted.nodeType());
                     ps.setString(12, extracted.searchText());
-                    ps.setObject(13, OffsetDateTime.ofInstant(now, ZoneOffset.UTC), Types.TIMESTAMP_WITH_TIMEZONE);
+                    if (governanceMeta.parentId() != null) ps.setLong(13, governanceMeta.parentId()); else ps.setNull(13, Types.BIGINT);
+                    ps.setString(14, governanceMeta.parentChunkId());
+                    ps.setString(15, governanceMeta.parentArticle());
+                    ps.setString(16, governanceMeta.parentTitle());
+                    if (governanceMeta.childIndex() != null) ps.setInt(17, governanceMeta.childIndex()); else ps.setNull(17, Types.INTEGER);
+                    ps.setString(18, governanceMeta.chunkLevel());
+                    ps.setString(19, version);
+                    if (effectiveFrom != null) ps.setObject(20, effectiveFrom, Types.DATE); else ps.setNull(20, Types.DATE);
+                    if (effectiveTo != null) ps.setObject(21, effectiveTo, Types.DATE); else ps.setNull(21, Types.DATE);
+                    ps.setBoolean(22, true);
+                    ps.setObject(23, OffsetDateTime.ofInstant(now, ZoneOffset.UTC), Types.TIMESTAMP_WITH_TIMEZONE);
                 }
 
                 @Override
@@ -149,8 +170,8 @@ public class RAGStorageService {
             throw new BaseException(ErrorCode.FORBIDDEN, "해당 문서에 대한 권한이 없습니다.");
         }
         if (batchIndex == 0) {
-            ragChunkRepository.deleteByTenantIdAndDocId(tenantId, docId);
-            log.debug("saveChunkBatch: docId={} batchIndex=0, cleared existing chunks", docId);
+            ragChunkRepository.deactivateActiveByTenantIdAndDocId(tenantId, docId);
+            log.debug("saveChunkBatch: docId={} batchIndex=0, deactivated existing active chunks", docId);
         }
         if (chunks == null || chunks.isEmpty()) {
             log.debug("saveChunkBatch: docId={} batchIndex={} chunks empty, no insert", docId, batchIndex);
@@ -158,6 +179,9 @@ public class RAGStorageService {
         }
         int baseOffset = batchIndex * BATCH_SIZE;
         final Instant now = Instant.now();
+        final String docVersion = doc.getVersion();
+        final LocalDate docEffectiveFrom = doc.getEffectiveFrom();
+        final LocalDate docEffectiveTo = doc.getEffectiveTo();
         for (int offset = 0; offset < chunks.size(); offset += BATCH_SIZE) {
             final int batchOffset = baseOffset + offset;
             int end = Math.min(offset + BATCH_SIZE, chunks.size());
@@ -181,8 +205,11 @@ public class RAGStorageService {
                         log.warn("RAG chunk docId={} index={} embedding length {} != {}", docId, chunkIndex, dto.getEmbedding().length, EMBEDDING_DIM);
                     }
                     String metadataJsonStr = toJsonString(dto.getMetadataJson());
-                    
                     RagMetadataExtractor.ExtractionResult extracted = metadataExtractor.extract(chunkText);
+                    GovernanceMeta governanceMeta = extractGovernanceMeta(dto.getMetadataJson(), extracted);
+                    String version = governanceMeta.version() != null ? governanceMeta.version() : docVersion;
+                    LocalDate effectiveFrom = governanceMeta.effectiveFrom() != null ? governanceMeta.effectiveFrom() : docEffectiveFrom;
+                    LocalDate effectiveTo = governanceMeta.effectiveTo() != null ? governanceMeta.effectiveTo() : docEffectiveTo;
 
                     ps.setLong(1, tenantId);
                     ps.setLong(2, docId);
@@ -204,7 +231,17 @@ public class RAGStorageService {
                     ps.setString(10, extracted.searchText());
                     ps.setString(11, extracted.nodeType());
                     ps.setString(12, extracted.searchText());
-                    ps.setObject(13, OffsetDateTime.ofInstant(now, ZoneOffset.UTC), Types.TIMESTAMP_WITH_TIMEZONE);
+                    if (governanceMeta.parentId() != null) ps.setLong(13, governanceMeta.parentId()); else ps.setNull(13, Types.BIGINT);
+                    ps.setString(14, governanceMeta.parentChunkId());
+                    ps.setString(15, governanceMeta.parentArticle());
+                    ps.setString(16, governanceMeta.parentTitle());
+                    if (governanceMeta.childIndex() != null) ps.setInt(17, governanceMeta.childIndex()); else ps.setNull(17, Types.INTEGER);
+                    ps.setString(18, governanceMeta.chunkLevel());
+                    ps.setString(19, version);
+                    if (effectiveFrom != null) ps.setObject(20, effectiveFrom, Types.DATE); else ps.setNull(20, Types.DATE);
+                    if (effectiveTo != null) ps.setObject(21, effectiveTo, Types.DATE); else ps.setNull(21, Types.DATE);
+                    ps.setBoolean(22, true);
+                    ps.setObject(23, OffsetDateTime.ofInstant(now, ZoneOffset.UTC), Types.TIMESTAMP_WITH_TIMEZONE);
                 }
 
                 @Override
@@ -224,4 +261,79 @@ public class RAGStorageService {
             return null;
         }
     }
+
+    private GovernanceMeta extractGovernanceMeta(Map<String, Object> metadata, RagMetadataExtractor.ExtractionResult extracted) {
+        if (metadata == null) {
+            return new GovernanceMeta(null, null, extracted.regulationArticle(), null, null, deriveChunkLevel(extracted.nodeType()), null, null, null);
+        }
+        Long parentId = asLong(metadata.get("parent_id"));
+        String parentChunkId = asString(metadata.get("parent_chunk_id"));
+        if (parentChunkId == null) parentChunkId = asString(metadata.get("parentId"));
+        String parentArticle = asString(metadata.get("parent_article"));
+        if (parentArticle == null) parentArticle = asString(metadata.get("regulation_article"));
+        if (parentArticle == null) parentArticle = extracted.regulationArticle();
+        String parentTitle = asString(metadata.get("parent_title"));
+        if (parentTitle == null) parentTitle = asString(metadata.get("article_title"));
+        Integer childIndex = asInteger(metadata.get("child_index"));
+        String chunkLevel = asString(metadata.get("chunk_level"));
+        if (chunkLevel == null) chunkLevel = deriveChunkLevel(extracted.nodeType());
+        String version = asString(metadata.get("version"));
+        LocalDate effectiveFrom = asLocalDate(metadata.get("effective_from"));
+        LocalDate effectiveTo = asLocalDate(metadata.get("effective_to"));
+        return new GovernanceMeta(parentId, parentChunkId, parentArticle, parentTitle, childIndex, chunkLevel, version, effectiveFrom, effectiveTo);
+    }
+
+    private static String deriveChunkLevel(String nodeType) {
+        if (nodeType == null) return null;
+        String v = nodeType.trim().toUpperCase();
+        if ("ARTICLE".equals(v) || "ARTICLE_ROOT".equals(v)) return "root";
+        return "child";
+    }
+
+    private static String asString(Object value) {
+        if (value == null) return null;
+        String s = String.valueOf(value).trim();
+        return s.isEmpty() ? null : s;
+    }
+
+    private static Integer asInteger(Object value) {
+        if (value == null) return null;
+        if (value instanceof Number n) return n.intValue();
+        try {
+            return Integer.parseInt(String.valueOf(value).trim());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static Long asLong(Object value) {
+        if (value == null) return null;
+        if (value instanceof Number n) return n.longValue();
+        try {
+            return Long.parseLong(String.valueOf(value).trim());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static LocalDate asLocalDate(Object value) {
+        if (value == null) return null;
+        try {
+            return LocalDate.parse(String.valueOf(value).trim());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private record GovernanceMeta(
+            Long parentId,
+            String parentChunkId,
+            String parentArticle,
+            String parentTitle,
+            Integer childIndex,
+            String chunkLevel,
+            String version,
+            LocalDate effectiveFrom,
+            LocalDate effectiveTo
+    ) {}
 }

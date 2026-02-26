@@ -187,7 +187,7 @@ public class CaseController {
                 AuditRequestContext.getIpAddress(httpRequest), AuditRequestContext.getUserAgent(httpRequest),
                 AuditRequestContext.getGatewayRequestId(httpRequest));
 
-        CaseDetailDto dto = caseQueryService.findCaseDetail(tenantId, actorUserId, caseId)
+        CaseDetailDto dto = (actorUserId != null ? caseQueryService.findCaseDetail(tenantId, actorUserId, caseId) : caseQueryService.findCaseDetail(tenantId, caseId))
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
         String actorType = actorAgentId != null ? AuditEventConstants.ACTOR_AGENT : AuditEventConstants.ACTOR_HUMAN;
         Map<String, Object> tags = Map.of("caseId", caseId);
@@ -295,7 +295,7 @@ public class CaseController {
             @PathVariable Long caseId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        caseQueryService.findCaseDetail(tenantId, actorUserId, caseId)
+        (actorUserId != null ? caseQueryService.findCaseDetail(tenantId, actorUserId, caseId) : caseQueryService.findCaseDetail(tenantId, caseId))
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
         var pageable = org.springframework.data.domain.PageRequest.of(page, size, org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt"));
         var tr = DrillDownParamUtil.resolve(null, null, null);
@@ -316,7 +316,7 @@ public class CaseController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
 
-        caseQueryService.findCaseDetail(tenantId, actorUserId, caseId)
+        (actorUserId != null ? caseQueryService.findCaseDetail(tenantId, actorUserId, caseId) : caseQueryService.findCaseDetail(tenantId, caseId))
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
         List<CaseTimelineDto> timeline = caseQueryService.findTimeline(tenantId, caseId, page, size);
         return ApiResponse.success(timeline);
@@ -358,7 +358,9 @@ public class CaseController {
 
         caseCommandService.updateCaseStatus(tenantId, caseId, request.getStatus(),
                 actorUserId, AuditRequestContext.getIpAddress(httpRequest), AuditRequestContext.getUserAgent(httpRequest), AuditRequestContext.getGatewayRequestId(httpRequest));
-        CaseDetailDto dto = caseQueryService.findCaseDetail(tenantId, actorUserId, caseId)
+        CaseDetailDto dto = (actorUserId != null
+                ? caseQueryService.findCaseDetail(tenantId, actorUserId, caseId)
+                : caseQueryService.findCaseDetail(tenantId, caseId))
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
         return ApiResponse.success(dto);
     }
@@ -376,7 +378,7 @@ public class CaseController {
 
         caseCommandService.assignCase(tenantId, caseId, request.getAssigneeUserId(),
                 actorUserId, AuditRequestContext.getIpAddress(httpRequest), AuditRequestContext.getUserAgent(httpRequest), AuditRequestContext.getGatewayRequestId(httpRequest));
-        CaseDetailDto dto = caseQueryService.findCaseDetail(tenantId, actorUserId, caseId)
+        CaseDetailDto dto = (actorUserId != null ? caseQueryService.findCaseDetail(tenantId, actorUserId, caseId) : caseQueryService.findCaseDetail(tenantId, caseId))
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
         return ApiResponse.success(dto);
     }
@@ -395,7 +397,7 @@ public class CaseController {
 
         caseCommandService.addComment(tenantId, caseId, request.getCommentText(),
                 actorUserId, actorAgentId, AuditRequestContext.getIpAddress(httpRequest), AuditRequestContext.getUserAgent(httpRequest), AuditRequestContext.getGatewayRequestId(httpRequest));
-        CaseDetailDto dto = caseQueryService.findCaseDetail(tenantId, actorUserId, caseId)
+        CaseDetailDto dto = (actorUserId != null ? caseQueryService.findCaseDetail(tenantId, actorUserId, caseId) : caseQueryService.findCaseDetail(tenantId, caseId))
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
         return ApiResponse.success(dto);
     }
@@ -413,7 +415,7 @@ public class CaseController {
 
         caseCommandService.requestExplanation(tenantId, caseId, actorUserId,
                 AuditRequestContext.getIpAddress(httpRequest), AuditRequestContext.getUserAgent(httpRequest), AuditRequestContext.getGatewayRequestId(httpRequest));
-        CaseDetailDto dto = caseQueryService.findCaseDetail(tenantId, actorUserId, caseId)
+        CaseDetailDto dto = (actorUserId != null ? caseQueryService.findCaseDetail(tenantId, actorUserId, caseId) : caseQueryService.findCaseDetail(tenantId, caseId))
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
         return ApiResponse.success(dto);
     }
@@ -433,7 +435,7 @@ public class CaseController {
         caseCommandService.submitExplanation(tenantId, caseId, actorUserId, request.getExplanationText(),
                 request.getEvidenceAttachmentId(), AuditRequestContext.getIpAddress(httpRequest),
                 AuditRequestContext.getUserAgent(httpRequest), AuditRequestContext.getGatewayRequestId(httpRequest));
-        CaseDetailDto dto = caseQueryService.findCaseDetail(tenantId, actorUserId, caseId)
+        CaseDetailDto dto = (actorUserId != null ? caseQueryService.findCaseDetail(tenantId, actorUserId, caseId) : caseQueryService.findCaseDetail(tenantId, caseId))
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
         return ApiResponse.success(dto);
     }

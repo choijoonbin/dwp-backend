@@ -13,12 +13,14 @@ import com.dwp.services.synapsex.entity.DetectRun;
 import com.dwp.services.synapsex.entity.FiDocHeader;
 import com.dwp.services.synapsex.entity.FiDocItem;
 import com.dwp.services.synapsex.entity.FiOpenItem;
+import com.dwp.services.synapsex.entity.MccMaster;
 import com.dwp.services.synapsex.repository.AgentCaseRepository;
 import com.dwp.services.synapsex.repository.DetectRunRepository;
 import com.dwp.services.synapsex.repository.FiDocHeaderRepository;
 import com.dwp.services.synapsex.repository.FiDocItemRepository;
 import com.dwp.services.synapsex.repository.FiOpenItemRepository;
 import com.dwp.services.synapsex.repository.AppCodeRepository;
+import com.dwp.services.synapsex.repository.MccMasterRepository;
 import com.dwp.services.synapsex.service.audit.AuditWriter;
 import com.dwp.services.synapsex.service.security.UserIdentityMappingService;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -38,6 +40,8 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -69,6 +73,7 @@ public class DetectBatchService {
     /** Fallback 전용: amount 기반 severity 임계값 (원) */
     private static final BigDecimal AMOUNT_HIGH = new BigDecimal("100000000");
     private static final BigDecimal AMOUNT_MEDIUM = new BigDecimal("10000000");
+    private static final String SCREEN_BATCH_SCHEMA_VERSION = "screen-batch.v2";
 
     /** 스크리닝 결과 또는 fallback 결과 (severity, score, reasonText, caseType) */
     private record ScreeningOutcome(String severity, BigDecimal score, String reasonText, String caseType) {}
@@ -89,6 +94,7 @@ public class DetectBatchService {
     private final FiDocItemRepository fiDocItemRepository;
     private final FiOpenItemRepository fiOpenItemRepository;
     private final AgentCaseRepository agentCaseRepository;
+    private final MccMasterRepository mccMasterRepository;
     private final AuditWriter auditWriter;
     private final UserIdentityMappingService userIdentityMappingService;
     private final JdbcTemplate jdbcTemplate;
@@ -159,6 +165,7 @@ public class DetectBatchService {
                 List<ScreenBatchItemRequest> batchBody = chunk.stream()
                         .map(ctx -> buildFlattenedBatchItem(tenantId, ctx))
                         .toList();
+                logScreenBatchPayload(tenantId, chunk, batchBody);
                 List<DetectScreenResponse> responses;
                 ScreenBatchResponse batchResponse = null;
                 try {
@@ -326,22 +333,86 @@ public class DetectBatchService {
     private ScreenBatchItemRequest buildFlattenedBatchItem(Long tenantId, DocContext ctx) {
         FiDocHeader doc = ctx.doc();
         String occurredAt = null;
+        LocalTime t = doc.getCputm() != null ? doc.getCputm() : LocalTime.MIDNIGHT;
         if (doc.getBudat() != null) {
-            LocalTime t = doc.getCputm() != null ? doc.getCputm() : LocalTime.MIDNIGHT;
-            occurredAt = doc.getBudat().atTime(t).format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+            occurredAt = doc.getBudat().atTime(t).atOffset(java.time.ZoneOffset.ofHours(9))
+                    .format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
         }
         List<FiDocItem> items = fiDocItemRepository.findByTenantIdAndBukrsAndBelnrAndGjahrOrderByBuzeiAsc(
                 tenantId, doc.getBukrs(), doc.getBelnr(), doc.getGjahr());
+        String firstBuzei = items.isEmpty() ? null : items.get(0).getBuzei();
         String merchantName = resolveMerchantName(doc, items);
+        String expenseTypeCode = doc.getBlart();
+        String expenseTypeName = resolveExpenseTypeName(expenseTypeCode);
+        String hrStatusRaw = doc.getHrStatus();
+        String normalizedHrStatus = normalizeHrStatusForAura(doc.getHrStatus());
+        String mccCodeRaw = doc.getMccCode();
+        String normalizedMccCode = normalizeMccCodeForAura(doc.getMccCode());
+        Boolean isHoliday = deriveIsHoliday(doc.getHrStatus(), normalizedHrStatus, doc.getBudat());
+        String holidayType = deriveHolidayType(isHoliday, doc.getBudat());
+        Optional<MccMaster> mccMasterOpt = normalizedMccCode != null && !normalizedMccCode.isBlank()
+                ? mccMasterRepository.findFirstByTenantIdAndMccCode(tenantId, normalizedMccCode)
+                : Optional.empty();
+        String mccName = mccMasterOpt.map(MccMaster::getMccName).orElse(null);
+        String mccRiskCategory = mccMasterOpt
+                .map(MccMaster::getRiskCategory)
+                .map(DetectBatchService::mapMccRiskCategory)
+                .orElse("UNKNOWN");
+        String isWeekendAllowed = mccMasterOpt.map(MccMaster::getIsWeekendAllowed).map(String::valueOf).orElse(null);
+        List<String> relatedArticleHint = mccMasterOpt
+                .map(MccMaster::getRelatedArticle)
+                .filter(v -> v != null && !v.isBlank())
+                .map(List::of)
+                .orElse(List.of());
+        String normalizedBudgetFlag = normalizeBudgetFlag(doc.getBudgetExceededFlag());
+        boolean budgetExceeded = "Y".equalsIgnoreCase(normalizedBudgetFlag);
+        boolean mccMapped = mccCodeRaw != null && normalizedMccCode != null && !mccCodeRaw.equals(normalizedMccCode);
+        boolean hrMapped = hrStatusRaw != null && normalizedHrStatus != null && !hrStatusRaw.equalsIgnoreCase(normalizedHrStatus);
+        boolean expenseTypeMapped = expenseTypeName != null && expenseTypeCode != null && !expenseTypeName.equalsIgnoreCase(expenseTypeCode);
+        Map<String, Object> normalizationFlags = Map.of(
+                "mccCode", Map.of("isMapped", mccMapped, "sourceValue", mccCodeRaw),
+                "hrStatus", Map.of("isMapped", hrMapped, "sourceValue", hrStatusRaw),
+                "expenseTypeName", Map.of("isMapped", expenseTypeMapped, "sourceValue", expenseTypeCode)
+        );
+        Map<String, Object> dataQuality = buildDataQuality(doc, occurredAt, normalizedHrStatus, normalizedMccCode, expenseTypeName);
+        String voucherKey = doc.getBukrs() + "-" + doc.getBelnr() + "-" + doc.getGjahr();
+        OffsetDateTime sourceTs = doc.getLastChangeTs() != null
+                ? doc.getLastChangeTs().atOffset(ZoneOffset.UTC)
+                : OffsetDateTime.now(ZoneOffset.UTC);
         return ScreenBatchItemRequest.builder()
+                .schemaVersion(SCREEN_BATCH_SCHEMA_VERSION)
+                .tenantId(tenantId)
+                .voucherKey(voucherKey)
+                .bukrs(doc.getBukrs())
+                .belnr(doc.getBelnr())
+                .gjahr(doc.getGjahr())
+                .buzei(firstBuzei)
                 .amount(ctx.amount())
+                .currency(ctx.waers())
                 .occurredAt(occurredAt)
-                .expenseType(doc.getBlart())
+                .timezone("Asia/Seoul")
+                .expenseType(expenseTypeCode)
+                .expenseTypeName(expenseTypeName)
                 .merchantName(merchantName)
+                .merchantId(null)
                 .caseId(null)
-                .hrStatus(doc.getHrStatus())
-                .mccCode(doc.getMccCode())
-                .budgetExceeded("Y".equalsIgnoreCase(doc.getBudgetExceededFlag()))
+                .hrStatus(normalizedHrStatus)
+                .hrStatusRaw(hrStatusRaw)
+                .mccCode(normalizedMccCode)
+                .mccCodeRaw(mccCodeRaw)
+                .mccName(mccName)
+                .mccRiskCategory(mccRiskCategory)
+                .budgetExceeded(budgetExceeded)
+                .budgetExceededFlag(normalizedBudgetFlag)
+                .isHoliday(isHoliday)
+                .holidayType(holidayType)
+                .isWeekendAllowed(isWeekendAllowed)
+                .relatedArticleHint(relatedArticleHint)
+                .relatedArticleHintUsage("HINT_ONLY")
+                .sourceSystem(doc.getDocSource() != null && !doc.getDocSource().isBlank() ? doc.getDocSource() : "SAP_FI")
+                .sourceTimestamp(sourceTs.format(DateTimeFormatter.ISO_INSTANT))
+                .normalizationFlags(normalizationFlags)
+                .dataQuality(dataQuality)
                 .build();
     }
 
@@ -372,6 +443,149 @@ public class DetectBatchService {
         if (s == null || s.isBlank() || s.trim().length() < 2) return true;
         String lower = s.trim().toLowerCase();
         return lower.contains("법인카드") || lower.contains("전표");
+    }
+
+    private static String normalizeHrStatusForAura(String raw) {
+        if (raw == null || raw.isBlank()) return raw;
+        String v = raw.trim().toUpperCase(java.util.Locale.ROOT);
+        return switch (v) {
+            case "WORKING", "BUSINESS_TRIP", "WORK" -> "WORK";
+            case "VACATION", "OFF", "LEAVE" -> "LEAVE";
+            default -> v;
+        };
+    }
+
+    private static String normalizeMccCodeForAura(String raw) {
+        if (raw == null || raw.isBlank()) return raw;
+        String v = raw.trim().toUpperCase(java.util.Locale.ROOT);
+        if (v.matches("\\d{4}")) return v;
+        return switch (v) {
+            case "BAR", "PUB" -> "5813";
+            case "GOLF", "GOLF_CLUB", "GOLFCOURSE" -> "7992";
+            case "RESTAURANT", "DINING" -> "5812";
+            case "FASTFOOD", "FAST_FOOD" -> "5814";
+            default -> v;
+        };
+    }
+
+    private static Boolean deriveIsHoliday(String hrRaw, String hrNormalized, LocalDate budat) {
+        if (hrRaw != null && !hrRaw.isBlank()) {
+            String v = hrRaw.trim().toUpperCase(java.util.Locale.ROOT);
+            if ("OFF".equals(v)) return true;
+            if ("VACATION".equals(v)) return false;
+        }
+        if (hrNormalized != null && !hrNormalized.isBlank()) {
+            String v = hrNormalized.trim().toUpperCase(java.util.Locale.ROOT);
+            if ("WORK".equals(v)) return false;
+        }
+        if (budat != null) {
+            java.time.DayOfWeek dow = budat.getDayOfWeek();
+            if (dow == java.time.DayOfWeek.SATURDAY || dow == java.time.DayOfWeek.SUNDAY) return true;
+        }
+        return false;
+    }
+
+    private static String deriveHolidayType(Boolean isHoliday, LocalDate budat) {
+        if (!Boolean.TRUE.equals(isHoliday)) return "NONE";
+        if (budat != null) {
+            java.time.DayOfWeek dow = budat.getDayOfWeek();
+            if (dow == java.time.DayOfWeek.SATURDAY || dow == java.time.DayOfWeek.SUNDAY) return "WEEKEND";
+        }
+        return "PUBLIC_HOLIDAY";
+    }
+
+    private String resolveExpenseTypeName(String expenseTypeCode) {
+        if (expenseTypeCode == null || expenseTypeCode.isBlank()) return null;
+        String code = expenseTypeCode.trim().toUpperCase(java.util.Locale.ROOT);
+        for (String groupKey : List.of("EXPENSE_TYPE", "DOC_TYPE", "BLART_TYPE")) {
+            Optional<com.dwp.services.synapsex.entity.AppCode> codeOpt =
+                    appCodeRepository.findByGroupKeyAndCodeAndIsActiveTrue(groupKey, code);
+            if (codeOpt.isPresent() && codeOpt.get().getName() != null && !codeOpt.get().getName().isBlank()) {
+                return codeOpt.get().getName();
+            }
+        }
+        return switch (code) {
+            case "SA" -> "총계정원장 전표";
+            case "KR" -> "매입채무 전표";
+            case "DR" -> "매출채권 전표";
+            case "DZ" -> "고객입금 전표";
+            case "KZ" -> "공급업체 지급 전표";
+            default -> code;
+        };
+    }
+
+    private static String normalizeBudgetFlag(String flag) {
+        return "Y".equalsIgnoreCase(flag) ? "Y" : "N";
+    }
+
+    private static String mapMccRiskCategory(String riskCategory) {
+        if (riskCategory == null || riskCategory.isBlank()) return null;
+        return switch (riskCategory.trim().toUpperCase(java.util.Locale.ROOT)) {
+            case "PROHIBITED" -> "HIGH";
+            case "CAUTION" -> "MEDIUM";
+            case "ALLOWED", "NORMAL" -> "LOW";
+            default -> "UNKNOWN";
+        };
+    }
+
+    private static Map<String, Object> buildDataQuality(FiDocHeader doc, String occurredAt, String hrStatus,
+                                                        String mccCode, String expenseTypeName) {
+        List<String> missing = new ArrayList<>();
+        if (occurredAt == null || occurredAt.isBlank()) missing.add("occurredAt");
+        if (hrStatus == null || hrStatus.isBlank()) missing.add("hrStatus");
+        if (mccCode == null || mccCode.isBlank()) missing.add("mccCode");
+        if (expenseTypeName == null || expenseTypeName.isBlank()) missing.add("expenseTypeName");
+        return Map.of(
+                "missingFields", missing,
+                "sourceSystems", List.of(doc.getDocSource() != null && !doc.getDocSource().isBlank() ? doc.getDocSource() : "SAP_FI", "HR")
+        );
+    }
+
+    /** Aura /detect/screen-batch 요청 직전 payload 핵심 필드 추적 로그 */
+    private void logScreenBatchPayload(Long tenantId, List<DocContext> chunk, List<ScreenBatchItemRequest> batchBody) {
+        int occurredAtNull = 0;
+        int hrStatusNull = 0;
+        int mccCodeNull = 0;
+        int budgetExceededNull = 0;
+        for (ScreenBatchItemRequest item : batchBody) {
+            if (item.getOccurredAt() == null || item.getOccurredAt().isBlank()) occurredAtNull++;
+            if (item.getHrStatus() == null || item.getHrStatus().isBlank()) hrStatusNull++;
+            if (item.getMccCode() == null || item.getMccCode().isBlank()) mccCodeNull++;
+            if (item.getBudgetExceeded() == null) budgetExceededNull++;
+        }
+
+        String sample = batchBody.stream()
+                .limit(3)
+                .map(i -> "{occurredAt=" + i.getOccurredAt()
+                        + ", hrStatus=" + i.getHrStatus()
+                        + ", mccCode=" + i.getMccCode()
+                        + ", budgetExceeded=" + i.getBudgetExceeded() + "}")
+                .reduce((a, b) -> a + ", " + b)
+                .orElse("[]");
+
+        log.info("Aura screen-batch request fields: tenantId={} size={} occurredAtNull={} hrStatusNull={} mccCodeNull={} budgetExceededNull={} sample={}",
+                tenantId, batchBody.size(), occurredAtNull, hrStatusNull, mccCodeNull, budgetExceededNull, sample);
+
+        if (!batchBody.isEmpty()) {
+            try {
+                // Feign 직렬화 전에 ObjectMapper 기준 JSON 스냅샷을 남겨 Aura 측 수신값과 직접 대조한다.
+                String rawJsonPreview = objectMapper.writeValueAsString(batchBody.subList(0, Math.min(3, batchBody.size())));
+                log.info("Aura screen-batch request raw-json preview tenantId={} payload={}", tenantId, rawJsonPreview);
+            } catch (Exception e) {
+                log.warn("Aura screen-batch request raw-json preview failed tenantId={}: {}", tenantId, e.getMessage());
+            }
+        }
+
+        if (log.isDebugEnabled()) {
+            for (int i = 0; i < Math.min(chunk.size(), batchBody.size()); i++) {
+                FiDocHeader doc = chunk.get(i).doc();
+                ScreenBatchItemRequest item = batchBody.get(i);
+                log.debug("Aura screen-batch item[{}]: doc={}-{}-{} source(budat={}, cputm={}, hrStatus={}, mccCode={}, budgetExceededFlag={}) -> payload(occurredAt={}, hrStatus={}, mccCode={}, budgetExceeded={})",
+                        i, doc.getBukrs(), doc.getBelnr(), doc.getGjahr(),
+                        doc.getBudat(), doc.getCputm(), doc.getHrStatus(), doc.getMccCode(), doc.getBudgetExceededFlag(),
+                        item.getOccurredAt(), item.getHrStatus(), item.getMccCode(), item.getBudgetExceeded());
+            }
+        }
     }
 
     /** 배치 응답 중 HIGH/CRITICAL 심각도 건의 reasonText를 서버 로그로 남겨 모니터링. 테넌트 ID 포함으로 고객사 식별 가능 */

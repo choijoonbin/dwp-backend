@@ -438,7 +438,9 @@ public class CaseQueryService {
 
     @Transactional(readOnly = true)
     public Optional<CaseDetailDto> findCaseDetail(Long tenantId, Long caseId) {
-        return findCaseDetail(tenantId, null, caseId);
+        // Internal path (Aura/agent-tool server-to-server): do not apply actor ownership filter.
+        return agentCaseRepository.findByCaseIdAndTenantId(caseId, tenantId)
+                .map(case_ -> buildCaseDetail(tenantId, case_));
     }
 
     @Transactional(readOnly = true)
