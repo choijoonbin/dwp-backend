@@ -30,9 +30,10 @@ public class AgentEventDto {
     private Long latencyMs;
     @JsonProperty("summary_message")
     private String summaryMessage;
+    private String message;
     @JsonProperty("error_code")
     private String errorCode;
     @JsonProperty("error_message")
     private String errorMessage;
+    private Integer count;
 }
-

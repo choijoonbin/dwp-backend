@@ -1,6 +1,7 @@
 package com.dwp.services.synapsex.controller;
 
 import com.dwp.core.common.ApiResponse;
+import com.dwp.core.common.AgentMetadata;
 import com.dwp.core.constant.HeaderConstants;
 import com.dwp.core.exception.BaseException;
 import com.dwp.core.common.ErrorCode;
@@ -243,17 +244,35 @@ public class CaseController {
             @PathVariable Long caseId,
             @RequestParam(required = false) UUID runId,
             @RequestParam(defaultValue = "true") boolean latestIfMissing,
+            @RequestParam(defaultValue = "default") String view,
             HttpServletRequest httpRequest) {
         (actorUserId != null ? caseQueryService.findCaseDetail(tenantId, actorUserId, caseId) : caseQueryService.findCaseDetail(tenantId, caseId))
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "케이스를 찾을 수 없습니다."));
 
         String traceId = AuditRequestContext.getTraceId(httpRequest);
-        log.info("AGENT_EVENT timeline request: traceId={} tenantId={} caseId={} runId={}",
-                traceId, tenantId, caseId, runId);
-        List<AgentEventDto> items = agentEventQueryService.findCaseAgentEvents(tenantId, caseId, runId, latestIfMissing);
-        log.info("AGENT_EVENT timeline response: traceId={} tenantId={} caseId={} runId={} count={}",
-                traceId, tenantId, caseId, runId, items.size());
-        return ApiResponse.success(items);
+        log.info("AGENT_EVENT timeline request: traceId={} tenantId={} caseId={} runId={} view={} latestIfMissing={}",
+                traceId, tenantId, caseId, runId, view, latestIfMissing);
+        var result = agentEventQueryService.findCaseAgentEvents(tenantId, caseId, runId, latestIfMissing, view);
+        List<AgentEventDto> items = result.getEvents();
+        log.info("AGENT_EVENT timeline response: traceId={} tenantId={} caseId={} runId={} view={} rawCount={} afterFilter={}",
+                traceId, tenantId, caseId, result.getResolvedRunId(), result.getView(),
+                result.getTotalRawCount(), result.getTotalAfterFilter());
+        return ApiResponse.<List<AgentEventDto>>builder()
+                .status("SUCCESS")
+                .message("요청이 성공적으로 처리되었습니다.")
+                .data(items)
+                .success(true)
+                .timestamp(java.time.LocalDateTime.now())
+                .agentMetadata(AgentMetadata.builder()
+                        .traceId(traceId)
+                        .additionalData(Map.of(
+                                "total_raw_count", result.getTotalRawCount(),
+                                "total_after_filter", result.getTotalAfterFilter(),
+                                "view", result.getView(),
+                                "run_id", result.getResolvedRunId()
+                        ))
+                        .build())
+                .build();
     }
 
     /**

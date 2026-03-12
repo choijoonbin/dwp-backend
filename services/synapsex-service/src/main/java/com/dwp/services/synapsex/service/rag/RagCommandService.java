@@ -316,7 +316,7 @@ public class RagCommandService {
         if (status == null || status.isBlank()) {
             return;
         }
-        String normalizedStatus = status.trim().toUpperCase();
+        String normalizedStatus = normalizeRagDocumentStatus(status);
         int updated = ragDocumentRepository.updateStatusByDocId(docId, normalizedStatus);
         if (updated > 0) {
             log.info("RAG status callback docId={} status={} updated={} message={}", docId, normalizedStatus, updated, message != null ? message : "");
@@ -326,6 +326,25 @@ public class RagCommandService {
             log.warn("RAG status callback docId={} status={} — no row updated (document may not exist)", docId, normalizedStatus);
         }
         eventPublisher.publishEvent(new RagDocumentStatusUpdatedEvent(this, docId, tenantId, normalizedStatus, message));
+    }
+
+    /**
+     * Aura 상태값을 rag_document.status 허용 코드로 정규화.
+     * 허용값: READY, PROCESSING, COMPLETED, FAILED, PENDING
+     */
+    private String normalizeRagDocumentStatus(String rawStatus) {
+        if (rawStatus == null || rawStatus.isBlank()) return "PENDING";
+        String upper = rawStatus.trim().toUpperCase();
+        return switch (upper) {
+            case "READY", "PROCESSING", "COMPLETED", "FAILED", "PENDING" -> upper;
+            case "REINDEX_COMPLETED", "VECTORIZED", "INDEXED", "DONE", "SUCCESS" -> "COMPLETED";
+            case "REINDEX_FAILED", "ERROR", "VECTORIZE_FAILED", "INDEXING_FAILED" -> "FAILED";
+            case "RUNNING", "IN_PROGRESS", "REINDEXING", "INDEXING", "VECTORIZING" -> "PROCESSING";
+            default -> {
+                log.warn("Unknown RAG status from callback. rawStatus={} -> fallback=PENDING", rawStatus);
+                yield "PENDING";
+            }
+        };
     }
 
     /** Aura 형식(rag_document_id string) 또는 docId(Long)에서 문서 ID 결정 */

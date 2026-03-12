@@ -77,8 +77,14 @@ public class AgentStudioController {
         }
         AgentConfigResponseDto config = agentConfigQueryService.getAgentConfigByKey(tenantId, agentKey.trim())
                 .orElseThrow(() -> new BaseException(ErrorCode.ENTITY_NOT_FOUND, "에이전트를 찾을 수 없거나 비활성 상태입니다."));
-        log.info("[AgentConfig] Response: tenantId={} agentKey={} agentId={} docIds={}", 
+        log.info("[AgentConfig] Response: tenantId={} agentKey={} agentId={} docIds={}",
                 tenantId, agentKey, config.getAgentId(), config.getDocIds());
+        log.info("fetch_agent_config: agent_key={} tenantId={} status=200 docIds={} tools={} modelName={}",
+                config.getAgentKey(),
+                config.getTenantId(),
+                config.getDocIds(),
+                config.getTools() != null ? config.getTools().stream().map(t -> t.getToolName()).collect(java.util.stream.Collectors.toList()) : java.util.List.of(),
+                config.getModel() != null ? config.getModel().getModelName() : null);
         return ApiResponse.success(config);
     }
 
