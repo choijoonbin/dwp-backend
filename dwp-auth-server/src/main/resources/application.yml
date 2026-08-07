@@ -1,91 +1,45 @@
 server:
-  port: 8001  # Aura-Platform(8000)과 포트 충돌 방지를 위해 8001로 변경
-
-# ========================================
-# Actuator & Observability (C28, C33)
-# ========================================
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,metrics,prometheus,info
-  endpoint:
-    health:
-      show-details: when-authorized
-      probes:
-        enabled: true
-  metrics:
-    tags:
-      application: ${spring.application.name}
-
-# ========================================
-# SpringDoc OpenAPI (C30)
-# ========================================
-springdoc:
-  api-docs:
-    path: /v3/api-docs
-    enabled: true
-  swagger-ui:
-    path: /swagger-ui.html
-    enabled: true
-    tags-sorter: alpha
-    operations-sorter: alpha
-  show-actuator: false
+  port: 8001
 
 spring:
   application:
     name: dwp-auth-server
-  
-  # 데이터소스 설정
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:dwp_auth}
-    driver-class-name: org.postgresql.Driver
     username: ${DB_USERNAME:dwp_user}
     password: ${DB_PASSWORD:dwp_password}
-  
-  # JPA 설정
   jpa:
     hibernate:
-      ddl-auto: ${JPA_DDL_AUTO:validate}  # Flyway가 스키마 관리, JPA는 검증만
-    show-sql: ${JPA_SHOW_SQL:false}  # 기본값 비활성화 (필요 시 환경변수로만 활성화)
+      ddl-auto: validate
+    open-in-view: false
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.PostgreSQLDialect
-        "[format_sql]": true  # SQL 포맷팅 (가독성 향상)
-        "[use_sql_comments]": true  # SQL 주석 출력
-        # 메타데이터 캐시 비활성화 (스키마 변경 후 즉시 반영)
-        "[metadata_cache]": "none"
-    open-in-view: false
-  
-  # Flyway 설정
+        format_sql: true
   flyway:
     enabled: true
     locations: classpath:db/migration
-    baseline-on-migrate: true  # 기존 DB에 대해 baseline 자동 생성
-    baseline-version: 0  # baseline 버전
-    validate-on-migrate: true  # 마이그레이션 전 검증
+    baseline-on-migrate: true
+    baseline-version: 0
+    validate-on-migrate: true
 
-# RBAC 캐시 설정 (dev 60s / prod 5m)
-rbac:
-  cache:
-    ttl-seconds: ${RBAC_CACHE_TTL_SECONDS:300}  # 기본 5분 (300초)
-
-# JWT 설정 (커스텀 속성)
-# Python (jose)와 Java (Spring Security) 간 공유 시크릿 키
-# 최소 256비트(32바이트) 길이여야 합니다.
-# Note: 이 속성은 @Value("${jwt.secret}")로 사용되며, Spring Boot 표준 속성이 아닙니다.
-# 'jwt'는 커스텀 속성으로, IDE에서 'Unknown property' 경고가 발생할 수 있으나 정상 동작합니다.
 jwt:
   secret: ${JWT_SECRET:your_shared_secret_key_must_be_at_least_256_bits_long_for_HS256}
-  expiration-seconds: ${JWT_EXPIRATION_SECONDS:28800}  # 기본값: 8시간 (28800초). 운영에서 짧게 쓰려면 JWT_EXPIRATION_SECONDS=3600 등으로 오버라이드
+  expiration-seconds: ${JWT_EXPIRATION_SECONDS:28800}
+
+sso:
+  callback-url: ${SSO_CALLBACK_URL:http://localhost:4200/auth/oidc/callback}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
 
 logging:
   level:
-    "[com.dwp.services.auth]": ${LOG_LEVEL_AUTH:DEBUG}
-    "[com.dwp.services.auth.controller.admin.monitoring]": ${LOG_LEVEL_MONITORING:DEBUG}  # 모니터링 API 로그
-    "[com.dwp.services.auth.service.MonitoringService]": ${LOG_LEVEL_MONITORING:DEBUG}
-    "[com.dwp.services.auth.service.monitoring.AdminMonitoringService]": ${LOG_LEVEL_MONITORING:DEBUG}
-    "[org.springframework.security]": ${LOG_LEVEL_SECURITY:DEBUG}
-    "[org.hibernate.SQL]": ${LOG_LEVEL_SQL:WARN}  # SQL 쿼리 로그 비활성화
-    "[org.hibernate.type.descriptor.sql.BasicBinder]": ${LOG_LEVEL_SQL_PARAM:WARN}  # SQL 파라미터 로그 비활성화
-    "[org.hibernate.orm.jdbc.bind]": ${LOG_LEVEL_SQL_PARAM:WARN}  # Hibernate 6.x 파라미터 로그 비활성화
+    com.dwp.services.auth: ${LOG_LEVEL_AUTH:INFO}
+    org.springframework.security: ${LOG_LEVEL_SECURITY:WARN}

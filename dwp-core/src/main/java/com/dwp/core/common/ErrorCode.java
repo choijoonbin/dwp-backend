@@ -5,51 +5,30 @@ import org.springframework.http.HttpStatus;
 
 @Getter
 public enum ErrorCode {
-    // 공통 에러 (1000번대)
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "E1000", "내부 서버 오류가 발생했습니다."),
     INVALID_INPUT_VALUE(HttpStatus.BAD_REQUEST, "E1001", "잘못된 입력값입니다."),
-    METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "E1002", "허용되지 않은 HTTP 메서드입니다."),
-    HANDLE_ACCESS_DENIED(HttpStatus.FORBIDDEN, "E1003", "접근이 거부되었습니다."),
     NOT_FOUND(HttpStatus.NOT_FOUND, "E1004", "요청한 리소스를 찾을 수 없습니다."),
-    
-    // 인증/인가 에러 (2000번대)
+
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "E2000", "인증이 필요합니다."),
     FORBIDDEN(HttpStatus.FORBIDDEN, "E2001", "권한이 없습니다."),
-    ADMIN_FORBIDDEN(HttpStatus.FORBIDDEN, "E2008", "관리자 권한이 필요합니다."),
-    TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "E2002", "토큰이 만료되었습니다."),
     TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "E2003", "유효하지 않은 토큰입니다."),
     AUTH_INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "E2004", "잘못된 자격 증명입니다."),
     AUTH_REQUIRED(HttpStatus.UNAUTHORIZED, "E2005", "인증이 필요합니다."),
     TENANT_MISSING(HttpStatus.BAD_REQUEST, "E2006", "테넌트 정보가 필요합니다."),
     TENANT_MISMATCH(HttpStatus.FORBIDDEN, "E2007", "테넌트 정보가 일치하지 않습니다."),
-    OUT_OF_SCOPE(HttpStatus.FORBIDDEN, "E2009", "스코프에서 제외된 리소스입니다."),
-    
-    // 비즈니스 로직 에러 (3000번대)
+
     ENTITY_NOT_FOUND(HttpStatus.NOT_FOUND, "E3000", "엔티티를 찾을 수 없습니다."),
-    DUPLICATE_ENTITY(HttpStatus.CONFLICT, "E3001", "이미 존재하는 엔티티입니다."),
-    IDEMPOTENCY_CONFLICT(HttpStatus.CONFLICT, "E3006", "동일 요청이 이미 처리되었습니다."),
     INVALID_STATE(HttpStatus.BAD_REQUEST, "E3002", "잘못된 상태입니다."),
-    ROLE_IN_USE(HttpStatus.CONFLICT, "E3003", "역할이 사용 중입니다. 멤버나 권한을 먼저 제거해주세요."),
-    RESOURCE_KEY_DUPLICATED(HttpStatus.CONFLICT, "E3004", "이미 존재하는 리소스 키입니다."),
-    RESOURCE_HAS_CHILDREN(HttpStatus.CONFLICT, "E3005", "하위 리소스가 존재합니다. 하위 리소스를 먼저 제거해주세요."),
-    AGENT_CREATE_FAILED(HttpStatus.BAD_REQUEST, "E3007", "에이전트 생성에 실패했습니다."),
-    AGENT_KEY_DUPLICATE(HttpStatus.CONFLICT, "E3008", "이미 사용 중인 에이전트 키입니다. 다른 agent_key를 사용하세요."),
 
-    // 검증 에러 (4000번대)
     VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "E4000", "입력값 검증에 실패했습니다."),
-    MISSING_REQUIRED_FIELD(HttpStatus.BAD_REQUEST, "E4001", "필수 필드가 누락되었습니다."),
     INVALID_FORMAT(HttpStatus.BAD_REQUEST, "E4002", "잘못된 형식입니다."),
-    INVALID_CODE(HttpStatus.BAD_REQUEST, "E4003", "유효하지 않은 코드입니다."),
-    PROMPT_VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "E4004", "프롬프트 검증에 실패했습니다. system_instruction을 확인하세요."),
 
-    // 외부 서비스 에러 (5000번대)
-    EXTERNAL_SERVICE_ERROR(HttpStatus.BAD_GATEWAY, "E5000", "외부 서비스 오류가 발생했습니다."),
-    EXTERNAL_SERVICE_TIMEOUT(HttpStatus.GATEWAY_TIMEOUT, "E5001", "외부 서비스 응답 시간이 초과되었습니다.");
-    
+    EXTERNAL_SERVICE_ERROR(HttpStatus.BAD_GATEWAY, "E5000", "외부 서비스 오류가 발생했습니다.");
+
     private final HttpStatus httpStatus;
     private final String code;
     private final String message;
-    
+
     ErrorCode(HttpStatus httpStatus, String code, String message) {
         this.httpStatus = httpStatus;
         this.code = code;

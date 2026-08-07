@@ -1,4 +1,0 @@
-# Phase2 DEMO 모드 — Aura 미호출, 샘플 result/proposal 즉시 생성
-# 사용: --spring.profiles.active=demo
-synapse:
-  demo-mode: true

@@ -1,0 +1,415 @@
+#!/usr/bin/env python3
+"""Local process supervisor for the DWP starter workspace."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import signal
+import socket
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Iterable
+
+
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+WORKSPACE_ROOT = BACKEND_ROOT.parent
+FRONTEND_ROOT = WORKSPACE_ROOT / "dwp-frontend"
+AGENT_ROOT = WORKSPACE_ROOT / "dwp_agent"
+RUNTIME_ROOT = BACKEND_ROOT / ".dev-runtime"
+LOG_ROOT = RUNTIME_ROOT / "logs"
+STATE_FILE = RUNTIME_ROOT / "processes.json"
+MIN_AGENT_PYTHON = (3, 11)
+
+
+@dataclass(frozen=True)
+class Service:
+    name: str
+    cwd: Path
+    command: tuple[str, ...]
+    port: int
+    health_path: str
+
+
+def agent_python() -> str:
+    virtualenv_python = AGENT_ROOT / ".venv" / "bin" / "python"
+    return str(virtualenv_python) if virtualenv_python.exists() else "python3"
+
+
+SERVICES = {
+    "auth": Service(
+        "auth",
+        BACKEND_ROOT,
+        ("./gradlew", "--no-daemon", ":dwp-auth-server:bootRun"),
+        8001,
+        "/actuator/health",
+    ),
+    "agent": Service(
+        "agent",
+        AGENT_ROOT,
+        (
+            agent_python(),
+            "-m",
+            "uvicorn",
+            "main:app",
+            "--reload",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "8010",
+        ),
+        8010,
+        "/health",
+    ),
+    "gateway": Service(
+        "gateway",
+        BACKEND_ROOT,
+        ("./gradlew", "--no-daemon", ":dwp-gateway:bootRun"),
+        8080,
+        "/actuator/health",
+    ),
+    "frontend": Service(
+        "frontend",
+        FRONTEND_ROOT,
+        ("corepack", "yarn", "dev", "--host", "0.0.0.0"),
+        4200,
+        "/",
+    ),
+}
+
+PROFILES = {
+    "full": {"auth", "agent", "gateway", "frontend"},
+    "core": {"auth", "gateway", "frontend"},
+    "backend": {"auth", "agent", "gateway"},
+    "agent": {"agent"},
+    "web": {"frontend"},
+}
+
+START_ORDER = ("auth", "agent", "gateway", "frontend")
+
+
+def load_state() -> dict[str, dict[str, object]]:
+    if not STATE_FILE.exists():
+        return {}
+    try:
+        return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+
+def save_state(state: dict[str, dict[str, object]]) -> None:
+    if not state:
+        STATE_FILE.unlink(missing_ok=True)
+        return
+    RUNTIME_ROOT.mkdir(parents=True, exist_ok=True)
+    STATE_FILE.write_text(json.dumps(state, indent=2), encoding="utf-8")
+
+
+def process_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def port_open(port: int) -> bool:
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=0.4):
+            return True
+    except OSError:
+        return False
+
+
+def local_environment() -> dict[str, str]:
+    environment = os.environ.copy()
+    defaults = {
+        "DB_HOST": "localhost",
+        "DB_PORT": "5432",
+        "DB_NAME": "dwp_auth",
+        "DB_USERNAME": "dwp_user",
+        "DB_PASSWORD": "dwp_password",
+        "SERVICE_AUTH_URL": "http://localhost:8001",
+        "VITE_API_URL": "http://localhost:8080",
+    }
+    for key, value in defaults.items():
+        environment.setdefault(key, value)
+    return environment
+
+
+def docker_compose(
+    *arguments: str,
+    check: bool = True,
+    capture_output: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ("docker", "compose", *arguments),
+        cwd=BACKEND_ROOT,
+        check=check,
+        text=True,
+        capture_output=capture_output,
+    )
+
+
+def require_command(command: str) -> None:
+    if shutil.which(command) is None:
+        raise RuntimeError(f"Required command is not available: {command}")
+
+
+def doctor() -> None:
+    for command in ("docker", "java", "corepack", "python3"):
+        require_command(command)
+
+    for project in (BACKEND_ROOT, FRONTEND_ROOT, AGENT_ROOT):
+        if not project.exists():
+            raise RuntimeError(f"Missing project: {project}")
+
+    version_check = subprocess.run(
+        (
+            agent_python(),
+            "-c",
+            "import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)",
+        ),
+        check=False,
+    )
+    if version_check.returncode != 0:
+        raise RuntimeError("The agent runtime requires Python 3.11 or newer.")
+
+    subprocess.run(
+        (agent_python(), "-c", "import fastapi, uvicorn"),
+        cwd=AGENT_ROOT,
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        ("corepack", "yarn", "--version"),
+        cwd=FRONTEND_ROOT,
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    subprocess.run(
+        ("docker", "info"),
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    print("Development environment is ready.")
+
+
+def start_infrastructure() -> None:
+    docker_compose("up", "-d", "postgres")
+    deadline = time.monotonic() + 60
+    while time.monotonic() < deadline:
+        result = docker_compose(
+            "exec",
+            "-T",
+            "postgres",
+            "pg_isready",
+            "-U",
+            "dwp_user",
+            "-d",
+            "dwp_auth",
+            check=False,
+            capture_output=True,
+        )
+        if result.returncode == 0:
+            print("postgres   ready at localhost:5432")
+            return
+        time.sleep(1)
+    raise RuntimeError("PostgreSQL did not become ready within 60 seconds.")
+
+
+def resolve_services(profile_names: Iterable[str]) -> list[Service]:
+    selected: set[str] = set()
+    for profile_name in profile_names or ["full"]:
+        profile = PROFILES.get(profile_name)
+        if profile is None:
+            choices = ", ".join(sorted(PROFILES))
+            raise RuntimeError(
+                f"Unknown profile '{profile_name}'. Available profiles: {choices}"
+            )
+        selected.update(profile)
+    return [SERVICES[name] for name in START_ORDER if name in selected]
+
+
+def health_ready(service: Service) -> bool:
+    try:
+        with urllib.request.urlopen(
+            f"http://127.0.0.1:{service.port}{service.health_path}", timeout=2
+        ) as response:
+            return 200 <= response.status < 400
+    except (OSError, urllib.error.URLError):
+        return False
+
+
+def start_service(service: Service, state: dict[str, dict[str, object]]) -> None:
+    current = state.get(service.name)
+    if current and process_alive(int(current["pid"])):
+        print(f"{service.name:10} already running (pid={current['pid']})")
+        return
+    if port_open(service.port):
+        raise RuntimeError(
+            f"Port {service.port} for {service.name} is used by an unmanaged process."
+        )
+
+    LOG_ROOT.mkdir(parents=True, exist_ok=True)
+    log_path = LOG_ROOT / f"{service.name}.log"
+    with log_path.open("ab", buffering=0) as log_file:
+        process = subprocess.Popen(
+            service.command,
+            cwd=service.cwd,
+            env=local_environment(),
+            stdin=subprocess.DEVNULL,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+
+    state[service.name] = {
+        "pid": process.pid,
+        "port": service.port,
+        "command": list(service.command),
+        "log": str(log_path),
+    }
+    save_state(state)
+    print(f"{service.name:10} starting (pid={process.pid}, port={service.port})")
+
+
+def wait_for_services(
+    services: Iterable[Service], state: dict[str, dict[str, object]]
+) -> None:
+    pending = {service.name: service for service in services}
+    deadline = time.monotonic() + 180
+    while pending and time.monotonic() < deadline:
+        for name, service in list(pending.items()):
+            process_state = state.get(name)
+            pid = int(process_state["pid"]) if process_state else 0
+            if pid and not process_alive(pid):
+                log_path = Path(str(process_state["log"]))
+                tail = "\n".join(log_path.read_text(errors="replace").splitlines()[-20:])
+                raise RuntimeError(f"{name} exited during startup.\n{tail}")
+            if health_ready(service):
+                print(f"{name:10} ready at http://localhost:{service.port}")
+                pending.pop(name)
+        if pending:
+            time.sleep(1)
+    if pending:
+        raise RuntimeError(
+            "Startup timed out waiting for: " + ", ".join(sorted(pending))
+        )
+
+
+def stop_services() -> None:
+    state = load_state()
+    for name in reversed(START_ORDER):
+        process_state = state.pop(name, None)
+        if not process_state:
+            continue
+        pid = int(process_state["pid"])
+        if not process_alive(pid):
+            continue
+        try:
+            os.killpg(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            continue
+        deadline = time.monotonic() + 10
+        while process_alive(pid) and time.monotonic() < deadline:
+            time.sleep(0.2)
+        if process_alive(pid):
+            os.killpg(pid, signal.SIGKILL)
+        print(f"{name:10} stopped")
+    save_state(state)
+
+
+def print_status() -> None:
+    state = load_state()
+    for name in START_ORDER:
+        process_state = state.get(name)
+        pid = int(process_state["pid"]) if process_state else 0
+        managed = bool(pid and process_alive(pid))
+        port = SERVICES[name].port
+        status = "running" if managed else "external" if port_open(port) else "stopped"
+        print(f"{name:10} {status:8} port={port}" + (f" pid={pid}" if managed else ""))
+    docker_compose("ps", check=False)
+
+
+def show_logs(service_name: str | None, follow: bool) -> None:
+    state = load_state()
+    names = [service_name] if service_name else list(START_ORDER)
+    log_paths = [Path(str(state[name]["log"])) for name in names if name in state]
+    if not log_paths:
+        raise RuntimeError("No managed service logs are available.")
+    command = ["tail", "-n", "100"]
+    if follow:
+        command.append("-f")
+    subprocess.run((*command, *(str(path) for path in log_paths)), check=False)
+
+
+def reset_database(confirmed: bool) -> None:
+    if not confirmed:
+        raise RuntimeError("Database reset requires --yes because it deletes the Docker volume.")
+    stop_services()
+    docker_compose("down", "-v", "--remove-orphans")
+    shutil.rmtree(RUNTIME_ROOT, ignore_errors=True)
+    print("Local PostgreSQL data was removed. Run './dev up full' for a fresh schema.")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("doctor", help="check local development dependencies")
+
+    up_parser = commands.add_parser("up", help="start infrastructure and services")
+    up_parser.add_argument("profiles", nargs="*", default=["full"])
+
+    commands.add_parser("stop", help="stop managed application processes")
+    commands.add_parser("down", help="stop applications and PostgreSQL")
+    commands.add_parser("status", help="show application and infrastructure status")
+
+    logs_parser = commands.add_parser("logs", help="show managed service logs")
+    logs_parser.add_argument("service", nargs="?", choices=START_ORDER)
+    logs_parser.add_argument("--follow", "-f", action="store_true")
+
+    reset_parser = commands.add_parser("reset", help="delete the local PostgreSQL volume")
+    reset_parser.add_argument("--yes", action="store_true")
+    return parser
+
+
+def main() -> None:
+    args = build_parser().parse_args()
+    if args.command == "doctor":
+        doctor()
+    elif args.command == "up":
+        doctor()
+        start_infrastructure()
+        services = resolve_services(args.profiles)
+        state = load_state()
+        for service in services:
+            start_service(service, state)
+        wait_for_services(services, state)
+    elif args.command == "stop":
+        stop_services()
+    elif args.command == "down":
+        stop_services()
+        docker_compose("down", "--remove-orphans")
+    elif args.command == "status":
+        print_status()
+    elif args.command == "logs":
+        show_logs(args.service, args.follow)
+    elif args.command == "reset":
+        reset_database(args.yes)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (RuntimeError, subprocess.CalledProcessError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        raise SystemExit(1) from error

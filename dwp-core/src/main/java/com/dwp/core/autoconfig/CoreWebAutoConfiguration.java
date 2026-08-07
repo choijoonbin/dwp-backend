@@ -13,20 +13,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.LocaleResolver;
 
-/**
- * DWP Core Web Auto-Configuration
- * 
- * Spring MVC 기반 Web 서비스에서 자동으로 로드되는 설정입니다.
- * 
- * 적용 조건:
- * - @ConditionalOnWebApplication: Web 애플리케이션일 때만 로드
- * - @ConditionalOnClass(RestControllerAdvice.class): Spring MVC가 classpath에 있을 때만 로드
- * 
- * 제공 빈:
- * - GlobalExceptionHandler: 전역 예외 처리 (@RestControllerAdvice)
- * - LocaleResolver: Accept-Language 기반 다국어(ko/en) 지원
- * - ApiResponse<T> Envelope은 공통 DTO로 제공 (별도 빈 불필요)
- */
+/** Provides common exception handling and locale resolution for servlet services. */
 @Slf4j
 @AutoConfiguration
 @AutoConfigureBefore(WebMvcAutoConfiguration.class)
@@ -34,27 +21,16 @@ import org.springframework.web.servlet.LocaleResolver;
 @ConditionalOnClass(RestControllerAdvice.class)
 public class CoreWebAutoConfiguration {
     
-    /**
-     * GlobalExceptionHandler 자동 등록
-     * 
-     * 모든 서비스에서 일관된 에러 응답 형식(ApiResponse<T>)을 제공합니다.
-     */
     @Bean
     public GlobalExceptionHandler globalExceptionHandler() {
-        log.info("✅ DWP Core: GlobalExceptionHandler registered (ApiResponse Envelope enabled)");
+        log.info("DWP Core GlobalExceptionHandler registered");
         return new GlobalExceptionHandler();
     }
 
-    /**
-     * Accept-Language 기반 LocaleResolver 등록
-     * 
-     * ko/en 지원, 미지정/잘못된 값은 ko fallback
-     * @ConditionalOnMissingBean: WebMvcAutoConfiguration의 기본 LocaleResolver와 충돌 방지
-     */
     @Bean
     @ConditionalOnMissingBean(LocaleResolver.class)
     public LocaleResolver localeResolver() {
-        log.info("✅ DWP Core: AcceptLanguageLocaleResolver registered (i18n ko/en)");
+        log.info("DWP Core AcceptLanguageLocaleResolver registered");
         return new AcceptLanguageLocaleResolver();
     }
 }

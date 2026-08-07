@@ -1,44 +1,25 @@
 services:
   postgres:
-    # pgvector 사용: 기존 15와 호환되는 pgvector:pg15 (볼륨 유지 시 기존 DB/테이블 유지)
-    image: pgvector/pgvector:pg15
+    image: postgres:15-alpine
     container_name: dwp-postgres
     environment:
       POSTGRES_USER: dwp_user
       POSTGRES_PASSWORD: dwp_password
-      POSTGRES_DB: postgres
+      POSTGRES_DB: dwp_auth
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U dwp_user"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U dwp_user -d dwp_auth"]
+      interval: 5s
       timeout: 5s
-      retries: 5
-    networks:
-      - dwp-network
-
-  redis:
-    image: redis:7-alpine
-    container_name: dwp-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    command: redis-server --appendonly yes
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      retries: 10
     networks:
       - dwp-network
 
 volumes:
   postgres_data:
-  redis_data:
 
 networks:
   dwp-network:

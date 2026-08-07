@@ -13,13 +13,7 @@
   },
   "java.compile.nullAnalysis.mode": "automatic",
   "java.jdt.ls.vmargs": "-Xmx6G -XX:+UseG1GC -XX:+ParallelRefProcEnabled",
-  
-  /* 1. 빌드 도구 설정을 자동으로 반영하도록 변경 (인텔리제이 방식) */
   "java.configuration.updateBuildConfiguration": "automatic",
-
-  /* 2. 오류 시 강제 기동 대신 물어보도록 변경 (원복하신 설정) */
   "java.debug.settings.onBuildFailureProceed": "prompt",
-
-  /* 3. ★핵심★ 인텔리제이처럼 매개변수 이름을 유지하도록 설정 (Spring 6.1 대응) */
   "java.compiler.extraArgs": "-parameters"
 }

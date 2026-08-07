@@ -4,7 +4,6 @@ import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.constant.HeaderConstants;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindException;
@@ -24,23 +23,19 @@ import java.util.Map;
 @SuppressWarnings("null")
 public class GlobalExceptionHandler {
 
-    private static String traceId(HttpServletRequest req) {
-        return req != null ? req.getHeader(HeaderConstants.X_TRACE_ID) : null;
-    }
-
-    private static String gatewayRequestId(HttpServletRequest req) {
-        return req != null ? req.getHeader(HeaderConstants.X_GATEWAY_REQUEST_ID) : null;
+    private static String correlationId(HttpServletRequest request) {
+        return request == null ? null : request.getHeader(HeaderConstants.X_CORRELATION_ID);
     }
     
     /**
-     * 커스텀 BaseException 처리 (errorCode/errorMessage/traceId/gatewayRequestId 통일)
+     * 커스텀 BaseException 처리
      */
     @ExceptionHandler(BaseException.class)
     public ResponseEntity<ApiResponse<Object>> handleBaseException(BaseException e, HttpServletRequest request) {
         log.error("BaseException: [{}] {}", e.getErrorCode().getCode(), e.getMessage(), e);
         return ResponseEntity
                 .status(e.getErrorCode().getHttpStatus())
-                .body(ApiResponse.error(e.getErrorCode(), e.getMessage(), traceId(request), gatewayRequestId(request)));
+                .body(ApiResponse.error(e.getErrorCode(), e.getMessage(), correlationId(request)));
     }
     
     /**
@@ -56,15 +51,14 @@ public class GlobalExceptionHandler {
             errors.put(fieldName, errorMessage);
         });
         
-        String path = request != null ? request.getRequestURI() : "";
-        if (path.contains("rag/chunks")) {
-            log.warn("RAG chunks callback validation failed: path={} errors={}", path, errors);
-        } else {
-            log.warn("Validation error: {}", errors);
-        }
+        log.warn("Validation error: {}", errors);
         return ResponseEntity
                 .status(ErrorCode.VALIDATION_ERROR.getHttpStatus())
-                .body(ApiResponse.error(ErrorCode.VALIDATION_ERROR, "입력값 검증에 실패했습니다.", errors, traceId(request), gatewayRequestId(request)));
+                .body(ApiResponse.error(
+                        ErrorCode.VALIDATION_ERROR,
+                        "입력값 검증에 실패했습니다.",
+                        errors,
+                        correlationId(request)));
     }
     
     /**
@@ -82,7 +76,11 @@ public class GlobalExceptionHandler {
         log.warn("Bind error: {}", errors);
         return ResponseEntity
                 .status(ErrorCode.VALIDATION_ERROR.getHttpStatus())
-                .body(ApiResponse.error(ErrorCode.VALIDATION_ERROR, "입력값 검증에 실패했습니다.", errors, traceId(request), gatewayRequestId(request)));
+                .body(ApiResponse.error(
+                        ErrorCode.VALIDATION_ERROR,
+                        "입력값 검증에 실패했습니다.",
+                        errors,
+                        correlationId(request)));
     }
     
     /**
@@ -94,7 +92,8 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(ErrorCode.VALIDATION_ERROR.getHttpStatus())
                 .body(ApiResponse.error(ErrorCode.VALIDATION_ERROR,
-                        String.format("필수 헤더 '%s'가 누락되었습니다.", e.getHeaderName()), traceId(request), gatewayRequestId(request)));
+                        String.format("필수 헤더 '%s'가 누락되었습니다.", e.getHeaderName()),
+                        correlationId(request)));
     }
 
     /**
@@ -107,7 +106,8 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(ErrorCode.INVALID_INPUT_VALUE.getHttpStatus())
                 .body(ApiResponse.error(ErrorCode.INVALID_INPUT_VALUE, 
-                        String.format("파라미터 '%s'의 타입이 올바르지 않습니다.", e.getName()), traceId(request), gatewayRequestId(request)));
+                        String.format("파라미터 '%s'의 타입이 올바르지 않습니다.", e.getName()),
+                        correlationId(request)));
     }
     
     /**
@@ -117,17 +117,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Object>> handleHttpMessageNotReadable(
             HttpMessageNotReadableException e, HttpServletRequest request) {
         String msg = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
-        String path = request != null ? request.getRequestURI() : "";
-        if (path.contains("rag/chunks")) {
-            log.warn("RAG chunks callback JSON parse failed: path={} cause={}", path, msg);
-        } else {
-            log.warn("JSON parse error: {}", msg);
-        }
+        log.warn("JSON parse error: {}", msg);
         String detail = (msg != null && msg.length() > 200) ? msg.substring(0, 200) + "..." : (msg != null ? msg : "");
         return ResponseEntity
                 .status(ErrorCode.INVALID_FORMAT.getHttpStatus())
                 .body(ApiResponse.error(ErrorCode.INVALID_FORMAT,
-                        "요청 본문 형식이 올바르지 않습니다." + (detail.isEmpty() ? "" : " " + detail), traceId(request), gatewayRequestId(request)));
+                        "요청 본문 형식이 올바르지 않습니다." + (detail.isEmpty() ? "" : " " + detail),
+                        correlationId(request)));
     }
 
     /**
@@ -139,28 +135,25 @@ public class GlobalExceptionHandler {
         log.warn("Illegal argument: {}", e.getMessage());
         return ResponseEntity
                 .status(ErrorCode.INVALID_INPUT_VALUE.getHttpStatus())
-                .body(ApiResponse.error(ErrorCode.INVALID_INPUT_VALUE, e.getMessage(), traceId(request), gatewayRequestId(request)));
+                .body(ApiResponse.error(
+                        ErrorCode.INVALID_INPUT_VALUE,
+                        e.getMessage(),
+                        correlationId(request)));
     }
     
     /**
      * 기타 예상치 못한 예외 처리 (500)
-     * /ws/ (WebSocket·SockJS) 요청이거나 응답이 이미 커밋된 경우 본문을 쓰지 않음.
-     * (SockJS xhr_streaming 등은 Content-Type: text/event-stream으로 이미 커밋된 뒤 예외 시
-     * JSON ApiResponse를 쓰면 HttpMessageNotWritableException 발생 → 연결 cancel 유발)
      */
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponse<Object>> handleException(Exception e, HttpServletRequest request, HttpServletResponse response) {
-        String path = request != null ? request.getRequestURI() : "";
-        boolean wsPath = path != null && path.startsWith("/ws/");
-        boolean committed = response != null && response.isCommitted();
-        if (wsPath || committed) {
-            log.warn("Exception on {} path (wsPath={}, committed={}): {} - skipping JSON body to avoid converter error",
-                    path, wsPath, committed, e.getMessage());
-            return ResponseEntity.status(ErrorCode.INTERNAL_SERVER_ERROR.getHttpStatus()).build();
-        }
+    public ResponseEntity<ApiResponse<Object>> handleException(
+            Exception e,
+            HttpServletRequest request) {
         log.error("Unexpected error: {}", e.getMessage(), e);
         return ResponseEntity
                 .status(ErrorCode.INTERNAL_SERVER_ERROR.getHttpStatus())
-                .body(ApiResponse.error(ErrorCode.INTERNAL_SERVER_ERROR, traceId(request), gatewayRequestId(request)));
+                .body(ApiResponse.error(
+                        ErrorCode.INTERNAL_SERVER_ERROR,
+                        ErrorCode.INTERNAL_SERVER_ERROR.getMessage(),
+                        correlationId(request)));
     }
 }

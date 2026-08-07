@@ -45,8 +45,8 @@ out/
 application-local.yml
 *.log
 
-### Aura service dummy data (CSV 등, 대용량/로컬 전용) ###
-services/synapsex-service/src/main/resources/sap_dummy/
+.dev-runtime/
 
-### Frontend Source (Reference Link) ###
-docs/frontend-src
+# Local database exports
+backup_*.sql
+*.dump
