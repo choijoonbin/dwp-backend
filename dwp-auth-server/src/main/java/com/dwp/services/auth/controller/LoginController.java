@@ -5,10 +5,15 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.auth.dto.LoginRequest;
 import com.dwp.services.auth.dto.LoginResponse;
+import com.dwp.services.auth.service.AuthenticatedSession;
 import com.dwp.services.auth.service.AuthService;
 import com.dwp.services.auth.service.OidcService;
+import com.dwp.services.auth.service.SessionCookieService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -24,17 +29,28 @@ public class LoginController {
 
     private final AuthService authService;
     private final OidcService oidcService;
+    private final SessionCookieService sessionCookieService;
 
-    public LoginController(AuthService authService, OidcService oidcService) {
+    public LoginController(
+            AuthService authService,
+            OidcService oidcService,
+            SessionCookieService sessionCookieService) {
         this.authService = authService;
         this.oidcService = oidcService;
+        this.sessionCookieService = sessionCookieService;
     }
 
     @PostMapping("/login")
     public ApiResponse<LoginResponse> login(
             @Valid @RequestBody LoginRequest request,
-            HttpServletRequest servletRequest) {
-        return ApiResponse.success(authService.login(request, servletRequest));
+            HttpServletRequest servletRequest,
+            HttpServletResponse servletResponse) {
+        AuthenticatedSession session = authService.login(request, servletRequest);
+        sessionCookieService.write(
+                servletResponse,
+                session.accessToken(),
+                session.response().getExpiresIn());
+        return ApiResponse.success(session.response());
     }
 
     @GetMapping("/oidc/login")
@@ -51,12 +67,29 @@ public class LoginController {
     public ApiResponse<LoginResponse> oidcCallback(
             @RequestParam("code") String code,
             @RequestParam("state") String state,
-            HttpServletRequest servletRequest) {
+            HttpServletRequest servletRequest,
+            HttpServletResponse servletResponse) {
         OidcService.OidcExchangeResult result = oidcService.exchange(state, code);
-        return ApiResponse.success(authService.loginWithOidc(
+        AuthenticatedSession session = authService.loginWithOidc(
                 result.tenantId(),
                 result.providerKey(),
                 result.userInfo(),
-                servletRequest));
+                servletRequest);
+        sessionCookieService.write(
+                servletResponse,
+                session.accessToken(),
+                session.response().getExpiresIn());
+        return ApiResponse.success(session.response());
+    }
+
+    @PostMapping("/logout")
+    public ApiResponse<Void> logout(
+            Authentication authentication,
+            HttpServletResponse servletResponse) {
+        if (authentication != null && authentication.getPrincipal() instanceof Jwt jwt) {
+            authService.revokeSession(jwt.getId());
+        }
+        sessionCookieService.clear(servletResponse);
+        return ApiResponse.success();
     }
 }

@@ -8,11 +8,25 @@ RBAC, 요청 추적만 포함하며 기존 업무 도메인 API와 데이터는 
 | Module | Port | Responsibility |
 | --- | ---: | --- |
 | `dwp-core` | - | API 응답, 예외, 공통 헤더와 요청 추적 |
-| `dwp-auth-server` | 8001 | 로컬/OIDC 로그인, 테넌트, 사용자, RBAC |
+| `dwp-auth-server` | 8001 | 로컬/OIDC 로그인, Browser Session, 테넌트, 사용자, RBAC |
 | `dwp-gateway` | 8080 | 브라우저의 단일 API 진입점과 CORS |
 
 인증 서버의 Flyway 마이그레이션만 데이터베이스 스키마를 생성합니다. 시작
-스키마는 인증/RBAC에 필요한 11개 테이블로 제한되어 있습니다.
+스키마는 인증/RBAC과 서버 측 Session 폐기에 필요한 12개 테이블로 제한되어
+있습니다. `sys_auth_sessions`는 JWT 원문이 아니라 `jti`, 사용자, 만료·폐기와
+발급 Context만 저장합니다.
+
+브라우저 Access Token은 응답 본문에 노출하지 않고 `HttpOnly` Cookie로
+발급합니다. Local Development의 기본 Cookie는 HTTP를 위해 `Secure=false`이며,
+배포 환경에서는 반드시 다음 값을 적용해야 합니다.
+
+```bash
+DWP_SESSION_COOKIE_SECURE=true
+DWP_SESSION_COOKIE_SAME_SITE=Lax
+JWT_SECRET=<managed-secret-at-least-256-bits>
+```
+
+상태 변경 요청은 Spring Security CSRF 보호와 `X-XSRF-TOKEN` Header를 사용합니다.
 
 ## Requirements
 

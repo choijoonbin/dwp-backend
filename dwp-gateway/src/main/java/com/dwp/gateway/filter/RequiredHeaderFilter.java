@@ -18,6 +18,7 @@ public class RequiredHeaderFilter implements GlobalFilter, Ordered {
     private static final String TENANT_HEADER = "X-Tenant-ID";
     private static final List<String> PUBLIC_PATHS = List.of(
             "/api/auth/login",
+            "/api/auth/csrf",
             "/api/auth/policy",
             "/api/auth/idp",
             "/api/auth/oidc/",

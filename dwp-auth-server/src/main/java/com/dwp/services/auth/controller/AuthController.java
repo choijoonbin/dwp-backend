@@ -2,6 +2,7 @@ package com.dwp.services.auth.controller;
 
 import com.dwp.core.common.ApiResponse;
 import com.dwp.services.auth.dto.AuthPolicyResponse;
+import com.dwp.services.auth.dto.CsrfTokenResponse;
 import com.dwp.services.auth.dto.IdentityProviderResponse;
 import com.dwp.services.auth.dto.MeResponse;
 import com.dwp.services.auth.dto.PermissionDTO;
@@ -11,6 +12,7 @@ import com.dwp.services.auth.service.AuthPolicyService;
 import com.dwp.services.auth.service.AuthService;
 import com.dwp.services.auth.service.IdentityProviderService;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -39,6 +41,13 @@ public class AuthController {
     public ApiResponse<AuthPolicyResponse> getPolicy(
             @RequestHeader("X-Tenant-ID") Long tenantId) {
         return ApiResponse.success(authPolicyService.getPolicy(tenantId));
+    }
+
+    @GetMapping("/csrf")
+    public ApiResponse<CsrfTokenResponse> getCsrfToken(CsrfToken csrfToken) {
+        return ApiResponse.success(new CsrfTokenResponse(
+                csrfToken.getToken(),
+                csrfToken.getHeaderName()));
     }
 
     @GetMapping("/idp")

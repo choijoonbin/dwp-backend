@@ -13,12 +13,6 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class LoginResponse {
-
-    private String accessToken;
-
-    @Builder.Default
-    private String tokenType = "Bearer";
-
     private Long expiresIn;
     private String userId;
     private String tenantId;

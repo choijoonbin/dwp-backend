@@ -2,6 +2,7 @@ package com.dwp.services.auth.config;
 
 import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
+import com.dwp.services.auth.service.SessionCookieService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -19,9 +20,13 @@ import java.nio.charset.StandardCharsets;
 public class SecurityExceptionHandler implements AuthenticationEntryPoint, AccessDeniedHandler {
 
     private final ObjectMapper objectMapper;
+    private final SessionCookieService sessionCookieService;
 
-    public SecurityExceptionHandler(ObjectMapper objectMapper) {
+    public SecurityExceptionHandler(
+            ObjectMapper objectMapper,
+            SessionCookieService sessionCookieService) {
         this.objectMapper = objectMapper;
+        this.sessionCookieService = sessionCookieService;
     }
 
     @Override
@@ -29,6 +34,7 @@ public class SecurityExceptionHandler implements AuthenticationEntryPoint, Acces
             HttpServletRequest request,
             HttpServletResponse response,
             AuthenticationException exception) throws IOException {
+        sessionCookieService.clear(response);
         write(response, ErrorCode.UNAUTHORIZED);
     }
 

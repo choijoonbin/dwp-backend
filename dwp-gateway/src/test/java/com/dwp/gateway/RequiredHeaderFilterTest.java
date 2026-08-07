@@ -38,4 +38,19 @@ class RequiredHeaderFilterTest {
 
         assertThat(called).isTrue();
     }
+
+    @Test
+    void allowsPublicCsrfRequests() {
+        RequiredHeaderFilter filter = new RequiredHeaderFilter();
+        MockServerWebExchange exchange =
+                MockServerWebExchange.from(MockServerHttpRequest.get("/api/auth/csrf").build());
+        AtomicBoolean called = new AtomicBoolean();
+
+        filter.filter(exchange, ignored -> {
+            called.set(true);
+            return Mono.empty();
+        }).block();
+
+        assertThat(called).isTrue();
+    }
 }
