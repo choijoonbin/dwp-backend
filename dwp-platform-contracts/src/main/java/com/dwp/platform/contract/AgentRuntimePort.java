@@ -39,18 +39,22 @@ public interface AgentRuntimePort {
 
     record PlanPreview(
             String runId,
+            String planHash,
             RiskTier riskTier,
             boolean approvalRequired,
             boolean mutationAllowed,
             String summary,
             List<PlanStep> steps,
             List<String> sourceReferences,
-            String auditId) {
+            String auditId,
+            String correlationId) {
 
         public PlanPreview {
             runId = ContractChecks.required(runId, "runId");
+            planHash = ContractChecks.sha256(planHash, "planHash");
             summary = ContractChecks.required(summary, "summary");
             auditId = ContractChecks.required(auditId, "auditId");
+            correlationId = ContractChecks.required(correlationId, "correlationId");
             if (riskTier == null) {
                 throw new IllegalArgumentException("riskTier is required");
             }

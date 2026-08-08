@@ -61,7 +61,7 @@ SERVICES = {
             "main:app",
             "--reload",
             "--host",
-            "0.0.0.0",
+            "127.0.0.1",
             "--port",
             "8010",
         ),
@@ -138,6 +138,7 @@ def local_environment() -> dict[str, str]:
         "DB_USERNAME": "dwp_user",
         "DB_PASSWORD": "dwp_password",
         "SERVICE_AUTH_URL": "http://localhost:8001",
+        "DWP_AGENT_SERVICE_TOKEN": "dwp-local-agent-service-token",
         "VITE_API_URL": "http://localhost:8080",
     }
     for key, value in defaults.items():

@@ -55,3 +55,7 @@ management:
 logging:
   level:
     org.springframework.cloud.gateway: ${LOG_LEVEL_GATEWAY:INFO}
+
+dwp:
+  agent:
+    service-token: ${DWP_AGENT_SERVICE_TOKEN:}

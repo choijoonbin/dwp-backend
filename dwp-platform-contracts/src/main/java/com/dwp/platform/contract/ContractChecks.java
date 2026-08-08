@@ -18,4 +18,12 @@ final class ContractChecks {
         }
         return value;
     }
+
+    static String sha256(String value, String field) {
+        value = required(value, field);
+        if (!value.matches("[a-f0-9]{64}")) {
+            throw new IllegalArgumentException(field + " must be a lowercase SHA-256 value");
+        }
+        return value;
+    }
 }

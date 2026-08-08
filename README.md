@@ -20,6 +20,11 @@ RBAC, 요청 추적만 포함하며 기존 업무 도메인 API와 데이터는 
 `dwp-platform-contracts`는 Java Port와 Value Contract만 포함하며 Table, Connector SDK,
 Search Engine, Workflow Runtime과 Model Dependency를 추가하지 않습니다.
 
+Agent 경로는 Browser Session을 검증한 뒤 내부 Identity Header와
+`DWP_AGENT_SERVICE_TOKEN`을 Gateway가 새로 주입합니다. 외부에서 전달한 동일 Header는
+항상 제거됩니다. 기본 Token은 로컬 Supervisor에만 있으며 운영 환경에서는 Secret
+Store의 독립 값과 내부 Network 또는 mTLS를 사용해야 합니다.
+
 브라우저 Access Token은 응답 본문에 노출하지 않고 `HttpOnly` Cookie로
 발급합니다. Local Development의 기본 Cookie는 HTTP를 위해 `Secure=false`이며,
 배포 환경에서는 반드시 다음 값을 적용해야 합니다.
