@@ -51,6 +51,13 @@ SERVICES = {
         8001,
         "/actuator/health",
     ),
+    "platform": Service(
+        "platform",
+        BACKEND_ROOT,
+        ("./gradlew", "--no-daemon", ":dwp-platform-server:bootRun"),
+        8002,
+        "/actuator/health",
+    ),
     "agent": Service(
         "agent",
         AGENT_ROOT,
@@ -85,15 +92,15 @@ SERVICES = {
 }
 
 PROFILES = {
-    "full": {"auth", "agent", "gateway", "frontend"},
-    "core": {"auth", "gateway", "frontend"},
-    "backend": {"auth", "agent", "gateway"},
+    "full": {"auth", "platform", "agent", "gateway", "frontend"},
+    "core": {"auth", "platform", "gateway", "frontend"},
+    "backend": {"auth", "platform", "agent", "gateway"},
     "agent": {"agent"},
     "gateway": {"gateway"},
     "web": {"frontend"},
 }
 
-START_ORDER = ("auth", "agent", "gateway", "frontend")
+START_ORDER = ("auth", "platform", "agent", "gateway", "frontend")
 
 
 def load_state() -> dict[str, dict[str, object]]:
@@ -138,11 +145,28 @@ def local_environment() -> dict[str, str]:
         "DB_USERNAME": "dwp_user",
         "DB_PASSWORD": "dwp_password",
         "SERVICE_AUTH_URL": "http://localhost:8001",
+        "SERVICE_PLATFORM_URL": "http://localhost:8002",
         "DWP_AGENT_SERVICE_TOKEN": "dwp-local-agent-service-token",
+        "DWP_PLATFORM_SERVICE_TOKEN": "dwp-local-platform-service-token",
+        "DWP_PLATFORM_RUNTIME_SERVICE_TOKEN": "dwp-local-platform-runtime-token",
         "VITE_API_URL": "http://localhost:8080",
     }
     for key, value in defaults.items():
         environment.setdefault(key, value)
+    return environment
+
+
+def service_environment(service_name: str) -> dict[str, str]:
+    environment = local_environment()
+    if service_name not in {"agent", "gateway"}:
+        environment.pop("DWP_AGENT_SERVICE_TOKEN", None)
+    if service_name == "agent":
+        environment.pop("DWP_PLATFORM_SERVICE_TOKEN", None)
+    elif service_name == "gateway":
+        environment.pop("DWP_PLATFORM_RUNTIME_SERVICE_TOKEN", None)
+    elif service_name not in {"platform"}:
+        environment.pop("DWP_PLATFORM_SERVICE_TOKEN", None)
+        environment.pop("DWP_PLATFORM_RUNTIME_SERVICE_TOKEN", None)
     return environment
 
 
@@ -222,10 +246,38 @@ def start_infrastructure() -> None:
             capture_output=True,
         )
         if result.returncode == 0:
+            ensure_database("dwp_platform")
             print("postgres   ready at localhost:5432")
             return
         time.sleep(1)
     raise RuntimeError("PostgreSQL did not become ready within 60 seconds.")
+
+
+def ensure_database(database_name: str) -> None:
+    result = docker_compose(
+        "exec",
+        "-T",
+        "postgres",
+        "psql",
+        "-U",
+        "dwp_user",
+        "-d",
+        "postgres",
+        "-tAc",
+        f"SELECT 1 FROM pg_database WHERE datname = '{database_name}'",
+        capture_output=True,
+    )
+    if result.stdout.strip() == "1":
+        return
+    docker_compose(
+        "exec",
+        "-T",
+        "postgres",
+        "createdb",
+        "-U",
+        "dwp_user",
+        database_name,
+    )
 
 
 def resolve_services(profile_names: Iterable[str]) -> list[Service]:
@@ -267,7 +319,7 @@ def start_service(service: Service, state: dict[str, dict[str, object]]) -> None
         process = subprocess.Popen(
             service.command,
             cwd=service.cwd,
-            env=local_environment(),
+            env=service_environment(service.name),
             stdin=subprocess.DEVNULL,
             stdout=log_file,
             stderr=subprocess.STDOUT,

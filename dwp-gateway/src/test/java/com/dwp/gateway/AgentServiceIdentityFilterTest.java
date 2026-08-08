@@ -1,6 +1,7 @@
 package com.dwp.gateway;
 
 import com.dwp.gateway.filter.AgentServiceIdentityFilter;
+import com.dwp.gateway.filter.ServiceIdentitySanitizingFilter;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
@@ -53,8 +54,8 @@ class AgentServiceIdentityFilterTest {
     }
 
     @Test
-    void stripsInternalServiceTokenFromNonAgentRoutes() {
-        AgentServiceIdentityFilter filter = new AgentServiceIdentityFilter("gateway-secret");
+    void stripsInternalServiceTokenBeforeRoutingExternalRequests() {
+        ServiceIdentitySanitizingFilter filter = new ServiceIdentitySanitizingFilter();
         MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
                 .get("/api/auth/me")
                 .header(AgentServiceIdentityFilter.SERVICE_TOKEN_HEADER, "spoofed")
@@ -68,6 +69,6 @@ class AgentServiceIdentityFilterTest {
         }).block();
 
         assertThat(forwarded.get().getHeaders().containsKey(
-                AgentServiceIdentityFilter.SERVICE_TOKEN_HEADER)).isFalse();
+                ServiceIdentitySanitizingFilter.SERVICE_TOKEN_HEADER)).isFalse();
     }
 }

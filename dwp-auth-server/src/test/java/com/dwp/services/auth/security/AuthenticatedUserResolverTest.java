@@ -1,0 +1,46 @@
+package com.dwp.services.auth.security;
+
+import com.dwp.core.common.ErrorCode;
+import com.dwp.core.exception.BaseException;
+import org.junit.jupiter.api.Test;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.oauth2.jwt.Jwt;
+
+import java.time.Instant;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+class AuthenticatedUserResolverTest {
+
+    @Test
+    void acceptsTenantAdministratorClaims() {
+        assertThatCode(() -> AuthenticatedUserResolver.requireTenantAdmin(
+                        authentication(List.of("EMPLOYEE", "TENANT_ADMIN"))))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void rejectsNonAdministratorClaims() {
+        assertThatThrownBy(() -> AuthenticatedUserResolver.requireTenantAdmin(
+                        authentication(List.of("EMPLOYEE"))))
+                .isInstanceOfSatisfying(
+                        BaseException.class,
+                        error -> assertThat(error.getErrorCode())
+                                .isEqualTo(ErrorCode.FORBIDDEN));
+    }
+
+    private UsernamePasswordAuthenticationToken authentication(List<String> roles) {
+        Instant now = Instant.now();
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "HS256")
+                .subject("7")
+                .claim("roles", roles)
+                .issuedAt(now)
+                .expiresAt(now.plusSeconds(60))
+                .build();
+        return new UsernamePasswordAuthenticationToken(jwt, "token");
+    }
+}

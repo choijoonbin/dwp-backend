@@ -36,4 +36,12 @@ public class User extends BaseEntity {
     @Builder.Default
     @Column(name = "mfa_enabled", nullable = false)
     private Boolean mfaEnabled = false;
+
+    @Builder.Default
+    @Column(name = "access_revision", nullable = false)
+    private Long accessRevision = 0L;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
 }

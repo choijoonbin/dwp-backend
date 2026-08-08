@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Collection;
 
 public interface RoleMemberRepository extends JpaRepository<RoleMember, Long> {
 
@@ -17,4 +18,10 @@ public interface RoleMemberRepository extends JpaRepository<RoleMember, Long> {
     List<Long> findRoleIds(
             @Param("tenantId") Long tenantId,
             @Param("userId") Long userId);
+
+    List<RoleMember> findByTenantIdAndUserId(Long tenantId, Long userId);
+
+    List<RoleMember> findByTenantIdAndUserIdIn(Long tenantId, Collection<Long> userIds);
+
+    long countByTenantIdAndRoleId(Long tenantId, Long roleId);
 }

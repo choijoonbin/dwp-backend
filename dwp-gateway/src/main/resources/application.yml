@@ -21,6 +21,12 @@ spring:
             - Path=/api/agent/**
           filters:
             - StripPrefix=2
+        - id: platform-server
+          uri: ${SERVICE_PLATFORM_URL:http://localhost:8002}
+          predicates:
+            - Path=/api/platform/**
+          filters:
+            - StripPrefix=2
       globalcors:
         add-to-simple-url-handler-mapping: true
         cors-configurations:
@@ -59,3 +65,5 @@ logging:
 dwp:
   agent:
     service-token: ${DWP_AGENT_SERVICE_TOKEN:}
+  platform:
+    service-token: ${DWP_PLATFORM_SERVICE_TOKEN:}

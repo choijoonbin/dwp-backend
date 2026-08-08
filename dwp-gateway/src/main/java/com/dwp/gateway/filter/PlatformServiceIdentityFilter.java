@@ -12,14 +12,14 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 @Component
-public class AgentServiceIdentityFilter implements GlobalFilter, Ordered {
+public class PlatformServiceIdentityFilter implements GlobalFilter, Ordered {
 
     public static final String SERVICE_TOKEN_HEADER = "X-DWP-Service-Token";
 
     private final String serviceToken;
 
-    public AgentServiceIdentityFilter(
-            @Value("${dwp.agent.service-token:}") String serviceToken) {
+    public PlatformServiceIdentityFilter(
+            @Value("${dwp.platform.service-token:}") String serviceToken) {
         this.serviceToken = serviceToken == null ? "" : serviceToken.trim();
     }
 
@@ -46,7 +46,7 @@ public class AgentServiceIdentityFilter implements GlobalFilter, Ordered {
 
     private boolean requiresServiceIdentity(ServerHttpRequest request) {
         return request.getMethod() != HttpMethod.OPTIONS
-                && request.getURI().getPath().startsWith("/api/agent/");
+                && request.getURI().getPath().startsWith("/api/platform/");
     }
 
     @Override
