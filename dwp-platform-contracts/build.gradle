@@ -1,0 +1,13 @@
+// Provider-neutral platform ports used by R0 contract spikes and R1 domain services.
+
+jar {
+    enabled = true
+}
+
+bootJar {
+    enabled = false
+}
+
+dependencies {
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}

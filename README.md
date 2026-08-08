@@ -5,16 +5,20 @@ RBAC, 요청 추적만 포함하며 기존 업무 도메인 API와 데이터는 
 
 ## Modules
 
-| Module | Port | Responsibility |
-| --- | ---: | --- |
-| `dwp-core` | - | API 응답, 예외, 공통 헤더와 요청 추적 |
-| `dwp-auth-server` | 8001 | 로컬/OIDC 로그인, Browser Session, 테넌트, 사용자, RBAC |
-| `dwp-gateway` | 8080 | 브라우저의 단일 API 진입점과 CORS |
+| Module                   | Port | Responsibility                                                    |
+| ------------------------ | ---: | ----------------------------------------------------------------- |
+| `dwp-core`               |    - | API 응답, 예외, 공통 헤더와 요청 추적                             |
+| `dwp-platform-contracts` |    - | Provider 중립 Connector·Search·Workflow·Agent·Audit Port 계약     |
+| `dwp-auth-server`        | 8001 | 로컬/OIDC 로그인, Browser Session, 테넌트, 사용자, RBAC            |
+| `dwp-gateway`            | 8080 | 단일 API 진입점, Session 재검증, 내부 Identity Relay, CSRF와 CORS |
 
 인증 서버의 Flyway 마이그레이션만 데이터베이스 스키마를 생성합니다. 시작
 스키마는 인증/RBAC과 서버 측 Session 폐기에 필요한 12개 테이블로 제한되어
 있습니다. `sys_auth_sessions`는 JWT 원문이 아니라 `jti`, 사용자, 만료·폐기와
 발급 Context만 저장합니다.
+
+`dwp-platform-contracts`는 Java Port와 Value Contract만 포함하며 Table, Connector SDK,
+Search Engine, Workflow Runtime과 Model Dependency를 추가하지 않습니다.
 
 브라우저 Access Token은 응답 본문에 노출하지 않고 `HttpOnly` Cookie로
 발급합니다. Local Development의 기본 Cookie는 HTTP를 위해 `Secure=false`이며,
@@ -43,11 +47,13 @@ JWT_SECRET=<managed-secret-at-least-256-bits>
 
 `full` 프로필은 PostgreSQL, Auth, Agent, Gateway, Frontend를 기동합니다.
 업무 기능을 추가하기 전 공통 웹 셸만 확인하려면 `core`, 프론트만 실행하려면
-`web` 프로필을 사용할 수 있습니다.
+`web` 프로필을 사용할 수 있습니다. 이미 외부 Auth·Frontend가 실행 중이라면
+`agent gateway` 프로필로 내부 실행 경로만 재기동할 수 있습니다.
 
 ```bash
 ./dev doctor
 ./dev up core
+./dev up agent gateway
 ./dev status
 ./dev logs gateway --follow
 ./dev stop

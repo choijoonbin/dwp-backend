@@ -89,6 +89,7 @@ PROFILES = {
     "core": {"auth", "gateway", "frontend"},
     "backend": {"auth", "agent", "gateway"},
     "agent": {"agent"},
+    "gateway": {"gateway"},
     "web": {"frontend"},
 }
 
