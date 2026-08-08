@@ -8,6 +8,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.Objects;
 
 @Component
 public class AuthSessionJwtValidator implements OAuth2TokenValidator<Jwt> {
@@ -29,8 +30,16 @@ public class AuthSessionJwtValidator implements OAuth2TokenValidator<Jwt> {
         if (tokenId == null || tokenId.isBlank()) {
             return OAuth2TokenValidatorResult.failure(INVALID_SESSION);
         }
-        boolean active = authSessionRepository
-                .existsByTokenIdAndRevokedAtIsNullAndExpiresAtAfter(tokenId, Instant.now());
+        boolean active = authSessionRepository.findByTokenId(tokenId)
+                .map(session -> session.isActiveAt(Instant.now())
+                        && Objects.equals(String.valueOf(session.getUserId()), jwt.getSubject())
+                        && Objects.equals(
+                                String.valueOf(session.getTenantId()),
+                                jwt.getClaimAsString("tenant_id"))
+                        && Objects.equals(
+                                session.getSessionFamilyId().toString(),
+                                jwt.getClaimAsString("sid")))
+                .orElse(false);
         return active
                 ? OAuth2TokenValidatorResult.success()
                 : OAuth2TokenValidatorResult.failure(INVALID_SESSION);

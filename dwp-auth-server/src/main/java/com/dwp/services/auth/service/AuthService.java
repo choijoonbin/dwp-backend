@@ -8,7 +8,6 @@ import com.dwp.services.auth.dto.LoginResponse;
 import com.dwp.services.auth.dto.MeResponse;
 import com.dwp.services.auth.dto.OidcUserInfo;
 import com.dwp.services.auth.dto.PermissionDTO;
-import com.dwp.services.auth.entity.AuthSession;
 import com.dwp.services.auth.entity.LoginHistory;
 import com.dwp.services.auth.entity.Permission;
 import com.dwp.services.auth.entity.Resource;
@@ -18,7 +17,6 @@ import com.dwp.services.auth.entity.Tenant;
 import com.dwp.services.auth.entity.User;
 import com.dwp.services.auth.entity.UserAccount;
 import com.dwp.services.auth.repository.LoginHistoryRepository;
-import com.dwp.services.auth.repository.AuthSessionRepository;
 import com.dwp.services.auth.repository.PermissionRepository;
 import com.dwp.services.auth.repository.ResourceRepository;
 import com.dwp.services.auth.repository.RoleMemberRepository;
@@ -27,22 +25,13 @@ import com.dwp.services.auth.repository.RoleRepository;
 import com.dwp.services.auth.repository.TenantRepository;
 import com.dwp.services.auth.repository.UserAccountRepository;
 import com.dwp.services.auth.repository.UserRepository;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import javax.crypto.SecretKey;
-import java.nio.charset.StandardCharsets;
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -58,15 +47,9 @@ public class AuthService {
     private final ResourceRepository resourceRepository;
     private final PermissionRepository permissionRepository;
     private final LoginHistoryRepository loginHistoryRepository;
-    private final AuthSessionRepository authSessionRepository;
+    private final AuthSessionService authSessionService;
     private final AuthPolicyService authPolicyService;
     private final PasswordEncoder passwordEncoder;
-
-    @Value("${jwt.secret}")
-    private String jwtSecret;
-
-    @Value("${jwt.expiration-seconds:28800}")
-    private Long tokenExpirationSeconds;
 
     public AuthService(
             UserRepository userRepository,
@@ -78,7 +61,7 @@ public class AuthService {
             ResourceRepository resourceRepository,
             PermissionRepository permissionRepository,
             LoginHistoryRepository loginHistoryRepository,
-            AuthSessionRepository authSessionRepository,
+            AuthSessionService authSessionService,
             AuthPolicyService authPolicyService,
             PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
@@ -90,7 +73,7 @@ public class AuthService {
         this.resourceRepository = resourceRepository;
         this.permissionRepository = permissionRepository;
         this.loginHistoryRepository = loginHistoryRepository;
-        this.authSessionRepository = authSessionRepository;
+        this.authSessionService = authSessionService;
         this.authPolicyService = authPolicyService;
         this.passwordEncoder = passwordEncoder;
     }
@@ -221,63 +204,28 @@ public class AuthService {
 
     @Transactional
     public void revokeSession(String tokenId) {
-        if (tokenId == null || tokenId.isBlank()) return;
-        authSessionRepository.findByTokenIdAndRevokedAtIsNull(tokenId)
-                .ifPresent(session -> session.setRevokedAt(Instant.now()));
+        authSessionService.revokeCurrent(tokenId);
     }
 
     private AuthenticatedSession createAuthenticatedSession(
             User user,
             Long tenantId,
             HttpServletRequest servletRequest) {
-        Instant issuedAt = Instant.now();
-        Instant expiresAt = issuedAt.plus(tokenExpirationSeconds, ChronoUnit.SECONDS);
-        String tokenId = UUID.randomUUID().toString();
         List<String> roles = getRoleCodes(user.getUserId(), tenantId);
-        String token = createToken(
-                user.getUserId(), tenantId, roles, tokenId, issuedAt, expiresAt);
-
-        authSessionRepository.save(AuthSession.builder()
-                .sessionId(UUID.randomUUID())
-                .tokenId(tokenId)
-                .tenantId(tenantId)
-                .userId(user.getUserId())
-                .expiresAt(expiresAt)
-                .ipAddress(clientIp(servletRequest))
-                .userAgent(servletRequest == null
-                        ? null
-                        : servletRequest.getHeader("User-Agent"))
-                .build());
+        AuthSessionService.IssuedSession session = authSessionService.create(
+                user.getUserId(), tenantId, roles, servletRequest);
 
         LoginResponse response = LoginResponse.builder()
-                .expiresIn(tokenExpirationSeconds)
+                .expiresIn(session.expiresIn())
                 .userId(String.valueOf(user.getUserId()))
                 .tenantId(String.valueOf(tenantId))
                 .permissions(getPermissions(user.getUserId(), tenantId))
                 .build();
-        return new AuthenticatedSession(token, response);
+        return new AuthenticatedSession(session.accessToken(), response);
     }
 
-    private String createToken(
-            Long userId,
-            Long tenantId,
-            List<String> roles,
-            String tokenId,
-            Instant issuedAt,
-            Instant expiresAt) {
-        SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
-        return Jwts.builder()
-                .id(tokenId)
-                .subject(String.valueOf(userId))
-                .claim("tenant_id", String.valueOf(tenantId))
-                .claim("roles", roles)
-                .issuedAt(Date.from(issuedAt))
-                .expiration(Date.from(expiresAt))
-                .signWith(key, Jwts.SIG.HS256)
-                .compact();
-    }
-
-    private List<String> getRoleCodes(Long userId, Long tenantId) {
+    @Transactional(readOnly = true)
+    public List<String> getRoleCodes(Long userId, Long tenantId) {
         List<Long> roleIds = roleMemberRepository.findRoleIds(tenantId, userId);
         if (roleIds.isEmpty()) return List.of();
         return roleRepository.findByRoleIdIn(roleIds).stream()

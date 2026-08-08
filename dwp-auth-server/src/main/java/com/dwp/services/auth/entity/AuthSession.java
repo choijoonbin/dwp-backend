@@ -30,6 +30,9 @@ public class AuthSession extends BaseEntity {
     @Column(name = "token_id", nullable = false, unique = true, length = 64)
     private String tokenId;
 
+    @Column(name = "session_family_id", nullable = false)
+    private UUID sessionFamilyId;
+
     @Column(name = "tenant_id", nullable = false)
     private Long tenantId;
 
@@ -39,6 +42,24 @@ public class AuthSession extends BaseEntity {
     @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
+    @Column(name = "session_started_at", nullable = false)
+    private Instant sessionStartedAt;
+
+    @Column(name = "issued_at", nullable = false)
+    private Instant issuedAt;
+
+    @Column(name = "last_seen_at", nullable = false)
+    private Instant lastSeenAt;
+
+    @Column(name = "idle_expires_at", nullable = false)
+    private Instant idleExpiresAt;
+
+    @Column(name = "superseded_at")
+    private Instant supersededAt;
+
+    @Column(name = "superseded_expires_at")
+    private Instant supersededExpiresAt;
+
     @Column(name = "revoked_at")
     private Instant revokedAt;
 
@@ -47,4 +68,16 @@ public class AuthSession extends BaseEntity {
 
     @Column(name = "user_agent", columnDefinition = "TEXT")
     private String userAgent;
+
+    public boolean isActiveAt(Instant now) {
+        if (revokedAt != null
+                || expiresAt == null
+                || !expiresAt.isAfter(now)
+                || idleExpiresAt == null
+                || !idleExpiresAt.isAfter(now)) {
+            return false;
+        }
+        return supersededAt == null
+                || (supersededExpiresAt != null && supersededExpiresAt.isAfter(now));
+    }
 }

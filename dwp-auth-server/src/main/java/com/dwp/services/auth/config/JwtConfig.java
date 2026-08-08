@@ -1,6 +1,7 @@
 package com.dwp.services.auth.config;
 
 import com.dwp.services.auth.security.AuthSessionJwtValidator;
+import com.dwp.services.auth.security.AuthSessionActivityFilter;
 import com.dwp.services.auth.security.CookieBearerTokenResolver;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -14,6 +15,7 @@ import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 
@@ -76,7 +78,8 @@ public class JwtConfig {
             HttpSecurity http,
             JwtDecoder jwtDecoder,
             BearerTokenResolver bearerTokenResolver,
-            CookieCsrfTokenRepository csrfTokenRepository) throws Exception {
+            CookieCsrfTokenRepository csrfTokenRepository,
+            AuthSessionActivityFilter authSessionActivityFilter) throws Exception {
         CsrfTokenRequestAttributeHandler csrfRequestHandler =
                 new CsrfTokenRequestAttributeHandler();
         http
@@ -104,7 +107,10 @@ public class JwtConfig {
                         .bearerTokenResolver(bearerTokenResolver)
                         .jwt(jwt -> jwt.decoder(jwtDecoder))
                         .authenticationEntryPoint(securityExceptionHandler)
-                        .accessDeniedHandler(securityExceptionHandler));
+                        .accessDeniedHandler(securityExceptionHandler))
+                .addFilterAfter(
+                        authSessionActivityFilter,
+                        BearerTokenAuthenticationFilter.class);
         return http.build();
     }
 }

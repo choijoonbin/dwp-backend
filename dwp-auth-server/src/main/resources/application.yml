@@ -32,6 +32,10 @@ dwp:
       cookie-name: ${DWP_SESSION_COOKIE_NAME:DWP_SESSION}
       cookie-secure: ${DWP_SESSION_COOKIE_SECURE:false}
       same-site: ${DWP_SESSION_COOKIE_SAME_SITE:Lax}
+      idle-timeout-seconds: ${DWP_SESSION_IDLE_TIMEOUT_SECONDS:1800}
+      rotation-minimum-age-seconds: ${DWP_SESSION_ROTATION_MINIMUM_AGE_SECONDS:600}
+      previous-token-grace-seconds: ${DWP_SESSION_PREVIOUS_TOKEN_GRACE_SECONDS:30}
+      activity-touch-interval-seconds: ${DWP_SESSION_ACTIVITY_TOUCH_INTERVAL_SECONDS:60}
 
 sso:
   callback-url: ${SSO_CALLBACK_URL:http://localhost:4200/auth/oidc/callback}
