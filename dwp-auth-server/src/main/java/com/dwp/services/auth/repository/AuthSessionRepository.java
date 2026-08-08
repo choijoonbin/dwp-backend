@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -35,6 +36,10 @@ public interface AuthSessionRepository extends JpaRepository<AuthSession, UUID> 
     List<AuthSession> findByTenantIdAndUserIdAndRevokedAtIsNull(
             Long tenantId,
             Long userId);
+
+    List<AuthSession> findByTenantIdAndUserIdInAndRevokedAtIsNull(
+            Long tenantId,
+            Collection<Long> userIds);
 
     Optional<AuthSession>
             findFirstBySessionFamilyIdAndRevokedAtIsNullAndSupersededAtIsNullOrderByIssuedAtDesc(

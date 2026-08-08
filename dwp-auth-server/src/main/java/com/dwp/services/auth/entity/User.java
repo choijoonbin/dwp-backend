@@ -41,6 +41,9 @@ public class User extends BaseEntity {
     @Column(name = "access_revision", nullable = false)
     private Long accessRevision = 0L;
 
+    @Column(name = "primary_org_unit_id")
+    private Long primaryOrgUnitId;
+
     @Version
     @Column(name = "version", nullable = false)
     private Long version;
