@@ -132,12 +132,13 @@ public class IdentityAccountService {
     }
 
     private boolean allowsLocalLogin(AuthPolicy policy) {
-        return policy != null
-                && Boolean.TRUE.equals(policy.getLocalLoginEnabled())
-                && policy.getAllowedLoginTypes() != null
+        if (policy == null || !Boolean.TRUE.equals(policy.getLocalLoginEnabled())) return false;
+        List<String> normalized = policyRepository.findAllowedLoginTypes(policy.getTenantId());
+        if (!normalized.isEmpty()) return normalized.contains(LOCAL);
+        return policy.getAllowedLoginTypes() != null
                 && Arrays.stream(policy.getAllowedLoginTypes().split(","))
-                        .map(String::trim)
-                        .anyMatch(LOCAL::equals);
+                .map(String::trim)
+                .anyMatch(LOCAL::equals);
     }
 
     private UserAccount saveAccount(UserAccount account, String conflictMessage) {

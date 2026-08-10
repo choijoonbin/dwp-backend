@@ -8,11 +8,13 @@ import com.dwp.services.auth.repository.AuthSessionRepository;
 import com.dwp.services.auth.repository.UserAccountRepository;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -36,6 +38,7 @@ class IdentityAccountServiceTest {
                 .allowedLoginTypes("SSO,LOCAL")
                 .localLoginEnabled(true)
                 .build()));
+        when(policies.findAllowedLoginTypes(1L)).thenReturn(List.of("LOCAL", "SSO"));
         when(accounts.findByTenantIdAndUserIdAndProviderTypeAndProviderId(
                 1L, 10L, "LOCAL", "local")).thenReturn(Optional.empty());
         when(accounts.saveAndFlush(any(UserAccount.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -46,6 +49,26 @@ class IdentityAccountServiceTest {
         verify(accounts).saveAndFlush(captor.capture());
         assertThat(captor.getValue().getPrincipal()).isEqualTo("employee@example.com");
         assertThat(captor.getValue().getStatus()).isEqualTo("INVITED");
+    }
+
+    @Test
+    void normalizedPolicyCanDisableLegacyLocalAccountProvisioning() {
+        User user = User.builder()
+                .userId(10L)
+                .tenantId(1L)
+                .email("employee@example.com")
+                .status("ACTIVE")
+                .build();
+        when(policies.findByTenantId(1L)).thenReturn(Optional.of(AuthPolicy.builder()
+                .tenantId(1L)
+                .allowedLoginTypes("LOCAL,SSO")
+                .localLoginEnabled(true)
+                .build()));
+        when(policies.findAllowedLoginTypes(1L)).thenReturn(List.of("SSO"));
+
+        service.synchronizeManagedUser(user);
+
+        verify(accounts, never()).saveAndFlush(any(UserAccount.class));
     }
 
     @Test

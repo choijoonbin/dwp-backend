@@ -23,10 +23,13 @@ public class AuthPolicyService {
         AuthPolicy policy = authPolicyRepository.findByTenantId(tenantId)
                 .orElseGet(() -> AuthPolicy.builder().tenantId(tenantId).build());
 
-        List<String> allowedLoginTypes = Arrays.stream(policy.getAllowedLoginTypes().split(","))
-                .map(String::trim)
-                .filter(value -> !value.isEmpty())
-                .toList();
+        List<String> allowedLoginTypes = authPolicyRepository.findAllowedLoginTypes(tenantId);
+        if (allowedLoginTypes.isEmpty()) {
+            allowedLoginTypes = Arrays.stream(policy.getAllowedLoginTypes().split(","))
+                    .map(String::trim)
+                    .filter(value -> !value.isEmpty())
+                    .toList();
+        }
 
         return AuthPolicyResponse.builder()
                 .tenantId(tenantId)

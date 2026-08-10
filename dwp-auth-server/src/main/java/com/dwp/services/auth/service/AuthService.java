@@ -235,6 +235,7 @@ public class AuthService {
                 .tenantDefaultLocale(tenant.getDefaultLocale())
                 .tenantId(tenant.getTenantId())
                 .tenantCode(tenant.getCode())
+                .tenantName(tenant.getName())
                 .roles(getRoleCodes(user.getUserId(), tenant.getTenantId()))
                 .permissions(permissions)
                 .build();

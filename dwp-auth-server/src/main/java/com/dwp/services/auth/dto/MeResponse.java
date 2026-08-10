@@ -18,6 +18,7 @@ public class MeResponse {
     private String tenantDefaultLocale;
     private Long tenantId;
     private String tenantCode;
+    private String tenantName;
     private List<String> roles;
 
     @Builder.Default
