@@ -36,6 +36,21 @@ public class PeopleTenantProvisioningService {
                 """, request.providerTenantId(), request.tenantId(), request.tenantKey(),
                 request.displayName(), request.dataRegion(), request.isolationModel());
         jdbc.update("""
+                INSERT INTO ppl_organization_type_catalog (
+                    tenant_id, type_key, display_name, description,
+                    hierarchy_rank, root_candidate, icon_key, created_by, updated_by)
+                SELECT ?, seed.type_key, seed.display_name, seed.description,
+                       seed.hierarchy_rank, seed.root_candidate, seed.icon_key, 1, 1
+                  FROM (VALUES
+                        ('COMPANY', 'Company', 'Default enterprise root.', 10, TRUE, 'building-2'),
+                        ('CUSTOM', 'Custom unit', 'Tenant-defined organization unit.', 500, FALSE, 'shapes'))
+                       seed(type_key, display_name, description, hierarchy_rank, root_candidate, icon_key)
+                ON CONFLICT (tenant_id, type_key) DO UPDATE SET
+                    lifecycle_state = 'ACTIVE',
+                    updated_at = CURRENT_TIMESTAMP,
+                    version = ppl_organization_type_catalog.version + 1
+                """, request.tenantId());
+        jdbc.update("""
                 INSERT INTO ppl_organizations (
                     tenant_id, organization_key, organization_type, name, lifecycle_state)
                 VALUES (?, 'ROOT', 'COMPANY', ?, 'INACTIVE')

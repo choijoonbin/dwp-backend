@@ -1,5 +1,6 @@
 package com.dwp.services.people.organization;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -12,9 +13,12 @@ public final class OrganizationChartDtos {
     public record OrganizationChart(
             LocalDate asOf,
             Company company,
+            ScenarioProjection scenario,
             Metrics metrics,
+            Analysis analysis,
             List<Organization> organizations,
             List<Person> people,
+            List<Position> positions,
             List<Relationship> relationships,
             List<OpenPosition> openPositions) {
     }
@@ -34,7 +38,10 @@ public final class OrganizationChartDtos {
             int organizationCount,
             int managerCount,
             int openPositionCount,
-            int locationCount) {
+            int locationCount,
+            BigDecimal plannedFte,
+            BigDecimal workforceCostAmount,
+            String costCurrency) {
     }
 
     public record Organization(
@@ -43,6 +50,7 @@ public final class OrganizationChartDtos {
             String name,
             String shortName,
             String organizationType,
+            String organizationTypeName,
             UUID parentOrganizationId,
             String description,
             String costCenterKey,
@@ -53,7 +61,12 @@ public final class OrganizationChartDtos {
             int openPositionCount,
             int childOrganizationCount,
             UUID leaderPersonId,
-            List<UUID> directMemberIds) {
+            List<UUID> directMemberIds,
+            int layerDepth,
+            double averageManagerSpan,
+            int contingentHeadcount,
+            String healthStatus,
+            List<String> healthSignals) {
     }
 
     public record Person(
@@ -69,12 +82,35 @@ public final class OrganizationChartDtos {
             String managementLevel,
             UUID organizationId,
             UUID managerPersonId,
+            boolean managerReferenceMissing,
+            UUID positionId,
+            String positionKey,
             String workerNumber,
             String workerType,
             String workerStatus,
             String locationKey,
             String locationName,
-            int directReportCount) {
+            int directReportCount,
+            BigDecimal fullTimeEquivalent) {
+    }
+
+    public record Position(
+            UUID positionId,
+            String positionKey,
+            String title,
+            UUID organizationId,
+            UUID reportsToPositionId,
+            String status,
+            String positionType,
+            String criticality,
+            BigDecimal budgetedFte,
+            BigDecimal annualCostAmount,
+            String costCurrency,
+            String jobProfileName,
+            String locationName,
+            LocalDate availabilityDate,
+            List<UUID> incumbentPersonIds,
+            int subordinatePositionCount) {
     }
 
     public record Relationship(
@@ -85,11 +121,58 @@ public final class OrganizationChartDtos {
     }
 
     public record OpenPosition(
+            UUID positionId,
             String positionKey,
             String title,
             UUID organizationId,
             String jobProfileName,
             String locationName,
-            LocalDate availabilityDate) {
+            LocalDate availabilityDate,
+            BigDecimal budgetedFte,
+            BigDecimal annualCostAmount,
+            String costCurrency,
+            String criticality) {
+    }
+
+    public record ScenarioProjection(
+            UUID scenarioId,
+            String name,
+            String lifecycleState,
+            LocalDate baseAsOf,
+            LocalDate effectiveDate,
+            int activeChangeCount,
+            long version) {
+    }
+
+    public record Analysis(
+            int healthScore,
+            int dataQualityScore,
+            double averageManagerSpan,
+            int maximumLayers,
+            double managerRatioPercent,
+            double contingentRatioPercent,
+            int narrowSpanManagerCount,
+            int wideSpanManagerCount,
+            int singleReportManagerCount,
+            int missingManagerCount,
+            int missingGradeCount,
+            int orphanOrganizationCount,
+            DesignPolicy policy,
+            List<AnalysisSignal> signals) {
+    }
+
+    public record DesignPolicy(
+            int minimumManagerSpan,
+            int maximumManagerSpan,
+            int maximumLayers,
+            double maximumContingentPercent,
+            double maximumVacancyPercent) {
+    }
+
+    public record AnalysisSignal(
+            String code,
+            String severity,
+            int count,
+            UUID organizationId) {
     }
 }

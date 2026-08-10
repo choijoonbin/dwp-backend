@@ -10,6 +10,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -465,21 +466,48 @@ public class HrisIntegrationRepository {
             HrisModels.Organization organization,
             LocalDate effectiveStartDate,
             LocalDate effectiveEndDate) {
+        String organizationType = canonicalOrganizationType(organization.type());
+        ensureOrganizationType(
+                tenantId, actorId, organizationType,
+                organization.type() == null ? organizationType : organization.type().trim());
         Long parentId = null;
         if (organization.parentKey() != null) {
+            ensureOrganizationType(tenantId, actorId, "CUSTOM", "Custom unit");
             parentId = upsertOrganizationRecord(
                     tenantId, actorId, sourceSystemId,
-                    organization.parentKey(), organization.parentKey(), "BUSINESS_UNIT", null);
+                    organization.parentKey(), organization.parentKey(), "CUSTOM", null);
         }
         long organizationId = upsertOrganizationRecord(
                 tenantId, actorId, sourceSystemId,
-                organization.key(), organization.name(), organization.type(), parentId);
+                organization.key(), organization.name(), organizationType, parentId);
         if (parentId != null) {
             upsertOrganizationRelationship(
                     tenantId, actorId, sourceSystemId, organizationId, parentId,
                     effectiveStartDate, effectiveEndDate, organization.key());
         }
         return organizationId;
+    }
+
+    private void ensureOrganizationType(
+            Long tenantId,
+            Long actorId,
+            String typeKey,
+            String displayName) {
+        jdbc.update("""
+                INSERT INTO ppl_organization_type_catalog (
+                    tenant_id, type_key, display_name, description,
+                    hierarchy_rank, created_by, updated_by)
+                VALUES (
+                    :tenantId, :typeKey, :displayName,
+                    'Registered by an HRIS organization import.', 500, :actorId, :actorId)
+                ON CONFLICT (tenant_id, type_key) DO UPDATE SET
+                    lifecycle_state = 'ACTIVE',
+                    updated_at = CURRENT_TIMESTAMP,
+                    updated_by = EXCLUDED.updated_by,
+                    version = ppl_organization_type_catalog.version + 1
+                """, params(tenantId, actorId)
+                .addValue("typeKey", typeKey)
+                .addValue("displayName", displayName.isBlank() ? humanizeType(typeKey) : displayName));
     }
 
     private void upsertOrganizationRelationship(
@@ -1050,6 +1078,20 @@ public class HrisIntegrationRepository {
         if (value == null) return null;
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String canonicalOrganizationType(String value) {
+        if (value == null || value.isBlank()) return "CUSTOM";
+        String normalized = value.trim().toUpperCase(Locale.ROOT)
+                .replaceAll("[^A-Z0-9._-]+", "_");
+        if (normalized.isEmpty()) return "CUSTOM";
+        if (!Character.isLetter(normalized.charAt(0))) normalized = "TYPE_" + normalized;
+        return normalized.length() > 100 ? normalized.substring(0, 100) : normalized;
+    }
+
+    private String humanizeType(String typeKey) {
+        String normalized = typeKey.toLowerCase(Locale.ROOT).replaceAll("[._-]+", " ");
+        return Character.toUpperCase(normalized.charAt(0)) + normalized.substring(1);
     }
 
     public record Receipt(
