@@ -37,7 +37,7 @@ public class ReferenceItemLabel extends BaseEntity {
     @Column(name = "reference_item_id", nullable = false)
     private Long referenceItemId;
 
-    @Column(name = "locale", nullable = false, length = 20)
+    @Column(name = "locale", nullable = false, length = 35)
     private String locale;
 
     @Column(name = "label", nullable = false, length = 200)

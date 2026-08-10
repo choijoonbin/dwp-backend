@@ -58,6 +58,13 @@ SERVICES = {
         8002,
         "/actuator/health",
     ),
+    "people": Service(
+        "people",
+        BACKEND_ROOT,
+        ("./gradlew", "--no-daemon", ":dwp-people-server:bootRun"),
+        8003,
+        "/actuator/health",
+    ),
     "agent": Service(
         "agent",
         AGENT_ROOT,
@@ -92,15 +99,15 @@ SERVICES = {
 }
 
 PROFILES = {
-    "full": {"auth", "platform", "agent", "gateway", "frontend"},
-    "core": {"auth", "platform", "gateway", "frontend"},
-    "backend": {"auth", "platform", "agent", "gateway"},
+    "full": {"auth", "platform", "people", "agent", "gateway", "frontend"},
+    "core": {"auth", "platform", "people", "gateway", "frontend"},
+    "backend": {"auth", "platform", "people", "agent", "gateway"},
     "agent": {"agent"},
     "gateway": {"gateway"},
     "web": {"frontend"},
 }
 
-START_ORDER = ("auth", "platform", "agent", "gateway", "frontend")
+START_ORDER = ("auth", "platform", "people", "agent", "gateway", "frontend")
 
 
 def load_state() -> dict[str, dict[str, object]]:
@@ -247,6 +254,7 @@ def start_infrastructure() -> None:
         )
         if result.returncode == 0:
             ensure_database("dwp_platform")
+            ensure_database("dwp_people")
             print("postgres   ready at localhost:5432")
             return
         time.sleep(1)

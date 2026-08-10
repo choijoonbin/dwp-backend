@@ -15,6 +15,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.IllformedLocaleException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -29,6 +30,8 @@ import static com.dwp.services.platform.reference.ReferenceDataDtos.setSnapshot;
 
 @Service
 public class ReferenceDataService {
+
+    private static final int MAX_REFERENCE_HIERARCHY_DEPTH = 8;
 
     private final ReferenceSetRepository setRepository;
     private final ReferenceItemRepository itemRepository;
@@ -248,7 +251,7 @@ public class ReferenceDataService {
         }
         validateValidity(request.validFrom(), request.validTo());
         String parentCode = normalizeOptionalIdentifier(request.parentCode());
-        validateParent(tenantId, set, code, parentCode);
+        ReferenceItem parent = resolveParent(tenantId, set, code, null, parentCode);
         List<ReferenceDataDtos.LocalizedLabelRequest> labels = normalizeLabels(request.labels());
         ReferenceItem item = ReferenceItem.builder()
                 .tenantId(tenantId)
@@ -257,6 +260,7 @@ public class ReferenceDataService {
                 .lifecycleState(ReferenceLifecycle.DRAFT)
                 .sortOrder(request.sortOrder())
                 .parentCode(parentCode)
+                .parentReferenceItemId(parent == null ? null : parent.getReferenceItemId())
                 .validFrom(request.validFrom())
                 .validTo(request.validTo())
                 .build();
@@ -297,11 +301,17 @@ public class ReferenceDataService {
         requireVersion(item.getVersion(), request.version());
         validateValidity(request.validFrom(), request.validTo());
         String parentCode = normalizeOptionalIdentifier(request.parentCode());
-        validateParent(tenantId, set, item.getCode(), parentCode);
+        ReferenceItem parent = resolveParent(
+                tenantId,
+                set,
+                item.getCode(),
+                item.getReferenceItemId(),
+                parentCode);
         List<ReferenceDataDtos.LocalizedLabelRequest> labels = normalizeLabels(request.labels());
         Map<String, Object> before = itemSnapshot(item);
         item.setSortOrder(request.sortOrder());
         item.setParentCode(parentCode);
+        item.setParentReferenceItemId(parent == null ? null : parent.getReferenceItemId());
         item.setValidFrom(request.validFrom());
         item.setValidTo(request.validTo());
         item = itemRepository.saveAndFlush(item);
@@ -340,6 +350,17 @@ public class ReferenceDataService {
                 item.getReferenceItemId()) == 0) {
             throw conflict("A localized label is required before activation.");
         }
+        if (item.getParentReferenceItemId() != null) {
+            ReferenceItem parent = itemRepository
+                    .findByTenantIdAndReferenceSetIdAndReferenceItemId(
+                            tenantId,
+                            set.getReferenceSetId(),
+                            item.getParentReferenceItemId())
+                    .orElseThrow(() -> conflict("The parent reference item does not exist."));
+            if (parent.getLifecycleState() != ReferenceLifecycle.ACTIVE) {
+                throw conflict("The parent reference item must be active first.");
+            }
+        }
         Map<String, Object> before = itemSnapshot(item);
         item.setLifecycleState(ReferenceLifecycle.ACTIVE);
         item = itemRepository.saveAndFlush(item);
@@ -370,6 +391,14 @@ public class ReferenceDataService {
         requireVersion(item.getVersion(), expectedVersion);
         if (item.getLifecycleState() == ReferenceLifecycle.RETIRED) {
             return getSet(tenantId, set.getSetKey());
+        }
+        if (itemRepository
+                .existsByTenantIdAndReferenceSetIdAndParentReferenceItemIdAndLifecycleState(
+                        tenantId,
+                        set.getReferenceSetId(),
+                        item.getReferenceItemId(),
+                        ReferenceLifecycle.ACTIVE)) {
+            throw conflict("Active child reference items must be retired first.");
         }
         Map<String, Object> before = itemSnapshot(item);
         item.setLifecycleState(ReferenceLifecycle.RETIRED);
@@ -453,21 +482,52 @@ public class ReferenceDataService {
         }
     }
 
-    private void validateParent(
+    private ReferenceItem resolveParent(
             Long tenantId,
             ReferenceSet set,
             String code,
+            Long currentItemId,
             String parentCode) {
-        if (parentCode == null) return;
+        if (parentCode == null) return null;
         if (code.equals(parentCode)) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "An item cannot be its own parent.");
         }
-        if (!itemRepository.existsByTenantIdAndReferenceSetIdAndCode(
-                tenantId,
-                set.getReferenceSetId(),
-                parentCode)) {
-            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "Parent code does not exist.");
+
+        ReferenceItem parent = itemRepository.findByTenantIdAndReferenceSetIdAndCode(
+                        tenantId,
+                        set.getReferenceSetId(),
+                        parentCode)
+                .orElseThrow(() -> new BaseException(
+                        ErrorCode.INVALID_INPUT_VALUE,
+                        "Parent code does not exist."));
+        Set<Long> visited = new HashSet<>();
+        Long ancestorId = parent.getReferenceItemId();
+        int ancestorCount = 0;
+        while (ancestorId != null) {
+            if (Objects.equals(ancestorId, currentItemId) || !visited.add(ancestorId)) {
+                throw new BaseException(
+                        ErrorCode.INVALID_INPUT_VALUE,
+                        "Reference item hierarchy cannot contain a cycle.");
+            }
+            ancestorCount++;
+            if (ancestorCount >= MAX_REFERENCE_HIERARCHY_DEPTH) {
+                throw new BaseException(
+                        ErrorCode.INVALID_INPUT_VALUE,
+                        "Reference item hierarchy cannot exceed "
+                                + MAX_REFERENCE_HIERARCHY_DEPTH
+                                + " levels.");
+            }
+            ReferenceItem ancestor = itemRepository
+                    .findByTenantIdAndReferenceSetIdAndReferenceItemId(
+                            tenantId,
+                            set.getReferenceSetId(),
+                            ancestorId)
+                    .orElseThrow(() -> new BaseException(
+                            ErrorCode.INVALID_INPUT_VALUE,
+                            "Parent hierarchy is inconsistent."));
+            ancestorId = ancestor.getParentReferenceItemId();
         }
+        return parent;
     }
 
     private void validateValidity(Instant validFrom, Instant validTo) {
@@ -637,12 +697,19 @@ public class ReferenceDataService {
         if (value == null || value.isBlank()) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "Locale is required.");
         }
-        Locale locale = Locale.forLanguageTag(value.trim().replace('_', '-'));
+        Locale locale;
+        try {
+            locale = new Locale.Builder()
+                    .setLanguageTag(value.trim().replace('_', '-'))
+                    .build();
+        } catch (IllformedLocaleException exception) {
+            throw new BaseException(ErrorCode.INVALID_FORMAT, "Invalid locale.", exception);
+        }
         if (locale.getLanguage().isBlank() || "und".equals(locale.toLanguageTag())) {
             throw new BaseException(ErrorCode.INVALID_FORMAT, "Invalid locale.");
         }
         String normalized = locale.toLanguageTag();
-        if (normalized.length() > 20) {
+        if (normalized.length() > 35) {
             throw new BaseException(ErrorCode.INVALID_FORMAT, "Locale is too long.");
         }
         return normalized;

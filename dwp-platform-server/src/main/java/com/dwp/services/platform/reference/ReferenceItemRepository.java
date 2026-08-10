@@ -19,10 +19,21 @@ public interface ReferenceItemRepository extends JpaRepository<ReferenceItem, Lo
             Long referenceSetId,
             String code);
 
+    Optional<ReferenceItem> findByTenantIdAndReferenceSetIdAndReferenceItemId(
+            Long tenantId,
+            Long referenceSetId,
+            Long referenceItemId);
+
     boolean existsByTenantIdAndReferenceSetIdAndCode(
             Long tenantId,
             Long referenceSetId,
             String code);
+
+    boolean existsByTenantIdAndReferenceSetIdAndParentReferenceItemIdAndLifecycleState(
+            Long tenantId,
+            Long referenceSetId,
+            Long parentReferenceItemId,
+            ReferenceLifecycle lifecycleState);
 
     long countByTenantIdAndReferenceSetId(Long tenantId, Long referenceSetId);
 

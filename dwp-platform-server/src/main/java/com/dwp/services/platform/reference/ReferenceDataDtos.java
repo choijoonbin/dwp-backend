@@ -37,7 +37,7 @@ public final class ReferenceDataDtos {
     }
 
     public record LocalizedLabelRequest(
-            @NotBlank @Size(max = 20) String locale,
+            @NotBlank @Size(max = 35) String locale,
             @NotBlank @Size(max = 200) String label,
             @Size(max = 1000) String description) {
     }

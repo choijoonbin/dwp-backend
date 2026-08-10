@@ -16,8 +16,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -101,6 +103,114 @@ class ReferenceDataServiceTest {
         verify(setRepository).findByTenantIdAndSetKey(9L, "WORK_PRIORITY");
     }
 
+    @Test
+    void storesResolvedParentIdentityWithTheReferenceItem() {
+        ReferenceSet set = activeCandidate();
+        ReferenceItem parent = item(101L, "PARENT", null);
+        when(setRepository.findByTenantIdAndSetKey(7L, "WORK_PRIORITY"))
+                .thenReturn(Optional.of(set));
+        when(itemRepository.existsByTenantIdAndReferenceSetIdAndCode(7L, 41L, "CHILD"))
+                .thenReturn(false);
+        when(itemRepository.findByTenantIdAndReferenceSetIdAndCode(7L, 41L, "PARENT"))
+                .thenReturn(Optional.of(parent));
+        when(itemRepository.findByTenantIdAndReferenceSetIdAndReferenceItemId(7L, 41L, 101L))
+                .thenReturn(Optional.of(parent));
+        when(itemRepository.saveAndFlush(any(ReferenceItem.class))).thenAnswer(invocation -> {
+            ReferenceItem saved = invocation.getArgument(0);
+            saved.setReferenceItemId(102L);
+            saved.setVersion(0L);
+            return saved;
+        });
+        when(itemRepository.findByTenantIdAndReferenceSetIdOrderBySortOrderAscCodeAsc(7L, 41L))
+                .thenReturn(List.of());
+
+        service.createItem(
+                7L,
+                11L,
+                "corr-parent",
+                "WORK_PRIORITY",
+                new ReferenceDataDtos.CreateItemRequest(
+                        "CHILD",
+                        10,
+                        "PARENT",
+                        null,
+                        null,
+                        List.of(new ReferenceDataDtos.LocalizedLabelRequest(
+                                "en-US",
+                                "Child",
+                                null))));
+
+        verify(itemRepository).saveAndFlush(argThat(item ->
+                item.getParentReferenceItemId().equals(101L)
+                        && item.getParentCode().equals("PARENT")));
+    }
+
+    @Test
+    void rejectsReferenceHierarchyCycles() {
+        ReferenceSet set = activeCandidate();
+        ReferenceItem current = item(101L, "A", null);
+        ReferenceItem proposedParent = item(102L, "B", 101L);
+        when(setRepository.findByTenantIdAndSetKey(7L, "WORK_PRIORITY"))
+                .thenReturn(Optional.of(set));
+        when(itemRepository.findByTenantIdAndReferenceSetIdAndCode(7L, 41L, "A"))
+                .thenReturn(Optional.of(current));
+        when(itemRepository.findByTenantIdAndReferenceSetIdAndCode(7L, 41L, "B"))
+                .thenReturn(Optional.of(proposedParent));
+        when(itemRepository.findByTenantIdAndReferenceSetIdAndReferenceItemId(7L, 41L, 102L))
+                .thenReturn(Optional.of(proposedParent));
+
+        assertThatThrownBy(() -> service.updateItem(
+                        7L,
+                        11L,
+                        "corr-cycle",
+                        "WORK_PRIORITY",
+                        "A",
+                        new ReferenceDataDtos.UpdateItemRequest(
+                                10,
+                                "B",
+                                null,
+                                null,
+                                List.of(new ReferenceDataDtos.LocalizedLabelRequest(
+                                        "en-US",
+                                        "A",
+                                        null)),
+                                0L)))
+                .isInstanceOfSatisfying(BaseException.class, exception -> {
+                    assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+                    assertThat(exception.getMessage()).contains("cycle");
+                });
+        verify(itemRepository, never()).saveAndFlush(any(ReferenceItem.class));
+    }
+
+    @Test
+    void refusesToRetireParentsWithActiveChildren() {
+        ReferenceSet set = activeCandidate();
+        ReferenceItem parent = item(101L, "PARENT", null);
+        parent.setLifecycleState(ReferenceLifecycle.ACTIVE);
+        when(setRepository.findByTenantIdAndSetKey(7L, "WORK_PRIORITY"))
+                .thenReturn(Optional.of(set));
+        when(itemRepository.findByTenantIdAndReferenceSetIdAndCode(7L, 41L, "PARENT"))
+                .thenReturn(Optional.of(parent));
+        when(itemRepository
+                        .existsByTenantIdAndReferenceSetIdAndParentReferenceItemIdAndLifecycleState(
+                                7L,
+                                41L,
+                                101L,
+                                ReferenceLifecycle.ACTIVE))
+                .thenReturn(true);
+
+        assertThatThrownBy(() -> service.retireItem(
+                        7L,
+                        11L,
+                        "corr-retire-parent",
+                        "WORK_PRIORITY",
+                        "PARENT",
+                        0L))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_CONFLICT));
+        verify(itemRepository, never()).saveAndFlush(any(ReferenceItem.class));
+    }
+
     private ReferenceSet activeCandidate() {
         return ReferenceSet.builder()
                 .referenceSetId(41L)
@@ -109,6 +219,19 @@ class ReferenceDataServiceTest {
                 .name("Work priority")
                 .lifecycleState(ReferenceLifecycle.DRAFT)
                 .contentRevision(1L)
+                .version(0L)
+                .build();
+    }
+
+    private ReferenceItem item(Long id, String code, Long parentId) {
+        return ReferenceItem.builder()
+                .referenceItemId(id)
+                .tenantId(7L)
+                .referenceSetId(41L)
+                .code(code)
+                .lifecycleState(ReferenceLifecycle.DRAFT)
+                .sortOrder(0)
+                .parentReferenceItemId(parentId)
                 .version(0L)
                 .build();
     }

@@ -12,15 +12,18 @@
 | `dwp-platform-contracts` |    - | Provider 중립 Connector·Search·Workflow·Agent·Audit Port 계약     |
 | `dwp-auth-server`        | 8001 | 로컬/OIDC 로그인, Browser Session, 테넌트, 사용자, RBAC            |
 | `dwp-platform-server`    | 8002 | Tenant 기준정보, 제품 Registry, Lifecycle과 관리 Audit             |
+| `dwp-people-server`      | 8003 | HRIS 연계용 Workforce Projection, 발령 이력과 People Audit 기반    |
 | `dwp-gateway`            | 8080 | 단일 API 진입점, Session 재검증, 내부 Identity Relay, CSRF와 CORS |
 
-인증 서버는 `dwp_auth`, Platform Server는 `dwp_platform` Database를 각각 소유합니다.
-인증 스키마는 인증/RBAC, 서버 측 Session 폐기와 Identity 변경 감사에 필요한 13개
-테이블로 제한됩니다. Tenant Admin의 Role 변경은 자기 권한 변경과 마지막 Admin 제거를
+인증 서버는 `dwp_auth`, Platform Server는 `dwp_platform`, People Server는
+`dwp_people` Database를 각각 소유합니다. `dwp_people`은 외부 HRIS를 대체하지 않고
+사람·근로관계·유효일 발령·조직·프로필의 DWP 운영 Projection만 보관합니다.
+인증 스키마는 인증/RBAC, Group Role, 직무분리, 서버 측 Session 폐기와 Identity 변경
+감사를 소유합니다. Tenant Admin의 Role 변경은 자기 권한 변경과 마지막 Admin 제거를
 차단하고, 대상 사용자의 Active Session을 폐기하며 전후 Snapshot을 기록합니다.
-Platform 스키마는 기준정보 3개, 제품 Registry 1개와 Append-only Audit 1개 Table만
-생성합니다. `sys_auth_sessions`는 JWT 원문이 아니라 `jti`, 사용자, 만료·폐기와 발급
-Context만 저장합니다.
+Platform 스키마는 기준정보, 메뉴·다국어, 제품 Registry, 관리 명령 승인과 Append-only
+Audit을 소유합니다. `sys_auth_sessions`는 JWT 원문이 아니라 `jti`, 사용자, 만료·폐기와
+발급 Context만 저장합니다.
 
 `dwp-platform-contracts`는 Java Port와 Value Contract만 포함하며 Table, Connector SDK,
 Search Engine, Workflow Runtime과 Model Dependency를 추가하지 않습니다.
@@ -59,7 +62,7 @@ JWT_SECRET=<managed-secret-at-least-256-bits>
 ./dev up full
 ```
 
-`full` 프로필은 PostgreSQL, Auth, Platform, Agent, Gateway, Frontend를 기동합니다.
+`full` 프로필은 PostgreSQL, Auth, Platform, People, Agent, Gateway, Frontend를 기동합니다.
 업무 기능을 추가하기 전 공통 웹 셸만 확인하려면 `core`, 프론트만 실행하려면
 `web` 프로필을 사용할 수 있습니다. 이미 외부 Auth·Frontend가 실행 중이라면
 `agent gateway` 프로필로 내부 실행 경로만 재기동할 수 있습니다.
@@ -79,7 +82,7 @@ JWT_SECRET=<managed-secret-at-least-256-bits>
 
 ## Database Reset
 
-기존 로컬 업무 테이블이 남은 Docker 볼륨을 제거하고 Auth·Platform 기반 스키마만 새로
+기존 로컬 업무 테이블이 남은 Docker 볼륨을 제거하고 Auth·Platform·People 기반 스키마만 새로
 만들려면 아래 명령을 명시적으로 실행합니다.
 
 ```bash

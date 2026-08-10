@@ -57,6 +57,9 @@ public class ReferenceItem extends BaseEntity {
     @Column(name = "parent_code", length = 80)
     private String parentCode;
 
+    @Column(name = "parent_reference_item_id")
+    private Long parentReferenceItemId;
+
     @Column(name = "valid_from")
     private Instant validFrom;
 
