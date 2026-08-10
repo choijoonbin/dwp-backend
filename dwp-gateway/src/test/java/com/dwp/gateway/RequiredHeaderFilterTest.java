@@ -69,4 +69,20 @@ class RequiredHeaderFilterTest {
 
         assertThat(called).isTrue();
     }
+
+    @Test
+    void allowsAuthenticatedTenantLogoWithoutClientTenantHeader() {
+        RequiredHeaderFilter filter = new RequiredHeaderFilter();
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/platform/v1/tenant-branding/logo?v=1")
+                        .build());
+        AtomicBoolean called = new AtomicBoolean();
+
+        filter.filter(exchange, ignored -> {
+            called.set(true);
+            return Mono.empty();
+        }).block();
+
+        assertThat(called).isTrue();
+    }
 }

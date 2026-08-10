@@ -23,6 +23,7 @@ public class RequiredHeaderFilter implements GlobalFilter, Ordered {
             "/api/auth/idp",
             "/api/auth/oidc/",
             "/api/platform/v1/home-experience/background",
+            "/api/platform/v1/tenant-branding/logo",
             "/actuator/");
 
     @Override

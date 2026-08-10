@@ -3,6 +3,7 @@ package com.dwp.services.platform.home;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.audit.PlatformAuditService;
+import com.dwp.services.platform.media.TenantMediaStorage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,7 +28,7 @@ class HomeExperienceServiceTest {
     @Mock
     private HomeExperienceRepository repository;
     @Mock
-    private HomeAssetStorage storage;
+    private TenantMediaStorage storage;
     @Mock
     private HomeBackgroundValidator validator;
     @Mock
@@ -47,7 +48,7 @@ class HomeExperienceServiceTest {
         HomeExperienceDtos.HomeExperienceResponse result = service.get(7L);
 
         assertThat(result.backgroundUrl()).isNull();
-        assertThat(result.backgroundPosition()).isEqualTo("CENTER");
+        assertThat(result.backgroundPosition()).isEqualTo("RIGHT");
         assertThat(result.overlayOpacity()).isEqualTo(18);
         assertThat(result.version()).isZero();
         verify(repository, never()).save(any());
@@ -101,7 +102,7 @@ class HomeExperienceServiceTest {
                 .isInstanceOfSatisfying(BaseException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_CONFLICT));
         verify(repository, never()).saveAndFlush(any());
-        verify(storage, never()).store(any(), any(), any());
+        verify(storage, never()).store(any(), any(), any(), any());
     }
 
     @Test
@@ -116,7 +117,7 @@ class HomeExperienceServiceTest {
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_CONFLICT));
 
         verify(validator, never()).validate(file);
-        verify(storage, never()).store(any(), any(), any());
+        verify(storage, never()).store(any(), any(), any(), any());
     }
 
     @Test
@@ -136,7 +137,8 @@ class HomeExperienceServiceTest {
                         494);
         when(repository.findById(7L)).thenReturn(Optional.of(experience));
         when(validator.validate(file)).thenReturn(validated);
-        when(storage.store(7L, "png", validated.content())).thenReturn("7/new.png");
+        when(storage.store(7L, "home/backgrounds", "png", validated.content()))
+                .thenReturn("7/home/backgrounds/new.png");
         when(repository.saveAndFlush(experience)).thenAnswer(invocation -> {
             experience.setVersion(2L);
             return experience;

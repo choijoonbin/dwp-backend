@@ -71,6 +71,18 @@ class VerifiedIdentityFilterTest {
     }
 
     @Test
+    void keepsTenantLogoSessionProtected() {
+        VerifiedIdentityFilter filter = new VerifiedIdentityFilter(ignored -> Mono.empty());
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
+                .get("/api/platform/v1/tenant-branding/logo?v=1")
+                .build());
+
+        filter.filter(exchange, ignored -> Mono.empty()).block();
+
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
     void failsClosedWhenTheAuthServiceIsUnavailable() {
         VerifiedIdentityFilter filter = new VerifiedIdentityFilter(ignored ->
                 Mono.error(new IllegalStateException("auth unavailable")));

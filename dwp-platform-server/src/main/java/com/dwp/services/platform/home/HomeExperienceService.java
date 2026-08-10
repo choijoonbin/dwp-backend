@@ -3,6 +3,7 @@ package com.dwp.services.platform.home;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.audit.PlatformAuditService;
+import com.dwp.services.platform.media.TenantMediaStorage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.Resource;
@@ -23,13 +24,13 @@ public class HomeExperienceService {
     private static final String BACKGROUND_URL = "/api/platform/v1/home-experience/background";
 
     private final HomeExperienceRepository repository;
-    private final HomeAssetStorage assetStorage;
+    private final TenantMediaStorage assetStorage;
     private final HomeBackgroundValidator validator;
     private final PlatformAuditService auditService;
 
     public HomeExperienceService(
             HomeExperienceRepository repository,
-            HomeAssetStorage assetStorage,
+            TenantMediaStorage assetStorage,
             HomeBackgroundValidator validator,
             PlatformAuditService auditService) {
         this.repository = repository;
@@ -95,7 +96,8 @@ public class HomeExperienceService {
         HomeBackgroundValidator.ValidatedBackground background = validator.validate(file);
         Object before = snapshot(experience);
         String previousKey = experience.getBackgroundAssetKey();
-        String storageKey = assetStorage.store(tenantId, background.extension(), background.content());
+        String storageKey = assetStorage.store(
+                tenantId, "home/backgrounds", background.extension(), background.content());
         boolean synchronizedCleanup = scheduleReplacementCleanup(tenantId, previousKey, storageKey);
 
         try {
@@ -159,7 +161,7 @@ public class HomeExperienceService {
             }
             return HomeExperience.builder()
                     .tenantId(tenantId)
-                    .backgroundPosition("CENTER")
+                    .backgroundPosition("RIGHT")
                     .overlayOpacity(18)
                     .build();
         });
@@ -195,7 +197,7 @@ public class HomeExperienceService {
 
     private HomeExperienceDtos.HomeExperienceResponse defaultResponse() {
         return new HomeExperienceDtos.HomeExperienceResponse(
-                null, null, "CENTER", 18, null, null, null, null, null, null, 0L, null, null);
+                null, null, "RIGHT", 18, null, null, null, null, null, null, 0L, null, null);
     }
 
     private void clearBackground(HomeExperience experience) {
