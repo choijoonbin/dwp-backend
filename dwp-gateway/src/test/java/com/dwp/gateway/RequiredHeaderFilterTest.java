@@ -55,6 +55,23 @@ class RequiredHeaderFilterTest {
     }
 
     @Test
+    void allowsScimRequestsToDeriveTenantFromConnectorCredential() {
+        RequiredHeaderFilter filter = new RequiredHeaderFilter();
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/scim/v2/ServiceProviderConfig")
+                        .header("Authorization", "Bearer connector-token")
+                        .build());
+        AtomicBoolean called = new AtomicBoolean();
+
+        filter.filter(exchange, ignored -> {
+            called.set(true);
+            return Mono.empty();
+        }).block();
+
+        assertThat(called).isTrue();
+    }
+
+    @Test
     void allowsAuthenticatedHomeBackgroundWithoutClientTenantHeader() {
         RequiredHeaderFilter filter = new RequiredHeaderFilter();
         MockServerWebExchange exchange = MockServerWebExchange.from(

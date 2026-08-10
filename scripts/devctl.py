@@ -65,6 +65,13 @@ SERVICES = {
         8003,
         "/actuator/health",
     ),
+    "provider": Service(
+        "provider",
+        BACKEND_ROOT,
+        ("./gradlew", "--no-daemon", ":dwp-provider-server:bootRun"),
+        8004,
+        "/actuator/health",
+    ),
     "agent": Service(
         "agent",
         AGENT_ROOT,
@@ -99,15 +106,15 @@ SERVICES = {
 }
 
 PROFILES = {
-    "full": {"auth", "platform", "people", "agent", "gateway", "frontend"},
-    "core": {"auth", "platform", "people", "gateway", "frontend"},
-    "backend": {"auth", "platform", "people", "agent", "gateway"},
+    "full": {"auth", "platform", "people", "provider", "agent", "gateway", "frontend"},
+    "core": {"auth", "platform", "people", "provider", "gateway", "frontend"},
+    "backend": {"auth", "platform", "people", "provider", "agent", "gateway"},
     "agent": {"agent"},
     "gateway": {"gateway"},
     "web": {"frontend"},
 }
 
-START_ORDER = ("auth", "platform", "people", "agent", "gateway", "frontend")
+START_ORDER = ("auth", "platform", "people", "provider", "agent", "gateway", "frontend")
 
 
 def load_state() -> dict[str, dict[str, object]]:
@@ -153,9 +160,14 @@ def local_environment() -> dict[str, str]:
         "DB_PASSWORD": "dwp_password",
         "SERVICE_AUTH_URL": "http://localhost:8001",
         "SERVICE_PLATFORM_URL": "http://localhost:8002",
+        "SERVICE_PEOPLE_URL": "http://localhost:8003",
+        "SERVICE_PROVIDER_URL": "http://localhost:8004",
         "DWP_AGENT_SERVICE_TOKEN": "dwp-local-agent-service-token",
         "DWP_PLATFORM_SERVICE_TOKEN": "dwp-local-platform-service-token",
         "DWP_PLATFORM_RUNTIME_SERVICE_TOKEN": "dwp-local-platform-runtime-token",
+        "DWP_PEOPLE_SERVICE_TOKEN": "dwp-local-people-service-token",
+        "DWP_PEOPLE_CURSOR_SECRET": "dwp-local-people-cursor-secret-change-outside-local",
+        "DWP_PROVIDER_SERVICE_TOKEN": "dwp-local-provider-service-token",
         "VITE_API_URL": "http://localhost:8080",
     }
     for key, value in defaults.items():
@@ -174,6 +186,12 @@ def service_environment(service_name: str) -> dict[str, str]:
     elif service_name not in {"platform"}:
         environment.pop("DWP_PLATFORM_SERVICE_TOKEN", None)
         environment.pop("DWP_PLATFORM_RUNTIME_SERVICE_TOKEN", None)
+    if service_name not in {"gateway", "people"}:
+        environment.pop("DWP_PEOPLE_SERVICE_TOKEN", None)
+    if service_name != "people":
+        environment.pop("DWP_PEOPLE_CURSOR_SECRET", None)
+    if service_name not in {"gateway", "provider"}:
+        environment.pop("DWP_PROVIDER_SERVICE_TOKEN", None)
     return environment
 
 
@@ -255,6 +273,7 @@ def start_infrastructure() -> None:
         if result.returncode == 0:
             ensure_database("dwp_platform")
             ensure_database("dwp_people")
+            ensure_database("dwp_provider")
             print("postgres   ready at localhost:5432")
             return
         time.sleep(1)

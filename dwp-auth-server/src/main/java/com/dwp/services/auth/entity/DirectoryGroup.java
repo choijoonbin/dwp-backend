@@ -14,6 +14,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.UUID;
+
 @Entity
 @Table(name = "com_groups")
 @Getter
@@ -27,6 +29,9 @@ public class DirectoryGroup extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "group_id")
     private Long groupId;
+
+    @Column(name = "public_id", nullable = false, unique = true)
+    private UUID publicId;
 
     @Column(name = "tenant_id", nullable = false)
     private Long tenantId;

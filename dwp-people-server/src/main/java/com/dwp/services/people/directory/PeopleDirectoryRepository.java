@@ -1,0 +1,267 @@
+package com.dwp.services.people.directory;
+
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.stereotype.Repository;
+
+import java.sql.Date;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+@Repository
+public class PeopleDirectoryRepository {
+
+    private static final String DIRECTORY_SELECT = """
+            SELECT p.person_id,
+                   p.public_id,
+                   p.display_name,
+                   p.preferred_locale,
+                   p.time_zone,
+                   p.lifecycle_state,
+                   w.worker_number,
+                   w.worker_type,
+                   w.worker_status,
+                   w.original_hire_date,
+                   a.assignment_key,
+                   a.business_title,
+                   a.manager_assignment_key,
+                   a.effective_start_date AS assignment_effective_from,
+                   org.name AS organization_name,
+                   job.name AS job_profile_name,
+                   loc.name AS location_name,
+                   employer.legal_name AS legal_employer_name,
+                   contact.display_value AS work_email,
+                   media.object_key AS profile_image_key
+              FROM ppl_persons p
+              LEFT JOIN LATERAL (
+                    SELECT candidate.*
+                      FROM ppl_workers candidate
+                     WHERE candidate.tenant_id = p.tenant_id
+                       AND candidate.person_id = p.person_id
+                     ORDER BY CASE candidate.worker_status
+                                  WHEN 'ACTIVE' THEN 0 WHEN 'LEAVE' THEN 1
+                                  WHEN 'PENDING' THEN 2 ELSE 3 END,
+                              candidate.worker_id
+                     LIMIT 1
+              ) w ON TRUE
+              LEFT JOIN LATERAL (
+                    SELECT candidate.*, relationship.legal_employer_id
+                      FROM ppl_assignments candidate
+                      JOIN ppl_work_relationships relationship
+                        ON relationship.tenant_id = candidate.tenant_id
+                       AND relationship.work_relationship_id = candidate.work_relationship_id
+                     WHERE candidate.tenant_id = p.tenant_id
+                       AND relationship.worker_id = w.worker_id
+                       AND candidate.effective_start_date <= :asOf
+                       AND (candidate.effective_end_date IS NULL
+                            OR candidate.effective_end_date >= :asOf)
+                     ORDER BY candidate.primary_assignment DESC,
+                              candidate.effective_start_date DESC,
+                              candidate.effective_sequence DESC,
+                              candidate.assignment_id DESC
+                     LIMIT 1
+              ) a ON TRUE
+              LEFT JOIN ppl_organizations org
+                ON org.tenant_id = p.tenant_id AND org.organization_id = a.organization_id
+              LEFT JOIN ppl_job_profiles job
+                ON job.tenant_id = p.tenant_id AND job.job_profile_id = a.job_profile_id
+              LEFT JOIN ppl_locations loc
+                ON loc.tenant_id = p.tenant_id AND loc.location_id = a.location_id
+              LEFT JOIN ppl_legal_employers employer
+                ON employer.tenant_id = p.tenant_id
+               AND employer.legal_employer_id = a.legal_employer_id
+              LEFT JOIN LATERAL (
+                    SELECT candidate.display_value
+                      FROM ppl_contacts candidate
+                     WHERE candidate.tenant_id = p.tenant_id
+                       AND candidate.person_id = p.person_id
+                       AND candidate.contact_type = 'EMAIL'
+                       AND candidate.usage_type = 'WORK'
+                       AND candidate.visibility IN ('PUBLIC', 'INTERNAL')
+                       AND (candidate.valid_from IS NULL OR candidate.valid_from <= :asOf)
+                       AND (candidate.valid_to IS NULL OR candidate.valid_to >= :asOf)
+                     ORDER BY candidate.primary_contact DESC, candidate.contact_id DESC
+                     LIMIT 1
+              ) contact ON TRUE
+              LEFT JOIN LATERAL (
+                    SELECT candidate.object_key
+                      FROM ppl_profile_media candidate
+                     WHERE candidate.tenant_id = p.tenant_id
+                       AND candidate.person_id = p.person_id
+                       AND candidate.lifecycle_state = 'ACTIVE'
+                       AND candidate.visibility IN ('PUBLIC', 'INTERNAL')
+                     ORDER BY candidate.profile_media_id DESC
+                     LIMIT 1
+              ) media ON TRUE
+            """;
+
+    private final NamedParameterJdbcTemplate jdbc;
+
+    public PeopleDirectoryRepository(NamedParameterJdbcTemplate jdbc) {
+        this.jdbc = jdbc;
+    }
+
+    public List<DirectoryRow> search(
+            Long tenantId,
+            long afterPersonId,
+            String query,
+            String workerStatus,
+            LocalDate asOf,
+            int limit) {
+        StringBuilder sql = new StringBuilder(DIRECTORY_SELECT).append("""
+             WHERE p.tenant_id = :tenantId
+               AND p.person_id > :afterPersonId
+            """);
+        MapSqlParameterSource parameters = commonParameters(tenantId, asOf)
+                .addValue("afterPersonId", afterPersonId)
+                .addValue("limit", limit);
+        if (query != null && !query.isBlank()) {
+            sql.append("""
+               AND (
+                    LOWER(p.display_name) LIKE :query
+                    OR LOWER(COALESCE(contact.display_value, '')) LIKE :query
+                    OR LOWER(COALESCE(w.worker_number, '')) LIKE :query
+               )
+            """);
+            parameters.addValue("query", "%" + query.trim().toLowerCase(java.util.Locale.ROOT) + "%");
+        }
+        if (workerStatus != null && !workerStatus.isBlank()) {
+            sql.append(" AND w.worker_status = :workerStatus\n");
+            parameters.addValue("workerStatus", workerStatus);
+        }
+        sql.append(" ORDER BY p.person_id ASC LIMIT :limit");
+        return jdbc.query(sql.toString(), parameters, this::mapDirectoryRow);
+    }
+
+    public Optional<DirectoryRow> findByPublicId(Long tenantId, UUID publicId, LocalDate asOf) {
+        String sql = DIRECTORY_SELECT + " WHERE p.tenant_id = :tenantId AND p.public_id = :publicId";
+        List<DirectoryRow> rows = jdbc.query(
+                sql,
+                commonParameters(tenantId, asOf).addValue("publicId", publicId),
+                this::mapDirectoryRow);
+        return rows.stream().findFirst();
+    }
+
+    public List<AssignmentRow> findAssignments(Long tenantId, long personId) {
+        String sql = """
+                SELECT a.assignment_key,
+                       a.assignment_status,
+                       a.primary_assignment,
+                       a.effective_start_date,
+                       a.effective_end_date,
+                       a.business_title,
+                       org.name AS organization_name,
+                       job.name AS job_profile_name,
+                       loc.name AS location_name,
+                       a.manager_assignment_key,
+                       a.change_reason_code
+                  FROM ppl_assignments a
+                  JOIN ppl_work_relationships relationship
+                    ON relationship.tenant_id = a.tenant_id
+                   AND relationship.work_relationship_id = a.work_relationship_id
+                  JOIN ppl_workers worker
+                    ON worker.tenant_id = relationship.tenant_id
+                   AND worker.worker_id = relationship.worker_id
+                  LEFT JOIN ppl_organizations org
+                    ON org.tenant_id = a.tenant_id AND org.organization_id = a.organization_id
+                  LEFT JOIN ppl_job_profiles job
+                    ON job.tenant_id = a.tenant_id AND job.job_profile_id = a.job_profile_id
+                  LEFT JOIN ppl_locations loc
+                    ON loc.tenant_id = a.tenant_id AND loc.location_id = a.location_id
+                 WHERE a.tenant_id = :tenantId
+                   AND worker.person_id = :personId
+                 ORDER BY a.effective_start_date DESC,
+                          a.effective_sequence DESC,
+                          a.assignment_id DESC
+                """;
+        return jdbc.query(
+                sql,
+                new MapSqlParameterSource("tenantId", tenantId).addValue("personId", personId),
+                (resultSet, rowNumber) -> new AssignmentRow(
+                        resultSet.getString("assignment_key"),
+                        resultSet.getString("assignment_status"),
+                        resultSet.getBoolean("primary_assignment"),
+                        date(resultSet, "effective_start_date"),
+                        date(resultSet, "effective_end_date"),
+                        resultSet.getString("business_title"),
+                        resultSet.getString("organization_name"),
+                        resultSet.getString("job_profile_name"),
+                        resultSet.getString("location_name"),
+                        resultSet.getString("manager_assignment_key"),
+                        resultSet.getString("change_reason_code")));
+    }
+
+    private MapSqlParameterSource commonParameters(Long tenantId, LocalDate asOf) {
+        return new MapSqlParameterSource("tenantId", tenantId).addValue("asOf", Date.valueOf(asOf));
+    }
+
+    private DirectoryRow mapDirectoryRow(ResultSet resultSet, int rowNumber) throws SQLException {
+        return new DirectoryRow(
+                resultSet.getLong("person_id"),
+                resultSet.getObject("public_id", UUID.class),
+                resultSet.getString("display_name"),
+                resultSet.getString("preferred_locale"),
+                resultSet.getString("time_zone"),
+                resultSet.getString("lifecycle_state"),
+                resultSet.getString("worker_number"),
+                resultSet.getString("worker_type"),
+                resultSet.getString("worker_status"),
+                date(resultSet, "original_hire_date"),
+                resultSet.getString("assignment_key"),
+                resultSet.getString("business_title"),
+                resultSet.getString("manager_assignment_key"),
+                date(resultSet, "assignment_effective_from"),
+                resultSet.getString("organization_name"),
+                resultSet.getString("job_profile_name"),
+                resultSet.getString("location_name"),
+                resultSet.getString("legal_employer_name"),
+                resultSet.getString("work_email"),
+                resultSet.getString("profile_image_key"));
+    }
+
+    private LocalDate date(ResultSet resultSet, String column) throws SQLException {
+        Date value = resultSet.getDate(column);
+        return value == null ? null : value.toLocalDate();
+    }
+
+    public record DirectoryRow(
+            long internalPersonId,
+            UUID publicId,
+            String displayName,
+            String preferredLocale,
+            String timeZone,
+            String lifecycleState,
+            String workerNumber,
+            String workerType,
+            String workerStatus,
+            LocalDate originalHireDate,
+            String assignmentKey,
+            String businessTitle,
+            String managerAssignmentKey,
+            LocalDate assignmentEffectiveFrom,
+            String organizationName,
+            String jobProfileName,
+            String locationName,
+            String legalEmployerName,
+            String workEmail,
+            String profileImageKey) {
+    }
+
+    public record AssignmentRow(
+            String assignmentKey,
+            String assignmentStatus,
+            boolean primaryAssignment,
+            LocalDate effectiveStartDate,
+            LocalDate effectiveEndDate,
+            String businessTitle,
+            String organizationName,
+            String jobProfileName,
+            String locationName,
+            String managerAssignmentKey,
+            String changeReasonCode) {
+    }
+}

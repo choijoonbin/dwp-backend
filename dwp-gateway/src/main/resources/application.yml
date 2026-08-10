@@ -9,6 +9,10 @@ spring:
   cloud:
     gateway:
       routes:
+        - id: scim-provisioning
+          uri: ${SERVICE_AUTH_URL:http://localhost:8001}
+          predicates:
+            - Path=/scim/v2/**
         - id: auth-server
           uri: ${SERVICE_AUTH_URL:http://localhost:8001}
           predicates:
@@ -25,6 +29,18 @@ spring:
           uri: ${SERVICE_PLATFORM_URL:http://localhost:8002}
           predicates:
             - Path=/api/platform/**
+          filters:
+            - StripPrefix=2
+        - id: people-server
+          uri: ${SERVICE_PEOPLE_URL:http://localhost:8003}
+          predicates:
+            - Path=/api/people/**
+          filters:
+            - StripPrefix=2
+        - id: provider-server
+          uri: ${SERVICE_PROVIDER_URL:http://localhost:8004}
+          predicates:
+            - Path=/api/provider/**
           filters:
             - StripPrefix=2
       globalcors:
@@ -67,3 +83,7 @@ dwp:
     service-token: ${DWP_AGENT_SERVICE_TOKEN:}
   platform:
     service-token: ${DWP_PLATFORM_SERVICE_TOKEN:}
+  people:
+    service-token: ${DWP_PEOPLE_SERVICE_TOKEN:}
+  provider:
+    service-token: ${DWP_PROVIDER_SERVICE_TOKEN:}

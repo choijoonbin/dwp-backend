@@ -33,6 +33,22 @@ public class Role extends BaseEntity {
     private String description;
 
     @Builder.Default
+    @Column(name = "role_type", nullable = false, length = 20)
+    private String roleType = "CUSTOM";
+
+    @Builder.Default
+    @Column(nullable = false)
+    private Boolean privileged = false;
+
+    @Builder.Default
+    @Column(name = "assignable_to_groups", nullable = false)
+    private Boolean assignableToGroups = true;
+
+    @Builder.Default
     @Column(nullable = false, length = 20)
     private String status = "ACTIVE";
+
+    @Version
+    @Column(nullable = false)
+    private Long version;
 }

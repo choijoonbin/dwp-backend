@@ -1,0 +1,147 @@
+{
+  "Fixture_Metadata": {
+    "Synthetic": true,
+    "Source_Key": "workday-reference",
+    "Source_Type": "WORKDAY",
+    "Source_Schema_Version": "synthetic-2026.1",
+    "Watermark": "2026-08-10T00:00:00Z",
+    "Notice": "Synthetic reference records only. No real employee or customer data."
+  },
+  "Report_Entry": [
+    {
+      "Worker_External_ID": "WD-WORKER-0001",
+      "Source_Version": "2026-08-10T00:00:01Z",
+      "Worker_Data": {
+        "Worker_ID": "E100001",
+        "Personal_Data": {
+          "Display_Name": "Minseo Kim",
+          "Given_Name": "Minseo",
+          "Family_Name": "Kim",
+          "Preferred_Locale": "ko-KR",
+          "Time_Zone": "Asia/Seoul"
+        },
+        "Contact_Data": { "Work_Email": "minseo.kim@example.invalid" },
+        "Employment_Data": {
+          "Worker_Type": "EMPLOYEE",
+          "Worker_Status": "ACTIVE",
+          "Original_Hire_Date": "2021-03-15",
+          "Legal_Employer": { "ID": "LE-KR-001", "Legal_Name": "DWP Korea Synthetic", "Country_Code": "KR" }
+        },
+        "Position_Data": [
+          {
+            "External_ID": "WD-ASG-0001",
+            "Source_Version": "2026-08-10T00:00:01Z",
+            "Assignment_ID": "ASG-E100001-1",
+            "Position_ID": "POS-NET-LEAD-01",
+            "Status": "ACTIVE",
+            "Primary": true,
+            "Effective_Date": "2024-01-01",
+            "Business_Title": "Network Operations Lead",
+            "Manager_Assignment_ID": null,
+            "Cost_Center_ID": "CC-NET-100",
+            "Change_Reason": "PROMOTION",
+            "Supervisory_Organization": { "ID": "ORG-NET-OPS", "Name": "Network Operations", "Type": "SUPERVISORY", "Parent_ID": "ORG-TECH" },
+            "Job_Profile": { "ID": "JOB-NET-LEAD", "Name": "Network Operations Lead", "Family_ID": "JOB-FAMILY-NETWORK", "Management_Level": "MANAGER" },
+            "Location": { "ID": "LOC-SEOUL", "Name": "Seoul HQ", "Country_Code": "KR", "Time_Zone": "Asia/Seoul" }
+          }
+        ]
+      }
+    },
+    {
+      "Worker_External_ID": "WD-WORKER-0002",
+      "Source_Version": "2026-08-10T00:00:02Z",
+      "Worker_Data": {
+        "Worker_ID": "E100002",
+        "Personal_Data": {
+          "Display_Name": "Jiho Park",
+          "Given_Name": "Jiho",
+          "Family_Name": "Park",
+          "Preferred_Locale": "ko-KR",
+          "Time_Zone": "Asia/Seoul"
+        },
+        "Contact_Data": { "Work_Email": "jiho.park@example.invalid" },
+        "Employment_Data": {
+          "Worker_Type": "EMPLOYEE",
+          "Worker_Status": "ACTIVE",
+          "Original_Hire_Date": "2023-07-03",
+          "Legal_Employer": { "ID": "LE-KR-001", "Legal_Name": "DWP Korea Synthetic", "Country_Code": "KR" }
+        },
+        "Position_Data": [
+          {
+            "External_ID": "WD-ASG-0002-A",
+            "Source_Version": "2026-08-10T00:00:02Z",
+            "Assignment_ID": "ASG-E100002-1",
+            "Position_ID": "POS-NET-ENG-07",
+            "Status": "ACTIVE",
+            "Primary": true,
+            "Effective_Date": "2023-07-03",
+            "Effective_End_Date": "2026-08-14",
+            "Business_Title": "Network Automation Engineer",
+            "Manager_Assignment_ID": "ASG-E100001-1",
+            "Cost_Center_ID": "CC-NET-100",
+            "Change_Reason": "HIRE",
+            "Supervisory_Organization": { "ID": "ORG-NET-OPS", "Name": "Network Operations", "Type": "SUPERVISORY", "Parent_ID": "ORG-TECH" },
+            "Job_Profile": { "ID": "JOB-NET-ENG", "Name": "Network Automation Engineer", "Family_ID": "JOB-FAMILY-NETWORK", "Management_Level": "INDIVIDUAL" },
+            "Location": { "ID": "LOC-SEOUL", "Name": "Seoul HQ", "Country_Code": "KR", "Time_Zone": "Asia/Seoul" }
+          },
+          {
+            "External_ID": "WD-ASG-0002-B",
+            "Source_Version": "2026-08-10T00:00:03Z",
+            "Assignment_ID": "ASG-E100002-1",
+            "Position_ID": "POS-AI-PLATFORM-03",
+            "Status": "PENDING",
+            "Primary": true,
+            "Effective_Date": "2026-08-15",
+            "Business_Title": "AI Platform Engineer",
+            "Manager_Assignment_ID": "ASG-E100001-1",
+            "Cost_Center_ID": "CC-AI-200",
+            "Change_Reason": "INTERNAL_TRANSFER",
+            "Supervisory_Organization": { "ID": "ORG-AI-PLATFORM", "Name": "AI Platform", "Type": "SUPERVISORY", "Parent_ID": "ORG-TECH" },
+            "Job_Profile": { "ID": "JOB-AI-PLATFORM", "Name": "AI Platform Engineer", "Family_ID": "JOB-FAMILY-AI", "Management_Level": "INDIVIDUAL" },
+            "Location": { "ID": "LOC-SEOUL", "Name": "Seoul HQ", "Country_Code": "KR", "Time_Zone": "Asia/Seoul" }
+          }
+        ]
+      }
+    },
+    {
+      "Worker_External_ID": "WD-WORKER-0003",
+      "Source_Version": "2026-08-10T00:00:04Z",
+      "Worker_Data": {
+        "Worker_ID": "C200001",
+        "Personal_Data": {
+          "Display_Name": "Elena Garcia",
+          "Given_Name": "Elena",
+          "Family_Name": "Garcia",
+          "Preferred_Locale": "en-US",
+          "Time_Zone": "America/Chicago"
+        },
+        "Contact_Data": { "Work_Email": "elena.garcia@example.invalid" },
+        "Employment_Data": {
+          "Worker_Type": "CONTINGENT",
+          "Worker_Status": "ACTIVE",
+          "Original_Hire_Date": "2026-02-02",
+          "Legal_Employer": { "ID": "LE-US-001", "Legal_Name": "DWP US Synthetic", "Country_Code": "US" }
+        },
+        "Position_Data": [
+          {
+            "External_ID": "WD-ASG-0003",
+            "Source_Version": "2026-08-10T00:00:04Z",
+            "Assignment_ID": "ASG-C200001-1",
+            "Position_ID": "POS-SEMI-DATA-04",
+            "Status": "ACTIVE",
+            "Primary": true,
+            "Effective_Date": "2026-02-02",
+            "Effective_End_Date": "2026-12-31",
+            "Business_Title": "Yield Data Specialist",
+            "Manager_Assignment_ID": "ASG-E100001-1",
+            "Cost_Center_ID": "CC-SEMI-300",
+            "Change_Reason": "CONTRACT_START",
+            "Supervisory_Organization": { "ID": "ORG-SEMI-DATA", "Name": "Semiconductor Data Operations", "Type": "DEPARTMENT", "Parent_ID": "ORG-TECH" },
+            "Job_Profile": { "ID": "JOB-YIELD-DATA", "Name": "Yield Data Specialist", "Family_ID": "JOB-FAMILY-SEMICONDUCTOR", "Management_Level": "CONTRACTOR" },
+            "Location": { "ID": "LOC-AUSTIN", "Name": "Austin Campus", "Country_Code": "US", "Time_Zone": "America/Chicago" }
+          }
+        ]
+      }
+    }
+  ]
+}

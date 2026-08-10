@@ -13,6 +13,10 @@ public interface DirectoryGroupMemberRepository
 
     List<DirectoryGroupMember> findByTenantIdAndGroupId(Long tenantId, Long groupId);
 
+    List<DirectoryGroupMember> findByTenantIdAndUserId(Long tenantId, Long userId);
+
+    void deleteByTenantIdAndGroupIdAndSourceType(Long tenantId, Long groupId, String sourceType);
+
     List<DirectoryGroupMember> findByTenantIdAndGroupIdIn(
             Long tenantId,
             Collection<Long> groupIds);

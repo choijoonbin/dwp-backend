@@ -19,6 +19,12 @@ spring:
     baseline-version: 0
     validate-on-migrate: true
 
+dwp:
+  people:
+    service-token: ${DWP_PEOPLE_SERVICE_TOKEN:}
+    cursor-secret: ${DWP_PEOPLE_CURSOR_SECRET:}
+    cursor-ttl: ${DWP_PEOPLE_CURSOR_TTL:PT15M}
+
 management:
   endpoints:
     web:

@@ -12,10 +12,20 @@ import jakarta.persistence.LockModeType;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificationExecutor<User> {
 
     Optional<User> findByUserIdAndTenantId(Long userId, Long tenantId);
+
+    Optional<User> findByPublicIdAndTenantId(UUID publicId, Long tenantId);
+
+    Optional<User> findByTenantIdAndSourceTypeAndExternalId(
+            Long tenantId, String sourceType, String externalId);
+
+    Optional<User> findByTenantIdAndScimUserName(Long tenantId, String scimUserName);
+
+    List<User> findByTenantIdAndPublicIdIn(Long tenantId, Collection<UUID> publicIds);
 
     List<User> findByTenantIdAndPrimaryOrgUnitIdOrderByDisplayNameAscUserIdAsc(
             Long tenantId,

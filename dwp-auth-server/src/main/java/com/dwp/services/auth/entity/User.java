@@ -4,6 +4,8 @@ import com.dwp.core.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.UUID;
+
 @Entity
 @Table(
         name = "com_users",
@@ -20,6 +22,9 @@ public class User extends BaseEntity {
     @Column(name = "user_id")
     private Long userId;
 
+    @Column(name = "public_id", nullable = false, unique = true)
+    private UUID publicId;
+
     @Column(name = "tenant_id", nullable = false)
     private Long tenantId;
 
@@ -34,6 +39,22 @@ public class User extends BaseEntity {
 
     @Column(name = "preferred_locale", length = 35)
     private String preferredLocale;
+
+    @Builder.Default
+    @Column(name = "source_type", nullable = false, length = 20)
+    private String sourceType = "LOCAL";
+
+    @Column(name = "external_id", length = 255)
+    private String externalId;
+
+    @Column(name = "scim_user_name", length = 255)
+    private String scimUserName;
+
+    @Column(name = "given_name", length = 120)
+    private String givenName;
+
+    @Column(name = "family_name", length = 120)
+    private String familyName;
 
     @Builder.Default
     @Column(nullable = false, length = 20)

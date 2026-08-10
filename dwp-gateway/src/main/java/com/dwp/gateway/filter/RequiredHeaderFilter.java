@@ -22,6 +22,7 @@ public class RequiredHeaderFilter implements GlobalFilter, Ordered {
             "/api/auth/policy",
             "/api/auth/idp",
             "/api/auth/oidc/",
+            "/scim/v2/",
             "/api/platform/v1/home-experience/background",
             "/api/platform/v1/tenant-branding/logo",
             "/actuator/");

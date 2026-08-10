@@ -1,0 +1,27 @@
+{
+  "contract": "dwp.workforce-projection.v1",
+  "fixtureOnly": true,
+  "notice": "Reference mapping for synthetic data. Validate paths and codes against each tenant's Workday API version and configuration before activation.",
+  "source": {
+    "product": "Workday",
+    "shape": "Report_Entry reference payload",
+    "schemaVersion": "synthetic-2026.1"
+  },
+  "mappings": [
+    { "source": "Report_Entry.Worker_External_ID", "target": "ppl_persons.external_id", "classification": "INTERNAL", "required": true },
+    { "source": "Worker_Data.Worker_ID", "target": "ppl_workers.worker_number", "classification": "CONFIDENTIAL", "required": true, "readPolicy": "MASK_UNLESS_HR_ADMIN" },
+    { "source": "Worker_Data.Personal_Data.Display_Name", "target": "ppl_persons.display_name", "classification": "INTERNAL", "required": true },
+    { "source": "Worker_Data.Personal_Data.Given_Name", "target": "ppl_person_names.given_name", "classification": "INTERNAL", "required": true },
+    { "source": "Worker_Data.Personal_Data.Family_Name", "target": "ppl_person_names.family_name", "classification": "INTERNAL", "required": true },
+    { "source": "Worker_Data.Contact_Data.Work_Email", "target": "ppl_contacts.display_value", "classification": "INTERNAL", "required": false },
+    { "source": "Worker_Data.Employment_Data.Worker_Type", "target": "ppl_workers.worker_type", "classification": "INTERNAL", "required": true },
+    { "source": "Worker_Data.Employment_Data.Worker_Status", "target": "ppl_workers.worker_status", "classification": "INTERNAL", "required": true },
+    { "source": "Worker_Data.Employment_Data.Legal_Employer", "target": "ppl_legal_employers", "classification": "INTERNAL", "required": true },
+    { "source": "Worker_Data.Position_Data[*].Supervisory_Organization", "target": "ppl_organizations", "classification": "INTERNAL", "required": true },
+    { "source": "Worker_Data.Position_Data[*].Job_Profile", "target": "ppl_job_profiles", "classification": "INTERNAL", "required": true },
+    { "source": "Worker_Data.Position_Data[*].Location", "target": "ppl_locations", "classification": "INTERNAL", "required": true },
+    { "source": "Worker_Data.Position_Data[*]", "target": "ppl_assignments", "classification": "INTERNAL", "required": true, "effectiveDated": true },
+    { "source": "Worker_Data.Personal_Data.Government_ID", "target": "ppl_person_identifiers.encrypted_value", "classification": "RESTRICTED", "required": false, "enabled": false, "gate": "KMS" },
+    { "source": "Worker_Data.Personal_Data.Private_Data", "target": "ppl_person_private.encrypted_payload", "classification": "RESTRICTED", "required": false, "enabled": false, "gate": "KMS" }
+  ]
+}

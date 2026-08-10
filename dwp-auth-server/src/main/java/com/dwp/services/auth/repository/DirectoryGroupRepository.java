@@ -9,11 +9,20 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
+import java.util.UUID;
 
 public interface DirectoryGroupRepository
         extends JpaRepository<DirectoryGroup, Long>, JpaSpecificationExecutor<DirectoryGroup> {
 
     Optional<DirectoryGroup> findByGroupIdAndTenantId(Long groupId, Long tenantId);
+
+    Optional<DirectoryGroup> findByPublicIdAndTenantId(UUID publicId, Long tenantId);
+
+    Optional<DirectoryGroup> findByTenantIdAndSourceTypeAndExternalId(
+            Long tenantId, String sourceType, String externalId);
+
+    Optional<DirectoryGroup> findByTenantIdAndSourceTypeAndDisplayName(
+            Long tenantId, String sourceType, String displayName);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""

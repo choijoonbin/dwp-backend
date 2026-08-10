@@ -39,6 +39,8 @@ public interface RoleMemberRepository extends JpaRepository<RoleMember, Long> {
 
     List<RoleMember> findByTenantIdAndUserId(Long tenantId, Long userId);
 
+    List<RoleMember> findByTenantIdAndRoleId(Long tenantId, Long roleId);
+
     List<RoleMember> findByTenantIdAndUserIdIn(Long tenantId, Collection<Long> userIds);
 
     long countByTenantIdAndRoleId(Long tenantId, Long roleId);
