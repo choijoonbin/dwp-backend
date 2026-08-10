@@ -8,6 +8,7 @@ import com.dwp.services.auth.dto.LoginResponse;
 import com.dwp.services.auth.dto.MeResponse;
 import com.dwp.services.auth.dto.OidcUserInfo;
 import com.dwp.services.auth.dto.PermissionDTO;
+import com.dwp.services.auth.dto.UpdatePreferredLocaleRequest;
 import com.dwp.services.auth.entity.LoginHistory;
 import com.dwp.services.auth.entity.Permission;
 import com.dwp.services.auth.entity.Resource;
@@ -30,7 +31,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.IllformedLocaleException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -148,15 +151,49 @@ public class AuthService {
         Tenant tenant = tenantRepository.findById(tenantId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
 
+        return toMeResponse(user, tenant);
+    }
+
+    @Transactional
+    public MeResponse updatePreferredLocale(
+            Long userId,
+            Long tenantId,
+            UpdatePreferredLocaleRequest request) {
+        User user = userRepository.findByUserIdAndTenantId(userId, tenantId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        Tenant tenant = tenantRepository.findById(tenantId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+
+        user.setPreferredLocale(canonicalLocale(request.locale()));
+        userRepository.save(user);
+        return toMeResponse(user, tenant);
+    }
+
+    private MeResponse toMeResponse(User user, Tenant tenant) {
         return MeResponse.builder()
                 .userId(user.getUserId())
                 .displayName(user.getDisplayName())
                 .email(user.getEmail())
                 .jobTitle(user.getJobTitle())
+                .preferredLocale(user.getPreferredLocale())
+                .tenantDefaultLocale(tenant.getDefaultLocale())
                 .tenantId(tenant.getTenantId())
                 .tenantCode(tenant.getCode())
-                .roles(getRoleCodes(userId, tenantId))
+                .roles(getRoleCodes(user.getUserId(), tenant.getTenantId()))
                 .build();
+    }
+
+    private String canonicalLocale(String locale) {
+        try {
+            Locale parsed = new Locale.Builder().setLanguageTag(locale.trim()).build();
+            String canonical = parsed.toLanguageTag();
+            if (canonical.isBlank() || "und".equalsIgnoreCase(canonical)) {
+                throw new IllformedLocaleException("Locale must identify a language");
+            }
+            return canonical;
+        } catch (IllformedLocaleException exception) {
+            throw new BaseException(ErrorCode.INVALID_FORMAT);
+        }
     }
 
     @Transactional(readOnly = true)

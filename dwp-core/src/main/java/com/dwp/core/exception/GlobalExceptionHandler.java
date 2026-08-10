@@ -5,6 +5,7 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.constant.HeaderConstants;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.MessageSource;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
@@ -17,12 +18,31 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 @Slf4j
 @RestControllerAdvice
 @SuppressWarnings("null")
 public class GlobalExceptionHandler {
+
+    private final MessageSource messageSource;
+
+    public GlobalExceptionHandler(MessageSource messageSource) {
+        this.messageSource = messageSource;
+    }
+
+    private String errorMessage(ErrorCode errorCode, Locale locale) {
+        return messageSource.getMessage(
+                "error." + errorCode.getCode(),
+                null,
+                errorCode.getMessage(),
+                locale);
+    }
+
+    private String message(String key, Object[] arguments, String fallback, Locale locale) {
+        return messageSource.getMessage(key, arguments, fallback, locale);
+    }
 
     private static String correlationId(HttpServletRequest request) {
         return request == null ? null : request.getHeader(HeaderConstants.X_CORRELATION_ID);
@@ -32,11 +52,17 @@ public class GlobalExceptionHandler {
      * 커스텀 BaseException 처리
      */
     @ExceptionHandler(BaseException.class)
-    public ResponseEntity<ApiResponse<Object>> handleBaseException(BaseException e, HttpServletRequest request) {
+    public ResponseEntity<ApiResponse<Object>> handleBaseException(
+            BaseException e,
+            HttpServletRequest request,
+            Locale locale) {
         log.error("BaseException: [{}] {}", e.getErrorCode().getCode(), e.getMessage(), e);
         return ResponseEntity
                 .status(e.getErrorCode().getHttpStatus())
-                .body(ApiResponse.error(e.getErrorCode(), e.getMessage(), correlationId(request)));
+                .body(ApiResponse.error(
+                        e.getErrorCode(),
+                        errorMessage(e.getErrorCode(), locale),
+                        correlationId(request)));
     }
     
     /**
@@ -44,7 +70,9 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Map<String, String>>> handleValidationExceptions(
-            MethodArgumentNotValidException e, HttpServletRequest request) {
+            MethodArgumentNotValidException e,
+            HttpServletRequest request,
+            Locale locale) {
         Map<String, String> errors = new HashMap<>();
         e.getBindingResult().getAllErrors().forEach((error) -> {
             String fieldName = ((FieldError) error).getField();
@@ -57,7 +85,7 @@ public class GlobalExceptionHandler {
                 .status(ErrorCode.VALIDATION_ERROR.getHttpStatus())
                 .body(ApiResponse.error(
                         ErrorCode.VALIDATION_ERROR,
-                        "입력값 검증에 실패했습니다.",
+                        errorMessage(ErrorCode.VALIDATION_ERROR, locale),
                         errors,
                         correlationId(request)));
     }
@@ -66,7 +94,10 @@ public class GlobalExceptionHandler {
      * @ModelAttribute 검증 실패 처리 (400)
      */
     @ExceptionHandler(BindException.class)
-    public ResponseEntity<ApiResponse<Map<String, String>>> handleBindException(BindException e, HttpServletRequest request) {
+    public ResponseEntity<ApiResponse<Map<String, String>>> handleBindException(
+            BindException e,
+            HttpServletRequest request,
+            Locale locale) {
         Map<String, String> errors = new HashMap<>();
         e.getBindingResult().getAllErrors().forEach((error) -> {
             String fieldName = ((FieldError) error).getField();
@@ -79,7 +110,7 @@ public class GlobalExceptionHandler {
                 .status(ErrorCode.VALIDATION_ERROR.getHttpStatus())
                 .body(ApiResponse.error(
                         ErrorCode.VALIDATION_ERROR,
-                        "입력값 검증에 실패했습니다.",
+                        errorMessage(ErrorCode.VALIDATION_ERROR, locale),
                         errors,
                         correlationId(request)));
     }
@@ -88,12 +119,19 @@ public class GlobalExceptionHandler {
      * 필수 요청 헤더 누락 처리 (400, 예: X-Tenant-ID)
      */
     @ExceptionHandler(MissingRequestHeaderException.class)
-    public ResponseEntity<ApiResponse<Object>> handleMissingRequestHeader(MissingRequestHeaderException e, HttpServletRequest request) {
+    public ResponseEntity<ApiResponse<Object>> handleMissingRequestHeader(
+            MissingRequestHeaderException e,
+            HttpServletRequest request,
+            Locale locale) {
         log.warn("Missing required header: {}", e.getHeaderName());
         return ResponseEntity
                 .status(ErrorCode.VALIDATION_ERROR.getHttpStatus())
                 .body(ApiResponse.error(ErrorCode.VALIDATION_ERROR,
-                        String.format("필수 헤더 '%s'가 누락되었습니다.", e.getHeaderName()),
+                        message(
+                                "request.missing-header",
+                                new Object[]{e.getHeaderName()},
+                                "Required header ''{0}'' is missing.",
+                                locale),
                         correlationId(request)));
     }
 
@@ -102,12 +140,18 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ApiResponse<Object>> handleTypeMismatchException(
-            MethodArgumentTypeMismatchException e, HttpServletRequest request) {
+            MethodArgumentTypeMismatchException e,
+            HttpServletRequest request,
+            Locale locale) {
         log.warn("Type mismatch error: {}", e.getMessage());
         return ResponseEntity
                 .status(ErrorCode.INVALID_INPUT_VALUE.getHttpStatus())
                 .body(ApiResponse.error(ErrorCode.INVALID_INPUT_VALUE, 
-                        String.format("파라미터 '%s'의 타입이 올바르지 않습니다.", e.getName()),
+                        message(
+                                "request.type-mismatch",
+                                new Object[]{e.getName()},
+                                "Parameter ''{0}'' has an invalid type.",
+                                locale),
                         correlationId(request)));
     }
     
@@ -116,14 +160,19 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiResponse<Object>> handleHttpMessageNotReadable(
-            HttpMessageNotReadableException e, HttpServletRequest request) {
+            HttpMessageNotReadableException e,
+            HttpServletRequest request,
+            Locale locale) {
         String msg = e.getCause() != null ? e.getCause().getMessage() : e.getMessage();
         log.warn("JSON parse error: {}", msg);
-        String detail = (msg != null && msg.length() > 200) ? msg.substring(0, 200) + "..." : (msg != null ? msg : "");
         return ResponseEntity
                 .status(ErrorCode.INVALID_FORMAT.getHttpStatus())
                 .body(ApiResponse.error(ErrorCode.INVALID_FORMAT,
-                        "요청 본문 형식이 올바르지 않습니다." + (detail.isEmpty() ? "" : " " + detail),
+                        message(
+                                "request.body-invalid",
+                                null,
+                                "The request body format is invalid.",
+                                locale),
                         correlationId(request)));
     }
 
@@ -132,13 +181,15 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<Object>> handleIllegalArgumentException(
-            IllegalArgumentException e, HttpServletRequest request) {
+            IllegalArgumentException e,
+            HttpServletRequest request,
+            Locale locale) {
         log.warn("Illegal argument: {}", e.getMessage());
         return ResponseEntity
                 .status(ErrorCode.INVALID_INPUT_VALUE.getHttpStatus())
                 .body(ApiResponse.error(
                         ErrorCode.INVALID_INPUT_VALUE,
-                        e.getMessage(),
+                        errorMessage(ErrorCode.INVALID_INPUT_VALUE, locale),
                         correlationId(request)));
     }
 
@@ -147,13 +198,19 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ApiResponse<Object>> handleMaxUploadSizeExceededException(
-            MaxUploadSizeExceededException e, HttpServletRequest request) {
+            MaxUploadSizeExceededException e,
+            HttpServletRequest request,
+            Locale locale) {
         log.warn("Upload size limit exceeded: {}", e.getMessage());
         return ResponseEntity
                 .status(ErrorCode.INVALID_INPUT_VALUE.getHttpStatus())
                 .body(ApiResponse.error(
                         ErrorCode.INVALID_INPUT_VALUE,
-                        "업로드 파일 크기가 허용 한도를 초과했습니다.",
+                        message(
+                                "request.upload-too-large",
+                                null,
+                                "The uploaded file exceeds the allowed size.",
+                                locale),
                         correlationId(request)));
     }
     
@@ -163,13 +220,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Object>> handleException(
             Exception e,
-            HttpServletRequest request) {
+            HttpServletRequest request,
+            Locale locale) {
         log.error("Unexpected error: {}", e.getMessage(), e);
         return ResponseEntity
                 .status(ErrorCode.INTERNAL_SERVER_ERROR.getHttpStatus())
                 .body(ApiResponse.error(
                         ErrorCode.INTERNAL_SERVER_ERROR,
-                        ErrorCode.INTERNAL_SERVER_ERROR.getMessage(),
+                        errorMessage(ErrorCode.INTERNAL_SERVER_ERROR, locale),
                         correlationId(request)));
     }
 }

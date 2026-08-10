@@ -5,26 +5,26 @@ import org.springframework.http.HttpStatus;
 
 @Getter
 public enum ErrorCode {
-    INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "E1000", "내부 서버 오류가 발생했습니다."),
-    INVALID_INPUT_VALUE(HttpStatus.BAD_REQUEST, "E1001", "잘못된 입력값입니다."),
-    NOT_FOUND(HttpStatus.NOT_FOUND, "E1004", "요청한 리소스를 찾을 수 없습니다."),
-    RESOURCE_CONFLICT(HttpStatus.CONFLICT, "E1009", "리소스가 현재 상태와 충돌합니다."),
+    INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "E1000", "An internal server error occurred."),
+    INVALID_INPUT_VALUE(HttpStatus.BAD_REQUEST, "E1001", "The input is invalid."),
+    NOT_FOUND(HttpStatus.NOT_FOUND, "E1004", "The requested resource was not found."),
+    RESOURCE_CONFLICT(HttpStatus.CONFLICT, "E1009", "The resource conflicts with its current state."),
 
-    UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "E2000", "인증이 필요합니다."),
-    FORBIDDEN(HttpStatus.FORBIDDEN, "E2001", "권한이 없습니다."),
-    TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "E2003", "유효하지 않은 토큰입니다."),
-    AUTH_INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "E2004", "잘못된 자격 증명입니다."),
-    AUTH_REQUIRED(HttpStatus.UNAUTHORIZED, "E2005", "인증이 필요합니다."),
-    TENANT_MISSING(HttpStatus.BAD_REQUEST, "E2006", "테넌트 정보가 필요합니다."),
-    TENANT_MISMATCH(HttpStatus.FORBIDDEN, "E2007", "테넌트 정보가 일치하지 않습니다."),
+    UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "E2000", "Authentication is required."),
+    FORBIDDEN(HttpStatus.FORBIDDEN, "E2001", "You do not have permission to perform this action."),
+    TOKEN_INVALID(HttpStatus.UNAUTHORIZED, "E2003", "The authentication token is invalid."),
+    AUTH_INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "E2004", "The credentials are invalid."),
+    AUTH_REQUIRED(HttpStatus.UNAUTHORIZED, "E2005", "Authentication is required."),
+    TENANT_MISSING(HttpStatus.BAD_REQUEST, "E2006", "Tenant information is required."),
+    TENANT_MISMATCH(HttpStatus.FORBIDDEN, "E2007", "Tenant information does not match."),
 
-    ENTITY_NOT_FOUND(HttpStatus.NOT_FOUND, "E3000", "엔티티를 찾을 수 없습니다."),
-    INVALID_STATE(HttpStatus.BAD_REQUEST, "E3002", "잘못된 상태입니다."),
+    ENTITY_NOT_FOUND(HttpStatus.NOT_FOUND, "E3000", "The requested entity was not found."),
+    INVALID_STATE(HttpStatus.BAD_REQUEST, "E3002", "The resource state is invalid."),
 
-    VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "E4000", "입력값 검증에 실패했습니다."),
-    INVALID_FORMAT(HttpStatus.BAD_REQUEST, "E4002", "잘못된 형식입니다."),
+    VALIDATION_ERROR(HttpStatus.BAD_REQUEST, "E4000", "Input validation failed."),
+    INVALID_FORMAT(HttpStatus.BAD_REQUEST, "E4002", "The format is invalid."),
 
-    EXTERNAL_SERVICE_ERROR(HttpStatus.BAD_GATEWAY, "E5000", "외부 서비스 오류가 발생했습니다.");
+    EXTERNAL_SERVICE_ERROR(HttpStatus.BAD_GATEWAY, "E5000", "An external service error occurred.");
 
     private final HttpStatus httpStatus;
     private final String code;

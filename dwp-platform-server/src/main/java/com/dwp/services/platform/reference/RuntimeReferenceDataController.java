@@ -1,6 +1,7 @@
 package com.dwp.services.platform.reference;
 
 import com.dwp.core.common.ApiResponse;
+import com.dwp.core.util.LocaleUtil;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -24,7 +25,10 @@ public class RuntimeReferenceDataController {
     public ApiResponse<ReferenceDataDtos.RuntimeReferenceSet> get(
             @RequestHeader(TENANT_HEADER) Long tenantId,
             @PathVariable String setKey,
-            @RequestParam(defaultValue = "en") String locale) {
-        return ApiResponse.success(service.getRuntimeSet(tenantId, setKey, locale));
+            @RequestParam(required = false) String locale) {
+        String requestedLocale = locale == null || locale.isBlank()
+                ? LocaleUtil.getLanguageTag()
+                : locale;
+        return ApiResponse.success(service.getRuntimeSet(tenantId, setKey, requestedLocale));
     }
 }

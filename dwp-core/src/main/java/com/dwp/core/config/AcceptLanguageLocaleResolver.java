@@ -1,22 +1,22 @@
 package com.dwp.core.config;
 
-import com.dwp.core.util.LocaleUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.lang.NonNull;
 import org.springframework.web.servlet.i18n.AcceptHeaderLocaleResolver;
 
+import java.util.List;
 import java.util.Locale;
 
 /**
  * Accept-Language 헤더 기반 LocaleResolver
  *
- * DWP 플랫폼 i18n 규칙:
- * - 허용 값: ko, en (그 외는 ko fallback)
- * - LocaleContextHolder에 세팅하여 LocaleUtil.getLang()에서 사용
+ * Resolves the highest-priority valid BCP 47 language range from Accept-Language.
+ * Product and tenant layers decide which resources are supported; the HTTP layer
+ * must not hard-code a closed language list.
  */
 public class AcceptLanguageLocaleResolver extends AcceptHeaderLocaleResolver {
 
-    private static final Locale DEFAULT_LOCALE = Locale.KOREAN;
+    private static final Locale DEFAULT_LOCALE = Locale.ENGLISH;
 
     @Override
     @NonNull
@@ -25,13 +25,18 @@ public class AcceptLanguageLocaleResolver extends AcceptHeaderLocaleResolver {
         if (acceptLanguage == null || acceptLanguage.isBlank()) {
             return DEFAULT_LOCALE;
         }
-        // Accept-Language: ko-KR,ko;q=0.9,en;q=0.8 → 첫 번째 유효한 언어 추출
-        String primary = acceptLanguage.split(",")[0].trim().split("-")[0].trim().toLowerCase();
-        if (LocaleUtil.LANG_EN.equals(primary)) {
-            return Locale.ENGLISH;
-        }
-        if (LocaleUtil.LANG_KO.equals(primary)) {
-            return Locale.KOREAN;
+        try {
+            List<Locale.LanguageRange> ranges = Locale.LanguageRange.parse(acceptLanguage);
+            for (Locale.LanguageRange range : ranges) {
+                String languageTag = range.getRange();
+                if ("*".equals(languageTag) || languageTag.contains("*")) continue;
+                Locale locale = Locale.forLanguageTag(languageTag);
+                if (!locale.getLanguage().isBlank() && !"und".equals(locale.toLanguageTag())) {
+                    return locale;
+                }
+            }
+        } catch (IllegalArgumentException ignored) {
+            // Malformed client input falls back to the documented product default.
         }
         return DEFAULT_LOCALE;
     }

@@ -32,6 +32,9 @@ public class User extends BaseEntity {
     @Column(name = "job_title", length = 160)
     private String jobTitle;
 
+    @Column(name = "preferred_locale", length = 35)
+    private String preferredLocale;
+
     @Builder.Default
     @Column(nullable = false, length = 20)
     private String status = "ACTIVE";

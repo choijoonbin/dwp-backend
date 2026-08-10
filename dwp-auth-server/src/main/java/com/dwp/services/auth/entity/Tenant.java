@@ -27,4 +27,8 @@ public class Tenant extends BaseEntity {
     @Builder.Default
     @Column(nullable = false, length = 20)
     private String status = "ACTIVE";
+
+    @Builder.Default
+    @Column(name = "default_locale", nullable = false, length = 35)
+    private String defaultLocale = "en";
 }

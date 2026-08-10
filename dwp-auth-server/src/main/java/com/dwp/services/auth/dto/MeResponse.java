@@ -13,6 +13,8 @@ public class MeResponse {
     private String displayName;
     private String email;
     private String jobTitle;
+    private String preferredLocale;
+    private String tenantDefaultLocale;
     private Long tenantId;
     private String tenantCode;
     private List<String> roles;
