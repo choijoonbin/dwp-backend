@@ -115,6 +115,15 @@ public class AdminAuditControlController {
         return ApiResponse.success(service.findings(tenantId, status));
     }
 
+    @GetMapping("/findings/{findingId}/context")
+    public ApiResponse<AuditControlDtos.FindingContext> findingContext(
+            @RequestHeader(TENANT) Long tenantId,
+            @RequestHeader(PERMISSIONS) String permissions,
+            @PathVariable UUID findingId) {
+        guard.investigate(permissions);
+        return ApiResponse.success(service.findingContext(tenantId, findingId));
+    }
+
     @PatchMapping("/findings/{findingId}")
     public ApiResponse<AuditControlDtos.Finding> updateFinding(
             @RequestHeader(TENANT) Long tenantId,
@@ -164,6 +173,49 @@ public class AdminAuditControlController {
             @RequestBody AuditControlDtos.CaseEventLink request) {
         guard.investigate(permissions);
         return ApiResponse.success(service.linkEvent(tenantId, actorId, caseId, request));
+    }
+
+    @GetMapping("/cases/{caseId}/workspace")
+    public ApiResponse<AuditControlDtos.CaseWorkspace> caseWorkspace(
+            @RequestHeader(TENANT) Long tenantId,
+            @RequestHeader(PERMISSIONS) String permissions,
+            @PathVariable UUID caseId) {
+        guard.investigate(permissions);
+        return ApiResponse.success(service.caseWorkspace(tenantId, caseId));
+    }
+
+    @PostMapping("/cases/{caseId}/notes")
+    public ApiResponse<AuditControlDtos.CaseWorkspace> addCaseNote(
+            @RequestHeader(TENANT) Long tenantId,
+            @RequestHeader(USER) String actorId,
+            @RequestHeader(PERMISSIONS) String permissions,
+            @PathVariable UUID caseId,
+            @RequestBody AuditControlDtos.CaseNoteCreate request) {
+        guard.investigate(permissions);
+        return ApiResponse.success(service.addCaseNote(tenantId, actorId, caseId, request));
+    }
+
+    @PostMapping("/cases/{caseId}/tasks")
+    public ApiResponse<AuditControlDtos.CaseTask> createCaseTask(
+            @RequestHeader(TENANT) Long tenantId,
+            @RequestHeader(USER) String actorId,
+            @RequestHeader(PERMISSIONS) String permissions,
+            @PathVariable UUID caseId,
+            @RequestBody AuditControlDtos.CaseTaskCreate request) {
+        guard.investigate(permissions);
+        return ApiResponse.success(service.createCaseTask(tenantId, actorId, caseId, request));
+    }
+
+    @PatchMapping("/cases/{caseId}/tasks/{taskId}")
+    public ApiResponse<AuditControlDtos.CaseTask> updateCaseTask(
+            @RequestHeader(TENANT) Long tenantId,
+            @RequestHeader(USER) String actorId,
+            @RequestHeader(PERMISSIONS) String permissions,
+            @PathVariable UUID caseId,
+            @PathVariable UUID taskId,
+            @RequestBody AuditControlDtos.CaseTaskUpdate request) {
+        guard.investigate(permissions);
+        return ApiResponse.success(service.updateCaseTask(tenantId, actorId, caseId, taskId, request));
     }
 
     @GetMapping("/policy")

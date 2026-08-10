@@ -35,6 +35,7 @@ public class AuditControlService {
     private static final Set<String> CASE_STATES = Set.of(
             "OPEN", "INVESTIGATING", "CONTAINED", "RESOLVED", "CLOSED");
     private static final Set<String> CASE_SEVERITIES = Set.of("LOW", "MEDIUM", "HIGH", "CRITICAL");
+    private static final Set<String> TASK_STATES = Set.of("OPEN", "IN_PROGRESS", "DONE", "SKIPPED");
 
     private final AuditControlRepository repository;
     private final AuditRiskEngine riskEngine;
@@ -118,15 +119,49 @@ public class AuditControlService {
         return repository.findings(tenantId, status, 200);
     }
 
+    @Transactional(readOnly = true)
+    public AuditControlDtos.FindingContext findingContext(Long tenantId, UUID findingId) {
+        AuditControlDtos.Finding finding = repository.finding(tenantId, findingId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        AuditControlDtos.Event primary = finding.eventId() == null
+                ? null
+                : repository.event(tenantId, finding.eventId()).orElse(null);
+        List<AuditControlDtos.Event> related = primary == null
+                ? List.of()
+                : repository.relatedEvents(tenantId, primary, 24);
+        return new AuditControlDtos.FindingContext(finding, primary, related);
+    }
+
     @Transactional
     public AuditControlDtos.Finding updateFinding(
             Long tenantId, String actorId, UUID findingId, AuditControlDtos.FindingUpdate request) {
+        AuditControlDtos.Finding before = repository.finding(tenantId, findingId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         String status = normalized(request.status());
         if (status != null && !FINDING_STATES.contains(status)) throw invalid("Invalid finding status.");
         AuditControlDtos.FindingUpdate normalized = new AuditControlDtos.FindingUpdate(
                 status, clean(request.assignedTo(), 160), clean(request.resolution(), 2_000), request.caseId());
         AuditControlDtos.Finding result = repository.updateFinding(tenantId, findingId, normalized)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        if (result.caseId() != null) {
+            if (!result.caseId().equals(before.caseId())) {
+                repository.recordCaseActivity(
+                        tenantId, result.caseId(), "FINDING_LINKED", actorId,
+                        "audit.finding.linked", Map.of(
+                                "findingId", result.findingId().toString(),
+                                "severity", result.severity(),
+                                "riskScore", result.riskScore()));
+            }
+            if (result.eventId() != null) {
+                repository.event(tenantId, result.eventId()).ifPresent(event -> {
+                    repository.linkEvent(
+                            tenantId, result.caseId(), actorId,
+                            new AuditControlDtos.CaseEventLink(
+                                    event.eventId(), event.occurredAt(), "Linked from finding"));
+                    captureEntities(tenantId, result.caseId(), actorId, event);
+                });
+            }
+        }
         recordControl(tenantId, actorId, "audit.finding.updated", "AUDIT_FINDING", findingId.toString(),
                 Map.of("status", result.status(), "severity", result.severity()));
         return result;
@@ -147,6 +182,9 @@ public class AuditControlService {
                 request.title().trim(), clean(request.description(), 4_000), severity,
                 clean(request.ownerActorId(), 160));
         UUID caseId = repository.createCase(tenantId, actorId, normalized);
+        repository.recordCaseActivity(
+                tenantId, caseId, "CASE_CREATED", actorId, "audit.case.created",
+                Map.of("severity", severity, "title", normalized.title()));
         recordControl(tenantId, actorId, "audit.case.created", "AUDIT_CASE", caseId.toString(),
                 Map.of("severity", severity));
         return repository.caseById(tenantId, caseId)
@@ -156,6 +194,8 @@ public class AuditControlService {
     @Transactional
     public AuditControlDtos.AuditCase updateCase(
             Long tenantId, String actorId, UUID caseId, AuditControlDtos.CaseUpdate request) {
+        AuditControlDtos.AuditCase before = repository.caseById(tenantId, caseId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         String status = normalized(request.status());
         String severity = normalized(request.severity());
         if (status != null && !CASE_STATES.contains(status)) throw invalid("Invalid case status.");
@@ -168,6 +208,19 @@ public class AuditControlService {
                 clean(request.ownerActorId(), 160), clean(request.resolution(), 4_000)));
         AuditControlDtos.AuditCase result = repository.caseById(tenantId, caseId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        String activityType = !result.status().equals(before.status())
+                ? "STATUS_CHANGED"
+                : !java.util.Objects.equals(result.ownerActorId(), before.ownerActorId())
+                        ? "ASSIGNMENT_CHANGED"
+                        : result.resolution() != null && !java.util.Objects.equals(result.resolution(), before.resolution())
+                                ? "RESOLUTION_RECORDED" : "CASE_UPDATED";
+        Map<String, Object> activity = new LinkedHashMap<>();
+        activity.put("fromStatus", before.status());
+        activity.put("toStatus", result.status());
+        putIfPresent(activity, "owner", result.ownerActorId());
+        activity.put("severity", result.severity());
+        repository.recordCaseActivity(
+                tenantId, caseId, activityType, actorId, "audit.case.updated", activity);
         recordControl(tenantId, actorId, "audit.case.updated", "AUDIT_CASE", caseId.toString(),
                 Map.of("status", result.status(), "severity", result.severity()));
         return result;
@@ -179,11 +232,99 @@ public class AuditControlService {
         if (request.eventId() == null || request.occurredAt() == null) {
             throw invalid("eventId and occurredAt are required.");
         }
-        repository.linkEvent(tenantId, caseId, actorId, request);
+        int linked = repository.linkEvent(tenantId, caseId, actorId, request);
+        if (linked == 0) throw new BaseException(ErrorCode.NOT_FOUND);
+        AuditControlDtos.Event event = repository.event(tenantId, request.eventId())
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        captureEntities(tenantId, caseId, actorId, event);
+        Map<String, Object> activity = new LinkedHashMap<>();
+        activity.put("eventId", request.eventId().toString());
+        activity.put("occurredAt", request.occurredAt().toString());
+        putIfPresent(activity, "note", clean(request.note(), 2_000));
+        repository.recordCaseActivity(
+                tenantId, caseId, "EVIDENCE_LINKED", actorId,
+                "audit.case.evidence-linked", activity);
         recordControl(tenantId, actorId, "audit.case.event-linked", "AUDIT_CASE", caseId.toString(),
                 Map.of("eventId", request.eventId().toString()));
         return repository.caseById(tenantId, caseId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+    }
+
+    @Transactional(readOnly = true)
+    public AuditControlDtos.CaseWorkspace caseWorkspace(Long tenantId, UUID caseId) {
+        AuditControlDtos.AuditCase auditCase = repository.caseById(tenantId, caseId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        List<AuditControlDtos.Finding> findings = repository.caseFindings(tenantId, caseId);
+        List<AuditControlDtos.Event> evidence = repository.caseEvidence(tenantId, caseId);
+        List<AuditControlDtos.CaseEntity> entities = repository.caseEntities(tenantId, caseId);
+        List<AuditControlDtos.CaseActivity> activities = repository.caseActivities(tenantId, caseId);
+        List<AuditControlDtos.CaseTask> tasks = repository.caseTasks(tenantId, caseId);
+        Instant now = Instant.now();
+        int maxRisk = java.util.stream.Stream.concat(
+                        findings.stream().map(AuditControlDtos.Finding::riskScore),
+                        evidence.stream().map(AuditControlDtos.Event::riskScore))
+                .max(Integer::compareTo).orElse(0);
+        int openTasks = (int) tasks.stream()
+                .filter(task -> !Set.of("DONE", "SKIPPED").contains(task.status())).count();
+        int overdueTasks = (int) tasks.stream()
+                .filter(task -> !Set.of("DONE", "SKIPPED").contains(task.status()))
+                .filter(task -> task.dueAt() != null && task.dueAt().isBefore(now)).count();
+        return new AuditControlDtos.CaseWorkspace(
+                auditCase,
+                new AuditControlDtos.InvestigationSummary(
+                        maxRisk, openTasks, overdueTasks,
+                        evidence.size(), findings.size(), entities.size()),
+                findings, evidence, entities, activities, tasks);
+    }
+
+    @Transactional
+    public AuditControlDtos.CaseWorkspace addCaseNote(
+            Long tenantId, String actorId, UUID caseId, AuditControlDtos.CaseNoteCreate request) {
+        required(request.message(), 2_000, "message");
+        int inserted = repository.recordCaseActivity(
+                tenantId, caseId, "NOTE_ADDED", actorId,
+                request.message().trim(), Map.of());
+        if (inserted == 0) throw new BaseException(ErrorCode.NOT_FOUND);
+        recordControl(tenantId, actorId, "audit.case.note-added", "AUDIT_CASE", caseId.toString(), Map.of());
+        return caseWorkspace(tenantId, caseId);
+    }
+
+    @Transactional
+    public AuditControlDtos.CaseTask createCaseTask(
+            Long tenantId, String actorId, UUID caseId, AuditControlDtos.CaseTaskCreate request) {
+        required(request.title(), 240, "title");
+        String priority = normalized(request.priority());
+        if (priority == null) priority = "MEDIUM";
+        if (!CASE_SEVERITIES.contains(priority)) throw invalid("Invalid task priority.");
+        AuditControlDtos.CaseTaskCreate normalized = new AuditControlDtos.CaseTaskCreate(
+                request.title().trim(), clean(request.description(), 2_000), priority,
+                clean(request.ownerActorId(), 160), request.dueAt());
+        UUID taskId = repository.createCaseTask(tenantId, caseId, actorId, normalized);
+        repository.recordCaseActivity(
+                tenantId, caseId, "TASK_CREATED", actorId, "audit.case.task-created",
+                Map.of("taskId", taskId.toString(), "title", normalized.title(), "priority", priority));
+        return repository.caseTask(tenantId, caseId, taskId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+    }
+
+    @Transactional
+    public AuditControlDtos.CaseTask updateCaseTask(
+            Long tenantId, String actorId, UUID caseId, UUID taskId,
+            AuditControlDtos.CaseTaskUpdate request) {
+        String status = normalized(request.status());
+        String priority = normalized(request.priority());
+        if (status != null && !TASK_STATES.contains(status)) throw invalid("Invalid task status.");
+        if (priority != null && !CASE_SEVERITIES.contains(priority)) throw invalid("Invalid task priority.");
+        AuditControlDtos.CaseTask result = repository.updateCaseTask(
+                        tenantId, caseId, taskId, actorId,
+                        new AuditControlDtos.CaseTaskUpdate(
+                                clean(request.title(), 240), clean(request.description(), 2_000),
+                                status, priority, clean(request.ownerActorId(), 160), request.dueAt()))
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        repository.recordCaseActivity(
+                tenantId, caseId, "TASK_UPDATED", actorId, "audit.case.task-updated",
+                Map.of("taskId", taskId.toString(), "status", result.status()));
+        return result;
     }
 
     @Transactional(readOnly = true)
@@ -313,6 +454,59 @@ public class AuditControlService {
                 .actorType("USER").actorId(actorId).sourceService("dwp-platform-server")
                 .sourceModule("audit-control-plane").targetType(targetType).targetId(targetId)
                 .metadata(metadata).retentionClass("EXTENDED").build());
+    }
+
+    private void captureEntities(
+            Long tenantId, UUID caseId, String actorId, AuditControlDtos.Event event) {
+        Instant occurredAt = event.occurredAt();
+        if (event.actorId() != null && !event.actorId().isBlank()) {
+            Map<String, Object> attributes = new LinkedHashMap<>();
+            putIfPresent(attributes, "principal", event.actorPrincipal());
+            attributes.put("actorType", event.actorType());
+            repository.upsertCaseEntity(
+                    tenantId, caseId, actorId,
+                    new AuditControlDtos.CaseEntity(
+                            actorEntityType(event.actorType()), event.actorId(),
+                            first(event.actorDisplayName(), event.actorPrincipal(), event.actorId()),
+                            "ACTOR", event.riskScore(), occurredAt, occurredAt, attributes));
+        }
+
+        Map<String, Object> targetAttributes = new LinkedHashMap<>();
+        targetAttributes.put("targetType", event.targetType());
+        repository.upsertCaseEntity(
+                tenantId, caseId, actorId,
+                new AuditControlDtos.CaseEntity(
+                        targetEntityType(event.targetType()), event.targetId(),
+                        first(event.targetDisplayName(), event.targetId()),
+                        "TARGET", event.riskScore(), occurredAt, occurredAt, targetAttributes));
+
+        Map<String, Object> sourceAttributes = new LinkedHashMap<>();
+        sourceAttributes.put("module", event.sourceModule());
+        sourceAttributes.put("environment", event.environment());
+        repository.upsertCaseEntity(
+                tenantId, caseId, actorId,
+                new AuditControlDtos.CaseEntity(
+                        "SERVICE", event.sourceService(), event.sourceService(),
+                        "SOURCE", event.riskScore(), occurredAt, occurredAt, sourceAttributes));
+    }
+
+    private String actorEntityType(String actorType) {
+        return switch (actorType) {
+            case "USER" -> "USER";
+            case "AGENT" -> "AI_AGENT";
+            case "SERVICE", "SYSTEM" -> "SERVICE";
+            default -> "OTHER";
+        };
+    }
+
+    private String targetEntityType(String targetType) {
+        String normalized = targetType == null ? "" : targetType.toUpperCase(Locale.ROOT);
+        if (normalized.contains("USER") || normalized.contains("PERSON")) return "USER";
+        if (normalized.contains("SERVICE")) return "SERVICE";
+        if (normalized.contains("AGENT") || normalized.contains("AI")) return "AI_AGENT";
+        if (normalized.contains("APP")) return "APPLICATION";
+        if (normalized.contains("DATA") || normalized.contains("EXPORT")) return "DATA";
+        return "RESOURCE";
     }
 
     private void putIfPresent(Map<String, Object> target, String key, String value) {

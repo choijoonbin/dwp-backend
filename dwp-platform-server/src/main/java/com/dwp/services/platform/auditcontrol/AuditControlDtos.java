@@ -42,17 +42,46 @@ public final class AuditControlDtos {
             Instant firstSeenAt, Instant lastSeenAt, String assignedTo, UUID caseId,
             String resolution, Instant updatedAt) { }
     public record FindingUpdate(String status, String assignedTo, String resolution, UUID caseId) { }
+    public record FindingContext(
+            Finding finding, Event primaryEvent, List<Event> relatedEvents) { }
 
     public record AuditCase(
             UUID caseId, long caseNumber, String title, String description, String severity,
             String status, String ownerActorId, String resolution, Instant openedAt,
-            Instant closedAt, String createdBy, String updatedBy, Instant updatedAt,
+            Instant dueAt, String slaState, Instant closedAt,
+            String createdBy, String updatedBy, Instant updatedAt,
             int linkedEvents, int linkedFindings) { }
     public record CaseCreate(String title, String description, String severity, String ownerActorId) { }
     public record CaseUpdate(
             String title, String description, String severity, String status,
             String ownerActorId, String resolution) { }
     public record CaseEventLink(UUID eventId, Instant occurredAt, String note) { }
+    public record CaseEntity(
+            String entityType, String entityId, String displayName, String relationship,
+            int riskScore, Instant firstSeenAt, Instant lastSeenAt,
+            Map<String, Object> attributes) { }
+    public record CaseActivity(
+            UUID activityId, String activityType, String actorId, String message,
+            Map<String, Object> payload, Instant occurredAt) { }
+    public record CaseTask(
+            UUID taskId, String title, String description, String status, String priority,
+            String ownerActorId, Instant dueAt, Instant completedAt,
+            String createdBy, String updatedBy, Instant createdAt, Instant updatedAt) { }
+    public record CaseTaskCreate(
+            String title, String description, String priority,
+            String ownerActorId, Instant dueAt) { }
+    public record CaseTaskUpdate(
+            String title, String description, String status, String priority,
+            String ownerActorId, Instant dueAt) { }
+    public record CaseNoteCreate(String message) { }
+    public record InvestigationSummary(
+            int maxRiskScore, int openTasks, int overdueTasks,
+            int evidenceCount, int findingCount, int entityCount) { }
+    public record CaseWorkspace(
+            AuditCase auditCase, InvestigationSummary summary,
+            List<Finding> findings, List<Event> evidence,
+            List<CaseEntity> entities, List<CaseActivity> activities,
+            List<CaseTask> tasks) { }
 
     public record SavedSearch(
             UUID savedSearchId, String name, Map<String, Object> criteria,
