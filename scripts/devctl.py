@@ -137,9 +137,15 @@ def save_state(state: dict[str, dict[str, object]]) -> None:
 def process_alive(pid: int) -> bool:
     try:
         os.kill(pid, 0)
-        return True
     except OSError:
         return False
+    status = subprocess.run(
+        ("ps", "-o", "stat=", "-p", str(pid)),
+        check=False,
+        text=True,
+        capture_output=True,
+    ).stdout.strip()
+    return bool(status) and not status.startswith("Z")
 
 
 def port_open(port: int) -> bool:
@@ -168,6 +174,22 @@ def local_environment() -> dict[str, str]:
         "DWP_PEOPLE_SERVICE_TOKEN": "dwp-local-people-service-token",
         "DWP_PEOPLE_CURSOR_SECRET": "dwp-local-people-cursor-secret-change-outside-local",
         "DWP_PROVIDER_SERVICE_TOKEN": "dwp-local-provider-service-token",
+        "DWP_PROVIDER_PROVISIONING_TOKEN": (
+            "dwp-local-provider-provisioning-token-change-outside-local"
+        ),
+        "DWP_API_HISTORY_COLLECTOR_URL": (
+            "http://localhost:8002/internal/observability/api-history"
+        ),
+        "DWP_API_HISTORY_INGEST_TOKEN": (
+            "dwp-local-api-history-ingest-token-change-outside-local"
+        ),
+        "DWP_API_HISTORY_PRIVACY_HASH_SECRET": (
+            "dwp-local-api-history-privacy-secret-change-outside-local"
+        ),
+        "DWP_API_HISTORY_CURSOR_SECRET": (
+            "dwp-local-api-history-cursor-secret-change-outside-local"
+        ),
+        "DWP_ENVIRONMENT": "local",
         "VITE_API_URL": "http://localhost:8080",
     }
     for key, value in defaults.items():
@@ -192,6 +214,8 @@ def service_environment(service_name: str) -> dict[str, str]:
         environment.pop("DWP_PEOPLE_CURSOR_SECRET", None)
     if service_name not in {"gateway", "provider"}:
         environment.pop("DWP_PROVIDER_SERVICE_TOKEN", None)
+    if service_name not in {"auth", "platform", "people", "provider"}:
+        environment.pop("DWP_PROVIDER_PROVISIONING_TOKEN", None)
     return environment
 
 

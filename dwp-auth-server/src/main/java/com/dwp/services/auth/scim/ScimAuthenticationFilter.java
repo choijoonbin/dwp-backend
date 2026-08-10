@@ -1,5 +1,6 @@
 package com.dwp.services.auth.scim;
 
+import com.dwp.observability.api.ApiHistoryAttributes;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -50,6 +51,10 @@ public class ScimAuthenticationFilter extends OncePerRequestFilter {
         try {
             ScimConnectorContext.ConnectorIdentity identity = credentialService.authenticate(token);
             ScimConnectorContext.set(identity);
+            request.setAttribute(ApiHistoryAttributes.ACTOR_TYPE, "SERVICE");
+            request.setAttribute(ApiHistoryAttributes.ACTOR_ID, "scim:" + identity.connectorKey());
+            request.setAttribute(ApiHistoryAttributes.TENANT_ID, identity.tenantId());
+            request.setAttribute(ApiHistoryAttributes.AUTH_TYPE, "SCIM");
             UsernamePasswordAuthenticationToken authentication =
                     new UsernamePasswordAuthenticationToken(
                             identity,

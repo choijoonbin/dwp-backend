@@ -45,7 +45,9 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return path.startsWith("/actuator/health") || path.equals("/error");
+        return path.startsWith("/actuator/health")
+                || path.startsWith("/internal/provider/")
+                || path.equals("/error");
     }
 
     @Override

@@ -20,6 +20,19 @@ spring:
     validate-on-migrate: true
 
 dwp:
+  provider:
+    provisioning-token: ${DWP_PROVIDER_PROVISIONING_TOKEN:}
+  observability:
+    api-history:
+      enabled: ${DWP_API_HISTORY_ENABLED:true}
+      collector-url: ${DWP_API_HISTORY_COLLECTOR_URL:}
+      ingest-token: ${DWP_API_HISTORY_INGEST_TOKEN:}
+      privacy-hash-secret: ${DWP_API_HISTORY_PRIVACY_HASH_SECRET:}
+      environment: ${DWP_ENVIRONMENT:local}
+      service-instance: ${DWP_SERVICE_INSTANCE:${HOSTNAME:local}}
+      queue-capacity: ${DWP_API_HISTORY_QUEUE_CAPACITY:4096}
+      batch-size: ${DWP_API_HISTORY_BATCH_SIZE:100}
+      flush-interval: ${DWP_API_HISTORY_FLUSH_INTERVAL:PT1S}
   people:
     service-token: ${DWP_PEOPLE_SERVICE_TOKEN:}
     cursor-secret: ${DWP_PEOPLE_CURSOR_SECRET:}

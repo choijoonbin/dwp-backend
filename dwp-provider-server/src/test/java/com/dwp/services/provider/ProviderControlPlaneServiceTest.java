@@ -9,6 +9,8 @@ import com.dwp.services.provider.operation.ProviderOperation;
 import com.dwp.services.provider.operation.ProviderOperationRepository;
 import com.dwp.services.provider.operation.ProviderOperationStep;
 import com.dwp.services.provider.operation.ProviderOperationStepRepository;
+import com.dwp.services.provider.provisioning.DownstreamProvisioningClient;
+import com.dwp.services.provider.provisioning.ProviderProvisioningOrchestrator;
 import com.dwp.services.provider.security.ProviderRequestContext;
 import com.dwp.services.provider.tenant.ProviderTenant;
 import com.dwp.services.provider.tenant.ProviderTenantRepository;
@@ -38,18 +40,22 @@ class ProviderControlPlaneServiceTest {
     private final TenantEntitlementRepository tenantEntitlementRepository = mock(TenantEntitlementRepository.class);
     private final ProviderOperationRepository operationRepository = mock(ProviderOperationRepository.class);
     private final ProviderOperationStepRepository stepRepository = mock(ProviderOperationStepRepository.class);
+    private final ProviderEstateRepository estateRepository = mock(ProviderEstateRepository.class);
     private final ProviderControlPlaneService service = new ProviderControlPlaneService(
             tenantRepository,
             entitlementRepository,
             tenantEntitlementRepository,
             operationRepository,
             stepRepository,
+            estateRepository,
+            mock(ProviderProvisioningOrchestrator.class),
+            mock(DownstreamProvisioningClient.class),
             mock(ProviderAuditService.class),
             new ObjectMapper());
 
     @BeforeEach
     void setContext() {
-        ProviderRequestContext.set(12L, 1L);
+        ProviderRequestContext.setForTest(12L, 1L);
     }
 
     @AfterEach
@@ -73,6 +79,10 @@ class ProviderControlPlaneServiceTest {
         when(operationRepository.findByIdempotencyKey("tenant:onboard:acme"))
                 .thenAnswer(ignored -> Optional.ofNullable(stored.get()));
         when(tenantRepository.findByTenantKey("acme")).thenReturn(Optional.empty());
+        when(estateRepository.regions()).thenReturn(List.of(
+                new ProviderDtos.RegionSummary(
+                        "ap-northeast-2", "Seoul", "KR", "STANDARD", "ACTIVE")));
+        when(estateRepository.organizationIdByKey("acme-org")).thenReturn(Optional.empty());
         when(operationRepository.saveAndFlush(any())).thenAnswer(invocation -> {
             ProviderOperation operation = invocation.getArgument(0);
             operation.setOperationId(UUID.fromString("10000000-0000-0000-0000-000000000001"));
@@ -97,11 +107,11 @@ class ProviderControlPlaneServiceTest {
 
         assertThat(replay.operationId()).isEqualTo(first.operationId());
         assertThat(first.planHash()).hasSize(64);
-        assertThat(first.plan()).contains("downstream-provisioning-adapter", "KMS", "S3");
+        assertThat(first.plan()).contains("IDEMPOTENT_SAGA", "initialAdministrator");
         assertThat(first.steps()).extracting(ProviderDtos.OperationStep::stepKey)
                 .containsExactly(
                         "CONTROL_RECORD", "AUTH_TENANT", "PLATFORM_TENANT",
-                        "PEOPLE_TENANT", "ASSET_STORAGE");
+                        "PEOPLE_TENANT", "ASSET_STORAGE", "ACTIVATE_TENANT");
         verify(operationRepository, times(1)).saveAndFlush(any());
 
         assertThatThrownBy(() -> service.previewOnboarding(
@@ -137,7 +147,10 @@ class ProviderControlPlaneServiceTest {
 
     private ProviderDtos.OnboardingPlanRequest request(String displayName) {
         return new ProviderDtos.OnboardingPlanRequest(
-                "acme", displayName, "ENTERPRISE", "ap-northeast-2", "POOL",
+                "acme-org", "Acme Organization", "Acme Corporation", "CRM-1001",
+                "acme", displayName, "production", "ENTERPRISE", "ap-northeast-2", "POOL",
+                "ko-KR", "Asia/Seoul", "acme.example.com",
+                "Acme Administrator", "admin@acme.example.com", "admin@acme.example.com",
                 List.of("core.workspace"), "Approved enterprise onboarding request");
     }
 }

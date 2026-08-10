@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Arrays;
+import java.util.Set;
 
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
@@ -27,6 +28,8 @@ public class ProviderSecurityFilter extends OncePerRequestFilter {
     private static final String USER_HEADER = "X-DWP-User-ID";
     private static final String TENANT_HEADER = "X-DWP-Tenant-ID";
     private static final String ROLES_HEADER = "X-DWP-Roles";
+    private static final Set<String> PROVIDER_ROLES = Set.of(
+            "PROVIDER_ADMIN", "PROVIDER_OPERATOR", "PROVIDER_SUPPORT", "PROVIDER_AUDITOR");
 
     private final String serviceToken;
     private final ProviderOperatorService operatorService;
@@ -65,14 +68,16 @@ public class ProviderSecurityFilter extends OncePerRequestFilter {
         Long authTenantId = positiveLong(request.getHeader(TENANT_HEADER));
         boolean providerRole = Arrays.stream(value(request.getHeader(ROLES_HEADER)).split(","))
                 .map(String::trim)
-                .anyMatch("PROVIDER_ADMIN"::equals);
-        if (userId == null || authTenantId == null || !providerRole
-                || !operatorService.isActive(authTenantId, userId)) {
+                .anyMatch(PROVIDER_ROLES::contains);
+        ProviderRequestContext.Actor operator = userId == null || authTenantId == null
+                ? null
+                : operatorService.activeOperator(authTenantId, userId).orElse(null);
+        if (!providerRole || operator == null) {
             error(response, ErrorCode.FORBIDDEN,
                     "An active provider operator identity is required.");
             return;
         }
-        ProviderRequestContext.set(userId, authTenantId);
+        ProviderRequestContext.set(operator);
         try {
             chain.doFilter(request, response);
         } finally {

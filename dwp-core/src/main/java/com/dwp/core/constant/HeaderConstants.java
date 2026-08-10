@@ -7,6 +7,11 @@ public final class HeaderConstants {
 
     public static final String X_TENANT_ID = "X-Tenant-ID";
     public static final String X_CORRELATION_ID = "X-Correlation-ID";
+    public static final String X_DWP_USER_ID = "X-DWP-User-ID";
+    public static final String X_DWP_TENANT_ID = "X-DWP-Tenant-ID";
+    public static final String X_DWP_ROLES = "X-DWP-Roles";
+    public static final String X_DWP_SERVICE_TOKEN = "X-DWP-Service-Token";
+    public static final String TRACE_PARENT = "traceparent";
 
     private HeaderConstants() {
     }

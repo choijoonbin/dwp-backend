@@ -25,14 +25,50 @@ public class ProviderAuditService {
             String targetId,
             String correlationId,
             Object snapshot) {
+        record("SUCCESS", action, targetType, targetId, null, null, correlationId, snapshot);
+    }
+
+    public void success(
+            String action,
+            String targetType,
+            String targetId,
+            UUID tenantId,
+            UUID organizationId,
+            String correlationId,
+            Object snapshot) {
+        record("SUCCESS", action, targetType, targetId, tenantId, organizationId, correlationId, snapshot);
+    }
+
+    public void failed(
+            String action,
+            String targetType,
+            String targetId,
+            UUID tenantId,
+            UUID organizationId,
+            String correlationId,
+            Object snapshot) {
+        record("FAILED", action, targetType, targetId, tenantId, organizationId, correlationId, snapshot);
+    }
+
+    private void record(
+            String outcome,
+            String action,
+            String targetType,
+            String targetId,
+            UUID tenantId,
+            UUID organizationId,
+            String correlationId,
+            Object snapshot) {
+        ProviderRequestContext.Actor actor = ProviderRequestContext.require();
         jdbc.update("""
                 INSERT INTO prv_audit_events (
                     audit_event_id, actor_id, action, target_type, target_id,
-                    outcome, correlation_id, redacted_snapshot)
-                VALUES (?, ?, ?, ?, ?, 'SUCCESS', ?, CAST(? AS jsonb))
+                    outcome, correlation_id, redacted_snapshot, provider_operator_id,
+                    provider_tenant_id, organization_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, CAST(? AS jsonb), ?, ?, ?)
                 """,
-                UUID.randomUUID(), ProviderRequestContext.require().userId(), action,
-                targetType, targetId, correlationId, json(snapshot));
+                UUID.randomUUID(), actor.userId(), action, targetType, targetId,
+                outcome, correlationId, json(snapshot), actor.operatorId(), tenantId, organizationId);
     }
 
     private String json(Object value) {

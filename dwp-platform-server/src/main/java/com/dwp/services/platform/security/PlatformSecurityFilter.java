@@ -2,6 +2,7 @@ package com.dwp.services.platform.security;
 
 import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
+import com.dwp.core.filter.ApiHistoryServletFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -46,7 +47,10 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return path.startsWith("/actuator/health") || path.equals("/error");
+        return path.startsWith("/actuator/health")
+                || path.startsWith(ApiHistoryServletFilter.COLLECTOR_PATH)
+                || path.startsWith("/internal/provider/")
+                || path.equals("/error");
     }
 
     @Override

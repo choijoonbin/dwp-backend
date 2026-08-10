@@ -29,6 +29,21 @@ public class ProviderControlPlaneController {
         this.service = service;
     }
 
+    @GetMapping("/me")
+    public ApiResponse<ProviderDtos.OperatorProfile> me() {
+        return ApiResponse.success(service.operatorProfile());
+    }
+
+    @GetMapping("/overview")
+    public ApiResponse<ProviderDtos.EstateOverview> overview() {
+        return ApiResponse.success(service.overview());
+    }
+
+    @GetMapping("/regions")
+    public ApiResponse<List<ProviderDtos.RegionSummary>> regions() {
+        return ApiResponse.success(service.regions());
+    }
+
     @GetMapping("/tenants")
     public ApiResponse<ProviderDtos.PageResult<ProviderDtos.TenantSummary>> tenants(
             @RequestParam(required = false) String query,
@@ -81,10 +96,81 @@ public class ProviderControlPlaneController {
         return ApiResponse.success(service.execute(operationId, correlationId, request));
     }
 
+    @PostMapping("/operations/{operationId}/retry")
+    public ApiResponse<ProviderDtos.OperationSummary> retry(
+            @PathVariable UUID operationId,
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @Valid @RequestBody ProviderDtos.RetryOperationRequest request) {
+        return ApiResponse.success(service.retry(operationId, correlationId, request));
+    }
+
     @GetMapping("/operations")
     public ApiResponse<ProviderDtos.PageResult<ProviderDtos.OperationSummary>> operations(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
         return ApiResponse.success(service.operations(page, size));
+    }
+
+    @PostMapping("/tenants/{tenantId}/domains")
+    public ApiResponse<ProviderDtos.DomainChallenge> createDomain(
+            @PathVariable UUID tenantId,
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @Valid @RequestBody ProviderDtos.CreateDomainRequest request) {
+        return ApiResponse.success(service.createDomain(tenantId, correlationId, request));
+    }
+
+    @GetMapping("/tenants/{tenantId}/domains/{domainId}/challenge")
+    public ApiResponse<ProviderDtos.DomainChallenge> domainChallenge(
+            @PathVariable UUID tenantId,
+            @PathVariable UUID domainId) {
+        return ApiResponse.success(service.domainChallenge(tenantId, domainId));
+    }
+
+    @PostMapping("/tenants/{tenantId}/domains/{domainId}/verify")
+    public ApiResponse<ProviderDtos.TenantDomainSummary> verifyDomain(
+            @PathVariable UUID tenantId,
+            @PathVariable UUID domainId,
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @Valid @RequestBody ProviderDtos.VerifyDomainRequest request) {
+        return ApiResponse.success(service.verifyDomain(
+                tenantId, domainId, correlationId, request));
+    }
+
+    @PostMapping("/tenants/{tenantId}/administrators/{administratorId}/invitations")
+    public ApiResponse<ProviderDtos.AdministratorInvitation> issueAdministratorInvitation(
+            @PathVariable UUID tenantId,
+            @PathVariable UUID administratorId,
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @Valid @RequestBody ProviderDtos.IssueAdministratorInvitationRequest request) {
+        return ApiResponse.success(service.issueAdministratorInvitation(
+                tenantId, administratorId, correlationId, request));
+    }
+
+    @GetMapping("/support-sessions")
+    public ApiResponse<List<ProviderDtos.SupportSessionSummary>> supportSessions(
+            @RequestParam(required = false) UUID tenantId) {
+        return ApiResponse.success(service.supportSessions(tenantId));
+    }
+
+    @PostMapping("/support-sessions")
+    public ApiResponse<ProviderDtos.SupportSessionGrant> createSupportSession(
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @Valid @RequestBody ProviderDtos.CreateSupportSessionRequest request) {
+        return ApiResponse.success(service.createSupportSession(correlationId, request));
+    }
+
+    @PostMapping("/support-sessions/{sessionId}/revoke")
+    public ApiResponse<ProviderDtos.SupportSessionSummary> revokeSupportSession(
+            @PathVariable UUID sessionId,
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @Valid @RequestBody ProviderDtos.RevokeSupportSessionRequest request) {
+        return ApiResponse.success(service.revokeSupportSession(sessionId, correlationId, request));
+    }
+
+    @GetMapping("/audit-events")
+    public ApiResponse<List<ProviderDtos.AuditEventSummary>> auditEvents(
+            @RequestParam(required = false) UUID tenantId,
+            @RequestParam(defaultValue = "200") int limit) {
+        return ApiResponse.success(service.auditEvents(tenantId, limit));
     }
 }

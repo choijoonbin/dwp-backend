@@ -121,6 +121,7 @@ public class AuthService {
             String providerKey,
             OidcUserInfo userInfo,
             HttpServletRequest servletRequest) {
+        requireActiveTenant(tenantId);
         AuthPolicyResponse policy = authPolicyService.getPolicy(tenantId);
         if (!Boolean.TRUE.equals(policy.getSsoLoginEnabled())
                 || !policy.getAllowedLoginTypes().contains("SSO")) {
@@ -273,13 +274,25 @@ public class AuthService {
     }
 
     private Long resolveTenantId(String value) {
+        Long tenantId;
         try {
-            return Long.parseLong(value);
+            tenantId = Long.parseLong(value);
         } catch (NumberFormatException exception) {
-            return tenantRepository.findByCode(value)
+            tenantId = tenantRepository.findByCode(value)
                     .map(Tenant::getTenantId)
                     .orElseThrow(() -> new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS));
         }
+        requireActiveTenant(tenantId);
+        return tenantId;
+    }
+
+    private Tenant requireActiveTenant(Long tenantId) {
+        Tenant tenant = tenantRepository.findById(tenantId)
+                .orElseThrow(() -> new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS));
+        if (!"ACTIVE".equals(tenant.getStatus())) {
+            throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+        }
+        return tenant;
     }
 
     private User requireActiveUser(Long userId, Long tenantId) {

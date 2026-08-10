@@ -1,6 +1,10 @@
 package com.dwp.services.provider.security;
 
+import com.dwp.core.common.ErrorCode;
+import com.dwp.core.exception.BaseException;
+
 import java.util.Optional;
+import java.util.Set;
 
 public final class ProviderRequestContext {
 
@@ -9,8 +13,24 @@ public final class ProviderRequestContext {
     private ProviderRequestContext() {
     }
 
-    public static void set(Long userId, Long authTenantId) {
-        ACTOR.set(new Actor(userId, authTenantId));
+    public static void set(Actor actor) {
+        ACTOR.set(actor);
+    }
+
+    public static void setForTest(Long userId, Long authTenantId) {
+        ACTOR.set(new Actor(
+                userId,
+                userId,
+                authTenantId,
+                "Test operator",
+                Set.of("PROVIDER_ADMIN"),
+                Set.of(
+                        "ESTATE_READ",
+                        "TENANT_WRITE",
+                        "ENTITLEMENT_WRITE",
+                        "OPERATION_EXECUTE",
+                        "SUPPORT_SESSION_WRITE",
+                        "AUDIT_READ")));
     }
 
     public static Actor require() {
@@ -20,13 +40,33 @@ public final class ProviderRequestContext {
     }
 
     public static Optional<Long> currentUserId() {
-        return Optional.ofNullable(ACTOR.get()).map(Actor::userId);
+        return Optional.ofNullable(ACTOR.get()).map(Actor::operatorId);
     }
 
     public static void clear() {
         ACTOR.remove();
     }
 
-    public record Actor(Long userId, Long authTenantId) {
+    public static void requirePermission(String permission) {
+        if (!require().permissions().contains(permission)) {
+            throw new BaseException(
+                    ErrorCode.FORBIDDEN,
+                    "Provider permission is required: " + permission);
+        }
     }
+
+    public record Actor(
+            Long operatorId,
+            Long userId,
+            Long authTenantId,
+            String displayName,
+            Set<String> roles,
+            Set<String> permissions) {
+
+        public Actor {
+            roles = Set.copyOf(roles);
+            permissions = Set.copyOf(permissions);
+        }
+    }
+
 }

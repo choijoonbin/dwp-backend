@@ -11,11 +11,12 @@ import com.dwp.services.provider.operation.ProviderOperation;
 import com.dwp.services.provider.operation.ProviderOperationRepository;
 import com.dwp.services.provider.operation.ProviderOperationStep;
 import com.dwp.services.provider.operation.ProviderOperationStepRepository;
+import com.dwp.services.provider.provisioning.DownstreamProvisioningClient;
+import com.dwp.services.provider.provisioning.ProviderProvisioningOrchestrator;
 import com.dwp.services.provider.security.ProviderRequestContext;
 import com.dwp.services.provider.tenant.ProviderTenant;
 import com.dwp.services.provider.tenant.ProviderTenantRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
@@ -25,13 +26,20 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.naming.NamingException;
+import javax.naming.directory.Attributes;
+import javax.naming.directory.InitialDirContext;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Comparator;
 import java.util.HexFormat;
+import java.util.Hashtable;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -46,11 +54,16 @@ import java.util.stream.Collectors;
 @Service
 public class ProviderControlPlaneService {
 
+    private static final SecureRandom RANDOM = new SecureRandom();
+
     private final ProviderTenantRepository tenantRepository;
     private final EntitlementRepository entitlementRepository;
     private final TenantEntitlementRepository tenantEntitlementRepository;
     private final ProviderOperationRepository operationRepository;
     private final ProviderOperationStepRepository stepRepository;
+    private final ProviderEstateRepository estateRepository;
+    private final ProviderProvisioningOrchestrator orchestrator;
+    private final DownstreamProvisioningClient provisioningClient;
     private final ProviderAuditService auditService;
     private final ObjectMapper objectMapper;
 
@@ -60,6 +73,9 @@ public class ProviderControlPlaneService {
             TenantEntitlementRepository tenantEntitlementRepository,
             ProviderOperationRepository operationRepository,
             ProviderOperationStepRepository stepRepository,
+            ProviderEstateRepository estateRepository,
+            ProviderProvisioningOrchestrator orchestrator,
+            DownstreamProvisioningClient provisioningClient,
             ProviderAuditService auditService,
             ObjectMapper objectMapper) {
         this.tenantRepository = tenantRepository;
@@ -67,8 +83,22 @@ public class ProviderControlPlaneService {
         this.tenantEntitlementRepository = tenantEntitlementRepository;
         this.operationRepository = operationRepository;
         this.stepRepository = stepRepository;
+        this.estateRepository = estateRepository;
+        this.orchestrator = orchestrator;
+        this.provisioningClient = provisioningClient;
         this.auditService = auditService;
         this.objectMapper = objectMapper;
+    }
+
+    public ProviderDtos.OperatorProfile operatorProfile() {
+        ProviderRequestContext.Actor actor = ProviderRequestContext.require();
+        return new ProviderDtos.OperatorProfile(
+                actor.operatorId(), actor.userId(), actor.displayName(), actor.roles(), actor.permissions());
+    }
+
+    public ProviderDtos.EstateOverview overview() {
+        ProviderRequestContext.requirePermission("ESTATE_READ");
+        return estateRepository.overview();
     }
 
     @Transactional(readOnly = true)
@@ -77,6 +107,7 @@ public class ProviderControlPlaneService {
             String state,
             int requestedPage,
             int requestedSize) {
+        ProviderRequestContext.requirePermission("ESTATE_READ");
         int pageNumber = Math.max(0, requestedPage);
         int size = Math.min(100, Math.max(1, requestedSize));
         Specification<ProviderTenant> specification = Specification.where(null);
@@ -100,11 +131,19 @@ public class ProviderControlPlaneService {
 
     @Transactional(readOnly = true)
     public ProviderDtos.TenantSummary tenant(UUID tenantId) {
+        ProviderRequestContext.requirePermission("ESTATE_READ");
         return tenantSummary(requireTenant(tenantId));
     }
 
     @Transactional(readOnly = true)
+    public List<ProviderDtos.RegionSummary> regions() {
+        ProviderRequestContext.requirePermission("ESTATE_READ");
+        return estateRepository.regions();
+    }
+
+    @Transactional(readOnly = true)
     public List<ProviderDtos.EntitlementSummary> entitlementCatalog() {
+        ProviderRequestContext.requirePermission("ESTATE_READ");
         return entitlementRepository.findByLifecycleStateOrderByEntitlementKeyAsc("ACTIVE")
                 .stream().map(entitlement -> entitlementSummary(entitlement, null)).toList();
     }
@@ -114,16 +153,16 @@ public class ProviderControlPlaneService {
             String idempotencyKey,
             String correlationId,
             ProviderDtos.OnboardingPlanRequest request) {
+        ProviderRequestContext.requirePermission("TENANT_WRITE");
         String normalizedKey = normalizeIdempotencyKey(idempotencyKey);
         List<Entitlement> entitlements = requireEntitlements(request.entitlementKeys());
+        requireRegion(request.dataRegion());
         Map<String, Object> plan = onboardingPlan(request, entitlements);
         String planJson = json(plan);
         String planHash = sha256(planJson);
         ProviderOperation existing = operationRepository.findByIdempotencyKey(normalizedKey).orElse(null);
         if (existing != null) {
-            if (!MessageDigest.isEqual(
-                    existing.getPlanHash().getBytes(StandardCharsets.US_ASCII),
-                    planHash.getBytes(StandardCharsets.US_ASCII))) {
+            if (!constantTimeEquals(existing.getPlanHash(), planHash)) {
                 throw new BaseException(
                         ErrorCode.RESOURCE_CONFLICT,
                         "The idempotency key was used with a different provider plan.");
@@ -133,12 +172,19 @@ public class ProviderControlPlaneService {
         if (tenantRepository.findByTenantKey(request.tenantKey()).isPresent()) {
             throw new BaseException(ErrorCode.RESOURCE_CONFLICT, "The tenant key already exists.");
         }
+        estateRepository.organizationIdByKey(request.organizationKey()).ifPresent(organizationId -> {
+            if (estateRepository.environmentExists(organizationId, request.environmentKey())) {
+                throw new BaseException(
+                        ErrorCode.RESOURCE_CONFLICT,
+                        "The organization environment already exists.");
+            }
+        });
         ProviderOperation operation = ProviderOperation.builder()
                 .operationType("TENANT_ONBOARD")
                 .idempotencyKey(normalizedKey)
                 .lifecycleState("PREVIEWED")
                 .riskTier("REGULATED".equals(request.serviceTier()) ? "L3" : "L2")
-                .requestedBy(ProviderRequestContext.require().userId())
+                .requestedBy(ProviderRequestContext.require().operatorId())
                 .justification(request.justification().trim())
                 .planHash(planHash)
                 .plan(planJson)
@@ -152,85 +198,47 @@ public class ProviderControlPlaneService {
         auditService.success(
                 "provider.tenant-onboarding.previewed", "PROVIDER_OPERATION",
                 operation.getOperationId().toString(), correlationId,
-                Map.of("planHash", planHash, "tenantKey", request.tenantKey(), "riskTier", operation.getRiskTier()));
+                Map.of(
+                        "planHash", planHash,
+                        "tenantKey", request.tenantKey(),
+                        "organizationKey", request.organizationKey(),
+                        "riskTier", operation.getRiskTier()));
         return operationSummary(operation);
     }
 
-    @Transactional
     public ProviderDtos.OperationSummary execute(
             UUID operationId,
             String correlationId,
             ProviderDtos.ExecuteOperationRequest request) {
-        ProviderOperation operation = requireOperation(operationId);
-        requireVersion(operation.getVersion(), request.version());
-        if (!MessageDigest.isEqual(
-                operation.getPlanHash().getBytes(StandardCharsets.US_ASCII),
-                request.planHash().getBytes(StandardCharsets.US_ASCII))) {
-            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "The provider plan hash does not match.");
-        }
-        if ("PARTIAL".equals(operation.getLifecycleState())
-                || "SUCCEEDED".equals(operation.getLifecycleState())) {
-            return operationSummary(operation);
-        }
-        if (!"PREVIEWED".equals(operation.getLifecycleState())) {
-            throw new BaseException(ErrorCode.INVALID_STATE, "Only a previewed operation can execute.");
-        }
-        JsonNode plan = read(operation.getPlan());
-        String tenantKey = plan.path("tenantKey").asText();
-        if (tenantRepository.findByTenantKey(tenantKey).isPresent()) {
-            throw new BaseException(ErrorCode.RESOURCE_CONFLICT, "The tenant key already exists.");
-        }
+        ProviderOperation operation = orchestrator.execute(
+                operationId, request.planHash(), request.version(), false, correlationId);
+        return operationSummary(operation);
+    }
 
-        operation.setLifecycleState("EXECUTING");
-        operation.setStartedAt(Instant.now());
-        operation = operationRepository.saveAndFlush(operation);
-
-        ProviderTenant tenant = ProviderTenant.builder()
-                .tenantKey(tenantKey)
-                .displayName(plan.path("displayName").asText())
-                .serviceTier(plan.path("serviceTier").asText())
-                .dataRegion(plan.path("dataRegion").asText())
-                .isolationModel(plan.path("isolationModel").asText())
-                .lifecycleState("PROVISIONING")
-                .onboardingState("PENDING_EXTERNAL")
-                .build();
-        tenant = tenantRepository.saveAndFlush(tenant);
-        operation.setProviderTenantId(tenant.getProviderTenantId());
-
-        List<String> entitlementKeys = new ArrayList<>();
-        plan.path("entitlements").forEach(node -> entitlementKeys.add(node.asText()));
-        replaceTenantEntitlements(tenant, requireEntitlements(entitlementKeys));
-
-        Instant now = Instant.now();
-        List<ProviderOperationStep> steps = stepRepository
-                .findByOperationIdOrderByStepOrderAsc(operationId);
-        for (ProviderOperationStep step : steps) {
-            step.setStartedAt(now);
-            if ("CONTROL_RECORD".equals(step.getStepKey())) {
-                step.setLifecycleState("SUCCEEDED");
-                step.setExternalReference(tenant.getProviderTenantId().toString());
-                step.setRedactedResult("{\"controlPlaneRecord\":\"created\"}");
-                step.setCompletedAt(now);
-            } else {
-                step.setLifecycleState("PENDING_EXTERNAL");
-                step.setRedactedResult("{\"gate\":\"downstream-provisioning-adapter\"}");
-            }
-        }
-        stepRepository.saveAll(steps);
-        operation.setLifecycleState("PARTIAL");
-        operation = operationRepository.saveAndFlush(operation);
+    public ProviderDtos.OperationSummary retry(
+            UUID operationId,
+            String correlationId,
+            ProviderDtos.RetryOperationRequest request) {
+        ProviderOperation current = requireOperation(operationId);
+        ProviderOperation operation = orchestrator.execute(
+                operationId, null, request.version(), true, correlationId);
         auditService.success(
-                "provider.tenant-onboarding.executed", "PROVIDER_TENANT",
-                tenant.getProviderTenantId().toString(), correlationId,
+                "provider.operation.retried", "PROVIDER_OPERATION", operationId.toString(),
+                operation.getProviderTenantId(),
+                operation.getProviderTenantId() == null
+                        ? null
+                        : requireTenant(operation.getProviderTenantId()).getOrganizationId(),
+                correlationId,
                 Map.of(
-                        "tenantKey", tenantKey,
-                        "onboardingState", "PENDING_EXTERNAL",
-                        "pendingAdapters", List.of("auth", "platform", "people", "asset-storage")));
+                        "justification", request.justification(),
+                        "previousState", current.getLifecycleState(),
+                        "resultState", operation.getLifecycleState()));
         return operationSummary(operation);
     }
 
     @Transactional(readOnly = true)
     public ProviderDtos.PageResult<ProviderDtos.OperationSummary> operations(int page, int size) {
+        ProviderRequestContext.requirePermission("ESTATE_READ");
         int safePage = Math.max(0, page);
         int safeSize = Math.min(100, Math.max(1, size));
         Page<ProviderOperation> result = operationRepository.findAllByOrderByCreatedAtDesc(
@@ -240,11 +248,11 @@ public class ProviderControlPlaneService {
                 result.getNumber(), result.getSize(), result.getTotalElements(), result.getTotalPages());
     }
 
-    @Transactional
     public ProviderDtos.TenantSummary lifecycle(
             UUID tenantId,
             String correlationId,
             ProviderDtos.LifecycleRequest request) {
+        ProviderRequestContext.requirePermission("TENANT_WRITE");
         ProviderTenant tenant = requireTenant(tenantId);
         requireVersion(tenant.getVersion(), request.version());
         if ("ACTIVE".equals(request.state()) && !"READY".equals(tenant.getOnboardingState())) {
@@ -252,51 +260,243 @@ public class ProviderControlPlaneService {
                     ErrorCode.INVALID_STATE,
                     "A tenant cannot be activated until downstream onboarding is ready.");
         }
+        provisioningClient.updateLifecycle(tenantId, request.state());
         tenant.setLifecycleState(request.state());
         tenant = tenantRepository.saveAndFlush(tenant);
         auditService.success(
                 "provider.tenant.lifecycle-changed", "PROVIDER_TENANT", tenantId.toString(),
-                correlationId,
+                tenantId, tenant.getOrganizationId(), correlationId,
                 Map.of("state", request.state(), "justification", request.justification()));
         return tenantSummary(tenant);
     }
 
-    @Transactional
     public ProviderDtos.TenantSummary replaceEntitlements(
             UUID tenantId,
             String correlationId,
             ProviderDtos.ReplaceEntitlementsRequest request) {
+        ProviderRequestContext.requirePermission("ENTITLEMENT_WRITE");
         ProviderTenant tenant = requireTenant(tenantId);
         requireVersion(tenant.getVersion(), request.version());
         List<Entitlement> entitlements = requireEntitlements(request.entitlementKeys());
+        provisioningClient.replaceEntitlements(
+                tenantId, entitlements.stream().map(Entitlement::getEntitlementKey).toList());
         replaceTenantEntitlements(tenant, entitlements);
         tenant.setEntitlementRevision(valueOrZero(tenant.getEntitlementRevision()) + 1L);
         tenant = tenantRepository.saveAndFlush(tenant);
         auditService.success(
                 "provider.tenant-entitlements.replaced", "PROVIDER_TENANT", tenantId.toString(),
-                correlationId,
+                tenantId, tenant.getOrganizationId(), correlationId,
                 Map.of(
                         "entitlements", entitlements.stream().map(Entitlement::getEntitlementKey).toList(),
                         "justification", request.justification()));
         return tenantSummary(tenant);
     }
 
+    @Transactional
+    public ProviderDtos.DomainChallenge createDomain(
+            UUID tenantId,
+            String correlationId,
+            ProviderDtos.CreateDomainRequest request) {
+        ProviderRequestContext.requirePermission("TENANT_WRITE");
+        ProviderTenant tenant = requireTenant(tenantId);
+        String domainName = request.domainName().trim().toLowerCase(Locale.ROOT);
+        String challenge = "dwp-verification=" + randomToken();
+        UUID domainId;
+        try {
+            domainId = estateRepository.createDomain(
+                    tenantId, domainName, request.domainType(), request.primaryDomain(),
+                    challenge, sha256(challenge), ProviderRequestContext.require().operatorId());
+        } catch (DataIntegrityViolationException exception) {
+            throw new BaseException(ErrorCode.RESOURCE_CONFLICT, "The domain is already registered.", exception);
+        }
+        ProviderDtos.TenantDomainSummary domain = estateRepository.domains(tenantId).stream()
+                .filter(item -> item.domainId().equals(domainId))
+                .findFirst().orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        auditService.success(
+                "provider.tenant-domain.created", "TENANT_DOMAIN", domainId.toString(),
+                tenantId, tenant.getOrganizationId(), correlationId,
+                Map.of("domainName", domainName, "primary", request.primaryDomain()));
+        return new ProviderDtos.DomainChallenge(
+                domain, "_dwp-verification." + domainName, "TXT", challenge);
+    }
+
+    public ProviderDtos.DomainChallenge domainChallenge(UUID tenantId, UUID domainId) {
+        ProviderRequestContext.requirePermission("ESTATE_READ");
+        requireTenant(tenantId);
+        ProviderEstateRepository.DomainRecord record = estateRepository.domainRecord(tenantId, domainId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        ProviderDtos.TenantDomainSummary domain = estateRepository.domains(tenantId).stream()
+                .filter(item -> item.domainId().equals(domainId))
+                .findFirst().orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        return new ProviderDtos.DomainChallenge(
+                domain,
+                "_dwp-verification." + record.domainName(),
+                "TXT",
+                record.recordValue());
+    }
+
+    public ProviderDtos.TenantDomainSummary verifyDomain(
+            UUID tenantId,
+            UUID domainId,
+            String correlationId,
+            ProviderDtos.VerifyDomainRequest request) {
+        ProviderRequestContext.requirePermission("TENANT_WRITE");
+        ProviderTenant tenant = requireTenant(tenantId);
+        ProviderEstateRepository.DomainRecord record = estateRepository.domainRecord(tenantId, domainId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        requireVersion(record.version(), request.version());
+        boolean verified = "INTERNAL".equals(record.verificationMethod())
+                || dnsTxtRecords("_dwp-verification." + record.domainName()).stream()
+                .map(value -> value.replace("\"", "").trim())
+                .map(this::sha256)
+                .anyMatch(hash -> constantTimeEquals(hash, record.tokenHash()));
+        estateRepository.markDomainChecked(
+                domainId, verified, ProviderRequestContext.require().operatorId());
+        auditService.success(
+                "provider.tenant-domain.verified", "TENANT_DOMAIN", domainId.toString(),
+                tenantId, tenant.getOrganizationId(), correlationId,
+                Map.of(
+                        "domainName", record.domainName(),
+                        "verified", verified,
+                        "justification", request.justification()));
+        return estateRepository.domains(tenantId).stream()
+                .filter(item -> item.domainId().equals(domainId))
+                .findFirst().orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+    }
+
+    public ProviderDtos.AdministratorInvitation issueAdministratorInvitation(
+            UUID tenantId,
+            UUID administratorId,
+            String correlationId,
+            ProviderDtos.IssueAdministratorInvitationRequest request) {
+        ProviderRequestContext.requirePermission("TENANT_WRITE");
+        ProviderTenant tenant = requireTenant(tenantId);
+        if (!"READY".equals(tenant.getOnboardingState()) || tenant.getAuthTenantId() == null) {
+            throw new BaseException(ErrorCode.INVALID_STATE, "Tenant onboarding must be ready first.");
+        }
+        ProviderEstateRepository.AdministratorRecord administrator =
+                estateRepository.administrator(tenantId, administratorId)
+                        .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        if (administrator.authUserId() == null) {
+            throw new BaseException(ErrorCode.INVALID_STATE, "The administrator is not linked to auth.");
+        }
+        DownstreamProvisioningClient.InvitationResult result =
+                provisioningClient.issueAdministratorInvitation(
+                        tenantId, administrator.authUserId(), request.expiresInMinutes());
+        estateRepository.markAdministratorInvited(
+                administratorId, ProviderRequestContext.require().operatorId());
+        auditService.success(
+                "provider.tenant-administrator.invited", "TENANT_ADMINISTRATOR",
+                administratorId.toString(), tenantId, tenant.getOrganizationId(), correlationId,
+                Map.of(
+                        "principal", administrator.principal(),
+                        "expiresAt", result.expiresAt(),
+                        "justification", request.justification()));
+        return new ProviderDtos.AdministratorInvitation(
+                administratorId,
+                result.tenantId(),
+                result.administratorUserId(),
+                result.principal(),
+                result.activationToken(),
+                "/activate?token=" + result.activationToken(),
+                result.expiresAt());
+    }
+
+    @Transactional
+    public ProviderDtos.SupportSessionGrant createSupportSession(
+            String correlationId,
+            ProviderDtos.CreateSupportSessionRequest request) {
+        ProviderRequestContext.requirePermission("SUPPORT_SESSION_WRITE");
+        ProviderTenant tenant = requireTenant(request.tenantId());
+        LinkedHashSet<String> scopeSet = request.scopes().stream()
+                .map(String::trim).collect(Collectors.toCollection(LinkedHashSet::new));
+        if (scopeSet.contains("TENANT_CONFIGURATION_WRITE")) {
+            scopeSet.add("TENANT_CONFIGURATION_READ");
+        }
+        String token = randomToken();
+        Instant expiresAt = Instant.now().plusSeconds(request.durationMinutes() * 60L);
+        ProviderRequestContext.Actor actor = ProviderRequestContext.require();
+        UUID sessionId = estateRepository.createSupportSession(
+                tenant.getProviderTenantId(), actor.operatorId(), request.justification(),
+                sha256(token), expiresAt);
+        estateRepository.addSupportScopes(sessionId, List.copyOf(scopeSet));
+        ProviderDtos.SupportSessionSummary session = estateRepository.supportSessions(tenant.getProviderTenantId())
+                .stream().filter(item -> item.supportSessionId().equals(sessionId))
+                .findFirst().orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        auditService.success(
+                "provider.support-session.created", "SUPPORT_SESSION", sessionId.toString(),
+                tenant.getProviderTenantId(), tenant.getOrganizationId(), correlationId,
+                Map.of(
+                        "scopes", scopeSet,
+                        "expiresAt", expiresAt,
+                        "justification", request.justification()));
+        return new ProviderDtos.SupportSessionGrant(session, token);
+    }
+
+    public List<ProviderDtos.SupportSessionSummary> supportSessions(UUID tenantId) {
+        ProviderRequestContext.requirePermission("ESTATE_READ");
+        if (tenantId != null) requireTenant(tenantId);
+        return estateRepository.supportSessions(tenantId);
+    }
+
+    @Transactional
+    public ProviderDtos.SupportSessionSummary revokeSupportSession(
+            UUID sessionId,
+            String correlationId,
+            ProviderDtos.RevokeSupportSessionRequest request) {
+        ProviderRequestContext.requirePermission("SUPPORT_SESSION_WRITE");
+        ProviderEstateRepository.SupportSessionRecord record = estateRepository.supportSession(sessionId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        requireVersion(record.version(), request.version());
+        if (!"ACTIVE".equals(record.lifecycleState())) {
+            throw new BaseException(ErrorCode.INVALID_STATE, "The support session is not active.");
+        }
+        ProviderTenant tenant = requireTenant(record.tenantId());
+        estateRepository.revokeSupportSession(sessionId, ProviderRequestContext.require().operatorId());
+        auditService.success(
+                "provider.support-session.revoked", "SUPPORT_SESSION", sessionId.toString(),
+                tenant.getProviderTenantId(), tenant.getOrganizationId(), correlationId,
+                Map.of("justification", request.justification()));
+        return estateRepository.supportSessions(record.tenantId()).stream()
+                .filter(item -> item.supportSessionId().equals(sessionId))
+                .findFirst().orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+    }
+
+    public List<ProviderDtos.AuditEventSummary> auditEvents(UUID tenantId, int limit) {
+        ProviderRequestContext.requirePermission("AUDIT_READ");
+        if (tenantId != null) requireTenant(tenantId);
+        return estateRepository.auditEvents(tenantId, limit);
+    }
+
     private Map<String, Object> onboardingPlan(
             ProviderDtos.OnboardingPlanRequest request,
             List<Entitlement> entitlements) {
+        Map<String, Object> administrator = new LinkedHashMap<>();
+        administrator.put("displayName", request.initialAdminDisplayName().trim());
+        administrator.put("email", request.initialAdminEmail().trim().toLowerCase(Locale.ROOT));
+        administrator.put("principal", request.initialAdminPrincipal().trim());
         Map<String, Object> plan = new LinkedHashMap<>();
-        plan.put("contract", "dwp.provider.tenant-onboarding.v1");
+        plan.put("contract", "dwp.provider.tenant-onboarding.v2");
+        plan.put("organizationKey", request.organizationKey());
+        plan.put("organizationName", request.organizationName().trim());
+        plan.put("legalName", normalized(request.legalName()));
+        plan.put("customerReference", normalized(request.customerReference()));
         plan.put("tenantKey", request.tenantKey());
         plan.put("displayName", request.displayName().trim());
+        plan.put("environmentKey", request.environmentKey());
         plan.put("serviceTier", request.serviceTier());
         plan.put("dataRegion", request.dataRegion());
         plan.put("isolationModel", request.isolationModel());
+        plan.put("defaultLocale", request.defaultLocale());
+        plan.put("timeZone", request.timeZone());
+        plan.put("primaryDomain", normalized(request.primaryDomain()));
+        plan.put("initialAdministrator", administrator);
         plan.put("entitlements", entitlements.stream()
                 .map(Entitlement::getEntitlementKey).sorted().toList());
         plan.put("steps", List.of(
                 "CONTROL_RECORD", "AUTH_TENANT", "PLATFORM_TENANT",
-                "PEOPLE_TENANT", "ASSET_STORAGE"));
-        plan.put("externalGates", List.of("downstream-provisioning-adapter", "KMS", "S3"));
+                "PEOPLE_TENANT", "ASSET_STORAGE", "ACTIVATE_TENANT"));
+        plan.put("executionModel", "IDEMPOTENT_SAGA");
         return plan;
     }
 
@@ -306,7 +506,8 @@ public class ProviderControlPlaneService {
                 step(operationId, 2, "AUTH_TENANT", "dwp-auth-server"),
                 step(operationId, 3, "PLATFORM_TENANT", "dwp-platform-server"),
                 step(operationId, 4, "PEOPLE_TENANT", "dwp-people-server"),
-                step(operationId, 5, "ASSET_STORAGE", "object-storage"));
+                step(operationId, 5, "ASSET_STORAGE", "dwp-platform-server"),
+                step(operationId, 6, "ACTIVATE_TENANT", "dwp-provider-server"));
     }
 
     private ProviderOperationStep step(UUID operationId, int order, String key, String target) {
@@ -334,6 +535,13 @@ public class ProviderControlPlaneService {
                 .sorted(Comparator.comparing(Entitlement::getEntitlementKey)).toList();
     }
 
+    private void requireRegion(String regionKey) {
+        boolean active = estateRepository.regions().stream()
+                .anyMatch(region -> region.regionKey().equals(regionKey)
+                        && "ACTIVE".equals(region.lifecycleState()));
+        if (!active) throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "Unknown or inactive data region.");
+    }
+
     private void replaceTenantEntitlements(ProviderTenant tenant, List<Entitlement> entitlements) {
         Map<Long, TenantEntitlement> current = tenantEntitlementRepository
                 .findByProviderTenantIdOrderByTenantEntitlementIdAsc(tenant.getProviderTenantId())
@@ -356,6 +564,9 @@ public class ProviderControlPlaneService {
     }
 
     private ProviderDtos.TenantSummary tenantSummary(ProviderTenant tenant) {
+        ProviderDtos.OrganizationSummary organization = estateRepository
+                .organization(tenant.getOrganizationId())
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         Map<Long, Entitlement> catalog = entitlementRepository.findAll().stream()
                 .collect(Collectors.toMap(Entitlement::getEntitlementId, Function.identity()));
         List<ProviderDtos.EntitlementSummary> entitlements = tenantEntitlementRepository
@@ -365,10 +576,34 @@ public class ProviderControlPlaneService {
                 .map(assignment -> entitlementSummary(catalog.get(assignment.getEntitlementId()), assignment))
                 .toList();
         return new ProviderDtos.TenantSummary(
-                tenant.getProviderTenantId(), tenant.getTenantKey(), tenant.getDisplayName(),
-                tenant.getServiceTier(), tenant.getDataRegion(), tenant.getIsolationModel(),
-                tenant.getLifecycleState(), tenant.getOnboardingState(), tenant.getAuthTenantId(),
-                valueOrZero(tenant.getVersion()), entitlements);
+                tenant.getProviderTenantId(),
+                tenant.getOrganizationId(),
+                organization.organizationKey(),
+                organization.displayName(),
+                tenant.getTenantKey(),
+                tenant.getDisplayName(),
+                tenant.getEnvironmentKey(),
+                tenant.getServiceTier(),
+                tenant.getDataRegion(),
+                tenant.getIsolationModel(),
+                tenant.getDefaultLocale(),
+                tenant.getTimeZone(),
+                tenant.getLifecycleState(),
+                tenant.getOnboardingState(),
+                tenant.getAuthTenantId(),
+                tenant.getSchemaVersion(),
+                tenant.getConfiguration(),
+                valueOrZero(tenant.getVersion()),
+                tenant.getCreatedAt() == null
+                        ? null
+                        : tenant.getCreatedAt().atZone(ZoneId.systemDefault()).toInstant(),
+                tenant.getUpdatedAt() == null
+                        ? null
+                        : tenant.getUpdatedAt().atZone(ZoneId.systemDefault()).toInstant(),
+                entitlements,
+                estateRepository.serviceInstances(tenant.getProviderTenantId()),
+                estateRepository.domains(tenant.getProviderTenantId()),
+                estateRepository.administrators(tenant.getProviderTenantId()));
     }
 
     private ProviderDtos.EntitlementSummary entitlementSummary(
@@ -386,15 +621,25 @@ public class ProviderControlPlaneService {
         List<ProviderDtos.OperationStep> steps = stepRepository
                 .findByOperationIdOrderByStepOrderAsc(operation.getOperationId())
                 .stream().map(step -> new ProviderDtos.OperationStep(
-                        step.getStepOrder(), step.getStepKey(), step.getLifecycleState(),
-                        step.getTargetService(), step.getExternalReference(), step.getRedactedResult(),
-                        step.getStartedAt(), step.getCompletedAt()))
+                        step.getOperationStepId(),
+                        step.getStepOrder(),
+                        step.getStepKey(),
+                        step.getLifecycleState(),
+                        step.getTargetService(),
+                        step.getExternalReference(),
+                        step.getRedactedResult(),
+                        step.getAttemptCount(),
+                        step.getLastErrorCode(),
+                        step.getLastErrorMessage(),
+                        step.getNextRetryAt(),
+                        step.getStartedAt(),
+                        step.getCompletedAt()))
                 .toList();
         return new ProviderDtos.OperationSummary(
                 operation.getOperationId(), operation.getProviderTenantId(), operation.getOperationType(),
                 operation.getLifecycleState(), operation.getRiskTier(), operation.getPlanHash(),
                 operation.getPlan(), operation.getFailureCode(), operation.getFailureMessage(),
-                operation.getStartedAt(), operation.getCompletedAt(),
+                operation.getStartedAt(), operation.getCompletedAt(), operation.getCreatedAt(),
                 valueOrZero(operation.getVersion()), steps);
     }
 
@@ -427,19 +672,42 @@ public class ProviderControlPlaneService {
         }
     }
 
+    private List<String> dnsTxtRecords(String recordName) {
+        Hashtable<String, String> environment = new Hashtable<>();
+        environment.put("java.naming.factory.initial", "com.sun.jndi.dns.DnsContextFactory");
+        environment.put("com.sun.jndi.dns.timeout.initial", "2500");
+        environment.put("com.sun.jndi.dns.timeout.retries", "1");
+        try {
+            Attributes attributes = new InitialDirContext(environment)
+                    .getAttributes(recordName, new String[]{"TXT"});
+            if (attributes.get("TXT") == null) return List.of();
+            List<String> values = new ArrayList<>();
+            for (int index = 0; index < attributes.get("TXT").size(); index++) {
+                values.add(String.valueOf(attributes.get("TXT").get(index)));
+            }
+            return values;
+        } catch (NamingException exception) {
+            return List.of();
+        }
+    }
+
+    private String randomToken() {
+        byte[] bytes = new byte[32];
+        RANDOM.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    private boolean constantTimeEquals(String left, String right) {
+        return right != null && MessageDigest.isEqual(
+                left.getBytes(StandardCharsets.US_ASCII),
+                right.getBytes(StandardCharsets.US_ASCII));
+    }
+
     private String json(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Provider plan serialization failed.", exception);
-        }
-    }
-
-    private JsonNode read(String value) {
-        try {
-            return objectMapper.readTree(value);
-        } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("Stored provider plan is invalid.", exception);
         }
     }
 
@@ -450,6 +718,10 @@ public class ProviderControlPlaneService {
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException(exception);
         }
+    }
+
+    private String normalized(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private long valueOrZero(Long value) {

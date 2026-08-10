@@ -1,5 +1,6 @@
 package com.dwp.gateway.filter;
 
+import com.dwp.observability.api.ApiHistoryAttributes;
 import com.dwp.gateway.security.SessionVerifier;
 import com.dwp.gateway.security.VerifiedIdentity;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
@@ -46,6 +47,10 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
         return verification
                 .switchIfEmpty(Mono.error(new AuthenticationRequiredException()))
                 .flatMap(identity -> {
+                    exchange.getAttributes().put(ApiHistoryAttributes.ACTOR_TYPE, "USER");
+                    exchange.getAttributes().put(ApiHistoryAttributes.ACTOR_ID, identity.userId());
+                    exchange.getAttributes().put(ApiHistoryAttributes.TENANT_ID, identity.tenantId());
+                    exchange.getAttributes().put(ApiHistoryAttributes.AUTH_TYPE, "SESSION");
                     ServerHttpRequest verifiedRequest = sanitizedRequest.mutate()
                             .headers(headers -> {
                                 headers.set(USER_HEADER, identity.userId());

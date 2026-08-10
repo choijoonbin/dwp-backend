@@ -58,4 +58,17 @@ public class ProviderOperationStep {
 
     @Column(name = "completed_at")
     private Instant completedAt;
+
+    @Column(name = "attempt_count", nullable = false)
+    @Builder.Default
+    private Integer attemptCount = 0;
+
+    @Column(name = "next_retry_at")
+    private Instant nextRetryAt;
+
+    @Column(name = "last_error_code", length = 80)
+    private String lastErrorCode;
+
+    @Column(name = "last_error_message", length = 1000)
+    private String lastErrorMessage;
 }

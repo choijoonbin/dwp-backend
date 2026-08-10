@@ -16,6 +16,7 @@ public class AuthSessionVerifier implements SessionVerifier {
 
     private static final String TENANT_HEADER = "X-Tenant-ID";
     private static final String CORRELATION_HEADER = "X-Correlation-ID";
+    private static final String TRACE_PARENT_HEADER = "traceparent";
 
     private final WebClient authClient;
     private final Duration timeout;
@@ -65,6 +66,7 @@ public class AuthSessionVerifier implements SessionVerifier {
         copyHeader(source, target, HttpHeaders.AUTHORIZATION);
         copyHeader(source, target, TENANT_HEADER);
         copyHeader(source, target, CORRELATION_HEADER);
+        copyHeader(source, target, TRACE_PARENT_HEADER);
         copyHeader(source, target, HttpHeaders.USER_AGENT);
         target.set(HttpHeaders.ACCEPT, "application/json");
     }

@@ -27,9 +27,27 @@ spring:
     validate-on-migrate: true
 
 dwp:
+  provider:
+    provisioning-token: ${DWP_PROVIDER_PROVISIONING_TOKEN:}
+  observability:
+    api-history:
+      enabled: ${DWP_API_HISTORY_ENABLED:true}
+      collector-url: ${DWP_API_HISTORY_COLLECTOR_URL:}
+      ingest-token: ${DWP_API_HISTORY_INGEST_TOKEN:}
+      privacy-hash-secret: ${DWP_API_HISTORY_PRIVACY_HASH_SECRET:}
+      environment: ${DWP_ENVIRONMENT:local}
+      service-instance: ${DWP_SERVICE_INSTANCE:${HOSTNAME:local}}
+      queue-capacity: ${DWP_API_HISTORY_QUEUE_CAPACITY:4096}
+      batch-size: ${DWP_API_HISTORY_BATCH_SIZE:100}
+      flush-interval: ${DWP_API_HISTORY_FLUSH_INTERVAL:PT1S}
   platform:
     service-token: ${DWP_PLATFORM_SERVICE_TOKEN:}
     runtime-service-token: ${DWP_PLATFORM_RUNTIME_SERVICE_TOKEN:}
+    api-history:
+      cursor-secret: ${DWP_API_HISTORY_CURSOR_SECRET:}
+      cursor-ttl: ${DWP_API_HISTORY_CURSOR_TTL:PT15M}
+      retention-days: ${DWP_API_HISTORY_RETENTION_DAYS:90}
+      allowed-services: ${DWP_API_HISTORY_ALLOWED_SERVICES:dwp-gateway,dwp-auth-server,dwp-platform-server,dwp-people-server,dwp-provider-server,dwp-agent-runtime}
     assets:
       root: ${DWP_PLATFORM_ASSET_DIR:${DWP_HOME_ASSET_DIR:${user.home}/.dwp/platform-assets}}
     home-assets:

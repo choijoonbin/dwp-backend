@@ -75,7 +75,7 @@ public class JwtConfig {
     }
 
     @Bean
-    @Order(2)
+    @Order(3)
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             JwtDecoder jwtDecoder,
@@ -95,6 +95,7 @@ public class JwtConfig {
                                 "/auth/login",
                                 "/auth/csrf",
                                 "/auth/policy",
+                                "/auth/activations/**",
                                 "/auth/idp/**",
                                 "/auth/oidc/**",
                                 "/actuator/health/**",

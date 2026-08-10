@@ -9,6 +9,7 @@ dependencies {
     runtimeOnly 'org.postgresql:postgresql'
 
     implementation project(':dwp-core')
+    implementation project(':dwp-observability')
 
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
