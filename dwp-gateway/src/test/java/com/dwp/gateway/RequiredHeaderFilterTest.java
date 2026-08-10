@@ -53,4 +53,20 @@ class RequiredHeaderFilterTest {
 
         assertThat(called).isTrue();
     }
+
+    @Test
+    void allowsAuthenticatedHomeBackgroundWithoutClientTenantHeader() {
+        RequiredHeaderFilter filter = new RequiredHeaderFilter();
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/platform/v1/home-experience/background?v=3")
+                        .build());
+        AtomicBoolean called = new AtomicBoolean();
+
+        filter.filter(exchange, ignored -> {
+            called.set(true);
+            return Mono.empty();
+        }).block();
+
+        assertThat(called).isTrue();
+    }
 }

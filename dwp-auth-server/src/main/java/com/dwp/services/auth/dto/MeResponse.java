@@ -12,6 +12,7 @@ public class MeResponse {
     private Long userId;
     private String displayName;
     private String email;
+    private String jobTitle;
     private Long tenantId;
     private String tenantCode;
     private List<String> roles;

@@ -31,9 +31,7 @@ public class AuthSessionVerifier implements SessionVerifier {
     @Override
     public Mono<VerifiedIdentity> verify(ServerHttpRequest request) {
         String requestedTenant = request.getHeaders().getFirst(TENANT_HEADER);
-        if (requestedTenant == null || requestedTenant.isBlank()) {
-            return Mono.empty();
-        }
+        boolean tenantAssertionPresent = requestedTenant != null && !requestedTenant.isBlank();
 
         return authClient.get()
                 .uri("/auth/me")
@@ -50,7 +48,8 @@ public class AuthSessionVerifier implements SessionVerifier {
                                         data.userId().toString(),
                                         data.tenantId().toString(),
                                         data.roles()))
-                                .filter(identity -> requestedTenant.equals(identity.tenantId()));
+                                .filter(identity -> !tenantAssertionPresent
+                                        || requestedTenant.equals(identity.tenantId()));
                     }
                     if (response.statusCode() == HttpStatus.UNAUTHORIZED
                             || response.statusCode() == HttpStatus.FORBIDDEN) {

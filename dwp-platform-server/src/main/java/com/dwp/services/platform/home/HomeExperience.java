@@ -1,0 +1,66 @@
+package com.dwp.services.platform.home;
+
+import com.dwp.core.entity.BaseEntity;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import jakarta.persistence.Version;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+@Entity
+@Table(name = "adm_home_experiences")
+@Getter
+@Setter
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class HomeExperience extends BaseEntity {
+
+    @Id
+    @Column(name = "tenant_id", nullable = false)
+    private Long tenantId;
+
+    @Column(name = "headline", length = 160)
+    private String headline;
+
+    @Column(name = "subheadline", length = 500)
+    private String subheadline;
+
+    @Builder.Default
+    @Column(name = "background_position", nullable = false, length = 16)
+    private String backgroundPosition = "CENTER";
+
+    @Builder.Default
+    @Column(name = "overlay_opacity", nullable = false)
+    private Integer overlayOpacity = 18;
+
+    @Column(name = "background_asset_key", length = 320)
+    private String backgroundAssetKey;
+
+    @Column(name = "background_original_name", length = 255)
+    private String backgroundOriginalName;
+
+    @Column(name = "background_content_type", length = 64)
+    private String backgroundContentType;
+
+    @Column(name = "background_size_bytes")
+    private Long backgroundSizeBytes;
+
+    @Column(name = "background_sha256", length = 64)
+    private String backgroundSha256;
+
+    @Column(name = "background_width")
+    private Integer backgroundWidth;
+
+    @Column(name = "background_height")
+    private Integer backgroundHeight;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+}

@@ -59,6 +59,18 @@ class VerifiedIdentityFilterTest {
     }
 
     @Test
+    void keepsHomeBackgroundSessionProtected() {
+        VerifiedIdentityFilter filter = new VerifiedIdentityFilter(ignored -> Mono.empty());
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
+                .get("/api/platform/v1/home-experience/background?v=3")
+                .build());
+
+        filter.filter(exchange, ignored -> Mono.empty()).block();
+
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
     void failsClosedWhenTheAuthServiceIsUnavailable() {
         VerifiedIdentityFilter filter = new VerifiedIdentityFilter(ignored ->
                 Mono.error(new IllegalStateException("auth unavailable")));

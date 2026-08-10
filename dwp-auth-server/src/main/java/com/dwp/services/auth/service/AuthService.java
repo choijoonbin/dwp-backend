@@ -152,6 +152,7 @@ public class AuthService {
                 .userId(user.getUserId())
                 .displayName(user.getDisplayName())
                 .email(user.getEmail())
+                .jobTitle(user.getJobTitle())
                 .tenantId(tenant.getTenantId())
                 .tenantCode(tenant.getCode())
                 .roles(getRoleCodes(userId, tenantId))

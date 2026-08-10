@@ -29,6 +29,9 @@ public class User extends BaseEntity {
     @Column(length = 255)
     private String email;
 
+    @Column(name = "job_title", length = 160)
+    private String jobTitle;
+
     @Builder.Default
     @Column(nullable = false, length = 20)
     private String status = "ACTIVE";

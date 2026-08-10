@@ -4,6 +4,10 @@ server:
 spring:
   application:
     name: dwp-platform-server
+  servlet:
+    multipart:
+      max-file-size: ${DWP_HOME_ASSET_MAX_FILE_SIZE:10MB}
+      max-request-size: ${DWP_HOME_ASSET_MAX_REQUEST_SIZE:11MB}
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${PLATFORM_DB_NAME:dwp_platform}
     username: ${DB_USERNAME:dwp_user}
@@ -26,6 +30,9 @@ dwp:
   platform:
     service-token: ${DWP_PLATFORM_SERVICE_TOKEN:}
     runtime-service-token: ${DWP_PLATFORM_RUNTIME_SERVICE_TOKEN:}
+    home-assets:
+      root: ${DWP_HOME_ASSET_DIR:${user.home}/.dwp/home-assets}
+      max-bytes: ${DWP_HOME_ASSET_MAX_BYTES:10485760}
 
 management:
   endpoints:

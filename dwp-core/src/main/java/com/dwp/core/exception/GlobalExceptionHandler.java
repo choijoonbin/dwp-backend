@@ -14,6 +14,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -138,6 +139,21 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(
                         ErrorCode.INVALID_INPUT_VALUE,
                         e.getMessage(),
+                        correlationId(request)));
+    }
+
+    /**
+     * 멀티파트 업로드 용량 초과 처리 (400)
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<Object>> handleMaxUploadSizeExceededException(
+            MaxUploadSizeExceededException e, HttpServletRequest request) {
+        log.warn("Upload size limit exceeded: {}", e.getMessage());
+        return ResponseEntity
+                .status(ErrorCode.INVALID_INPUT_VALUE.getHttpStatus())
+                .body(ApiResponse.error(
+                        ErrorCode.INVALID_INPUT_VALUE,
+                        "업로드 파일 크기가 허용 한도를 초과했습니다.",
                         correlationId(request)));
     }
     

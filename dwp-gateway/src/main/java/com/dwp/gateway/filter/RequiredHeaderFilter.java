@@ -16,12 +16,13 @@ import java.util.List;
 public class RequiredHeaderFilter implements GlobalFilter, Ordered {
 
     private static final String TENANT_HEADER = "X-Tenant-ID";
-    private static final List<String> PUBLIC_PATHS = List.of(
+    private static final List<String> TENANT_HEADER_OPTIONAL_PATHS = List.of(
             "/api/auth/login",
             "/api/auth/csrf",
             "/api/auth/policy",
             "/api/auth/idp",
             "/api/auth/oidc/",
+            "/api/platform/v1/home-experience/background",
             "/actuator/");
 
     @Override
@@ -29,7 +30,7 @@ public class RequiredHeaderFilter implements GlobalFilter, Ordered {
         ServerHttpRequest request = exchange.getRequest();
         String path = request.getURI().getPath();
 
-        if (request.getMethod() == HttpMethod.OPTIONS || isPublic(path)) {
+        if (request.getMethod() == HttpMethod.OPTIONS || isTenantHeaderOptional(path)) {
             return chain.filter(exchange);
         }
 
@@ -42,8 +43,8 @@ public class RequiredHeaderFilter implements GlobalFilter, Ordered {
         return chain.filter(exchange);
     }
 
-    private boolean isPublic(String path) {
-        return PUBLIC_PATHS.stream().anyMatch(path::startsWith);
+    private boolean isTenantHeaderOptional(String path) {
+        return TENANT_HEADER_OPTIONAL_PATHS.stream().anyMatch(path::startsWith);
     }
 
     @Override
