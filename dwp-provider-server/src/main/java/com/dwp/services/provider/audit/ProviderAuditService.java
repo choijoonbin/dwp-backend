@@ -75,7 +75,9 @@ public class ProviderAuditService {
     private String category(String action) {
         if (action.startsWith("provider.support-")) return "PRIVILEGED_ACCESS";
         if (action.startsWith("provider.incident.")) return "SERVICE_HEALTH";
-        if (action.startsWith("provider.operation")) return "CHANGE_MANAGEMENT";
+        if (action.startsWith("provider.operation") || action.startsWith("provider.maintenance")) {
+            return "CHANGE_MANAGEMENT";
+        }
         if (action.startsWith("provider.tenant")) return "TENANT_LIFECYCLE";
         return "ADMINISTRATION";
     }

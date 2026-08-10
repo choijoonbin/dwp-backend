@@ -49,6 +49,11 @@ public class ProviderControlPlaneController {
         return ApiResponse.success(service.serviceHealth());
     }
 
+    @GetMapping("/reliability-control")
+    public ApiResponse<ProviderDtos.ReliabilityControlOverview> reliabilityControl() {
+        return ApiResponse.success(service.reliabilityControl());
+    }
+
     @GetMapping("/commercial")
     public ApiResponse<ProviderDtos.CommercialOverview> commercial() {
         return ApiResponse.success(service.commercialOverview());
@@ -153,6 +158,13 @@ public class ProviderControlPlaneController {
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @Valid @RequestBody ProviderDtos.UpdateIncidentRequest request) {
         return ApiResponse.success(service.updateIncident(incidentId, correlationId, request));
+    }
+
+    @PostMapping("/maintenance-windows")
+    public ApiResponse<ProviderDtos.MaintenanceWindowSummary> createMaintenanceWindow(
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @Valid @RequestBody ProviderDtos.CreateMaintenanceWindowRequest request) {
+        return ApiResponse.success(service.createMaintenanceWindow(correlationId, request));
     }
 
     @PostMapping("/tenants/{tenantId}/domains")

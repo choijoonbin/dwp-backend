@@ -2,6 +2,7 @@ package com.dwp.services.provider.provisioning;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.provider.ProviderOperationsRepository;
 import com.dwp.services.provider.ProviderEstateRepository;
 import com.dwp.services.provider.audit.ProviderAuditService;
 import com.dwp.services.provider.entitlement.Entitlement;
@@ -48,6 +49,7 @@ public class ProviderProvisioningOrchestrator {
     private final EntitlementRepository entitlementRepository;
     private final TenantEntitlementRepository tenantEntitlementRepository;
     private final ProviderEstateRepository estateRepository;
+    private final ProviderOperationsRepository operationsRepository;
     private final DownstreamProvisioningClient client;
     private final ProviderAuditService auditService;
     private final ObjectMapper objectMapper;
@@ -61,6 +63,7 @@ public class ProviderProvisioningOrchestrator {
             EntitlementRepository entitlementRepository,
             TenantEntitlementRepository tenantEntitlementRepository,
             ProviderEstateRepository estateRepository,
+            ProviderOperationsRepository operationsRepository,
             DownstreamProvisioningClient client,
             ProviderAuditService auditService,
             ObjectMapper objectMapper,
@@ -72,6 +75,7 @@ public class ProviderProvisioningOrchestrator {
         this.entitlementRepository = entitlementRepository;
         this.tenantEntitlementRepository = tenantEntitlementRepository;
         this.estateRepository = estateRepository;
+        this.operationsRepository = operationsRepository;
         this.client = client;
         this.auditService = auditService;
         this.objectMapper = objectMapper;
@@ -86,6 +90,12 @@ public class ProviderProvisioningOrchestrator {
             String correlationId) {
         ProviderRequestContext.requirePermission("OPERATION_EXECUTE");
         ProviderOperation operation = requireOperation(operationId);
+        if ("L3".equals(operation.getRiskTier())
+                && !operationsRepository.operationApproved(operationId)) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "All required approvals must be completed before this high-risk operation can run.");
+        }
         requireVersion(operation.getVersion(), expectedVersion);
         if (expectedPlanHash != null && !constantTimeEquals(operation.getPlanHash(), expectedPlanHash)) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "The provider plan hash does not match.");
@@ -120,15 +130,28 @@ public class ProviderProvisioningOrchestrator {
         operation.setFailureCode(null);
         operation.setFailureMessage(null);
         operation = operationRepository.saveAndFlush(operation);
-        ProviderTenant tenant = requireTenant(operation.getProviderTenantId());
-        auditService.success(
-                "provider.tenant-onboarding.succeeded",
-                "PROVIDER_TENANT",
-                tenant.getProviderTenantId().toString(),
-                tenant.getProviderTenantId(),
-                tenant.getOrganizationId(),
-                correlationId,
-                Map.of("tenantKey", tenant.getTenantKey(), "authTenantId", tenant.getAuthTenantId()));
+        if ("MAINTENANCE_SCHEDULE".equals(operation.getOperationType())) {
+            UUID maintenanceId = operationsRepository.maintenanceWindowId(operation.getOperationId())
+                    .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+            auditService.success(
+                    "provider.maintenance.scheduled",
+                    "MAINTENANCE_WINDOW",
+                    maintenanceId.toString(),
+                    operation.getProviderTenantId(),
+                    organizationId(operation.getProviderTenantId()),
+                    correlationId,
+                    Map.of("operationId", operation.getOperationId(), "planHash", operation.getPlanHash()));
+        } else {
+            ProviderTenant tenant = requireTenant(operation.getProviderTenantId());
+            auditService.success(
+                    "provider.tenant-onboarding.succeeded",
+                    "PROVIDER_TENANT",
+                    tenant.getProviderTenantId().toString(),
+                    tenant.getProviderTenantId(),
+                    tenant.getOrganizationId(),
+                    correlationId,
+                    Map.of("tenantKey", tenant.getTenantKey(), "authTenantId", tenant.getAuthTenantId()));
+        }
         return operation;
     }
 
@@ -188,6 +211,7 @@ public class ProviderProvisioningOrchestrator {
             case "PEOPLE_TENANT" -> provisionPeople(operation, plan);
             case "ASSET_STORAGE" -> provisionAssetStorage(operation);
             case "ACTIVATE_TENANT" -> activateTenant(operation);
+            case "SCHEDULE_MAINTENANCE" -> scheduleMaintenance(operation);
             default -> throw new BaseException(
                     ErrorCode.INVALID_STATE,
                     "Unsupported provider operation step: " + stepKey);
@@ -325,6 +349,17 @@ public class ProviderProvisioningOrchestrator {
                 Map.of("lifecycle", "ACTIVE", "onboarding", "READY"));
     }
 
+    private StepResult scheduleMaintenance(ProviderOperation operation) {
+        UUID maintenanceId = operationsRepository.scheduleMaintenanceWindow(
+                        operation.getOperationId(), ProviderRequestContext.require().operatorId())
+                .orElseThrow(() -> new BaseException(
+                        ErrorCode.INVALID_STATE,
+                        "The maintenance window is no longer a schedulable draft."));
+        return StepResult.succeeded(
+                maintenanceId.toString(),
+                Map.of("maintenanceWindowId", maintenanceId, "lifecycle", "SCHEDULED"));
+    }
+
     private ProviderOperation failOperation(
             ProviderOperation operation,
             ProviderOperationStep step,
@@ -335,9 +370,10 @@ public class ProviderProvisioningOrchestrator {
         operation.setFailureCode(result.errorCode());
         operation.setFailureMessage(result.errorMessage());
         operation = operationRepository.saveAndFlush(operation);
+        boolean tenantOnboarding = "TENANT_ONBOARD".equals(operation.getOperationType());
         UUID tenantId = operation.getProviderTenantId();
         UUID organizationId = null;
-        if (tenantId != null) {
+        if (tenantOnboarding && tenantId != null) {
             ProviderTenant tenant = requireTenant(tenantId);
             tenant.setOnboardingState("FAILED");
             tenantRepository.saveAndFlush(tenant);
@@ -350,8 +386,13 @@ public class ProviderProvisioningOrchestrator {
                         ProviderRequestContext.require().operatorId());
             }
         }
+        if (!tenantOnboarding) {
+            organizationId = organizationId(tenantId);
+        }
         auditService.failed(
-                "provider.tenant-onboarding.step-failed",
+                tenantOnboarding
+                        ? "provider.tenant-onboarding.step-failed"
+                        : "provider.maintenance.schedule-failed",
                 "PROVIDER_OPERATION",
                 operation.getOperationId().toString(),
                 tenantId,
@@ -362,6 +403,11 @@ public class ProviderProvisioningOrchestrator {
                         "errorCode", result.errorCode(),
                         "attempt", step.getAttemptCount()));
         return operation;
+    }
+
+    private UUID organizationId(UUID tenantId) {
+        if (tenantId == null) return null;
+        return tenantRepository.findById(tenantId).map(ProviderTenant::getOrganizationId).orElse(null);
     }
 
     private void assignEntitlements(ProviderTenant tenant, JsonNode plan) {

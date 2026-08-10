@@ -20,6 +20,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -276,6 +277,115 @@ class ProviderControlPlaneServiceTest {
         assertThatThrownBy(() -> service.decideOperationApproval(approvalId, "corr-9", request))
                 .isInstanceOf(BaseException.class)
                 .hasMessageContaining("Separation of duties");
+    }
+
+    @Test
+    void maintenanceRejectsAnInsufficientCustomerNoticeWindow() {
+        Instant now = Instant.now();
+        ProviderDtos.CreateMaintenanceWindowRequest request =
+                new ProviderDtos.CreateMaintenanceWindowRequest(
+                        "MW-CONTROLLED-001",
+                        "Regional database maintenance",
+                        "Apply a tested database maintenance release.",
+                        "GLOBAL",
+                        null,
+                        null,
+                        null,
+                        null,
+                        "BRIEF_INTERRUPTION",
+                        60,
+                        now.plusSeconds(12 * 3600),
+                        now.plusSeconds(13 * 3600),
+                        now.minusSeconds(3600),
+                        24);
+
+        assertThatThrownBy(() -> service.createMaintenanceWindow("corr-10", request))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("minimum notice period");
+    }
+
+    @Test
+    void noImpactMaintenanceCannotDeclareInterruptionSeconds() {
+        Instant now = Instant.now();
+        ProviderDtos.CreateMaintenanceWindowRequest request =
+                new ProviderDtos.CreateMaintenanceWindowRequest(
+                        "MW-NO-IMPACT-001",
+                        "Control metadata refresh",
+                        "Refresh provider metadata without customer impact.",
+                        "GLOBAL",
+                        null,
+                        null,
+                        null,
+                        null,
+                        "NO_IMPACT",
+                        30,
+                        now.plusSeconds(7 * 24 * 3600),
+                        now.plusSeconds(7 * 24 * 3600 + 1800),
+                        now.minusSeconds(60),
+                        120);
+
+        assertThatThrownBy(() -> service.createMaintenanceWindow("corr-11", request))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("cannot declare customer interruption");
+    }
+
+    @Test
+    void maintenanceCreatesAControlledHighRiskOperationBeforeScheduling() {
+        Instant now = Instant.now();
+        UUID operationId = UUID.fromString("50000000-0000-0000-0000-000000000001");
+        UUID maintenanceId = UUID.fromString("50000000-0000-0000-0000-000000000002");
+        AtomicReference<ProviderOperation> storedOperation = new AtomicReference<>();
+        AtomicReference<List<ProviderOperationStep>> storedSteps = new AtomicReference<>(List.of());
+        when(operationRepository.saveAndFlush(any())).thenAnswer(invocation -> {
+            ProviderOperation operation = invocation.getArgument(0);
+            operation.setOperationId(operationId);
+            operation.setVersion(0L);
+            storedOperation.set(operation);
+            return operation;
+        });
+        when(stepRepository.saveAll(any())).thenAnswer(invocation -> {
+            List<ProviderOperationStep> steps = new ArrayList<>();
+            invocation.<Iterable<ProviderOperationStep>>getArgument(0).forEach(steps::add);
+            storedSteps.set(steps);
+            return steps;
+        });
+        when(operationsRepository.createMaintenanceWindow(any(), any(), any()))
+                .thenReturn(maintenanceId);
+        when(operationsRepository.maintenanceWindows()).thenReturn(List.of(
+                new ProviderDtos.MaintenanceWindowSummary(
+                        maintenanceId, operationId, "MW-CONTROLLED-002",
+                        "Global dependency maintenance",
+                        "Apply a tested dependency release through change control.",
+                        "GLOBAL", "Global", "BRIEF_INTERRUPTION", 60, "DRAFT",
+                        now.plusSeconds(7 * 24 * 3600),
+                        now.plusSeconds(7 * 24 * 3600 + 1800),
+                        now.minusSeconds(60), 120, true, 0L)));
+
+        ProviderDtos.CreateMaintenanceWindowRequest request =
+                new ProviderDtos.CreateMaintenanceWindowRequest(
+                        "MW-CONTROLLED-002",
+                        "Global dependency maintenance",
+                        "Apply a tested dependency release through change control.",
+                        "GLOBAL", null, null, null, null,
+                        "BRIEF_INTERRUPTION", 60,
+                        now.plusSeconds(7 * 24 * 3600),
+                        now.plusSeconds(7 * 24 * 3600 + 1800),
+                        now.minusSeconds(60), 120);
+
+        ProviderDtos.MaintenanceWindowSummary created =
+                service.createMaintenanceWindow("corr-12", request);
+
+        assertThat(created.lifecycleState()).isEqualTo("DRAFT");
+        assertThat(created.operationId()).isEqualTo(operationId);
+        assertThat(storedOperation.get().getOperationType()).isEqualTo("MAINTENANCE_SCHEDULE");
+        assertThat(storedOperation.get().getRiskTier()).isEqualTo("L3");
+        assertThat(storedOperation.get().getLifecycleState()).isEqualTo("PREVIEWED");
+        assertThat(storedOperation.get().getPlanHash()).hasSize(64);
+        assertThat(storedOperation.get().getPlan())
+                .contains("CONTROLLED_SINGLE_STEP", "SCHEDULE_MAINTENANCE");
+        assertThat(storedSteps.get()).extracting(ProviderOperationStep::getStepKey)
+                .containsExactly("SCHEDULE_MAINTENANCE");
+        verify(operationsRepository).ensureOperationApproval(storedOperation.get());
     }
 
     private ProviderDtos.OnboardingPlanRequest request(String displayName) {

@@ -316,6 +316,76 @@ public final class ProviderDtos {
             List<ServiceIncidentSummary> incidents) {
     }
 
+    public record ServiceLevelObjectiveSummary(
+            UUID objectiveId,
+            String objectiveKey,
+            String displayName,
+            String serviceKey,
+            String serviceName,
+            String criticality,
+            String indicatorType,
+            String scopeType,
+            String scopeLabel,
+            double targetPct,
+            int complianceWindowDays,
+            Double achievedPct,
+            Double errorBudgetRemainingPct,
+            Double burnRate,
+            String complianceState,
+            String measurementSource,
+            Instant observedAt) {
+    }
+
+    public record GovernanceDriftSummary(
+            UUID evaluationId,
+            String controlKey,
+            String controlName,
+            String controlCategory,
+            String controlBehavior,
+            String guidanceLevel,
+            String riskTier,
+            String targetType,
+            String targetId,
+            UUID tenantId,
+            String tenantName,
+            String evaluationResult,
+            String expectedSnapshot,
+            String observedSnapshot,
+            String remediationOperationType,
+            Instant evaluatedAt) {
+    }
+
+    public record MaintenanceWindowSummary(
+            UUID maintenanceWindowId,
+            UUID operationId,
+            String trackingKey,
+            String title,
+            String summary,
+            String scopeType,
+            String scopeLabel,
+            String impactType,
+            int expectedImpactSeconds,
+            String lifecycleState,
+            Instant startsAt,
+            Instant endsAt,
+            Instant customerNoticeAt,
+            int minimumNoticeHours,
+            boolean noticeCompliant,
+            long version) {
+    }
+
+    public record ReliabilityControlOverview(
+            Instant generatedAt,
+            long healthyObjectives,
+            long atRiskObjectives,
+            long exhaustedObjectives,
+            long openDriftFindings,
+            long upcomingMaintenance,
+            List<ServiceLevelObjectiveSummary> objectives,
+            List<GovernanceDriftSummary> driftFindings,
+            List<MaintenanceWindowSummary> maintenanceWindows) {
+    }
+
     public record ServicePlanPortfolio(
             String planKey,
             int planVersion,
@@ -502,6 +572,24 @@ public final class ProviderDtos {
             @NotBlank @Size(max = 2000) String message,
             @NotBlank @Pattern(regexp = "INTERNAL|CUSTOMER") String visibility,
             @NotNull @Min(0) Long version) {
+    }
+
+    public record CreateMaintenanceWindowRequest(
+            @NotBlank @Pattern(regexp = "[A-Z][A-Z0-9-]{2,79}") String trackingKey,
+            @NotBlank @Size(max = 240) String title,
+            @NotBlank @Size(max = 2000) String summary,
+            @NotBlank @Pattern(regexp = "GLOBAL|SERVICE|REGION|CELL|TENANT") String scopeType,
+            @Size(max = 80) String serviceKey,
+            @Size(max = 40) String regionKey,
+            UUID deploymentCellId,
+            UUID tenantId,
+            @NotBlank @Pattern(regexp = "NO_IMPACT|BRIEF_INTERRUPTION|DEGRADED_PERFORMANCE|SERVICE_UNAVAILABLE|FAILOVER|OTHER")
+            String impactType,
+            @NotNull @Min(0) @Max(86400) Integer expectedImpactSeconds,
+            @NotNull Instant startsAt,
+            @NotNull Instant endsAt,
+            @NotNull Instant customerNoticeAt,
+            @NotNull @Min(0) @Max(720) Integer minimumNoticeHours) {
     }
 
     public record LifecycleRequest(

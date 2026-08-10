@@ -34,6 +34,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.time.Duration;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -112,6 +113,11 @@ public class ProviderControlPlaneService {
     public ProviderDtos.ServiceHealthOverview serviceHealth() {
         ProviderRequestContext.requirePermission("HEALTH_READ");
         return operationsRepository.serviceHealth();
+    }
+
+    public ProviderDtos.ReliabilityControlOverview reliabilityControl() {
+        ProviderRequestContext.requirePermission("RELIABILITY_READ");
+        return operationsRepository.reliabilityControl();
     }
 
     public ProviderDtos.CommercialOverview commercialOverview() {
@@ -335,6 +341,9 @@ public class ProviderControlPlaneService {
             operation.setFailureCode("CHANGE_REJECTED");
             operation.setFailureMessage(request.reason().trim());
             operationRepository.saveAndFlush(operation);
+            if ("MAINTENANCE_SCHEDULE".equals(operation.getOperationType())) {
+                operationsRepository.cancelMaintenanceWindow(operation.getOperationId(), actor.operatorId());
+            }
         }
         auditService.success(
                 "provider.operation-approval.decided", "OPERATION_APPROVAL", approvalId.toString(),
@@ -393,6 +402,61 @@ public class ProviderControlPlaneService {
                 Map.of("state", request.state(), "visibility", request.visibility()));
         return operationsRepository.incidents(200).stream()
                 .filter(item -> item.incidentId().equals(incidentId))
+                .findFirst().orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+    }
+
+    @Transactional
+    public ProviderDtos.MaintenanceWindowSummary createMaintenanceWindow(
+            String correlationId,
+            ProviderDtos.CreateMaintenanceWindowRequest request) {
+        ProviderRequestContext.requirePermission("MAINTENANCE_WRITE");
+        validateMaintenanceWindow(request);
+        ProviderRequestContext.Actor actor = ProviderRequestContext.require();
+        Map<String, Object> plan = maintenancePlan(request);
+        String planJson = json(plan);
+        String planHash = sha256(planJson);
+        ProviderOperation operation = ProviderOperation.builder()
+                .providerTenantId(request.tenantId())
+                .operationType("MAINTENANCE_SCHEDULE")
+                .idempotencyKey("maintenance:schedule:"
+                        + request.trackingKey().trim().toLowerCase(Locale.ROOT))
+                .lifecycleState("PREVIEWED")
+                .riskTier("L3")
+                .requestedBy(actor.operatorId())
+                .justification(request.summary().trim())
+                .planHash(planHash)
+                .plan(planJson)
+                .build();
+        UUID maintenanceId;
+        try {
+            operation = operationRepository.saveAndFlush(operation);
+            stepRepository.saveAll(maintenanceSteps(operation.getOperationId()));
+            operationsRepository.ensureOperationApproval(operation);
+            maintenanceId = operationsRepository.createMaintenanceWindow(
+                    request, actor.operatorId(), operation.getOperationId());
+        } catch (DataIntegrityViolationException exception) {
+            throw new BaseException(
+                    ErrorCode.RESOURCE_CONFLICT,
+                    "The maintenance window conflicts with the current provider catalog or tracking key.",
+                    exception);
+        }
+        auditService.success(
+                "provider.maintenance.review-requested", "MAINTENANCE_WINDOW", maintenanceId.toString(),
+                request.tenantId(),
+                request.tenantId() == null
+                        ? null
+                        : requireTenant(request.tenantId()).getOrganizationId(),
+                correlationId,
+                Map.of(
+                        "trackingKey", request.trackingKey(),
+                        "scopeType", request.scopeType(),
+                        "impactType", request.impactType(),
+                        "operationId", operation.getOperationId(),
+                        "planHash", planHash,
+                        "startsAt", request.startsAt().toString(),
+                        "endsAt", request.endsAt().toString()));
+        return operationsRepository.maintenanceWindows().stream()
+                .filter(item -> item.maintenanceWindowId().equals(maintenanceId))
                 .findFirst().orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
     }
 
@@ -686,6 +750,72 @@ public class ProviderControlPlaneService {
         }
     }
 
+    private void validateMaintenanceWindow(ProviderDtos.CreateMaintenanceWindowRequest request) {
+        if ("NO_IMPACT".equals(request.impactType()) && request.expectedImpactSeconds() != 0) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "No-impact maintenance cannot declare customer interruption time.");
+        }
+        if (!request.endsAt().isAfter(request.startsAt())
+                || !request.startsAt().isAfter(Instant.now())) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "Planned maintenance must start in the future and end after it starts.");
+        }
+        if (request.customerNoticeAt().isAfter(Instant.now().plusSeconds(60))) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "A scheduled maintenance window requires a customer notice that has already been issued.");
+        }
+        long noticeHours = Duration.between(request.customerNoticeAt(), request.startsAt()).toHours();
+        if (noticeHours < request.minimumNoticeHours()) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "The customer notice does not meet the configured minimum notice period.");
+        }
+        int targetCount = 0;
+        if (normalized(request.serviceKey()) != null) targetCount++;
+        if (normalized(request.regionKey()) != null) targetCount++;
+        if (request.deploymentCellId() != null) targetCount++;
+        if (request.tenantId() != null) targetCount++;
+        if (("GLOBAL".equals(request.scopeType()) && targetCount != 0)
+                || (!"GLOBAL".equals(request.scopeType()) && targetCount != 1)) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "The maintenance scope must have exactly one matching target.");
+        }
+        switch (request.scopeType()) {
+            case "GLOBAL" -> {
+                // Global maintenance intentionally has no target identifier.
+            }
+            case "REGION" -> {
+                if (request.regionKey() == null || estateRepository.regions().stream()
+                        .noneMatch(region -> region.regionKey().equals(request.regionKey()))) {
+                    throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "A valid region is required.");
+                }
+            }
+            case "CELL" -> {
+                if (request.deploymentCellId() == null || operationsRepository.cellPostures().stream()
+                        .noneMatch(cell -> cell.deploymentCellId().equals(request.deploymentCellId()))) {
+                    throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "A valid deployment cell is required.");
+                }
+            }
+            case "SERVICE" -> {
+                if (request.serviceKey() == null || operationsRepository.servicePostures().stream()
+                        .noneMatch(service -> service.serviceKey().equals(request.serviceKey()))) {
+                    throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "A valid service is required.");
+                }
+            }
+            case "TENANT" -> {
+                if (request.tenantId() == null) {
+                    throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "A tenant is required.");
+                }
+                requireTenant(request.tenantId());
+            }
+            default -> throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "Unknown maintenance scope.");
+        }
+    }
+
     private Map<String, Object> onboardingPlan(
             ProviderDtos.OnboardingPlanRequest request,
             List<Entitlement> entitlements) {
@@ -717,6 +847,37 @@ public class ProviderControlPlaneService {
         return plan;
     }
 
+    private Map<String, Object> maintenancePlan(
+            ProviderDtos.CreateMaintenanceWindowRequest request) {
+        Map<String, Object> plan = new LinkedHashMap<>();
+        plan.put("contract", "dwp.provider.maintenance-schedule.v1");
+        plan.put("displayName", request.title().trim());
+        plan.put("trackingKey", request.trackingKey().trim());
+        plan.put("summary", request.summary().trim());
+        plan.put("scopeType", request.scopeType());
+        if (normalized(request.serviceKey()) != null) {
+            plan.put("serviceKey", request.serviceKey().trim());
+        }
+        if (normalized(request.regionKey()) != null) {
+            plan.put("regionKey", request.regionKey().trim());
+        }
+        if (request.deploymentCellId() != null) {
+            plan.put("deploymentCellId", request.deploymentCellId());
+        }
+        if (request.tenantId() != null) {
+            plan.put("tenantId", request.tenantId());
+        }
+        plan.put("impactType", request.impactType());
+        plan.put("expectedImpactSeconds", request.expectedImpactSeconds());
+        plan.put("startsAt", request.startsAt().toString());
+        plan.put("endsAt", request.endsAt().toString());
+        plan.put("customerNoticeAt", request.customerNoticeAt().toString());
+        plan.put("minimumNoticeHours", request.minimumNoticeHours());
+        plan.put("steps", List.of("SCHEDULE_MAINTENANCE"));
+        plan.put("executionModel", "CONTROLLED_SINGLE_STEP");
+        return plan;
+    }
+
     private List<ProviderOperationStep> onboardingSteps(UUID operationId) {
         return List.of(
                 step(operationId, 1, "CONTROL_RECORD", "dwp-provider-server"),
@@ -725,6 +886,10 @@ public class ProviderControlPlaneService {
                 step(operationId, 4, "PEOPLE_TENANT", "dwp-people-server"),
                 step(operationId, 5, "ASSET_STORAGE", "dwp-platform-server"),
                 step(operationId, 6, "ACTIVATE_TENANT", "dwp-provider-server"));
+    }
+
+    private List<ProviderOperationStep> maintenanceSteps(UUID operationId) {
+        return List.of(step(operationId, 1, "SCHEDULE_MAINTENANCE", "dwp-provider-server"));
     }
 
     private ProviderOperationStep step(UUID operationId, int order, String key, String target) {
