@@ -8,15 +8,20 @@
 
 | Module                   | Port | Responsibility                                                    |
 | ------------------------ | ---: | ----------------------------------------------------------------- |
+| `dwp-audit`              |    - | 감사 이벤트 계약과 영속 어댑터                                   |
 | `dwp-core`               |    - | API 응답, 예외, 공통 헤더와 요청 추적                             |
+| `dwp-observability`      |    - | API 이력 수집과 민감정보 최소화                                   |
 | `dwp-platform-contracts` |    - | Provider 중립 Connector·Search·Workflow·Agent·Audit Port 계약     |
 | `dwp-auth-server`        | 8001 | 로컬/OIDC 로그인, Browser Session, 테넌트, 사용자, RBAC            |
 | `dwp-platform-server`    | 8002 | Tenant 기준정보, 제품 Registry, Lifecycle과 관리 Audit             |
 | `dwp-people-server`      | 8003 | HRIS 연계용 Workforce Projection, 발령 이력과 People Audit 기반    |
+| `dwp-provider-server`    | 8004 | Provider 조직, 테넌트, 구독, 권한과 프로비저닝 Control Plane      |
 | `dwp-gateway`            | 8080 | 단일 API 진입점, Session 재검증, 내부 Identity Relay, CSRF와 CORS |
 
 인증 서버는 `dwp_auth`, Platform Server는 `dwp_platform`, People Server는
-`dwp_people` Database를 각각 소유합니다. `dwp_people`은 외부 HRIS를 대체하지 않고
+`dwp_people`, Provider Server는 `dwp_provider` Database를 각각 소유합니다.
+Redis는 Auth의 만료형 OIDC state, nonce와 PKCE verifier를 저장합니다.
+`dwp_people`은 외부 HRIS를 대체하지 않고
 사람·근로관계·유효일 발령·조직·프로필의 DWP 운영 Projection만 보관합니다.
 인증 스키마는 인증/RBAC, Group Role, 직무분리, 서버 측 Session 폐기와 Identity 변경
 감사를 소유합니다. Tenant Admin의 Role 변경은 자기 권한 변경과 마지막 Admin 제거를
@@ -62,7 +67,8 @@ JWT_SECRET=<managed-secret-at-least-256-bits>
 ./dev up full
 ```
 
-`full` 프로필은 PostgreSQL, Auth, Platform, People, Agent, Gateway, Frontend를 기동합니다.
+`full` 프로필은 PostgreSQL, Redis, Auth, Platform, People, Provider, Agent, Gateway,
+Frontend를 기동합니다.
 업무 기능을 추가하기 전 공통 웹 셸만 확인하려면 `core`, 프론트만 실행하려면
 `web` 프로필을 사용할 수 있습니다. 이미 외부 Auth·Frontend가 실행 중이라면
 `agent gateway` 프로필로 내부 실행 경로만 재기동할 수 있습니다.
@@ -77,7 +83,7 @@ JWT_SECRET=<managed-secret-at-least-256-bits>
 ./dev down
 ```
 
-개발용 초기 계정은 `admin` / `admin1234!`이며 배포 환경에서는 반드시
+개발용 초기 계정은 `admin@dwp.local` / `admin1234!`이며 배포 환경에서는 반드시
 별도 사용자와 비밀값을 구성해야 합니다.
 
 ## Database Reset
@@ -90,7 +96,7 @@ JWT_SECRET=<managed-secret-at-least-256-bits>
 ./dev up full
 ```
 
-`reset --yes`는 로컬 PostgreSQL 볼륨의 모든 데이터를 삭제합니다. 일반적인
+`reset --yes`는 로컬 PostgreSQL과 Redis 볼륨의 모든 데이터를 삭제합니다. 일반적인
 `stop`과 `down`은 볼륨을 삭제하지 않습니다.
 
 ## Verification

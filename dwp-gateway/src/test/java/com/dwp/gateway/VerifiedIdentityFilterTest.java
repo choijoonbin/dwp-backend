@@ -21,13 +21,15 @@ class VerifiedIdentityFilterTest {
         SessionVerifier verifier = ignored -> Mono.just(new VerifiedIdentity(
                 "user-7",
                 "tenant-1",
-                List.of("EMPLOYEE", "APPROVER")));
+                List.of("EMPLOYEE", "APPROVER"),
+                List.of("ADMIN.AUDIT_VIEW:VIEW")));
         VerifiedIdentityFilter filter = new VerifiedIdentityFilter(verifier);
         MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
                 .get("/api/agent/v1/plans/preview")
                 .header("X-Tenant-ID", "tenant-1")
                 .header(VerifiedIdentityFilter.USER_HEADER, "spoofed")
                 .header(VerifiedIdentityFilter.TENANT_HEADER, "spoofed")
+                .header(VerifiedIdentityFilter.PERMISSIONS_HEADER, "SPOOFED:MANAGE")
                 .build());
         AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
                 new AtomicReference<>();
@@ -43,6 +45,9 @@ class VerifiedIdentityFilterTest {
                 .isEqualTo("tenant-1");
         assertThat(forwarded.get().getHeaders().getFirst(VerifiedIdentityFilter.ROLES_HEADER))
                 .isEqualTo("EMPLOYEE,APPROVER");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                VerifiedIdentityFilter.PERMISSIONS_HEADER))
+                .isEqualTo("ADMIN.AUDIT_VIEW:VIEW");
     }
 
     @Test
@@ -104,6 +109,7 @@ class VerifiedIdentityFilterTest {
         MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
                 .get("/api/auth/policy")
                 .header(VerifiedIdentityFilter.USER_HEADER, "spoofed")
+                .header(VerifiedIdentityFilter.PERMISSIONS_HEADER, "SPOOFED:MANAGE")
                 .build());
         AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
                 new AtomicReference<>();
@@ -115,5 +121,7 @@ class VerifiedIdentityFilterTest {
 
         assertThat(forwarded.get().getHeaders().containsKey(VerifiedIdentityFilter.USER_HEADER))
                 .isFalse();
+        assertThat(forwarded.get().getHeaders().containsKey(
+                VerifiedIdentityFilter.PERMISSIONS_HEADER)).isFalse();
     }
 }

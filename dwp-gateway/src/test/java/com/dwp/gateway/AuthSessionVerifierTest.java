@@ -68,6 +68,36 @@ class AuthSessionVerifierTest {
         assertThat(captured.get().headers().getFirst("traceparent")).isEqualTo(traceParent);
     }
 
+    @Test
+    void requestsAndReturnsOnlyAuditAuthoritiesForAuditRoutes() {
+        AtomicReference<ClientRequest> captured = new AtomicReference<>();
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+            captured.set(request);
+            return Mono.just(ClientResponse.create(HttpStatus.OK)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .body("""
+                            {"success":true,"data":{"userId":7,"tenantId":1,"roles":["CUSTOM_AUDITOR"],
+                            "permissions":[
+                              {"resourceKey":"ADMIN.AUDIT_VIEW","permissionCode":"VIEW","effect":"ALLOW"},
+                              {"resourceKey":"ADMIN.AUDIT_EXPORT","permissionCode":"EXPORT","effect":"DENY"}
+                            ]}}
+                            """)
+                    .build());
+        });
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+        MockServerHttpRequest request = MockServerHttpRequest
+                .get("/api/platform/v1/admin/audit-control/events")
+                .build();
+
+        VerifiedIdentity identity = verifier.verify(request).block();
+
+        assertThat(captured.get().url().getQuery())
+                .isEqualTo("permissionPrefix=ADMIN.AUDIT_");
+        assertThat(identity).isNotNull();
+        assertThat(identity.permissions()).containsExactly("ADMIN.AUDIT_VIEW:VIEW");
+    }
+
     private AuthSessionVerifier verifierReturningTenant(String tenantId) {
         String body = """
                 {"success":true,"data":{"userId":7,"tenantId":%s,"roles":["EMPLOYEE"]}}

@@ -106,9 +106,12 @@ public class HrisImportService {
                     workerId, employerId, worker);
             for (HrisModels.Assignment assignment : worker.assignments()) {
                 long organizationId = repository.upsertOrganization(
-                        actor.tenantId(), actor.userId(), sourceSystemId, assignment.organization());
+                        actor.tenantId(), actor.userId(), sourceSystemId, assignment.organization(),
+                        assignment.effectiveStartDate(), assignment.effectiveEndDate());
                 long jobProfileId = repository.upsertJobProfile(
                         actor.tenantId(), actor.userId(), sourceSystemId, assignment.jobProfile());
+                Long jobGradeId = repository.upsertJobGrade(
+                        actor.tenantId(), actor.userId(), sourceSystemId, assignment.jobGrade());
                 long locationId = repository.upsertLocation(
                         actor.tenantId(), actor.userId(), sourceSystemId, assignment.location());
                 long positionId = repository.upsertPosition(
@@ -116,7 +119,7 @@ public class HrisImportService {
                         organizationId, jobProfileId, locationId);
                 repository.upsertAssignment(
                         actor.tenantId(), actor.userId(), sourceSystemId, relationshipId,
-                        organizationId, jobProfileId, locationId, positionId, assignment);
+                        organizationId, jobProfileId, jobGradeId, locationId, positionId, assignment);
                 repository.upsertExternalMapping(
                         actor.tenantId(), actor.userId(), sourceSystemId,
                         "ASSIGNMENT",
@@ -134,7 +137,8 @@ public class HrisImportService {
                     actor.tenantId(), actor.userId(), sourceSystemId,
                     "WORKER", worker.workerNumber(), worker.externalId() + ":worker", worker.sourceVersion());
             repository.emitProjectionChanged(
-                    actor.tenantId(), person.publicId(), syncRunId, correlationId);
+                    actor.tenantId(), person.publicId(), syncRunId, correlationId,
+                    worker, primaryJobTitle(worker));
         }
 
         repository.completeRun(
@@ -269,6 +273,15 @@ public class HrisImportService {
                 run.syncRunId(), run.sourceKey(), run.lifecycleState(),
                 run.readCount(), run.createdCount(), run.updatedCount(), run.rejectedCount(),
                 replayed, synthetic, List.of("people.worker-projection.changed"));
+    }
+
+    private String primaryJobTitle(HrisModels.WorkerRecord worker) {
+        return worker.assignments().stream()
+                .filter(HrisModels.Assignment::primary)
+                .findFirst()
+                .or(() -> worker.assignments().stream().findFirst())
+                .map(HrisModels.Assignment::businessTitle)
+                .orElse(null);
     }
 
     private List<String> connectorIssues(

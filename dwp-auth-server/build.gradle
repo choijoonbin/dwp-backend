@@ -18,6 +18,9 @@ dependencies {
     
     // JPA
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+
+    // Distributed one-time authentication state
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
     
     // PostgreSQL
     runtimeOnly 'org.postgresql:postgresql'

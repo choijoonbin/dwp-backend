@@ -41,6 +41,7 @@ class ProviderControlPlaneServiceTest {
     private final ProviderOperationRepository operationRepository = mock(ProviderOperationRepository.class);
     private final ProviderOperationStepRepository stepRepository = mock(ProviderOperationStepRepository.class);
     private final ProviderEstateRepository estateRepository = mock(ProviderEstateRepository.class);
+    private final ProviderOperationsRepository operationsRepository = mock(ProviderOperationsRepository.class);
     private final ProviderControlPlaneService service = new ProviderControlPlaneService(
             tenantRepository,
             entitlementRepository,
@@ -48,6 +49,7 @@ class ProviderControlPlaneServiceTest {
             operationRepository,
             stepRepository,
             estateRepository,
+            operationsRepository,
             mock(ProviderProvisioningOrchestrator.class),
             mock(DownstreamProvisioningClient.class),
             mock(ProviderAuditService.class),
@@ -145,12 +147,143 @@ class ProviderControlPlaneServiceTest {
                 .hasMessageContaining("changed");
     }
 
+    @Test
+    void standardSupportRequiresACustomerApprovalReference() {
+        UUID tenantId = UUID.fromString("30000000-0000-0000-0000-000000000001");
+        ProviderTenant tenant = ProviderTenant.builder()
+                .providerTenantId(tenantId)
+                .organizationId(UUID.fromString("30000000-0000-0000-0000-000000000002"))
+                .tenantKey("acme")
+                .displayName("Acme")
+                .serviceTier("ENTERPRISE")
+                .dataRegion("ap-northeast-2")
+                .isolationModel("POOL")
+                .lifecycleState("ACTIVE")
+                .onboardingState("READY")
+                .version(0L)
+                .build();
+        when(tenantRepository.findById(tenantId)).thenReturn(Optional.of(tenant));
+        when(operationsRepository.supportPolicy(any()))
+                .thenReturn(new ProviderOperationsRepository.SupportPolicy("L2", true, 1));
+
+        ProviderDtos.CreateSupportSessionRequest request =
+                new ProviderDtos.CreateSupportSessionRequest(
+                        tenantId,
+                        List.of("TENANT_CONFIGURATION_READ"),
+                        30,
+                        "Investigate an approved customer issue",
+                        null,
+                        false);
+
+        assertThatThrownBy(() -> service.createSupportSession("corr-5", request))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("customer approval reference");
+    }
+
+    @Test
+    void supportSessionRejectsUnknownOrRetiredScopes() {
+        UUID tenantId = UUID.fromString("30000000-0000-0000-0000-000000000003");
+        ProviderTenant tenant = ProviderTenant.builder()
+                .providerTenantId(tenantId)
+                .organizationId(UUID.fromString("30000000-0000-0000-0000-000000000004"))
+                .tenantKey("acme-support")
+                .displayName("Acme Support")
+                .serviceTier("ENTERPRISE")
+                .dataRegion("ap-northeast-2")
+                .isolationModel("POOL")
+                .lifecycleState("ACTIVE")
+                .onboardingState("READY")
+                .version(0L)
+                .build();
+        when(tenantRepository.findById(tenantId)).thenReturn(Optional.of(tenant));
+        when(operationsRepository.supportPolicy(any()))
+                .thenReturn(new ProviderOperationsRepository.SupportPolicy("L1", false, 0));
+
+        ProviderDtos.CreateSupportSessionRequest request =
+                new ProviderDtos.CreateSupportSessionRequest(
+                        tenantId,
+                        List.of("RETIRED_SCOPE"),
+                        15,
+                        "Investigate an approved customer issue",
+                        "CASE-1001",
+                        false);
+
+        assertThatThrownBy(() -> service.createSupportSession("corr-6", request))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("unknown or inactive");
+    }
+
+    @Test
+    void incidentRegionScopeRequiresARegisteredRegion() {
+        ProviderDtos.CreateIncidentRequest request = new ProviderDtos.CreateIncidentRequest(
+                "Regional dependency failure",
+                "SEV2",
+                "REGION",
+                null,
+                "unknown-region",
+                null,
+                null,
+                "Customers cannot complete sign-in.",
+                "We are investigating a regional service issue.",
+                "Incident command has been activated.");
+        when(estateRepository.regions()).thenReturn(List.of(
+                new ProviderDtos.RegionSummary(
+                        "ap-northeast-2", "Seoul", "KR", "STANDARD", "ACTIVE")));
+
+        assertThatThrownBy(() -> service.createIncident("corr-7", request))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("valid region");
+    }
+
+    @Test
+    void incidentScopeRejectsConflictingTargets() {
+        ProviderDtos.CreateIncidentRequest request = new ProviderDtos.CreateIncidentRequest(
+                "Cross-scope incident",
+                "SEV2",
+                "SERVICE",
+                "auth",
+                "ap-northeast-2",
+                null,
+                null,
+                "Customers cannot complete sign-in.",
+                "We are investigating a service issue.",
+                "Incident command has been activated.");
+
+        assertThatThrownBy(() -> service.createIncident("corr-8", request))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("exactly one matching target");
+    }
+
+    @Test
+    void requesterCannotApproveTheirOwnHighRiskChange() {
+        UUID approvalId = UUID.fromString("40000000-0000-0000-0000-000000000001");
+        UUID operationId = UUID.fromString("40000000-0000-0000-0000-000000000002");
+        when(operationsRepository.approval(approvalId)).thenReturn(Optional.of(
+                new ProviderOperationsRepository.ApprovalRecord(
+                        approvalId,
+                        operationId,
+                        "PENDING",
+                        "PROVIDER_ADMIN",
+                        true,
+                        12L,
+                        null,
+                        0L)));
+
+        ProviderDtos.DecideOperationApprovalRequest request =
+                new ProviderDtos.DecideOperationApprovalRequest(
+                        "APPROVED", "Reviewed change impact and rollback plan", 0L);
+
+        assertThatThrownBy(() -> service.decideOperationApproval(approvalId, "corr-9", request))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("Separation of duties");
+    }
+
     private ProviderDtos.OnboardingPlanRequest request(String displayName) {
         return new ProviderDtos.OnboardingPlanRequest(
                 "acme-org", "Acme Organization", "Acme Corporation", "CRM-1001",
                 "acme", displayName, "production", "ENTERPRISE", "ap-northeast-2", "POOL",
                 "ko-KR", "Asia/Seoul", "acme.example.com",
-                "Acme Administrator", "admin@acme.example.com", "admin@acme.example.com",
+                "Acme Administrator", "admin@acme.example.com",
                 List.of("core.workspace"), "Approved enterprise onboarding request");
     }
 }

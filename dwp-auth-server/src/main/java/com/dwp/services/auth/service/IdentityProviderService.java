@@ -31,6 +31,7 @@ public class IdentityProviderService {
                 .enabled(provider.getEnabled())
                 .providerType(provider.getProviderType())
                 .providerKey(provider.getProviderKey())
+                .issuerUri(provider.getIssuerUri())
                 .authUrl(provider.getAuthUrl())
                 .metadataUrl(provider.getMetadataUrl())
                 .clientId(provider.getClientId())

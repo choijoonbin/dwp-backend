@@ -164,6 +164,9 @@ def local_environment() -> dict[str, str]:
         "DB_NAME": "dwp_auth",
         "DB_USERNAME": "dwp_user",
         "DB_PASSWORD": "dwp_password",
+        "REDIS_HOST": "localhost",
+        "REDIS_PORT": "6379",
+        "REDIS_PASSWORD": "dwp_redis_password",
         "SERVICE_AUTH_URL": "http://localhost:8001",
         "SERVICE_PLATFORM_URL": "http://localhost:8002",
         "SERVICE_PEOPLE_URL": "http://localhost:8003",
@@ -177,6 +180,10 @@ def local_environment() -> dict[str, str]:
         "DWP_PROVIDER_PROVISIONING_TOKEN": (
             "dwp-local-provider-provisioning-token-change-outside-local"
         ),
+        "DWP_IDENTITY_SYNC_ENABLED": "true",
+        "DWP_IDENTITY_SYNC_TOKEN": (
+            "dwp-local-identity-sync-token-change-outside-local"
+        ),
         "DWP_API_HISTORY_COLLECTOR_URL": (
             "http://localhost:8002/internal/observability/api-history"
         ),
@@ -188,6 +195,13 @@ def local_environment() -> dict[str, str]:
         ),
         "DWP_API_HISTORY_CURSOR_SECRET": (
             "dwp-local-api-history-cursor-secret-change-outside-local"
+        ),
+        "DWP_AUDIT_COLLECTOR_URL": "http://localhost:8002/internal/audit/events",
+        "DWP_AUDIT_INGEST_TOKEN": (
+            "dwp-local-audit-ingest-token-change-outside-local"
+        ),
+        "DWP_AUDIT_INTEGRITY_SECRET": (
+            "dwp-local-audit-integrity-secret-change-outside-local"
         ),
         "DWP_ENVIRONMENT": "local",
         "VITE_API_URL": "http://localhost:8080",
@@ -216,6 +230,10 @@ def service_environment(service_name: str) -> dict[str, str]:
         environment.pop("DWP_PROVIDER_SERVICE_TOKEN", None)
     if service_name not in {"auth", "platform", "people", "provider"}:
         environment.pop("DWP_PROVIDER_PROVISIONING_TOKEN", None)
+    if service_name not in {"auth", "people"}:
+        environment.pop("DWP_IDENTITY_SYNC_TOKEN", None)
+    if service_name != "people":
+        environment.pop("DWP_IDENTITY_SYNC_ENABLED", None)
     return environment
 
 
@@ -279,10 +297,10 @@ def doctor() -> None:
 
 
 def start_infrastructure() -> None:
-    docker_compose("up", "-d", "postgres")
+    docker_compose("up", "-d", "postgres", "redis")
     deadline = time.monotonic() + 60
     while time.monotonic() < deadline:
-        result = docker_compose(
+        postgres = docker_compose(
             "exec",
             "-T",
             "postgres",
@@ -294,14 +312,26 @@ def start_infrastructure() -> None:
             check=False,
             capture_output=True,
         )
-        if result.returncode == 0:
+        redis = docker_compose(
+            "exec",
+            "-T",
+            "redis",
+            "redis-cli",
+            "-a",
+            "dwp_redis_password",
+            "ping",
+            check=False,
+            capture_output=True,
+        )
+        if postgres.returncode == 0 and redis.stdout.strip() == "PONG":
             ensure_database("dwp_platform")
             ensure_database("dwp_people")
             ensure_database("dwp_provider")
             print("postgres   ready at localhost:5432")
+            print("redis      ready at localhost:6379")
             return
         time.sleep(1)
-    raise RuntimeError("PostgreSQL did not become ready within 60 seconds.")
+    raise RuntimeError("PostgreSQL and Redis did not become ready within 60 seconds.")
 
 
 def ensure_database(database_name: str) -> None:
@@ -463,7 +493,7 @@ def reset_database(confirmed: bool) -> None:
     stop_services()
     docker_compose("down", "-v", "--remove-orphans")
     shutil.rmtree(RUNTIME_ROOT, ignore_errors=True)
-    print("Local PostgreSQL data was removed. Run './dev up full' for a fresh schema.")
+    print("Local PostgreSQL and Redis data was removed. Run './dev up full' for a fresh schema.")
 
 
 def build_parser() -> argparse.ArgumentParser:

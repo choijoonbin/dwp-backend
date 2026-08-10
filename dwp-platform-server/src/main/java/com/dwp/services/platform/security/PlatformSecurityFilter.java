@@ -29,6 +29,7 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
     static final String USER_HEADER = "X-DWP-User-ID";
     static final String TENANT_HEADER = "X-DWP-Tenant-ID";
     static final String ROLES_HEADER = "X-DWP-Roles";
+    static final String PERMISSIONS_HEADER = "X-DWP-Permissions";
     private static final Set<String> ADMIN_ROLES = Set.of("ADMIN", "TENANT_ADMIN", "PLATFORM_ADMIN");
 
     private final String serviceToken;
@@ -49,6 +50,7 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         return path.startsWith("/actuator/health")
                 || path.startsWith(ApiHistoryServletFilter.COLLECTOR_PATH)
+                || path.startsWith("/internal/audit/events")
                 || path.startsWith("/internal/provider/")
                 || path.equals("/error");
     }
@@ -80,8 +82,14 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
             writeError(response, ErrorCode.UNAUTHORIZED, "Verified user and tenant identity are required.");
             return;
         }
-        if (request.getRequestURI().startsWith("/v1/admin/")
-                && !hasAdminRole(request.getHeader(ROLES_HEADER))) {
+        String path = request.getRequestURI();
+        boolean auditAdminPath = path.startsWith("/v1/admin/audit-control");
+        if (auditAdminPath && isBlank(request.getHeader(PERMISSIONS_HEADER))) {
+            writeError(response, ErrorCode.FORBIDDEN, "Audit permission is required.");
+            return;
+        }
+        if (!auditAdminPath && path.startsWith("/v1/admin/")
+                && !hasRole(request.getHeader(ROLES_HEADER), ADMIN_ROLES)) {
             writeError(response, ErrorCode.FORBIDDEN, "Tenant administrator permission is required.");
             return;
         }
@@ -94,11 +102,16 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
         }
     }
 
-    private boolean hasAdminRole(String rolesHeader) {
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private boolean hasRole(String rolesHeader, Set<String> allowedRoles) {
         if (rolesHeader == null || rolesHeader.isBlank()) return false;
         return Arrays.stream(rolesHeader.split(","))
                 .map(String::trim)
-                .anyMatch(ADMIN_ROLES::contains);
+                .map(String::toUpperCase)
+                .anyMatch(allowedRoles::contains);
     }
 
     private boolean isRuntimeRead(HttpServletRequest request) {

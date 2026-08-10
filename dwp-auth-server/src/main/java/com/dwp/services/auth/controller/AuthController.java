@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 
@@ -63,10 +64,11 @@ public class AuthController {
     @GetMapping("/me")
     public ApiResponse<MeResponse> getMe(
             Authentication authentication,
-            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantHeader) {
+            @RequestHeader(value = "X-Tenant-ID", required = false) String tenantHeader,
+            @RequestParam(value = "permissionPrefix", required = false) String permissionPrefix) {
         Long userId = AuthenticatedUserResolver.requireUserId(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
-        return ApiResponse.success(authService.getMe(userId, tenantId));
+        return ApiResponse.success(authService.getMe(userId, tenantId, permissionPrefix));
     }
 
     @PatchMapping("/me/locale")

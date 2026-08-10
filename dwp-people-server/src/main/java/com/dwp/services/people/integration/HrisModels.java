@@ -51,6 +51,7 @@ public final class HrisModels {
             String changeReasonCode,
             Organization organization,
             JobProfile jobProfile,
+            JobGrade jobGrade,
             Location location,
             Position position) {
     }
@@ -67,6 +68,13 @@ public final class HrisModels {
             String name,
             String familyKey,
             String managementLevel) {
+    }
+
+    public record JobGrade(
+            String key,
+            String name,
+            int levelOrder,
+            String careerTrack) {
     }
 
     public record Location(

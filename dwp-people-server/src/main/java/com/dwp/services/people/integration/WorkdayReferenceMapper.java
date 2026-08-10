@@ -44,6 +44,7 @@ public class WorkdayReferenceMapper {
             for (JsonNode assignment : required(worker, "Position_Data")) {
                 JsonNode organization = required(assignment, "Supervisory_Organization");
                 JsonNode job = required(assignment, "Job_Profile");
+                JsonNode grade = assignment.path("Job_Grade");
                 JsonNode location = required(assignment, "Location");
                 assignments.add(new HrisModels.Assignment(
                         text(assignment, "External_ID"),
@@ -67,6 +68,15 @@ public class WorkdayReferenceMapper {
                                 text(job, "Name"),
                                 optionalText(job, "Family_ID"),
                                 optionalText(job, "Management_Level")),
+                        grade.isMissingNode() || grade.isNull()
+                                ? null
+                                : new HrisModels.JobGrade(
+                                        text(grade, "ID"),
+                                        text(grade, "Name"),
+                                        Math.max(1, grade.path("Level_Order").asInt(1)),
+                                        optionalText(grade, "Career_Track") == null
+                                                ? "PROFESSIONAL"
+                                                : enumValue(grade, "Career_Track")),
                         new HrisModels.Location(
                                 text(location, "ID"),
                                 text(location, "Name"),

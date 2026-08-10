@@ -52,7 +52,6 @@ public class DownstreamProvisioningClient {
                         plan.path("timeZone").asText(),
                         plan.path("initialAdministrator").path("displayName").asText(),
                         plan.path("initialAdministrator").path("email").asText(),
-                        plan.path("initialAdministrator").path("principal").asText(),
                         entitlements))
                 .retrieve()
                 .body(AuthProvisioningResult.class);
@@ -188,7 +187,6 @@ public class DownstreamProvisioningClient {
             String timeZone,
             String administratorDisplayName,
             String administratorEmail,
-            String administratorPrincipal,
             List<String> entitlementKeys) {
     }
 
@@ -225,7 +223,7 @@ public class DownstreamProvisioningClient {
             UUID providerTenantId,
             Long tenantId,
             Long administratorUserId,
-            String administratorPrincipal,
+            String administratorEmail,
             String lifecycleState,
             int schemaVersion) {
     }
@@ -241,7 +239,7 @@ public class DownstreamProvisioningClient {
     public record InvitationResult(
             Long tenantId,
             Long administratorUserId,
-            String principal,
+            String email,
             String activationToken,
             Instant expiresAt) {
     }

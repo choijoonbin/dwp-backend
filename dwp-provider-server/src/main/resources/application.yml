@@ -20,6 +20,13 @@ spring:
     validate-on-migrate: true
 
 dwp:
+  audit:
+    collector-url: ${DWP_AUDIT_COLLECTOR_URL:}
+    ingest-token: ${DWP_AUDIT_INGEST_TOKEN:}
+    environment: ${DWP_ENVIRONMENT:local}
+    service-instance: ${DWP_SERVICE_INSTANCE:${HOSTNAME:local}}
+    batch-size: ${DWP_AUDIT_BATCH_SIZE:100}
+    poll-interval: ${DWP_AUDIT_POLL_INTERVAL:PT2S}
   observability:
     api-history:
       enabled: ${DWP_API_HISTORY_ENABLED:true}

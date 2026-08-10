@@ -2,6 +2,7 @@ package com.dwp.services.auth.provisioning;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.core.identity.EmailAddressNormalizer;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -94,7 +95,7 @@ public class AuthTenantProvisioningService {
         return new AuthTenantProvisioningDtos.ProvisionTenantResponse(
                 tenant.providerTenantId(), tenant.tenantId(),
                 administrator == null ? null : administrator.userId(),
-                administrator == null ? null : administrator.principal(),
+                administrator == null ? null : administrator.email(),
                 request.lifecycleState(), 1);
     }
 
@@ -111,7 +112,7 @@ public class AuthTenantProvisioningService {
         return new AuthTenantProvisioningDtos.ProvisionTenantResponse(
                 tenant.providerTenantId(), tenant.tenantId(),
                 administrator == null ? null : administrator.userId(),
-                administrator == null ? null : administrator.principal(),
+                administrator == null ? null : administrator.email(),
                 tenant.lifecycleState(), 1);
     }
 
@@ -145,7 +146,7 @@ public class AuthTenantProvisioningService {
                  WHERE tenant_id = ? AND user_account_id = ? AND status <> 'ACTIVE'
                 """, tenant.tenantId(), administrator.accountId());
         return new AuthTenantProvisioningDtos.InvitationResponse(
-                tenant.tenantId(), administrator.userId(), administrator.principal(), token, expiresAt);
+                tenant.tenantId(), administrator.userId(), administrator.email(), token, expiresAt);
     }
 
     @Transactional
@@ -153,7 +154,7 @@ public class AuthTenantProvisioningService {
         ActivationRecord record = requireActivation(token);
         return new AuthTenantProvisioningDtos.ActivationSummary(
                 record.tenantId(), record.tenantKey(), record.tenantName(),
-                record.userId(), record.displayName(), record.email(), record.principal(), record.expiresAt());
+                record.userId(), record.displayName(), record.email(), record.expiresAt());
     }
 
     @Transactional
@@ -177,7 +178,7 @@ public class AuthTenantProvisioningService {
                  WHERE activation_token_id = ? AND lifecycle_state = 'ACTIVE'
                 """, record.activationTokenId());
         return new AuthTenantProvisioningDtos.ActivateAccountResponse(
-                record.tenantId(), record.tenantKey(), record.principal(), "ACTIVE");
+                record.tenantId(), record.tenantKey(), record.email(), "ACTIVE");
     }
 
     private AuthTenantProvisioningDtos.ProvisionTenantResponse ensureTenantFoundation(
@@ -212,7 +213,9 @@ public class AuthTenantProvisioningService {
         AdministratorRecord administrator = administrator(tenant.tenantId(), userId);
         return new AuthTenantProvisioningDtos.ProvisionTenantResponse(
                 tenant.providerTenantId(), tenant.tenantId(), userId,
-                administrator == null ? request.administratorPrincipal() : administrator.principal(),
+                administrator == null
+                        ? EmailAddressNormalizer.requireValid(request.administratorEmail())
+                        : administrator.email(),
                 tenant.lifecycleState(), 1);
     }
 
@@ -252,11 +255,12 @@ public class AuthTenantProvisioningService {
     private Long ensureAdministrator(
             Long tenantId,
             AuthTenantProvisioningDtos.ProvisionTenantRequest request) {
+        String email = EmailAddressNormalizer.requireValid(request.administratorEmail());
         List<Long> existing = jdbc.query("""
                 SELECT user_id FROM com_user_accounts
                  WHERE tenant_id = ? AND provider_type = 'LOCAL'
                    AND provider_id = 'local' AND principal = ?
-                """, (result, ignored) -> result.getLong(1), tenantId, request.administratorPrincipal());
+                """, (result, ignored) -> result.getLong(1), tenantId, email);
         if (!existing.isEmpty()) return existing.get(0);
         Long userId = jdbc.queryForObject("""
                 INSERT INTO com_users (
@@ -264,14 +268,14 @@ public class AuthTenantProvisioningService {
                 VALUES (?, ?, ?, 'INVITED', 'Tenant administrator', ?)
                 RETURNING user_id
                 """, Long.class, tenantId, request.administratorDisplayName(),
-                request.administratorEmail(), request.defaultLocale());
+                email, request.defaultLocale());
         if (userId == null) throw new IllegalStateException("Administrator insert returned no identifier.");
         jdbc.update("""
                 INSERT INTO com_user_accounts (
                     tenant_id, user_id, provider_type, provider_id, principal,
                     password_hash, status)
                 VALUES (?, ?, 'LOCAL', 'local', ?, NULL, 'INVITED')
-                """, tenantId, userId, request.administratorPrincipal());
+                """, tenantId, userId, email);
         return userId;
     }
 
@@ -311,8 +315,11 @@ public class AuthTenantProvisioningService {
 
     private AdministratorRecord primaryAdministrator(Long tenantId) {
         return jdbc.query("""
-                SELECT account.user_account_id, account.user_id, account.principal
+                SELECT account.user_account_id, account.user_id, user_record.email
                   FROM com_user_accounts account
+                  JOIN com_users user_record
+                    ON user_record.tenant_id = account.tenant_id
+                   AND user_record.user_id = account.user_id
                   JOIN com_role_members member
                     ON member.tenant_id = account.tenant_id AND member.user_id = account.user_id
                   JOIN com_roles role
@@ -325,10 +332,13 @@ public class AuthTenantProvisioningService {
 
     private AdministratorRecord administrator(Long tenantId, Long userId) {
         return jdbc.query("""
-                SELECT user_account_id, user_id, principal
-                  FROM com_user_accounts
-                 WHERE tenant_id = ? AND user_id = ?
-                   AND provider_type = 'LOCAL' AND provider_id = 'local'
+                SELECT account.user_account_id, account.user_id, user_record.email
+                  FROM com_user_accounts account
+                  JOIN com_users user_record
+                    ON user_record.tenant_id = account.tenant_id
+                   AND user_record.user_id = account.user_id
+                 WHERE account.tenant_id = ? AND account.user_id = ?
+                   AND account.provider_type = 'LOCAL' AND account.provider_id = 'local'
                 """, this::administrator, tenantId, userId).stream().findFirst().orElse(null);
     }
 
@@ -348,7 +358,6 @@ public class AuthTenantProvisioningService {
                        activation.user_account_id,
                        user_record.display_name,
                        user_record.email,
-                       account.principal,
                        activation.expires_at
                   FROM sys_account_activation_tokens activation
                   JOIN com_tenants tenant ON tenant.tenant_id = activation.tenant_id
@@ -402,7 +411,7 @@ public class AuthTenantProvisioningService {
         return new AdministratorRecord(
                 result.getLong("user_account_id"),
                 result.getLong("user_id"),
-                result.getString("principal"));
+                result.getString("email"));
     }
 
     private ActivationRecord activation(ResultSet result, int ignored) throws SQLException {
@@ -415,7 +424,6 @@ public class AuthTenantProvisioningService {
                 result.getLong("user_account_id"),
                 result.getString("display_name"),
                 result.getString("email"),
-                result.getString("principal"),
                 result.getTimestamp("expires_at").toInstant());
     }
 
@@ -426,7 +434,7 @@ public class AuthTenantProvisioningService {
             String lifecycleState) {
     }
 
-    private record AdministratorRecord(Long accountId, Long userId, String principal) {
+    private record AdministratorRecord(Long accountId, Long userId, String email) {
     }
 
     private record ActivationRecord(
@@ -438,7 +446,6 @@ public class AuthTenantProvisioningService {
             Long accountId,
             String displayName,
             String email,
-            String principal,
             Instant expiresAt) {
     }
 }

@@ -4,6 +4,8 @@ import com.dwp.core.entity.BaseEntity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.UUID;
+
 @Entity
 @Table(name = "com_tenants")
 @Getter
@@ -17,6 +19,9 @@ public class Tenant extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "tenant_id")
     private Long tenantId;
+
+    @Column(name = "public_id", nullable = false, unique = true)
+    private UUID publicId;
 
     @Column(nullable = false, unique = true, length = 50)
     private String code;

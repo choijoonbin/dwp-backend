@@ -462,16 +462,63 @@ public class HrisIntegrationRepository {
             Long tenantId,
             Long actorId,
             long sourceSystemId,
-            HrisModels.Organization organization) {
+            HrisModels.Organization organization,
+            LocalDate effectiveStartDate,
+            LocalDate effectiveEndDate) {
         Long parentId = null;
         if (organization.parentKey() != null) {
             parentId = upsertOrganizationRecord(
                     tenantId, actorId, sourceSystemId,
                     organization.parentKey(), organization.parentKey(), "BUSINESS_UNIT", null);
         }
-        return upsertOrganizationRecord(
+        long organizationId = upsertOrganizationRecord(
                 tenantId, actorId, sourceSystemId,
                 organization.key(), organization.name(), organization.type(), parentId);
+        if (parentId != null) {
+            upsertOrganizationRelationship(
+                    tenantId, actorId, sourceSystemId, organizationId, parentId,
+                    effectiveStartDate, effectiveEndDate, organization.key());
+        }
+        return organizationId;
+    }
+
+    private void upsertOrganizationRelationship(
+            Long tenantId,
+            Long actorId,
+            long sourceSystemId,
+            long organizationId,
+            long parentId,
+            LocalDate effectiveStartDate,
+            LocalDate effectiveEndDate,
+            String organizationKey) {
+        String sql = """
+                INSERT INTO ppl_organization_relationships (
+                    tenant_id, child_organization_id, parent_organization_id,
+                    relationship_type, primary_relationship, effective_start_date,
+                    effective_end_date, source_system_id, external_id, created_by, updated_by)
+                VALUES (
+                    :tenantId, :organizationId, :parentId,
+                    'SUPERVISORY', TRUE, :startDate,
+                    :endDate, :sourceSystemId, :externalId, :actorId, :actorId)
+                ON CONFLICT (
+                    tenant_id, child_organization_id, parent_organization_id,
+                    relationship_type, effective_start_date)
+                DO UPDATE SET
+                    primary_relationship = TRUE,
+                    effective_end_date = EXCLUDED.effective_end_date,
+                    source_system_id = EXCLUDED.source_system_id,
+                    external_id = EXCLUDED.external_id,
+                    version = ppl_organization_relationships.version + 1,
+                    updated_at = CURRENT_TIMESTAMP,
+                    updated_by = EXCLUDED.updated_by
+                """;
+        jdbc.update(sql, params(tenantId, actorId)
+                .addValue("organizationId", organizationId)
+                .addValue("parentId", parentId)
+                .addValue("startDate", Date.valueOf(effectiveStartDate))
+                .addValue("endDate", date(effectiveEndDate))
+                .addValue("sourceSystemId", sourceSystemId)
+                .addValue("externalId", organizationKey + ":supervisory"));
     }
 
     private long upsertOrganizationRecord(
@@ -537,6 +584,38 @@ public class HrisIntegrationRepository {
                 .addValue("name", job.name())
                 .addValue("family", job.familyKey())
                 .addValue("level", job.managementLevel())
+                .addValue("sourceSystemId", sourceSystemId));
+    }
+
+    public Long upsertJobGrade(
+            Long tenantId,
+            Long actorId,
+            long sourceSystemId,
+            HrisModels.JobGrade grade) {
+        if (grade == null) return null;
+        String sql = """
+                INSERT INTO ppl_job_grades (
+                    tenant_id, grade_key, name, level_order, career_track,
+                    source_system_id, external_id, created_by, updated_by)
+                VALUES (
+                    :tenantId, :key, :name, :levelOrder, :careerTrack,
+                    :sourceSystemId, :key, :actorId, :actorId)
+                ON CONFLICT (tenant_id, grade_key) DO UPDATE SET
+                    name = EXCLUDED.name,
+                    level_order = EXCLUDED.level_order,
+                    career_track = EXCLUDED.career_track,
+                    lifecycle_state = 'ACTIVE',
+                    source_system_id = EXCLUDED.source_system_id,
+                    version = ppl_job_grades.version + 1,
+                    updated_at = CURRENT_TIMESTAMP,
+                    updated_by = EXCLUDED.updated_by
+                RETURNING job_grade_id
+                """;
+        return requiredLong(sql, params(tenantId, actorId)
+                .addValue("key", grade.key())
+                .addValue("name", grade.name())
+                .addValue("levelOrder", grade.levelOrder())
+                .addValue("careerTrack", grade.careerTrack())
                 .addValue("sourceSystemId", sourceSystemId));
     }
 
@@ -615,6 +694,7 @@ public class HrisIntegrationRepository {
             long relationshipId,
             long organizationId,
             long jobProfileId,
+            Long jobGradeId,
             long locationId,
             long positionId,
             HrisModels.Assignment assignment) {
@@ -622,14 +702,14 @@ public class HrisIntegrationRepository {
                 INSERT INTO ppl_assignments (
                     tenant_id, assignment_key, work_relationship_id,
                     effective_start_date, effective_end_date, assignment_status,
-                    primary_assignment, position_id, job_profile_id, organization_id,
+                    primary_assignment, position_id, job_profile_id, job_grade_id, organization_id,
                     location_id, manager_assignment_key, business_title, cost_center_key,
                     change_reason_code, source_system_id, external_id, source_version,
                     created_by, updated_by)
                 VALUES (
                     :tenantId, :assignmentKey, :relationshipId,
                     :startDate, :endDate, :status,
-                    :primary, :positionId, :jobProfileId, :organizationId,
+                    :primary, :positionId, :jobProfileId, :jobGradeId, :organizationId,
                     :locationId, :managerKey, :title, :costCenter,
                     :changeReason, :sourceSystemId, :externalId, :sourceVersion,
                     :actorId, :actorId)
@@ -641,6 +721,7 @@ public class HrisIntegrationRepository {
                     primary_assignment = EXCLUDED.primary_assignment,
                     position_id = EXCLUDED.position_id,
                     job_profile_id = EXCLUDED.job_profile_id,
+                    job_grade_id = EXCLUDED.job_grade_id,
                     organization_id = EXCLUDED.organization_id,
                     location_id = EXCLUDED.location_id,
                     manager_assignment_key = EXCLUDED.manager_assignment_key,
@@ -663,6 +744,7 @@ public class HrisIntegrationRepository {
                 .addValue("primary", assignment.primary())
                 .addValue("positionId", positionId)
                 .addValue("jobProfileId", jobProfileId)
+                .addValue("jobGradeId", jobGradeId)
                 .addValue("organizationId", organizationId)
                 .addValue("locationId", locationId)
                 .addValue("managerKey", assignment.managerAssignmentKey())
@@ -735,7 +817,9 @@ public class HrisIntegrationRepository {
             Long tenantId,
             UUID personPublicId,
             UUID syncRunId,
-            String correlationId) {
+            String correlationId,
+            HrisModels.WorkerRecord worker,
+            String jobTitle) {
         jdbc.update("""
                 INSERT INTO sys_people_outbox_events (
                     tenant_id, aggregate_type, aggregate_id, event_type,
@@ -744,12 +828,31 @@ public class HrisIntegrationRepository {
                     :tenantId, 'PERSON', :personPublicId,
                     'people.worker-projection.changed',
                     jsonb_build_object(
+                        'contractVersion', 1,
                         'personPublicId', :personPublicId,
+                        'externalId', :externalId,
+                        'displayName', :displayName,
+                        'givenName', :givenName,
+                        'familyName', :familyName,
+                        'workEmail', :workEmail,
+                        'jobTitle', :jobTitle,
+                        'preferredLocale', :preferredLocale,
+                        'workerStatus', :workerStatus,
+                        'sourceVersion', :sourceVersion,
                         'syncRunId', :syncRunId
                     ),
                     :correlationId)
                 """, new MapSqlParameterSource("tenantId", tenantId)
                 .addValue("personPublicId", personPublicId.toString())
+                .addValue("externalId", worker.externalId())
+                .addValue("displayName", worker.displayName())
+                .addValue("givenName", worker.givenName())
+                .addValue("familyName", worker.familyName())
+                .addValue("workEmail", worker.workEmail())
+                .addValue("jobTitle", jobTitle)
+                .addValue("preferredLocale", worker.preferredLocale())
+                .addValue("workerStatus", worker.workerStatus())
+                .addValue("sourceVersion", worker.sourceVersion())
                 .addValue("syncRunId", syncRunId.toString())
                 .addValue("correlationId", correlationId));
     }

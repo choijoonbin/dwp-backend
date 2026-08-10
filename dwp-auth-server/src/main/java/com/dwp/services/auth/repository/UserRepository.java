@@ -25,6 +25,10 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
 
     Optional<User> findByTenantIdAndScimUserName(Long tenantId, String scimUserName);
 
+    Optional<User> findByTenantIdAndEmailNormalized(Long tenantId, String emailNormalized);
+
+    Optional<User> findByTenantIdAndPersonPublicId(Long tenantId, UUID personPublicId);
+
     List<User> findByTenantIdAndPublicIdIn(Long tenantId, Collection<UUID> publicIds);
 
     List<User> findByTenantIdAndPrimaryOrgUnitIdOrderByDisplayNameAscUserIdAsc(

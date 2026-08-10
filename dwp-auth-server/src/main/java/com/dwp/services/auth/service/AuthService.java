@@ -2,6 +2,7 @@ package com.dwp.services.auth.service;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.core.identity.EmailAddressNormalizer;
 import com.dwp.services.auth.dto.AuthPolicyResponse;
 import com.dwp.services.auth.dto.LoginRequest;
 import com.dwp.services.auth.dto.LoginResponse;
@@ -9,7 +10,6 @@ import com.dwp.services.auth.dto.MeResponse;
 import com.dwp.services.auth.dto.OidcUserInfo;
 import com.dwp.services.auth.dto.PermissionDTO;
 import com.dwp.services.auth.dto.UpdatePreferredLocaleRequest;
-import com.dwp.services.auth.entity.LoginHistory;
 import com.dwp.services.auth.entity.Permission;
 import com.dwp.services.auth.entity.Resource;
 import com.dwp.services.auth.entity.Role;
@@ -17,7 +17,6 @@ import com.dwp.services.auth.entity.RolePermission;
 import com.dwp.services.auth.entity.Tenant;
 import com.dwp.services.auth.entity.User;
 import com.dwp.services.auth.entity.UserAccount;
-import com.dwp.services.auth.repository.LoginHistoryRepository;
 import com.dwp.services.auth.repository.PermissionRepository;
 import com.dwp.services.auth.repository.ResourceRepository;
 import com.dwp.services.auth.repository.RoleMemberRepository;
@@ -32,6 +31,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.IllformedLocaleException;
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -41,6 +41,9 @@ import java.util.stream.Collectors;
 @Service
 public class AuthService {
 
+    private static final String DUMMY_PASSWORD_HASH =
+            "$2a$10$ms19wna8hc6sLRzidr3VKOtpJ6Pbq/kT6MIpizN79m93qnPyi5hD.";
+
     private final UserRepository userRepository;
     private final UserAccountRepository userAccountRepository;
     private final TenantRepository tenantRepository;
@@ -49,9 +52,10 @@ public class AuthService {
     private final RolePermissionRepository rolePermissionRepository;
     private final ResourceRepository resourceRepository;
     private final PermissionRepository permissionRepository;
-    private final LoginHistoryRepository loginHistoryRepository;
     private final AuthSessionService authSessionService;
     private final AuthPolicyService authPolicyService;
+    private final IdentityAccountService identityAccountService;
+    private final LoginAttemptService loginAttemptService;
     private final PasswordEncoder passwordEncoder;
 
     public AuthService(
@@ -63,9 +67,10 @@ public class AuthService {
             RolePermissionRepository rolePermissionRepository,
             ResourceRepository resourceRepository,
             PermissionRepository permissionRepository,
-            LoginHistoryRepository loginHistoryRepository,
             AuthSessionService authSessionService,
             AuthPolicyService authPolicyService,
+            IdentityAccountService identityAccountService,
+            LoginAttemptService loginAttemptService,
             PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.userAccountRepository = userAccountRepository;
@@ -75,43 +80,66 @@ public class AuthService {
         this.rolePermissionRepository = rolePermissionRepository;
         this.resourceRepository = resourceRepository;
         this.permissionRepository = permissionRepository;
-        this.loginHistoryRepository = loginHistoryRepository;
         this.authSessionService = authSessionService;
         this.authPolicyService = authPolicyService;
+        this.identityAccountService = identityAccountService;
+        this.loginAttemptService = loginAttemptService;
         this.passwordEncoder = passwordEncoder;
     }
 
     @Transactional
     public AuthenticatedSession login(LoginRequest request, HttpServletRequest servletRequest) {
         Long tenantId = resolveTenantId(request.getTenantId());
+        String email;
+        try {
+            email = EmailAddressNormalizer.requireValid(request.getEmail());
+        } catch (IllegalArgumentException exception) {
+            passwordEncoder.matches(request.getPassword(), DUMMY_PASSWORD_HASH);
+            loginAttemptService.failure(
+                    null, tenantId, "LOCAL", "local", EmailAddressNormalizer.normalize(request.getEmail()),
+                    "INVALID_EMAIL", servletRequest);
+            throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+        }
         AuthPolicyResponse policy = authPolicyService.getPolicy(tenantId);
         if (!Boolean.TRUE.equals(policy.getLocalLoginEnabled())
                 || !policy.getAllowedLoginTypes().contains("LOCAL")) {
-            recordLogin(tenantId, null, "LOCAL", "local", request.getUsername(), false,
+            passwordEncoder.matches(request.getPassword(), DUMMY_PASSWORD_HASH);
+            loginAttemptService.failure(
+                    null, tenantId, "LOCAL", "local", email,
                     "LOCAL_LOGIN_DISABLED", servletRequest);
             throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS);
         }
 
         UserAccount account = userAccountRepository
-                .findByTenantIdAndProviderTypeAndProviderIdAndPrincipal(
-                        tenantId, "LOCAL", "local", request.getUsername())
-                .orElseThrow(() -> {
-                    recordLogin(tenantId, null, "LOCAL", "local", request.getUsername(), false,
-                            "USER_NOT_FOUND", servletRequest);
-                    return new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS);
-                });
-
-        validateAccount(account, request.getUsername(), servletRequest);
-        if (account.getPasswordHash() == null
-                || !passwordEncoder.matches(request.getPassword(), account.getPasswordHash())) {
-            recordLogin(tenantId, account.getUserId(), "LOCAL", "local", request.getUsername(),
-                    false, "INVALID_PASSWORD", servletRequest);
+                .findLocalForAuthentication(tenantId, email)
+                .orElse(null);
+        String passwordHash = account == null || account.getPasswordHash() == null
+                ? DUMMY_PASSWORD_HASH
+                : account.getPasswordHash();
+        boolean passwordMatches = passwordEncoder.matches(request.getPassword(), passwordHash);
+        if (account == null || !passwordMatches) {
+            loginAttemptService.failure(
+                    account, tenantId, "LOCAL", "local", email,
+                    localFailureReason(account), servletRequest);
             throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS);
         }
 
-        User user = requireActiveUser(account.getUserId(), tenantId);
-        recordLogin(tenantId, user.getUserId(), "LOCAL", "local", request.getUsername(), true,
-                null, servletRequest);
+        if (!accountActive(account)) {
+            loginAttemptService.failure(
+                    account, tenantId, "LOCAL", "local", email,
+                    temporarilyLocked(account) ? "RATE_LIMITED" : "ACCOUNT_UNAVAILABLE",
+                    servletRequest);
+            throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+        }
+
+        User user = activeUser(account.getUserId(), tenantId);
+        if (user == null) {
+            loginAttemptService.failure(
+                    account, tenantId, "LOCAL", "local", email,
+                    "USER_UNAVAILABLE", servletRequest);
+            throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+        }
+        loginAttemptService.success(account, email, servletRequest);
         return createAuthenticatedSession(user, tenantId, servletRequest);
     }
 
@@ -128,31 +156,57 @@ public class AuthService {
             throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS);
         }
 
-        String principal = userInfo.principal();
-        if (principal == null || principal.isBlank()) {
+        String issuer = userInfo.issuer();
+        String subject = userInfo.subject();
+        if (issuer == null || issuer.isBlank() || subject == null || subject.isBlank()) {
             throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS);
         }
 
         UserAccount account = userAccountRepository
-                .findByTenantIdAndProviderTypeAndProviderIdAndPrincipal(
-                        tenantId, "OIDC", providerKey, principal)
-                .orElseThrow(() -> new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS));
-
-        validateAccount(account, principal, servletRequest);
-        User user = requireActiveUser(account.getUserId(), tenantId);
-        recordLogin(tenantId, user.getUserId(), "OIDC", providerKey, principal, true,
-                null, servletRequest);
+                .findByTenantIdAndProviderTypeAndIssuerUriAndPrincipal(
+                        tenantId, "OIDC", issuer, subject)
+                .orElse(null);
+        if (account == null) {
+            User linkedUser = verifiedOidcUser(tenantId, userInfo);
+            account = identityAccountService.linkOidcAccount(
+                    linkedUser, providerKey, issuer, subject);
+        }
+        if (!accountActive(account)) {
+            loginAttemptService.failure(
+                    account, tenantId, "OIDC", providerKey, subject,
+                    "ACCOUNT_UNAVAILABLE", servletRequest);
+            throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+        }
+        User user = activeUser(account.getUserId(), tenantId);
+        if (user == null) {
+            loginAttemptService.failure(
+                    account, tenantId, "OIDC", providerKey, subject,
+                    "USER_UNAVAILABLE", servletRequest);
+            throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+        }
+        loginAttemptService.success(account, subject, servletRequest);
         return createAuthenticatedSession(user, tenantId, servletRequest);
     }
 
     @Transactional(readOnly = true)
     public MeResponse getMe(Long userId, Long tenantId) {
+        return getMe(userId, tenantId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public MeResponse getMe(Long userId, Long tenantId, String permissionPrefix) {
         User user = userRepository.findByUserIdAndTenantId(userId, tenantId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         Tenant tenant = tenantRepository.findById(tenantId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
 
-        return toMeResponse(user, tenant);
+        List<PermissionDTO> permissions = permissionPrefix == null || permissionPrefix.isBlank()
+                ? List.of()
+                : getPermissions(userId, tenantId).stream()
+                        .filter(permission -> permission.getResourceKey() != null
+                                && permission.getResourceKey().startsWith(permissionPrefix))
+                        .toList();
+        return toMeResponse(user, tenant, permissions);
     }
 
     @Transactional
@@ -167,10 +221,11 @@ public class AuthService {
 
         user.setPreferredLocale(canonicalLocale(request.locale()));
         userRepository.save(user);
-        return toMeResponse(user, tenant);
+        return toMeResponse(user, tenant, List.of());
     }
 
-    private MeResponse toMeResponse(User user, Tenant tenant) {
+    private MeResponse toMeResponse(
+            User user, Tenant tenant, List<PermissionDTO> permissions) {
         return MeResponse.builder()
                 .userId(user.getUserId())
                 .displayName(user.getDisplayName())
@@ -181,6 +236,7 @@ public class AuthService {
                 .tenantId(tenant.getTenantId())
                 .tenantCode(tenant.getCode())
                 .roles(getRoleCodes(user.getUserId(), tenant.getTenantId()))
+                .permissions(permissions)
                 .build();
     }
 
@@ -295,53 +351,41 @@ public class AuthService {
         return tenant;
     }
 
-    private User requireActiveUser(Long userId, Long tenantId) {
-        User user = userRepository.findByUserIdAndTenantId(userId, tenantId)
+    private User activeUser(Long userId, Long tenantId) {
+        return userRepository.findByUserIdAndTenantId(userId, tenantId)
+                .filter(user -> "ACTIVE".equals(user.getStatus()))
+                .orElse(null);
+    }
+
+    private User verifiedOidcUser(Long tenantId, OidcUserInfo userInfo) {
+        if (!userInfo.emailVerified()) {
+            throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+        }
+        String email;
+        try {
+            email = EmailAddressNormalizer.requireValid(userInfo.email());
+        } catch (IllegalArgumentException exception) {
+            throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+        }
+        return userRepository.findByTenantIdAndEmailNormalized(tenantId, email)
+                .filter(user -> "ACTIVE".equals(user.getStatus()))
                 .orElseThrow(() -> new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS));
-        if (!"ACTIVE".equals(user.getStatus())) {
-            throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+    }
+
+    private boolean accountActive(UserAccount account) {
+        return "ACTIVE".equals(account.getStatus()) && !temporarilyLocked(account);
+    }
+
+    private boolean temporarilyLocked(UserAccount account) {
+        return account.getLockedUntil() != null && account.getLockedUntil().isAfter(Instant.now());
+    }
+
+    private String localFailureReason(UserAccount account) {
+        if (account == null) return "USER_NOT_FOUND";
+        if (temporarilyLocked(account)) return "RATE_LIMITED";
+        if (!"ACTIVE".equals(account.getStatus()) || account.getPasswordHash() == null) {
+            return "ACCOUNT_UNAVAILABLE";
         }
-        return user;
-    }
-
-    private void validateAccount(
-            UserAccount account,
-            String principal,
-            HttpServletRequest request) {
-        if (!"ACTIVE".equals(account.getStatus())) {
-            recordLogin(account.getTenantId(), account.getUserId(), account.getProviderType(),
-                    account.getProviderId(), principal, false, "ACCOUNT_LOCKED", request);
-            throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS);
-        }
-    }
-
-    private void recordLogin(
-            Long tenantId,
-            Long userId,
-            String providerType,
-            String providerId,
-            String principal,
-            boolean success,
-            String failureReason,
-            HttpServletRequest request) {
-        LoginHistory history = LoginHistory.builder()
-                .tenantId(tenantId)
-                .userId(userId)
-                .providerType(providerType)
-                .providerId(providerId)
-                .principal(principal)
-                .success(success)
-                .failureReason(failureReason)
-                .ipAddress(clientIp(request))
-                .userAgent(request == null ? null : request.getHeader("User-Agent"))
-                .build();
-        loginHistoryRepository.save(history);
-    }
-
-    private String clientIp(HttpServletRequest request) {
-        if (request == null) return null;
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) return forwarded.split(",")[0].trim();
-        return request.getRemoteAddr();
+        return "INVALID_PASSWORD";
     }
 }

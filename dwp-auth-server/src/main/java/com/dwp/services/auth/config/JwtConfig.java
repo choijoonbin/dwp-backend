@@ -75,7 +75,7 @@ public class JwtConfig {
     }
 
     @Bean
-    @Order(3)
+    @Order(4)
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             JwtDecoder jwtDecoder,

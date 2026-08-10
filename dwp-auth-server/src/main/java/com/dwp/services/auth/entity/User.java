@@ -7,9 +7,7 @@ import lombok.*;
 import java.util.UUID;
 
 @Entity
-@Table(
-        name = "com_users",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"tenant_id", "email"}))
+@Table(name = "com_users")
 @Getter
 @Setter
 @Builder
@@ -34,6 +32,9 @@ public class User extends BaseEntity {
     @Column(length = 255)
     private String email;
 
+    @Column(name = "email_normalized", insertable = false, updatable = false, length = 255)
+    private String emailNormalized;
+
     @Column(name = "job_title", length = 160)
     private String jobTitle;
 
@@ -46,6 +47,9 @@ public class User extends BaseEntity {
 
     @Column(name = "external_id", length = 255)
     private String externalId;
+
+    @Column(name = "person_public_id")
+    private UUID personPublicId;
 
     @Column(name = "scim_user_name", length = 255)
     private String scimUserName;

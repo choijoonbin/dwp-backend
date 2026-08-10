@@ -30,10 +30,19 @@ public class PeopleDirectoryRepository {
                    a.business_title,
                    a.manager_assignment_key,
                    a.effective_start_date AS assignment_effective_from,
+                   org.public_id AS organization_public_id,
+                   org.organization_key,
                    org.name AS organization_name,
                    job.name AS job_profile_name,
+                   job.management_level,
+                   grade.grade_key,
+                   grade.name AS grade_name,
+                   loc.location_key,
                    loc.name AS location_name,
                    employer.legal_name AS legal_employer_name,
+                   manager_person.public_id AS manager_person_public_id,
+                   manager_person.display_name AS manager_display_name,
+                   COALESCE(report_count.direct_report_count, 0) AS direct_report_count,
                    contact.display_value AS work_email,
                    media.object_key AS profile_image_key
               FROM ppl_persons p
@@ -69,11 +78,45 @@ public class PeopleDirectoryRepository {
                 ON org.tenant_id = p.tenant_id AND org.organization_id = a.organization_id
               LEFT JOIN ppl_job_profiles job
                 ON job.tenant_id = p.tenant_id AND job.job_profile_id = a.job_profile_id
+              LEFT JOIN ppl_job_grades grade
+                ON grade.tenant_id = p.tenant_id AND grade.job_grade_id = a.job_grade_id
               LEFT JOIN ppl_locations loc
                 ON loc.tenant_id = p.tenant_id AND loc.location_id = a.location_id
               LEFT JOIN ppl_legal_employers employer
                 ON employer.tenant_id = p.tenant_id
                AND employer.legal_employer_id = a.legal_employer_id
+              LEFT JOIN LATERAL (
+                    SELECT manager.*
+                      FROM ppl_assignments manager
+                     WHERE manager.tenant_id = p.tenant_id
+                       AND manager.assignment_key = a.manager_assignment_key
+                       AND manager.effective_start_date <= :asOf
+                       AND (manager.effective_end_date IS NULL
+                            OR manager.effective_end_date >= :asOf)
+                     ORDER BY manager.effective_start_date DESC,
+                              manager.effective_sequence DESC,
+                              manager.assignment_id DESC
+                     LIMIT 1
+              ) manager_assignment ON TRUE
+              LEFT JOIN ppl_work_relationships manager_relationship
+                ON manager_relationship.tenant_id = manager_assignment.tenant_id
+               AND manager_relationship.work_relationship_id = manager_assignment.work_relationship_id
+              LEFT JOIN ppl_workers manager_worker
+                ON manager_worker.tenant_id = manager_relationship.tenant_id
+               AND manager_worker.worker_id = manager_relationship.worker_id
+              LEFT JOIN ppl_persons manager_person
+                ON manager_person.tenant_id = manager_worker.tenant_id
+               AND manager_person.person_id = manager_worker.person_id
+              LEFT JOIN LATERAL (
+                    SELECT COUNT(*)::INTEGER AS direct_report_count
+                      FROM ppl_assignments report
+                     WHERE report.tenant_id = p.tenant_id
+                       AND report.manager_assignment_key = a.assignment_key
+                       AND report.effective_start_date <= :asOf
+                       AND (report.effective_end_date IS NULL
+                            OR report.effective_end_date >= :asOf)
+                       AND report.assignment_status IN ('ACTIVE', 'SUSPENDED', 'PENDING')
+              ) report_count ON TRUE
               LEFT JOIN LATERAL (
                     SELECT candidate.display_value
                       FROM ppl_contacts candidate
@@ -156,6 +199,7 @@ public class PeopleDirectoryRepository {
                        a.business_title,
                        org.name AS organization_name,
                        job.name AS job_profile_name,
+                       grade.name AS grade_name,
                        loc.name AS location_name,
                        a.manager_assignment_key,
                        a.change_reason_code
@@ -170,6 +214,8 @@ public class PeopleDirectoryRepository {
                     ON org.tenant_id = a.tenant_id AND org.organization_id = a.organization_id
                   LEFT JOIN ppl_job_profiles job
                     ON job.tenant_id = a.tenant_id AND job.job_profile_id = a.job_profile_id
+                  LEFT JOIN ppl_job_grades grade
+                    ON grade.tenant_id = a.tenant_id AND grade.job_grade_id = a.job_grade_id
                   LEFT JOIN ppl_locations loc
                     ON loc.tenant_id = a.tenant_id AND loc.location_id = a.location_id
                  WHERE a.tenant_id = :tenantId
@@ -190,6 +236,7 @@ public class PeopleDirectoryRepository {
                         resultSet.getString("business_title"),
                         resultSet.getString("organization_name"),
                         resultSet.getString("job_profile_name"),
+                        resultSet.getString("grade_name"),
                         resultSet.getString("location_name"),
                         resultSet.getString("manager_assignment_key"),
                         resultSet.getString("change_reason_code")));
@@ -215,10 +262,19 @@ public class PeopleDirectoryRepository {
                 resultSet.getString("business_title"),
                 resultSet.getString("manager_assignment_key"),
                 date(resultSet, "assignment_effective_from"),
+                resultSet.getObject("organization_public_id", UUID.class),
+                resultSet.getString("organization_key"),
                 resultSet.getString("organization_name"),
                 resultSet.getString("job_profile_name"),
+                resultSet.getString("management_level"),
+                resultSet.getString("grade_key"),
+                resultSet.getString("grade_name"),
+                resultSet.getString("location_key"),
                 resultSet.getString("location_name"),
                 resultSet.getString("legal_employer_name"),
+                resultSet.getObject("manager_person_public_id", UUID.class),
+                resultSet.getString("manager_display_name"),
+                resultSet.getInt("direct_report_count"),
                 resultSet.getString("work_email"),
                 resultSet.getString("profile_image_key"));
     }
@@ -243,10 +299,19 @@ public class PeopleDirectoryRepository {
             String businessTitle,
             String managerAssignmentKey,
             LocalDate assignmentEffectiveFrom,
+            UUID organizationPublicId,
+            String organizationKey,
             String organizationName,
             String jobProfileName,
+            String managementLevel,
+            String gradeKey,
+            String gradeName,
+            String locationKey,
             String locationName,
             String legalEmployerName,
+            UUID managerPersonPublicId,
+            String managerDisplayName,
+            int directReportCount,
             String workEmail,
             String profileImageKey) {
     }
@@ -260,6 +325,7 @@ public class PeopleDirectoryRepository {
             String businessTitle,
             String organizationName,
             String jobProfileName,
+            String jobGradeName,
             String locationName,
             String managerAssignmentKey,
             String changeReasonCode) {

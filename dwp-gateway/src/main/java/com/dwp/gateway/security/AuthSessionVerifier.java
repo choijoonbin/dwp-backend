@@ -10,6 +10,7 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Objects;
 
 @Component
 public class AuthSessionVerifier implements SessionVerifier {
@@ -35,7 +36,14 @@ public class AuthSessionVerifier implements SessionVerifier {
         boolean tenantAssertionPresent = requestedTenant != null && !requestedTenant.isBlank();
 
         return authClient.get()
-                .uri("/auth/me")
+                .uri(uriBuilder -> {
+                    uriBuilder.path("/auth/me");
+                    String permissionPrefix = permissionPrefix(request);
+                    if (permissionPrefix != null) {
+                        uriBuilder.queryParam("permissionPrefix", permissionPrefix);
+                    }
+                    return uriBuilder.build();
+                })
                 .headers(headers -> copySecurityContext(request.getHeaders(), headers))
                 .exchangeToMono(response -> {
                     if (response.statusCode().is2xxSuccessful()) {
@@ -48,7 +56,8 @@ public class AuthSessionVerifier implements SessionVerifier {
                                 .map(data -> new VerifiedIdentity(
                                         data.userId().toString(),
                                         data.tenantId().toString(),
-                                        data.roles()))
+                                        data.roles(),
+                                        authorities(data.permissions())))
                                 .filter(identity -> !tenantAssertionPresent
                                         || requestedTenant.equals(identity.tenantId()));
                     }
@@ -59,6 +68,35 @@ public class AuthSessionVerifier implements SessionVerifier {
                     return response.createException().flatMap(Mono::error);
                 })
                 .timeout(timeout);
+    }
+
+    private String permissionPrefix(ServerHttpRequest request) {
+        String path = request.getURI().getPath();
+        return path.startsWith("/api/platform/v1/admin/audit-control")
+                ? "ADMIN.AUDIT_"
+                : null;
+    }
+
+    private List<String> authorities(List<PermissionData> permissions) {
+        if (permissions == null) return List.of();
+        return permissions.stream()
+                .filter(permission -> permission != null
+                        && "ALLOW".equalsIgnoreCase(permission.effect()))
+                .map(permission -> authority(
+                        permission.resourceKey(), permission.permissionCode()))
+                .filter(Objects::nonNull)
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    private String authority(String resourceKey, String permissionCode) {
+        if (resourceKey == null || resourceKey.isBlank()
+                || permissionCode == null || permissionCode.isBlank()) {
+            return null;
+        }
+        return resourceKey.trim().toUpperCase()
+                + ":" + permissionCode.trim().toUpperCase();
     }
 
     private void copySecurityContext(HttpHeaders source, HttpHeaders target) {
@@ -81,6 +119,16 @@ public class AuthSessionVerifier implements SessionVerifier {
     private record MeEnvelope(Boolean success, MeData data) {
     }
 
-    private record MeData(Long userId, Long tenantId, List<String> roles) {
+    private record MeData(
+            Long userId,
+            Long tenantId,
+            List<String> roles,
+            List<PermissionData> permissions) {
+    }
+
+    private record PermissionData(
+            String resourceKey,
+            String permissionCode,
+            String effect) {
     }
 }

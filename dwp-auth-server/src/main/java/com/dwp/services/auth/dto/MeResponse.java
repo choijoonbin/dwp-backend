@@ -3,6 +3,7 @@ package com.dwp.services.auth.dto;
 import lombok.Builder;
 import lombok.Getter;
 
+import java.util.Collections;
 import java.util.List;
 
 @Getter
@@ -18,4 +19,7 @@ public class MeResponse {
     private Long tenantId;
     private String tenantCode;
     private List<String> roles;
+
+    @Builder.Default
+    private List<PermissionDTO> permissions = Collections.emptyList();
 }

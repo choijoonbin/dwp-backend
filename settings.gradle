@@ -1,6 +1,7 @@
 rootProject.name = 'dwp-backend'
 
 include 'dwp-core'
+include 'dwp-audit'
 include 'dwp-observability'
 include 'dwp-platform-contracts'
 include 'dwp-gateway'

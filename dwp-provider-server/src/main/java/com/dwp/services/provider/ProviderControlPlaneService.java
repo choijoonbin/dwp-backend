@@ -62,6 +62,7 @@ public class ProviderControlPlaneService {
     private final ProviderOperationRepository operationRepository;
     private final ProviderOperationStepRepository stepRepository;
     private final ProviderEstateRepository estateRepository;
+    private final ProviderOperationsRepository operationsRepository;
     private final ProviderProvisioningOrchestrator orchestrator;
     private final DownstreamProvisioningClient provisioningClient;
     private final ProviderAuditService auditService;
@@ -74,6 +75,7 @@ public class ProviderControlPlaneService {
             ProviderOperationRepository operationRepository,
             ProviderOperationStepRepository stepRepository,
             ProviderEstateRepository estateRepository,
+            ProviderOperationsRepository operationsRepository,
             ProviderProvisioningOrchestrator orchestrator,
             DownstreamProvisioningClient provisioningClient,
             ProviderAuditService auditService,
@@ -84,6 +86,7 @@ public class ProviderControlPlaneService {
         this.operationRepository = operationRepository;
         this.stepRepository = stepRepository;
         this.estateRepository = estateRepository;
+        this.operationsRepository = operationsRepository;
         this.orchestrator = orchestrator;
         this.provisioningClient = provisioningClient;
         this.auditService = auditService;
@@ -101,6 +104,26 @@ public class ProviderControlPlaneService {
         return estateRepository.overview();
     }
 
+    public ProviderDtos.CommandCenter commandCenter() {
+        ProviderRequestContext.requirePermission("ESTATE_READ");
+        return operationsRepository.commandCenter(estateRepository.overview());
+    }
+
+    public ProviderDtos.ServiceHealthOverview serviceHealth() {
+        ProviderRequestContext.requirePermission("HEALTH_READ");
+        return operationsRepository.serviceHealth();
+    }
+
+    public ProviderDtos.CommercialOverview commercialOverview() {
+        ProviderRequestContext.requirePermission("COMMERCIAL_READ");
+        return operationsRepository.commercialOverview();
+    }
+
+    public ProviderDtos.AuditInsights auditInsights() {
+        ProviderRequestContext.requirePermission("AUDIT_READ");
+        return operationsRepository.auditInsights();
+    }
+
     @Transactional(readOnly = true)
     public ProviderDtos.PageResult<ProviderDtos.TenantSummary> tenants(
             String query,
@@ -113,9 +136,15 @@ public class ProviderControlPlaneService {
         Specification<ProviderTenant> specification = Specification.where(null);
         if (query != null && !query.isBlank()) {
             String pattern = "%" + query.trim().toLowerCase(Locale.ROOT) + "%";
-            specification = specification.and((root, ignored, builder) -> builder.or(
-                    builder.like(builder.lower(root.get("tenantKey")), pattern),
-                    builder.like(builder.lower(root.get("displayName")), pattern)));
+            List<UUID> matchingOrganizations = estateRepository.organizationIdsMatching(pattern);
+            specification = specification.and((root, ignored, builder) -> matchingOrganizations.isEmpty()
+                    ? builder.or(
+                            builder.like(builder.lower(root.get("tenantKey")), pattern),
+                            builder.like(builder.lower(root.get("displayName")), pattern))
+                    : builder.or(
+                            builder.like(builder.lower(root.get("tenantKey")), pattern),
+                            builder.like(builder.lower(root.get("displayName")), pattern),
+                            root.get("organizationId").in(matchingOrganizations)));
         }
         if (state != null && !state.isBlank()) {
             specification = specification.and((root, ignored, builder) ->
@@ -146,6 +175,12 @@ public class ProviderControlPlaneService {
         ProviderRequestContext.requirePermission("ESTATE_READ");
         return entitlementRepository.findByLifecycleStateOrderByEntitlementKeyAsc("ACTIVE")
                 .stream().map(entitlement -> entitlementSummary(entitlement, null)).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ProviderDtos.SupportScopeSummary> supportScopes() {
+        ProviderRequestContext.requirePermission("ESTATE_READ");
+        return operationsRepository.supportScopes();
     }
 
     @Transactional
@@ -195,6 +230,7 @@ public class ProviderControlPlaneService {
             throw new BaseException(ErrorCode.RESOURCE_CONFLICT, "Provider plan already exists.", exception);
         }
         stepRepository.saveAll(onboardingSteps(operation.getOperationId()));
+        operationsRepository.ensureOperationApproval(operation);
         auditService.success(
                 "provider.tenant-onboarding.previewed", "PROVIDER_OPERATION",
                 operation.getOperationId().toString(), correlationId,
@@ -210,6 +246,12 @@ public class ProviderControlPlaneService {
             UUID operationId,
             String correlationId,
             ProviderDtos.ExecuteOperationRequest request) {
+        ProviderOperation current = requireOperation(operationId);
+        if ("L3".equals(current.getRiskTier()) && !operationsRepository.operationApproved(operationId)) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "All required approvals must be completed before this high-risk operation can run.");
+        }
         ProviderOperation operation = orchestrator.execute(
                 operationId, request.planHash(), request.version(), false, correlationId);
         return operationSummary(operation);
@@ -246,6 +288,112 @@ public class ProviderControlPlaneService {
         return new ProviderDtos.PageResult<>(
                 result.stream().map(this::operationSummary).toList(),
                 result.getNumber(), result.getSize(), result.getTotalElements(), result.getTotalPages());
+    }
+
+    public List<ProviderDtos.OperationApprovalSummary> operationApprovals(String state) {
+        ProviderRequestContext.requirePermission("ESTATE_READ");
+        String normalized = state == null || state.isBlank()
+                ? null
+                : state.trim().toUpperCase(Locale.ROOT);
+        if (normalized != null
+                && !Set.of("PENDING", "APPROVED", "REJECTED", "CANCELLED", "EXPIRED").contains(normalized)) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "Unknown approval state.");
+        }
+        return operationsRepository.operationApprovals(normalized);
+    }
+
+    @Transactional
+    public ProviderDtos.OperationApprovalSummary decideOperationApproval(
+            UUID approvalId,
+            String correlationId,
+            ProviderDtos.DecideOperationApprovalRequest request) {
+        ProviderRequestContext.requirePermission("CHANGE_APPROVE");
+        ProviderOperationsRepository.ApprovalRecord approval = operationsRepository.approval(approvalId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        requireVersion(approval.version(), request.version());
+        if (!"PENDING".equals(approval.lifecycleState())) {
+            throw new BaseException(ErrorCode.INVALID_STATE, "The approval is no longer pending.");
+        }
+        ProviderRequestContext.Actor actor = ProviderRequestContext.require();
+        if (!actor.roles().contains(approval.requiredRoleCode())) {
+            throw new BaseException(ErrorCode.FORBIDDEN, "The required approval role is not assigned.");
+        }
+        if (approval.separationOfDuties() && Objects.equals(approval.requestedBy(), actor.operatorId())) {
+            throw new BaseException(
+                    ErrorCode.FORBIDDEN,
+                    "Separation of duties prevents the requester from approving this change.");
+        }
+        boolean decided = operationsRepository.decideApproval(
+                approvalId, request.decision(), request.reason().trim(),
+                actor.operatorId(), request.version());
+        if (!decided) {
+            throw new BaseException(ErrorCode.RESOURCE_CONFLICT, "The approval changed. Refresh and try again.");
+        }
+        ProviderOperation operation = requireOperation(approval.operationId());
+        if ("REJECTED".equals(request.decision()) && "PREVIEWED".equals(operation.getLifecycleState())) {
+            operation.setLifecycleState("CANCELLED");
+            operation.setFailureCode("CHANGE_REJECTED");
+            operation.setFailureMessage(request.reason().trim());
+            operationRepository.saveAndFlush(operation);
+        }
+        auditService.success(
+                "provider.operation-approval.decided", "OPERATION_APPROVAL", approvalId.toString(),
+                operation.getProviderTenantId(),
+                operation.getProviderTenantId() == null
+                        ? null
+                        : requireTenant(operation.getProviderTenantId()).getOrganizationId(),
+                correlationId,
+                Map.of("decision", request.decision(), "reason", request.reason().trim()));
+        return operationsRepository.operationApprovals(null).stream()
+                .filter(item -> item.operationApprovalId().equals(approvalId))
+                .findFirst().orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+    }
+
+    @Transactional
+    public ProviderDtos.ServiceIncidentSummary createIncident(
+            String correlationId,
+            ProviderDtos.CreateIncidentRequest request) {
+        ProviderRequestContext.requirePermission("INCIDENT_WRITE");
+        validateIncidentScope(request);
+        ProviderRequestContext.Actor actor = ProviderRequestContext.require();
+        UUID incidentId = operationsRepository.createIncident(
+                request, actor.operatorId(), correlationId);
+        auditService.success(
+                "provider.incident.created", "SERVICE_INCIDENT", incidentId.toString(),
+                request.tenantId(),
+                request.tenantId() == null ? null : requireTenant(request.tenantId()).getOrganizationId(),
+                correlationId,
+                Map.of(
+                        "severity", request.severity(),
+                        "impactScope", request.impactScope(),
+                        "title", request.title().trim()));
+        return operationsRepository.incidents(200).stream()
+                .filter(item -> item.incidentId().equals(incidentId))
+                .findFirst().orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+    }
+
+    @Transactional
+    public ProviderDtos.ServiceIncidentSummary updateIncident(
+            UUID incidentId,
+            String correlationId,
+            ProviderDtos.UpdateIncidentRequest request) {
+        ProviderRequestContext.requirePermission("INCIDENT_WRITE");
+        ProviderOperationsRepository.IncidentRecord incident = operationsRepository.incident(incidentId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        requireVersion(incident.version(), request.version());
+        boolean changed = operationsRepository.updateIncident(
+                incidentId, request.state(), request.message().trim(), request.visibility(),
+                ProviderRequestContext.require().operatorId(), request.version());
+        if (!changed) {
+            throw new BaseException(ErrorCode.RESOURCE_CONFLICT, "The incident changed. Refresh and try again.");
+        }
+        auditService.success(
+                "provider.incident.updated", "SERVICE_INCIDENT", incidentId.toString(),
+                correlationId,
+                Map.of("state", request.state(), "visibility", request.visibility()));
+        return operationsRepository.incidents(200).stream()
+                .filter(item -> item.incidentId().equals(incidentId))
+                .findFirst().orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
     }
 
     public ProviderDtos.TenantSummary lifecycle(
@@ -335,6 +483,7 @@ public class ProviderControlPlaneService {
                 record.recordValue());
     }
 
+    @Transactional
     public ProviderDtos.TenantDomainSummary verifyDomain(
             UUID tenantId,
             UUID domainId,
@@ -351,7 +500,7 @@ public class ProviderControlPlaneService {
                 .map(this::sha256)
                 .anyMatch(hash -> constantTimeEquals(hash, record.tokenHash()));
         estateRepository.markDomainChecked(
-                domainId, verified, ProviderRequestContext.require().operatorId());
+                tenantId, domainId, verified, ProviderRequestContext.require().operatorId());
         auditService.success(
                 "provider.tenant-domain.verified", "TENANT_DOMAIN", domainId.toString(),
                 tenantId, tenant.getOrganizationId(), correlationId,
@@ -389,14 +538,14 @@ public class ProviderControlPlaneService {
                 "provider.tenant-administrator.invited", "TENANT_ADMINISTRATOR",
                 administratorId.toString(), tenantId, tenant.getOrganizationId(), correlationId,
                 Map.of(
-                        "principal", administrator.principal(),
+                        "email", administrator.email(),
                         "expiresAt", result.expiresAt(),
                         "justification", request.justification()));
         return new ProviderDtos.AdministratorInvitation(
                 administratorId,
                 result.tenantId(),
                 result.administratorUserId(),
-                result.principal(),
+                result.email(),
                 result.activationToken(),
                 "/activate?token=" + result.activationToken(),
                 result.expiresAt());
@@ -413,12 +562,34 @@ public class ProviderControlPlaneService {
         if (scopeSet.contains("TENANT_CONFIGURATION_WRITE")) {
             scopeSet.add("TENANT_CONFIGURATION_READ");
         }
+        ProviderOperationsRepository.SupportPolicy supportPolicy =
+                operationsRepository.supportPolicy(scopeSet);
+        if (supportPolicy.matchedScopes() != scopeSet.size()) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "One or more support scopes are unknown or inactive.");
+        }
+        String accessMode;
+        String approvalReference = normalized(request.approvalReference());
+        if (request.emergencyAccess()) {
+            ProviderRequestContext.requirePermission("BREAK_GLASS_SUPPORT");
+            accessMode = "BREAK_GLASS";
+        } else {
+            accessMode = "STANDARD";
+            if (supportPolicy.requiresCustomerApproval() && approvalReference == null) {
+                throw new BaseException(
+                        ErrorCode.INVALID_INPUT_VALUE,
+                        "A customer approval reference is required for this support scope.");
+            }
+        }
         String token = randomToken();
         Instant expiresAt = Instant.now().plusSeconds(request.durationMinutes() * 60L);
         ProviderRequestContext.Actor actor = ProviderRequestContext.require();
         UUID sessionId = estateRepository.createSupportSession(
                 tenant.getProviderTenantId(), actor.operatorId(), request.justification(),
-                sha256(token), expiresAt);
+                sha256(token), expiresAt, accessMode, approvalReference,
+                !request.emergencyAccess() && supportPolicy.requiresCustomerApproval(),
+                request.emergencyAccess() ? "L3" : supportPolicy.riskTier());
         estateRepository.addSupportScopes(sessionId, List.copyOf(scopeSet));
         ProviderDtos.SupportSessionSummary session = estateRepository.supportSessions(tenant.getProviderTenantId())
                 .stream().filter(item -> item.supportSessionId().equals(sessionId))
@@ -429,6 +600,10 @@ public class ProviderControlPlaneService {
                 Map.of(
                         "scopes", scopeSet,
                         "expiresAt", expiresAt,
+                        "accessMode", accessMode,
+                        "customerApprovalRequired",
+                        !request.emergencyAccess() && supportPolicy.requiresCustomerApproval(),
+                        "riskTier", request.emergencyAccess() ? "L3" : supportPolicy.riskTier(),
                         "justification", request.justification()));
         return new ProviderDtos.SupportSessionGrant(session, token);
     }
@@ -468,13 +643,55 @@ public class ProviderControlPlaneService {
         return estateRepository.auditEvents(tenantId, limit);
     }
 
+    private void validateIncidentScope(ProviderDtos.CreateIncidentRequest request) {
+        int targetCount = 0;
+        if (normalized(request.serviceKey()) != null) targetCount++;
+        if (normalized(request.regionKey()) != null) targetCount++;
+        if (request.deploymentCellId() != null) targetCount++;
+        if (request.tenantId() != null) targetCount++;
+        if (("GLOBAL".equals(request.impactScope()) && targetCount != 0)
+                || (!"GLOBAL".equals(request.impactScope()) && targetCount != 1)) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "The incident scope must have exactly one matching target.");
+        }
+        switch (request.impactScope()) {
+            case "GLOBAL" -> {
+                // A global incident intentionally has no mandatory target.
+            }
+            case "REGION" -> {
+                if (request.regionKey() == null || estateRepository.regions().stream()
+                        .noneMatch(region -> region.regionKey().equals(request.regionKey()))) {
+                    throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "A valid region is required.");
+                }
+            }
+            case "CELL" -> {
+                if (request.deploymentCellId() == null) {
+                    throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "A deployment cell is required.");
+                }
+            }
+            case "SERVICE" -> {
+                if (request.serviceKey() == null || operationsRepository.servicePostures().stream()
+                        .noneMatch(service -> service.serviceKey().equals(request.serviceKey()))) {
+                    throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "A valid service is required.");
+                }
+            }
+            case "TENANT" -> {
+                if (request.tenantId() == null) {
+                    throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "A tenant is required.");
+                }
+                requireTenant(request.tenantId());
+            }
+            default -> throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "Unknown incident scope.");
+        }
+    }
+
     private Map<String, Object> onboardingPlan(
             ProviderDtos.OnboardingPlanRequest request,
             List<Entitlement> entitlements) {
         Map<String, Object> administrator = new LinkedHashMap<>();
         administrator.put("displayName", request.initialAdminDisplayName().trim());
         administrator.put("email", request.initialAdminEmail().trim().toLowerCase(Locale.ROOT));
-        administrator.put("principal", request.initialAdminPrincipal().trim());
         Map<String, Object> plan = new LinkedHashMap<>();
         plan.put("contract", "dwp.provider.tenant-onboarding.v2");
         plan.put("organizationKey", request.organizationKey());
@@ -600,6 +817,7 @@ public class ProviderControlPlaneService {
                 tenant.getUpdatedAt() == null
                         ? null
                         : tenant.getUpdatedAt().atZone(ZoneId.systemDefault()).toInstant(),
+                estateRepository.currentSubscription(tenant.getOrganizationId()).orElse(null),
                 entitlements,
                 estateRepository.serviceInstances(tenant.getProviderTenantId()),
                 estateRepository.domains(tenant.getProviderTenantId()),

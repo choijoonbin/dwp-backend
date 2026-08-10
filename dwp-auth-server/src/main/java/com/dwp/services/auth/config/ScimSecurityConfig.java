@@ -13,7 +13,7 @@ import org.springframework.security.web.authentication.AnonymousAuthenticationFi
 public class ScimSecurityConfig {
 
     @Bean
-    @Order(2)
+    @Order(3)
     SecurityFilterChain scimSecurityFilterChain(
             HttpSecurity http,
             ScimAuthenticationFilter authenticationFilter) throws Exception {

@@ -18,13 +18,23 @@ public final class PeopleDtos {
             String workerNumber,
             String workerType,
             String workerStatus,
+            String assignmentKey,
             String businessTitle,
+            UUID organizationId,
+            String organizationKey,
             String organizationName,
             String jobProfileName,
+            String managementLevel,
+            String jobGradeKey,
+            String jobGradeName,
+            String locationKey,
             String locationName,
             String workEmail,
             String profileImageKey,
             LocalDate assignmentEffectiveFrom,
+            UUID managerPersonId,
+            String managerDisplayName,
+            int directReportCount,
             DataAccess dataAccess) {
     }
 
@@ -45,6 +55,7 @@ public final class PeopleDtos {
             String businessTitle,
             String organizationName,
             String jobProfileName,
+            String jobGradeName,
             String locationName,
             String managerAssignmentKey,
             String changeReasonCode) {

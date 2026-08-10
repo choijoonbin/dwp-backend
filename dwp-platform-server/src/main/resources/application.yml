@@ -27,6 +27,13 @@ spring:
     validate-on-migrate: true
 
 dwp:
+  audit:
+    collector-url: ${DWP_AUDIT_COLLECTOR_URL:}
+    ingest-token: ${DWP_AUDIT_INGEST_TOKEN:}
+    environment: ${DWP_ENVIRONMENT:local}
+    service-instance: ${DWP_SERVICE_INSTANCE:${HOSTNAME:local}}
+    batch-size: ${DWP_AUDIT_BATCH_SIZE:100}
+    poll-interval: ${DWP_AUDIT_POLL_INTERVAL:PT2S}
   provider:
     provisioning-token: ${DWP_PROVIDER_PROVISIONING_TOKEN:}
   observability:
@@ -48,6 +55,11 @@ dwp:
       cursor-ttl: ${DWP_API_HISTORY_CURSOR_TTL:PT15M}
       retention-days: ${DWP_API_HISTORY_RETENTION_DAYS:90}
       allowed-services: ${DWP_API_HISTORY_ALLOWED_SERVICES:dwp-gateway,dwp-auth-server,dwp-platform-server,dwp-people-server,dwp-provider-server,dwp-agent-runtime}
+    audit:
+      allowed-services: ${DWP_AUDIT_ALLOWED_SERVICES:dwp-auth-server,dwp-platform-server,dwp-people-server,dwp-provider-server,dwp-agent-runtime}
+      integrity-secret: ${DWP_AUDIT_INTEGRITY_SECRET:}
+      integrity-cron: ${DWP_AUDIT_INTEGRITY_CRON:0 15 0 * * *}
+      retention-cron: ${DWP_AUDIT_RETENTION_CRON:0 10 2 * * *}
     assets:
       root: ${DWP_PLATFORM_ASSET_DIR:${DWP_HOME_ASSET_DIR:${user.home}/.dwp/platform-assets}}
     home-assets:

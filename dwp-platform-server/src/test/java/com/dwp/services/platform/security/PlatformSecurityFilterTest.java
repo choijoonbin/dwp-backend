@@ -57,6 +57,39 @@ class PlatformSecurityFilterTest {
     }
 
     @Test
+    void acceptsAuditAccessFromScopedPermissionInsteadOfBuiltInRoleName() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+        MockHttpServletRequest request = request("/v1/admin/audit-control/overview");
+        request.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        request.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        request.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        request.addHeader(PlatformSecurityFilter.ROLES_HEADER, "CUSTOM_AUDITOR");
+        request.addHeader(
+                PlatformSecurityFilter.PERMISSIONS_HEADER, "ADMIN.AUDIT_VIEW:VIEW");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(RequestActorContext.current()).isEmpty();
+    }
+
+    @Test
+    void rejectsAuditAccessWithoutAResolvedPermission() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+        MockHttpServletRequest request = request("/v1/admin/audit-control/overview");
+        request.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        request.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        request.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        request.addHeader(PlatformSecurityFilter.ROLES_HEADER, "AUDITOR");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertThat(response.getStatus()).isEqualTo(403);
+    }
+
+    @Test
     void acceptsTheRestrictedRuntimeIdentityOnlyForCatalogReads() throws Exception {
         PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
         MockHttpServletRequest catalogRequest = request("/v1/catalog/registry-entries/AGENT/PLANNER");

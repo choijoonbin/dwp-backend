@@ -54,7 +54,8 @@ public final class ApiHistoryServletFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return request.getRequestURI().startsWith(COLLECTOR_PATH);
+        return request.getRequestURI().startsWith(COLLECTOR_PATH)
+                || request.getRequestURI().startsWith("/internal/audit/events");
     }
 
     @Override

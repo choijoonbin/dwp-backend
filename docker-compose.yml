@@ -18,8 +18,30 @@ services:
     networks:
       - dwp-network
 
+  redis:
+    image: redis:7.4-alpine
+    container_name: dwp-redis
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --requirepass
+      - dwp_redis_password
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "dwp_redis_password", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - dwp-network
+
 volumes:
   postgres_data:
+  redis_data:
 
 networks:
   dwp-network:

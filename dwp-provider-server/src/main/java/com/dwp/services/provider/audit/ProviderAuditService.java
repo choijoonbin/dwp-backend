@@ -64,11 +64,20 @@ public class ProviderAuditService {
                 INSERT INTO prv_audit_events (
                     audit_event_id, actor_id, action, target_type, target_id,
                     outcome, correlation_id, redacted_snapshot, provider_operator_id,
-                    provider_tenant_id, organization_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, CAST(? AS jsonb), ?, ?, ?)
+                    provider_tenant_id, organization_id, event_category)
+                VALUES (?, ?, ?, ?, ?, ?, ?, CAST(? AS jsonb), ?, ?, ?, ?)
                 """,
                 UUID.randomUUID(), actor.userId(), action, targetType, targetId,
-                outcome, correlationId, json(snapshot), actor.operatorId(), tenantId, organizationId);
+                outcome, correlationId, json(snapshot), actor.operatorId(), tenantId, organizationId,
+                category(action));
+    }
+
+    private String category(String action) {
+        if (action.startsWith("provider.support-")) return "PRIVILEGED_ACCESS";
+        if (action.startsWith("provider.incident.")) return "SERVICE_HEALTH";
+        if (action.startsWith("provider.operation")) return "CHANGE_MANAGEMENT";
+        if (action.startsWith("provider.tenant")) return "TENANT_LIFECYCLE";
+        return "ADMINISTRATION";
     }
 
     private String json(Object value) {

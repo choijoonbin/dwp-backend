@@ -28,7 +28,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
@@ -206,6 +205,11 @@ public class ProviderProvisioningOrchestrator {
                             textOrNull(plan.path("legalName")),
                             textOrNull(plan.path("customerReference")),
                             actor.operatorId()));
+            estateRepository.ensureOrganizationSubscription(
+                    organizationId,
+                    plan.path("serviceTier").asText(),
+                    textOrNull(plan.path("customerReference")),
+                    actor.operatorId());
             if (estateRepository.environmentExists(
                     organizationId, plan.path("environmentKey").asText())) {
                 throw new BaseException(
@@ -229,14 +233,15 @@ public class ProviderProvisioningOrchestrator {
             tenant = tenantRepository.saveAndFlush(tenant);
             operation.setProviderTenantId(tenant.getProviderTenantId());
             operationRepository.saveAndFlush(operation);
+            estateRepository.initializeTenantExtension(
+                    tenant.getProviderTenantId(), tenant.getConfiguration(), actor.operatorId());
             assignEntitlements(tenant, plan);
             estateRepository.initializeServiceInstances(
                     tenant.getProviderTenantId(), tenant.getDataRegion(), actor.operatorId());
             String primaryDomain = textOrNull(plan.path("primaryDomain"));
-            if (primaryDomain == null) {
-                estateRepository.createInternalDomain(
-                        tenant.getProviderTenantId(), tenant.getTenantKey(), actor.operatorId());
-            } else {
+            estateRepository.createInternalDomain(
+                    tenant.getProviderTenantId(), tenant.getTenantKey(), actor.operatorId());
+            if (primaryDomain != null) {
                 String challenge = "dwp-verification=" + tenant.getProviderTenantId();
                 estateRepository.createDomain(
                         tenant.getProviderTenantId(), primaryDomain.toLowerCase(), "LOGIN", true,
@@ -245,7 +250,6 @@ public class ProviderProvisioningOrchestrator {
             JsonNode administrator = plan.path("initialAdministrator");
             estateRepository.createTenantAdministrator(
                     tenant.getProviderTenantId(),
-                    administrator.path("principal").asText(),
                     administrator.path("email").asText(),
                     administrator.path("displayName").asText(),
                     actor.operatorId());
@@ -269,7 +273,7 @@ public class ProviderProvisioningOrchestrator {
         tenantRepository.saveAndFlush(tenant);
         estateRepository.linkTenantAdministrator(
                 tenant.getProviderTenantId(),
-                result.administratorPrincipal(),
+                result.administratorEmail(),
                 result.administratorUserId(),
                 ProviderRequestContext.require().operatorId());
         estateRepository.updateServiceInstance(

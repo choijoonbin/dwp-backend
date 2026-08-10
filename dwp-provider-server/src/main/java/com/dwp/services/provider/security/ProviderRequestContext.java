@@ -30,6 +30,11 @@ public final class ProviderRequestContext {
                         "ENTITLEMENT_WRITE",
                         "OPERATION_EXECUTE",
                         "SUPPORT_SESSION_WRITE",
+                        "HEALTH_READ",
+                        "INCIDENT_WRITE",
+                        "COMMERCIAL_READ",
+                        "CHANGE_APPROVE",
+                        "BREAK_GLASS_SUPPORT",
                         "AUDIT_READ")));
     }
 

@@ -8,6 +8,10 @@ import com.dwp.services.auth.repository.IdentityProviderRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtDecoders;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.stereotype.Service;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -18,8 +22,12 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -46,13 +54,16 @@ public class OidcService {
 
     public String getAuthorizationUrl(Long tenantId, String providerKey) {
         IdentityProvider provider = requireProvider(tenantId, providerKey);
-        String state = stateStore.create(tenantId, providerKey);
+        OidcStateStore.AuthorizationRequest authorization = stateStore.create(tenantId, providerKey);
         return UriComponentsBuilder.fromUriString(provider.getAuthUrl())
                 .queryParam("client_id", provider.getClientId())
                 .queryParam("response_type", "code")
                 .queryParam("redirect_uri", callbackUrl)
                 .queryParam("scope", "openid profile email")
-                .queryParam("state", state)
+                .queryParam("state", authorization.state())
+                .queryParam("nonce", authorization.nonce())
+                .queryParam("code_challenge", sha256Base64Url(authorization.codeVerifier()))
+                .queryParam("code_challenge_method", "S256")
                 .build()
                 .encode()
                 .toUriString();
@@ -69,15 +80,40 @@ public class OidcService {
         form.put("redirect_uri", callbackUrl);
         form.put("client_id", provider.getClientId());
         form.put("client_secret", clientSecret);
+        form.put("code_verifier", context.codeVerifier());
 
         JsonNode tokenPayload = postForm(provider.getTokenUrl(), form);
-        String accessToken = requiredText(tokenPayload, "access_token");
-        JsonNode userPayload = getJson(provider.getUserInfoUrl(), accessToken);
+        Jwt idToken = decodeIdToken(provider, requiredText(tokenPayload, "id_token"));
+        requireClaim(idToken.getClaimAsString("nonce"), context.nonce());
+
+        String subject = idToken.getSubject();
+        JsonNode userPayload = null;
+        String accessToken = optionalText(tokenPayload, "access_token");
+        if (!isBlank(accessToken) && !isBlank(provider.getUserInfoUrl())) {
+            userPayload = getJson(provider.getUserInfoUrl(), accessToken);
+            requireClaim(requiredText(userPayload, "sub"), subject);
+        }
+        String email = firstNonBlank(optionalText(userPayload, "email"), idToken.getClaimAsString("email"));
+        boolean emailVerified = optionalBoolean(userPayload, "email_verified")
+                || Boolean.TRUE.equals(idToken.getClaimAsBoolean("email_verified"));
+        String name = firstNonBlank(optionalText(userPayload, "name"), idToken.getClaimAsString("name"));
         OidcUserInfo userInfo = new OidcUserInfo(
-                requiredText(userPayload, "sub"),
-                optionalText(userPayload, "email"),
-                optionalText(userPayload, "name"));
+                idToken.getIssuer().toString(), subject, email, emailVerified, name);
         return new OidcExchangeResult(context.tenantId(), context.providerKey(), userInfo);
+    }
+
+    private Jwt decodeIdToken(IdentityProvider provider, String idToken) {
+        try {
+            JwtDecoder decoder = JwtDecoders.fromIssuerLocation(provider.getIssuerUri());
+            Jwt jwt = decoder.decode(idToken);
+            List<String> audience = jwt.getAudience();
+            if (audience == null || !audience.contains(provider.getClientId())) {
+                throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+            }
+            return jwt;
+        } catch (JwtException | IllegalArgumentException exception) {
+            throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+        }
     }
 
     private IdentityProvider requireProvider(Long tenantId, String providerKey) {
@@ -89,7 +125,7 @@ public class OidcService {
         }
         if (isBlank(provider.getAuthUrl())
                 || isBlank(provider.getTokenUrl())
-                || isBlank(provider.getUserInfoUrl())
+                || isBlank(provider.getIssuerUri())
                 || isBlank(provider.getClientId())) {
             throw new BaseException(ErrorCode.INVALID_STATE, "OIDC 공급자 설정이 완전하지 않습니다.");
         }
@@ -152,8 +188,35 @@ public class OidcService {
     }
 
     private static String optionalText(JsonNode node, String field) {
+        if (node == null) return null;
         JsonNode value = node.get(field);
         return value == null || value.isNull() ? null : value.asText();
+    }
+
+    private static boolean optionalBoolean(JsonNode node, String field) {
+        if (node == null) return false;
+        JsonNode value = node.get(field);
+        return value != null && !value.isNull() && value.asBoolean(false);
+    }
+
+    private static void requireClaim(String actual, String expected) {
+        if (isBlank(actual) || !actual.equals(expected)) {
+            throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+        }
+    }
+
+    private static String firstNonBlank(String first, String second) {
+        return isBlank(first) ? second : first;
+    }
+
+    private static String sha256Base64Url(String value) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.US_ASCII));
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(digest);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException(exception);
+        }
     }
 
     private static String encode(String value) {

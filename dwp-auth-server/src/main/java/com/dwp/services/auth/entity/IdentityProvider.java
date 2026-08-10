@@ -29,6 +29,9 @@ public class IdentityProvider extends BaseEntity {
     @Column(name = "provider_key", nullable = false, length = 100)
     private String providerKey;
 
+    @Column(name = "issuer_uri", length = 500)
+    private String issuerUri;
+
     @Column(nullable = false, length = 200)
     private String name;
 

@@ -8,6 +8,15 @@ spring:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:dwp_auth}
     username: ${DB_USERNAME:dwp_user}
     password: ${DB_PASSWORD:dwp_password}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:dwp_redis_password}
+      timeout: ${REDIS_TIMEOUT:2s}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:2s}
+      repositories:
+        enabled: false
   jpa:
     hibernate:
       ddl-auto: validate
@@ -27,6 +36,15 @@ jwt:
   expiration-seconds: ${JWT_EXPIRATION_SECONDS:28800}
 
 dwp:
+  audit:
+    collector-url: ${DWP_AUDIT_COLLECTOR_URL:}
+    ingest-token: ${DWP_AUDIT_INGEST_TOKEN:}
+    environment: ${DWP_ENVIRONMENT:local}
+    service-instance: ${DWP_SERVICE_INSTANCE:${HOSTNAME:local}}
+    batch-size: ${DWP_AUDIT_BATCH_SIZE:100}
+    poll-interval: ${DWP_AUDIT_POLL_INTERVAL:PT2S}
+  identity-sync:
+    token: ${DWP_IDENTITY_SYNC_TOKEN:}
   provider:
     provisioning-token: ${DWP_PROVIDER_PROVISIONING_TOKEN:}
   observability:
@@ -41,6 +59,9 @@ dwp:
       batch-size: ${DWP_API_HISTORY_BATCH_SIZE:100}
       flush-interval: ${DWP_API_HISTORY_FLUSH_INTERVAL:PT1S}
   security:
+    login:
+      maximum-failures: ${DWP_LOGIN_MAXIMUM_FAILURES:5}
+      lock-duration-seconds: ${DWP_LOGIN_LOCK_DURATION_SECONDS:900}
     session:
       cookie-name: ${DWP_SESSION_COOKIE_NAME:DWP_SESSION}
       cookie-secure: ${DWP_SESSION_COOKIE_SECURE:false}

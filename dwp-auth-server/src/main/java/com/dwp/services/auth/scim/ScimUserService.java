@@ -1,9 +1,9 @@
 package com.dwp.services.auth.scim;
 
-import com.dwp.services.auth.entity.AuthSession;
+import com.dwp.core.identity.EmailAddressNormalizer;
 import com.dwp.services.auth.entity.User;
-import com.dwp.services.auth.repository.AuthSessionRepository;
 import com.dwp.services.auth.repository.UserRepository;
+import com.dwp.services.auth.service.IdentityAccountService;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -31,19 +31,19 @@ public class ScimUserService {
             Pattern.CASE_INSENSITIVE);
 
     private final UserRepository userRepository;
-    private final AuthSessionRepository sessionRepository;
+    private final IdentityAccountService identityAccountService;
     private final ScimProvisioningAuditService auditService;
     private final ScimCursorCodec cursorCodec;
     private final String baseUrl;
 
     public ScimUserService(
             UserRepository userRepository,
-            AuthSessionRepository sessionRepository,
+            IdentityAccountService identityAccountService,
             ScimProvisioningAuditService auditService,
             ScimCursorCodec cursorCodec,
             @Value("${dwp.scim.base-url:http://localhost:8080/scim/v2}") String baseUrl) {
         this.userRepository = userRepository;
-        this.sessionRepository = sessionRepository;
+        this.identityAccountService = identityAccountService;
         this.auditService = auditService;
         this.cursorCodec = cursorCodec;
         this.baseUrl = baseUrl.replaceAll("/$", "");
@@ -108,6 +108,7 @@ public class ScimUserService {
         }
         apply(user, request, true);
         user = save(user);
+        identityAccountService.synchronizeManagedUser(user);
         auditService.success(
                 created ? "CREATE" : "REPLACE", "USER",
                 user.getPublicId().toString(), user.getExternalId(), correlationId);
@@ -124,10 +125,9 @@ public class ScimUserService {
         User user = require(publicId);
         requireScimOwned(user);
         ScimVersionPrecondition.verify(ifMatch, user.getVersion());
-        boolean wasActive = "ACTIVE".equals(user.getStatus());
         apply(user, request, true);
         user = save(user);
-        revokeIfDeactivated(user, wasActive);
+        identityAccountService.synchronizeManagedUser(user);
         auditService.success("REPLACE", "USER", publicId.toString(), user.getExternalId(), correlationId);
         return response(user);
     }
@@ -142,13 +142,12 @@ public class ScimUserService {
         User user = require(publicId);
         requireScimOwned(user);
         ScimVersionPrecondition.verify(ifMatch, user.getVersion());
-        boolean wasActive = "ACTIVE".equals(user.getStatus());
         for (ScimModels.PatchOperation operation : request.operations()) {
             applyPatch(user, operation);
         }
         user.setAccessRevision(valueOrZero(user.getAccessRevision()) + 1L);
         user = save(user);
-        revokeIfDeactivated(user, wasActive);
+        identityAccountService.synchronizeManagedUser(user);
         auditService.success("PATCH", "USER", publicId.toString(), user.getExternalId(), correlationId);
         return response(user);
     }
@@ -158,11 +157,10 @@ public class ScimUserService {
         User user = require(publicId);
         requireScimOwned(user);
         ScimVersionPrecondition.verify(ifMatch, user.getVersion());
-        boolean wasActive = "ACTIVE".equals(user.getStatus());
         user.setStatus("INACTIVE");
         user.setAccessRevision(valueOrZero(user.getAccessRevision()) + 1L);
         user = save(user);
-        revokeIfDeactivated(user, wasActive);
+        identityAccountService.synchronizeManagedUser(user);
         auditService.success("DELETE", "USER", publicId.toString(), user.getExternalId(), correlationId);
     }
 
@@ -232,15 +230,6 @@ public class ScimUserService {
         }
     }
 
-    private void revokeIfDeactivated(User user, boolean wasActive) {
-        if (!wasActive || "ACTIVE".equals(user.getStatus())) return;
-        Instant now = Instant.now();
-        List<AuthSession> sessions = sessionRepository.findByTenantIdAndUserIdAndRevokedAtIsNull(
-                user.getTenantId(), user.getUserId());
-        sessions.forEach(session -> session.setRevokedAt(now));
-        sessionRepository.saveAll(sessions);
-    }
-
     private User require(UUID publicId) {
         return userRepository.findByPublicIdAndTenantId(
                         publicId, ScimConnectorContext.require().tenantId())
@@ -295,16 +284,26 @@ public class ScimUserService {
 
     private String primaryEmail(List<ScimModels.Email> emails) {
         if (emails == null || emails.isEmpty()) return null;
-        return emails.stream().filter(email -> Boolean.TRUE.equals(email.primary()))
-                .findFirst().orElse(emails.get(0)).value();
+        return normalizeEmail(emails.stream().filter(email -> Boolean.TRUE.equals(email.primary()))
+                .findFirst().orElse(emails.get(0)).value());
     }
 
     private String emailValue(JsonNode value) {
         if (value == null) throw ScimException.invalidValue("An email value is required.");
-        if (value.isTextual()) return value.asText();
-        if (value.isArray() && !value.isEmpty()) return value.get(0).path("value").asText();
-        if (value.isObject()) return value.path("value").asText();
+        if (value.isTextual()) return normalizeEmail(value.asText());
+        if (value.isArray() && !value.isEmpty()) {
+            return normalizeEmail(value.get(0).path("value").asText());
+        }
+        if (value.isObject()) return normalizeEmail(value.path("value").asText());
         throw ScimException.invalidValue("The email patch value is invalid.");
+    }
+
+    private String normalizeEmail(String value) {
+        try {
+            return EmailAddressNormalizer.requireValid(value);
+        } catch (IllegalArgumentException exception) {
+            throw ScimException.invalidValue("The work email is invalid.");
+        }
     }
 
     private boolean booleanValue(JsonNode value) {

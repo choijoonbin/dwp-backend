@@ -27,7 +27,6 @@ public final class AuthTenantProvisioningDtos {
             @NotBlank @Size(max = 80) String timeZone,
             @NotBlank @Size(max = 200) String administratorDisplayName,
             @NotBlank @Email @Size(max = 255) String administratorEmail,
-            @NotBlank @Pattern(regexp = "[A-Za-z0-9._@+-]{3,255}") String administratorPrincipal,
             @NotNull @Size(min = 1, max = 100) List<@NotBlank String> entitlementKeys) {
     }
 
@@ -35,7 +34,7 @@ public final class AuthTenantProvisioningDtos {
             UUID providerTenantId,
             Long tenantId,
             Long administratorUserId,
-            String administratorPrincipal,
+            String administratorEmail,
             String lifecycleState,
             int schemaVersion) {
     }
@@ -56,7 +55,7 @@ public final class AuthTenantProvisioningDtos {
     public record InvitationResponse(
             Long tenantId,
             Long administratorUserId,
-            String principal,
+            String email,
             String activationToken,
             Instant expiresAt) {
     }
@@ -68,7 +67,6 @@ public final class AuthTenantProvisioningDtos {
             Long userId,
             String displayName,
             String email,
-            String principal,
             Instant expiresAt) {
     }
 
@@ -79,7 +77,7 @@ public final class AuthTenantProvisioningDtos {
     public record ActivateAccountResponse(
             Long tenantId,
             String tenantKey,
-            String principal,
+            String email,
             String lifecycleState) {
     }
 }

@@ -65,6 +65,60 @@ public class ProviderEstateRepository {
                 (result, ignored) -> result.getObject(1, UUID.class), organizationKey).stream().findFirst();
     }
 
+    public List<UUID> organizationIdsMatching(String pattern) {
+        return jdbc.query("""
+                SELECT organization_id
+                  FROM prv_organizations
+                 WHERE LOWER(organization_key) LIKE ?
+                    OR LOWER(display_name) LIKE ?
+                    OR LOWER(COALESCE(legal_name, '')) LIKE ?
+                """, (result, ignored) -> result.getObject(1, UUID.class), pattern, pattern, pattern);
+    }
+
+    public Optional<ProviderDtos.SubscriptionSummary> currentSubscription(UUID organizationId) {
+        return jdbc.query("""
+                SELECT subscription.organization_subscription_id,
+                       plan.plan_key,
+                       plan.plan_version,
+                       plan.display_name AS plan_name,
+                       subscription.lifecycle_state,
+                       subscription.starts_at,
+                       subscription.ends_at,
+                       subscription.contract_reference,
+                       subscription.version
+                  FROM prv_organization_subscriptions subscription
+                  JOIN prv_service_plans plan
+                    ON plan.service_plan_id = subscription.service_plan_id
+                 WHERE subscription.organization_id = ?
+                   AND subscription.lifecycle_state IN ('TRIAL', 'ACTIVE', 'SUSPENDED')
+                 ORDER BY subscription.starts_at DESC
+                 LIMIT 1
+                """, this::subscription, organizationId).stream().findFirst();
+    }
+
+    public void ensureOrganizationSubscription(
+            UUID organizationId,
+            String serviceTier,
+            String contractReference,
+            Long operatorId) {
+        jdbc.update("""
+                INSERT INTO prv_organization_subscriptions (
+                    organization_id, service_plan_id, lifecycle_state,
+                    contract_reference, created_by, updated_by)
+                SELECT ?, plan.service_plan_id, 'ACTIVE', ?, ?, ?
+                  FROM prv_service_plans plan
+                 WHERE plan.service_tier = ?
+                   AND plan.lifecycle_state = 'ACTIVE'
+                   AND NOT EXISTS (
+                       SELECT 1
+                         FROM prv_organization_subscriptions current
+                        WHERE current.organization_id = ?
+                          AND current.lifecycle_state IN ('TRIAL', 'ACTIVE', 'SUSPENDED')
+                   )
+                """, organizationId, nullable(contractReference), operatorId, operatorId,
+                serviceTier, organizationId);
+    }
+
     public boolean environmentExists(UUID organizationId, String environmentKey) {
         return count("""
                 SELECT COUNT(*) FROM prv_tenants
@@ -107,6 +161,16 @@ public class ProviderEstateRepository {
                 """, tenantId, operatorId, operatorId, region);
     }
 
+    public void initializeTenantExtension(UUID tenantId, String configuration, Long operatorId) {
+        jdbc.update("""
+                INSERT INTO prv_configuration_values (
+                    namespace, schema_version, provider_tenant_id, value,
+                    created_by, updated_by)
+                VALUES ('provider.tenant.extensions', 1, ?, CAST(? AS jsonb), ?, ?)
+                ON CONFLICT DO NOTHING
+                """, tenantId, configuration, operatorId, operatorId);
+    }
+
     public UUID createInternalDomain(UUID tenantId, String tenantKey, Long operatorId) {
         UUID domainId = UUID.randomUUID();
         jdbc.update("""
@@ -129,23 +193,14 @@ public class ProviderEstateRepository {
             String recordValue,
             String tokenHash,
             Long operatorId) {
-        if (primary) {
-            jdbc.update("""
-                    UPDATE prv_tenant_domains
-                       SET primary_domain = FALSE,
-                           updated_at = CURRENT_TIMESTAMP,
-                           updated_by = ?,
-                           version = version + 1
-                     WHERE provider_tenant_id = ? AND primary_domain = TRUE
-                    """, operatorId, tenantId);
-        }
         UUID domainId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO prv_tenant_domains (
                     tenant_domain_id, provider_tenant_id, domain_name, domain_type,
                     verification_method, verification_state, verification_token_hash,
-                    verification_record_value, primary_domain, created_by, updated_by)
-                VALUES (?, ?, ?, ?, 'DNS_TXT', 'PENDING', ?, ?, ?, ?, ?)
+                    verification_record_value, primary_domain, requested_primary,
+                    created_by, updated_by)
+                VALUES (?, ?, ?, ?, 'DNS_TXT', 'PENDING', ?, ?, FALSE, ?, ?, ?)
                 """, domainId, tenantId, domainName, domainType, tokenHash, recordValue,
                 primary, operatorId, operatorId);
         return domainId;
@@ -178,38 +233,64 @@ public class ProviderEstateRepository {
                         result.getLong("version")), tenantId, domainId).stream().findFirst();
     }
 
-    public void markDomainChecked(UUID domainId, boolean verified, Long operatorId) {
+    public void markDomainChecked(
+            UUID tenantId,
+            UUID domainId,
+            boolean verified,
+            Long operatorId) {
+        if (verified) {
+            jdbc.update("""
+                    UPDATE prv_tenant_domains
+                       SET primary_domain = FALSE,
+                           updated_at = CURRENT_TIMESTAMP,
+                           updated_by = ?,
+                           version = version + 1
+                     WHERE provider_tenant_id = ?
+                       AND primary_domain = TRUE
+                       AND EXISTS (
+                           SELECT 1
+                             FROM prv_tenant_domains candidate
+                            WHERE candidate.tenant_domain_id = ?
+                              AND candidate.requested_primary = TRUE
+                       )
+                    """, operatorId, tenantId, domainId);
+        }
         jdbc.update("""
                 UPDATE prv_tenant_domains
                    SET verification_state = ?,
                        verified_at = CASE WHEN ? THEN CURRENT_TIMESTAMP ELSE verified_at END,
+                       primary_domain = CASE
+                           WHEN ? AND requested_primary THEN TRUE
+                           ELSE primary_domain
+                       END,
                        last_checked_at = CURRENT_TIMESTAMP,
                        updated_at = CURRENT_TIMESTAMP,
                        updated_by = ?,
                        version = version + 1
                  WHERE tenant_domain_id = ?
-                """, verified ? "VERIFIED" : "FAILED", verified, operatorId, domainId);
+                   AND provider_tenant_id = ?
+                """, verified ? "VERIFIED" : "FAILED", verified, verified,
+                operatorId, domainId, tenantId);
     }
 
     public UUID createTenantAdministrator(
             UUID tenantId,
-            String principal,
             String email,
             String displayName,
             Long operatorId) {
         UUID administratorId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO prv_tenant_administrators (
-                    tenant_administrator_id, provider_tenant_id, principal, email,
+                    tenant_administrator_id, provider_tenant_id, email,
                     display_name, primary_administrator, created_by, updated_by)
-                VALUES (?, ?, ?, ?, ?, TRUE, ?, ?)
-                """, administratorId, tenantId, principal, email, displayName, operatorId, operatorId);
+                VALUES (?, ?, ?, ?, TRUE, ?, ?)
+                """, administratorId, tenantId, email, displayName, operatorId, operatorId);
         return administratorId;
     }
 
     public void linkTenantAdministrator(
             UUID tenantId,
-            String principal,
+            String email,
             Long authUserId,
             Long operatorId) {
         jdbc.update("""
@@ -222,8 +303,8 @@ public class ProviderEstateRepository {
                        updated_at = CURRENT_TIMESTAMP,
                        updated_by = ?,
                        version = version + 1
-                 WHERE provider_tenant_id = ? AND principal = ?
-                """, authUserId, operatorId, tenantId, principal);
+                 WHERE provider_tenant_id = ? AND LOWER(BTRIM(email)) = LOWER(BTRIM(?))
+                """, authUserId, operatorId, tenantId, email);
     }
 
     public void markAdministratorInvited(UUID administratorId, Long operatorId) {
@@ -240,14 +321,13 @@ public class ProviderEstateRepository {
 
     public Optional<AdministratorRecord> administrator(UUID tenantId, UUID administratorId) {
         return jdbc.query("""
-                SELECT tenant_administrator_id, auth_user_id, principal, email,
+                SELECT tenant_administrator_id, auth_user_id, email,
                        display_name, lifecycle_state
                   FROM prv_tenant_administrators
                  WHERE provider_tenant_id = ? AND tenant_administrator_id = ?
                 """, (result, ignored) -> new AdministratorRecord(
                         result.getObject("tenant_administrator_id", UUID.class),
                         nullableLong(result, "auth_user_id"),
-                        result.getString("principal"),
                         result.getString("email"),
                         result.getString("display_name"),
                         result.getString("lifecycle_state")), tenantId, administratorId)
@@ -256,7 +336,7 @@ public class ProviderEstateRepository {
 
     public List<ProviderDtos.TenantAdministratorSummary> administrators(UUID tenantId) {
         return jdbc.query("""
-                SELECT tenant_administrator_id, auth_user_id, principal, email,
+                SELECT tenant_administrator_id, auth_user_id, email,
                        display_name, role_code, lifecycle_state, primary_administrator,
                        last_invited_at, activated_at, version
                   FROM prv_tenant_administrators
@@ -327,15 +407,23 @@ public class ProviderEstateRepository {
             Long operatorId,
             String justification,
             String tokenHash,
-            Instant expiresAt) {
+            Instant expiresAt,
+            String accessMode,
+            String approvalReference,
+            boolean customerApprovalRequired,
+            String riskTier) {
         UUID sessionId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO prv_support_sessions (
                     support_session_id, provider_tenant_id, provider_operator_id,
-                    justification, token_hash, expires_at, created_by, updated_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    justification, token_hash, expires_at, access_mode,
+                    approval_reference, customer_approval_required, risk_tier,
+                    created_by, updated_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, sessionId, tenantId, operatorId, justification, tokenHash,
-                Timestamp.from(expiresAt), operatorId, operatorId);
+                Timestamp.from(expiresAt), accessMode, approvalReference,
+                customerApprovalRequired, riskTier,
+                operatorId, operatorId);
         return sessionId;
     }
 
@@ -363,6 +451,10 @@ public class ProviderEstateRepository {
                        operator.display_name AS operator_name,
                        session.lifecycle_state,
                        session.justification,
+                       session.access_mode,
+                       session.approval_reference,
+                       session.customer_approval_required,
+                       session.risk_tier,
                        session.started_at,
                        session.expires_at,
                        session.last_used_at,
@@ -416,7 +508,7 @@ public class ProviderEstateRepository {
     public List<ProviderDtos.AuditEventSummary> auditEvents(UUID tenantId, int limit) {
         String tenantClause = tenantId == null ? "" : " WHERE audit.provider_tenant_id = ?";
         Object[] arguments = tenantId == null ? new Object[0] : new Object[]{tenantId};
-        return jdbc.query("""
+        String sql = """
                 SELECT audit.audit_event_id,
                        audit.provider_operator_id,
                        operator.display_name AS operator_name,
@@ -425,6 +517,7 @@ public class ProviderEstateRepository {
                        audit.action,
                        audit.target_type,
                        audit.target_id,
+                       audit.event_category,
                        audit.outcome,
                        audit.correlation_id,
                        audit.redacted_snapshot::text,
@@ -434,9 +527,10 @@ public class ProviderEstateRepository {
                     ON operator.provider_operator_id = audit.provider_operator_id
                   LEFT JOIN prv_tenants tenant
                     ON tenant.provider_tenant_id = audit.provider_tenant_id
-                """ + tenantClause + """
-                 ORDER BY audit.occurred_at DESC
-                 LIMIT """ + Math.min(500, Math.max(1, limit)), this::auditEvent, arguments);
+                """ + tenantClause
+                + " ORDER BY audit.occurred_at DESC LIMIT "
+                + Math.min(500, Math.max(1, limit));
+        return jdbc.query(sql, this::auditEvent, arguments);
     }
 
     private void expireSupportSessions() {
@@ -467,6 +561,20 @@ public class ProviderEstateRepository {
                 result.getString("lifecycle_state"),
                 result.getInt("schema_version"),
                 result.getString("attributes"),
+                result.getLong("version"));
+    }
+
+    private ProviderDtos.SubscriptionSummary subscription(ResultSet result, int ignored)
+            throws SQLException {
+        return new ProviderDtos.SubscriptionSummary(
+                result.getObject("organization_subscription_id", UUID.class),
+                result.getString("plan_key"),
+                result.getInt("plan_version"),
+                result.getString("plan_name"),
+                result.getString("lifecycle_state"),
+                instant(result, "starts_at"),
+                instant(result, "ends_at"),
+                result.getString("contract_reference"),
                 result.getLong("version"));
     }
 
@@ -504,7 +612,6 @@ public class ProviderEstateRepository {
         return new ProviderDtos.TenantAdministratorSummary(
                 result.getObject("tenant_administrator_id", UUID.class),
                 nullableLong(result, "auth_user_id"),
-                result.getString("principal"),
                 result.getString("email"),
                 result.getString("display_name"),
                 result.getString("role_code"),
@@ -527,6 +634,10 @@ public class ProviderEstateRepository {
                 result.getString("lifecycle_state"),
                 result.getString("justification"),
                 List.of((String[]) result.getArray("scopes").getArray()),
+                result.getString("access_mode"),
+                result.getString("approval_reference"),
+                result.getBoolean("customer_approval_required"),
+                result.getString("risk_tier"),
                 instant(result, "started_at"),
                 instant(result, "expires_at"),
                 instant(result, "last_used_at"),
@@ -544,6 +655,7 @@ public class ProviderEstateRepository {
                 result.getString("action"),
                 result.getString("target_type"),
                 result.getString("target_id"),
+                result.getString("event_category"),
                 result.getString("outcome"),
                 result.getString("correlation_id"),
                 result.getString("redacted_snapshot"),
@@ -582,7 +694,6 @@ public class ProviderEstateRepository {
     public record AdministratorRecord(
             UUID administratorId,
             Long authUserId,
-            String principal,
             String email,
             String displayName,
             String lifecycleState) {

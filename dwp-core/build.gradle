@@ -9,6 +9,7 @@ bootJar {
 }
 
 dependencies {
+    implementation project(':dwp-audit')
     implementation project(':dwp-observability')
     implementation 'org.springframework.boot:spring-boot-autoconfigure'
     annotationProcessor 'org.springframework.boot:spring-boot-autoconfigure-processor'
@@ -18,6 +19,7 @@ dependencies {
 
     implementation 'org.springframework:spring-context'
     implementation 'org.springframework:spring-web'
+    implementation 'org.springframework:spring-jdbc'
     implementation 'com.fasterxml.jackson.core:jackson-databind'
 
     compileOnly 'org.projectlombok:lombok'

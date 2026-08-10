@@ -39,6 +39,21 @@ public class ProviderControlPlaneController {
         return ApiResponse.success(service.overview());
     }
 
+    @GetMapping("/command-center")
+    public ApiResponse<ProviderDtos.CommandCenter> commandCenter() {
+        return ApiResponse.success(service.commandCenter());
+    }
+
+    @GetMapping("/service-health")
+    public ApiResponse<ProviderDtos.ServiceHealthOverview> serviceHealth() {
+        return ApiResponse.success(service.serviceHealth());
+    }
+
+    @GetMapping("/commercial")
+    public ApiResponse<ProviderDtos.CommercialOverview> commercial() {
+        return ApiResponse.success(service.commercialOverview());
+    }
+
     @GetMapping("/regions")
     public ApiResponse<List<ProviderDtos.RegionSummary>> regions() {
         return ApiResponse.success(service.regions());
@@ -111,6 +126,35 @@ public class ProviderControlPlaneController {
         return ApiResponse.success(service.operations(page, size));
     }
 
+    @GetMapping("/operation-approvals")
+    public ApiResponse<List<ProviderDtos.OperationApprovalSummary>> operationApprovals(
+            @RequestParam(required = false) String state) {
+        return ApiResponse.success(service.operationApprovals(state));
+    }
+
+    @PostMapping("/operation-approvals/{approvalId}/decision")
+    public ApiResponse<ProviderDtos.OperationApprovalSummary> decideOperationApproval(
+            @PathVariable UUID approvalId,
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @Valid @RequestBody ProviderDtos.DecideOperationApprovalRequest request) {
+        return ApiResponse.success(service.decideOperationApproval(approvalId, correlationId, request));
+    }
+
+    @PostMapping("/incidents")
+    public ApiResponse<ProviderDtos.ServiceIncidentSummary> createIncident(
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @Valid @RequestBody ProviderDtos.CreateIncidentRequest request) {
+        return ApiResponse.success(service.createIncident(correlationId, request));
+    }
+
+    @PatchMapping("/incidents/{incidentId}")
+    public ApiResponse<ProviderDtos.ServiceIncidentSummary> updateIncident(
+            @PathVariable UUID incidentId,
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @Valid @RequestBody ProviderDtos.UpdateIncidentRequest request) {
+        return ApiResponse.success(service.updateIncident(incidentId, correlationId, request));
+    }
+
     @PostMapping("/tenants/{tenantId}/domains")
     public ApiResponse<ProviderDtos.DomainChallenge> createDomain(
             @PathVariable UUID tenantId,
@@ -152,6 +196,11 @@ public class ProviderControlPlaneController {
         return ApiResponse.success(service.supportSessions(tenantId));
     }
 
+    @GetMapping("/support-scopes")
+    public ApiResponse<List<ProviderDtos.SupportScopeSummary>> supportScopes() {
+        return ApiResponse.success(service.supportScopes());
+    }
+
     @PostMapping("/support-sessions")
     public ApiResponse<ProviderDtos.SupportSessionGrant> createSupportSession(
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
@@ -172,5 +221,10 @@ public class ProviderControlPlaneController {
             @RequestParam(required = false) UUID tenantId,
             @RequestParam(defaultValue = "200") int limit) {
         return ApiResponse.success(service.auditEvents(tenantId, limit));
+    }
+
+    @GetMapping("/audit-insights")
+    public ApiResponse<ProviderDtos.AuditInsights> auditInsights() {
+        return ApiResponse.success(service.auditInsights());
     }
 }

@@ -20,6 +20,20 @@ spring:
     validate-on-migrate: true
 
 dwp:
+  audit:
+    collector-url: ${DWP_AUDIT_COLLECTOR_URL:}
+    ingest-token: ${DWP_AUDIT_INGEST_TOKEN:}
+    environment: ${DWP_ENVIRONMENT:local}
+    service-instance: ${DWP_SERVICE_INSTANCE:${HOSTNAME:local}}
+    batch-size: ${DWP_AUDIT_BATCH_SIZE:100}
+    poll-interval: ${DWP_AUDIT_POLL_INTERVAL:PT2S}
+  identity-sync:
+    enabled: ${DWP_IDENTITY_SYNC_ENABLED:false}
+    auth-url: ${SERVICE_AUTH_URL:http://localhost:8001}
+    token: ${DWP_IDENTITY_SYNC_TOKEN:}
+    batch-size: ${DWP_IDENTITY_SYNC_BATCH_SIZE:50}
+    maximum-attempts: ${DWP_IDENTITY_SYNC_MAXIMUM_ATTEMPTS:10}
+    publish-interval-ms: ${DWP_IDENTITY_SYNC_PUBLISH_INTERVAL_MS:2000}
   provider:
     provisioning-token: ${DWP_PROVIDER_PROVISIONING_TOKEN:}
   observability:
