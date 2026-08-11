@@ -11,6 +11,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -47,8 +48,34 @@ public class IdentityAuditService {
                 .targetType(targetType)
                 .targetId(targetId)
                 .correlationId(trimToNull(correlationId))
+                .outcome("SUCCESS")
                 .beforeSnapshot(toJson(before))
                 .afterSnapshot(toJson(after))
+                .occurredAt(Instant.now())
+                .build());
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void denied(
+            Long tenantId,
+            Long actorId,
+            String action,
+            String targetType,
+            String targetId,
+            String correlationId,
+            String reason,
+            Map<String, Object> attemptedState) {
+        repository.save(IdentityAuditEvent.builder()
+                .auditEventId(UUID.randomUUID())
+                .tenantId(tenantId)
+                .actorId(actorId)
+                .action(action)
+                .targetType(targetType)
+                .targetId(targetId)
+                .correlationId(trimToNull(correlationId))
+                .outcome("DENIED")
+                .reason(trimToNull(reason))
+                .afterSnapshot(toJson(attemptedState))
                 .occurredAt(Instant.now())
                 .build());
     }
@@ -79,7 +106,7 @@ public class IdentityAuditService {
                 event.getAction(),
                 event.getTargetType(),
                 event.getTargetId(),
-                "SUCCESS",
+                event.getOutcome(),
                 event.getCorrelationId(),
                 event.getOccurredAt());
     }
@@ -102,4 +129,3 @@ public class IdentityAuditService {
         return trimmed.isEmpty() ? null : trimmed;
     }
 }
-

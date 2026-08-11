@@ -1,6 +1,7 @@
 package com.dwp.services.platform.reference;
 
 import com.dwp.core.common.ApiResponse;
+import com.dwp.services.platform.audit.PlatformAuditService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -21,9 +22,13 @@ public class AdminReferenceDataController {
     private static final String CORRELATION_HEADER = "X-Correlation-ID";
 
     private final ReferenceDataService service;
+    private final PlatformAuditService auditService;
 
-    public AdminReferenceDataController(ReferenceDataService service) {
+    public AdminReferenceDataController(
+            ReferenceDataService service,
+            PlatformAuditService auditService) {
         this.service = service;
+        this.auditService = auditService;
     }
 
     @GetMapping
@@ -41,6 +46,16 @@ public class AdminReferenceDataController {
             @RequestHeader(TENANT_HEADER) Long tenantId,
             @PathVariable String setKey) {
         return ApiResponse.success(service.getSet(tenantId, setKey));
+    }
+
+    @GetMapping("/{setKey}/audit-events")
+    public ApiResponse<PlatformAuditService.AuditPage> activity(
+            @RequestHeader(TENANT_HEADER) Long tenantId,
+            @PathVariable String setKey,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        return ApiResponse.success(auditService.listReferenceSetActivity(
+                tenantId, setKey, page, size));
     }
 
     @PostMapping

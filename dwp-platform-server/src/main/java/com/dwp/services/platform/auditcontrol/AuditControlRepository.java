@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
@@ -148,8 +149,8 @@ public class AuditControlRepository {
                         .addValue("eventId", anchor.eventId())
                         .addValue("from", Timestamp.from(anchor.occurredAt().minusSeconds(86_400)))
                         .addValue("to", Timestamp.from(anchor.occurredAt().plusSeconds(86_400)))
-                        .addValue("correlationId", anchor.correlationId())
-                        .addValue("actorId", anchor.actorId())
+                        .addValue("correlationId", anchor.correlationId(), Types.VARCHAR)
+                        .addValue("actorId", anchor.actorId(), Types.VARCHAR)
                         .addValue("targetType", anchor.targetType())
                         .addValue("targetId", anchor.targetId())
                         .addValue("limit", Math.min(50, Math.max(1, limit))),

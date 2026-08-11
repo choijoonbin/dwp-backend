@@ -13,7 +13,9 @@ import com.dwp.services.auth.repository.RoleRepository;
 import com.dwp.services.auth.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -39,35 +41,46 @@ class IdentityAdminServiceTest {
     private final RoleMemberRepository roleMemberRepository = mock(RoleMemberRepository.class);
     private final AuthSessionRepository authSessionRepository = mock(AuthSessionRepository.class);
     private final IdentityAuditService auditService = mock(IdentityAuditService.class);
+    private final RoleDelegationPolicyService delegationPolicyService =
+            mock(RoleDelegationPolicyService.class);
     private final IdentityAdminService service = new IdentityAdminService(
             userRepository,
             roleRepository,
             roleMemberRepository,
             authSessionRepository,
-            auditService);
+            auditService,
+            delegationPolicyService);
 
     @Test
-    void replacesRoleSetRevokesSessionsAndWritesAudit() {
+    void replacesOnlyDelegatedRolesRevokesSessionsAndWritesAudit() {
         User user = user(2L, 4L);
-        Role employee = role(20L, "EMPLOYEE");
-        Role admin = role(10L, "ADMIN");
-        RoleMember membership = membership(100L, employee.getRoleId());
+        Role workspace = role(20L, "WORKSPACE_MEMBER");
+        Role hrAdmin = role(30L, "HR_ADMIN");
+        RoleMember membership = membership(100L, workspace.getRoleId());
         AuthSession session = AuthSession.builder()
                 .sessionId(UUID.randomUUID())
                 .tenantId(TENANT_ID)
                 .userId(TARGET_ID)
                 .build();
 
+        RoleDelegationPolicyService.DelegationContext context = context(workspace, hrAdmin);
+        when(delegationPolicyService.resolve(TENANT_ID, ACTOR_ID)).thenReturn(context);
         when(userRepository.findByUserIdAndTenantId(TARGET_ID, TENANT_ID))
                 .thenReturn(Optional.of(user));
-        when(roleRepository.findByTenantIdAndCodeIn(TENANT_ID, Set.of("ADMIN")))
-                .thenReturn(List.of(admin));
         when(roleMemberRepository.findByTenantIdAndUserId(TENANT_ID, TARGET_ID))
                 .thenReturn(List.of(membership));
-        when(roleRepository.findByRoleIdIn(List.of(employee.getRoleId())))
-                .thenReturn(List.of(employee));
-        when(roleRepository.findByTenantIdAndCodeForUpdate(TENANT_ID, "ADMIN"))
-                .thenReturn(Optional.of(admin));
+        when(roleRepository.findByRoleIdIn(List.of(workspace.getRoleId())))
+                .thenReturn(List.of(workspace));
+        when(delegationPolicyService.effectiveRoleCodesByUser(TENANT_ID, List.of(TARGET_ID)))
+                .thenReturn(Map.of(TARGET_ID, Set.of("WORKSPACE_MEMBER")));
+        when(delegationPolicyService.evaluateTarget(
+                        context, ACTOR_ID, TARGET_ID, "ACTIVE", Set.of("WORKSPACE_MEMBER")))
+                .thenReturn(new RoleDelegationPolicyService.RoleManagementDecision(true, "ALLOWED"));
+        when(delegationPolicyService.evaluateRoleSet(
+                        Set.of("WORKSPACE_MEMBER"),
+                        Set.of("WORKSPACE_MEMBER"),
+                        Set.of("WORKSPACE_MEMBER", "HR_ADMIN")))
+                .thenReturn(new RoleDelegationPolicyService.RoleSetDecision(true, "ALLOWED"));
         when(authSessionRepository.findByTenantIdAndUserIdAndRevokedAtIsNull(
                         TENANT_ID, TARGET_ID))
                 .thenReturn(List.of(session));
@@ -78,19 +91,19 @@ class IdentityAdminServiceTest {
                 ACTOR_ID,
                 "corr-1",
                 TARGET_ID,
-                request(Set.of("admin"), 2L, 4L));
+                request(Set.of("workspace_member", "hr_admin"), 2L, 4L));
 
-        assertThat(result.roles()).containsExactly("ADMIN");
+        assertThat(result.roles()).containsExactly("HR_ADMIN", "WORKSPACE_MEMBER");
         assertThat(result.accessRevision()).isEqualTo(3L);
         assertThat(session.getRevokedAt()).isNotNull();
-        verify(roleMemberRepository).deleteAll(List.of(membership));
+        verify(roleMemberRepository, never()).deleteAll(any());
         verify(roleMemberRepository).saveAll(argThat(values -> {
             List<RoleMember> added = new java.util.ArrayList<>();
             values.forEach(added::add);
             return added.size() == 1
                     && TENANT_ID.equals(added.get(0).getTenantId())
                     && TARGET_ID.equals(added.get(0).getUserId())
-                    && admin.getRoleId().equals(added.get(0).getRoleId());
+                    && hrAdmin.getRoleId().equals(added.get(0).getRoleId());
         }));
         verify(auditService).success(
                 eq(TENANT_ID),
@@ -104,54 +117,95 @@ class IdentityAdminServiceTest {
     }
 
     @Test
-    void rejectsSelfRoleChangesBeforeLoadingTheTarget() {
+    void rejectsRoleOutsideDelegationBoundaryAndAuditsTheAttempt() {
+        Role workspace = role(20L, "WORKSPACE_MEMBER");
+        RoleDelegationPolicyService.DelegationContext context = context(workspace);
+        prepareManageableTarget(context, workspace);
+
         assertThatThrownBy(() -> service.replaceRoles(
                         TENANT_ID,
                         ACTOR_ID,
-                        null,
-                        ACTOR_ID,
-                        request(Set.of("ADMIN"), 0L, 0L)))
+                        "corr-denied",
+                        TARGET_ID,
+                        request(Set.of("WORKSPACE_MEMBER", "PROVIDER_ADMIN"), 2L, 4L)))
                 .isInstanceOfSatisfying(
                         BaseException.class,
-                        error -> assertThat(error.getErrorCode())
-                                .isEqualTo(ErrorCode.RESOURCE_CONFLICT));
+                        error -> assertThat(error.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
 
-        verify(userRepository, never()).findByUserIdAndTenantId(any(), any());
+        verify(auditService).denied(
+                eq(TENANT_ID),
+                eq(ACTOR_ID),
+                eq("identity.user-roles.rejected"),
+                eq("USER_ACCESS"),
+                eq(String.valueOf(TARGET_ID)),
+                eq("corr-denied"),
+                eq("ROLE_OUTSIDE_DELEGATION_BOUNDARY"),
+                any());
+        verify(roleMemberRepository, never()).saveAll(any());
     }
 
     @Test
-    void rejectsRemovingTheLastAdministratorUnderARoleLock() {
-        User user = user(1L, 2L);
-        Role admin = role(10L, "ADMIN");
-        RoleMember membership = membership(100L, admin.getRoleId());
+    void rejectsProtectedTargetBeforeChangingMemberships() {
+        Role workspace = role(20L, "WORKSPACE_MEMBER");
+        RoleDelegationPolicyService.DelegationContext context = context(workspace);
+        when(delegationPolicyService.resolve(TENANT_ID, ACTOR_ID)).thenReturn(context);
         when(userRepository.findByUserIdAndTenantId(TARGET_ID, TENANT_ID))
-                .thenReturn(Optional.of(user));
+                .thenReturn(Optional.of(user(2L, 4L)));
         when(roleMemberRepository.findByTenantIdAndUserId(TENANT_ID, TARGET_ID))
-                .thenReturn(List.of(membership));
-        when(roleRepository.findByRoleIdIn(List.of(admin.getRoleId())))
-                .thenReturn(List.of(admin));
-        when(roleRepository.findByTenantIdAndCodeForUpdate(TENANT_ID, "ADMIN"))
-                .thenReturn(Optional.of(admin));
-        when(roleMemberRepository.countByTenantIdAndRoleId(TENANT_ID, admin.getRoleId()))
-                .thenReturn(1L);
+                .thenReturn(List.of(membership(100L, workspace.getRoleId())));
+        when(roleRepository.findByRoleIdIn(List.of(workspace.getRoleId())))
+                .thenReturn(List.of(workspace));
+        Set<String> effective = Set.of("WORKSPACE_MEMBER", "TENANT_ADMIN");
+        when(delegationPolicyService.effectiveRoleCodesByUser(TENANT_ID, List.of(TARGET_ID)))
+                .thenReturn(Map.of(TARGET_ID, effective));
+        when(delegationPolicyService.evaluateTarget(
+                        context, ACTOR_ID, TARGET_ID, "ACTIVE", effective))
+                .thenReturn(new RoleDelegationPolicyService.RoleManagementDecision(
+                        false, "PROTECTED_ROLE"));
 
         assertThatThrownBy(() -> service.replaceRoles(
                         TENANT_ID,
                         ACTOR_ID,
-                        null,
+                        "corr-protected",
                         TARGET_ID,
-                        request(Set.of(), 1L, 2L)))
+                        request(Set.of("WORKSPACE_MEMBER"), 2L, 4L)))
+                .isInstanceOfSatisfying(
+                        BaseException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+
+        verify(roleMemberRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void rejectsBaselineRemovalOrSeparationOfDutiesViolation() {
+        Role workspace = role(20L, "WORKSPACE_MEMBER");
+        RoleDelegationPolicyService.DelegationContext context = context(workspace);
+        prepareManageableTarget(context, workspace);
+        when(delegationPolicyService.evaluateRoleSet(
+                        Set.of("WORKSPACE_MEMBER"), Set.of("WORKSPACE_MEMBER"), Set.of()))
+                .thenReturn(new RoleDelegationPolicyService.RoleSetDecision(
+                        false, "BASELINE_ROLE_REQUIRED"));
+
+        assertThatThrownBy(() -> service.replaceRoles(
+                        TENANT_ID,
+                        ACTOR_ID,
+                        "corr-baseline",
+                        TARGET_ID,
+                        request(Set.of(), 2L, 4L)))
                 .isInstanceOfSatisfying(
                         BaseException.class,
                         error -> assertThat(error.getErrorCode())
-                                .isEqualTo(ErrorCode.RESOURCE_CONFLICT));
+                                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
 
-        verify(roleRepository).findByTenantIdAndCodeForUpdate(TENANT_ID, "ADMIN");
-        verify(roleMemberRepository, never()).deleteAll(any());
+        verify(auditService).denied(
+                eq(TENANT_ID), eq(ACTOR_ID), any(), any(), any(), eq("corr-baseline"),
+                eq("BASELINE_ROLE_REQUIRED"), any());
     }
 
     @Test
     void rejectsAStaleAccessRevisionBeforeChangingMemberships() {
+        when(delegationPolicyService.resolve(TENANT_ID, ACTOR_ID))
+                .thenReturn(context(role(20L, "WORKSPACE_MEMBER")));
         when(userRepository.findByUserIdAndTenantId(TARGET_ID, TENANT_ID))
                 .thenReturn(Optional.of(user(3L, 5L)));
 
@@ -160,39 +214,52 @@ class IdentityAdminServiceTest {
                         ACTOR_ID,
                         null,
                         TARGET_ID,
-                        request(Set.of("ADMIN"), 2L, 5L)))
+                        request(Set.of("WORKSPACE_MEMBER"), 2L, 5L)))
                 .isInstanceOfSatisfying(
                         BaseException.class,
                         error -> assertThat(error.getErrorCode())
                                 .isEqualTo(ErrorCode.RESOURCE_CONFLICT));
 
-        verify(roleRepository, never()).findByTenantIdAndCodeIn(any(), any());
+        verify(roleMemberRepository, never()).findByTenantIdAndUserId(any(), any());
     }
 
-    @Test
-    void rejectsUnknownOrInactiveTenantRoles() {
+    private void prepareManageableTarget(
+            RoleDelegationPolicyService.DelegationContext context,
+            Role workspace) {
+        when(delegationPolicyService.resolve(TENANT_ID, ACTOR_ID)).thenReturn(context);
         when(userRepository.findByUserIdAndTenantId(TARGET_ID, TENANT_ID))
-                .thenReturn(Optional.of(user(0L, 0L)));
-        when(roleRepository.findByTenantIdAndCodeIn(TENANT_ID, Set.of("UNKNOWN")))
-                .thenReturn(List.of());
+                .thenReturn(Optional.of(user(2L, 4L)));
+        when(roleMemberRepository.findByTenantIdAndUserId(TENANT_ID, TARGET_ID))
+                .thenReturn(List.of(membership(100L, workspace.getRoleId())));
+        when(roleRepository.findByRoleIdIn(List.of(workspace.getRoleId())))
+                .thenReturn(List.of(workspace));
+        when(delegationPolicyService.effectiveRoleCodesByUser(TENANT_ID, List.of(TARGET_ID)))
+                .thenReturn(Map.of(TARGET_ID, Set.of("WORKSPACE_MEMBER")));
+        when(delegationPolicyService.evaluateTarget(
+                        context, ACTOR_ID, TARGET_ID, "ACTIVE", Set.of("WORKSPACE_MEMBER")))
+                .thenReturn(new RoleDelegationPolicyService.RoleManagementDecision(true, "ALLOWED"));
+    }
 
-        assertThatThrownBy(() -> service.replaceRoles(
-                        TENANT_ID,
-                        ACTOR_ID,
-                        null,
-                        TARGET_ID,
-                        request(Set.of("UNKNOWN"), 0L, 0L)))
-                .isInstanceOfSatisfying(
-                        BaseException.class,
-                        error -> assertThat(error.getErrorCode())
-                                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+    private RoleDelegationPolicyService.DelegationContext context(Role... roles) {
+        Map<String, RoleDelegationPolicyService.AssignableRole> options = new LinkedHashMap<>();
+        for (Role role : roles) {
+            options.put(role.getCode(), new RoleDelegationPolicyService.AssignableRole(
+                    role,
+                    role.getCode().equals("WORKSPACE_MEMBER") ? "WORKSPACE" : "PEOPLE",
+                    role.getCode().equals("WORKSPACE_MEMBER") ? "BASELINE" : "DELEGATED",
+                    "DIRECT",
+                    options.size(),
+                    Set.of()));
+        }
+        return new RoleDelegationPolicyService.DelegationContext(Set.of("TENANT_ADMIN"), options);
     }
 
     private IdentityAdminDtos.ReplaceUserRolesRequest request(
             Set<String> roles,
             Long accessRevision,
             Long version) {
-        return new IdentityAdminDtos.ReplaceUserRolesRequest(roles, accessRevision, version);
+        return new IdentityAdminDtos.ReplaceUserRolesRequest(
+                roles, "Approved workforce access change", accessRevision, version);
     }
 
     private User user(Long accessRevision, Long version) {

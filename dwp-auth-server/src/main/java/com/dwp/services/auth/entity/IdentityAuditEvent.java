@@ -42,6 +42,12 @@ public class IdentityAuditEvent {
     @Column(name = "correlation_id", updatable = false, length = 128)
     private String correlationId;
 
+    @Column(name = "outcome", nullable = false, updatable = false, length = 20)
+    private String outcome;
+
+    @Column(name = "reason", updatable = false, length = 500)
+    private String reason;
+
     @Column(name = "before_snapshot", updatable = false, columnDefinition = "TEXT")
     private String beforeSnapshot;
 
@@ -51,4 +57,3 @@ public class IdentityAuditEvent {
     @Column(name = "occurred_at", nullable = false, updatable = false)
     private Instant occurredAt;
 }
-

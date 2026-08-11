@@ -255,7 +255,35 @@ public class AuthTenantProvisioningService {
                 ON CONFLICT (tenant_id, role_id, resource_id, permission_id) DO UPDATE
                 SET effect = 'ALLOW', updated_at = CURRENT_TIMESTAMP
                 """, tenantId, roleId, tenantId);
+        grantWorkspaceMemberAccess(tenantId);
         syncWorkforceResources(tenantId, entitlementKeys);
+    }
+
+    private void grantWorkspaceMemberAccess(Long tenantId) {
+        jdbc.update("""
+                INSERT INTO com_role_permissions (
+                    tenant_id, role_id, resource_id, permission_id, effect)
+                SELECT role.tenant_id, role.role_id, resource.resource_id,
+                       permission.permission_id, 'ALLOW'
+                  FROM com_roles role
+                  JOIN com_resources resource
+                    ON resource.tenant_id = role.tenant_id
+                   AND resource.enabled = TRUE
+                  JOIN com_permissions permission
+                    ON permission.code = 'VIEW'
+                    OR (permission.code = 'UPDATE'
+                        AND resource.key IN ('APP.WORK', 'APP.APPS'))
+                 WHERE role.tenant_id = ?
+                   AND role.code = 'WORKSPACE_MEMBER'
+                   AND resource.key IN (
+                       'APP.WORK', 'APP.ASK', 'APP.ACTIVITY', 'APP.APPS',
+                       'APP.MAIL_CALENDAR', 'APP.COLLABORATION',
+                       'APP.EMPLOYEE_SERVICES', 'APP.PEOPLE_DIRECTORY',
+                       'APP.KNOWLEDGE', 'APP.BUSINESS_ERP',
+                       'APP.LEGACY_OPERATIONS')
+                ON CONFLICT (tenant_id, role_id, resource_id, permission_id) DO UPDATE
+                SET effect = 'ALLOW', updated_at = CURRENT_TIMESTAMP
+                """, tenantId);
     }
 
     private void ensureWorkforceRoles(Long tenantId) {
@@ -369,6 +397,12 @@ public class AuthTenantProvisioningService {
             resources.put("APP.WORK", "Work");
             resources.put("APP.ACTIVITY", "Activity");
             resources.put("APP.APPS", "Apps");
+            resources.put("APP.MAIL_CALENDAR", "Mail and calendar");
+            resources.put("APP.COLLABORATION", "Collaboration");
+            resources.put("APP.EMPLOYEE_SERVICES", "Employee services");
+            resources.put("APP.KNOWLEDGE", "Knowledge");
+            resources.put("APP.BUSINESS_ERP", "Business ERP");
+            resources.put("APP.LEGACY_OPERATIONS", "Legacy operations");
         }
         if (entitlementKeys.contains("ai.agent-runtime")) resources.put("APP.ASK", "Ask DWP");
         if (entitlementKeys.contains("core.people")) {

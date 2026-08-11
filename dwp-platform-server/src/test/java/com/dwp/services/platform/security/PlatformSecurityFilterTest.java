@@ -90,6 +90,38 @@ class PlatformSecurityFilterTest {
     }
 
     @Test
+    void rejectsWorkspaceAccessWithoutAResolvedPermission() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+        MockHttpServletRequest request = request("/v1/workspace/work-items");
+        request.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        request.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        request.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        request.addHeader(PlatformSecurityFilter.ROLES_HEADER, "PROVIDER_ADMIN");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getContentAsString()).contains("Workspace permission is required.");
+    }
+
+    @Test
+    void acceptsWorkspaceAccessWithAResolvedPermission() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+        MockHttpServletRequest request = request("/v1/workspace/work-items");
+        request.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        request.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        request.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        request.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
+        request.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER, "APP.WORK:VIEW");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertThat(response.getStatus()).isEqualTo(200);
+    }
+
+    @Test
     void acceptsTheRestrictedRuntimeIdentityOnlyForCatalogReads() throws Exception {
         PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
         MockHttpServletRequest catalogRequest = request("/v1/catalog/registry-entries/AGENT/PLANNER");
@@ -112,21 +144,6 @@ class PlatformSecurityFilterTest {
         filter.doFilter(adminRequest, adminResponse, new MockFilterChain());
 
         assertThat(adminResponse.getStatus()).isEqualTo(401);
-    }
-
-    @Test
-    void protectsTheCodeCatalogInventoryAsAnAdministratorSurface() throws Exception {
-        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
-        MockHttpServletRequest request = request("/v1/admin/code-catalog/code-sets");
-        request.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
-        request.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
-        request.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
-        request.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
-        MockHttpServletResponse response = new MockHttpServletResponse();
-
-        filter.doFilter(request, response, new MockFilterChain());
-
-        assertThat(response.getStatus()).isEqualTo(403);
     }
 
     @Test
@@ -169,7 +186,7 @@ class PlatformSecurityFilterTest {
     @Test
     void preventsSupportSessionsFromEnteringUnrelatedAdminSurfaces() throws Exception {
         PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
-        MockHttpServletRequest request = request("/v1/admin/code-catalog/code-sets");
+        MockHttpServletRequest request = request("/v1/admin/reference-sets");
         request.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
         request.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
         request.addHeader(PlatformSecurityFilter.TENANT_HEADER, "42");

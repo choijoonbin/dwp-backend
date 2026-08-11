@@ -52,13 +52,21 @@ public final class SystemCodeCatalogDtos {
             String label) {
     }
 
+    public record CatalogSnapshot(
+            String catalogScope,
+            String changePolicy,
+            List<CodeSetHealth> codeSets) {
+    }
+
     public record CodeSetHealth(
             String codeSetKey,
+            String displayName,
             String ownerService,
             String contractKind,
             String configurationLevel,
             String validationSource,
             String runtimeVisibility,
+            int schemaVersion,
             long valueCount,
             long bindingCount,
             long enforcedBindingCount,

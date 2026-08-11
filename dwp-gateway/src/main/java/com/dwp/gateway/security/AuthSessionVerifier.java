@@ -72,9 +72,13 @@ public class AuthSessionVerifier implements SessionVerifier {
 
     private String permissionPrefix(ServerHttpRequest request) {
         String path = request.getURI().getPath();
-        return path.startsWith("/api/platform/v1/admin/audit-control")
-                ? "ADMIN.AUDIT_"
-                : null;
+        if (path.startsWith("/api/platform/v1/admin/audit-control")) {
+            return "ADMIN.AUDIT_";
+        }
+        if (path.startsWith("/api/platform/v1/workspace")) {
+            return "APP.";
+        }
+        return null;
     }
 
     private List<String> authorities(List<PermissionData> permissions) {

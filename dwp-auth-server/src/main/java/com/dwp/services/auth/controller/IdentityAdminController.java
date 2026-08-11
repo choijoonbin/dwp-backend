@@ -44,8 +44,10 @@ public class IdentityAdminController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
         AuthenticatedUserResolver.requireTenantAdmin(authentication);
+        Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
-        return ApiResponse.success(identityAdminService.listUsers(tenantId, query, page, size));
+        return ApiResponse.success(identityAdminService.listUsers(
+                tenantId, actorId, query, page, size));
     }
 
     @GetMapping("/roles")
@@ -53,8 +55,9 @@ public class IdentityAdminController {
             Authentication authentication,
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader) {
         AuthenticatedUserResolver.requireTenantAdmin(authentication);
+        Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
-        return ApiResponse.success(identityAdminService.listRoles(tenantId));
+        return ApiResponse.success(identityAdminService.listRoles(tenantId, actorId));
     }
 
     @PutMapping("/users/{userId}/roles")
@@ -82,4 +85,3 @@ public class IdentityAdminController {
         return ApiResponse.success(identityAuditService.list(tenantId, page, size));
     }
 }
-

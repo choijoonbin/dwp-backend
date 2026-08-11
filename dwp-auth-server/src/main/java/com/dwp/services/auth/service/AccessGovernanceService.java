@@ -56,6 +56,7 @@ public class AccessGovernanceService {
     private final UserRepository userRepository;
     private final AuthSessionRepository sessionRepository;
     private final IdentityAuditService auditService;
+    private final RoleDelegationPolicyService delegationPolicyService;
 
     public AccessGovernanceService(
             RoleRepository roleRepository,
@@ -68,7 +69,8 @@ public class AccessGovernanceService {
             GroupRoleAssignmentRepository groupRoleRepository,
             UserRepository userRepository,
             AuthSessionRepository sessionRepository,
-            IdentityAuditService auditService) {
+            IdentityAuditService auditService,
+            RoleDelegationPolicyService delegationPolicyService) {
         this.roleRepository = roleRepository;
         this.resourceRepository = resourceRepository;
         this.permissionRepository = permissionRepository;
@@ -80,6 +82,7 @@ public class AccessGovernanceService {
         this.userRepository = userRepository;
         this.sessionRepository = sessionRepository;
         this.auditService = auditService;
+        this.delegationPolicyService = delegationPolicyService;
     }
 
     @Transactional(readOnly = true)
@@ -98,6 +101,15 @@ public class AccessGovernanceService {
             Long actorId,
             String correlationId,
             AccessGovernanceDtos.CreateRoleRequest request) {
+        delegationPolicyService.resolve(tenantId, actorId);
+        if (request.privileged()) {
+            auditDenied(
+                    tenantId, actorId, correlationId, "ROLE", request.code(),
+                    "CUSTOM_PRIVILEGED_ROLE_REQUIRES_APPROVAL");
+            throw new BaseException(
+                    ErrorCode.FORBIDDEN,
+                    "Privileged custom roles require a separate approval workflow.");
+        }
         Role role = Role.builder()
                 .tenantId(tenantId)
                 .code(request.code().trim().toUpperCase(Locale.ROOT))
@@ -126,21 +138,29 @@ public class AccessGovernanceService {
             AccessGovernanceDtos.UpdateRoleRequest request) {
         Role role = requireRole(tenantId, roleId);
         requireVersion(role.getVersion(), request.version());
-        if ("SYSTEM".equals(role.getRoleType())
-                && (!Objects.equals(role.getPrivileged(), request.privileged())
-                || !Objects.equals(role.getAssignableToGroups(), request.assignableToGroups()))) {
+        delegationPolicyService.resolve(tenantId, actorId);
+        if ("SYSTEM".equals(role.getRoleType())) {
+            auditDenied(
+                    tenantId, actorId, correlationId, "ROLE", roleId.toString(),
+                    "SYSTEM_ROLE_IMMUTABLE");
             throw new BaseException(
                     ErrorCode.INVALID_STATE,
-                    "System role governance attributes cannot be changed.");
+                    "System roles are centrally managed and cannot be changed here.");
+        }
+        if (request.privileged()) {
+            auditDenied(
+                    tenantId, actorId, correlationId, "ROLE", roleId.toString(),
+                    "CUSTOM_PRIVILEGED_ROLE_REQUIRES_APPROVAL");
+            throw new BaseException(
+                    ErrorCode.FORBIDDEN,
+                    "Privileged custom roles require a separate approval workflow.");
         }
         Map<String, Object> before = roleSnapshot(role);
         role.setName(request.name().trim());
         role.setDescription(trimToNull(request.description()));
         role.setStatus(request.status());
-        if (!"SYSTEM".equals(role.getRoleType())) {
-            role.setPrivileged(request.privileged());
-            role.setAssignableToGroups(request.assignableToGroups());
-        }
+        role.setPrivileged(false);
+        role.setAssignableToGroups(request.assignableToGroups());
         role.setUpdatedBy(actorId);
         role = saveRole(role);
         invalidateUsersForRole(tenantId, roleId, actorId);
@@ -159,6 +179,15 @@ public class AccessGovernanceService {
             AccessGovernanceDtos.ReplacePermissionsRequest request) {
         Role role = requireRole(tenantId, roleId);
         requireVersion(role.getVersion(), request.version());
+        delegationPolicyService.resolve(tenantId, actorId);
+        if ("SYSTEM".equals(role.getRoleType())) {
+            auditDenied(
+                    tenantId, actorId, correlationId, "ROLE", roleId.toString(),
+                    "SYSTEM_ROLE_PERMISSIONS_IMMUTABLE");
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "System role permissions are centrally managed and cannot be changed here.");
+        }
         List<RolePermission> beforePermissions = rolePermissionRepository.findByTenantIdAndRoleId(
                 tenantId, roleId);
         Map<Long, Resource> resources = request.permissions().stream()
@@ -227,6 +256,7 @@ public class AccessGovernanceService {
             Long actorId,
             String correlationId,
             AccessGovernanceDtos.CreateResourceRequest request) {
+        delegationPolicyService.resolve(tenantId, actorId);
         Resource resource = Resource.builder()
                 .tenantId(tenantId)
                 .type(request.type())
@@ -281,6 +311,7 @@ public class AccessGovernanceService {
         DirectoryGroup group = groupRepository.findByGroupIdAndTenantId(request.groupId(), tenantId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         Role role = requireRole(tenantId, request.roleId());
+        requireAssignableRole(tenantId, actorId, correlationId, role);
         if (!"ACTIVE".equals(group.getStatus()) || !"ACTIVE".equals(role.getStatus())) {
             throw new BaseException(ErrorCode.INVALID_STATE, "The group and role must be active.");
         }
@@ -340,6 +371,7 @@ public class AccessGovernanceService {
                         assignment.getGroupId(), tenantId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         Role role = requireRole(tenantId, assignment.getRoleId());
+        requireAssignableRole(tenantId, actorId, correlationId, role);
         Map<String, Object> before = assignmentSnapshot(assignment);
         assignment.setLifecycleState("REVOKED");
         assignment.setUpdatedBy(actorId);
@@ -497,6 +529,41 @@ public class AccessGovernanceService {
     private Role requireRole(Long tenantId, Long roleId) {
         return roleRepository.findByRoleIdAndTenantId(roleId, tenantId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+    }
+
+    private void requireAssignableRole(
+            Long tenantId,
+            Long actorId,
+            String correlationId,
+            Role role) {
+        RoleDelegationPolicyService.DelegationContext context =
+                delegationPolicyService.resolve(tenantId, actorId);
+        if (!context.assignableRolesByCode().containsKey(role.getCode())) {
+            auditDenied(
+                    tenantId, actorId, correlationId, "ROLE",
+                    role.getRoleId().toString(), "ROLE_OUTSIDE_DELEGATION_BOUNDARY");
+            throw new BaseException(
+                    ErrorCode.FORBIDDEN,
+                    "This role is outside the current administrator's delegation boundary.");
+        }
+    }
+
+    private void auditDenied(
+            Long tenantId,
+            Long actorId,
+            String correlationId,
+            String targetType,
+            String targetId,
+            String reason) {
+        auditService.denied(
+                tenantId,
+                actorId,
+                "access.governance.rejected",
+                targetType,
+                targetId,
+                correlationId,
+                reason,
+                Map.of());
     }
 
     private Role saveRole(Role role) {

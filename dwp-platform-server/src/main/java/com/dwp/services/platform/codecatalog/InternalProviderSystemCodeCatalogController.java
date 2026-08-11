@@ -8,21 +8,19 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-
 @RestController
-@RequestMapping("/v1/admin/code-catalog/code-sets")
-public class AdminSystemCodeCatalogController {
+@RequestMapping("/internal/provider/v1/code-catalog/code-sets")
+public class InternalProviderSystemCodeCatalogController {
 
     private final SystemCodeCatalogRepository repository;
 
-    public AdminSystemCodeCatalogController(SystemCodeCatalogRepository repository) {
+    public InternalProviderSystemCodeCatalogController(SystemCodeCatalogRepository repository) {
         this.repository = repository;
     }
 
     @GetMapping
-    public ApiResponse<List<SystemCodeCatalogDtos.CodeSetHealth>> health() {
-        return ApiResponse.success(repository.health());
+    public ApiResponse<SystemCodeCatalogDtos.CatalogSnapshot> catalog() {
+        return ApiResponse.success(repository.snapshot());
     }
 
     @GetMapping("/{codeSetKey}")

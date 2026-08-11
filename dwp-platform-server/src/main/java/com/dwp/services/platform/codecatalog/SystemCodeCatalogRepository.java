@@ -24,22 +24,33 @@ public class SystemCodeCatalogRepository {
 
     public List<SystemCodeCatalogDtos.CodeSetHealth> health() {
         return jdbc.query("""
-                SELECT code_set_key, owner_service, contract_kind,
-                       configuration_level, validation_source, runtime_visibility, value_count,
-                       binding_count, enforced_binding_count, registration_state
-                  FROM sys_code_catalog_health
-                 ORDER BY owner_service, code_set_key
+                SELECT health.code_set_key, code_set.display_name, health.owner_service,
+                       health.contract_kind, health.configuration_level,
+                       health.validation_source, health.runtime_visibility,
+                       code_set.schema_version, health.value_count, health.binding_count,
+                       health.enforced_binding_count, health.registration_state
+                  FROM sys_code_catalog_health health
+                  JOIN sys_code_sets code_set ON code_set.code_set_key = health.code_set_key
+                 WHERE code_set.lifecycle_state = 'ACTIVE'
+                 ORDER BY health.owner_service, health.code_set_key
                 """, (result, ignored) -> new SystemCodeCatalogDtos.CodeSetHealth(
                 result.getString("code_set_key"),
+                result.getString("display_name"),
                 result.getString("owner_service"),
                 result.getString("contract_kind"),
                 result.getString("configuration_level"),
                 result.getString("validation_source"),
                 result.getString("runtime_visibility"),
+                result.getInt("schema_version"),
                 result.getLong("value_count"),
                 result.getLong("binding_count"),
                 result.getLong("enforced_binding_count"),
                 result.getString("registration_state")));
+    }
+
+    public SystemCodeCatalogDtos.CatalogSnapshot snapshot() {
+        return new SystemCodeCatalogDtos.CatalogSnapshot(
+                "GLOBAL_PRODUCT", "RELEASE_MANAGED", List.copyOf(health()));
     }
 
     public SystemCodeCatalogDtos.RuntimeCodeSet getRuntime(

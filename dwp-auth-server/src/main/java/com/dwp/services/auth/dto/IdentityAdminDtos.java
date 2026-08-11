@@ -1,6 +1,7 @@
 package com.dwp.services.auth.dto;
 
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -22,6 +23,7 @@ public final class IdentityAdminDtos {
             String status,
             Boolean mfaEnabled,
             List<String> roles,
+            RoleManagementSummary roleManagement,
             Long accessRevision,
             Long version,
             LocalDateTime updatedAt,
@@ -32,12 +34,23 @@ public final class IdentityAdminDtos {
             String code,
             String name,
             String description,
+            String roleFamily,
+            String assignmentClass,
+            boolean privileged,
+            String assignmentMode,
+            List<String> conflictsWith,
             String status) {
+    }
+
+    public record RoleManagementSummary(
+            boolean allowed,
+            String reason) {
     }
 
     public record ReplaceUserRolesRequest(
             @NotNull @Size(max = 20)
-            Set<@Pattern(regexp = "[A-Za-z][A-Za-z0-9_.-]{0,49}") String> roleCodes,
+            Set<@NotBlank @Pattern(regexp = "[A-Za-z][A-Za-z0-9_.-]{0,49}") String> roleCodes,
+            @NotBlank @Size(min = 10, max = 500) String justification,
             @NotNull @Min(0) Long accessRevision,
             @NotNull @Min(0) Long version) {
     }
@@ -62,4 +75,3 @@ public final class IdentityAdminDtos {
             int totalPages) {
     }
 }
-

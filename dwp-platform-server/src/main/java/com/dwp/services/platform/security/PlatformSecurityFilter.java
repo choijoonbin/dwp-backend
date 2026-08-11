@@ -107,6 +107,11 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
             writeError(response, ErrorCode.FORBIDDEN, "Audit permission is required.");
             return;
         }
+        boolean workspacePath = path.startsWith("/v1/workspace");
+        if (workspacePath && isBlank(request.getHeader(PERMISSIONS_HEADER))) {
+            writeError(response, ErrorCode.FORBIDDEN, "Workspace permission is required.");
+            return;
+        }
         if (!supportAccess && !auditAdminPath && path.startsWith("/v1/admin/")
                 && !hasRole(request.getHeader(ROLES_HEADER), ADMIN_ROLES)) {
             writeError(response, ErrorCode.FORBIDDEN, "Tenant administrator permission is required.");

@@ -59,6 +59,25 @@ public class PlatformAuditService {
         Page<PlatformAuditEvent> result = repository.findByTenantId(
                 tenantId,
                 PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "occurredAt")));
+        return toPage(result);
+    }
+
+    @Transactional(readOnly = true)
+    public AuditPage listReferenceSetActivity(
+            Long tenantId,
+            String setKey,
+            int page,
+            int size) {
+        int safePage = Math.max(0, page);
+        int safeSize = Math.min(100, Math.max(1, size));
+        Page<PlatformAuditEvent> result = repository.findReferenceSetActivity(
+                tenantId,
+                setKey,
+                PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "occurredAt")));
+        return toPage(result);
+    }
+
+    private AuditPage toPage(Page<PlatformAuditEvent> result) {
         List<AuditEventResponse> content = result.stream()
                 .map(event -> new AuditEventResponse(
                         event.getAuditEventId(),

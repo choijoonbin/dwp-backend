@@ -34,7 +34,7 @@ class ProviderSupportAccessPolicyTest {
                 "GET", "/api/auth/admin/v1/access/roles"))
                 .isInstanceOf(BaseException.class);
         assertThatThrownBy(() -> ProviderSupportAccessPolicy.requiredScope(
-                "GET", "/api/platform/v1/admin/code-catalog/code-sets"))
+                "GET", "/api/provider/v1/admin/code-catalog/code-sets"))
                 .isInstanceOf(BaseException.class);
     }
 }

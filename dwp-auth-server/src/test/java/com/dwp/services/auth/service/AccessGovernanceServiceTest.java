@@ -1,5 +1,7 @@
 package com.dwp.services.auth.service;
 
+import com.dwp.core.common.ErrorCode;
+import com.dwp.core.exception.BaseException;
 import com.dwp.services.auth.dto.AccessGovernanceDtos;
 import com.dwp.services.auth.entity.Permission;
 import com.dwp.services.auth.entity.Resource;
@@ -20,16 +22,23 @@ import com.dwp.services.auth.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AccessGovernanceServiceTest {
 
     private static final Long TENANT_ID = 7L;
     private static final Long USER_ID = 21L;
+    private static final Long ACTOR_ID = 8L;
 
     private final RoleRepository roleRepository = mock(RoleRepository.class);
     private final ResourceRepository resourceRepository = mock(ResourceRepository.class);
@@ -40,6 +49,9 @@ class AccessGovernanceServiceTest {
     private final DirectoryGroupMemberRepository groupMemberRepository = mock(DirectoryGroupMemberRepository.class);
     private final GroupRoleAssignmentRepository groupRoleRepository = mock(GroupRoleAssignmentRepository.class);
     private final UserRepository userRepository = mock(UserRepository.class);
+    private final IdentityAuditService auditService = mock(IdentityAuditService.class);
+    private final RoleDelegationPolicyService delegationPolicyService =
+            mock(RoleDelegationPolicyService.class);
     private final AccessGovernanceService service = new AccessGovernanceService(
             roleRepository,
             resourceRepository,
@@ -51,7 +63,8 @@ class AccessGovernanceServiceTest {
             groupRoleRepository,
             userRepository,
             mock(AuthSessionRepository.class),
-            mock(IdentityAuditService.class));
+            auditService,
+            delegationPolicyService);
 
     @Test
     void effectivePermissionNamesOnlyRolesThatContributedThatPermission() {
@@ -91,6 +104,42 @@ class AccessGovernanceServiceTest {
                 .containsExactly("APP.WORK", "DATA.PEOPLE");
         assertThat(result.permissions().get(0).grantedByRoles()).containsExactly("WORK_REVIEWER");
         assertThat(result.permissions().get(1).grantedByRoles()).containsExactly("PEOPLE_READER");
+    }
+
+    @Test
+    void tenantGovernanceCannotMutateSystemRoleDefinitions() {
+        Role systemRole = Role.builder()
+                .roleId(90L)
+                .tenantId(TENANT_ID)
+                .code("TENANT_ADMIN")
+                .name("Tenant administrator")
+                .roleType("SYSTEM")
+                .status("ACTIVE")
+                .privileged(true)
+                .assignableToGroups(false)
+                .version(0L)
+                .build();
+        when(roleRepository.findByRoleIdAndTenantId(90L, TENANT_ID))
+                .thenReturn(Optional.of(systemRole));
+        when(delegationPolicyService.resolve(TENANT_ID, ACTOR_ID))
+                .thenReturn(new RoleDelegationPolicyService.DelegationContext(
+                        Set.of("TENANT_ADMIN"), Map.of()));
+
+        AccessGovernanceDtos.UpdateRoleRequest request =
+                new AccessGovernanceDtos.UpdateRoleRequest(
+                        "Renamed", "Changed", "ACTIVE", true, false, 0L);
+
+        assertThatThrownBy(() -> service.updateRole(
+                        TENANT_ID, ACTOR_ID, "corr-system", 90L, request))
+                .isInstanceOfSatisfying(
+                        BaseException.class,
+                        error -> assertThat(error.getErrorCode())
+                                .isEqualTo(ErrorCode.INVALID_STATE));
+
+        verify(auditService).denied(
+                eq(TENANT_ID), eq(ACTOR_ID), eq("access.governance.rejected"),
+                eq("ROLE"), eq("90"), eq("corr-system"),
+                eq("SYSTEM_ROLE_IMMUTABLE"), any());
     }
 
     private Role role(Long id, String code) {

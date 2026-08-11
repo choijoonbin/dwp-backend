@@ -79,6 +79,7 @@ public class ProviderAuditService {
             return "CHANGE_MANAGEMENT";
         }
         if (action.startsWith("provider.tenant")) return "TENANT_LIFECYCLE";
+        if (action.startsWith("provider.data-governance.")) return "DATA_GOVERNANCE";
         return "ADMINISTRATION";
     }
 

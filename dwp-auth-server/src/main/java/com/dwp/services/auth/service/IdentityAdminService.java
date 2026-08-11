@@ -35,31 +35,32 @@ import java.util.stream.Collectors;
 @Service
 public class IdentityAdminService {
 
-    private static final String ACTIVE = "ACTIVE";
-    private static final String ADMIN = "ADMIN";
-
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final RoleMemberRepository roleMemberRepository;
     private final AuthSessionRepository authSessionRepository;
     private final IdentityAuditService auditService;
+    private final RoleDelegationPolicyService delegationPolicyService;
 
     public IdentityAdminService(
             UserRepository userRepository,
             RoleRepository roleRepository,
             RoleMemberRepository roleMemberRepository,
             AuthSessionRepository authSessionRepository,
-            IdentityAuditService auditService) {
+            IdentityAuditService auditService,
+            RoleDelegationPolicyService delegationPolicyService) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.roleMemberRepository = roleMemberRepository;
         this.authSessionRepository = authSessionRepository;
         this.auditService = auditService;
+        this.delegationPolicyService = delegationPolicyService;
     }
 
     @Transactional(readOnly = true)
     public IdentityAdminDtos.PageResult<IdentityAdminDtos.UserAccessSummary> listUsers(
             Long tenantId,
+            Long actorId,
             String query,
             int page,
             int size) {
@@ -80,11 +81,28 @@ public class IdentityAdminService {
                         safeSize,
                         Sort.by("displayName").ascending().and(Sort.by("userId").ascending())));
         Map<Long, List<String>> rolesByUser = rolesByUser(tenantId, result.getContent());
+        RoleDelegationPolicyService.DelegationContext context =
+                delegationPolicyService.resolve(tenantId, actorId);
+        Map<Long, Set<String>> effectiveRolesByUser =
+                delegationPolicyService.effectiveRoleCodesByUser(
+                        tenantId,
+                        result.getContent().stream().map(User::getUserId).toList());
         return new IdentityAdminDtos.PageResult<>(
                 result.stream()
-                        .map(user -> toUserSummary(
-                                user,
-                                rolesByUser.getOrDefault(user.getUserId(), List.of())))
+                        .map(user -> {
+                            RoleDelegationPolicyService.RoleManagementDecision decision =
+                                    delegationPolicyService.evaluateTarget(
+                                            context,
+                                            actorId,
+                                            user.getUserId(),
+                                            user.getStatus(),
+                                            effectiveRolesByUser.getOrDefault(
+                                                    user.getUserId(), Set.of()));
+                            return toUserSummary(
+                                    user,
+                                    rolesByUser.getOrDefault(user.getUserId(), List.of()),
+                                    decision);
+                        })
                         .toList(),
                 result.getNumber(),
                 result.getSize(),
@@ -93,13 +111,18 @@ public class IdentityAdminService {
     }
 
     @Transactional(readOnly = true)
-    public List<IdentityAdminDtos.RoleSummary> listRoles(Long tenantId) {
-        return roleRepository.findByTenantIdAndStatusOrderByCodeAsc(tenantId, ACTIVE).stream()
-                .map(role -> new IdentityAdminDtos.RoleSummary(
-                        role.getCode(),
-                        role.getName(),
-                        role.getDescription(),
-                        role.getStatus()))
+    public List<IdentityAdminDtos.RoleSummary> listRoles(Long tenantId, Long actorId) {
+        return delegationPolicyService.resolve(tenantId, actorId).assignableRoles().stream()
+                .map(option -> new IdentityAdminDtos.RoleSummary(
+                        option.role().getCode(),
+                        option.role().getName(),
+                        option.role().getDescription(),
+                        option.roleFamily(),
+                        option.assignmentClass(),
+                        Boolean.TRUE.equals(option.role().getPrivileged()),
+                        option.assignmentMode(),
+                        option.conflictsWith().stream().sorted().toList(),
+                        option.role().getStatus()))
                 .toList();
     }
 
@@ -110,20 +133,26 @@ public class IdentityAdminService {
             String correlationId,
             Long targetUserId,
             IdentityAdminDtos.ReplaceUserRolesRequest request) {
-        if (actorId.equals(targetUserId)) {
-            throw conflict("Administrators cannot change their own roles.");
-        }
-        User user = userRepository.findByUserIdAndTenantId(targetUserId, tenantId)
-                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        requireVersion(user, request.accessRevision(), request.version());
-
         Set<String> requestedCodes = request.roleCodes().stream()
                 .map(this::normalizeRoleCode)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-        List<Role> requestedRoles = requestedCodes.isEmpty()
-                ? List.of()
-                : roleRepository.findByTenantIdAndCodeIn(tenantId, requestedCodes);
-        validateRoles(requestedCodes, requestedRoles);
+        RoleDelegationPolicyService.DelegationContext context;
+        try {
+            context = delegationPolicyService.resolve(tenantId, actorId);
+        } catch (BaseException exception) {
+            auditDeniedRoleChange(
+                    tenantId,
+                    actorId,
+                    correlationId,
+                    targetUserId,
+                    requestedCodes,
+                    "ACTOR_HAS_NO_DELEGATION_POLICY");
+            throw exception;
+        }
+
+        User user = userRepository.findByUserIdAndTenantId(targetUserId, tenantId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        requireVersion(user, request.accessRevision(), request.version());
 
         List<RoleMember> currentMemberships =
                 roleMemberRepository.findByTenantIdAndUserId(tenantId, targetUserId);
@@ -131,13 +160,61 @@ public class IdentityAdminService {
         Set<String> currentCodes = currentRolesById.values().stream()
                 .map(Role::getCode)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<String> effectiveRoleCodes = delegationPolicyService
+                .effectiveRoleCodesByUser(tenantId, List.of(targetUserId))
+                .getOrDefault(targetUserId, Set.of());
+        RoleDelegationPolicyService.RoleManagementDecision decision =
+                delegationPolicyService.evaluateTarget(
+                        context, actorId, targetUserId, user.getStatus(), effectiveRoleCodes);
+        if (!decision.allowed()) {
+            auditDeniedRoleChange(
+                    tenantId,
+                    actorId,
+                    correlationId,
+                    targetUserId,
+                    requestedCodes,
+                    decision.reason());
+            throw new BaseException(
+                    ErrorCode.FORBIDDEN,
+                    "This identity is outside the current administrator's delegation boundary.");
+        }
+        if (!context.assignableRolesByCode().keySet().containsAll(requestedCodes)) {
+            auditDeniedRoleChange(
+                    tenantId,
+                    actorId,
+                    correlationId,
+                    targetUserId,
+                    requestedCodes,
+                    "ROLE_OUTSIDE_DELEGATION_BOUNDARY");
+            throw new BaseException(
+                    ErrorCode.FORBIDDEN,
+                    "One or more requested roles are outside the delegation boundary.");
+        }
+        RoleDelegationPolicyService.RoleSetDecision roleSetDecision =
+                delegationPolicyService.evaluateRoleSet(
+                        effectiveRoleCodes, currentCodes, requestedCodes);
+        if (!roleSetDecision.allowed()) {
+            auditDeniedRoleChange(
+                    tenantId,
+                    actorId,
+                    correlationId,
+                    targetUserId,
+                    requestedCodes,
+                    roleSetDecision.reason());
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    roleSetDecision.reason().equals("BASELINE_ROLE_REQUIRED")
+                            ? "Every managed workforce identity must retain baseline workspace access."
+                            : "The requested role combination violates separation-of-duties policy.");
+        }
         if (currentCodes.equals(requestedCodes)) {
-            return toUserSummary(user, sortedCodes(currentCodes));
+            return toUserSummary(user, sortedCodes(currentCodes), decision);
         }
 
-        protectLastAdministrator(tenantId, currentCodes, requestedCodes);
-        Map<String, Role> requestedByCode = requestedRoles.stream()
-                .collect(Collectors.toMap(Role::getCode, Function.identity()));
+        Map<String, Role> requestedByCode = requestedCodes.stream()
+                .collect(Collectors.toMap(
+                        Function.identity(),
+                        code -> context.assignableRolesByCode().get(code).role()));
         List<RoleMember> removals = currentMemberships.stream()
                 .filter(member -> !requestedCodes.contains(
                         currentRolesById.get(member.getRoleId()).getCode()))
@@ -146,19 +223,21 @@ public class IdentityAdminService {
                 .filter(code -> !currentCodes.contains(code))
                 .collect(Collectors.toCollection(LinkedHashSet::new));
 
-        roleMemberRepository.deleteAll(removals);
-        roleMemberRepository.saveAll(additions.stream()
-                .map(code -> {
-                    RoleMember member = RoleMember.builder()
-                            .tenantId(tenantId)
-                            .roleId(requestedByCode.get(code).getRoleId())
-                            .userId(targetUserId)
-                            .build();
-                    member.setCreatedBy(actorId);
-                    member.setUpdatedBy(actorId);
-                    return member;
-                })
-                .toList());
+        if (!removals.isEmpty()) roleMemberRepository.deleteAll(removals);
+        if (!additions.isEmpty()) {
+            roleMemberRepository.saveAll(additions.stream()
+                    .map(code -> {
+                        RoleMember member = RoleMember.builder()
+                                .tenantId(tenantId)
+                                .roleId(requestedByCode.get(code).getRoleId())
+                                .userId(targetUserId)
+                                .build();
+                        member.setCreatedBy(actorId);
+                        member.setUpdatedBy(actorId);
+                        return member;
+                    })
+                    .toList());
+        }
 
         revokeSessions(tenantId, targetUserId, actorId);
         user.setAccessRevision(valueOrZero(user.getAccessRevision()) + 1L);
@@ -181,8 +260,12 @@ public class IdentityAdminService {
                 String.valueOf(targetUserId),
                 correlationId,
                 roleSnapshot(targetUserId, currentCodes, request.accessRevision()),
-                roleSnapshot(targetUserId, requestedCodes, user.getAccessRevision()));
-        return toUserSummary(user, nextCodes);
+                roleSnapshot(
+                        targetUserId,
+                        requestedCodes,
+                        user.getAccessRevision(),
+                        request.justification().trim()));
+        return toUserSummary(user, nextCodes, decision);
     }
 
     private Map<Long, List<String>> rolesByUser(Long tenantId, List<User> users) {
@@ -214,35 +297,6 @@ public class IdentityAdminService {
                 .collect(Collectors.toMap(Role::getRoleId, Function.identity()));
     }
 
-    private void validateRoles(Set<String> requestedCodes, List<Role> roles) {
-        Set<String> foundCodes = roles.stream()
-                .filter(role -> ACTIVE.equals(role.getStatus()))
-                .map(Role::getCode)
-                .collect(Collectors.toSet());
-        if (!foundCodes.equals(requestedCodes)) {
-            throw new BaseException(
-                    ErrorCode.INVALID_INPUT_VALUE,
-                    "One or more roles do not exist or are inactive in this tenant.");
-        }
-    }
-
-    private void protectLastAdministrator(
-            Long tenantId,
-            Set<String> currentCodes,
-            Set<String> requestedCodes) {
-        boolean adminMembershipChanged =
-                currentCodes.contains(ADMIN) != requestedCodes.contains(ADMIN);
-        if (!adminMembershipChanged) return;
-
-        Role adminRole = roleRepository.findByTenantIdAndCodeForUpdate(tenantId, ADMIN)
-                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        if (currentCodes.contains(ADMIN)
-                && roleMemberRepository.countByTenantIdAndRoleId(
-                        tenantId, adminRole.getRoleId()) <= 1) {
-            throw conflict("The tenant must retain at least one administrator.");
-        }
-    }
-
     private void revokeSessions(Long tenantId, Long userId, Long actorId) {
         Instant now = Instant.now();
         List<AuthSession> sessions =
@@ -261,7 +315,10 @@ public class IdentityAdminService {
         }
     }
 
-    private IdentityAdminDtos.UserAccessSummary toUserSummary(User user, List<String> roles) {
+    private IdentityAdminDtos.UserAccessSummary toUserSummary(
+            User user,
+            List<String> roles,
+            RoleDelegationPolicyService.RoleManagementDecision decision) {
         return new IdentityAdminDtos.UserAccessSummary(
                 user.getUserId(),
                 user.getDisplayName(),
@@ -269,6 +326,8 @@ public class IdentityAdminService {
                 user.getStatus(),
                 user.getMfaEnabled(),
                 roles,
+                new IdentityAdminDtos.RoleManagementSummary(
+                        decision.allowed(), decision.reason()),
                 valueOrZero(user.getAccessRevision()),
                 valueOrZero(user.getVersion()),
                 user.getUpdatedAt(),
@@ -279,10 +338,38 @@ public class IdentityAdminService {
             Long userId,
             Collection<String> roles,
             Long accessRevision) {
-        return Map.of(
-                "userId", userId,
-                "roles", sortedCodes(roles),
-                "accessRevision", accessRevision);
+        return roleSnapshot(userId, roles, accessRevision, null);
+    }
+
+    private Map<String, Object> roleSnapshot(
+            Long userId,
+            Collection<String> roles,
+            Long accessRevision,
+            String justification) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("userId", userId);
+        snapshot.put("roles", sortedCodes(roles));
+        snapshot.put("accessRevision", accessRevision);
+        if (justification != null) snapshot.put("justification", justification);
+        return snapshot;
+    }
+
+    private void auditDeniedRoleChange(
+            Long tenantId,
+            Long actorId,
+            String correlationId,
+            Long targetUserId,
+            Collection<String> requestedCodes,
+            String reason) {
+        auditService.denied(
+                tenantId,
+                actorId,
+                "identity.user-roles.rejected",
+                "USER_ACCESS",
+                String.valueOf(targetUserId),
+                correlationId,
+                reason,
+                Map.of("requestedRoles", sortedCodes(requestedCodes)));
     }
 
     private List<String> sortedCodes(Collection<String> codes) {

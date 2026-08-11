@@ -61,6 +61,7 @@ public class PlatformTenantProvisioningService {
         seedLocales(request.tenantId(), request.defaultLocale());
         seedRegistry(request.tenantId(), request.entitlementKeys());
         seedNavigation(request.tenantId(), request.defaultLocale(), request.entitlementKeys());
+        seedWorkspaceApps(request.tenantId(), request.entitlementKeys());
         return new PlatformTenantProvisioningDtos.ProvisionTenantResponse(
                 request.providerTenantId(), request.tenantId(), "PROVISIONING", 1,
                 "platform-tenant:" + request.tenantId());
@@ -88,6 +89,7 @@ public class PlatformTenantProvisioningService {
         ServiceTenant tenant = requireTenant(providerTenantId);
         seedRegistry(tenant.tenantId(), request.entitlementKeys());
         seedNavigation(tenant.tenantId(), "en", request.entitlementKeys());
+        seedWorkspaceApps(tenant.tenantId(), request.entitlementKeys());
         Set<String> desired = applications(request.entitlementKeys()).stream()
                 .map(AppSeed::navigationKey)
                 .collect(Collectors.toSet());
@@ -239,7 +241,7 @@ public class PlatformTenantProvisioningService {
         }
         if (entitlements.contains("ai.agent-runtime")) {
             apps.add(new AppSeed("ask", "DWP_ASK", "/ask", "ask", "APP.ASK",
-                    "Ask DWP", "Ask DWP", "Grounded answers and governed actions", "MEDIUM"));
+                    "Ask DWP", "Ask DWP", "Read-only request plans with an audit trace", "MEDIUM"));
         }
         if (entitlements.contains("core.people")) {
             apps.add(new AppSeed("people", "DWP_PEOPLE", "/people", "people",
@@ -253,6 +255,116 @@ public class PlatformTenantProvisioningService {
         return List.copyOf(apps);
     }
 
+    private void seedWorkspaceApps(Long tenantId, List<String> entitlements) {
+        jdbc.update("""
+                UPDATE adm_workspace_apps
+                   SET lifecycle_state = 'RETIRED',
+                       version = version + 1,
+                       updated_at = CURRENT_TIMESTAMP
+                 WHERE tenant_id = ?
+                """, tenantId);
+        for (WorkspaceAppSeed app : workspaceApplications(entitlements)) {
+            jdbc.update("""
+                    INSERT INTO adm_workspace_apps (
+                        tenant_id, app_key, name_ko, name_en,
+                        description_ko, description_en, owner_name, category,
+                        launch_mode, launch_target, icon_key, resource_key,
+                        health_state, sort_order, lifecycle_state)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+                    ON CONFLICT (tenant_id, app_key) DO UPDATE SET
+                        name_ko = EXCLUDED.name_ko,
+                        name_en = EXCLUDED.name_en,
+                        description_ko = EXCLUDED.description_ko,
+                        description_en = EXCLUDED.description_en,
+                        owner_name = EXCLUDED.owner_name,
+                        category = EXCLUDED.category,
+                        launch_mode = EXCLUDED.launch_mode,
+                        launch_target = EXCLUDED.launch_target,
+                        icon_key = EXCLUDED.icon_key,
+                        resource_key = EXCLUDED.resource_key,
+                        health_state = EXCLUDED.health_state,
+                        sort_order = EXCLUDED.sort_order,
+                        lifecycle_state = 'ACTIVE',
+                        version = adm_workspace_apps.version + 1,
+                        updated_at = CURRENT_TIMESTAMP
+                    """, tenantId, app.appKey(), app.nameKo(), app.nameEn(),
+                    app.descriptionKo(), app.descriptionEn(), app.owner(), app.category(),
+                    app.launchMode(), app.launchTarget(), app.iconKey(), app.resourceKey(),
+                    app.health(), app.sortOrder());
+        }
+    }
+
+    private List<WorkspaceAppSeed> workspaceApplications(List<String> entitlements) {
+        java.util.ArrayList<WorkspaceAppSeed> apps = new java.util.ArrayList<>();
+        if (entitlements.contains("core.workspace")) {
+            apps.add(new WorkspaceAppSeed(
+                    "dwp-work", "업무", "Work",
+                    "우선순위, 승인 및 할 일을 한곳에서 처리합니다.",
+                    "Manage priorities, approvals, and tasks in one place.",
+                    "DWP Platform", "PRODUCTIVITY", "NATIVE", "/work",
+                    "work", "APP.WORK", "HEALTHY", 10));
+            apps.add(new WorkspaceAppSeed(
+                    "dwp-activity", "활동", "Activity",
+                    "사용자, 시스템 및 에이전트 활동을 추적합니다.",
+                    "Track human, system, and agent activity.",
+                    "DWP Platform", "PRODUCTIVITY", "NATIVE", "/activity",
+                    "activity", "APP.ACTIVITY", "HEALTHY", 30));
+            apps.add(new WorkspaceAppSeed(
+                    "ref-app-mail", "메일 및 일정", "Mail & calendar",
+                    "메시지, 일정 및 회의 후속 조치를 연결합니다.",
+                    "Connect messages, calendars, and meeting follow-ups.",
+                    "Workplace Platform", "PRODUCTIVITY", "SSO", null,
+                    "mail", "APP.MAIL_CALENDAR", "CONFIGURATION_REQUIRED", 40));
+            apps.add(new WorkspaceAppSeed(
+                    "ref-app-collaboration", "협업", "Collaboration",
+                    "채팅, 채널 및 회의를 연결합니다.",
+                    "Connect chat, channels, and meetings.",
+                    "Workplace Platform", "PRODUCTIVITY", "SSO", null,
+                    "collaboration", "APP.COLLABORATION", "CONFIGURATION_REQUIRED", 50));
+            apps.add(new WorkspaceAppSeed(
+                    "ref-app-service", "임직원 서비스", "Employee services",
+                    "인사, IT 및 업무환경 요청을 처리합니다.",
+                    "Handle HR, IT, and workplace requests.",
+                    "Shared Services", "SERVICE", "DEEP_LINK", null,
+                    "services", "APP.EMPLOYEE_SERVICES", "CONFIGURATION_REQUIRED", 60));
+            apps.add(new WorkspaceAppSeed(
+                    "ref-app-knowledge", "지식", "Knowledge",
+                    "정책 및 업무 가이드 연결을 구성합니다.",
+                    "Configure connections to policies and workplace guides.",
+                    "Knowledge Office", "KNOWLEDGE", "SSO", null,
+                    "knowledge", "APP.KNOWLEDGE", "CONFIGURATION_REQUIRED", 80));
+            apps.add(new WorkspaceAppSeed(
+                    "ref-app-erp", "비즈니스 ERP", "Business ERP",
+                    "재무 및 구매 업무를 연결합니다.",
+                    "Connect finance and purchasing work.",
+                    "Finance Platform", "BUSINESS", "SSO", null,
+                    "erp", "APP.BUSINESS_ERP", "CONFIGURATION_REQUIRED", 90));
+            apps.add(new WorkspaceAppSeed(
+                    "ref-app-legacy", "레거시 운영", "Legacy operations",
+                    "기존 운영 시스템으로 안전하게 연결합니다.",
+                    "Provide governed access to existing operational systems.",
+                    "Enterprise Systems", "LEGACY", "DEEP_LINK", null,
+                    "legacy", "APP.LEGACY_OPERATIONS", "CONFIGURATION_REQUIRED", 100));
+        }
+        if (entitlements.contains("ai.agent-runtime")) {
+            apps.add(new WorkspaceAppSeed(
+                    "dwp-ask", "Ask DWP", "Ask DWP",
+                    "감사 추적이 포함된 읽기 전용 요청 계획을 준비합니다.",
+                    "Prepare read-only request plans with an audit trace.",
+                    "DWP Platform", "KNOWLEDGE", "NATIVE", "/ask",
+                    "ask", "APP.ASK", "MANAGED", 20));
+        }
+        if (entitlements.contains("core.people")) {
+            apps.add(new WorkspaceAppSeed(
+                    "ref-app-people", "구성원", "People directory",
+                    "동료와 조직의 보고 관계를 탐색합니다.",
+                    "Find colleagues and explore reporting relationships.",
+                    "People Platform", "PEOPLE", "NATIVE", "/people",
+                    "people", "APP.PEOPLE_DIRECTORY", "HEALTHY", 70));
+        }
+        return List.copyOf(apps);
+    }
+
     private List<AppSeed> allApplications() {
         return List.of(
                 new AppSeed("work", "DWP_WORK", "/work", "work", "APP.WORK",
@@ -262,7 +374,7 @@ public class PlatformTenantProvisioningService {
                 new AppSeed("apps", "DWP_APPS", "/apps", "apps", "APP.APPS",
                         "Apps", "앱", "Available workplace applications", "LOW"),
                 new AppSeed("ask", "DWP_ASK", "/ask", "ask", "APP.ASK",
-                        "Ask DWP", "Ask DWP", "Grounded answers and governed actions", "MEDIUM"),
+                        "Ask DWP", "Ask DWP", "Read-only request plans with an audit trace", "MEDIUM"),
                 new AppSeed("people", "DWP_PEOPLE", "/people", "people",
                         "APP.PEOPLE_DIRECTORY", "People", "구성원",
                         "Find colleagues and explore reporting relationships", "LOW"),
@@ -326,5 +438,21 @@ public class PlatformTenantProvisioningService {
             String locale,
             String label,
             String description) {
+    }
+
+    private record WorkspaceAppSeed(
+            String appKey,
+            String nameKo,
+            String nameEn,
+            String descriptionKo,
+            String descriptionEn,
+            String owner,
+            String category,
+            String launchMode,
+            String launchTarget,
+            String iconKey,
+            String resourceKey,
+            String health,
+            int sortOrder) {
     }
 }

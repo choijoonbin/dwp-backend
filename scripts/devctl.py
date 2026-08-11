@@ -186,6 +186,7 @@ def local_environment() -> dict[str, str]:
             "dwp-local-provider-provisioning-token-change-outside-local"
         ),
         "DWP_IDENTITY_SYNC_ENABLED": "true",
+        "DWP_SYNTHETIC_IMPORT_ENABLED": "true",
         "DWP_IDENTITY_SYNC_TOKEN": (
             "dwp-local-identity-sync-token-change-outside-local"
         ),

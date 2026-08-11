@@ -30,7 +30,8 @@ class HrisImportServiceConnectorTest {
     private final HrisImportService service = new HrisImportService(
             repository,
             mock(WorkdayReferenceMapper.class),
-            new ObjectMapper());
+            new ObjectMapper(),
+            true);
 
     @BeforeEach
     void setContext() {
@@ -90,6 +91,19 @@ class HrisImportServiceConnectorTest {
                 .hasMessageContaining("HR administrator");
 
         verify(repository, never()).upsertSource(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void rejectsSyntheticImportWhenDevelopmentGateIsDisabled() {
+        HrisImportService disabledService = new HrisImportService(
+                repository,
+                mock(WorkdayReferenceMapper.class),
+                new ObjectMapper(),
+                false);
+
+        assertThatThrownBy(() -> disabledService.importSyntheticWorkdayFixture(null, null))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("disabled");
     }
 
     private HrisDtos.CreateConnectorRequest request(String credentialReference) {

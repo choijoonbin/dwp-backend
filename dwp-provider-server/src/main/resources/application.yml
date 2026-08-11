@@ -20,6 +20,38 @@ spring:
     validate-on-migrate: true
 
 dwp:
+  data-governance:
+    cache-ttl: ${DWP_DATA_GOVERNANCE_CACHE_TTL:PT30S}
+    query-timeout-seconds: ${DWP_DATA_GOVERNANCE_QUERY_TIMEOUT_SECONDS:10}
+    sources:
+      - key: auth
+        database-name: ${AUTH_DB_NAME:dwp_auth}
+        display-name: Identity & Access
+        owner-service: dwp-auth-server
+        jdbc-url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${AUTH_DB_NAME:dwp_auth}
+        username: ${DWP_METADATA_DB_USERNAME:${DB_USERNAME:dwp_user}}
+        password: ${DWP_METADATA_DB_PASSWORD:${DB_PASSWORD:dwp_password}}
+      - key: people
+        database-name: ${PEOPLE_DB_NAME:dwp_people}
+        display-name: People & Organization
+        owner-service: dwp-people-server
+        jdbc-url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${PEOPLE_DB_NAME:dwp_people}
+        username: ${DWP_METADATA_DB_USERNAME:${DB_USERNAME:dwp_user}}
+        password: ${DWP_METADATA_DB_PASSWORD:${DB_PASSWORD:dwp_password}}
+      - key: platform
+        database-name: ${PLATFORM_DB_NAME:dwp_platform}
+        display-name: Workplace Platform
+        owner-service: dwp-platform-server
+        jdbc-url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${PLATFORM_DB_NAME:dwp_platform}
+        username: ${DWP_METADATA_DB_USERNAME:${DB_USERNAME:dwp_user}}
+        password: ${DWP_METADATA_DB_PASSWORD:${DB_PASSWORD:dwp_password}}
+      - key: provider
+        database-name: ${PROVIDER_DB_NAME:dwp_provider}
+        display-name: Provider Control Plane
+        owner-service: dwp-provider-server
+        jdbc-url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${PROVIDER_DB_NAME:dwp_provider}
+        username: ${DWP_METADATA_DB_USERNAME:${DB_USERNAME:dwp_user}}
+        password: ${DWP_METADATA_DB_PASSWORD:${DB_PASSWORD:dwp_password}}
   audit:
     collector-url: ${DWP_AUDIT_COLLECTOR_URL:}
     ingest-token: ${DWP_AUDIT_INGEST_TOKEN:}

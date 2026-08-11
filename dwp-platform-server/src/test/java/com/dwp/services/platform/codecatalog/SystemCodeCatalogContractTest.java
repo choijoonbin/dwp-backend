@@ -36,4 +36,18 @@ class SystemCodeCatalogContractTest {
                         "behaviorMetadata",
                         "bindings");
     }
+
+    @Test
+    void providerSnapshotDeclaresItsGlobalReleaseManagedBoundary() throws Exception {
+        SystemCodeCatalogDtos.CatalogSnapshot snapshot =
+                new SystemCodeCatalogDtos.CatalogSnapshot(
+                        "GLOBAL_PRODUCT", "RELEASE_MANAGED", List.of());
+
+        String json = objectMapper.writeValueAsString(snapshot);
+
+        assertThat(json)
+                .contains("\"catalogScope\":\"GLOBAL_PRODUCT\"")
+                .contains("\"changePolicy\":\"RELEASE_MANAGED\"")
+                .contains("\"codeSets\":[]");
+    }
 }

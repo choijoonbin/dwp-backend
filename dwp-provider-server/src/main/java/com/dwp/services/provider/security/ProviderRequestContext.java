@@ -35,6 +35,8 @@ public final class ProviderRequestContext {
                         "MAINTENANCE_WRITE",
                         "INCIDENT_WRITE",
                         "COMMERCIAL_READ",
+                        "CATALOG_READ",
+                        "DATA_GOVERNANCE_READ",
                         "CHANGE_APPROVE",
                         "BREAK_GLASS_SUPPORT",
                         "AUDIT_READ")));

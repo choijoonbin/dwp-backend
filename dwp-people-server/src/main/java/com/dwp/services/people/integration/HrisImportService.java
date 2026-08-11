@@ -5,6 +5,7 @@ import com.dwp.core.exception.BaseException;
 import com.dwp.services.people.security.PeopleRequestContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,20 +34,28 @@ public class HrisImportService {
     private final HrisIntegrationRepository repository;
     private final WorkdayReferenceMapper mapper;
     private final ObjectMapper objectMapper;
+    private final boolean syntheticImportEnabled;
 
     public HrisImportService(
             HrisIntegrationRepository repository,
             WorkdayReferenceMapper mapper,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            @Value("${dwp.people.synthetic-import-enabled:false}") boolean syntheticImportEnabled) {
         this.repository = repository;
         this.mapper = mapper;
         this.objectMapper = objectMapper;
+        this.syntheticImportEnabled = syntheticImportEnabled;
     }
 
     @Transactional
     public HrisDtos.ImportResult importSyntheticWorkdayFixture(
             String requestedIdempotencyKey,
             String requestedCorrelationId) {
+        if (!syntheticImportEnabled) {
+            throw new BaseException(
+                    ErrorCode.FORBIDDEN,
+                    "Synthetic HRIS import is disabled outside an explicitly enabled development environment.");
+        }
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
         requireDataOperationsAdministrator(actor);
         HrisModels.WorkforceBatch batch = mapper.mapSyntheticFixture();

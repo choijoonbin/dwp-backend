@@ -44,6 +44,9 @@ public class Role extends BaseEntity {
     @Column(name = "assignable_to_groups", nullable = false)
     private Boolean assignableToGroups = true;
 
+    @Column(name = "builtin_role_code", length = 50)
+    private String builtinRoleCode;
+
     @Builder.Default
     @Column(nullable = false, length = 20)
     private String status = "ACTIVE";
