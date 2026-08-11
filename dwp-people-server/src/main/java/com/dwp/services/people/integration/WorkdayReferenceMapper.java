@@ -4,6 +4,7 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -30,6 +31,26 @@ public class WorkdayReferenceMapper {
 
     public JsonNode mappingDefinition() {
         return readResource(MAPPING_RESOURCE);
+    }
+
+    public HrisModels.WorkforceBatch mapLiveReport(
+            JsonNode root,
+            String sourceKey,
+            String sourceSchemaVersion,
+            String watermark) {
+        JsonNode entries = root.has("Report_Entry") ? root.path("Report_Entry") : root.path("data");
+        if (!entries.isArray()) {
+            throw invalid("The Workday report response must contain a Report_Entry or data array.");
+        }
+        ObjectNode envelope = objectMapper.createObjectNode();
+        ObjectNode metadata = envelope.putObject("Fixture_Metadata");
+        metadata.put("Synthetic", false);
+        metadata.put("Source_Key", sourceKey);
+        metadata.put("Source_Type", "WORKDAY");
+        metadata.put("Source_Schema_Version", sourceSchemaVersion);
+        metadata.put("Watermark", watermark);
+        envelope.set("Report_Entry", entries);
+        return map(envelope);
     }
 
     HrisModels.WorkforceBatch map(JsonNode root) {

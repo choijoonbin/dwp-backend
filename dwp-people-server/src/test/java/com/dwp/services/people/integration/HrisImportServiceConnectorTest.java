@@ -63,7 +63,7 @@ class HrisImportServiceConnectorTest {
                 connectorId, 17L, "workday-primary", "workday-rest", "WORKDAY_REST",
                 "https://example.workday.com/api", "OAUTH2_CLIENT_CREDENTIALS",
                 "vault://tenant/hris/workday", "0 */15 * * * *", "DRAFT", "UNKNOWN",
-                null, null, 0L);
+                null, null, null, null, 0, 0L);
         when(repository.upsertSource(
                 TENANT_ID, ACTOR_ID, "workday-primary", "WORKDAY", "Primary Workday"))
                 .thenReturn(17L);

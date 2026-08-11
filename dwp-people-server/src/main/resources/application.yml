@@ -52,6 +52,9 @@ dwp:
     cursor-secret: ${DWP_PEOPLE_CURSOR_SECRET:}
     cursor-ttl: ${DWP_PEOPLE_CURSOR_TTL:PT15M}
     synthetic-import-enabled: ${DWP_SYNTHETIC_IMPORT_ENABLED:false}
+    hris:
+      allowed-hosts: ${DWP_HRIS_ALLOWED_HOSTS:}
+      allow-unlisted-hosts: ${DWP_HRIS_ALLOW_UNLISTED_HOSTS:false}
 
 management:
   endpoints:

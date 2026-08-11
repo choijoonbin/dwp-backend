@@ -1,5 +1,6 @@
 package com.dwp.services.people.integration;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -38,6 +39,9 @@ public final class HrisDtos {
             String healthState,
             Instant lastHealthCheckedAt,
             Instant lastSuccessfulSyncAt,
+            Instant lastAttemptedSyncAt,
+            String lastErrorCode,
+            int consecutiveFailureCount,
             long version) {
     }
 
@@ -72,12 +76,27 @@ public final class HrisDtos {
 
     public record MappingProfile(
             UUID mappingProfileId,
+            long sourceSystemId,
             String profileKey,
             String adapterType,
             String sourceSchemaVersion,
             String targetSchemaVersion,
             String lifecycleState,
+            String mappingSha256,
+            Instant activatedAt,
             long version) {
+    }
+
+    public record CreateMappingProfileRequest(
+            @NotNull Long sourceSystemId,
+            @NotBlank @Pattern(regexp = "[A-Za-z][A-Za-z0-9_.-]{0,119}") String profileKey,
+            @NotBlank @Pattern(regexp = "WORKDAY_REFERENCE|WORKDAY_REST|WORKDAY_SOAP|ORACLE_HCM_REST|SAP_SUCCESSFACTORS|CANONICAL_JSON") String adapterType,
+            @NotBlank @Size(max = 80) String sourceSchemaVersion,
+            @NotBlank @Size(max = 80) String targetSchemaVersion,
+            @NotNull JsonNode mappingDefinition) {
+    }
+
+    public record ActivateMappingRequest(@NotNull @Min(0) Long version) {
     }
 
     public record SyncRun(
@@ -91,8 +110,19 @@ public final class HrisDtos {
             long createdCount,
             long updatedCount,
             long rejectedCount,
+            UUID connectorInstanceId,
+            UUID mappingProfileId,
+            UUID retryOfSyncRunId,
+            int pageCount,
+            long unchangedCount,
+            String failureCode,
+            String redactedFailureMessage,
             Instant startedAt,
             Instant completedAt) {
+    }
+
+    public record ExecuteConnectorRequest(
+            @NotBlank @Pattern(regexp = "FULL|DELTA") String syncMode) {
     }
 
     public record ImportResult(
@@ -106,5 +136,37 @@ public final class HrisDtos {
             boolean replayed,
             boolean syntheticFixture,
             List<String> emittedEventTypes) {
+    }
+
+    public record ReconciliationRun(
+            UUID reconciliationRunId,
+            UUID connectorInstanceId,
+            UUID syncRunId,
+            String lifecycleState,
+            long checkedCount,
+            long issueCount,
+            long criticalCount,
+            Instant startedAt,
+            Instant completedAt) {
+    }
+
+    public record ReconciliationIssue(
+            UUID reconciliationIssueId,
+            UUID reconciliationRunId,
+            UUID connectorInstanceId,
+            String issueCode,
+            String severity,
+            String entityType,
+            String internalKey,
+            String externalId,
+            String redactedSummary,
+            String lifecycleState,
+            Instant firstDetectedAt,
+            Instant resolvedAt) {
+    }
+
+    public record ResolveIssueRequest(
+            @NotBlank @Pattern(regexp = "RESOLVED|ACCEPTED") String lifecycleState,
+            @NotBlank @Size(max = 1000) String resolutionNote) {
     }
 }

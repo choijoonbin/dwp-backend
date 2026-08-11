@@ -59,7 +59,7 @@ public class HrisImportService {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
         requireDataOperationsAdministrator(actor);
         HrisModels.WorkforceBatch batch = mapper.mapSyntheticFixture();
-        validate(batch);
+        validate(batch, true);
         String idempotencyKey = normalizeIdempotencyKey(
                 requestedIdempotencyKey == null || requestedIdempotencyKey.isBlank()
                         ? "synthetic:" + batch.watermark()
@@ -67,8 +67,6 @@ public class HrisImportService {
         String correlationId = requestedCorrelationId == null || requestedCorrelationId.isBlank()
                 ? UUID.randomUUID().toString()
                 : requestedCorrelationId.trim();
-        String payloadHash = sha256(batch);
-
         long sourceSystemId = repository.upsertSource(
                 actor.tenantId(), actor.userId(), batch.sourceKey(), batch.sourceType(),
                 "Workday reference source");
@@ -76,6 +74,48 @@ public class HrisImportService {
         repository.upsertMappingProfile(
                 actor.tenantId(), actor.userId(), sourceSystemId,
                 batch.sourceSchemaVersion(), mapper.mappingDefinition());
+
+        HrisIntegrationRepository.MappingRuntime mapping = repository
+                .findActiveMapping(actor.tenantId(), sourceSystemId)
+                .orElseThrow(() -> new IllegalStateException("Active reference mapping is missing."));
+        return persistBatch(
+                actor, sourceSystemId, null, mapping.mappingProfileId(), null,
+                "DELTA", 1, idempotencyKey, correlationId, batch);
+    }
+
+    @Transactional
+    public HrisDtos.ImportResult importConnectorBatch(
+            HrisDtos.ConnectorInstance connector,
+            HrisIntegrationRepository.MappingRuntime mapping,
+            HrisModels.WorkforceBatch batch,
+            String syncMode,
+            int pageCount,
+            UUID retryOfSyncRunId,
+            String correlationId) {
+        PeopleRequestContext.Actor actor = PeopleRequestContext.require();
+        requireDataOperationsAdministrator(actor);
+        validate(batch, false);
+        String idempotencyKey = normalizeIdempotencyKey(
+                "connector:" + connector.connectorInstanceId() + ":" + syncMode.toLowerCase()
+                        + ":" + sha256(batch).substring(0, 24));
+        return persistBatch(
+                actor, connector.sourceSystemId(), connector.connectorInstanceId(),
+                mapping.mappingProfileId(), retryOfSyncRunId, syncMode, pageCount,
+                idempotencyKey, correlationId, batch);
+    }
+
+    private HrisDtos.ImportResult persistBatch(
+            PeopleRequestContext.Actor actor,
+            long sourceSystemId,
+            UUID connectorInstanceId,
+            UUID mappingProfileId,
+            UUID retryOfSyncRunId,
+            String syncMode,
+            int pageCount,
+            String idempotencyKey,
+            String correlationId,
+            HrisModels.WorkforceBatch batch) {
+        String payloadHash = sha256(batch);
 
         HrisIntegrationRepository.Receipt receipt = repository.acquireReceipt(
                 actor.tenantId(), sourceSystemId, idempotencyKey, payloadHash);
@@ -98,7 +138,8 @@ public class HrisImportService {
         UUID syncRunId = UUID.randomUUID();
         repository.startRun(
                 actor.tenantId(), actor.userId(), sourceSystemId, receipt.receiptId(),
-                syncRunId, correlationId, batch.watermark());
+                syncRunId, correlationId, syncMode, batch.watermark(),
+                connectorInstanceId, mappingProfileId, retryOfSyncRunId, pageCount);
 
         long created = 0;
         long updated = 0;
@@ -153,7 +194,7 @@ public class HrisImportService {
 
         repository.completeRun(
                 actor.tenantId(), sourceSystemId, receipt.receiptId(), syncRunId,
-                batch.watermark(), batch.workers().size(), created, updated, 0);
+                connectorInstanceId, batch.watermark(), batch.workers().size(), created, updated, 0);
         repository.auditImport(
                 actor.tenantId(), actor.userId(), sourceSystemId, syncRunId,
                 correlationId, batch.workers().size(), created, updated);
@@ -350,11 +391,13 @@ public class HrisImportService {
         }
     }
 
-    private void validate(HrisModels.WorkforceBatch batch) {
-        if (!batch.synthetic()) {
+    private void validate(HrisModels.WorkforceBatch batch, boolean expectedSynthetic) {
+        if (batch.synthetic() != expectedSynthetic) {
             throw new BaseException(
                     ErrorCode.INVALID_INPUT_VALUE,
-                    "The reference importer accepts only the bundled synthetic fixture.");
+                    expectedSynthetic
+                            ? "The reference importer accepts only the bundled synthetic fixture."
+                            : "A live connector cannot ingest a synthetic HRIS payload.");
         }
         if (!"WORKDAY".equals(batch.sourceType()) || batch.workers().isEmpty()) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "Invalid Workday fixture metadata.");

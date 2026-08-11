@@ -24,9 +24,13 @@ public class HrisOperationsController {
     private static final String CORRELATION_HEADER = "X-Correlation-ID";
 
     private final HrisImportService service;
+    private final HrisConnectorExecutionService execution;
 
-    public HrisOperationsController(HrisImportService service) {
+    public HrisOperationsController(
+            HrisImportService service,
+            HrisConnectorExecutionService execution) {
         this.service = service;
+        this.execution = execution;
     }
 
     @GetMapping("/sources")
@@ -58,7 +62,10 @@ public class HrisOperationsController {
     public ApiResponse<HrisDtos.ConfigurationCheck> checkConnector(
             @PathVariable UUID connectorId,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId) {
-        return ApiResponse.success(service.checkConnectorConfiguration(connectorId, correlationId));
+        HrisDtos.ConfigurationCheck local = service.checkConnectorConfiguration(connectorId, correlationId);
+        return ApiResponse.success(local.valid()
+                ? execution.probe(connectorId, correlationId)
+                : local);
     }
 
     @GetMapping("/mapping-profiles")
@@ -66,10 +73,67 @@ public class HrisOperationsController {
         return ApiResponse.success(service.mappings());
     }
 
+    @PostMapping("/mapping-profiles")
+    public ApiResponse<HrisDtos.MappingProfile> createMapping(
+            @Valid @RequestBody HrisDtos.CreateMappingProfileRequest request) {
+        return ApiResponse.success(execution.createMapping(request));
+    }
+
+    @PostMapping("/mapping-profiles/{mappingId}/activate")
+    public ApiResponse<HrisDtos.MappingProfile> activateMapping(
+            @PathVariable UUID mappingId,
+            @Valid @RequestBody HrisDtos.ActivateMappingRequest request) {
+        return ApiResponse.success(execution.activateMapping(mappingId, request));
+    }
+
     @GetMapping("/sync-runs")
     public ApiResponse<List<HrisDtos.SyncRun>> runs(
             @RequestParam(defaultValue = "50") int size) {
         return ApiResponse.success(service.runs(size));
+    }
+
+    @PostMapping("/connectors/{connectorId}/executions")
+    public ApiResponse<HrisDtos.ImportResult> execute(
+            @PathVariable UUID connectorId,
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @Valid @RequestBody HrisDtos.ExecuteConnectorRequest request) {
+        return ApiResponse.success(execution.execute(
+                connectorId, request.syncMode(), null, correlationId));
+    }
+
+    @PostMapping("/sync-runs/{syncRunId}/retry")
+    public ApiResponse<HrisDtos.ImportResult> retry(
+            @PathVariable UUID syncRunId,
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId) {
+        return ApiResponse.success(execution.retry(syncRunId, correlationId));
+    }
+
+    @GetMapping("/reconciliations")
+    public ApiResponse<List<HrisDtos.ReconciliationRun>> reconciliations(
+            @RequestParam(defaultValue = "50") int size) {
+        return ApiResponse.success(execution.reconciliations(size));
+    }
+
+    @PostMapping("/connectors/{connectorId}/reconciliations")
+    public ApiResponse<HrisDtos.ReconciliationRun> reconcile(
+            @PathVariable UUID connectorId,
+            @RequestParam UUID syncRunId) {
+        return ApiResponse.success(execution.reconcile(connectorId, syncRunId));
+    }
+
+    @GetMapping("/reconciliation-issues")
+    public ApiResponse<List<HrisDtos.ReconciliationIssue>> reconciliationIssues(
+            @RequestParam(required = false) String state,
+            @RequestParam(defaultValue = "100") int size) {
+        return ApiResponse.success(execution.issues(state, size));
+    }
+
+    @PutMapping("/reconciliation-issues/{issueId}")
+    public ApiResponse<Void> resolveIssue(
+            @PathVariable UUID issueId,
+            @Valid @RequestBody HrisDtos.ResolveIssueRequest request) {
+        execution.resolveIssue(issueId, request);
+        return ApiResponse.success();
     }
 
     @PostMapping("/sample-import")
