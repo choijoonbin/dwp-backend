@@ -154,6 +154,6 @@ class OrganizationChartServiceTest {
                 gradeOrder,
                 "SEOUL",
                 "Seoul",
-                workerNumber.toLowerCase() + "@skax.example");
+                workerNumber.toLowerCase() + "@sk.com");
     }
 }
