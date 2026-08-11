@@ -194,12 +194,17 @@ public class AuthTenantProvisioningService {
         jdbc.update("""
                 INSERT INTO com_roles (
                     tenant_id, code, name, description, role_type,
-                    privileged, assignable_to_groups)
+                    privileged, assignable_to_groups, builtin_role_code)
                 VALUES (?, 'TENANT_ADMIN', 'Tenant administrator',
-                        'Administrator for a single tenant', 'SYSTEM', TRUE, FALSE)
+                        'Administrator for a single tenant', 'SYSTEM', TRUE, FALSE,
+                        'TENANT_ADMIN')
                 ON CONFLICT (tenant_id, code) DO UPDATE
-                SET status = 'ACTIVE', updated_at = CURRENT_TIMESTAMP
+                SET status = 'ACTIVE', role_type = 'SYSTEM',
+                    builtin_role_code = 'TENANT_ADMIN',
+                    privileged = TRUE, assignable_to_groups = FALSE,
+                    updated_at = CURRENT_TIMESTAMP
                 """, tenant.tenantId());
+        ensureWorkforceRoles(tenant.tenantId());
         Long roleId = jdbc.queryForObject("""
                 SELECT role_id FROM com_roles WHERE tenant_id = ? AND code = 'TENANT_ADMIN'
                 """, Long.class, tenant.tenantId());
@@ -250,6 +255,84 @@ public class AuthTenantProvisioningService {
                 ON CONFLICT (tenant_id, role_id, resource_id, permission_id) DO UPDATE
                 SET effect = 'ALLOW', updated_at = CURRENT_TIMESTAMP
                 """, tenantId, roleId, tenantId);
+        syncWorkforceResources(tenantId, entitlementKeys);
+    }
+
+    private void ensureWorkforceRoles(Long tenantId) {
+        List<RoleSeed> roles = List.of(
+                new RoleSeed("WORKSPACE_MEMBER", "Workspace member",
+                        "Default workspace access role.", false, true),
+                new RoleSeed("HR_ADMIN", "HR administrator",
+                        "Workforce data and organization administrator.", true, false),
+                new RoleSeed("PEOPLE_ADMIN", "People administrator",
+                        "People service administrator.", true, false));
+        roles.forEach(role -> jdbc.update("""
+                INSERT INTO com_roles (
+                    tenant_id, code, name, description, status, role_type,
+                    privileged, assignable_to_groups, builtin_role_code)
+                VALUES (?, ?, ?, ?, 'ACTIVE', 'SYSTEM', ?, ?, ?)
+                ON CONFLICT (tenant_id, code) DO UPDATE
+                SET name = EXCLUDED.name,
+                    description = EXCLUDED.description,
+                    status = 'ACTIVE',
+                    role_type = 'SYSTEM',
+                    privileged = EXCLUDED.privileged,
+                    assignable_to_groups = EXCLUDED.assignable_to_groups,
+                    builtin_role_code = EXCLUDED.builtin_role_code,
+                    updated_at = CURRENT_TIMESTAMP
+                """, tenantId, role.code(), role.name(), role.description(),
+                role.privileged(), role.assignableToGroups(), role.code()));
+    }
+
+    private void syncWorkforceResources(Long tenantId, List<String> entitlementKeys) {
+        if (!entitlementKeys.contains("core.people")) return;
+        Map<String, String> resources = Map.of(
+                "APP.WORKFORCE_MANAGEMENT", "Workforce management",
+                "DATA.WORKFORCE", "Workforce projection",
+                "ACTION.WORKFORCE_REFERENCE", "Workforce reference data",
+                "ACTION.WORKFORCE_DATA_OPERATIONS", "Workforce data operations");
+        resources.forEach((key, name) -> jdbc.update("""
+                INSERT INTO com_resources (tenant_id, type, key, name, enabled)
+                VALUES (?, CASE
+                    WHEN ? LIKE 'APP.%' THEN 'APP'
+                    WHEN ? LIKE 'DATA.%' THEN 'DATA'
+                    ELSE 'ACTION' END, ?, ?, TRUE)
+                ON CONFLICT (tenant_id, type, key) DO UPDATE
+                SET name = EXCLUDED.name, enabled = TRUE, updated_at = CURRENT_TIMESTAMP
+                """, tenantId, key, key, key, name));
+        jdbc.update("""
+                INSERT INTO com_role_permissions (
+                    tenant_id, role_id, resource_id, permission_id, effect)
+                SELECT role.tenant_id, role.role_id, resource.resource_id,
+                       permission.permission_id, 'ALLOW'
+                  FROM com_roles role
+                  JOIN com_resources resource ON resource.tenant_id = role.tenant_id
+                  JOIN com_permissions permission ON permission.code = CASE
+                      WHEN resource.key = 'APP.WORKFORCE_MANAGEMENT' THEN 'VIEW'
+                      WHEN role.code = 'PEOPLE_ADMIN' THEN 'VIEW'
+                      ELSE 'MANAGE' END
+                 WHERE role.tenant_id = ?
+                   AND role.code IN ('ADMIN', 'HR_ADMIN', 'PEOPLE_ADMIN')
+                   AND resource.key IN (
+                       'APP.WORKFORCE_MANAGEMENT', 'DATA.WORKFORCE',
+                       'ACTION.WORKFORCE_REFERENCE', 'ACTION.WORKFORCE_DATA_OPERATIONS')
+                ON CONFLICT (tenant_id, role_id, resource_id, permission_id) DO UPDATE
+                SET effect = 'ALLOW', updated_at = CURRENT_TIMESTAMP
+                """, tenantId);
+        jdbc.update("""
+                INSERT INTO com_role_permissions (
+                    tenant_id, role_id, resource_id, permission_id, effect)
+                SELECT role.tenant_id, role.role_id, resource.resource_id,
+                       permission.permission_id, 'ALLOW'
+                  FROM com_roles role
+                  JOIN com_resources resource ON resource.tenant_id = role.tenant_id
+                  JOIN com_permissions permission ON permission.code = 'VIEW'
+                 WHERE role.tenant_id = ?
+                   AND role.code IN ('WORKSPACE_MEMBER', 'ADMIN', 'HR_ADMIN', 'PEOPLE_ADMIN')
+                   AND resource.key = 'APP.PEOPLE_DIRECTORY'
+                ON CONFLICT (tenant_id, role_id, resource_id, permission_id) DO UPDATE
+                SET effect = 'ALLOW', updated_at = CURRENT_TIMESTAMP
+                """, tenantId);
     }
 
     private Long ensureAdministrator(
@@ -435,6 +518,14 @@ public class AuthTenantProvisioningService {
     }
 
     private record AdministratorRecord(Long accountId, Long userId, String email) {
+    }
+
+    private record RoleSeed(
+            String code,
+            String name,
+            String description,
+            boolean privileged,
+            boolean assignableToGroups) {
     }
 
     private record ActivationRecord(

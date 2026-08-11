@@ -28,8 +28,9 @@ public class PeopleDataAccessAuditFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
         return !"GET".equals(request.getMethod())
-                || !request.getRequestURI().startsWith("/v1/people");
+                || !(path.startsWith("/v1/people") || path.startsWith("/v1/workforce/people"));
     }
 
     @Override
@@ -39,7 +40,9 @@ public class PeopleDataAccessAuditFilter extends OncePerRequestFilter {
         filterChain.doFilter(request, response);
         if (response.getStatus() < 200 || response.getStatus() >= 400) return;
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
-        String suffix = request.getRequestURI().substring("/v1/people".length());
+        boolean workforce = request.getRequestURI().startsWith("/v1/workforce/people");
+        String basePath = workforce ? "/v1/workforce/people" : "/v1/people";
+        String suffix = request.getRequestURI().substring(basePath.length());
         boolean detail = suffix.length() > 1;
         audit.record(AuditEvent.builder()
                 .tenantId(actor.tenantId())
@@ -52,14 +55,15 @@ public class PeopleDataAccessAuditFilter extends OncePerRequestFilter {
                 .actorId(actor.userId().toString())
                 .actorRoles(List.copyOf(actor.roles()))
                 .sourceService("dwp-people-server")
-                .sourceModule("people-directory")
+                .sourceModule(workforce ? "workforce-people" : "people-directory")
                 .targetType(detail ? "PERSON_PROFILE" : "PEOPLE_DIRECTORY")
                 .targetId(detail ? suffix.substring(1) : "search")
                 .correlationId(request.getHeader("X-Correlation-ID"))
                 .metadata(Map.of(
                         "queryProvided", request.getParameter("query") != null,
-                        "asOfProvided", request.getParameter("asOf") != null))
-                .retentionClass(detail ? "EXTENDED" : "STANDARD")
+                        "asOfProvided", request.getParameter("asOf") != null,
+                        "accessSurface", workforce ? "WORKFORCE" : "DIRECTORY"))
+                .retentionClass(workforce || detail ? "EXTENDED" : "STANDARD")
                 .build());
     }
 }

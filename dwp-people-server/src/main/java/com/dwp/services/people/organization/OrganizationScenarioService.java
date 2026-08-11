@@ -40,7 +40,7 @@ public class OrganizationScenarioService {
     @Transactional(readOnly = true)
     public List<OrganizationScenarioDtos.Scenario> scenarios() {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
-        requirePlanner(actor);
+        requireViewer(actor);
         return repository.scenarios(actor.tenantId());
     }
 
@@ -425,8 +425,7 @@ public class OrganizationScenarioService {
         if (!"PENDING".equals(approval.lifecycleState())) {
             throw new BaseException(ErrorCode.INVALID_STATE, "The scenario approval is no longer pending.");
         }
-        if (!actor.hasAnyRole(
-                approval.requiredRoleCode(), "PLATFORM_ADMIN", "TENANT_ADMIN", "ADMIN")) {
+        if (!actor.hasAnyRole(approval.requiredRoleCode(), "ADMIN")) {
             throw new BaseException(ErrorCode.FORBIDDEN, "The required approval role is not assigned.");
         }
         if (approval.separationOfDuties() && approval.requestedBy().equals(actor.userId())) {
@@ -686,9 +685,14 @@ public class OrganizationScenarioService {
     }
 
     private void requirePlanner(PeopleRequestContext.Actor actor) {
-        if (!actor.hasAnyRole(
-                "HR_ADMIN", "PEOPLE_ADMIN", "TENANT_ADMIN", "PLATFORM_ADMIN", "ADMIN")) {
+        if (!actor.hasAnyRole("HR_ADMIN", "ADMIN")) {
             throw new BaseException(ErrorCode.FORBIDDEN, "Organization design permission is required.");
+        }
+    }
+
+    private void requireViewer(PeopleRequestContext.Actor actor) {
+        if (!actor.hasAnyRole("HR_ADMIN", "PEOPLE_ADMIN", "ADMIN")) {
+            throw new BaseException(ErrorCode.FORBIDDEN, "Workforce data permission is required.");
         }
     }
 
@@ -696,7 +700,7 @@ public class OrganizationScenarioService {
             PeopleRequestContext.Actor actor,
             OrganizationScenarioRepository.ScenarioRecord scenario) {
         if (!scenario.ownerUserId().equals(actor.userId())
-                && !actor.hasAnyRole("HR_ADMIN", "PLATFORM_ADMIN", "ADMIN")) {
+                && !actor.hasAnyRole("HR_ADMIN", "ADMIN")) {
             throw new BaseException(ErrorCode.FORBIDDEN, "Only the owner can edit this scenario.");
         }
     }

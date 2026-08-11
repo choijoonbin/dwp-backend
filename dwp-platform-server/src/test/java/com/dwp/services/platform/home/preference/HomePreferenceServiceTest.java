@@ -73,6 +73,7 @@ class HomePreferenceServiceTest {
         appLayout.put("version", 1);
         appLayout.putObject("groups").putArray("work").add("dwp-work");
         appLayout.putObject("folders");
+        appLayout.putArray("hiddenAppIds").add("dwp-ask");
         when(repository.findByTenantIdAndUserId(7L, 11L)).thenReturn(Optional.empty());
         when(repository.saveAndFlush(any(HomePreference.class))).thenAnswer(invocation -> {
             HomePreference saved = invocation.getArgument(0);
@@ -92,6 +93,8 @@ class HomePreferenceServiceTest {
         assertThat(result.customized()).isTrue();
         assertThat(result.version()).isZero();
         assertThat(result.layout().appLayout().path("version").asInt()).isEqualTo(1);
+        assertThat(result.layout().appLayout().path("hiddenAppIds").get(0).asText())
+                .isEqualTo("dwp-ask");
         assertThat(result.layout().widgets()).hasSize(5);
         verify(auditService).success(
                 eq(7L),
@@ -102,6 +105,25 @@ class HomePreferenceServiceTest {
                 eq("corr-home"),
                 anyMap(),
                 anyMap());
+    }
+
+    @Test
+    void rejectsHiddenAppsThatRemainInTheVisibleLayout() {
+        ObjectNode appLayout = objectMapper.createObjectNode();
+        appLayout.put("version", 1);
+        appLayout.putObject("groups").putArray("work").add("dwp-work");
+        appLayout.putObject("folders");
+        appLayout.putArray("hiddenAppIds").add("dwp-work");
+
+        assertThatThrownBy(() -> service.update(
+                        7L,
+                        11L,
+                        null,
+                        new HomePreferenceDtos.UpdateHomePreferenceRequest(
+                                new HomePreferenceDtos.HomeLayoutPayload(appLayout, widgets(true)),
+                                0L)))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
     }
 
     private List<HomePreferenceDtos.WidgetPreference> widgets(boolean announcementsVisible) {

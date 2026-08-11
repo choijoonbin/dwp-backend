@@ -8,8 +8,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-
 @RestController
 @RequestMapping("/v1/catalog/code-sets")
 public class SystemCodeCatalogController {
@@ -20,18 +18,13 @@ public class SystemCodeCatalogController {
         this.repository = repository;
     }
 
-    @GetMapping
-    public ApiResponse<List<SystemCodeCatalogDtos.CodeSetHealth>> health() {
-        return ApiResponse.success(repository.health());
-    }
-
     @GetMapping("/{codeSetKey}")
-    public ApiResponse<SystemCodeCatalogDtos.CodeSet> get(
+    public ApiResponse<SystemCodeCatalogDtos.RuntimeCodeSet> get(
             @PathVariable String codeSetKey,
             @RequestParam(required = false) String locale) {
         String requestedLocale = locale == null || locale.isBlank()
                 ? LocaleUtil.getLanguageTag()
                 : locale;
-        return ApiResponse.success(repository.get(codeSetKey, requestedLocale));
+        return ApiResponse.success(repository.getRuntime(codeSetKey, requestedLocale));
     }
 }

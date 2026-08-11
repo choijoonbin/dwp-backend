@@ -4,6 +4,9 @@ import com.dwp.core.common.ApiResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -14,6 +17,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.concurrent.TimeUnit;
 
 @Validated
 @RestController
@@ -54,6 +59,20 @@ public class AdminTenantBrandingController {
             @RequestPart("file") MultipartFile file) {
         return ApiResponse.success(
                 service.uploadLogo(tenantId, actorId, correlationId, version, file));
+    }
+
+    @GetMapping("/logo")
+    public ResponseEntity<org.springframework.core.io.Resource> logo(
+            @RequestHeader(TENANT_HEADER) Long tenantId) {
+        TenantBrandingService.LogoContent content = service.getLogo(tenantId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(content.contentType()))
+                .contentLength(content.sizeBytes())
+                .eTag(content.sha256())
+                .cacheControl(CacheControl.maxAge(1, TimeUnit.HOURS).cachePrivate())
+                .header("X-Content-Type-Options", "nosniff")
+                .header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'")
+                .body(content.resource());
     }
 
     @PostMapping("/logo/reset")

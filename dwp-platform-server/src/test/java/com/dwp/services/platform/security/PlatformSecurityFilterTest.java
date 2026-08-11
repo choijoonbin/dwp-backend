@@ -114,6 +114,76 @@ class PlatformSecurityFilterTest {
         assertThat(adminResponse.getStatus()).isEqualTo(401);
     }
 
+    @Test
+    void protectsTheCodeCatalogInventoryAsAnAdministratorSurface() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+        MockHttpServletRequest request = request("/v1/admin/code-catalog/code-sets");
+        request.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        request.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        request.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        request.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertThat(response.getStatus()).isEqualTo(403);
+    }
+
+    @Test
+    void acceptsOnlyThePlatformResourcesGrantedByAResolvedSupportSession() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+        MockHttpServletRequest request = request("/v1/admin/tenant-branding");
+        request.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        request.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        request.addHeader(PlatformSecurityFilter.TENANT_HEADER, "42");
+        request.addHeader(PlatformSecurityFilter.ROLES_HEADER, "PROVIDER_SUPPORT");
+        request.addHeader(PlatformSecurityFilter.SUPPORT_SESSION_HEADER, "session-1");
+        request.addHeader(PlatformSecurityFilter.SUPPORT_SCOPES_HEADER, "TENANT_CONFIGURATION_READ");
+        request.addHeader(PlatformSecurityFilter.ACTOR_TENANT_HEADER, "3");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertThat(response.getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void preventsReadOnlySupportSessionsFromChangingTenantConfiguration() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "PUT", "/v1/admin/tenant-branding");
+        request.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        request.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        request.addHeader(PlatformSecurityFilter.TENANT_HEADER, "42");
+        request.addHeader(PlatformSecurityFilter.ROLES_HEADER, "ADMIN,PROVIDER_ADMIN");
+        request.addHeader(PlatformSecurityFilter.SUPPORT_SESSION_HEADER, "session-1");
+        request.addHeader(PlatformSecurityFilter.SUPPORT_SCOPES_HEADER, "TENANT_CONFIGURATION_READ");
+        request.addHeader(PlatformSecurityFilter.ACTOR_TENANT_HEADER, "3");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertThat(response.getStatus()).isEqualTo(403);
+    }
+
+    @Test
+    void preventsSupportSessionsFromEnteringUnrelatedAdminSurfaces() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+        MockHttpServletRequest request = request("/v1/admin/code-catalog/code-sets");
+        request.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        request.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        request.addHeader(PlatformSecurityFilter.TENANT_HEADER, "42");
+        request.addHeader(PlatformSecurityFilter.ROLES_HEADER, "ADMIN,PROVIDER_ADMIN");
+        request.addHeader(PlatformSecurityFilter.SUPPORT_SESSION_HEADER, "session-1");
+        request.addHeader(PlatformSecurityFilter.SUPPORT_SCOPES_HEADER, "TENANT_CONFIGURATION_WRITE");
+        request.addHeader(PlatformSecurityFilter.ACTOR_TENANT_HEADER, "3");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertThat(response.getStatus()).isEqualTo(403);
+    }
+
     private MockHttpServletRequest request(String path) {
         return new MockHttpServletRequest("GET", path);
     }

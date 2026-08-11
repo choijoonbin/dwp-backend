@@ -1,5 +1,6 @@
 package com.dwp.services.provider;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -473,7 +474,20 @@ public final class ProviderDtos {
 
     public record SupportSessionGrant(
             SupportSessionSummary session,
+            @JsonIgnore
             String sessionToken) {
+    }
+
+    public record SupportSessionContext(
+            UUID supportSessionId,
+            UUID tenantId,
+            Long authTenantId,
+            String tenantKey,
+            String tenantName,
+            List<String> scopes,
+            String accessMode,
+            Instant expiresAt,
+            long version) {
     }
 
     public record AuditEventSummary(

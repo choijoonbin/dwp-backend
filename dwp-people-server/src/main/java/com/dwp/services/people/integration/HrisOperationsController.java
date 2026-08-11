@@ -17,15 +17,15 @@ import java.util.UUID;
 import jakarta.validation.Valid;
 
 @RestController
-@RequestMapping("/v1/admin/integrations/hris")
-public class HrisAdminController {
+@RequestMapping("/v1/workforce/data-operations/hris")
+public class HrisOperationsController {
 
     private static final String IDEMPOTENCY_HEADER = "Idempotency-Key";
     private static final String CORRELATION_HEADER = "X-Correlation-ID";
 
     private final HrisImportService service;
 
-    public HrisAdminController(HrisImportService service) {
+    public HrisOperationsController(HrisImportService service) {
         this.service = service;
     }
 

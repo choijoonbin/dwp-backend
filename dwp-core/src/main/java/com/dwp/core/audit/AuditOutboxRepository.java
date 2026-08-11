@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -88,7 +89,7 @@ public class AuditOutboxRepository {
         return jdbc.update("""
                 DELETE FROM sys_audit_outbox
                 WHERE status = 'PUBLISHED' AND published_at < :cutoff
-                """, new MapSqlParameterSource("cutoff", cutoff));
+                """, new MapSqlParameterSource("cutoff", Timestamp.from(cutoff)));
     }
 
     private AuditEvent parse(String payload) {

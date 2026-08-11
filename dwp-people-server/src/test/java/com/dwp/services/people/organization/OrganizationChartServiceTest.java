@@ -87,6 +87,18 @@ class OrganizationChartServiceTest {
                     assertThat(leader.directReportCount()).isEqualTo(1);
                     assertThat(leader.workerNumber()).isEqualTo("******0001");
                 });
+
+        OrganizationChartDtos.OrganizationChart directory = service.getDirectory(AS_OF, null, 10);
+        assertThat(directory.positions()).isEmpty();
+        assertThat(directory.openPositions()).isEmpty();
+        assertThat(directory.metrics().workforceCostAmount()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(directory.organizations()).allSatisfy(organization ->
+                assertThat(organization.costCenterKey()).isNull());
+        assertThat(directory.people()).allSatisfy(person -> {
+            assertThat(person.workerNumber()).isNull();
+            assertThat(person.jobGradeKey()).isNull();
+            assertThat(person.positionId()).isNull();
+        });
     }
 
     @Test

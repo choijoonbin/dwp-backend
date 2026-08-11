@@ -241,6 +241,15 @@ public class PlatformTenantProvisioningService {
             apps.add(new AppSeed("ask", "DWP_ASK", "/ask", "ask", "APP.ASK",
                     "Ask DWP", "Ask DWP", "Grounded answers and governed actions", "MEDIUM"));
         }
+        if (entitlements.contains("core.people")) {
+            apps.add(new AppSeed("people", "DWP_PEOPLE", "/people", "people",
+                    "APP.PEOPLE_DIRECTORY", "People", "구성원",
+                    "Find colleagues and explore reporting relationships", "LOW"));
+            apps.add(new AppSeed("workforce", "DWP_WORKFORCE", "/workforce", "workforce",
+                    "APP.WORKFORCE_MANAGEMENT", "Workforce management", "인력 운영",
+                    "Govern workforce data, positions, organization design, and HRIS operations",
+                    "HIGH"));
+        }
         return List.copyOf(apps);
     }
 
@@ -253,7 +262,14 @@ public class PlatformTenantProvisioningService {
                 new AppSeed("apps", "DWP_APPS", "/apps", "apps", "APP.APPS",
                         "Apps", "앱", "Available workplace applications", "LOW"),
                 new AppSeed("ask", "DWP_ASK", "/ask", "ask", "APP.ASK",
-                        "Ask DWP", "Ask DWP", "Grounded answers and governed actions", "MEDIUM"));
+                        "Ask DWP", "Ask DWP", "Grounded answers and governed actions", "MEDIUM"),
+                new AppSeed("people", "DWP_PEOPLE", "/people", "people",
+                        "APP.PEOPLE_DIRECTORY", "People", "구성원",
+                        "Find colleagues and explore reporting relationships", "LOW"),
+                new AppSeed("workforce", "DWP_WORKFORCE", "/workforce", "workforce",
+                        "APP.WORKFORCE_MANAGEMENT", "Workforce management", "인력 운영",
+                        "Govern workforce data, positions, organization design, and HRIS operations",
+                        "HIGH"));
     }
 
     private void validateIdentity(UUID providerTenantId, Long tenantId, String tenantKey) {

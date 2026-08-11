@@ -136,6 +136,11 @@ public class HomePreferenceService {
         }
         validateGroups(appLayout.path("groups"));
         validateFolders(appLayout.path("folders"));
+        Set<String> hiddenAppIds = validateHiddenAppIds(appLayout.get("hiddenAppIds"));
+        validateHiddenAppsAreNotPlaced(
+                hiddenAppIds,
+                appLayout.path("groups"),
+                appLayout.path("folders"));
     }
 
     private void validateGroups(JsonNode groups) {
@@ -173,6 +178,42 @@ public class HomePreferenceService {
                 }
             });
         });
+    }
+
+    private Set<String> validateHiddenAppIds(JsonNode hiddenAppIds) {
+        if (hiddenAppIds == null || hiddenAppIds.isMissingNode()) return Set.of();
+        if (!hiddenAppIds.isArray() || hiddenAppIds.size() > 100) {
+            throw invalid("The app layout contains an invalid hidden application list.");
+        }
+
+        Set<String> unique = new HashSet<>();
+        hiddenAppIds.forEach(item -> {
+            if (!item.isTextual()
+                    || item.asText().isBlank()
+                    || item.asText().length() > 100
+                    || !unique.add(item.asText())) {
+                throw invalid("The hidden application list contains an invalid identifier.");
+            }
+        });
+        return Set.copyOf(unique);
+    }
+
+    private void validateHiddenAppsAreNotPlaced(
+            Set<String> hiddenAppIds,
+            JsonNode groups,
+            JsonNode folders) {
+        if (hiddenAppIds.isEmpty()) return;
+
+        groups.forEach(items -> items.forEach(item -> {
+            if (item.isTextual() && hiddenAppIds.contains(item.asText())) {
+                throw invalid("A hidden application cannot remain in a launchpad group.");
+            }
+        }));
+        folders.forEach(folder -> folder.path("appIds").forEach(item -> {
+            if (item.isTextual() && hiddenAppIds.contains(item.asText())) {
+                throw invalid("A hidden application cannot remain in a launchpad folder.");
+            }
+        }));
     }
 
     private int serializedSize(JsonNode node) {

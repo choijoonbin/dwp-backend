@@ -48,6 +48,14 @@ public class OrganizationChartService {
     }
 
     @Transactional(readOnly = true)
+    public OrganizationChartDtos.OrganizationChart getDirectory(
+            LocalDate requestedAsOf,
+            UUID requestedRoot,
+            int requestedDepth) {
+        return directoryProjection(get(requestedAsOf, requestedRoot, requestedDepth, null));
+    }
+
+    @Transactional(readOnly = true)
     public OrganizationChartDtos.OrganizationChart get(
             LocalDate requestedAsOf,
             UUID requestedRoot,
@@ -105,7 +113,7 @@ public class OrganizationChartService {
                 .forEach(manager -> reportCountByAssignment.merge(manager, 1, Integer::sum));
 
         boolean canViewWorkerNumber = actor.hasAnyRole(
-                "ADMIN", "TENANT_ADMIN", "PLATFORM_ADMIN", "HR_ADMIN");
+                "ADMIN", "HR_ADMIN", "PEOPLE_ADMIN");
         List<OrganizationChartDtos.Person> people = personRows.stream()
                 .map(person -> toPerson(
                         person,
@@ -269,6 +277,83 @@ public class OrganizationChartService {
                 positions,
                 List.copyOf(relationships),
                 openPositions);
+    }
+
+    private OrganizationChartDtos.OrganizationChart directoryProjection(
+            OrganizationChartDtos.OrganizationChart chart) {
+        List<OrganizationChartDtos.Organization> organizations = chart.organizations().stream()
+                .map(organization -> new OrganizationChartDtos.Organization(
+                        organization.organizationId(),
+                        organization.organizationKey(),
+                        organization.name(),
+                        organization.shortName(),
+                        organization.organizationType(),
+                        organization.organizationTypeName(),
+                        organization.parentOrganizationId(),
+                        organization.description(),
+                        null,
+                        organization.colorToken(),
+                        organization.directHeadcount(),
+                        organization.totalHeadcount(),
+                        organization.managerCount(),
+                        0,
+                        organization.childOrganizationCount(),
+                        organization.leaderPersonId(),
+                        organization.directMemberIds(),
+                        organization.layerDepth(),
+                        organization.averageManagerSpan(),
+                        organization.contingentHeadcount(),
+                        organization.healthStatus(),
+                        List.of()))
+                .toList();
+        List<OrganizationChartDtos.Person> people = chart.people().stream()
+                .map(person -> new OrganizationChartDtos.Person(
+                        person.personId(),
+                        "directory:" + person.personId(),
+                        person.displayName(),
+                        person.workEmail(),
+                        person.businessTitle(),
+                        person.jobProfileName(),
+                        null,
+                        null,
+                        0,
+                        person.managementLevel(),
+                        person.organizationId(),
+                        person.managerPersonId(),
+                        person.managerReferenceMissing(),
+                        null,
+                        null,
+                        null,
+                        person.workerType(),
+                        person.workerStatus(),
+                        person.locationKey(),
+                        person.locationName(),
+                        person.directReportCount(),
+                        BigDecimal.ZERO))
+                .toList();
+        OrganizationChartDtos.Metrics metrics = chart.metrics();
+        return new OrganizationChartDtos.OrganizationChart(
+                chart.asOf(),
+                chart.company(),
+                null,
+                new OrganizationChartDtos.Metrics(
+                        metrics.headcount(),
+                        metrics.activeHeadcount(),
+                        metrics.onLeaveHeadcount(),
+                        metrics.contingentHeadcount(),
+                        metrics.organizationCount(),
+                        metrics.managerCount(),
+                        0,
+                        metrics.locationCount(),
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null),
+                chart.analysis(),
+                organizations,
+                people,
+                List.of(),
+                chart.relationships(),
+                List.of());
     }
 
     private List<OrganizationChartRepository.OrganizationRow> applyScenarioMoves(

@@ -1,13 +1,19 @@
 package com.dwp.services.provider;
 
 import com.dwp.core.common.ApiResponse;
+import com.dwp.services.provider.support.ProviderSupportAccessService;
+import com.dwp.services.provider.support.ProviderSupportCookie;
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -24,9 +30,16 @@ public class ProviderControlPlaneController {
     private static final String CORRELATION_HEADER = "X-Correlation-ID";
 
     private final ProviderControlPlaneService service;
+    private final ProviderSupportAccessService supportAccessService;
+    private final boolean supportCookieSecure;
 
-    public ProviderControlPlaneController(ProviderControlPlaneService service) {
+    public ProviderControlPlaneController(
+            ProviderControlPlaneService service,
+            ProviderSupportAccessService supportAccessService,
+            @Value("${dwp.provider.support-cookie-secure:true}") boolean supportCookieSecure) {
         this.service = service;
+        this.supportAccessService = supportAccessService;
+        this.supportCookieSecure = supportCookieSecure;
     }
 
     @GetMapping("/me")
@@ -214,18 +227,44 @@ public class ProviderControlPlaneController {
     }
 
     @PostMapping("/support-sessions")
-    public ApiResponse<ProviderDtos.SupportSessionGrant> createSupportSession(
+    public ApiResponse<ProviderDtos.SupportSessionSummary> createSupportSession(
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
-            @Valid @RequestBody ProviderDtos.CreateSupportSessionRequest request) {
-        return ApiResponse.success(service.createSupportSession(correlationId, request));
+            @Valid @RequestBody ProviderDtos.CreateSupportSessionRequest request,
+            HttpServletResponse response) {
+        ProviderDtos.SupportSessionGrant grant = service.createSupportSession(correlationId, request);
+        ProviderSupportCookie.issue(
+                grant.sessionToken(), grant.session().expiresAt(), supportCookieSecure)
+                .forEach(cookie -> response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString()));
+        return ApiResponse.success(grant.session());
+    }
+
+    @GetMapping("/support-session-context")
+    public ApiResponse<ProviderDtos.SupportSessionContext> supportSessionContext(
+            @CookieValue(value = ProviderSupportCookie.NAME, required = false) String supportSessionToken,
+            HttpServletResponse response) {
+        if (supportSessionToken == null || supportSessionToken.isBlank()) {
+            return ApiResponse.success(null);
+        }
+        try {
+            return ApiResponse.success(supportAccessService.inspect(supportSessionToken));
+        } catch (com.dwp.core.exception.BaseException exception) {
+            ProviderSupportCookie.clear(supportCookieSecure)
+                    .forEach(cookie -> response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString()));
+            return ApiResponse.success(null);
+        }
     }
 
     @PostMapping("/support-sessions/{sessionId}/revoke")
     public ApiResponse<ProviderDtos.SupportSessionSummary> revokeSupportSession(
             @PathVariable UUID sessionId,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
-            @Valid @RequestBody ProviderDtos.RevokeSupportSessionRequest request) {
-        return ApiResponse.success(service.revokeSupportSession(sessionId, correlationId, request));
+            @Valid @RequestBody ProviderDtos.RevokeSupportSessionRequest request,
+            HttpServletResponse response) {
+        ProviderDtos.SupportSessionSummary session =
+                service.revokeSupportSession(sessionId, correlationId, request);
+        ProviderSupportCookie.clear(supportCookieSecure)
+                .forEach(cookie -> response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString()));
+        return ApiResponse.success(session);
     }
 
     @GetMapping("/audit-events")

@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/v1/org-chart/scenarios")
+@RequestMapping("/v1/workforce/organization/scenarios")
 public class OrganizationScenarioController {
 
     private static final String CORRELATION_HEADER = "X-Correlation-ID";

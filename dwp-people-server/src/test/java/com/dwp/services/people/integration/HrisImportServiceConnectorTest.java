@@ -34,7 +34,7 @@ class HrisImportServiceConnectorTest {
 
     @BeforeEach
     void setContext() {
-        PeopleRequestContext.set(ACTOR_ID, TENANT_ID, Set.of("TENANT_ADMIN"));
+        PeopleRequestContext.set(ACTOR_ID, TENANT_ID, Set.of("HR_ADMIN"));
     }
 
     @AfterEach
@@ -78,6 +78,18 @@ class HrisImportServiceConnectorTest {
                 eq("people.hris-connector.created"), eq("corr-2"), snapshot.capture());
         assertThat(snapshot.getValue()).contains("vault://***");
         assertThat(snapshot.getValue()).doesNotContain("tenant/hris/workday");
+    }
+
+    @Test
+    void rejectsConnectorChangesFromTenantAdministration() {
+        PeopleRequestContext.set(ACTOR_ID, TENANT_ID, Set.of("TENANT_ADMIN"));
+
+        assertThatThrownBy(() -> service.createConnector(
+                request("vault://tenant/hris/workday"), "corr-3"))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("HR administrator");
+
+        verify(repository, never()).upsertSource(any(), any(), any(), any(), any());
     }
 
     private HrisDtos.CreateConnectorRequest request(String credentialReference) {

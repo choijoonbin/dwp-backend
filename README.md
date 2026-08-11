@@ -72,10 +72,13 @@ Frontend를 기동합니다.
 업무 기능을 추가하기 전 공통 웹 셸만 확인하려면 `core`, 프론트만 실행하려면
 `web` 프로필을 사용할 수 있습니다. 이미 외부 Auth·Frontend가 실행 중이라면
 `agent gateway` 프로필로 내부 실행 경로만 재기동할 수 있습니다.
+`contracts` 프로필은 별도 Frontend·Agent 저장소 없이 네 개의 데이터 소유 서비스를
+기동하며, Flyway와 시스템 코드 계약 감사용으로 사용합니다.
 
 ```bash
 ./dev doctor
 ./dev up core
+./dev up contracts
 ./dev up agent gateway
 ./dev status
 ./dev logs gateway --follow
@@ -104,4 +107,8 @@ Frontend를 기동합니다.
 ```bash
 ./gradlew clean test --no-daemon
 python3 -m py_compile scripts/devctl.py
+./scripts/audit-code-contracts.sh
 ```
+
+Pull Request와 `main`, `dev`, `dwp-dev` Push에서는 GitHub Actions가 빈 PostgreSQL
+볼륨에 모든 서비스 Migration을 적용한 뒤 동일한 코드 계약 감사를 실행합니다.

@@ -477,19 +477,51 @@ public class ProviderEstateRepository {
 
     public Optional<SupportSessionRecord> supportSession(UUID sessionId) {
         expireSupportSessions();
-        return jdbc.query("""
+        return supportSessionQuery("support_session_id = ?", sessionId);
+    }
+
+    public Optional<SupportSessionRecord> supportSessionByTokenHash(String tokenHash) {
+        expireSupportSessions();
+        return supportSessionQuery("token_hash = ?", tokenHash);
+    }
+
+    private Optional<SupportSessionRecord> supportSessionQuery(String predicate, Object argument) {
+        String sql = """
                 SELECT support_session_id, provider_tenant_id, provider_operator_id,
-                       lifecycle_state, token_hash, expires_at, version
+                       lifecycle_state, token_hash, access_mode, expires_at, version
                   FROM prv_support_sessions
-                 WHERE support_session_id = ?
-                """, (result, ignored) -> new SupportSessionRecord(
+                 WHERE %s
+                """.formatted(predicate);
+        return jdbc.query(sql, (result, ignored) -> new SupportSessionRecord(
                         result.getObject("support_session_id", UUID.class),
                         result.getObject("provider_tenant_id", UUID.class),
                         result.getLong("provider_operator_id"),
                         result.getString("lifecycle_state"),
                         result.getString("token_hash"),
+                        result.getString("access_mode"),
                         instant(result, "expires_at"),
-                        result.getLong("version")), sessionId).stream().findFirst();
+                        result.getLong("version")), argument).stream().findFirst();
+    }
+
+    public List<String> supportSessionScopes(UUID sessionId) {
+        return jdbc.queryForList("""
+                SELECT scope_code
+                  FROM prv_support_session_scopes
+                 WHERE support_session_id = ?
+                 ORDER BY scope_code
+                """, String.class, sessionId);
+    }
+
+    public boolean touchSupportSession(UUID sessionId, Long operatorId) {
+        return jdbc.update("""
+                UPDATE prv_support_sessions
+                   SET last_used_at = CURRENT_TIMESTAMP,
+                       updated_at = CURRENT_TIMESTAMP,
+                       updated_by = ?
+                 WHERE support_session_id = ?
+                   AND lifecycle_state = 'ACTIVE'
+                   AND expires_at > CURRENT_TIMESTAMP
+                """, operatorId, sessionId) == 1;
     }
 
     public void revokeSupportSession(UUID sessionId, Long operatorId) {
@@ -705,6 +737,7 @@ public class ProviderEstateRepository {
             Long operatorId,
             String lifecycleState,
             String tokenHash,
+            String accessMode,
             Instant expiresAt,
             long version) {
     }

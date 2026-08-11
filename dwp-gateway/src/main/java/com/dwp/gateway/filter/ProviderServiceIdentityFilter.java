@@ -11,10 +11,16 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
+
 @Component
 public class ProviderServiceIdentityFilter implements GlobalFilter, Ordered {
 
     private static final String SERVICE_TOKEN_HEADER = "X-DWP-Service-Token";
+    private static final List<String> SUPPORT_INTERNAL_HEADERS = List.of(
+            "X-DWP-Support-Validation-Token",
+            "X-DWP-Support-Resource-Method",
+            "X-DWP-Support-Resource-Path");
 
     private final String serviceToken;
 
@@ -27,7 +33,10 @@ public class ProviderServiceIdentityFilter implements GlobalFilter, Ordered {
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         if (!requiresServiceIdentity(exchange.getRequest())) return chain.filter(exchange);
         ServerHttpRequest sanitized = exchange.getRequest().mutate()
-                .headers(headers -> headers.remove(SERVICE_TOKEN_HEADER))
+                .headers(headers -> {
+                    headers.remove(SERVICE_TOKEN_HEADER);
+                    SUPPORT_INTERNAL_HEADERS.forEach(headers::remove);
+                })
                 .build();
         if (serviceToken.isBlank()) {
             exchange.getResponse().setStatusCode(HttpStatus.SERVICE_UNAVAILABLE);

@@ -45,14 +45,14 @@ public class OrganizationScenarioDecisionService {
     @Transactional(readOnly = true)
     public OrganizationScenarioDtos.DecisionPack preview(UUID scenarioId) {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
-        requirePlanner(actor);
+        requireViewer(actor);
         return evaluate(actor.tenantId(), scenarioId);
     }
 
     @Transactional(readOnly = true)
     public List<OrganizationScenarioDtos.ValidationRunSummary> history(UUID scenarioId) {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
-        requirePlanner(actor);
+        requireViewer(actor);
         requireScenario(actor.tenantId(), scenarioId);
         return repository.validationHistory(actor.tenantId(), scenarioId);
     }
@@ -419,9 +419,14 @@ public class OrganizationScenarioDecisionService {
     }
 
     private void requirePlanner(PeopleRequestContext.Actor actor) {
-        if (!actor.hasAnyRole(
-                "HR_ADMIN", "PEOPLE_ADMIN", "TENANT_ADMIN", "PLATFORM_ADMIN", "ADMIN")) {
+        if (!actor.hasAnyRole("HR_ADMIN", "ADMIN")) {
             throw new BaseException(ErrorCode.FORBIDDEN, "Organization design permission is required.");
+        }
+    }
+
+    private void requireViewer(PeopleRequestContext.Actor actor) {
+        if (!actor.hasAnyRole("HR_ADMIN", "PEOPLE_ADMIN", "ADMIN")) {
+            throw new BaseException(ErrorCode.FORBIDDEN, "Workforce data permission is required.");
         }
     }
 

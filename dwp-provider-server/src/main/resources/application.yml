@@ -41,6 +41,8 @@ dwp:
   provider:
     service-token: ${DWP_PROVIDER_SERVICE_TOKEN:}
     provisioning-token: ${DWP_PROVIDER_PROVISIONING_TOKEN:}
+    support-validation-token: ${DWP_PROVIDER_SUPPORT_VALIDATION_TOKEN:}
+    support-cookie-secure: ${DWP_PROVIDER_SUPPORT_COOKIE_SECURE:true}
   services:
     auth-url: ${SERVICE_AUTH_URL:http://localhost:8001}
     platform-url: ${SERVICE_PLATFORM_URL:http://localhost:8002}

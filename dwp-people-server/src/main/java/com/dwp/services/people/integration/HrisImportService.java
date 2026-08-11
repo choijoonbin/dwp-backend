@@ -48,6 +48,7 @@ public class HrisImportService {
             String requestedIdempotencyKey,
             String requestedCorrelationId) {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
+        requireDataOperationsAdministrator(actor);
         HrisModels.WorkforceBatch batch = mapper.mapSyntheticFixture();
         validate(batch);
         String idempotencyKey = normalizeIdempotencyKey(
@@ -167,6 +168,7 @@ public class HrisImportService {
             HrisDtos.CreateConnectorRequest request,
             String correlationId) {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
+        requireDataOperationsAdministrator(actor);
         List<String> issues = connectorIssues(
                 request.connectorType(), request.endpointUri(), request.authMode(),
                 request.credentialReference());
@@ -200,6 +202,7 @@ public class HrisImportService {
             HrisDtos.UpdateConnectorRequest request,
             String correlationId) {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
+        requireDataOperationsAdministrator(actor);
         HrisDtos.ConnectorInstance current = repository
                 .findConnector(actor.tenantId(), connectorId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
@@ -233,6 +236,7 @@ public class HrisImportService {
             UUID connectorId,
             String correlationId) {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
+        requireDataOperationsAdministrator(actor);
         HrisDtos.ConnectorInstance connector = repository
                 .findConnector(actor.tenantId(), connectorId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
@@ -263,6 +267,14 @@ public class HrisImportService {
         return repository.listRuns(
                 PeopleRequestContext.require().tenantId(),
                 Math.min(100, Math.max(1, requestedSize)));
+    }
+
+    private void requireDataOperationsAdministrator(PeopleRequestContext.Actor actor) {
+        if (!actor.hasAnyRole("ADMIN", "HR_ADMIN")) {
+            throw new BaseException(
+                    ErrorCode.FORBIDDEN,
+                    "HR administrator permission is required to change HRIS data operations.");
+        }
     }
 
     private HrisDtos.ImportResult result(

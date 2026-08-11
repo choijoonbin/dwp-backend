@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -29,8 +30,15 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
     static final String USER_HEADER = "X-DWP-User-ID";
     static final String TENANT_HEADER = "X-DWP-Tenant-ID";
     static final String ROLES_HEADER = "X-DWP-Roles";
+    static final String SUPPORT_SESSION_HEADER = "X-DWP-Support-Session-ID";
+    static final String SUPPORT_SCOPES_HEADER = "X-DWP-Support-Scopes";
+    static final String ACTOR_TENANT_HEADER = "X-DWP-Actor-Tenant-ID";
     private static final Set<String> ADMIN_ROLES =
-            Set.of("ADMIN", "TENANT_ADMIN", "PLATFORM_ADMIN", "HR_ADMIN");
+            Set.of("ADMIN", "TENANT_ADMIN", "PLATFORM_ADMIN", "HR_ADMIN", "PEOPLE_ADMIN");
+    private static final Set<String> WORKFORCE_ROLES =
+            Set.of("ADMIN", "HR_ADMIN", "PEOPLE_ADMIN");
+    private static final List<String> SUPPORT_WORKFORCE_PATHS =
+            List.of("/v1/people", "/v1/org-chart", "/v1/workforce");
 
     private final String serviceToken;
     private final ObjectMapper objectMapper;
@@ -74,10 +82,23 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
                     "Verified user and tenant identity are required.");
             return;
         }
-        if (request.getRequestURI().startsWith("/v1/admin/")
+        boolean supportAccess = request.getHeader(SUPPORT_SESSION_HEADER) != null
+                && !request.getHeader(SUPPORT_SESSION_HEADER).isBlank();
+        if (supportAccess && !authorizedSupportRequest(request)) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "The support session does not permit this workforce resource.");
+            return;
+        }
+        if (!supportAccess && request.getRequestURI().startsWith("/v1/admin/")
                 && roles.stream().noneMatch(ADMIN_ROLES::contains)) {
             writeError(response, ErrorCode.FORBIDDEN,
                     "People administrator permission is required.");
+            return;
+        }
+        if (!supportAccess && request.getRequestURI().startsWith("/v1/workforce/")
+                && roles.stream().noneMatch(WORKFORCE_ROLES::contains)) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "Workforce operations permission is required.");
             return;
         }
 
@@ -95,6 +116,17 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
                 .map(String::trim)
                 .filter(value -> !value.isBlank())
                 .collect(Collectors.toUnmodifiableSet());
+    }
+
+    private boolean authorizedSupportRequest(HttpServletRequest request) {
+        if (positiveLong(request.getHeader(ACTOR_TENANT_HEADER)) == null) return false;
+        if (!("GET".equals(request.getMethod()) || "HEAD".equals(request.getMethod()))) return false;
+        if (!parseRoles(request.getHeader(SUPPORT_SCOPES_HEADER)).contains("WORKFORCE_READ")) {
+            return false;
+        }
+        String path = request.getRequestURI();
+        return SUPPORT_WORKFORCE_PATHS.stream()
+                .anyMatch(prefix -> path.equals(prefix) || path.startsWith(prefix + "/"));
     }
 
     private Long positiveLong(String value) {

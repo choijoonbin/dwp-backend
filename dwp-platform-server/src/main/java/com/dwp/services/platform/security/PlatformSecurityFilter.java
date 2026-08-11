@@ -19,7 +19,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
@@ -30,7 +32,18 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
     static final String TENANT_HEADER = "X-DWP-Tenant-ID";
     static final String ROLES_HEADER = "X-DWP-Roles";
     static final String PERMISSIONS_HEADER = "X-DWP-Permissions";
+    static final String SUPPORT_SESSION_HEADER = "X-DWP-Support-Session-ID";
+    static final String SUPPORT_SCOPES_HEADER = "X-DWP-Support-Scopes";
+    static final String ACTOR_TENANT_HEADER = "X-DWP-Actor-Tenant-ID";
     private static final Set<String> ADMIN_ROLES = Set.of("ADMIN", "TENANT_ADMIN", "PLATFORM_ADMIN");
+    private static final List<String> SUPPORT_CONFIGURATION_PATHS = List.of(
+            "/v1/admin/tenant-branding",
+            "/v1/admin/home-experience",
+            "/v1/admin/announcements");
+    private static final List<String> SUPPORT_CONFIGURATION_ASSET_PATHS = List.of(
+            "/v1/tenant-branding",
+            "/v1/home-experience",
+            "/v1/announcements");
 
     private final String serviceToken;
     private final String runtimeServiceToken;
@@ -83,12 +96,18 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
             return;
         }
         String path = request.getRequestURI();
+        boolean supportAccess = !isBlank(request.getHeader(SUPPORT_SESSION_HEADER));
+        if (supportAccess && !authorizedSupportRequest(request)) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "The support session does not permit this platform resource.");
+            return;
+        }
         boolean auditAdminPath = path.startsWith("/v1/admin/audit-control");
         if (auditAdminPath && isBlank(request.getHeader(PERMISSIONS_HEADER))) {
             writeError(response, ErrorCode.FORBIDDEN, "Audit permission is required.");
             return;
         }
-        if (!auditAdminPath && path.startsWith("/v1/admin/")
+        if (!supportAccess && !auditAdminPath && path.startsWith("/v1/admin/")
                 && !hasRole(request.getHeader(ROLES_HEADER), ADMIN_ROLES)) {
             writeError(response, ErrorCode.FORBIDDEN, "Tenant administrator permission is required.");
             return;
@@ -112,6 +131,33 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
                 .map(String::trim)
                 .map(String::toUpperCase)
                 .anyMatch(allowedRoles::contains);
+    }
+
+    private boolean authorizedSupportRequest(HttpServletRequest request) {
+        if (positiveLong(request.getHeader(ACTOR_TENANT_HEADER)) == null) return false;
+        Set<String> scopes = parseValues(request.getHeader(SUPPORT_SCOPES_HEADER));
+        String path = request.getRequestURI();
+        boolean read = "GET".equals(request.getMethod()) || "HEAD".equals(request.getMethod());
+        if (matches(path, SUPPORT_CONFIGURATION_PATHS)) {
+            return read
+                    ? scopes.contains("TENANT_CONFIGURATION_READ")
+                    : scopes.contains("TENANT_CONFIGURATION_WRITE");
+        }
+        return read
+                && matches(path, SUPPORT_CONFIGURATION_ASSET_PATHS)
+                && scopes.contains("TENANT_CONFIGURATION_READ");
+    }
+
+    private Set<String> parseValues(String header) {
+        if (isBlank(header)) return Set.of();
+        return Arrays.stream(header.split(","))
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .collect(Collectors.toUnmodifiableSet());
+    }
+
+    private boolean matches(String path, List<String> prefixes) {
+        return prefixes.stream().anyMatch(prefix -> path.equals(prefix) || path.startsWith(prefix + "/"));
     }
 
     private boolean isRuntimeRead(HttpServletRequest request) {

@@ -98,3 +98,5 @@ dwp:
     service-token: ${DWP_PEOPLE_SERVICE_TOKEN:}
   provider:
     service-token: ${DWP_PROVIDER_SERVICE_TOKEN:}
+    support-validation-token: ${DWP_PROVIDER_SUPPORT_VALIDATION_TOKEN:}
+    support-validation-timeout: ${DWP_PROVIDER_SUPPORT_VALIDATION_TIMEOUT:2s}

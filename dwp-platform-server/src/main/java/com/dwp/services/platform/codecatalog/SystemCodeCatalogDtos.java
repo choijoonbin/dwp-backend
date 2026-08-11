@@ -36,8 +36,20 @@ public final class SystemCodeCatalogDtos {
             String validationSource,
             String sourceReference,
             int schemaVersion,
+            String runtimeVisibility,
             List<CodeValue> values,
             List<CodeBinding> bindings) {
+    }
+
+    public record RuntimeCodeSet(
+            String codeSetKey,
+            int schemaVersion,
+            List<RuntimeCodeValue> values) {
+    }
+
+    public record RuntimeCodeValue(
+            String code,
+            String label) {
     }
 
     public record CodeSetHealth(
@@ -46,6 +58,7 @@ public final class SystemCodeCatalogDtos {
             String contractKind,
             String configurationLevel,
             String validationSource,
+            String runtimeVisibility,
             long valueCount,
             long bindingCount,
             long enforcedBindingCount,

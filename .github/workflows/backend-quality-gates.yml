@@ -1,0 +1,63 @@
+name: Backend quality gates
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - dev
+      - dwp-dev
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+
+      - name: Run backend tests
+        run: ./gradlew --no-daemon test
+
+      - name: Validate migrations and code contracts
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          cleanup() {
+            python3 scripts/devctl.py stop || true
+            docker compose down -v --remove-orphans || true
+          }
+          trap cleanup EXIT
+
+          docker compose down -v --remove-orphans
+          python3 scripts/devctl.py up contracts
+          ./scripts/audit-code-contracts.sh
+
+      - name: Upload service logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-service-logs
+          path: .dev-runtime/logs
+          if-no-files-found: ignore
+          retention-days: 7

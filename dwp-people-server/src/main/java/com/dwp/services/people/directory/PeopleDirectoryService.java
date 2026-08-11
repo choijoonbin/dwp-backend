@@ -35,6 +35,26 @@ public class PeopleDirectoryService {
             String cursor,
             int requestedSize,
             LocalDate requestedAsOf) {
+        return search(query, status, cursor, requestedSize, requestedAsOf, false);
+    }
+
+    @Transactional(readOnly = true)
+    public PeopleDtos.CursorPage<PeopleDtos.PersonSummary> searchWorkforce(
+            String query,
+            String status,
+            String cursor,
+            int requestedSize,
+            LocalDate requestedAsOf) {
+        return search(query, status, cursor, requestedSize, requestedAsOf, true);
+    }
+
+    private PeopleDtos.CursorPage<PeopleDtos.PersonSummary> search(
+            String query,
+            String status,
+            String cursor,
+            int requestedSize,
+            LocalDate requestedAsOf,
+            boolean workforceAccess) {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
         int size = Math.min(100, Math.max(1, requestedSize));
         LocalDate asOf = requestedAsOf == null ? LocalDate.now() : requestedAsOf;
@@ -57,7 +77,7 @@ public class PeopleDirectoryService {
                         fingerprint)
                 : null;
         return new PeopleDtos.CursorPage<>(
-                pageRows.stream().map(row -> summary(row, actor)).toList(),
+                pageRows.stream().map(row -> summary(row, workforceAccess)).toList(),
                 nextCursor,
                 pageRows.size(),
                 hasMore,
@@ -66,71 +86,86 @@ public class PeopleDirectoryService {
 
     @Transactional(readOnly = true)
     public PeopleDtos.PersonDetail get(UUID publicId, LocalDate requestedAsOf) {
+        return get(publicId, requestedAsOf, false);
+    }
+
+    @Transactional(readOnly = true)
+    public PeopleDtos.PersonDetail getWorkforce(UUID publicId, LocalDate requestedAsOf) {
+        return get(publicId, requestedAsOf, true);
+    }
+
+    private PeopleDtos.PersonDetail get(
+            UUID publicId,
+            LocalDate requestedAsOf,
+            boolean workforceAccess) {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
         LocalDate asOf = requestedAsOf == null ? LocalDate.now() : requestedAsOf;
         PeopleDirectoryRepository.DirectoryRow row = repository
                 .findByPublicId(actor.tenantId(), publicId, asOf)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        List<PeopleDtos.AssignmentSummary> assignments = repository
-                .findAssignments(actor.tenantId(), row.internalPersonId())
-                .stream()
-                .map(assignment -> new PeopleDtos.AssignmentSummary(
-                        assignment.assignmentKey(),
-                        assignment.assignmentStatus(),
-                        assignment.primaryAssignment(),
-                        assignment.effectiveStartDate(),
-                        assignment.effectiveEndDate(),
-                        assignment.businessTitle(),
-                        assignment.organizationName(),
-                        assignment.jobProfileName(),
-                        assignment.jobGradeName(),
-                        assignment.locationName(),
-                        assignment.managerAssignmentKey(),
-                        assignment.changeReasonCode()))
-                .toList();
+        List<PeopleDtos.AssignmentSummary> assignments = workforceAccess
+                ? repository.findAssignments(actor.tenantId(), row.internalPersonId())
+                        .stream()
+                        .map(assignment -> new PeopleDtos.AssignmentSummary(
+                                assignment.assignmentKey(),
+                                assignment.assignmentStatus(),
+                                assignment.primaryAssignment(),
+                                assignment.effectiveStartDate(),
+                                assignment.effectiveEndDate(),
+                                assignment.businessTitle(),
+                                assignment.organizationName(),
+                                assignment.jobProfileName(),
+                                assignment.jobGradeName(),
+                                assignment.locationName(),
+                                assignment.managerAssignmentKey(),
+                                assignment.changeReasonCode()))
+                        .toList()
+                : List.of();
         return new PeopleDtos.PersonDetail(
-                summary(row, actor),
-                row.originalHireDate(),
-                row.legalEmployerName(),
-                row.managerAssignmentKey(),
+                summary(row, workforceAccess),
+                workforceAccess ? row.originalHireDate() : null,
+                workforceAccess ? row.legalEmployerName() : null,
+                workforceAccess ? row.managerAssignmentKey() : null,
                 assignments);
     }
 
     private PeopleDtos.PersonSummary summary(
             PeopleDirectoryRepository.DirectoryRow row,
-            PeopleRequestContext.Actor actor) {
-        boolean canViewWorkerIdentifier = actor.hasAnyRole(
-                "ADMIN", "TENANT_ADMIN", "PLATFORM_ADMIN", "HR_ADMIN");
+            boolean workforceAccess) {
         return new PeopleDtos.PersonSummary(
                 row.publicId(),
                 row.displayName(),
                 row.preferredLocale(),
                 row.timeZone(),
                 row.lifecycleState(),
-                canViewWorkerIdentifier ? row.workerNumber() : mask(row.workerNumber()),
+                workforceAccess ? row.workerNumber() : null,
                 row.workerType(),
                 row.workerStatus(),
-                row.assignmentKey(),
+                workforceAccess ? row.assignmentKey() : null,
                 row.businessTitle(),
                 row.organizationPublicId(),
                 row.organizationKey(),
                 row.organizationName(),
                 row.jobProfileName(),
                 row.managementLevel(),
-                row.gradeKey(),
-                row.gradeName(),
+                workforceAccess ? row.gradeKey() : null,
+                workforceAccess ? row.gradeName() : null,
                 row.locationKey(),
                 row.locationName(),
                 row.workEmail(),
                 row.profileImageKey(),
-                row.assignmentEffectiveFrom(),
+                workforceAccess ? row.assignmentEffectiveFrom() : null,
                 row.managerPersonPublicId(),
                 row.managerDisplayName(),
                 row.directReportCount(),
                 new PeopleDtos.DataAccess(
                         "INTERNAL",
-                        !canViewWorkerIdentifier && row.workerNumber() != null,
-                        List.of("personPrivate", "governmentIdentifiers", "privateContacts")));
+                        !workforceAccess && row.workerNumber() != null,
+                        workforceAccess
+                                ? List.of("personPrivate", "governmentIdentifiers", "privateContacts")
+                                : List.of(
+                                        "personPrivate", "governmentIdentifiers", "privateContacts",
+                                        "workerIdentifiers", "employmentHistory", "jobGrade")));
     }
 
     private String normalizeStatus(String status) {
@@ -142,9 +177,4 @@ public class PeopleDirectoryService {
         return normalized;
     }
 
-    private String mask(String value) {
-        if (value == null || value.isBlank()) return value;
-        int suffixLength = Math.min(4, value.length());
-        return "******" + value.substring(value.length() - suffixLength);
-    }
 }

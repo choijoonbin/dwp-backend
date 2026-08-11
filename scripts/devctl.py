@@ -109,6 +109,7 @@ PROFILES = {
     "full": {"auth", "platform", "people", "provider", "agent", "gateway", "frontend"},
     "core": {"auth", "platform", "people", "provider", "gateway", "frontend"},
     "backend": {"auth", "platform", "people", "provider", "agent", "gateway"},
+    "contracts": {"auth", "platform", "people", "provider"},
     "agent": {"agent"},
     "gateway": {"gateway"},
     "web": {"frontend"},
@@ -177,6 +178,10 @@ def local_environment() -> dict[str, str]:
         "DWP_PEOPLE_SERVICE_TOKEN": "dwp-local-people-service-token",
         "DWP_PEOPLE_CURSOR_SECRET": "dwp-local-people-cursor-secret-change-outside-local",
         "DWP_PROVIDER_SERVICE_TOKEN": "dwp-local-provider-service-token",
+        "DWP_PROVIDER_SUPPORT_VALIDATION_TOKEN": (
+            "dwp-local-provider-support-validation-token"
+        ),
+        "DWP_PROVIDER_SUPPORT_COOKIE_SECURE": "false",
         "DWP_PROVIDER_PROVISIONING_TOKEN": (
             "dwp-local-provider-provisioning-token-change-outside-local"
         ),
@@ -228,6 +233,9 @@ def service_environment(service_name: str) -> dict[str, str]:
         environment.pop("DWP_PEOPLE_CURSOR_SECRET", None)
     if service_name not in {"gateway", "provider"}:
         environment.pop("DWP_PROVIDER_SERVICE_TOKEN", None)
+        environment.pop("DWP_PROVIDER_SUPPORT_VALIDATION_TOKEN", None)
+    if service_name != "provider":
+        environment.pop("DWP_PROVIDER_SUPPORT_COOKIE_SECURE", None)
     if service_name not in {"auth", "platform", "people", "provider"}:
         environment.pop("DWP_PROVIDER_PROVISIONING_TOKEN", None)
     if service_name not in {"auth", "people"}:
@@ -256,37 +264,54 @@ def require_command(command: str) -> None:
         raise RuntimeError(f"Required command is not available: {command}")
 
 
-def doctor() -> None:
-    for command in ("docker", "java", "corepack", "python3"):
+def doctor(required_services: Iterable[Service] | None = None) -> None:
+    selected = (
+        set(SERVICES)
+        if required_services is None
+        else {service.name for service in required_services}
+    )
+    commands = {"docker", "python3"}
+    if selected.intersection({"auth", "platform", "people", "provider", "gateway"}):
+        commands.add("java")
+    if "frontend" in selected:
+        commands.add("corepack")
+    for command in sorted(commands):
         require_command(command)
 
-    for project in (BACKEND_ROOT, FRONTEND_ROOT, AGENT_ROOT):
+    projects = [BACKEND_ROOT]
+    if "frontend" in selected:
+        projects.append(FRONTEND_ROOT)
+    if "agent" in selected:
+        projects.append(AGENT_ROOT)
+    for project in projects:
         if not project.exists():
             raise RuntimeError(f"Missing project: {project}")
 
-    version_check = subprocess.run(
-        (
-            agent_python(),
-            "-c",
-            "import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)",
-        ),
-        check=False,
-    )
-    if version_check.returncode != 0:
-        raise RuntimeError("The agent runtime requires Python 3.11 or newer.")
+    if "agent" in selected:
+        version_check = subprocess.run(
+            (
+                agent_python(),
+                "-c",
+                "import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)",
+            ),
+            check=False,
+        )
+        if version_check.returncode != 0:
+            raise RuntimeError("The agent runtime requires Python 3.11 or newer.")
 
-    subprocess.run(
-        (agent_python(), "-c", "import fastapi, uvicorn"),
-        cwd=AGENT_ROOT,
-        check=True,
-        stdout=subprocess.DEVNULL,
-    )
-    subprocess.run(
-        ("corepack", "yarn", "--version"),
-        cwd=FRONTEND_ROOT,
-        check=True,
-        stdout=subprocess.DEVNULL,
-    )
+        subprocess.run(
+            (agent_python(), "-c", "import fastapi, uvicorn"),
+            cwd=AGENT_ROOT,
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
+    if "frontend" in selected:
+        subprocess.run(
+            ("corepack", "yarn", "--version"),
+            cwd=FRONTEND_ROOT,
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
     subprocess.run(
         ("docker", "info"),
         check=True,
@@ -522,9 +547,9 @@ def main() -> None:
     if args.command == "doctor":
         doctor()
     elif args.command == "up":
-        doctor()
-        start_infrastructure()
         services = resolve_services(args.profiles)
+        doctor(services)
+        start_infrastructure()
         state = load_state()
         for service in services:
             start_service(service, state)
