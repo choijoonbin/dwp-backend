@@ -28,12 +28,16 @@ public final class AuthenticatedUserResolver {
     }
 
     public static void requireTenantAdmin(Authentication authentication) {
-        Jwt jwt = requireJwt(authentication);
-        Object roles = jwt.getClaims().get("roles");
-        if (!(roles instanceof Collection<?> values)
-                || values.stream().map(String::valueOf).noneMatch(ADMIN_ROLES::contains)) {
+        if (!hasTenantAdminRole(authentication)) {
             throw new BaseException(ErrorCode.FORBIDDEN);
         }
+    }
+
+    public static boolean hasTenantAdminRole(Authentication authentication) {
+        Jwt jwt = requireJwt(authentication);
+        Object roles = jwt.getClaims().get("roles");
+        return roles instanceof Collection<?> values
+                && values.stream().map(String::valueOf).anyMatch(ADMIN_ROLES::contains);
     }
 
     private static Jwt requireJwt(Authentication authentication) {
