@@ -128,7 +128,7 @@ public class PlatformTenantProvisioningService {
         }
         return new PlatformTenantProvisioningDtos.ProvisionTenantResponse(
                 providerTenantId, tenant.tenantId(), tenant.lifecycleState(), 1,
-                tenantRoot.toString());
+                "asset-storage:tenant:" + tenant.tenantId());
     }
 
     private void seedLocales(Long tenantId, String defaultLocale) {

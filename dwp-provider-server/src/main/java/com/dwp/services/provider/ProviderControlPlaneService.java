@@ -10,6 +10,7 @@ import com.dwp.services.provider.entitlement.TenantEntitlementRepository;
 import com.dwp.services.provider.operation.ProviderOperation;
 import com.dwp.services.provider.operation.ProviderOperationRepository;
 import com.dwp.services.provider.operation.ProviderOperationStep;
+import com.dwp.services.provider.operation.ProviderOperationStepAttemptRepository;
 import com.dwp.services.provider.operation.ProviderOperationStepRepository;
 import com.dwp.services.provider.provisioning.DownstreamProvisioningClient;
 import com.dwp.services.provider.provisioning.ProviderProvisioningOrchestrator;
@@ -62,6 +63,7 @@ public class ProviderControlPlaneService {
     private final TenantEntitlementRepository tenantEntitlementRepository;
     private final ProviderOperationRepository operationRepository;
     private final ProviderOperationStepRepository stepRepository;
+    private final ProviderOperationStepAttemptRepository attemptRepository;
     private final ProviderEstateRepository estateRepository;
     private final ProviderOperationsRepository operationsRepository;
     private final ProviderProvisioningOrchestrator orchestrator;
@@ -75,6 +77,7 @@ public class ProviderControlPlaneService {
             TenantEntitlementRepository tenantEntitlementRepository,
             ProviderOperationRepository operationRepository,
             ProviderOperationStepRepository stepRepository,
+            ProviderOperationStepAttemptRepository attemptRepository,
             ProviderEstateRepository estateRepository,
             ProviderOperationsRepository operationsRepository,
             ProviderProvisioningOrchestrator orchestrator,
@@ -86,6 +89,7 @@ public class ProviderControlPlaneService {
         this.tenantEntitlementRepository = tenantEntitlementRepository;
         this.operationRepository = operationRepository;
         this.stepRepository = stepRepository;
+        this.attemptRepository = attemptRepository;
         this.estateRepository = estateRepository;
         this.operationsRepository = operationsRepository;
         this.orchestrator = orchestrator;
@@ -1016,7 +1020,22 @@ public class ProviderControlPlaneService {
                         step.getLastErrorMessage(),
                         step.getNextRetryAt(),
                         step.getStartedAt(),
-                        step.getCompletedAt()))
+                        step.getCompletedAt(),
+                        attemptRepository
+                                .findByOperationStepIdOrderByAttemptNumberAsc(
+                                        step.getOperationStepId())
+                                .stream()
+                                .map(attempt -> new ProviderDtos.OperationStepAttempt(
+                                        attempt.getOperationStepAttemptId(),
+                                        attempt.getAttemptNumber(),
+                                        attempt.getLifecycleState(),
+                                        attempt.getRequestFingerprint(),
+                                        attempt.getRedactedResult(),
+                                        attempt.getErrorCode(),
+                                        attempt.getErrorMessage(),
+                                        attempt.getStartedAt(),
+                                        attempt.getCompletedAt()))
+                                .toList()))
                 .toList();
         return new ProviderDtos.OperationSummary(
                 operation.getOperationId(), operation.getProviderTenantId(), operation.getOperationType(),

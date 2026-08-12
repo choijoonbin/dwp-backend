@@ -8,6 +8,7 @@ import com.dwp.services.provider.entitlement.TenantEntitlementRepository;
 import com.dwp.services.provider.operation.ProviderOperation;
 import com.dwp.services.provider.operation.ProviderOperationRepository;
 import com.dwp.services.provider.operation.ProviderOperationStep;
+import com.dwp.services.provider.operation.ProviderOperationStepAttemptRepository;
 import com.dwp.services.provider.operation.ProviderOperationStepRepository;
 import com.dwp.services.provider.provisioning.DownstreamProvisioningClient;
 import com.dwp.services.provider.provisioning.ProviderProvisioningOrchestrator;
@@ -49,6 +50,7 @@ class ProviderControlPlaneServiceTest {
             tenantEntitlementRepository,
             operationRepository,
             stepRepository,
+            mock(ProviderOperationStepAttemptRepository.class),
             estateRepository,
             operationsRepository,
             mock(ProviderProvisioningOrchestrator.class),

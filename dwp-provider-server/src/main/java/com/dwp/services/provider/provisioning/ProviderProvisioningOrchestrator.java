@@ -21,6 +21,7 @@ import com.dwp.services.provider.tenant.ProviderTenantRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.client.RestClientResponseException;
@@ -317,8 +318,8 @@ public class ProviderProvisioningOrchestrator {
         requireAuthTenant(tenant);
         DownstreamProvisioningClient.ServiceProvisioningResult result =
                 client.provisionPlatform(tenant.getProviderTenantId(), tenant.getAuthTenantId(), plan);
-        updateService(tenant, "platform", result);
-        return serviceResult(result);
+        String externalReference = updateService(tenant, "platform", result);
+        return serviceResult(result, externalReference);
     }
 
     private StepResult provisionPeople(ProviderOperation operation, JsonNode plan) {
@@ -326,16 +327,16 @@ public class ProviderProvisioningOrchestrator {
         requireAuthTenant(tenant);
         DownstreamProvisioningClient.ServiceProvisioningResult result =
                 client.provisionPeople(tenant.getProviderTenantId(), tenant.getAuthTenantId(), plan);
-        updateService(tenant, "people", result);
-        return serviceResult(result);
+        String externalReference = updateService(tenant, "people", result);
+        return serviceResult(result, externalReference);
     }
 
     private StepResult provisionAssetStorage(ProviderOperation operation) {
         ProviderTenant tenant = requireTenant(operation.getProviderTenantId());
         DownstreamProvisioningClient.ServiceProvisioningResult result =
                 client.provisionAssetStorage(tenant.getProviderTenantId());
-        updateService(tenant, "asset-storage", result);
-        return serviceResult(result);
+        String externalReference = updateService(tenant, "asset-storage", result);
+        return serviceResult(result, externalReference);
     }
 
     private StepResult activateTenant(ProviderOperation operation) {
@@ -430,23 +431,38 @@ public class ProviderProvisioningOrchestrator {
         tenantEntitlementRepository.saveAll(assignments);
     }
 
-    private void updateService(
+    private String updateService(
             ProviderTenant tenant,
             String serviceKey,
             DownstreamProvisioningClient.ServiceProvisioningResult result) {
+        String externalReference = safeExternalReference(
+                serviceKey, tenant.getProviderTenantId(), result.externalReference());
         estateRepository.updateServiceInstance(
-                tenant.getProviderTenantId(), serviceKey, "READY", result.externalReference(),
+                tenant.getProviderTenantId(), serviceKey, "READY", externalReference,
                 json(Map.of("schemaVersion", result.schemaVersion(), "status", "ready")),
                 ProviderRequestContext.require().operatorId());
+        return externalReference;
     }
 
-    private StepResult serviceResult(DownstreamProvisioningClient.ServiceProvisioningResult result) {
+    private StepResult serviceResult(
+            DownstreamProvisioningClient.ServiceProvisioningResult result,
+            String externalReference) {
         return StepResult.succeeded(
-                result.externalReference(),
+                externalReference,
                 Map.of(
                         "tenantId", result.tenantId(),
                         "schemaVersion", result.schemaVersion(),
                         "status", "ready"));
+    }
+
+    private String safeExternalReference(String serviceKey, UUID tenantId, String reference) {
+        if (reference == null || reference.isBlank()) return null;
+        if (reference.startsWith("/")
+                || reference.startsWith("file:")
+                || reference.matches("^[A-Za-z]:[\\\\/].*")) {
+            return serviceKey + ":tenant:" + tenantId;
+        }
+        return reference;
     }
 
     private void requireAuthTenant(ProviderTenant tenant) {
@@ -512,12 +528,21 @@ public class ProviderProvisioningOrchestrator {
     }
 
     private String safeMessage(RuntimeException exception) {
-        String message = exception.getMessage();
+        String message;
         if (exception instanceof RestClientResponseException response
                 && response.getResponseBodyAsString() != null
                 && !response.getResponseBodyAsString().isBlank()) {
             message = "Downstream service rejected the provisioning contract (HTTP "
                     + response.getStatusCode().value() + ").";
+        } else if (exception instanceof RestClientResponseException response) {
+            message = "Downstream provisioning failed (HTTP "
+                    + response.getStatusCode().value() + ").";
+        } else if (exception instanceof DataAccessException) {
+            message = "Provider state persistence failed. Review the correlated service trace.";
+        } else if (exception instanceof BaseException) {
+            message = exception.getMessage();
+        } else {
+            message = "Provider step failed. Review the correlated service trace.";
         }
         if (message == null || message.isBlank()) message = exception.getClass().getSimpleName();
         return message.length() > 1000 ? message.substring(0, 1000) : message;

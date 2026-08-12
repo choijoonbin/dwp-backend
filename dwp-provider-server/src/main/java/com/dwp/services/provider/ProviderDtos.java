@@ -228,6 +228,19 @@ public final class ProviderDtos {
             String lastErrorMessage,
             Instant nextRetryAt,
             Instant startedAt,
+            Instant completedAt,
+            List<OperationStepAttempt> attempts) {
+    }
+
+    public record OperationStepAttempt(
+            UUID attemptId,
+            int attemptNumber,
+            String lifecycleState,
+            String requestFingerprint,
+            String redactedResult,
+            String errorCode,
+            String errorMessage,
+            Instant startedAt,
             Instant completedAt) {
     }
 
