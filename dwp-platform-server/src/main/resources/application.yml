@@ -64,6 +64,14 @@ dwp:
       root: ${DWP_PLATFORM_ASSET_DIR:${DWP_HOME_ASSET_DIR:${user.home}/.dwp/platform-assets}}
     home-assets:
       max-bytes: ${DWP_HOME_ASSET_MAX_BYTES:10485760}
+    productivity:
+      data-key: ${DWP_PRODUCTIVITY_DATA_KEY:}
+      sync:
+        enabled: ${DWP_PRODUCTIVITY_SYNC_ENABLED:false}
+        max-pages-per-run: ${DWP_PRODUCTIVITY_MAX_PAGES_PER_RUN:10}
+      microsoft-graph:
+        authorize-base-url: ${DWP_MS_GRAPH_AUTHORIZE_BASE_URL:https://login.microsoftonline.com}
+        api-base-url: ${DWP_MS_GRAPH_API_BASE_URL:https://graph.microsoft.com}
 
 management:
   endpoints:

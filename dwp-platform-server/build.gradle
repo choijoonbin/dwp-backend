@@ -11,6 +11,7 @@ dependencies {
     implementation project(':dwp-core')
     implementation project(':dwp-audit')
     implementation project(':dwp-observability')
+    implementation project(':dwp-platform-contracts')
 
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'

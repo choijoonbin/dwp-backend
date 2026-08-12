@@ -126,6 +126,37 @@ class AuthSessionVerifierTest {
         assertThat(identity.permissions()).containsExactly("APP.WORK:UPDATE", "APP.WORK:VIEW");
     }
 
+    @Test
+    void requestsProductivityControlPlaneAuthoritiesForConnectorRoutes() {
+        AtomicReference<ClientRequest> captured = new AtomicReference<>();
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+            captured.set(request);
+            return Mono.just(ClientResponse.create(HttpStatus.OK)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .body("""
+                            {"success":true,"data":{"userId":7,"tenantId":1,"roles":["TENANT_ADMIN"],
+                            "permissions":[
+                              {"resourceKey":"ADMIN.PRODUCTIVITY_CONNECTOR","permissionCode":"VIEW","effect":"ALLOW"},
+                              {"resourceKey":"ADMIN.PRODUCTIVITY_CONNECTOR","permissionCode":"MANAGE","effect":"ALLOW"}
+                            ]}}
+                            """)
+                    .build());
+        });
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+
+        VerifiedIdentity identity = verifier.verify(MockServerHttpRequest
+                .get("/api/platform/v1/admin/integrations/productivity/overview")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery())
+                .isEqualTo("permissionPrefix=ADMIN.PRODUCTIVITY_CONNECTOR");
+        assertThat(identity).isNotNull();
+        assertThat(identity.permissions()).containsExactly(
+                "ADMIN.PRODUCTIVITY_CONNECTOR:MANAGE",
+                "ADMIN.PRODUCTIVITY_CONNECTOR:VIEW");
+    }
+
     private AuthSessionVerifier verifierReturningTenant(String tenantId) {
         String body = """
                 {"success":true,"data":{"userId":7,"tenantId":%s,"roles":["EMPLOYEE"]}}

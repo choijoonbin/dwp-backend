@@ -175,6 +175,9 @@ def local_environment() -> dict[str, str]:
         "DWP_AGENT_SERVICE_TOKEN": "dwp-local-agent-service-token",
         "DWP_PLATFORM_SERVICE_TOKEN": "dwp-local-platform-service-token",
         "DWP_PLATFORM_RUNTIME_SERVICE_TOKEN": "dwp-local-platform-runtime-token",
+        "DWP_PRODUCTIVITY_DATA_KEY": (
+            "ZHdwLWxvY2FsLXByb2R1Y3Rpdml0eS1rZXktMzJieXQ="
+        ),
         "DWP_PEOPLE_SERVICE_TOKEN": "dwp-local-people-service-token",
         "DWP_PEOPLE_CURSOR_SECRET": "dwp-local-people-cursor-secret-change-outside-local",
         "DWP_PROVIDER_SERVICE_TOKEN": "dwp-local-provider-service-token",
@@ -228,6 +231,8 @@ def service_environment(service_name: str) -> dict[str, str]:
     elif service_name not in {"platform"}:
         environment.pop("DWP_PLATFORM_SERVICE_TOKEN", None)
         environment.pop("DWP_PLATFORM_RUNTIME_SERVICE_TOKEN", None)
+    if service_name != "platform":
+        environment.pop("DWP_PRODUCTIVITY_DATA_KEY", None)
     if service_name not in {"gateway", "people"}:
         environment.pop("DWP_PEOPLE_SERVICE_TOKEN", None)
     if service_name != "people":

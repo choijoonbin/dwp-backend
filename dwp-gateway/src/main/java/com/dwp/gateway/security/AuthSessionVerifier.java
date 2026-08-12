@@ -75,6 +75,9 @@ public class AuthSessionVerifier implements SessionVerifier {
         if (path.startsWith("/api/platform/v1/admin/audit-control")) {
             return "ADMIN.AUDIT_";
         }
+        if (path.startsWith("/api/platform/v1/admin/integrations/productivity")) {
+            return "ADMIN.PRODUCTIVITY_CONNECTOR";
+        }
         if (path.startsWith("/api/platform/v1/workspace")) {
             return "APP.";
         }
