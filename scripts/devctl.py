@@ -173,6 +173,20 @@ def local_environment() -> dict[str, str]:
         "SERVICE_PEOPLE_URL": "http://localhost:8003",
         "SERVICE_PROVIDER_URL": "http://localhost:8004",
         "DWP_AGENT_SERVICE_TOKEN": "dwp-local-agent-service-token",
+        "DWP_AGENT_DATABASE_URL": (
+            "postgresql://dwp_user:dwp_password@localhost:5432/dwp_agent"
+        ),
+        "DWP_AGENT_DATABASE_REQUIRED": "true",
+        "DWP_AGENT_DATA_KEY": (
+            "ZHdwLWxvY2FsLWFnZW50LWRhdGEta2V5LTMyYnl0ZSE="
+        ),
+        "DWP_AGENT_PRIVACY_HASH_SECRET": (
+            "dwp-local-agent-privacy-secret-change-outside-local"
+        ),
+        "DWP_AGENT_SAFETY_SECRET": (
+            "dwp-local-agent-safety-secret-change-outside-local"
+        ),
+        "DWP_AGENT_REGISTRY_MODE": "enforced",
         "DWP_PLATFORM_SERVICE_TOKEN": "dwp-local-platform-service-token",
         "DWP_PLATFORM_RUNTIME_SERVICE_TOKEN": "dwp-local-platform-runtime-token",
         "DWP_PRODUCTIVITY_DATA_KEY": (
@@ -231,6 +245,13 @@ def service_environment(service_name: str) -> dict[str, str]:
     elif service_name not in {"platform"}:
         environment.pop("DWP_PLATFORM_SERVICE_TOKEN", None)
         environment.pop("DWP_PLATFORM_RUNTIME_SERVICE_TOKEN", None)
+    if service_name != "agent":
+        environment.pop("DWP_AGENT_DATABASE_URL", None)
+        environment.pop("DWP_AGENT_DATABASE_REQUIRED", None)
+        environment.pop("DWP_AGENT_DATA_KEY", None)
+        environment.pop("DWP_AGENT_PRIVACY_HASH_SECRET", None)
+        environment.pop("DWP_AGENT_SAFETY_SECRET", None)
+        environment.pop("DWP_AGENT_REGISTRY_MODE", None)
     if service_name != "platform":
         environment.pop("DWP_PRODUCTIVITY_DATA_KEY", None)
     if service_name not in {"gateway", "people"}:
@@ -306,7 +327,7 @@ def doctor(required_services: Iterable[Service] | None = None) -> None:
             raise RuntimeError("The agent runtime requires Python 3.11 or newer.")
 
         subprocess.run(
-            (agent_python(), "-c", "import fastapi, uvicorn"),
+            (agent_python(), "-c", "import cryptography, fastapi, psycopg, uvicorn"),
             cwd=AGENT_ROOT,
             check=True,
             stdout=subprocess.DEVNULL,
@@ -358,6 +379,7 @@ def start_infrastructure() -> None:
             ensure_database("dwp_platform")
             ensure_database("dwp_people")
             ensure_database("dwp_provider")
+            ensure_database("dwp_agent")
             print("postgres   ready at localhost:5432")
             print("redis      ready at localhost:6379")
             return

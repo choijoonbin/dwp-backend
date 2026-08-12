@@ -169,7 +169,10 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
         String method = request.getMethod();
         String path = request.getRequestURI();
         return ("GET".equals(method) || "HEAD".equals(method))
-                && (path.startsWith("/v1/catalog/") || path.startsWith("/v1/reference-data/"));
+                && (path.startsWith("/v1/catalog/")
+                || path.startsWith("/v1/reference-data/")
+                || path.equals("/v1/workspace/work-items")
+                || path.equals("/v1/workspace/productivity/items"));
     }
 
     private Long positiveLong(String value) {

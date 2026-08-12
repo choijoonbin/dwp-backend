@@ -122,7 +122,8 @@ class PlatformSecurityFilterTest {
     }
 
     @Test
-    void acceptsTheRestrictedRuntimeIdentityOnlyForCatalogReads() throws Exception {
+    void acceptsTheRestrictedRuntimeIdentityOnlyForCatalogReferenceAndScopedWorkspaceReads()
+            throws Exception {
         PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
         MockHttpServletRequest catalogRequest = request("/v1/catalog/registry-entries/AGENT/PLANNER");
         catalogRequest.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "runtime");
@@ -133,6 +134,50 @@ class PlatformSecurityFilterTest {
         filter.doFilter(catalogRequest, catalogResponse, new MockFilterChain());
 
         assertThat(catalogResponse.getStatus()).isEqualTo(200);
+
+        MockHttpServletRequest workspaceRequest = request("/v1/workspace/work-items");
+        workspaceRequest.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "runtime");
+        workspaceRequest.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        workspaceRequest.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        workspaceRequest.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
+        workspaceRequest.addHeader(
+                PlatformSecurityFilter.PERMISSIONS_HEADER, "APP.WORK:VIEW");
+        MockHttpServletResponse workspaceResponse = new MockHttpServletResponse();
+
+        filter.doFilter(workspaceRequest, workspaceResponse, new MockFilterChain());
+
+        assertThat(workspaceResponse.getStatus()).isEqualTo(200);
+
+        MockHttpServletRequest workspaceWriteRequest = new MockHttpServletRequest(
+                "PATCH", "/v1/workspace/work-items/1/status");
+        workspaceWriteRequest.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "runtime");
+        workspaceWriteRequest.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        workspaceWriteRequest.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        workspaceWriteRequest.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
+        workspaceWriteRequest.addHeader(
+                PlatformSecurityFilter.PERMISSIONS_HEADER, "APP.WORK:UPDATE");
+        MockHttpServletResponse workspaceWriteResponse = new MockHttpServletResponse();
+
+        filter.doFilter(workspaceWriteRequest, workspaceWriteResponse, new MockFilterChain());
+
+        assertThat(workspaceWriteResponse.getStatus()).isEqualTo(401);
+
+        MockHttpServletRequest unrelatedWorkspaceRequest = request(
+                "/v1/workspace/future-sensitive-resource");
+        unrelatedWorkspaceRequest.addHeader(
+                PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "runtime");
+        unrelatedWorkspaceRequest.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        unrelatedWorkspaceRequest.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        unrelatedWorkspaceRequest.addHeader(
+                PlatformSecurityFilter.PERMISSIONS_HEADER, "APP.WORK:VIEW");
+        MockHttpServletResponse unrelatedWorkspaceResponse = new MockHttpServletResponse();
+
+        filter.doFilter(
+                unrelatedWorkspaceRequest,
+                unrelatedWorkspaceResponse,
+                new MockFilterChain());
+
+        assertThat(unrelatedWorkspaceResponse.getStatus()).isEqualTo(401);
 
         MockHttpServletRequest adminRequest = request("/v1/admin/registry-entries");
         adminRequest.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "runtime");

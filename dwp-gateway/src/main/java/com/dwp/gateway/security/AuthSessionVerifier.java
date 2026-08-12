@@ -81,6 +81,9 @@ public class AuthSessionVerifier implements SessionVerifier {
         if (path.startsWith("/api/platform/v1/workspace")) {
             return "APP.";
         }
+        if (path.startsWith("/api/agent/v1/ask")) {
+            return "APP.";
+        }
         return null;
     }
 
