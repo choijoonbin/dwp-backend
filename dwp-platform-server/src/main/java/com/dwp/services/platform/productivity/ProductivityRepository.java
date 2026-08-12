@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -537,7 +538,10 @@ public class ProductivityRepository {
             int size) {
         MapSqlParameterSource parameters = new MapSqlParameterSource("tenantId", tenantId)
                 .addValue("userId", userId)
-                .addValue("resourceKind", resourceKind == null ? null : resourceKind.name())
+                .addValue(
+                        "resourceKind",
+                        resourceKind == null ? null : resourceKind.name(),
+                        Types.VARCHAR)
                 .addValue("limit", size)
                 .addValue("offset", (long) page * size);
         long total = jdbc.queryForObject("""

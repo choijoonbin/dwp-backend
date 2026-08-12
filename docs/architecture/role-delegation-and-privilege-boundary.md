@@ -2,6 +2,12 @@
 
 Status: Accepted
 
+Last verified: 2026-08-12
+
+Scope: tenant role delegation and separation-of-duties enforcement owned by
+`dwp-auth-server`. Provider operator authorization remains owned by
+`dwp-provider-server` and is outside this decision.
+
 ## Decision
 
 DWP uses deny-by-default role delegation. Authentication proves identity; it does not grant authority to delegate every role visible in the tenant. Every role assignment mutation must resolve the actor's current effective roles from the database and match an active policy in `sys_role_assignment_policies`.
@@ -43,6 +49,24 @@ The authorization model separates four concerns:
 ## Future Workflows
 
 Governed and control-plane roles require purpose-built request, approval, expiry, and activation workflows. They must not be added to the direct assignment policy as a shortcut. SCIM and HRIS provisioning must use the `PROVISIONING` mode and preserve the same baseline, conflict, audit, and session-invalidation invariants.
+
+## Implementation Conformance
+
+| Area | Status | Implementation evidence |
+| --- | --- | --- |
+| Built-in role classification, direct delegation policy, and conflict policy | Implemented | [`V30__enforce_role_delegation_boundaries.sql`](../../dwp-auth-server/src/main/resources/db/migration/V30__enforce_role_delegation_boundaries.sql) |
+| Per-request actor role and active policy resolution | Implemented | [`RoleDelegationPolicyService`](../../dwp-auth-server/src/main/java/com/dwp/services/auth/service/RoleDelegationPolicyService.java) |
+| Direct user role boundary, baseline, conflict, version, audit, and session invalidation | Implemented | [`IdentityAdminService`](../../dwp-auth-server/src/main/java/com/dwp/services/auth/service/IdentityAdminService.java) |
+| Group role grant/revoke delegation boundary and member session invalidation | Implemented | [`AccessGovernanceService`](../../dwp-auth-server/src/main/java/com/dwp/services/auth/service/AccessGovernanceService.java) |
+| Denied mutation audit in an independent transaction | Implemented | [`IdentityAuditService`](../../dwp-auth-server/src/main/java/com/dwp/services/auth/service/IdentityAuditService.java) |
+| Group assignment conflict evaluation for every current group member | Gap | The current group assignment path checks delegation authority but does not pre-evaluate every member's prospective effective role set. |
+| Uniform 10-500 character justification policy | Partial | Direct user role replacement enforces 10-500 characters; group role assignment currently accepts 1-1000 characters. |
+| Governed approval and provisioning assignment workflows | Planned | `APPROVAL` and `PROVISIONING` are modeled, but direct tenant administration intentionally exposes only `DIRECT`. |
+
+The executable policy tests are
+[`RoleDelegationPolicyServiceTest`](../../dwp-auth-server/src/test/java/com/dwp/services/auth/service/RoleDelegationPolicyServiceTest.java),
+[`IdentityAdminServiceTest`](../../dwp-auth-server/src/test/java/com/dwp/services/auth/service/IdentityAdminServiceTest.java),
+and [`AccessGovernanceServiceTest`](../../dwp-auth-server/src/test/java/com/dwp/services/auth/service/AccessGovernanceServiceTest.java).
 
 ## Security Basis
 

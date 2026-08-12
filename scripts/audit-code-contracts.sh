@@ -107,7 +107,35 @@ constants = block.split(";", 1)[0]
 if mode == "wire-error-code":
     values = re.findall(r'"(E\d{4})"', constants)
 else:
-    values = re.findall(r"(?m)^\s*([A-Z][A-Z0-9_]*)\b", constants)
+    entries = []
+    start = 0
+    depth = 0
+    quote = None
+    escaped = False
+    for index, character in enumerate(constants):
+        if quote:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == quote:
+                quote = None
+            continue
+        if character in {'"', "'"}:
+            quote = character
+        elif character in "([{":
+            depth += 1
+        elif character in ")]}":
+            depth -= 1
+        elif character == "," and depth == 0:
+            entries.append(constants[start:index])
+            start = index + 1
+    entries.append(constants[start:])
+    values = []
+    for entry in entries:
+        constant = re.match(r"\s*([A-Z][A-Z0-9_]*)\b", entry)
+        if constant:
+            values.append(constant.group(1))
 print(",".join(sorted(set(values))))
 PYTHON
 )"
@@ -153,6 +181,16 @@ dwp-platform-server/src/main/java/com/dwp/services/platform/announcement/Announc
 dwp-platform-server/src/main/java/com/dwp/services/platform/announcement/AnnouncementSeverity.java|AnnouncementSeverity
 dwp-platform-server/src/main/java/com/dwp/services/platform/apihistory/ApiHistoryWindow.java|ApiHistoryWindow
 dwp-platform-server/src/main/java/com/dwp/services/platform/auditcontrol/AuditWindow.java|AuditWindow
+dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java|AuthMode
+dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java|ConnectorHealth
+dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java|ConnectorLifecycle
+dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java|ConsentState
+dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java|PolicyState
+dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java|ProviderType
+dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java|ResourceKind
+dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java|StreamState
+dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java|SyncMode
+dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java|SyncRunState
 dwp-platform-server/src/main/java/com/dwp/services/platform/reference/ReferenceLifecycle.java|ReferenceLifecycle
 dwp-platform-server/src/main/java/com/dwp/services/platform/registry/RegistryType.java|RegistryType
 dwp-platform-server/src/main/java/com/dwp/services/platform/registry/RiskTier.java|RiskTier
@@ -454,6 +492,36 @@ assert_java_enum_codes 'API history window enum' \
 assert_java_enum_codes 'audit window enum' \
   'dwp-platform-server/src/main/java/com/dwp/services/platform/auditcontrol/AuditWindow.java' \
   'AuditWindow' 'name' 'PLATFORM.AUDIT.WINDOW'
+assert_java_enum_codes 'productivity provider type enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java' \
+  'ProviderType' 'name' 'PLATFORM.PRODUCTIVITY_CONNECTOR.PROVIDER_TYPE'
+assert_java_enum_codes 'productivity authentication mode enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java' \
+  'AuthMode' 'name' 'PLATFORM.PRODUCTIVITY_CONNECTOR.AUTH_MODE'
+assert_java_enum_codes 'productivity connector lifecycle enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java' \
+  'ConnectorLifecycle' 'name' 'PLATFORM.PRODUCTIVITY_CONNECTOR.LIFECYCLE_STATE'
+assert_java_enum_codes 'productivity connector health enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java' \
+  'ConnectorHealth' 'name' 'PLATFORM.PRODUCTIVITY_CONNECTOR.HEALTH_STATE'
+assert_java_enum_codes 'productivity policy state enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java' \
+  'PolicyState' 'name' 'PLATFORM.PRODUCTIVITY_CONNECTOR.POLICY_STATE'
+assert_java_enum_codes 'productivity consent state enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java' \
+  'ConsentState' 'name' 'PLATFORM.PRODUCTIVITY_SUBJECT.CONSENT_STATE'
+assert_java_enum_codes 'productivity resource kind enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java' \
+  'ResourceKind' 'name' 'PLATFORM.PRODUCTIVITY.RESOURCE_KIND'
+assert_java_enum_codes 'productivity stream state enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java' \
+  'StreamState' 'name' 'PLATFORM.PRODUCTIVITY_SYNC_STREAM.STREAM_STATE'
+assert_java_enum_codes 'productivity synchronization mode enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java' \
+  'SyncMode' 'name' 'PLATFORM.PRODUCTIVITY_SYNC_RUN.SYNC_MODE'
+assert_java_enum_codes 'productivity synchronization run state enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java' \
+  'SyncRunState' 'name' 'PLATFORM.PRODUCTIVITY_SYNC_RUN.RUN_STATE'
 
 # API and JSON contracts do not have database CHECK constraints. These
 # manifests make their byte-for-byte values an explicit release gate.

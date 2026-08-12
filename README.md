@@ -61,7 +61,16 @@ JWT_SECRET=<managed-secret-at-least-256-bits>
 - Node.js 20 이상과 Corepack
 - Python 3.11 이상 (`../dwp_agent/.venv` 권장)
 
+## Documentation
+
+유지 중인 개발 가이드와 아키텍처 결정의 목록 및 상태는
+[Backend Documentation](docs/README.md)에서 확인합니다.
+
 ## Start
+
+IntelliJ에서 각 Java 서비스를 실행·디버깅하거나 Run Configuration 오류를 해결하려면
+[IntelliJ 백엔드 실행 및 테스트 가이드](docs/intellij-backend-run-and-test.md)를 먼저
+확인합니다.
 
 ```bash
 ./dev up full
