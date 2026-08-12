@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -18,9 +19,25 @@ public final class HomeExperienceDtos {
     public record UpdateHomeExperienceRequest(
             @Size(max = 160) String headline,
             @Size(max = 500) String subheadline,
+            Map<String, LocalizedCopy> localizedContent,
+            @Pattern(regexp = "^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$") String defaultLocale,
             @NotNull @Pattern(regexp = "LEFT|CENTER|RIGHT") String backgroundPosition,
             @NotNull @Min(0) @Max(70) Integer overlayOpacity,
             @NotNull @Min(0) Long version) {
+
+        public UpdateHomeExperienceRequest(
+                String headline,
+                String subheadline,
+                String backgroundPosition,
+                Integer overlayOpacity,
+                Long version) {
+            this(headline, subheadline, null, null, backgroundPosition, overlayOpacity, version);
+        }
+    }
+
+    public record LocalizedCopy(
+            @Size(max = 160) String headline,
+            @Size(max = 500) String subheadline) {
     }
 
     public record VersionRequest(@NotNull @Min(0) Long version) {
@@ -29,6 +46,8 @@ public final class HomeExperienceDtos {
     public record HomeExperienceResponse(
             String headline,
             String subheadline,
+            Map<String, LocalizedCopy> localizedContent,
+            String defaultLocale,
             String backgroundPosition,
             Integer overlayOpacity,
             String backgroundUrl,
@@ -42,10 +61,26 @@ public final class HomeExperienceDtos {
             Long updatedBy) {
     }
 
+    public record HomeExperienceRevisionResponse(
+            Long revisionId,
+            Long sourceVersion,
+            String changeType,
+            String headline,
+            String backgroundOriginalName,
+            Integer backgroundWidth,
+            Integer backgroundHeight,
+            int localeCount,
+            boolean current,
+            OffsetDateTime createdAt,
+            Long createdBy) {
+    }
+
     static Map<String, Object> snapshot(HomeExperience experience) {
         Map<String, Object> value = new LinkedHashMap<>();
         value.put("headline", experience.getHeadline());
         value.put("subheadline", experience.getSubheadline());
+        value.put("localizedContent", experience.getLocalizedContent());
+        value.put("defaultLocale", experience.getDefaultLocale());
         value.put("backgroundPosition", experience.getBackgroundPosition());
         value.put("overlayOpacity", experience.getOverlayOpacity());
         value.put("backgroundOriginalName", experience.getBackgroundOriginalName());
@@ -54,6 +89,13 @@ public final class HomeExperienceDtos {
         value.put("backgroundWidth", experience.getBackgroundWidth());
         value.put("backgroundHeight", experience.getBackgroundHeight());
         value.put("version", experience.getVersion() == null ? 0L : experience.getVersion());
+        return value;
+    }
+
+    static Map<String, Object> revisionSnapshot(HomeExperience experience) {
+        Map<String, Object> value = snapshot(experience);
+        value.put("backgroundAssetKey", experience.getBackgroundAssetKey());
+        value.put("backgroundSha256", experience.getBackgroundSha256());
         return value;
     }
 }

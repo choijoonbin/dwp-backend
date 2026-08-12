@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -63,6 +64,43 @@ public class WorkspaceService {
             UUID workItemId,
             WorkspaceDtos.UpdateWorkStatusRequest request) {
         require(authorities(permissions), WORK_UPDATE);
+        return updateWorkStatus(
+                tenantId, actorId, locale, correlationId, workItemId, request);
+    }
+
+    @Transactional
+    public List<WorkspaceDtos.WorkItem> updateWorkStatuses(
+            Long tenantId,
+            Long actorId,
+            String permissions,
+            String locale,
+            String correlationId,
+            WorkspaceDtos.BatchUpdateWorkStatusRequest request) {
+        require(authorities(permissions), WORK_UPDATE);
+        Set<UUID> uniqueItems = new HashSet<>();
+        if (request.items().stream().anyMatch(item -> !uniqueItems.add(item.workItemId()))) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "A work item can only appear once in a batch operation.");
+        }
+        return request.items().stream()
+                .map(item -> updateWorkStatus(
+                        tenantId,
+                        actorId,
+                        locale,
+                        correlationId,
+                        item.workItemId(),
+                        new WorkspaceDtos.UpdateWorkStatusRequest(request.status(), item.version())))
+                .toList();
+    }
+
+    private WorkspaceDtos.WorkItem updateWorkStatus(
+            Long tenantId,
+            Long actorId,
+            String locale,
+            String correlationId,
+            UUID workItemId,
+            WorkspaceDtos.UpdateWorkStatusRequest request) {
         boolean korean = korean(locale);
         WorkspaceRepository.WorkRow before = repository.workItem(
                         tenantId, actorId, workItemId, korean)

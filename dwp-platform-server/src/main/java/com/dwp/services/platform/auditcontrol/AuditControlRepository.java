@@ -92,6 +92,12 @@ public class AuditControlRepository {
                     risk_score = GREATEST(sys_audit_findings.risk_score, EXCLUDED.risk_score),
                     last_seen_at = GREATEST(sys_audit_findings.last_seen_at, EXCLUDED.last_seen_at),
                     updated_at = CURRENT_TIMESTAMP
+                WHERE sys_audit_findings.case_id IS NULL
+                   OR NOT EXISTS (
+                       SELECT 1
+                         FROM sys_audit_cases audit_case
+                        WHERE audit_case.case_id = sys_audit_findings.case_id
+                          AND audit_case.status = 'CLOSED')
                 """, new MapSqlParameterSource()
                 .addValue("tenantId", event.tenantId())
                 .addValue("eventId", event.eventId())
@@ -376,6 +382,23 @@ public class AuditControlRepository {
         return cases(tenantId).stream().filter(item -> item.caseId().equals(caseId)).findFirst();
     }
 
+    public void lockCase(Long tenantId, UUID caseId) {
+        jdbc.query(
+                """
+                SELECT case_id
+                  FROM sys_audit_cases
+                 WHERE tenant_id = :tenantId AND case_id = :caseId
+                 FOR UPDATE
+                """,
+                new MapSqlParameterSource()
+                        .addValue("tenantId", tenantId)
+                        .addValue("caseId", caseId),
+                (ResultSet resultSet) -> {
+                    if (resultSet.next()) resultSet.getObject(1);
+                    return null;
+                });
+    }
+
     public UUID createCase(Long tenantId, String actorId, AuditControlDtos.CaseCreate request) {
         return jdbc.queryForObject("""
                 INSERT INTO sys_audit_cases (
@@ -500,6 +523,50 @@ public class AuditControlRepository {
                           CASE priority WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2
                                WHEN 'MEDIUM' THEN 3 ELSE 4 END, created_at
                 """, caseParameters(tenantId, caseId), caseTaskMapper());
+    }
+
+    public UUID createCaseClosureReport(
+            Long tenantId, UUID caseId, String actorId, Map<String, Object> report, String sha256) {
+        return jdbc.queryForObject("""
+                INSERT INTO sys_audit_case_closure_reports (
+                    case_id, tenant_id, report_version, report_data, content_sha256, generated_by)
+                SELECT c.case_id, c.tenant_id,
+                       COALESCE((
+                           SELECT MAX(existing.report_version) + 1
+                             FROM sys_audit_case_closure_reports existing
+                            WHERE existing.tenant_id = c.tenant_id
+                              AND existing.case_id = c.case_id
+                       ), 1),
+                       CAST(:report AS jsonb), :sha256, :actor
+                  FROM sys_audit_cases c
+                 WHERE c.tenant_id = :tenantId AND c.case_id = :caseId
+                   AND c.status = 'CLOSED'
+                RETURNING report_id
+                """, caseParameters(tenantId, caseId)
+                .addValue("report", json(report)).addValue("sha256", sha256)
+                .addValue("actor", actorId), UUID.class);
+    }
+
+    public Optional<AuditControlDtos.CaseClosureReport> latestCaseClosureReport(
+            Long tenantId, UUID caseId) {
+        return jdbc.query("""
+                SELECT report.report_id, report.case_id, audit_case.case_number,
+                       report.report_version, report.content_sha256, report.generated_by,
+                       report.generated_at, report.report_data
+                  FROM sys_audit_case_closure_reports report
+                  JOIN sys_audit_cases audit_case
+                    ON audit_case.case_id = report.case_id
+                   AND audit_case.tenant_id = report.tenant_id
+                 WHERE report.tenant_id = :tenantId AND report.case_id = :caseId
+                 ORDER BY report.report_version DESC
+                 LIMIT 1
+                """, caseParameters(tenantId, caseId), (rs, row) ->
+                new AuditControlDtos.CaseClosureReport(
+                        rs.getObject("report_id", UUID.class), rs.getObject("case_id", UUID.class),
+                        rs.getLong("case_number"), rs.getInt("report_version"),
+                        rs.getString("content_sha256"), rs.getString("generated_by"),
+                        instant(rs, "generated_at"), jsonMap(rs.getString("report_data"))))
+                .stream().findFirst();
     }
 
     public UUID createCaseTask(

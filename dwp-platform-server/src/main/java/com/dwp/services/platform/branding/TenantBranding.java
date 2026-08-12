@@ -28,6 +28,10 @@ public class TenantBranding extends BaseEntity {
     @Column(name = "organization_name", length = 160)
     private String organizationName;
 
+    @Builder.Default
+    @Column(name = "accent_color", nullable = false, length = 7)
+    private String accentColor = "#2457D6";
+
     @Column(name = "logo_asset_key", length = 320)
     private String logoAssetKey;
 

@@ -102,24 +102,21 @@ class AuthSessionServiceTest {
     }
 
     @Test
-    void touchesTheCurrentFamilyAfterTheThrottleInterval() {
+    void touchesTheCurrentFamilyAtomicallyAfterTheThrottleInterval() {
         AuthSession current = activeSession(Instant.now().minusSeconds(900));
-        current.setLastSeenAt(Instant.now().minusSeconds(120));
-        current.setIdleExpiresAt(Instant.now().plusSeconds(300));
-        Instant previousLastSeenAt = current.getLastSeenAt();
-        Instant previousIdleExpiresAt = current.getIdleExpiresAt();
-        when(repository.findByTokenId(current.getTokenId())).thenReturn(Optional.of(current));
-        when(repository
-                        .findFirstBySessionFamilyIdAndRevokedAtIsNullAndSupersededAtIsNullOrderByIssuedAtDesc(
-                                current.getSessionFamilyId()))
-                .thenReturn(Optional.of(current));
 
         service.touch(current.getTokenId());
 
-        assertThat(current.getLastSeenAt()).isAfter(previousLastSeenAt);
-        assertThat(current.getIdleExpiresAt())
-                .isAfter(previousIdleExpiresAt)
-                .isBeforeOrEqualTo(current.getExpiresAt());
+        ArgumentCaptor<Instant> now = ArgumentCaptor.forClass(Instant.class);
+        ArgumentCaptor<Instant> touchBefore = ArgumentCaptor.forClass(Instant.class);
+        ArgumentCaptor<Instant> idleExpiresAt = ArgumentCaptor.forClass(Instant.class);
+        verify(repository).touchCurrentByPresentedToken(
+                org.mockito.ArgumentMatchers.eq(current.getTokenId()),
+                now.capture(),
+                touchBefore.capture(),
+                idleExpiresAt.capture());
+        assertThat(touchBefore.getValue()).isEqualTo(now.getValue().minusSeconds(60));
+        assertThat(idleExpiresAt.getValue()).isEqualTo(now.getValue().plusSeconds(1_800));
     }
 
     @Test

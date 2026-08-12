@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -39,6 +40,17 @@ public class ScimConnectorAdminController {
         AuthenticatedUserResolver.requireTenantAdmin(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
         return ApiResponse.success(service.list(tenantId));
+    }
+
+    @GetMapping("/events")
+    public ApiResponse<List<ScimConnectorDtos.ProvisioningEvent>> events(
+            Authentication authentication,
+            @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,
+            @RequestParam(required = false) UUID connectorId,
+            @RequestParam(defaultValue = "100") int limit) {
+        AuthenticatedUserResolver.requireTenantAdmin(authentication);
+        Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
+        return ApiResponse.success(service.events(tenantId, connectorId, limit));
     }
 
     @PostMapping

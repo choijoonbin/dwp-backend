@@ -11,6 +11,10 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "adm_home_experiences")
@@ -30,6 +34,15 @@ public class HomeExperience extends BaseEntity {
 
     @Column(name = "subheadline", length = 500)
     private String subheadline;
+
+    @Builder.Default
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "localized_content", nullable = false, columnDefinition = "jsonb")
+    private JsonNode localizedContent = JsonNodeFactory.instance.objectNode();
+
+    @Builder.Default
+    @Column(name = "default_locale", nullable = false, length = 32)
+    private String defaultLocale = "ko";
 
     @Builder.Default
     @Column(name = "background_position", nullable = false, length = 16)

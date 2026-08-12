@@ -54,6 +54,9 @@ public final class AnnouncementDtos {
             String actionUrl,
             OffsetDateTime publishedAt,
             Long publishedBy,
+            long uniqueViewerCount,
+            long viewCount,
+            long actionClickCount,
             Long version,
             LocalDateTime updatedAt,
             Long updatedBy) {

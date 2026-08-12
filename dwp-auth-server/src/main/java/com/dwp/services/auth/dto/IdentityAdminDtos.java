@@ -23,11 +23,32 @@ public final class IdentityAdminDtos {
             String status,
             Boolean mfaEnabled,
             List<String> roles,
+            List<String> effectiveRoles,
+            List<EffectiveAccessSummary> effectiveAccess,
+            Instant lastSignInAt,
+            long activeSessionCount,
             RoleManagementSummary roleManagement,
             Long accessRevision,
             Long version,
             LocalDateTime updatedAt,
             Long updatedBy) {
+    }
+
+    public record EffectiveAccessSummary(
+            Long roleId,
+            String roleCode,
+            String roleName,
+            boolean privileged,
+            String sourceType,
+            Long sourceId,
+            String sourceKey,
+            String sourceName,
+            String assignmentType,
+            String scopeType,
+            String scopeRef,
+            Instant validFrom,
+            Instant validTo,
+            Instant assignedAt) {
     }
 
     public record RoleSummary(

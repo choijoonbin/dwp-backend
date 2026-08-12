@@ -6,6 +6,7 @@ import com.dwp.services.auth.entity.ScimConnector;
 import com.dwp.services.auth.repository.ScimConnectorRepository;
 import com.dwp.services.auth.service.IdentityAuditService;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,6 +17,7 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
@@ -28,12 +30,15 @@ public class ScimCredentialService {
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final ScimConnectorRepository repository;
+    private final JdbcTemplate jdbc;
     private final IdentityAuditService auditService;
 
     public ScimCredentialService(
             ScimConnectorRepository repository,
+            JdbcTemplate jdbc,
             IdentityAuditService auditService) {
         this.repository = repository;
+        this.jdbc = jdbc;
         this.auditService = auditService;
     }
 
@@ -72,8 +77,53 @@ public class ScimCredentialService {
 
     @Transactional(readOnly = true)
     public List<ScimConnectorDtos.ConnectorSummary> list(Long tenantId) {
-        return repository.findByTenantIdOrderByConnectorKeyAsc(tenantId)
-                .stream().map(this::summary).toList();
+        List<ScimConnector> connectors = repository.findByTenantIdOrderByConnectorKeyAsc(tenantId);
+        Map<UUID, EventEvidence> evidence = eventEvidence(tenantId);
+        return connectors.stream()
+                .map(connector -> summary(connector, evidence.get(connector.getScimConnectorId())))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ScimConnectorDtos.ProvisioningEvent> events(
+            Long tenantId,
+            UUID connectorId,
+            int requestedLimit) {
+        int limit = Math.min(200, Math.max(1, requestedLimit));
+        String connectorFilter = connectorId == null ? "" : " AND event.scim_connector_id = ?";
+        List<Object> arguments = new java.util.ArrayList<>();
+        arguments.add(tenantId);
+        if (connectorId != null) arguments.add(connectorId);
+        arguments.add(limit);
+        return jdbc.query("""
+                SELECT event.scim_event_id, event.scim_connector_id,
+                       connector.display_name AS connector_name,
+                       event.operation, event.resource_type, event.resource_id,
+                       event.outcome, event.correlation_id,
+                       COALESCE(
+                           event.redacted_summary ->> 'message',
+                           event.redacted_summary ->> 'summary',
+                           event.resource_type || ' ' || event.operation
+                       ) AS event_summary,
+                       event.occurred_at
+                  FROM sys_scim_provisioning_events event
+                  JOIN sys_scim_connectors connector
+                    ON connector.tenant_id = event.tenant_id
+                   AND connector.scim_connector_id = event.scim_connector_id
+                 WHERE event.tenant_id = ?
+                """ + connectorFilter + " ORDER BY event.occurred_at DESC LIMIT ?",
+                (resultSet, rowNumber) -> new ScimConnectorDtos.ProvisioningEvent(
+                        resultSet.getObject("scim_event_id", UUID.class),
+                        resultSet.getObject("scim_connector_id", UUID.class),
+                        resultSet.getString("connector_name"),
+                        resultSet.getString("operation"),
+                        resultSet.getString("resource_type"),
+                        resultSet.getString("resource_id"),
+                        resultSet.getString("outcome"),
+                        resultSet.getString("correlation_id"),
+                        resultSet.getString("event_summary"),
+                        resultSet.getTimestamp("occurred_at").toInstant()),
+                arguments.toArray());
     }
 
     @Transactional
@@ -172,12 +222,74 @@ public class ScimCredentialService {
         }
     }
 
-    private ScimConnectorDtos.ConnectorSummary summary(ScimConnector connector) {
+    private ScimConnectorDtos.ConnectorSummary summary(
+            ScimConnector connector,
+            EventEvidence evidence) {
         return new ScimConnectorDtos.ConnectorSummary(
                 connector.getScimConnectorId(), connector.getConnectorKey(),
                 connector.getDisplayName(), connector.getTokenPrefix(),
                 List.of("USERS", "GROUPS"), connector.getLifecycleState(),
-                connector.getLastUsedAt(), valueOrZero(connector.getVersion()));
+                connector.getLastUsedAt(), health(connector, evidence),
+                evidence == null ? 0L : evidence.events24h(),
+                evidence == null ? 0L : evidence.failedEvents24h(),
+                evidence == null ? null : evidence.lastSuccessAt(),
+                evidence == null ? null : evidence.lastFailureAt(),
+                valueOrZero(connector.getVersion()));
+    }
+
+    private ScimConnectorDtos.ConnectorSummary summary(ScimConnector connector) {
+        return summary(connector, eventEvidence(connector.getTenantId())
+                .get(connector.getScimConnectorId()));
+    }
+
+    private Map<UUID, EventEvidence> eventEvidence(Long tenantId) {
+        List<EventEvidence> rows = jdbc.query("""
+                SELECT connector.scim_connector_id,
+                       COUNT(event.scim_event_id) FILTER (
+                           WHERE event.occurred_at >= CURRENT_TIMESTAMP - INTERVAL '24 hours'
+                       ) AS events_24h,
+                       COUNT(event.scim_event_id) FILTER (
+                           WHERE event.occurred_at >= CURRENT_TIMESTAMP - INTERVAL '24 hours'
+                             AND event.outcome IN ('FAILED', 'DENIED')
+                       ) AS failed_events_24h,
+                       MAX(event.occurred_at) FILTER (
+                           WHERE event.outcome = 'SUCCESS'
+                       ) AS last_success_at,
+                       MAX(event.occurred_at) FILTER (
+                           WHERE event.outcome IN ('FAILED', 'DENIED')
+                       ) AS last_failure_at
+                  FROM sys_scim_connectors connector
+                  LEFT JOIN sys_scim_provisioning_events event
+                    ON event.tenant_id = connector.tenant_id
+                   AND event.scim_connector_id = connector.scim_connector_id
+                 WHERE connector.tenant_id = ?
+                 GROUP BY connector.scim_connector_id
+                """, (resultSet, rowNumber) -> new EventEvidence(
+                        resultSet.getObject("scim_connector_id", UUID.class),
+                        resultSet.getLong("events_24h"),
+                        resultSet.getLong("failed_events_24h"),
+                        instant(resultSet, "last_success_at"),
+                        instant(resultSet, "last_failure_at")), tenantId);
+        Map<UUID, EventEvidence> result = new LinkedHashMap<>();
+        rows.forEach(row -> result.put(row.connectorId(), row));
+        return result;
+    }
+
+    private String health(ScimConnector connector, EventEvidence evidence) {
+        if (!ACTIVE.equals(connector.getLifecycleState())) return connector.getLifecycleState();
+        if (evidence != null && evidence.failedEvents24h() > 0
+                && (evidence.lastSuccessAt() == null
+                    || evidence.lastFailureAt().isAfter(evidence.lastSuccessAt()))) {
+            return "ATTENTION";
+        }
+        if (connector.getLastUsedAt() == null) return "PENDING";
+        return "READY";
+    }
+
+    private static Instant instant(java.sql.ResultSet resultSet, String column)
+            throws java.sql.SQLException {
+        java.sql.Timestamp value = resultSet.getTimestamp(column);
+        return value == null ? null : value.toInstant();
     }
 
     private Map<String, Object> snapshot(ScimConnector connector) {
@@ -196,6 +308,14 @@ public class ScimCredentialService {
     }
 
     private record ParsedToken(String prefix) {
+    }
+
+    private record EventEvidence(
+            UUID connectorId,
+            long events24h,
+            long failedEvents24h,
+            Instant lastSuccessAt,
+            Instant lastFailureAt) {
     }
 
     public static final class ScimAuthenticationException extends RuntimeException {

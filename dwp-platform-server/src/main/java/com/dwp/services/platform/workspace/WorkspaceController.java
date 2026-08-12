@@ -52,6 +52,18 @@ public class WorkspaceController {
                 tenantId, actorId, permissions, locale, correlationId, workItemId, request));
     }
 
+    @PatchMapping("/work-items/batch/status")
+    public ApiResponse<List<WorkspaceDtos.WorkItem>> updateWorkStatuses(
+            @RequestHeader(TENANT) Long tenantId,
+            @RequestHeader(USER) Long actorId,
+            @RequestHeader(PERMISSIONS) String permissions,
+            @RequestHeader(value = LOCALE, required = false) String locale,
+            @RequestHeader(value = CORRELATION, required = false) String correlationId,
+            @Valid @RequestBody WorkspaceDtos.BatchUpdateWorkStatusRequest request) {
+        return ApiResponse.success(service.updateWorkStatuses(
+                tenantId, actorId, permissions, locale, correlationId, request));
+    }
+
     @GetMapping("/activity")
     public ApiResponse<WorkspaceDtos.ActivityFeed> activity(
             @RequestHeader(TENANT) Long tenantId,

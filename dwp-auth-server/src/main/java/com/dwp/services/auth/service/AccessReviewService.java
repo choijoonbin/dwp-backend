@@ -80,7 +80,10 @@ public class AccessReviewService {
                 SELECT item.access_review_item_id, item.subject_user_id,
                        subject.display_name, subject.email, item.role_id,
                        role.code, role.name, item.access_source_type,
-                       item.access_source_id, item.reviewer_user_id, item.decision,
+                       item.access_source_id, item.source_key, item.source_display_name,
+                       item.assignment_created_at, item.subject_last_sign_in_at,
+                       item.privileged, item.recommendation, item.recommendation_reason,
+                       item.reviewer_user_id, item.decision,
                        item.decision_reason, item.decided_by, item.decided_at,
                        item.remediation_state, item.version
                   FROM com_access_review_items item
@@ -298,14 +301,38 @@ public class AccessReviewService {
         return jdbc.update("""
                 INSERT INTO com_access_review_items (
                     access_review_campaign_id, tenant_id, subject_user_id, role_id,
-                    access_source_type, access_source_id, reviewer_user_id)
+                    access_source_type, access_source_id, source_key, source_display_name,
+                    assignment_created_at, subject_last_sign_in_at, privileged,
+                    recommendation, recommendation_reason, reviewer_user_id)
                 SELECT ?, member.tenant_id, member.user_id, member.role_id,
-                       'DIRECT', member.role_member_id, ?
+                       'DIRECT', member.role_member_id, NULL, NULL, member.created_at,
+                       session_evidence.last_sign_in_at, role.privileged,
+                       CASE
+                           WHEN role.privileged THEN 'REVIEW'
+                           WHEN session_evidence.last_sign_in_at IS NULL THEN 'REVIEW'
+                           WHEN session_evidence.last_sign_in_at
+                                < CURRENT_TIMESTAMP - INTERVAL '90 days' THEN 'REVIEW'
+                           ELSE 'KEEP'
+                       END,
+                       CASE
+                           WHEN role.privileged THEN 'PRIVILEGED_ROLE'
+                           WHEN session_evidence.last_sign_in_at IS NULL THEN 'NEVER_SIGNED_IN'
+                           WHEN session_evidence.last_sign_in_at
+                                < CURRENT_TIMESTAMP - INTERVAL '90 days' THEN 'INACTIVE_90_DAYS'
+                           ELSE 'RECENT_ACTIVITY'
+                       END,
+                       ?
                   FROM com_role_members member
                   JOIN com_users subject
                     ON subject.tenant_id = member.tenant_id AND subject.user_id = member.user_id
                   JOIN com_roles role
                     ON role.tenant_id = member.tenant_id AND role.role_id = member.role_id
+                  LEFT JOIN LATERAL (
+                       SELECT MAX(session.session_started_at) AS last_sign_in_at
+                         FROM sys_auth_sessions session
+                        WHERE session.tenant_id = member.tenant_id
+                          AND session.user_id = member.user_id
+                  ) session_evidence ON TRUE
                  WHERE member.tenant_id = ? AND subject.status IN ('ACTIVE', 'INVITED')
                    AND role.status = 'ACTIVE'
                    AND (? = 'TENANT' OR member.role_id = ?)
@@ -319,9 +346,28 @@ public class AccessReviewService {
         return jdbc.update("""
                 INSERT INTO com_access_review_items (
                     access_review_campaign_id, tenant_id, subject_user_id, role_id,
-                    access_source_type, access_source_id, reviewer_user_id)
+                    access_source_type, access_source_id, source_key, source_display_name,
+                    assignment_created_at, subject_last_sign_in_at, privileged,
+                    recommendation, recommendation_reason, reviewer_user_id)
                 SELECT ?, assignment.tenant_id, membership.user_id, assignment.role_id,
-                       'GROUP', assignment.group_role_assignment_id, ?
+                       'GROUP', assignment.group_role_assignment_id,
+                       access_group.group_key, access_group.display_name,
+                       assignment.created_at, session_evidence.last_sign_in_at, role.privileged,
+                       CASE
+                           WHEN role.privileged THEN 'REVIEW'
+                           WHEN session_evidence.last_sign_in_at IS NULL THEN 'REVIEW'
+                           WHEN session_evidence.last_sign_in_at
+                                < CURRENT_TIMESTAMP - INTERVAL '90 days' THEN 'REVIEW'
+                           ELSE 'KEEP'
+                       END,
+                       CASE
+                           WHEN role.privileged THEN 'PRIVILEGED_ROLE'
+                           WHEN session_evidence.last_sign_in_at IS NULL THEN 'NEVER_SIGNED_IN'
+                           WHEN session_evidence.last_sign_in_at
+                                < CURRENT_TIMESTAMP - INTERVAL '90 days' THEN 'INACTIVE_90_DAYS'
+                           ELSE 'RECENT_ACTIVITY'
+                       END,
+                       ?
                   FROM com_group_role_assignments assignment
                   JOIN com_group_members membership
                     ON membership.tenant_id = assignment.tenant_id
@@ -335,6 +381,12 @@ public class AccessReviewService {
                   JOIN com_roles role
                     ON role.tenant_id = assignment.tenant_id
                    AND role.role_id = assignment.role_id
+                  LEFT JOIN LATERAL (
+                       SELECT MAX(session.session_started_at) AS last_sign_in_at
+                         FROM sys_auth_sessions session
+                        WHERE session.tenant_id = membership.tenant_id
+                          AND session.user_id = membership.user_id
+                  ) session_evidence ON TRUE
                  WHERE assignment.tenant_id = ?
                    AND assignment.lifecycle_state = 'ACTIVE'
                    AND assignment.assignment_type = 'ACTIVE'
@@ -396,7 +448,10 @@ public class AccessReviewService {
                 SELECT item.access_review_item_id, item.subject_user_id,
                        subject.display_name, subject.email, item.role_id,
                        role.code, role.name, item.access_source_type,
-                       item.access_source_id, item.reviewer_user_id, item.decision,
+                       item.access_source_id, item.source_key, item.source_display_name,
+                       item.assignment_created_at, item.subject_last_sign_in_at,
+                       item.privileged, item.recommendation, item.recommendation_reason,
+                       item.reviewer_user_id, item.decision,
                        item.decision_reason, item.decided_by, item.decided_at,
                        item.remediation_state, item.version
                   FROM com_access_review_items item
@@ -473,6 +528,10 @@ public class AccessReviewService {
                 rs.getLong("subject_user_id"), rs.getString("display_name"), rs.getString("email"),
                 rs.getLong("role_id"), rs.getString("code"), rs.getString("name"),
                 rs.getString("access_source_type"), rs.getLong("access_source_id"),
+                rs.getString("source_key"), rs.getString("source_display_name"),
+                instant(rs, "assignment_created_at"), instant(rs, "subject_last_sign_in_at"),
+                rs.getBoolean("privileged"), rs.getString("recommendation"),
+                rs.getString("recommendation_reason"),
                 nullableLong(rs, "reviewer_user_id"), rs.getString("decision"),
                 rs.getString("decision_reason"), nullableLong(rs, "decided_by"),
                 instant(rs, "decided_at"), rs.getString("remediation_state"),

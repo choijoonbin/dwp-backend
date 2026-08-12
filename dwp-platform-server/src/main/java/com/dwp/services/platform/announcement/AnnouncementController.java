@@ -2,6 +2,8 @@ package com.dwp.services.platform.announcement;
 
 import com.dwp.core.common.ApiResponse;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -14,6 +16,7 @@ public class AnnouncementController {
 
     private static final String TENANT_HEADER = "X-DWP-Tenant-ID";
     private static final String ROLES_HEADER = "X-DWP-Roles";
+    private static final String USER_HEADER = "X-DWP-User-ID";
 
     private final AnnouncementService service;
 
@@ -26,5 +29,25 @@ public class AnnouncementController {
             @RequestHeader(TENANT_HEADER) Long tenantId,
             @RequestHeader(value = ROLES_HEADER, required = false) String rolesHeader) {
         return ApiResponse.success(service.listActive(tenantId, rolesHeader));
+    }
+
+    @PostMapping("/{announcementId}/engagements/view")
+    public ApiResponse<Void> recordView(
+            @RequestHeader(TENANT_HEADER) Long tenantId,
+            @RequestHeader(USER_HEADER) Long userId,
+            @RequestHeader(value = ROLES_HEADER, required = false) String rolesHeader,
+            @PathVariable Long announcementId) {
+        service.recordEngagement(tenantId, userId, rolesHeader, announcementId, "VIEW");
+        return ApiResponse.success(null);
+    }
+
+    @PostMapping("/{announcementId}/engagements/action")
+    public ApiResponse<Void> recordAction(
+            @RequestHeader(TENANT_HEADER) Long tenantId,
+            @RequestHeader(USER_HEADER) Long userId,
+            @RequestHeader(value = ROLES_HEADER, required = false) String rolesHeader,
+            @PathVariable Long announcementId) {
+        service.recordEngagement(tenantId, userId, rolesHeader, announcementId, "ACTION");
+        return ApiResponse.success(null);
     }
 }

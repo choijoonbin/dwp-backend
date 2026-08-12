@@ -138,6 +138,9 @@ public class ProviderControlPlaneService {
     public ProviderDtos.PageResult<ProviderDtos.TenantSummary> tenants(
             String query,
             String state,
+            String region,
+            String serviceTier,
+            String isolationModel,
             int requestedPage,
             int requestedSize) {
         ProviderRequestContext.requirePermission("ESTATE_READ");
@@ -159,6 +162,18 @@ public class ProviderControlPlaneService {
         if (state != null && !state.isBlank()) {
             specification = specification.and((root, ignored, builder) ->
                     builder.equal(root.get("lifecycleState"), state.trim().toUpperCase(Locale.ROOT)));
+        }
+        if (region != null && !region.isBlank()) {
+            specification = specification.and((root, ignored, builder) ->
+                    builder.equal(root.get("dataRegion"), region.trim().toLowerCase(Locale.ROOT)));
+        }
+        if (serviceTier != null && !serviceTier.isBlank()) {
+            specification = specification.and((root, ignored, builder) ->
+                    builder.equal(root.get("serviceTier"), serviceTier.trim().toUpperCase(Locale.ROOT)));
+        }
+        if (isolationModel != null && !isolationModel.isBlank()) {
+            specification = specification.and((root, ignored, builder) ->
+                    builder.equal(root.get("isolationModel"), isolationModel.trim().toUpperCase(Locale.ROOT)));
         }
         Page<ProviderTenant> page = tenantRepository.findAll(
                 specification,

@@ -3,7 +3,9 @@ package com.dwp.services.platform.home;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.audit.PlatformAuditService;
+import com.dwp.services.platform.experience.ExperienceRevisionStore;
 import com.dwp.services.platform.media.TenantMediaStorage;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -12,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 
 import java.util.Optional;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -33,12 +36,20 @@ class HomeExperienceServiceTest {
     private HomeBackgroundValidator validator;
     @Mock
     private PlatformAuditService auditService;
+    @Mock
+    private ExperienceRevisionStore revisionStore;
 
     private HomeExperienceService service;
 
     @BeforeEach
     void setUp() {
-        service = new HomeExperienceService(repository, storage, validator, auditService);
+        service = new HomeExperienceService(
+                repository,
+                storage,
+                validator,
+                auditService,
+                revisionStore,
+                new ObjectMapper());
     }
 
     @Test
@@ -90,6 +101,73 @@ class HomeExperienceServiceTest {
     }
 
     @Test
+    void publishesValidatedLocalizedCopyAndDefaultLocale() {
+        HomeExperience experience = experience(7L, 2L, null);
+        when(repository.findById(7L)).thenReturn(Optional.of(experience));
+        when(repository.saveAndFlush(experience)).thenAnswer(invocation -> {
+            experience.setVersion(3L);
+            return experience;
+        });
+
+        HomeExperienceDtos.HomeExperienceResponse result = service.update(
+                7L,
+                11L,
+                "corr-locales",
+                new HomeExperienceDtos.UpdateHomeExperienceRequest(
+                        "Default welcome",
+                        "Start today's work",
+                        Map.of(
+                                "ko", new HomeExperienceDtos.LocalizedCopy(
+                                        "Default welcome", "Start today's work"),
+                                "en", new HomeExperienceDtos.LocalizedCopy(
+                                        "Welcome", "Start today's work")),
+                        "ko",
+                        "CENTER",
+                        24,
+                        2L));
+
+        assertThat(result.defaultLocale()).isEqualTo("ko");
+        assertThat(result.localizedContent()).containsKeys("ko", "en");
+        assertThat(result.localizedContent().get("en").headline()).isEqualTo("Welcome");
+        verify(revisionStore).append(
+                eq(7L),
+                eq("HOME"),
+                eq(3L),
+                eq("SETTINGS_PUBLISHED"),
+                anyMap(),
+                eq(11L),
+                eq("corr-locales"));
+    }
+
+    @Test
+    void rejectsLocalizedPublicationWithoutCompleteDefaultLocaleCopy() {
+        HomeExperience experience = experience(7L, 2L, null);
+        when(repository.findById(7L)).thenReturn(Optional.of(experience));
+
+        assertThatThrownBy(() -> service.update(
+                        7L,
+                        11L,
+                        "corr-invalid-locale",
+                        new HomeExperienceDtos.UpdateHomeExperienceRequest(
+                                "Default welcome",
+                                "Start today's work",
+                                Map.of(
+                                        "ko", new HomeExperienceDtos.LocalizedCopy(
+                                                "환영합니다", "오늘의 업무를 시작하세요."),
+                                        "en", new HomeExperienceDtos.LocalizedCopy(
+                                                "Welcome", null)),
+                                "en",
+                                "CENTER",
+                                24,
+                                2L)))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(
+                                ErrorCode.INVALID_INPUT_VALUE));
+
+        verify(repository, never()).saveAndFlush(any());
+    }
+
+    @Test
     void rejectsAStaleVersionBeforeWritingFilesOrData() {
         when(repository.findById(7L)).thenReturn(Optional.of(experience(7L, 3L, null)));
 
@@ -121,7 +199,7 @@ class HomeExperienceServiceTest {
     }
 
     @Test
-    void replacesBackgroundMetadataWithoutExposingStorageKeys() {
+    void replacesBackgroundMetadataAndRetainsThePriorAssetForRollback() {
         HomeExperience experience = experience(7L, 1L, "7/old.png");
         MockMultipartFile file = new MockMultipartFile(
                 "file", "new.png", "image/png", new byte[]{1, 2, 3});
@@ -151,7 +229,7 @@ class HomeExperienceServiceTest {
                 "/api/platform/v1/home-experience/background?v=2");
         assertThat(result.backgroundOriginalName()).isEqualTo("new.png");
         assertThat(result.backgroundWidth()).isEqualTo(1909);
-        verify(storage).delete(7L, "7/old.png");
+        verify(storage, never()).delete(7L, "7/old.png");
         verify(auditService).success(
                 eq(7L),
                 eq(11L),
@@ -164,7 +242,7 @@ class HomeExperienceServiceTest {
     }
 
     @Test
-    void resetsBackgroundMetadataAndDeletesTheCommittedAsset() {
+    void resetsBackgroundMetadataAndRetainsTheCommittedAssetForRollback() {
         HomeExperience experience = experience(7L, 2L, "7/current.png");
         when(repository.findById(7L)).thenReturn(Optional.of(experience));
         when(repository.saveAndFlush(experience)).thenAnswer(invocation -> {
@@ -178,7 +256,7 @@ class HomeExperienceServiceTest {
         assertThat(result.backgroundUrl()).isNull();
         assertThat(result.backgroundOriginalName()).isNull();
         assertThat(result.version()).isEqualTo(3L);
-        verify(storage).delete(7L, "7/current.png");
+        verify(storage, never()).delete(7L, "7/current.png");
         verify(auditService).success(
                 eq(7L),
                 eq(11L),

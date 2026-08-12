@@ -8,6 +8,7 @@ import com.dwp.services.auth.entity.Role;
 import com.dwp.services.auth.entity.RoleMember;
 import com.dwp.services.auth.entity.User;
 import com.dwp.services.auth.repository.AuthSessionRepository;
+import com.dwp.services.auth.repository.IdentityAccessEvidenceRepository;
 import com.dwp.services.auth.repository.RoleMemberRepository;
 import com.dwp.services.auth.repository.RoleRepository;
 import com.dwp.services.auth.repository.UserRepository;
@@ -40,6 +41,8 @@ class IdentityAdminServiceTest {
     private final RoleRepository roleRepository = mock(RoleRepository.class);
     private final RoleMemberRepository roleMemberRepository = mock(RoleMemberRepository.class);
     private final AuthSessionRepository authSessionRepository = mock(AuthSessionRepository.class);
+    private final IdentityAccessEvidenceRepository accessEvidenceRepository =
+            mock(IdentityAccessEvidenceRepository.class);
     private final IdentityAuditService auditService = mock(IdentityAuditService.class);
     private final RoleDelegationPolicyService delegationPolicyService =
             mock(RoleDelegationPolicyService.class);
@@ -48,6 +51,7 @@ class IdentityAdminServiceTest {
             roleRepository,
             roleMemberRepository,
             authSessionRepository,
+            accessEvidenceRepository,
             auditService,
             delegationPolicyService);
 

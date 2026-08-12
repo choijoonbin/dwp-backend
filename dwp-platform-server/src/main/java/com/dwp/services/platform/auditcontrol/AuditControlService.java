@@ -5,6 +5,7 @@ import com.dwp.core.audit.AuditOutboxRecorder;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -137,6 +139,10 @@ public class AuditControlService {
             Long tenantId, String actorId, UUID findingId, AuditControlDtos.FindingUpdate request) {
         AuditControlDtos.Finding before = repository.finding(tenantId, findingId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        LinkedHashSet<UUID> affectedCases = new LinkedHashSet<>();
+        if (before.caseId() != null) affectedCases.add(before.caseId());
+        if (request.caseId() != null) affectedCases.add(request.caseId());
+        affectedCases.stream().sorted().forEach(caseId -> mutableCase(tenantId, caseId));
         String status = normalized(request.status());
         if (status != null && !FINDING_STATES.contains(status)) throw invalid("Invalid finding status.");
         AuditControlDtos.FindingUpdate normalized = new AuditControlDtos.FindingUpdate(
@@ -194,14 +200,21 @@ public class AuditControlService {
     @Transactional
     public AuditControlDtos.AuditCase updateCase(
             Long tenantId, String actorId, UUID caseId, AuditControlDtos.CaseUpdate request) {
-        AuditControlDtos.AuditCase before = repository.caseById(tenantId, caseId)
-                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        AuditControlDtos.AuditCase before = mutableCase(tenantId, caseId);
         String status = normalized(request.status());
         String severity = normalized(request.severity());
         if (status != null && !CASE_STATES.contains(status)) throw invalid("Invalid case status.");
         if (severity != null && !CASE_SEVERITIES.contains(severity)) throw invalid("Invalid case severity.");
         if ("CLOSED".equals(status) && (request.resolution() == null || request.resolution().isBlank())) {
             throw invalid("A case resolution is required before closing.");
+        }
+        if ("CLOSED".equals(status)) {
+            long openTasks = repository.caseTasks(tenantId, caseId).stream()
+                    .filter(task -> !Set.of("DONE", "SKIPPED").contains(task.status()))
+                    .count();
+            if (openTasks > 0) {
+                throw invalid("All investigation tasks must be completed or skipped before closing.");
+            }
         }
         repository.updateCase(tenantId, caseId, actorId, new AuditControlDtos.CaseUpdate(
                 clean(request.title(), 240), clean(request.description(), 4_000), severity, status,
@@ -223,6 +236,9 @@ public class AuditControlService {
                 tenantId, caseId, activityType, actorId, "audit.case.updated", activity);
         recordControl(tenantId, actorId, "audit.case.updated", "AUDIT_CASE", caseId.toString(),
                 Map.of("status", result.status(), "severity", result.severity()));
+        if ("CLOSED".equals(result.status()) && !"CLOSED".equals(before.status())) {
+            ensureCaseClosureReport(tenantId, actorId, caseId);
+        }
         return result;
     }
 
@@ -232,6 +248,7 @@ public class AuditControlService {
         if (request.eventId() == null || request.occurredAt() == null) {
             throw invalid("eventId and occurredAt are required.");
         }
+        mutableCase(tenantId, caseId);
         int linked = repository.linkEvent(tenantId, caseId, actorId, request);
         if (linked == 0) throw new BaseException(ErrorCode.NOT_FOUND);
         AuditControlDtos.Event event = repository.event(tenantId, request.eventId())
@@ -277,10 +294,49 @@ public class AuditControlService {
                 findings, evidence, entities, activities, tasks);
     }
 
+    @Transactional(readOnly = true)
+    public AuditControlDtos.CaseClosureReport caseClosureReport(Long tenantId, UUID caseId) {
+        return repository.latestCaseClosureReport(tenantId, caseId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+    }
+
+    @Transactional
+    public AuditControlDtos.CaseClosureReport ensureCaseClosureReport(
+            Long tenantId, String actorId, UUID caseId) {
+        repository.lockCase(tenantId, caseId);
+        Optional<AuditControlDtos.CaseClosureReport> existing =
+                repository.latestCaseClosureReport(tenantId, caseId);
+        if (existing.isPresent()) return existing.get();
+
+        AuditControlDtos.CaseWorkspace workspace = caseWorkspace(tenantId, caseId);
+        if (!"CLOSED".equals(workspace.auditCase().status())) {
+            throw invalid("A closure report can only be generated for a closed case.");
+        }
+        if (workspace.summary().openTasks() > 0) {
+            throw invalid("All investigation tasks must be completed or skipped before reporting.");
+        }
+
+        Instant generatedAt = Instant.now();
+        Map<String, Object> report = new LinkedHashMap<>();
+        report.put("schemaVersion", "1.0");
+        report.put("generatedAt", generatedAt.toString());
+        report.put("generatedBy", actorId);
+        report.put("investigation", objectMapper.convertValue(
+                workspace, new TypeReference<Map<String, Object>>() { }));
+        String sha256 = AuditIntegrityService.sha256(json(report));
+        repository.createCaseClosureReport(tenantId, caseId, actorId, report, sha256);
+        recordControl(
+                tenantId, actorId, "audit.case.closure-report.generated", "AUDIT_CASE",
+                caseId.toString(), Map.of("contentSha256", sha256));
+        return repository.latestCaseClosureReport(tenantId, caseId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+    }
+
     @Transactional
     public AuditControlDtos.CaseWorkspace addCaseNote(
             Long tenantId, String actorId, UUID caseId, AuditControlDtos.CaseNoteCreate request) {
         required(request.message(), 2_000, "message");
+        mutableCase(tenantId, caseId);
         int inserted = repository.recordCaseActivity(
                 tenantId, caseId, "NOTE_ADDED", actorId,
                 request.message().trim(), Map.of());
@@ -293,6 +349,7 @@ public class AuditControlService {
     public AuditControlDtos.CaseTask createCaseTask(
             Long tenantId, String actorId, UUID caseId, AuditControlDtos.CaseTaskCreate request) {
         required(request.title(), 240, "title");
+        mutableCase(tenantId, caseId);
         String priority = normalized(request.priority());
         if (priority == null) priority = "MEDIUM";
         if (!CASE_SEVERITIES.contains(priority)) throw invalid("Invalid task priority.");
@@ -311,6 +368,7 @@ public class AuditControlService {
     public AuditControlDtos.CaseTask updateCaseTask(
             Long tenantId, String actorId, UUID caseId, UUID taskId,
             AuditControlDtos.CaseTaskUpdate request) {
+        mutableCase(tenantId, caseId);
         String status = normalized(request.status());
         String priority = normalized(request.priority());
         if (status != null && !TASK_STATES.contains(status)) throw invalid("Invalid task status.");
@@ -325,6 +383,16 @@ public class AuditControlService {
                 tenantId, caseId, "TASK_UPDATED", actorId, "audit.case.task-updated",
                 Map.of("taskId", taskId.toString(), "status", result.status()));
         return result;
+    }
+
+    private AuditControlDtos.AuditCase mutableCase(Long tenantId, UUID caseId) {
+        repository.lockCase(tenantId, caseId);
+        AuditControlDtos.AuditCase auditCase = repository.caseById(tenantId, caseId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        if ("CLOSED".equals(auditCase.status())) {
+            throw invalid("A closed audit case is immutable. Create a follow-up investigation instead.");
+        }
+        return auditCase;
     }
 
     @Transactional(readOnly = true)

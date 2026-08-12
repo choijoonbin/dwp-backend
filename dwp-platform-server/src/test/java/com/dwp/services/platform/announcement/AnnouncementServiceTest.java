@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -28,12 +29,14 @@ class AnnouncementServiceTest {
     private AnnouncementRepository repository;
     @Mock
     private PlatformAuditService auditService;
+    @Mock
+    private JdbcTemplate jdbc;
 
     private AnnouncementService service;
 
     @BeforeEach
     void setUp() {
-        service = new AnnouncementService(repository, auditService);
+        service = new AnnouncementService(repository, jdbc, auditService);
     }
 
     @Test

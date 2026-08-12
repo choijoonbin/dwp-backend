@@ -215,20 +215,11 @@ public class AuthSessionService {
     public void touch(String tokenId) {
         if (tokenId == null || tokenId.isBlank()) return;
         Instant now = Instant.now();
-        authSessionRepository.findByTokenId(tokenId)
-                .filter(session -> session.isActiveAt(now))
-                .flatMap(session -> authSessionRepository
-                        .findFirstBySessionFamilyIdAndRevokedAtIsNullAndSupersededAtIsNullOrderByIssuedAtDesc(
-                                session.getSessionFamilyId()))
-                .filter(current -> !current.getLastSeenAt()
-                        .plusSeconds(activityTouchIntervalSeconds)
-                        .isAfter(now))
-                .ifPresent(current -> {
-                    current.setLastSeenAt(now);
-                    current.setIdleExpiresAt(earlier(
-                            now.plusSeconds(idleTimeoutSeconds),
-                            current.getExpiresAt()));
-                });
+        authSessionRepository.touchCurrentByPresentedToken(
+                tokenId,
+                now,
+                now.minusSeconds(activityTouchIntervalSeconds),
+                now.plusSeconds(idleTimeoutSeconds));
     }
 
     private AuthSession requireOwnedSession(String tokenId, Long userId, Long tenantId) {

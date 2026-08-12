@@ -2,8 +2,11 @@ package com.dwp.services.platform.workspace;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+import jakarta.validation.Valid;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -53,6 +56,18 @@ public final class WorkspaceDtos {
             @Pattern(regexp = "IN_PROGRESS|WAITING|COMPLETED")
             String status,
             @NotNull @Min(0) Long version) {
+    }
+
+    public record WorkStatusChange(
+            @NotNull UUID workItemId,
+            @NotNull @Min(0) Long version) {
+    }
+
+    public record BatchUpdateWorkStatusRequest(
+            @NotEmpty @Size(max = 50) List<@Valid WorkStatusChange> items,
+            @NotBlank
+            @Pattern(regexp = "IN_PROGRESS|WAITING|COMPLETED")
+            String status) {
     }
 
     public record ActivityFeed(

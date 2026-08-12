@@ -81,9 +81,13 @@ public class ProviderControlPlaneController {
     public ApiResponse<ProviderDtos.PageResult<ProviderDtos.TenantSummary>> tenants(
             @RequestParam(required = false) String query,
             @RequestParam(required = false) String state,
+            @RequestParam(required = false) String region,
+            @RequestParam(required = false) String serviceTier,
+            @RequestParam(required = false) String isolationModel,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
-        return ApiResponse.success(service.tenants(query, state, page, size));
+        return ApiResponse.success(service.tenants(
+                query, state, region, serviceTier, isolationModel, page, size));
     }
 
     @GetMapping("/tenants/{tenantId}")

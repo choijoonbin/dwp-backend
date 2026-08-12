@@ -82,6 +82,10 @@ public final class AuditControlDtos {
             List<Finding> findings, List<Event> evidence,
             List<CaseEntity> entities, List<CaseActivity> activities,
             List<CaseTask> tasks) { }
+    public record CaseClosureReport(
+            UUID reportId, UUID caseId, long caseNumber, int reportVersion,
+            String contentSha256, String generatedBy, Instant generatedAt,
+            Map<String, Object> report) { }
 
     public record SavedSearch(
             UUID savedSearchId, String name, Map<String, Object> criteria,

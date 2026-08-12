@@ -184,6 +184,25 @@ public class AdminAuditControlController {
         return ApiResponse.success(service.caseWorkspace(tenantId, caseId));
     }
 
+    @GetMapping("/cases/{caseId}/closure-report")
+    public ApiResponse<AuditControlDtos.CaseClosureReport> caseClosureReport(
+            @RequestHeader(TENANT) Long tenantId,
+            @RequestHeader(PERMISSIONS) String permissions,
+            @PathVariable UUID caseId) {
+        guard.investigate(permissions);
+        return ApiResponse.success(service.caseClosureReport(tenantId, caseId));
+    }
+
+    @PostMapping("/cases/{caseId}/closure-report")
+    public ApiResponse<AuditControlDtos.CaseClosureReport> ensureCaseClosureReport(
+            @RequestHeader(TENANT) Long tenantId,
+            @RequestHeader(USER) String actorId,
+            @RequestHeader(PERMISSIONS) String permissions,
+            @PathVariable UUID caseId) {
+        guard.investigate(permissions);
+        return ApiResponse.success(service.ensureCaseClosureReport(tenantId, actorId, caseId));
+    }
+
     @PostMapping("/cases/{caseId}/notes")
     public ApiResponse<AuditControlDtos.CaseWorkspace> addCaseNote(
             @RequestHeader(TENANT) Long tenantId,

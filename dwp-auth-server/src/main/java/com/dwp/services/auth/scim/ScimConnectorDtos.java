@@ -30,7 +30,25 @@ public final class ScimConnectorDtos {
             List<String> allowedOperations,
             String lifecycleState,
             Instant lastUsedAt,
+            String health,
+            long events24h,
+            long failedEvents24h,
+            Instant lastSuccessAt,
+            Instant lastFailureAt,
             long version) {
+    }
+
+    public record ProvisioningEvent(
+            UUID eventId,
+            UUID connectorId,
+            String connectorName,
+            String operation,
+            String resourceType,
+            String resourceId,
+            String outcome,
+            String correlationId,
+            String summary,
+            Instant occurredAt) {
     }
 
     public record CredentialIssued(ConnectorSummary connector, String bearerToken) {

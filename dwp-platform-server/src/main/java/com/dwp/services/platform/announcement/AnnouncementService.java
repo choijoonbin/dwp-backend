@@ -4,6 +4,7 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.audit.PlatformAuditService;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,12 +25,15 @@ public class AnnouncementService {
     private static final Pattern ROLE_PATTERN = Pattern.compile("[A-Z][A-Z0-9_:-]{0,79}");
 
     private final AnnouncementRepository repository;
+    private final JdbcTemplate jdbc;
     private final PlatformAuditService auditService;
 
     public AnnouncementService(
             AnnouncementRepository repository,
+            JdbcTemplate jdbc,
             PlatformAuditService auditService) {
         this.repository = repository;
+        this.jdbc = jdbc;
         this.auditService = auditService;
     }
 
@@ -44,16 +48,68 @@ public class AnnouncementService {
                         roles.isEmpty() ? List.of("__NO_ROLE__") : roles,
                         PageRequest.of(0, 10))
                 .stream()
-                .map(this::response)
+                .map(announcement -> response(announcement, EngagementMetrics.EMPTY))
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public List<AnnouncementDtos.AnnouncementResponse> listAdmin(Long tenantId) {
-        return repository.findByTenantIdOrderByUpdatedAtDescAnnouncementIdDesc(tenantId)
-                .stream()
-                .map(this::response)
+        List<Announcement> announcements =
+                repository.findByTenantIdOrderByUpdatedAtDescAnnouncementIdDesc(tenantId);
+        Map<Long, EngagementMetrics> metrics = engagementMetrics(tenantId);
+        return announcements.stream()
+                .map(announcement -> response(
+                        announcement,
+                        metrics.getOrDefault(
+                                announcement.getAnnouncementId(), EngagementMetrics.EMPTY)))
                 .toList();
+    }
+
+    @Transactional
+    public void recordEngagement(
+            Long tenantId,
+            Long userId,
+            String rolesHeader,
+            Long announcementId,
+            String engagementType) {
+        Announcement announcement = require(tenantId, announcementId);
+        requireVisible(announcement, parseRoles(rolesHeader));
+        if ("ACTION".equals(engagementType) && announcement.getActionUrl() == null) {
+            throw invalid("This announcement has no action to record.");
+        }
+        if ("VIEW".equals(engagementType)) {
+            jdbc.update("""
+                    INSERT INTO sys_announcement_engagements (
+                        tenant_id, announcement_id, user_id,
+                        first_seen_at, last_seen_at, seen_count)
+                    VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1)
+                    ON CONFLICT (tenant_id, announcement_id, user_id)
+                    DO UPDATE SET
+                        first_seen_at = COALESCE(
+                            sys_announcement_engagements.first_seen_at,
+                            EXCLUDED.first_seen_at),
+                        last_seen_at = EXCLUDED.last_seen_at,
+                        seen_count = sys_announcement_engagements.seen_count + 1
+                    """, tenantId, announcementId, userId);
+            return;
+        }
+        if ("ACTION".equals(engagementType)) {
+            jdbc.update("""
+                    INSERT INTO sys_announcement_engagements (
+                        tenant_id, announcement_id, user_id,
+                        first_action_at, last_action_at, action_count)
+                    VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 1)
+                    ON CONFLICT (tenant_id, announcement_id, user_id)
+                    DO UPDATE SET
+                        first_action_at = COALESCE(
+                            sys_announcement_engagements.first_action_at,
+                            EXCLUDED.first_action_at),
+                        last_action_at = EXCLUDED.last_action_at,
+                        action_count = sys_announcement_engagements.action_count + 1
+                    """, tenantId, announcementId, userId);
+            return;
+        }
+        throw invalid("The announcement engagement type is invalid.");
     }
 
     @Transactional
@@ -239,6 +295,12 @@ public class AnnouncementService {
     }
 
     private AnnouncementDtos.AnnouncementResponse response(Announcement announcement) {
+        return response(announcement, EngagementMetrics.EMPTY);
+    }
+
+    private AnnouncementDtos.AnnouncementResponse response(
+            Announcement announcement,
+            EngagementMetrics metrics) {
         return new AnnouncementDtos.AnnouncementResponse(
                 announcement.getAnnouncementId(),
                 announcement.getTitle(),
@@ -254,9 +316,45 @@ public class AnnouncementService {
                 announcement.getActionUrl(),
                 announcement.getPublishedAt(),
                 announcement.getPublishedBy(),
+                metrics.uniqueViewers(),
+                metrics.views(),
+                metrics.actionClicks(),
                 announcement.getVersion() == null ? 0L : announcement.getVersion(),
                 announcement.getUpdatedAt(),
                 announcement.getUpdatedBy());
+    }
+
+    private Map<Long, EngagementMetrics> engagementMetrics(Long tenantId) {
+        List<EngagementMetrics> values = jdbc.query("""
+                SELECT announcement_id,
+                       COUNT(*) FILTER (WHERE first_seen_at IS NOT NULL) AS unique_viewers,
+                       COALESCE(SUM(seen_count), 0) AS views,
+                       COALESCE(SUM(action_count), 0) AS action_clicks
+                  FROM sys_announcement_engagements
+                 WHERE tenant_id = ?
+                 GROUP BY announcement_id
+                """, (resultSet, rowNumber) -> new EngagementMetrics(
+                        resultSet.getLong("announcement_id"),
+                        resultSet.getLong("unique_viewers"),
+                        resultSet.getLong("views"),
+                        resultSet.getLong("action_clicks")), tenantId);
+        Map<Long, EngagementMetrics> result = new LinkedHashMap<>();
+        values.forEach(value -> result.put(value.announcementId(), value));
+        return result;
+    }
+
+    private void requireVisible(Announcement announcement, List<String> roles) {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        boolean scheduled = (announcement.getStartsAt() == null
+                || !announcement.getStartsAt().isAfter(now))
+                && (announcement.getEndsAt() == null || announcement.getEndsAt().isAfter(now));
+        boolean audience = announcement.getAudienceType() == AnnouncementAudienceType.ALL
+                || roles.contains(announcement.getAudienceValue());
+        if (announcement.getLifecycleState() != AnnouncementLifecycle.PUBLISHED
+                || !scheduled
+                || !audience) {
+            throw new BaseException(ErrorCode.FORBIDDEN);
+        }
     }
 
     private Map<String, Object> snapshot(Announcement announcement) {
@@ -314,5 +412,13 @@ public class AnnouncementService {
             Boolean pinned,
             String actionLabel,
             String actionUrl) {
+    }
+
+    private record EngagementMetrics(
+            Long announcementId,
+            long uniqueViewers,
+            long views,
+            long actionClicks) {
+        private static final EngagementMetrics EMPTY = new EngagementMetrics(null, 0L, 0L, 0L);
     }
 }

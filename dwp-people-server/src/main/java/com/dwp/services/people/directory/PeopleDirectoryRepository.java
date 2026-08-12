@@ -168,6 +168,12 @@ public class PeopleDirectoryRepository {
                     LOWER(p.display_name) LIKE :query
                     OR LOWER(COALESCE(contact.display_value, '')) LIKE :query
                     OR LOWER(COALESCE(w.worker_number, '')) LIKE :query
+                    OR LOWER(COALESCE(a.business_title, '')) LIKE :query
+                    OR LOWER(COALESCE(org.name, '')) LIKE :query
+                    OR LOWER(COALESCE(job.name, '')) LIKE :query
+                    OR LOWER(COALESCE(grade.name, '')) LIKE :query
+                    OR LOWER(COALESCE(loc.name, '')) LIKE :query
+                    OR LOWER(COALESCE(manager_person.display_name, '')) LIKE :query
                )
             """);
             parameters.addValue("query", "%" + query.trim().toLowerCase(java.util.Locale.ROOT) + "%");

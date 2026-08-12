@@ -131,6 +131,65 @@ class WorkspaceServiceTest {
                 anyString(), any(), any());
     }
 
+    @Test
+    void updatesAValidatedWorkBatchAtomicallyThroughTheSameAuditedTransition() {
+        UUID firstId = UUID.randomUUID();
+        UUID secondId = UUID.randomUUID();
+        WorkspaceRepository.WorkRow firstBefore = work(firstId, "DUE_SOON", 2L);
+        WorkspaceRepository.WorkRow secondBefore = work(secondId, "WAITING", 4L);
+        WorkspaceRepository.WorkRow firstAfter = work(firstId, "COMPLETED", 3L);
+        WorkspaceRepository.WorkRow secondAfter = work(secondId, "COMPLETED", 5L);
+        when(repository.workItem(1L, 7L, firstId, false))
+                .thenReturn(Optional.of(firstBefore))
+                .thenReturn(Optional.of(firstAfter));
+        when(repository.workItem(1L, 7L, secondId, false))
+                .thenReturn(Optional.of(secondBefore))
+                .thenReturn(Optional.of(secondAfter));
+        when(repository.updateWorkStatus(
+                anyLong(), anyLong(), any(), anyString(), anyLong(), anyString(), anyString()))
+                .thenReturn(true);
+
+        List<WorkspaceDtos.WorkItem> result = service.updateWorkStatuses(
+                1L,
+                7L,
+                "APP.WORK:VIEW,APP.WORK:UPDATE",
+                "en",
+                "corr-batch",
+                new WorkspaceDtos.BatchUpdateWorkStatusRequest(
+                        List.of(
+                                new WorkspaceDtos.WorkStatusChange(firstId, 2L),
+                                new WorkspaceDtos.WorkStatusChange(secondId, 4L)),
+                        "COMPLETED"));
+
+        assertThat(result).extracting(WorkspaceDtos.WorkItem::status)
+                .containsExactly("COMPLETED", "COMPLETED");
+        verify(repository, org.mockito.Mockito.times(2)).addWorkActivity(
+                anyLong(), anyLong(), any(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), anyString());
+        verify(auditService, org.mockito.Mockito.times(2)).success(
+                anyLong(), anyLong(), anyString(), anyString(), anyString(),
+                anyString(), any(), any());
+    }
+
+    @Test
+    void rejectsDuplicateWorkItemsBeforeStartingABatch() {
+        UUID id = UUID.randomUUID();
+
+        assertThatThrownBy(() -> service.updateWorkStatuses(
+                1L,
+                7L,
+                "APP.WORK:UPDATE",
+                "en",
+                "corr-batch",
+                new WorkspaceDtos.BatchUpdateWorkStatusRequest(
+                        List.of(
+                                new WorkspaceDtos.WorkStatusChange(id, 1L),
+                                new WorkspaceDtos.WorkStatusChange(id, 1L)),
+                        "COMPLETED")))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+    }
+
     private WorkspaceRepository.AppRow app(
             String id,
             String resource,

@@ -8,6 +8,7 @@ import com.dwp.services.auth.entity.Role;
 import com.dwp.services.auth.entity.RoleMember;
 import com.dwp.services.auth.entity.User;
 import com.dwp.services.auth.repository.AuthSessionRepository;
+import com.dwp.services.auth.repository.IdentityAccessEvidenceRepository;
 import com.dwp.services.auth.repository.RoleMemberRepository;
 import com.dwp.services.auth.repository.RoleRepository;
 import com.dwp.services.auth.repository.UserRepository;
@@ -39,6 +40,7 @@ public class IdentityAdminService {
     private final RoleRepository roleRepository;
     private final RoleMemberRepository roleMemberRepository;
     private final AuthSessionRepository authSessionRepository;
+    private final IdentityAccessEvidenceRepository accessEvidenceRepository;
     private final IdentityAuditService auditService;
     private final RoleDelegationPolicyService delegationPolicyService;
 
@@ -47,12 +49,14 @@ public class IdentityAdminService {
             RoleRepository roleRepository,
             RoleMemberRepository roleMemberRepository,
             AuthSessionRepository authSessionRepository,
+            IdentityAccessEvidenceRepository accessEvidenceRepository,
             IdentityAuditService auditService,
             RoleDelegationPolicyService delegationPolicyService) {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.roleMemberRepository = roleMemberRepository;
         this.authSessionRepository = authSessionRepository;
+        this.accessEvidenceRepository = accessEvidenceRepository;
         this.auditService = auditService;
         this.delegationPolicyService = delegationPolicyService;
     }
@@ -81,6 +85,11 @@ public class IdentityAdminService {
                         safeSize,
                         Sort.by("displayName").ascending().and(Sort.by("userId").ascending())));
         Map<Long, List<String>> rolesByUser = rolesByUser(tenantId, result.getContent());
+        List<Long> userIds = result.getContent().stream().map(User::getUserId).toList();
+        Map<Long, List<IdentityAccessEvidenceRepository.EffectiveAccessRow>> accessByUser =
+                accessEvidenceRepository.effectiveAccess(tenantId, userIds);
+        Map<Long, IdentityAccessEvidenceRepository.SessionEvidence> sessionsByUser =
+                accessEvidenceRepository.sessionEvidence(tenantId, userIds);
         RoleDelegationPolicyService.DelegationContext context =
                 delegationPolicyService.resolve(tenantId, actorId);
         Map<Long, Set<String>> effectiveRolesByUser =
@@ -101,6 +110,8 @@ public class IdentityAdminService {
                             return toUserSummary(
                                     user,
                                     rolesByUser.getOrDefault(user.getUserId(), List.of()),
+                                    accessByUser.getOrDefault(user.getUserId(), List.of()),
+                                    sessionsByUser.get(user.getUserId()),
                                     decision);
                         })
                         .toList(),
@@ -208,7 +219,7 @@ public class IdentityAdminService {
                             : "The requested role combination violates separation-of-duties policy.");
         }
         if (currentCodes.equals(requestedCodes)) {
-            return toUserSummary(user, sortedCodes(currentCodes), decision);
+            return toUserSummary(tenantId, user, sortedCodes(currentCodes), decision);
         }
 
         Map<String, Role> requestedByCode = requestedCodes.stream()
@@ -265,7 +276,7 @@ public class IdentityAdminService {
                         requestedCodes,
                         user.getAccessRevision(),
                         request.justification().trim()));
-        return toUserSummary(user, nextCodes, decision);
+        return toUserSummary(tenantId, user, nextCodes, decision);
     }
 
     private Map<Long, List<String>> rolesByUser(Long tenantId, List<User> users) {
@@ -318,7 +329,16 @@ public class IdentityAdminService {
     private IdentityAdminDtos.UserAccessSummary toUserSummary(
             User user,
             List<String> roles,
+            List<IdentityAccessEvidenceRepository.EffectiveAccessRow> access,
+            IdentityAccessEvidenceRepository.SessionEvidence session,
             RoleDelegationPolicyService.RoleManagementDecision decision) {
+        List<IdentityAdminDtos.EffectiveAccessSummary> effectiveAccess = access.stream()
+                .map(row -> new IdentityAdminDtos.EffectiveAccessSummary(
+                        row.roleId(), row.roleCode(), row.roleName(), row.privileged(),
+                        row.sourceType(), row.sourceId(), row.sourceKey(), row.sourceName(),
+                        row.assignmentType(), row.scopeType(), row.scopeRef(), row.validFrom(),
+                        row.validTo(), row.assignedAt()))
+                .toList();
         return new IdentityAdminDtos.UserAccessSummary(
                 user.getUserId(),
                 user.getDisplayName(),
@@ -326,12 +346,34 @@ public class IdentityAdminService {
                 user.getStatus(),
                 user.getMfaEnabled(),
                 roles,
+                effectiveAccess.stream()
+                        .map(IdentityAdminDtos.EffectiveAccessSummary::roleCode)
+                        .distinct()
+                        .sorted()
+                        .toList(),
+                effectiveAccess,
+                session == null ? null : session.lastSignInAt(),
+                session == null ? 0L : session.activeSessionCount(),
                 new IdentityAdminDtos.RoleManagementSummary(
                         decision.allowed(), decision.reason()),
                 valueOrZero(user.getAccessRevision()),
                 valueOrZero(user.getVersion()),
                 user.getUpdatedAt(),
                 user.getUpdatedBy());
+    }
+
+    private IdentityAdminDtos.UserAccessSummary toUserSummary(
+            Long tenantId,
+            User user,
+            List<String> roles,
+            RoleDelegationPolicyService.RoleManagementDecision decision) {
+        List<IdentityAccessEvidenceRepository.EffectiveAccessRow> access =
+                accessEvidenceRepository.effectiveAccess(tenantId, List.of(user.getUserId()))
+                        .getOrDefault(user.getUserId(), List.of());
+        IdentityAccessEvidenceRepository.SessionEvidence session =
+                accessEvidenceRepository.sessionEvidence(tenantId, List.of(user.getUserId()))
+                        .get(user.getUserId());
+        return toUserSummary(user, roles, access, session, decision);
     }
 
     private Map<String, Object> roleSnapshot(
