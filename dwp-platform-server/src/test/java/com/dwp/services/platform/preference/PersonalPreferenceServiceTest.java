@@ -43,9 +43,12 @@ class PersonalPreferenceServiceTest {
         PersonalPreferenceDtos.PersonalPreferenceResponse result = service.get(7L, 11L);
 
         assertThat(result.customized()).isFalse();
+        assertThat(result.schemaVersion()).isEqualTo(2);
         assertThat(result.version()).isZero();
         assertThat(result.preferences().path("appearance").path("mode").asText()).isEqualTo("system");
         assertThat(result.preferences().path("accessibility").path("reduceMotion").asBoolean()).isFalse();
+        assertThat(result.preferences().path("regional").path("timeZone").asText()).isEqualTo("system");
+        assertThat(result.managedPolicy().managedPaths()).contains("appearance.accentColor");
     }
 
     @Test
@@ -131,6 +134,67 @@ class PersonalPreferenceServiceTest {
                         11L,
                         null,
                         new PersonalPreferenceDtos.PatchPersonalPreferenceRequest(invalid, 0L)))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+    }
+
+    @Test
+    void validatesAndMergesRegionalAndAccessibilityPreferences() {
+        when(repository.findByTenantIdAndUserId(7L, 11L)).thenReturn(Optional.empty());
+        when(repository.saveAndFlush(any(PersonalPreference.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        ObjectNode patch = objectMapper.createObjectNode();
+        patch.putObject("accessibility").put("underlineLinks", true);
+        patch.putObject("regional")
+                .put("timeZone", "Asia/Seoul")
+                .put("dateFormat", "iso")
+                .put("timeFormat", "24_hour");
+
+        PersonalPreferenceDtos.PersonalPreferenceResponse result = service.patch(
+                7L,
+                11L,
+                "corr-regional",
+                new PersonalPreferenceDtos.PatchPersonalPreferenceRequest(patch, 0L));
+
+        assertThat(result.preferences().path("accessibility").path("underlineLinks").asBoolean()).isTrue();
+        assertThat(result.preferences().path("regional").path("timeZone").asText()).isEqualTo("Asia/Seoul");
+        assertThat(result.preferences().path("regional").path("firstDayOfWeek").asText()).isEqualTo("locale");
+        assertThat(result.schemaVersion()).isEqualTo(2);
+    }
+
+    @Test
+    void upgradesStoredV1PreferencesInTheResponseWithoutLosingFutureNamespaces() {
+        ObjectNode stored = objectMapper.createObjectNode();
+        stored.putObject("appearance").put("mode", "dark").put("density", "compact");
+        stored.putObject("accessibility").put("highContrast", true).put("reduceMotion", false);
+        stored.putObject("notifications").put("digest", "weekly");
+        PersonalPreference preference = PersonalPreference.builder()
+                .tenantId(7L)
+                .userId(11L)
+                .schemaVersion(1)
+                .preferencePayload(stored)
+                .version(4L)
+                .build();
+        when(repository.findByTenantIdAndUserId(7L, 11L)).thenReturn(Optional.of(preference));
+
+        PersonalPreferenceDtos.PersonalPreferenceResponse result = service.get(7L, 11L);
+
+        assertThat(result.schemaVersion()).isEqualTo(2);
+        assertThat(result.preferences().path("accessibility").path("underlineLinks").asBoolean()).isFalse();
+        assertThat(result.preferences().path("regional").path("dateFormat").asText()).isEqualTo("locale");
+        assertThat(result.preferences().path("notifications").path("digest").asText()).isEqualTo("weekly");
+    }
+
+    @Test
+    void rejectsAnUnknownTimeZone() {
+        when(repository.findByTenantIdAndUserId(7L, 11L)).thenReturn(Optional.empty());
+        ObjectNode patch = objectMapper.createObjectNode();
+        patch.putObject("regional").put("timeZone", "Mars/Olympus");
+
+        assertThatThrownBy(() -> service.patch(
+                        7L,
+                        11L,
+                        null,
+                        new PersonalPreferenceDtos.PatchPersonalPreferenceRequest(patch, 0L)))
                 .isInstanceOfSatisfying(BaseException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
     }

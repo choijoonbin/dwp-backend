@@ -28,13 +28,15 @@ class NavigationServiceTest {
     private RegistryEntryRepository registryRepository;
     @Mock
     private PlatformAuditService auditService;
+    @Mock
+    private NavigationStudioRepository studioRepository;
 
     private NavigationService service;
 
     @BeforeEach
     void setUp() {
         service = new NavigationService(
-                itemRepository, labelRepository, registryRepository, auditService);
+                itemRepository, labelRepository, registryRepository, auditService, studioRepository);
     }
 
     @Test

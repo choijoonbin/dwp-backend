@@ -106,4 +106,31 @@ public class WorkspaceController {
         return ApiResponse.success(service.launch(
                 tenantId, actorId, permissions, locale, correlationId, appId));
     }
+
+    @PostMapping("/apps/{appId}/access-requests")
+    public ApiResponse<WorkspaceDtos.AppAccessRequest> requestAccess(
+            @RequestHeader(TENANT) Long tenantId,
+            @RequestHeader(USER) Long actorId,
+            @RequestHeader(PERMISSIONS) String permissions,
+            @RequestHeader(value = LOCALE, required = false) String locale,
+            @RequestHeader(value = CORRELATION, required = false) String correlationId,
+            @PathVariable String appId,
+            @Valid @RequestBody WorkspaceDtos.CreateAppAccessRequest request) {
+        return ApiResponse.success(service.requestAppAccess(
+                tenantId, actorId, permissions, locale, correlationId, appId, request));
+    }
+
+    @PostMapping("/app-access-requests/{requestId}/cancel")
+    public ApiResponse<WorkspaceDtos.AppAccessRequest> cancelAccessRequest(
+            @RequestHeader(TENANT) Long tenantId,
+            @RequestHeader(USER) Long actorId,
+            @RequestHeader(PERMISSIONS) String permissions,
+            @RequestHeader(value = LOCALE, required = false) String locale,
+            @RequestHeader(value = CORRELATION, required = false) String correlationId,
+            @PathVariable UUID requestId,
+            @Valid @RequestBody WorkspaceDtos.VersionRequest request) {
+        return ApiResponse.success(service.cancelAppAccessRequest(
+                tenantId, actorId, permissions, locale, correlationId,
+                requestId, request.version()));
+    }
 }

@@ -31,16 +31,19 @@ public class NavigationService {
     private final NavigationLabelRepository labelRepository;
     private final RegistryEntryRepository registryRepository;
     private final PlatformAuditService auditService;
+    private final NavigationStudioRepository studioRepository;
 
     public NavigationService(
             NavigationItemRepository itemRepository,
             NavigationLabelRepository labelRepository,
             RegistryEntryRepository registryRepository,
-            PlatformAuditService auditService) {
+            PlatformAuditService auditService,
+            NavigationStudioRepository studioRepository) {
         this.itemRepository = itemRepository;
         this.labelRepository = labelRepository;
         this.registryRepository = registryRepository;
         this.auditService = auditService;
+        this.studioRepository = studioRepository;
     }
 
     @Transactional(readOnly = true)
@@ -52,6 +55,17 @@ public class NavigationService {
 
     @Transactional(readOnly = true)
     public List<NavigationDtos.RuntimeNode> runtimeTree(Long tenantId, String requestedLocale) {
+        List<NavigationDtos.AdminNode> published = studioRepository.latestPublishedTree(tenantId)
+                .orElse(null);
+        if (published != null) {
+            String locale = canonicalLocale(requestedLocale);
+            return published.stream()
+                    .filter(node -> "ACTIVE".equals(node.lifecycleState()))
+                    .sorted(Comparator.comparing(NavigationDtos.AdminNode::sortOrder)
+                            .thenComparing(NavigationDtos.AdminNode::navigationItemId))
+                    .map(node -> runtimeNode(node, locale))
+                    .toList();
+        }
         List<NavigationItem> items = itemRepository
                 .findByTenantIdAndLifecycleStateOrderBySortOrderAscNavigationItemIdAsc(
                         tenantId, "ACTIVE");
@@ -66,6 +80,39 @@ public class NavigationService {
                 .sorted(itemComparator())
                 .map(item -> runtimeNode(item, children, labels, locale, new HashSet<>()))
                 .toList();
+    }
+
+    private NavigationDtos.RuntimeNode runtimeNode(
+            NavigationDtos.AdminNode node,
+            String locale) {
+        NavigationDtos.Label label = localizedLabelDto(
+                node.labels() == null ? List.of() : node.labels(), locale);
+        return new NavigationDtos.RuntimeNode(
+                node.navigationKey(), node.itemType(),
+                label == null ? node.navigationKey() : label.label(),
+                label == null ? null : label.description(),
+                node.registryEntryKey(), node.route(), node.iconKey(),
+                node.requiredResourceKey(), node.requiredPermissionCode(),
+                (node.children() == null ? List.<NavigationDtos.AdminNode>of() : node.children())
+                        .stream()
+                        .filter(child -> "ACTIVE".equals(child.lifecycleState()))
+                        .sorted(Comparator.comparing(NavigationDtos.AdminNode::sortOrder)
+                                .thenComparing(NavigationDtos.AdminNode::navigationItemId))
+                        .map(child -> runtimeNode(child, locale))
+                        .toList());
+    }
+
+    private NavigationDtos.Label localizedLabelDto(
+            List<NavigationDtos.Label> labels,
+            String locale) {
+        if (labels.isEmpty()) return null;
+        String language = locale.contains("-") ? locale.substring(0, locale.indexOf('-')) : locale;
+        return labels.stream().filter(label -> label.locale().equalsIgnoreCase(locale)).findFirst()
+                .or(() -> labels.stream()
+                        .filter(label -> label.locale().equalsIgnoreCase(language)).findFirst())
+                .or(() -> labels.stream()
+                        .filter(label -> label.locale().equalsIgnoreCase("en")).findFirst())
+                .orElse(labels.get(0));
     }
 
     @Transactional
@@ -210,6 +257,137 @@ public class NavigationService {
                 tenantId, actorId, "navigation.items.reordered", "NAVIGATION",
                 "tree", correlationId, null, Map.of("changedItemCount", items.size()));
         return adminTree(tenantId);
+    }
+
+    @Transactional
+    public List<NavigationDtos.AdminNode> applyStudioTree(
+            Long tenantId,
+            Long actorId,
+            String correlationId,
+            List<NavigationDtos.AdminNode> proposedTree) {
+        List<NavigationDtos.AdminNode> proposed = flatten(proposedTree);
+        List<NavigationDtos.AdminNode> before = adminTree(tenantId);
+        Map<Long, NavigationItem> existing = itemRepository
+                .findByTenantIdOrderBySortOrderAscNavigationItemIdAsc(tenantId)
+                .stream()
+                .collect(Collectors.toMap(
+                        NavigationItem::getNavigationItemId,
+                        Function.identity(),
+                        (left, right) -> left,
+                        LinkedHashMap::new));
+        Set<Long> proposedIdentifiers = new HashSet<>();
+        for (NavigationDtos.AdminNode node : proposed) {
+            if (node.navigationItemId() == null
+                    || !proposedIdentifiers.add(node.navigationItemId())) {
+                throw new BaseException(
+                        ErrorCode.INVALID_INPUT_VALUE,
+                        "Navigation item identifiers must be unique in a studio revision.");
+            }
+            if (node.navigationItemId() > 0 && !existing.containsKey(node.navigationItemId())) {
+                throw new BaseException(ErrorCode.NOT_FOUND);
+            }
+            NavigationItem stored = existing.get(node.navigationItemId());
+            if (stored != null
+                    && (!stored.getNavigationKey().equalsIgnoreCase(node.navigationKey())
+                    || !stored.getItemType().equals(node.itemType()))) {
+                throw new BaseException(
+                        ErrorCode.INVALID_INPUT_VALUE,
+                        "Navigation keys and item types cannot be changed after creation.");
+            }
+        }
+
+        Map<Long, NavigationItem> resolved = new LinkedHashMap<>(existing);
+        proposed.stream()
+                .filter(node -> "GROUP".equals(node.itemType()))
+                .forEach(node -> upsertStudioNode(
+                        tenantId, actorId, node, null, resolved));
+        proposed.stream()
+                .filter(node -> "APP".equals(node.itemType()))
+                .forEach(node -> {
+                    NavigationItem parent = node.parentNavigationItemId() == null
+                            ? null : resolved.get(node.parentNavigationItemId());
+                    if (node.parentNavigationItemId() != null && parent == null) {
+                        throw new BaseException(
+                                ErrorCode.INVALID_INPUT_VALUE,
+                                "Navigation parent is not part of the proposed tree.");
+                    }
+                    upsertStudioNode(tenantId, actorId, node, parent, resolved);
+                });
+
+        Set<Long> retained = proposed.stream()
+                .map(node -> resolved.get(node.navigationItemId()))
+                .filter(Objects::nonNull)
+                .map(NavigationItem::getNavigationItemId)
+                .collect(Collectors.toSet());
+        existing.values().stream()
+                .filter(item -> !retained.contains(item.getNavigationItemId()))
+                .sorted(Comparator.comparing(
+                        item -> "APP".equals(item.getItemType()) ? 0 : 1))
+                .forEach(item -> {
+                    item.setLifecycleState("RETIRED");
+                    item.setUpdatedBy(actorId);
+                    save(item);
+                });
+
+        List<NavigationDtos.AdminNode> applied = adminTree(tenantId);
+        auditService.success(
+                tenantId, actorId, "navigation.studio.tree.applied", "NAVIGATION",
+                "tree", correlationId,
+                Map.of("itemCount", flatten(before).size()),
+                Map.of("itemCount", flatten(applied).size()));
+        return applied;
+    }
+
+    private void upsertStudioNode(
+            Long tenantId,
+            Long actorId,
+            NavigationDtos.AdminNode node,
+            NavigationItem parent,
+            Map<Long, NavigationItem> resolved) {
+        validateShape(
+                tenantId, node.itemType(), parent, node.registryEntryKey(), node.route(),
+                node.requiredResourceKey());
+        validateLabels(node.labels() == null ? List.of() : node.labels());
+        String lifecycle = node.lifecycleState();
+        if (!List.of("DRAFT", "ACTIVE", "RETIRED").contains(lifecycle)) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "Navigation lifecycle is invalid.");
+        }
+        if ("ACTIVE".equals(lifecycle)
+                && parent != null
+                && !"ACTIVE".equals(parent.getLifecycleState())) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "An active navigation item requires an active parent group.");
+        }
+
+        NavigationItem item = resolved.get(node.navigationItemId());
+        if (item == null) {
+            item = NavigationItem.builder()
+                    .tenantId(tenantId)
+                    .navigationKey(node.navigationKey().trim().toLowerCase(Locale.ROOT))
+                    .itemType(node.itemType())
+                    .requiredPermissionCode(defaultPermission(node.requiredPermissionCode()))
+                    .sortOrder(node.sortOrder())
+                    .lifecycleState(lifecycle)
+                    .build();
+            item.setCreatedBy(actorId);
+        }
+        item.setParentNavigationItemId(parent == null ? null : parent.getNavigationItemId());
+        item.setRegistryEntryKey(normalizeRegistryKey(node.registryEntryKey()));
+        item.setRoute(trimToNull(node.route()));
+        item.setIconKey(trimToNull(node.iconKey()));
+        item.setRequiredResourceKey(trimToNull(node.requiredResourceKey()));
+        item.setRequiredPermissionCode(defaultPermission(node.requiredPermissionCode()));
+        item.setSortOrder(node.sortOrder());
+        item.setLifecycleState(lifecycle);
+        item.setUpdatedBy(actorId);
+        item = save(item);
+        replaceLabels(
+                tenantId, actorId, item.getNavigationItemId(),
+                node.labels() == null ? List.of() : node.labels());
+        resolved.put(node.navigationItemId(), item);
     }
 
     private List<NavigationDtos.AdminNode> adminTree(Long tenantId, List<NavigationItem> items) {

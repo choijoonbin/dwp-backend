@@ -5,6 +5,7 @@ public enum RegistryType {
     CONNECTOR,
     AGENT,
     TOOL,
-    POLICY
+    POLICY,
+    API,
+    DATA_PRODUCT
 }
-

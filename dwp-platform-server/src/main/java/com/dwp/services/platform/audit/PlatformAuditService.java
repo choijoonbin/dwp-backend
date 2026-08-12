@@ -36,10 +36,38 @@ public class PlatformAuditService {
             String correlationId,
             Object before,
             Object after) {
+        recordSuccess(
+                tenantId, "USER", actorId, action, targetType, targetId,
+                correlationId, before, after);
+    }
+
+    public void serviceSuccess(
+            Long tenantId,
+            String action,
+            String targetType,
+            String targetId,
+            String correlationId,
+            Object before,
+            Object after) {
+        recordSuccess(
+                tenantId, "SERVICE", null, action, targetType, targetId,
+                correlationId, before, after);
+    }
+
+    private void recordSuccess(
+            Long tenantId,
+            String actorType,
+            Long actorId,
+            String action,
+            String targetType,
+            String targetId,
+            String correlationId,
+            Object before,
+            Object after) {
         repository.save(PlatformAuditEvent.builder()
                 .auditEventId(UUID.randomUUID())
                 .tenantId(tenantId)
-                .actorType("USER")
+                .actorType(actorType)
                 .actorId(actorId)
                 .action(action)
                 .targetType(targetType)

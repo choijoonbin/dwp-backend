@@ -13,7 +13,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
+import java.time.DateTimeException;
+import java.time.ZoneId;
 import java.util.Iterator;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -24,11 +27,25 @@ public class PersonalPreferenceService {
     private static final int MAX_PAYLOAD_BYTES = 32_768;
     private static final int MAX_DEPTH = 8;
     private static final int MAX_NODES = 200;
-    private static final Set<String> PATCH_NAMESPACES = Set.of("appearance", "accessibility");
+    private static final Set<String> PATCH_NAMESPACES = Set.of("appearance", "accessibility", "regional");
     private static final Set<String> APPEARANCE_FIELDS = Set.of("mode", "density");
-    private static final Set<String> ACCESSIBILITY_FIELDS = Set.of("highContrast", "reduceMotion");
+    private static final Set<String> ACCESSIBILITY_FIELDS = Set.of(
+            "highContrast", "reduceMotion", "underlineLinks", "reduceTransparency");
+    private static final Set<String> REGIONAL_FIELDS = Set.of(
+            "timeZone", "dateFormat", "timeFormat", "firstDayOfWeek", "numberFormat");
     private static final Set<String> MODES = Set.of("system", "light", "dark");
     private static final Set<String> DENSITIES = Set.of("compact", "standard", "comfortable");
+    private static final Set<String> DATE_FORMATS = Set.of("locale", "iso", "month_first", "day_first");
+    private static final Set<String> TIME_FORMATS = Set.of("locale", "12_hour", "24_hour");
+    private static final Set<String> FIRST_DAYS = Set.of("locale", "monday", "sunday");
+    private static final Set<String> NUMBER_FORMATS = Set.of(
+            "locale", "comma_decimal", "dot_decimal", "space_decimal");
+    private static final PersonalPreferenceDtos.ManagedPreferencePolicy MANAGED_POLICY =
+            new PersonalPreferenceDtos.ManagedPreferencePolicy(
+                    "TENANT",
+                    "TENANT_EXPERIENCE_POLICY",
+                    "TENANT_ADMINISTRATOR",
+                    List.of("appearance.fontFamily", "appearance.accentColor", "navigation.pattern"));
 
     private final PersonalPreferenceRepository repository;
     private final ObjectMapper objectMapper;
@@ -137,6 +154,7 @@ public class PersonalPreferenceService {
         rejectUnknownFields(patch, PATCH_NAMESPACES, "preference namespace");
         validatePatchNamespace(patch.get("appearance"), APPEARANCE_FIELDS, "appearance");
         validatePatchNamespace(patch.get("accessibility"), ACCESSIBILITY_FIELDS, "accessibility");
+        validatePatchNamespace(patch.get("regional"), REGIONAL_FIELDS, "regional");
         validateDocumentLimits(patch);
     }
 
@@ -151,11 +169,19 @@ public class PersonalPreferenceService {
     private void validatePreferences(JsonNode preferences) {
         JsonNode appearance = requireObject(preferences, "appearance");
         JsonNode accessibility = requireObject(preferences, "accessibility");
+        JsonNode regional = requireObject(preferences, "regional");
 
         requireEnum(appearance, "mode", MODES);
         requireEnum(appearance, "density", DENSITIES);
         requireBoolean(accessibility, "highContrast");
         requireBoolean(accessibility, "reduceMotion");
+        requireBoolean(accessibility, "underlineLinks");
+        requireBoolean(accessibility, "reduceTransparency");
+        requireTimeZone(regional, "timeZone");
+        requireEnum(regional, "dateFormat", DATE_FORMATS);
+        requireEnum(regional, "timeFormat", TIME_FORMATS);
+        requireEnum(regional, "firstDayOfWeek", FIRST_DAYS);
+        requireEnum(regional, "numberFormat", NUMBER_FORMATS);
         validateDocumentLimits(preferences);
     }
 
@@ -177,6 +203,20 @@ public class PersonalPreferenceService {
     private void requireBoolean(JsonNode parent, String field) {
         JsonNode value = parent.get(field);
         if (value == null || !value.isBoolean()) {
+            throw invalid("The " + field + " preference is invalid.");
+        }
+    }
+
+    private void requireTimeZone(JsonNode parent, String field) {
+        JsonNode value = parent.get(field);
+        if (value == null || !value.isTextual()) {
+            throw invalid("The " + field + " preference is invalid.");
+        }
+        String timeZone = value.asText();
+        if ("system".equals(timeZone)) return;
+        try {
+            ZoneId.of(timeZone);
+        } catch (DateTimeException exception) {
             throw invalid("The " + field + " preference is invalid.");
         }
     }
@@ -277,7 +317,15 @@ public class PersonalPreferenceService {
                 .put("density", "standard");
         root.putObject("accessibility")
                 .put("highContrast", false)
-                .put("reduceMotion", false);
+                .put("reduceMotion", false)
+                .put("underlineLinks", false)
+                .put("reduceTransparency", false);
+        root.putObject("regional")
+                .put("timeZone", "system")
+                .put("dateFormat", "locale")
+                .put("timeFormat", "locale")
+                .put("firstDayOfWeek", "locale")
+                .put("numberFormat", "locale");
         return root;
     }
 
@@ -298,9 +346,10 @@ public class PersonalPreferenceService {
                     "The stored personal preference is invalid.");
         }
         return new PersonalPreferenceDtos.PersonalPreferenceResponse(
-                preference.getSchemaVersion(),
+                PersonalPreferenceDtos.SCHEMA_VERSION,
                 true,
                 preferences,
+                MANAGED_POLICY,
                 preference.getVersion() == null ? 0L : preference.getVersion(),
                 preference.getUpdatedAt());
     }
@@ -310,6 +359,7 @@ public class PersonalPreferenceService {
                 PersonalPreferenceDtos.SCHEMA_VERSION,
                 false,
                 defaultPreferences(),
+                MANAGED_POLICY,
                 0L,
                 null);
     }

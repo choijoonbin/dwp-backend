@@ -106,7 +106,12 @@ public final class WorkspaceDtos {
             boolean pinned,
             OffsetDateTime lastUsedAt,
             long launchCount,
-            long version) {
+            long version,
+            String accessState,
+            UUID accessRequestId,
+            String accessRequestState,
+            OffsetDateTime accessRequestUpdatedAt,
+            Long accessRequestVersion) {
     }
 
     public record PinAppRequest(
@@ -114,10 +119,42 @@ public final class WorkspaceDtos {
             @NotNull @Min(0) Long version) {
     }
 
+    public record VersionRequest(@NotNull @Min(0) Long version) {
+    }
+
     public record AppLaunch(
             String appId,
             String launchMode,
             String launchTarget,
             OffsetDateTime launchedAt) {
+    }
+
+    public record CreateAppAccessRequest(
+            @NotBlank @Size(min = 10, max = 1000) String justification,
+            OffsetDateTime requestedUntil) {
+    }
+
+    public record AppAccessDecisionRequest(
+            @NotBlank @Pattern(regexp = "APPROVED|REJECTED") String decision,
+            @NotBlank @Size(min = 10, max = 1000) String decisionNote,
+            @NotNull @Min(0) Long version) {
+    }
+
+    public record AppAccessRequest(
+            UUID requestId,
+            Long userId,
+            String appId,
+            String appName,
+            String resourceKey,
+            String requestedPermissionCode,
+            String justification,
+            String state,
+            OffsetDateTime requestedUntil,
+            String decisionNote,
+            OffsetDateTime decidedAt,
+            Long decidedBy,
+            long version,
+            OffsetDateTime createdAt,
+            OffsetDateTime updatedAt) {
     }
 }

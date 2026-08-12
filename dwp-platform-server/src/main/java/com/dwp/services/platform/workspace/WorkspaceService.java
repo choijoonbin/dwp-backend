@@ -3,6 +3,7 @@ package com.dwp.services.platform.workspace;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.audit.PlatformAuditService;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,12 +26,15 @@ public class WorkspaceService {
     private static final String APPS_UPDATE = "APP.APPS:UPDATE";
 
     private final WorkspaceRepository repository;
+    private final AppAccessRequestRepository appAccessRequests;
     private final PlatformAuditService auditService;
 
     public WorkspaceService(
             WorkspaceRepository repository,
+            AppAccessRequestRepository appAccessRequests,
             PlatformAuditService auditService) {
         this.repository = repository;
+        this.appAccessRequests = appAccessRequests;
         this.auditService = auditService;
     }
 
@@ -169,8 +173,10 @@ public class WorkspaceService {
         Set<String> authorities = authorities(permissions);
         require(authorities, APPS_VIEW);
         return repository.apps(tenantId, actorId, korean(locale)).stream()
-                .filter(app -> authorities.contains(app.resourceKey().toUpperCase(Locale.ROOT) + ":VIEW"))
-                .map(this::workspaceApp)
+                .map(app -> workspaceApp(
+                        app,
+                        authorities,
+                        appAccessRequests.latestOpen(tenantId, actorId, app.id()).orElse(null)))
                 .toList();
     }
 
@@ -215,7 +221,10 @@ public class WorkspaceService {
                 correlationId,
                 before,
                 after);
-        return workspaceApp(after);
+        return workspaceApp(
+                after,
+                authorities,
+                appAccessRequests.latestOpen(tenantId, actorId, appId).orElse(null));
     }
 
     @Transactional
@@ -253,6 +262,163 @@ public class WorkspaceService {
                 new WorkspaceDtos.AppLaunch(appId, app.launchMode(), app.launchTarget(), launchedAt));
         return new WorkspaceDtos.AppLaunch(
                 appId, app.launchMode(), app.launchTarget(), launchedAt);
+    }
+
+    @Transactional
+    public WorkspaceDtos.AppAccessRequest requestAppAccess(
+            Long tenantId,
+            Long actorId,
+            String permissions,
+            String locale,
+            String correlationId,
+            String appId,
+            WorkspaceDtos.CreateAppAccessRequest request) {
+        Set<String> authorities = authorities(permissions);
+        require(authorities, APPS_VIEW);
+        WorkspaceRepository.AppRow app = repository.app(
+                        tenantId, actorId, appId, korean(locale))
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        String required = app.resourceKey().toUpperCase(Locale.ROOT) + ":VIEW";
+        if (authorities.contains(required)) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "The user already has access to this application.");
+        }
+        if ("CONFIGURATION_REQUIRED".equals(app.health())) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "This application must be configured before access can be requested.");
+        }
+        if (request.requestedUntil() != null
+                && !request.requestedUntil().isAfter(OffsetDateTime.now())) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "The requested access end time must be in the future.");
+        }
+        expireDueAppAccessRequests(
+                appAccessRequests.expiredCandidates(tenantId, actorId, appId),
+                correlationId);
+        AppAccessRequestRepository.RequestRecord created;
+        try {
+            created = appAccessRequests.create(
+                    tenantId, actorId, appId, request.justification().trim(),
+                    request.requestedUntil());
+        } catch (DataIntegrityViolationException exception) {
+            throw new BaseException(
+                    ErrorCode.RESOURCE_CONFLICT,
+                    "An open access request already exists for this application.",
+                    exception);
+        }
+        auditService.success(
+                tenantId, actorId, "workspace.app-access.requested", "APP_ACCESS_REQUEST",
+                created.requestId().toString(), correlationId, null,
+                appAccessSnapshot(created));
+        return appAccessRequest(created, korean(locale));
+    }
+
+    @Transactional
+    public WorkspaceDtos.AppAccessRequest cancelAppAccessRequest(
+            Long tenantId,
+            Long actorId,
+            String permissions,
+            String locale,
+            String correlationId,
+            UUID requestId,
+            Long version) {
+        require(authorities(permissions), APPS_VIEW);
+        AppAccessRequestRepository.RequestRecord before = appAccessRequests
+                .request(tenantId, requestId)
+                .filter(value -> actorId.equals(value.userId()))
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        if (!appAccessRequests.cancel(tenantId, actorId, requestId, version)) {
+            throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
+        }
+        AppAccessRequestRepository.RequestRecord after = appAccessRequests
+                .request(tenantId, requestId).orElseThrow();
+        auditService.success(
+                tenantId, actorId, "workspace.app-access.cancelled", "APP_ACCESS_REQUEST",
+                requestId.toString(), correlationId,
+                appAccessSnapshot(before), appAccessSnapshot(after));
+        return appAccessRequest(after, korean(locale));
+    }
+
+    @Transactional(readOnly = true)
+    public List<WorkspaceDtos.AppAccessRequest> appAccessRequests(
+            Long tenantId,
+            String locale,
+            String state) {
+        String normalized = state == null ? "ALL" : state.trim().toUpperCase(Locale.ROOT);
+        if (!Set.of("ALL", "PENDING", "APPROVED", "REJECTED", "CANCELLED", "EXPIRED")
+                .contains(normalized)) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        return appAccessRequests.list(tenantId, normalized).stream()
+                .map(value -> appAccessRequest(value, korean(locale)))
+                .toList();
+    }
+
+    @Transactional
+    public WorkspaceDtos.AppAccessRequest decideAppAccessRequest(
+            Long tenantId,
+            Long actorId,
+            String locale,
+            String correlationId,
+            UUID requestId,
+            WorkspaceDtos.AppAccessDecisionRequest request) {
+        AppAccessRequestRepository.RequestRecord before = appAccessRequests
+                .request(tenantId, requestId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        String decision = request.decision().toUpperCase(Locale.ROOT);
+        if (!appAccessRequests.decide(
+                tenantId, actorId, requestId, decision,
+                request.decisionNote().trim(), request.version())) {
+            throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
+        }
+        AppAccessRequestRepository.RequestRecord after = appAccessRequests
+                .request(tenantId, requestId).orElseThrow();
+        auditService.success(
+                tenantId, actorId,
+                "APPROVED".equals(decision)
+                        ? "workspace.app-access.approved"
+                        : "workspace.app-access.rejected",
+                "APP_ACCESS_REQUEST", requestId.toString(), correlationId,
+                appAccessSnapshot(before), appAccessSnapshot(after));
+        return appAccessRequest(after, korean(locale));
+    }
+
+    @Transactional
+    public int expireDueAppAccessRequests() {
+        int expired = 0;
+        for (int batch = 0; batch < 20; batch++) {
+            List<AppAccessRequestRepository.RequestRecord> candidates =
+                    appAccessRequests.expiredCandidates(500);
+            if (candidates.isEmpty()) break;
+            expired += expireDueAppAccessRequests(
+                    candidates, "app-access-expiry:" + UUID.randomUUID());
+            if (candidates.size() < 500) break;
+        }
+        return expired;
+    }
+
+    private int expireDueAppAccessRequests(
+            List<AppAccessRequestRepository.RequestRecord> candidates,
+            String correlationId) {
+        int expired = 0;
+        for (AppAccessRequestRepository.RequestRecord before : candidates) {
+            if (!appAccessRequests.expire(
+                    before.tenantId(), before.requestId(), before.version())) {
+                continue;
+            }
+            AppAccessRequestRepository.RequestRecord after = appAccessRequests
+                    .request(before.tenantId(), before.requestId())
+                    .orElseThrow();
+            auditService.serviceSuccess(
+                    before.tenantId(), "workspace.app-access.expired", "APP_ACCESS_REQUEST",
+                    before.requestId().toString(), correlationId,
+                    appAccessSnapshot(before), appAccessSnapshot(after));
+            expired++;
+        }
+        return expired;
     }
 
     private WorkspaceRepository.AppRow requireVisibleApp(
@@ -343,11 +509,55 @@ public class WorkspaceService {
                 row.tool(), row.auditId(), row.progress(), row.sourceRoute());
     }
 
-    private WorkspaceDtos.WorkspaceApp workspaceApp(WorkspaceRepository.AppRow row) {
+    private WorkspaceDtos.WorkspaceApp workspaceApp(
+            WorkspaceRepository.AppRow row,
+            Set<String> authorities,
+            AppAccessRequestRepository.RequestRecord request) {
+        boolean entitled = authorities.contains(
+                row.resourceKey().toUpperCase(Locale.ROOT) + ":VIEW");
+        String accessState = entitled
+                ? "AVAILABLE"
+                : "CONFIGURATION_REQUIRED".equals(row.health())
+                        ? "CONFIGURATION_REQUIRED"
+                        : request == null
+                                ? "REQUESTABLE"
+                                : "PENDING".equals(request.state())
+                                        ? "PENDING"
+                                        : "APPROVED_PENDING_SYNC";
         return new WorkspaceDtos.WorkspaceApp(
                 row.id(), row.name(), row.description(), row.owner(), row.category(),
                 row.launchMode(), row.launchTarget(), row.iconKey(), row.resourceKey(),
-                row.health(), row.pinned(), row.lastUsedAt(), row.launchCount(), row.version());
+                row.health(), row.pinned(), row.lastUsedAt(), row.launchCount(), row.version(),
+                accessState,
+                request == null ? null : request.requestId(),
+                request == null ? null : request.state(),
+                request == null ? null : request.updatedAt(),
+                request == null ? null : request.version());
+    }
+
+    private WorkspaceDtos.AppAccessRequest appAccessRequest(
+            AppAccessRequestRepository.RequestRecord value,
+            boolean korean) {
+        return new WorkspaceDtos.AppAccessRequest(
+                value.requestId(), value.userId(), value.appKey(),
+                korean ? value.appNameKo() : value.appNameEn(), value.resourceKey(),
+                value.requestedPermissionCode(), value.justification(), value.state(),
+                value.requestedUntil(), value.decisionNote(), value.decidedAt(),
+                value.decidedBy(), value.version(), value.createdAt(), value.updatedAt());
+    }
+
+    private java.util.Map<String, Object> appAccessSnapshot(
+            AppAccessRequestRepository.RequestRecord value) {
+        java.util.Map<String, Object> snapshot = new java.util.LinkedHashMap<>();
+        snapshot.put("requestId", value.requestId());
+        snapshot.put("userId", value.userId());
+        snapshot.put("appKey", value.appKey());
+        snapshot.put("resourceKey", value.resourceKey());
+        snapshot.put("state", value.state());
+        snapshot.put("requestedUntil", value.requestedUntil());
+        snapshot.put("decidedBy", value.decidedBy());
+        snapshot.put("version", value.version());
+        return snapshot;
     }
 
     private long count(List<WorkspaceDtos.WorkItem> items, String status) {

@@ -28,13 +28,15 @@ class WorkspaceServiceTest {
     @Mock
     private WorkspaceRepository repository;
     @Mock
+    private AppAccessRequestRepository appAccessRequests;
+    @Mock
     private PlatformAuditService auditService;
 
     private WorkspaceService service;
 
     @BeforeEach
     void setUp() {
-        service = new WorkspaceService(repository, auditService);
+        service = new WorkspaceService(repository, appAccessRequests, auditService);
     }
 
     @Test
@@ -45,7 +47,7 @@ class WorkspaceServiceTest {
     }
 
     @Test
-    void filtersAppCatalogByTheCallersEntitlements() {
+    void separatesDiscoverableAppsFromRuntimeEntitlements() {
         when(repository.apps(1L, 7L, true)).thenReturn(List.of(
                 app("dwp-work", "APP.WORK", "HEALTHY", "/work"),
                 app("admin", "APP.ADMINISTRATION", "HEALTHY", "/admin")));
@@ -56,8 +58,80 @@ class WorkspaceServiceTest {
                 "APP.APPS:VIEW,APP.WORK:VIEW",
                 "ko-KR");
 
-        assertThat(result).extracting(WorkspaceDtos.WorkspaceApp::id)
-                .containsExactly("dwp-work");
+        assertThat(result).extracting(
+                        WorkspaceDtos.WorkspaceApp::id,
+                        WorkspaceDtos.WorkspaceApp::accessState)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("dwp-work", "AVAILABLE"),
+                        org.assertj.core.groups.Tuple.tuple("admin", "REQUESTABLE"));
+    }
+
+    @Test
+    void exposesApprovedRequestsAsPendingIamSynchronization() {
+        WorkspaceRepository.AppRow app = app("admin", "APP.ADMINISTRATION", "HEALTHY", "/admin");
+        AppAccessRequestRepository.RequestRecord approved = request("APPROVED", 1L);
+        when(repository.apps(1L, 7L, false)).thenReturn(List.of(app));
+        when(appAccessRequests.latestOpen(1L, 7L, "admin"))
+                .thenReturn(Optional.of(approved));
+
+        List<WorkspaceDtos.WorkspaceApp> result = service.apps(
+                1L, 7L, "APP.APPS:VIEW", "en");
+
+        assertThat(result).singleElement().satisfies(value -> {
+            assertThat(value.accessState()).isEqualTo("APPROVED_PENDING_SYNC");
+            assertThat(value.accessRequestState()).isEqualTo("APPROVED");
+        });
+    }
+
+    @Test
+    void createsAndAuditsAnAppAccessRequestWithoutGrantingThePermission() {
+        WorkspaceRepository.AppRow app = app("admin", "APP.ADMINISTRATION", "HEALTHY", "/admin");
+        AppAccessRequestRepository.RequestRecord created = request("PENDING", 0L);
+        when(repository.app(1L, 7L, "admin", false)).thenReturn(Optional.of(app));
+        when(appAccessRequests.expiredCandidates(1L, 7L, "admin")).thenReturn(List.of());
+        when(appAccessRequests.create(
+                1L, 7L, "admin", "Operational administration access", null))
+                .thenReturn(created);
+
+        WorkspaceDtos.AppAccessRequest result = service.requestAppAccess(
+                1L,
+                7L,
+                "APP.APPS:VIEW",
+                "en",
+                "corr-request",
+                "admin",
+                new WorkspaceDtos.CreateAppAccessRequest(
+                        "  Operational administration access  ", null));
+
+        assertThat(result.state()).isEqualTo("PENDING");
+        verify(auditService).success(
+                org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.eq(7L),
+                org.mockito.ArgumentMatchers.eq("workspace.app-access.requested"),
+                org.mockito.ArgumentMatchers.eq("APP_ACCESS_REQUEST"),
+                org.mockito.ArgumentMatchers.eq(created.requestId().toString()),
+                org.mockito.ArgumentMatchers.eq("corr-request"),
+                org.mockito.ArgumentMatchers.isNull(),
+                any());
+    }
+
+    @Test
+    void expiresDueAccessRequestsWithAServiceAuditTrail() {
+        AppAccessRequestRepository.RequestRecord before = request("APPROVED", 3L);
+        AppAccessRequestRepository.RequestRecord after = request("EXPIRED", 4L);
+        when(appAccessRequests.expiredCandidates(500)).thenReturn(List.of(before));
+        when(appAccessRequests.expire(1L, before.requestId(), 3L)).thenReturn(true);
+        when(appAccessRequests.request(1L, before.requestId())).thenReturn(Optional.of(after));
+
+        int result = service.expireDueAppAccessRequests();
+
+        assertThat(result).isEqualTo(1);
+        verify(auditService).serviceSuccess(
+                org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.eq("workspace.app-access.expired"),
+                org.mockito.ArgumentMatchers.eq("APP_ACCESS_REQUEST"),
+                org.mockito.ArgumentMatchers.eq(before.requestId().toString()),
+                anyString(), any(), any());
     }
 
     @Test
@@ -231,5 +305,27 @@ class WorkspaceServiceTest {
                 "Activity",
                 version,
                 OffsetDateTime.now());
+    }
+
+    private AppAccessRequestRepository.RequestRecord request(String state, long version) {
+        OffsetDateTime now = OffsetDateTime.now();
+        return new AppAccessRequestRepository.RequestRecord(
+                UUID.randomUUID(),
+                1L,
+                7L,
+                "admin",
+                "관리",
+                "Administration",
+                "APP.ADMINISTRATION",
+                "VIEW",
+                "Operational administration access",
+                state,
+                now.minusMinutes(1),
+                "Approved for operational duty",
+                "PENDING".equals(state) ? null : now.minusHours(1),
+                "PENDING".equals(state) ? null : 11L,
+                version,
+                now.minusDays(1),
+                now);
     }
 }
