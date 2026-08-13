@@ -13,7 +13,7 @@ import java.util.List;
 
 public final class HomePreferenceDtos {
 
-    public static final int SCHEMA_VERSION = 1;
+    public static final int SCHEMA_VERSION = 2;
 
     private HomePreferenceDtos() {
     }
@@ -22,12 +22,16 @@ public final class HomePreferenceDtos {
             @NotBlank
             @Pattern(regexp = "[a-z][a-z0-9-]{0,39}")
             String widgetKey,
-            @NotNull Boolean visible) {
+            @NotNull Boolean visible,
+            @Pattern(regexp = "compact|medium|large|full")
+            String size) {
     }
 
     public record HomeLayoutPayload(
             JsonNode appLayout,
-            @NotNull @Size(min = 5, max = 5) List<@Valid WidgetPreference> widgets) {
+            @Pattern(regexp = "balanced|expressive|focused")
+            String presentation,
+            @NotNull @Size(min = 1, max = 30) List<@Valid WidgetPreference> widgets) {
     }
 
     public record UpdateHomePreferenceRequest(
@@ -40,6 +44,7 @@ public final class HomePreferenceDtos {
 
     public record HomePreferenceResponse(
             Integer schemaVersion,
+            String surfaceKey,
             boolean customized,
             HomeLayoutPayload layout,
             Long version,

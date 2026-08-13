@@ -155,6 +155,67 @@ class AuthSessionVerifierTest {
     }
 
     @Test
+    void scopesReaderAndPublisherRoutesToTheirCommunicationsResources() {
+        AtomicReference<ClientRequest> captured = new AtomicReference<>();
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+            captured.set(request);
+            return Mono.just(ClientResponse.create(HttpStatus.OK)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .body("""
+                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            "roles":["COMMUNICATIONS_PUBLISHER"],"permissions":[
+                              {"resourceKey":"ADMIN.COMMUNICATIONS","permissionCode":"APPROVE","effect":"ALLOW"}
+                            ]}}
+                            """)
+                    .build());
+        });
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+
+        VerifiedIdentity identity = verifier.verify(MockServerHttpRequest
+                .post("/api/platform/v1/admin/announcements/91/publish")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery())
+                .isEqualTo("permissionPrefix=ADMIN.COMMUNICATIONS");
+        assertThat(identity).isNotNull();
+        assertThat(identity.permissions()).containsExactly("ADMIN.COMMUNICATIONS:APPROVE");
+    }
+
+    @Test
+    void scopesEmployeeServiceReaderAndAdministrationRoutesSeparately() {
+        AtomicReference<ClientRequest> captured = new AtomicReference<>();
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+            captured.set(request);
+            return Mono.just(ClientResponse.create(HttpStatus.OK)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .body("""
+                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            "roles":["SERVICE_AGENT"],"permissions":[
+                              {"resourceKey":"ADMIN.SERVICE_OPERATIONS","permissionCode":"MANAGE","effect":"ALLOW"}
+                            ]}}
+                            """)
+                    .build());
+        });
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+
+        verifier.verify(MockServerHttpRequest
+                .post("/api/platform/v1/admin/services/requests/abc/transition")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery())
+                .isEqualTo("permissionPrefix=ADMIN.SERVICE_OPERATIONS");
+
+        verifier.verify(MockServerHttpRequest
+                .get("/api/platform/v1/services/catalog")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery())
+                .isEqualTo("permissionPrefix=APP.EMPLOYEE_SERVICES");
+    }
+
+    @Test
     void requestsProductivityControlPlaneAuthoritiesForConnectorRoutes() {
         AtomicReference<ClientRequest> captured = new AtomicReference<>();
         WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {

@@ -23,6 +23,23 @@ class AuthenticatedUserResolverTest {
     }
 
     @Test
+    void acceptsIdentityAdministratorForIdentityReadBoundary() {
+        assertThatCode(() -> AuthenticatedUserResolver.requireIdentityAdmin(
+                        authentication(List.of("WORKSPACE_MEMBER", "IDENTITY_ADMIN"))))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void identityAdministratorCannotCrossTenantRoleAdministrationBoundary() {
+        assertThatThrownBy(() -> AuthenticatedUserResolver.requireTenantAdmin(
+                        authentication(List.of("WORKSPACE_MEMBER", "IDENTITY_ADMIN"))))
+                .isInstanceOfSatisfying(
+                        BaseException.class,
+                        error -> assertThat(error.getErrorCode())
+                                .isEqualTo(ErrorCode.FORBIDDEN));
+    }
+
+    @Test
     void rejectsNonAdministratorClaims() {
         assertThatThrownBy(() -> AuthenticatedUserResolver.requireTenantAdmin(
                         authentication(List.of("EMPLOYEE"))))

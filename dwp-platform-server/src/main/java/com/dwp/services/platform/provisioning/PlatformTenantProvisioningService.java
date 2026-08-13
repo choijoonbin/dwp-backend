@@ -260,6 +260,10 @@ public class PlatformTenantProvisioningService {
                     "Work", "업무", "Priorities, approvals, and tasks", "LOW"));
             apps.add(new AppSeed("activity", "DWP_ACTIVITY", "/activity", "activity", "APP.ACTIVITY",
                     "Activity", "활동", "Human, system, and agent events", "LOW"));
+            apps.add(new AppSeed(
+                    "communications", "DWP_COMMUNICATIONS", "/communications", "communications",
+                    "APP.COMMUNICATIONS", "Newsroom", "소식",
+                    "Targeted company news, events, and required updates", "LOW"));
             apps.add(new AppSeed("apps", "DWP_APPS", "/apps", "apps", "APP.APPS",
                     "Apps", "앱", "Available workplace applications", "LOW"));
         }
@@ -268,13 +272,10 @@ public class PlatformTenantProvisioningService {
                     "Ask DWP", "Ask DWP", "Read-only request plans with an audit trace", "MEDIUM"));
         }
         if (entitlements.contains("core.people")) {
-            apps.add(new AppSeed("people", "DWP_PEOPLE", "/people", "people",
-                    "APP.PEOPLE_DIRECTORY", "People", "구성원",
-                    "Find colleagues and explore reporting relationships", "LOW"));
-            apps.add(new AppSeed("workforce", "DWP_WORKFORCE", "/workforce", "workforce",
-                    "APP.WORKFORCE_MANAGEMENT", "Workforce management", "인력 운영",
-                    "Govern workforce data, positions, organization design, and HRIS operations",
-                    "HIGH"));
+            apps.add(new AppSeed("hris", "DWP_HRIS", "/hr", "hris",
+                    "APP.HRIS", "HRIS", "HRIS",
+                    "Personal HR, people, organization, and governed workforce operations",
+                    "MEDIUM"));
         }
         return List.copyOf(apps);
     }
@@ -334,6 +335,12 @@ public class PlatformTenantProvisioningService {
                     "DWP Platform", "PRODUCTIVITY", "NATIVE", "/activity",
                     "activity", "APP.ACTIVITY", "HEALTHY", 30));
             apps.add(new WorkspaceAppSeed(
+                    "dwp-communications", "소식", "Newsroom",
+                    "나에게 필요한 회사 소식, 행사 및 필수 확인 콘텐츠를 한곳에서 읽습니다.",
+                    "Read targeted company news, events, and required updates in one place.",
+                    "DWP Communications", "PRODUCTIVITY", "NATIVE", "/communications",
+                    "communications", "APP.COMMUNICATIONS", "HEALTHY", 35));
+            apps.add(new WorkspaceAppSeed(
                     "ref-app-mail", "메일 및 일정", "Mail & calendar",
                     "메시지, 일정 및 회의 후속 조치를 연결합니다.",
                     "Connect messages, calendars, and meeting follow-ups.",
@@ -346,11 +353,11 @@ public class PlatformTenantProvisioningService {
                     "Workplace Platform", "PRODUCTIVITY", "SSO", null,
                     "collaboration", "APP.COLLABORATION", "CONFIGURATION_REQUIRED", 50));
             apps.add(new WorkspaceAppSeed(
-                    "ref-app-service", "임직원 서비스", "Employee services",
-                    "인사, IT 및 업무환경 요청을 처리합니다.",
-                    "Handle HR, IT, and workplace requests.",
-                    "Shared Services", "SERVICE", "DEEP_LINK", null,
-                    "services", "APP.EMPLOYEE_SERVICES", "CONFIGURATION_REQUIRED", 60));
+                    "ref-app-service", "서비스 센터", "Services",
+                    "IT, 구성원, 업무 환경, 재무 및 구매 요청을 한곳에서 처리합니다.",
+                    "Discover and track IT, people, workplace, finance, and procurement services.",
+                    "Shared Services", "SERVICE", "NATIVE", "/services",
+                    "services", "APP.EMPLOYEE_SERVICES", "HEALTHY", 60));
             apps.add(new WorkspaceAppSeed(
                     "ref-app-knowledge", "지식", "Knowledge",
                     "정책 및 업무 가이드 연결을 구성합니다.",
@@ -380,11 +387,11 @@ public class PlatformTenantProvisioningService {
         }
         if (entitlements.contains("core.people")) {
             apps.add(new WorkspaceAppSeed(
-                    "ref-app-people", "구성원", "People directory",
-                    "동료와 조직의 보고 관계를 탐색합니다.",
-                    "Find colleagues and explore reporting relationships.",
-                    "People Platform", "PEOPLE", "NATIVE", "/people",
-                    "people", "APP.PEOPLE_DIRECTORY", "HEALTHY", 70));
+                    "ref-app-people", "HRIS", "HRIS",
+                    "나의 인사, 구성원, 조직 및 권한에 따른 인력 운영을 제공합니다.",
+                    "Personal HR, people, organization, and role-aware workforce operations.",
+                    "People Platform", "PEOPLE", "NATIVE", "/hr",
+                    "hris", "APP.HRIS", "HEALTHY", 70));
         }
         return List.copyOf(apps);
     }
@@ -395,17 +402,18 @@ public class PlatformTenantProvisioningService {
                         "Work", "업무", "Priorities, approvals, and tasks", "LOW"),
                 new AppSeed("activity", "DWP_ACTIVITY", "/activity", "activity", "APP.ACTIVITY",
                         "Activity", "활동", "Human, system, and agent events", "LOW"),
+                new AppSeed(
+                        "communications", "DWP_COMMUNICATIONS", "/communications", "communications",
+                        "APP.COMMUNICATIONS", "Newsroom", "소식",
+                        "Targeted company news, events, and required updates", "LOW"),
                 new AppSeed("apps", "DWP_APPS", "/apps", "apps", "APP.APPS",
                         "Apps", "앱", "Available workplace applications", "LOW"),
                 new AppSeed("ask", "DWP_ASK", "/ask", "ask", "APP.ASK",
                         "Ask DWP", "Ask DWP", "Read-only request plans with an audit trace", "MEDIUM"),
-                new AppSeed("people", "DWP_PEOPLE", "/people", "people",
-                        "APP.PEOPLE_DIRECTORY", "People", "구성원",
-                        "Find colleagues and explore reporting relationships", "LOW"),
-                new AppSeed("workforce", "DWP_WORKFORCE", "/workforce", "workforce",
-                        "APP.WORKFORCE_MANAGEMENT", "Workforce management", "인력 운영",
-                        "Govern workforce data, positions, organization design, and HRIS operations",
-                        "HIGH"));
+                new AppSeed("hris", "DWP_HRIS", "/hr", "hris",
+                        "APP.HRIS", "HRIS", "HRIS",
+                        "Personal HR, people, organization, and governed workforce operations",
+                        "MEDIUM"));
     }
 
     private void validateIdentity(UUID providerTenantId, Long tenantId, String tenantKey) {

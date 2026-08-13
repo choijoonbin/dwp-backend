@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -54,19 +55,27 @@ public class RoleDelegationPolicyService {
 
     @Transactional(readOnly = true)
     public DelegationContext resolve(Long tenantId, Long actorId) {
-        return resolve(tenantId, actorId, DIRECT);
+        return find(tenantId, actorId, DIRECT).orElseThrow(this::forbidden);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<DelegationContext> findDirectDelegation(Long tenantId, Long actorId) {
+        return find(tenantId, actorId, DIRECT);
     }
 
     @Transactional(readOnly = true)
     public DelegationContext resolveForApproval(Long tenantId, Long actorId) {
-        return resolve(tenantId, actorId, "APPROVAL");
+        return find(tenantId, actorId, "APPROVAL").orElseThrow(this::forbidden);
     }
 
-    private DelegationContext resolve(Long tenantId, Long actorId, String assignmentMode) {
+    private Optional<DelegationContext> find(
+            Long tenantId,
+            Long actorId,
+            String assignmentMode) {
         Set<String> actorRoleCodes = activeRoleCodes(
                 tenantId,
                 roleMemberRepository.findRoleIds(tenantId, actorId));
-        if (actorRoleCodes.isEmpty()) throw forbidden();
+        if (actorRoleCodes.isEmpty()) return Optional.empty();
 
         Set<String> targetCodes = policyRepository
                 .findByGrantorRoleCodeInAndAssignmentModeAndLifecycleState(
@@ -74,7 +83,7 @@ public class RoleDelegationPolicyService {
                 .stream()
                 .map(RoleAssignmentPolicy::getTargetRoleCode)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-        if (targetCodes.isEmpty()) throw forbidden();
+        if (targetCodes.isEmpty()) return Optional.empty();
 
         Map<String, BuiltinRoleDefinition> definitions = definitionRepository
                 .findAllById(targetCodes)
@@ -103,7 +112,7 @@ public class RoleDelegationPolicyService {
                 .sorted(Comparator.comparingInt(AssignableRole::sortOrder)
                         .thenComparing(option -> option.role().getCode()))
                 .toList();
-        if (assignableRoles.isEmpty()) throw forbidden();
+        if (assignableRoles.isEmpty()) return Optional.empty();
 
         Map<String, AssignableRole> byCode = assignableRoles.stream()
                 .collect(Collectors.toMap(
@@ -111,9 +120,9 @@ public class RoleDelegationPolicyService {
                         Function.identity(),
                         (left, ignored) -> left,
                         LinkedHashMap::new));
-        return new DelegationContext(
+        return Optional.of(new DelegationContext(
                 Collections.unmodifiableSet(new LinkedHashSet<>(actorRoleCodes)),
-                Collections.unmodifiableMap(byCode));
+                Collections.unmodifiableMap(byCode)));
     }
 
     @Transactional(readOnly = true)

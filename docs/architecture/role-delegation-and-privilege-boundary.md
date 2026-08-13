@@ -2,33 +2,63 @@
 
 Status: Accepted
 
-Last verified: 2026-08-13
+Last verified: 2026-08-14
 
-Scope: tenant role delegation and separation-of-duties enforcement owned by
+Scope: tenant role delegation, application-scoped administrative responsibility,
+runtime entitlement, and separation-of-duties enforcement owned by
 `dwp-auth-server`. Provider operator authorization remains owned by
-`dwp-provider-server` and is outside this decision.
+`dwp-provider-server` and is a separate control plane.
 
 ## Decision
 
 DWP uses deny-by-default role delegation. Authentication proves identity; it does not grant authority to delegate every role visible in the tenant. Every role assignment mutation must resolve the actor's current effective roles from the database and match an active policy in `sys_role_assignment_policies`.
 
-The authorization model separates four concerns:
+The authorization model separates six concerns:
 
 1. Role definition: `sys_builtin_role_catalog` owns stable built-in role identity and governance metadata.
 2. Delegation authority: `sys_role_assignment_policies` defines which grantor role can assign which target role and by which workflow.
 3. Separation of duties: `sys_role_conflict_policies` rejects conflicting direct and inherited effective role combinations.
 4. Assignment evidence: successful and denied mutations are recorded in `sys_identity_audit_events` and forwarded through the audit outbox.
+5. Resource responsibility: application duties are assigned to explicit resource sets rather than granting tenant-wide application authority.
+6. Runtime entitlement: approved application access is effective only through an active Auth-owned `com_principal_resource_grants` record.
 
 ## Assignment Classes
 
 | Class | Roles | Direct tenant-admin assignment |
 | --- | --- | --- |
 | `BASELINE` | `WORKSPACE_MEMBER` | Required for every managed workforce identity |
-| `DELEGATED` | `HR_ADMIN`, `PEOPLE_ADMIN`, `AUDITOR` | Allowed when an active direct policy exists |
+| `DELEGATED` | `IDENTITY_ADMIN`, `APP_CATALOG_ADMIN`, `HR_ADMIN`, `PEOPLE_ADMIN`, `AUDITOR`, `COMMUNICATIONS_*`, `SERVICE_*` | Allowed when an active direct policy exists |
 | `GOVERNED` | `TENANT_ADMIN`, `AUDIT_ADMIN` | Approval workflow only; never exposed by the direct API |
 | `CONTROL_PLANE` | `ADMIN`, `PLATFORM_ADMIN`, `PROVIDER_*` | Provisioning/control-plane workflow only |
 
-`TENANT_ADMIN` can directly assign only `WORKSPACE_MEMBER`, `HR_ADMIN`, `PEOPLE_ADMIN`, and `AUDITOR`. The API returns only those options. Hiding options in the UI is not an authorization control; the service rejects any submitted role outside that set.
+`TENANT_ADMIN` can directly assign only roles allowed by an active `DIRECT`
+policy in `sys_role_assignment_policies`: `WORKSPACE_MEMBER`, `IDENTITY_ADMIN`,
+`APP_CATALOG_ADMIN`, `HR_ADMIN`, `PEOPLE_ADMIN`, `AUDITOR`,
+`COMMUNICATIONS_EDITOR`, `COMMUNICATIONS_PUBLISHER`,
+`SERVICE_CATALOG_MANAGER`, and `SERVICE_AGENT`. The API returns only those
+options. Hiding options in the UI is not an authorization control; the service
+rejects any submitted role outside that set.
+
+## Application Responsibility Boundary
+
+Application administration is not one tenant-wide role. The catalog governor
+assigns `APP_OWNER` to an application resource set. An owner can delegate
+`APP_CONFIG_ADMIN`, `APP_ACCESS_MANAGER`, `APP_ACCESS_APPROVER`, and
+`APP_ACCESS_REVIEWER` only inside that owned set, but cannot create another owner.
+
+- `APP_CATALOG_ADMIN` governs ownership and can read the tenant request queue;
+  it cannot approve, fulfil, or revoke requests.
+- `TENANT_ADMIN` does not inherit request queue, approval, fulfilment, or
+  revocation authority. Application duties require an explicit scoped
+  responsibility even for the tenant accountable administrator.
+- `APP_ACCESS_APPROVER` can decide requests only for its resource set.
+- `APP_ACCESS_MANAGER` can fulfil, retry, or revoke only for its resource set.
+- A requester cannot approve or fulfil their own request.
+- The approver of a request cannot fulfil the same request.
+- Access managers conflict with approver and reviewer responsibilities on an
+  overlapping resource set.
+- Approval changes workflow state only. Platform must independently call the
+  Auth entitlement adapter before runtime access becomes effective.
 
 ## Enforcement Invariants
 
@@ -41,6 +71,13 @@ The authorization model separates four concerns:
 - Evaluate role conflicts against the prospective direct roles plus inherited group roles.
 - Reject `AUDITOR` combined with `HR_ADMIN` or `PEOPLE_ADMIN` to preserve audit independence.
 - Keep audit view, investigation, export, and configuration permissions out of `TENANT_ADMIN`; use `AUDITOR` or `AUDIT_ADMIN` through governed workflows.
+- Keep identity administration, catalog governance, application approval,
+  entitlement fulfilment, and periodic review as distinct responsibilities.
+- Revoke pending and active application responsibilities when the owning
+  application entitlement is retired; a re-enabled application receives a new
+  active owner assignment.
+- Keep optional application access out of `WORKSPACE_MEMBER`; distribute it
+  through group or user runtime entitlement records with source evidence.
 - Revoke all active target sessions after a successful role change.
 - Treat built-in role definitions and their permission sets as immutable in tenant governance APIs.
 - Apply the same delegation boundary to group role assignment and revocation.
@@ -68,7 +105,13 @@ invariants; an IdP connector cannot bypass separation-of-duties checks.
 | Uniform direct/group assignment justification policy | Implemented | Direct and group assignment DTOs require 10-500 characters; privileged workflows use the separately governed 10-1000 evidence limit. |
 | Governed tenant-role eligibility, approval, JIT, emergency, expiry, and revocation | Implemented | [`V36__add_privileged_access_lifecycle.sql`](../../dwp-auth-server/src/main/resources/db/migration/V36__add_privileged_access_lifecycle.sql), [`PrivilegedAccessService`](../../dwp-auth-server/src/main/java/com/dwp/services/auth/service/PrivilegedAccessService.java) |
 | SCIM group SoD, atomic rejection, access revision, session invalidation, and denied audit | Implemented | [`ScimGroupService`](../../dwp-auth-server/src/main/java/com/dwp/services/auth/scim/ScimGroupService.java), [`ScimProvisioningAuditService`](../../dwp-auth-server/src/main/java/com/dwp/services/auth/scim/ScimProvisioningAuditService.java) |
+| Application resource sets, scoped responsibilities, conflict checks, delegation, and expiry | Implemented | [`V40__add_scoped_application_administration.sql`](../../dwp-auth-server/src/main/resources/db/migration/V40__add_scoped_application_administration.sql), [`AppGovernanceService`](../../dwp-auth-server/src/main/java/com/dwp/services/auth/service/AppGovernanceService.java) |
+| Auth-owned principal resource entitlement, idempotent grant/revoke, expiry, and audit | Implemented | [`V44__add_principal_resource_entitlement_lifecycle.sql`](../../dwp-auth-server/src/main/resources/db/migration/V44__add_principal_resource_entitlement_lifecycle.sql), [`AppEntitlementService`](../../dwp-auth-server/src/main/java/com/dwp/services/auth/service/AppEntitlementService.java) |
+| Independent Platform request decision, fulfilment, retry, revocation, and requester/approver/fulfiller separation | Implemented | [`V59__complete_app_access_fulfilment_lifecycle.sql`](../../dwp-platform-server/src/main/resources/db/migration/V59__complete_app_access_fulfilment_lifecycle.sql), [`WorkspaceService`](../../dwp-platform-server/src/main/java/com/dwp/services/platform/workspace/WorkspaceService.java) |
+| Product-aware tenant resource and built-in permission templates | Implemented | [`V49__harden_tenant_authorization_and_seed_skax_groups.sql`](../../dwp-auth-server/src/main/resources/db/migration/V49__harden_tenant_authorization_and_seed_skax_groups.sql), [`AuthTenantProvisioningService`](../../dwp-auth-server/src/main/java/com/dwp/services/auth/provisioning/AuthTenantProvisioningService.java) |
+| SKAX functional groups, access packages, app responsibilities, and drift diagnostics | Implemented | Auth V49 and [`audit-authorization-model.sh`](../../scripts/audit-authorization-model.sh) |
 | External IdP and control-plane role issuance | External Gate | Provider selection, assurance policy, credential, and sandbox evidence are tracked as frontend release decision `D-01`; no synthetic success path is enabled. |
+| External Entra/Okta entitlement mapping and drift reconciliation | External Gate | DWP Auth runtime entitlement is implemented; external IAM credentials, mapping, sandbox evidence, and reconciliation SLA remain frontend release decision `D-16`. |
 
 The executable policy tests are
 [`RoleDelegationPolicyServiceTest`](../../dwp-auth-server/src/test/java/com/dwp/services/auth/service/RoleDelegationPolicyServiceTest.java),

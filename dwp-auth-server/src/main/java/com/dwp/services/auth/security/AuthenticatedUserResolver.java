@@ -12,6 +12,8 @@ public final class AuthenticatedUserResolver {
 
     private static final Set<String> ADMIN_ROLES =
             Set.of("ADMIN", "TENANT_ADMIN", "PLATFORM_ADMIN");
+    private static final Set<String> IDENTITY_ADMIN_ROLES =
+            Set.of("ADMIN", "TENANT_ADMIN", "PLATFORM_ADMIN", "IDENTITY_ADMIN");
 
     private AuthenticatedUserResolver() {
     }
@@ -34,10 +36,20 @@ public final class AuthenticatedUserResolver {
     }
 
     public static boolean hasTenantAdminRole(Authentication authentication) {
+        return hasAnyRole(authentication, ADMIN_ROLES);
+    }
+
+    public static void requireIdentityAdmin(Authentication authentication) {
+        if (!hasAnyRole(authentication, IDENTITY_ADMIN_ROLES)) {
+            throw new BaseException(ErrorCode.FORBIDDEN);
+        }
+    }
+
+    public static boolean hasAnyRole(Authentication authentication, Set<String> allowedRoles) {
         Jwt jwt = requireJwt(authentication);
         Object roles = jwt.getClaims().get("roles");
         return roles instanceof Collection<?> values
-                && values.stream().map(String::valueOf).anyMatch(ADMIN_ROLES::contains);
+                && values.stream().map(String::valueOf).anyMatch(allowedRoles::contains);
     }
 
     private static Jwt requireJwt(Authentication authentication) {

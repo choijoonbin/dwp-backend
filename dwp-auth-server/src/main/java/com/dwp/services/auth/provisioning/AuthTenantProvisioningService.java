@@ -21,9 +21,8 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.HexFormat;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -104,11 +103,12 @@ public class AuthTenantProvisioningService {
             UUID providerTenantId,
             AuthTenantProvisioningDtos.ReplaceEntitlementsRequest request) {
         TenantRecord tenant = requireTenant(providerTenantId);
-        Long roleId = jdbc.queryForObject("""
-                SELECT role_id FROM com_roles WHERE tenant_id = ? AND code = 'TENANT_ADMIN'
-                """, Long.class, tenant.tenantId());
-        syncResources(tenant.tenantId(), roleId, request.entitlementKeys());
+        ensureTenantRoles(tenant.tenantId());
+        syncResources(tenant.tenantId(), request.entitlementKeys());
         AdministratorRecord administrator = primaryAdministrator(tenant.tenantId());
+        if (administrator != null) {
+            ensureInitialAppOwners(tenant.tenantId(), administrator.userId());
+        }
         return new AuthTenantProvisioningDtos.ProvisionTenantResponse(
                 tenant.providerTenantId(), tenant.tenantId(),
                 administrator == null ? null : administrator.userId(),
@@ -191,30 +191,11 @@ public class AuthTenantProvisioningService {
                 VALUES (?, 'LOCAL', 'LOCAL', TRUE, FALSE, FALSE, 28800)
                 ON CONFLICT (tenant_id) DO NOTHING
                 """, tenant.tenantId());
-        jdbc.update("""
-                INSERT INTO com_roles (
-                    tenant_id, code, name, description, role_type,
-                    privileged, assignable_to_groups, builtin_role_code)
-                VALUES (?, 'TENANT_ADMIN', 'Tenant administrator',
-                        'Administrator for a single tenant', 'SYSTEM', TRUE, FALSE,
-                        'TENANT_ADMIN')
-                ON CONFLICT (tenant_id, code) DO UPDATE
-                SET status = 'ACTIVE', role_type = 'SYSTEM',
-                    builtin_role_code = 'TENANT_ADMIN',
-                    privileged = TRUE, assignable_to_groups = FALSE,
-                    updated_at = CURRENT_TIMESTAMP
-                """, tenant.tenantId());
-        ensureWorkforceRoles(tenant.tenantId());
-        Long roleId = jdbc.queryForObject("""
-                SELECT role_id FROM com_roles WHERE tenant_id = ? AND code = 'TENANT_ADMIN'
-                """, Long.class, tenant.tenantId());
+        ensureTenantRoles(tenant.tenantId());
         Long userId = ensureAdministrator(tenant.tenantId(), request);
-        jdbc.update("""
-                INSERT INTO com_role_members (tenant_id, role_id, user_id)
-                VALUES (?, ?, ?)
-                ON CONFLICT (tenant_id, role_id, user_id) DO NOTHING
-                """, tenant.tenantId(), roleId, userId);
-        syncResources(tenant.tenantId(), roleId, request.entitlementKeys());
+        grantFoundationRoles(tenant.tenantId(), userId);
+        syncResources(tenant.tenantId(), request.entitlementKeys());
+        ensureInitialAppOwners(tenant.tenantId(), userId);
         AdministratorRecord administrator = administrator(tenant.tenantId(), userId);
         return new AuthTenantProvisioningDtos.ProvisionTenantResponse(
                 tenant.providerTenantId(), tenant.tenantId(), userId,
@@ -224,143 +205,226 @@ public class AuthTenantProvisioningService {
                 tenant.lifecycleState(), 1);
     }
 
-    private void syncResources(Long tenantId, Long roleId, List<String> entitlementKeys) {
-        Map<String, String> resources = entitledResources(entitlementKeys);
-        jdbc.update("""
-                UPDATE com_resources
-                   SET enabled = FALSE, updated_at = CURRENT_TIMESTAMP
-                 WHERE tenant_id = ? AND type = 'APP'
-                """, tenantId);
-        resources.forEach((key, name) -> jdbc.update("""
-                INSERT INTO com_resources (tenant_id, type, key, name, enabled)
-                VALUES (?, 'APP', ?, ?, TRUE)
-                ON CONFLICT (tenant_id, type, key) DO UPDATE
-                SET name = EXCLUDED.name, enabled = TRUE, updated_at = CURRENT_TIMESTAMP
-                """, tenantId, key, name));
-        jdbc.update("""
-                INSERT INTO com_resources (tenant_id, type, key, name, enabled)
-                VALUES (?, 'ADMIN', 'ADMIN.API_MONITORING', 'API monitoring', TRUE)
-                ON CONFLICT (tenant_id, type, key) DO UPDATE
-                SET name = EXCLUDED.name, enabled = TRUE, updated_at = CURRENT_TIMESTAMP
-                """, tenantId);
-        jdbc.update("""
-                INSERT INTO com_role_permissions (
-                    tenant_id, role_id, resource_id, permission_id, effect)
-                SELECT ?, ?, resource.resource_id, permission.permission_id, 'ALLOW'
-                  FROM com_resources resource
-                  CROSS JOIN com_permissions permission
-                 WHERE resource.tenant_id = ?
-                   AND resource.enabled = TRUE
-                   AND permission.code IN ('VIEW', 'CREATE', 'UPDATE', 'DELETE', 'MANAGE')
-                ON CONFLICT (tenant_id, role_id, resource_id, permission_id) DO UPDATE
-                SET effect = 'ALLOW', updated_at = CURRENT_TIMESTAMP
-                """, tenantId, roleId, tenantId);
-        grantWorkspaceMemberAccess(tenantId);
-        syncWorkforceResources(tenantId, entitlementKeys);
+    private void syncResources(Long tenantId, List<String> entitlementKeys) {
+        Set<String> entitlements = Set.copyOf(entitlementKeys);
+        List<ResourceTemplate> templates = jdbc.query("""
+                SELECT resource_key, resource_type, display_name, required_entitlement
+                  FROM sys_tenant_resource_templates
+                 WHERE lifecycle_state = 'ACTIVE'
+                 ORDER BY resource_key
+                """, (result, ignored) -> new ResourceTemplate(
+                result.getString("resource_key"), result.getString("resource_type"),
+                result.getString("display_name"), result.getString("required_entitlement")));
+
+        for (ResourceTemplate template : templates) {
+            boolean enabled = template.requiredEntitlement() == null
+                    || entitlements.contains(template.requiredEntitlement());
+            if (enabled) {
+                jdbc.update("""
+                        INSERT INTO com_resources (tenant_id, type, key, name, enabled)
+                        VALUES (?, ?, ?, ?, TRUE)
+                        ON CONFLICT (tenant_id, type, key) DO UPDATE
+                        SET name = EXCLUDED.name, enabled = TRUE,
+                            updated_at = CURRENT_TIMESTAMP
+                        """, tenantId, template.type(), template.key(), template.name());
+            } else {
+                jdbc.update("""
+                        UPDATE com_resources
+                           SET enabled = FALSE, updated_at = CURRENT_TIMESTAMP
+                         WHERE tenant_id = ? AND type = ? AND key = ?
+                        """, tenantId, template.type(), template.key());
+            }
+        }
+        revokeDisabledResourceGrants(tenantId);
+        syncBuiltInRolePermissions(tenantId);
+        syncAppResourceSets(tenantId);
     }
 
-    private void grantWorkspaceMemberAccess(Long tenantId) {
+    private void ensureTenantRoles(Long tenantId) {
         jdbc.update("""
-                INSERT INTO com_role_permissions (
-                    tenant_id, role_id, resource_id, permission_id, effect)
-                SELECT role.tenant_id, role.role_id, resource.resource_id,
-                       permission.permission_id, 'ALLOW'
-                  FROM com_roles role
-                  JOIN com_resources resource
-                    ON resource.tenant_id = role.tenant_id
-                   AND resource.enabled = TRUE
-                  JOIN com_permissions permission
-                    ON permission.code = 'VIEW'
-                    OR (permission.code = 'UPDATE'
-                        AND resource.key IN ('APP.WORK', 'APP.APPS'))
-                 WHERE role.tenant_id = ?
-                   AND role.code = 'WORKSPACE_MEMBER'
-                   AND resource.key IN (
-                       'APP.WORK', 'APP.ASK', 'APP.ACTIVITY', 'APP.APPS',
-                       'APP.MAIL_CALENDAR', 'APP.COLLABORATION',
-                       'APP.EMPLOYEE_SERVICES', 'APP.PEOPLE_DIRECTORY',
-                       'APP.KNOWLEDGE', 'APP.BUSINESS_ERP',
-                       'APP.LEGACY_OPERATIONS')
-                ON CONFLICT (tenant_id, role_id, resource_id, permission_id) DO UPDATE
-                SET effect = 'ALLOW', updated_at = CURRENT_TIMESTAMP
-                """, tenantId);
-    }
-
-    private void ensureWorkforceRoles(Long tenantId) {
-        List<RoleSeed> roles = List.of(
-                new RoleSeed("WORKSPACE_MEMBER", "Workspace member",
-                        "Default workspace access role.", false, true),
-                new RoleSeed("HR_ADMIN", "HR administrator",
-                        "Workforce data and organization administrator.", true, false),
-                new RoleSeed("PEOPLE_ADMIN", "People administrator",
-                        "People service administrator.", true, false));
-        roles.forEach(role -> jdbc.update("""
                 INSERT INTO com_roles (
                     tenant_id, code, name, description, status, role_type,
                     privileged, assignable_to_groups, builtin_role_code)
-                VALUES (?, ?, ?, ?, 'ACTIVE', 'SYSTEM', ?, ?, ?)
+                SELECT ?, catalog.role_code, catalog.display_name, catalog.description,
+                       'ACTIVE', 'SYSTEM', catalog.privileged,
+                       catalog.assignable_to_groups, catalog.role_code
+                  FROM sys_builtin_role_catalog catalog
+                 WHERE catalog.lifecycle_state = 'ACTIVE'
+                   AND catalog.assignment_class <> 'CONTROL_PLANE'
                 ON CONFLICT (tenant_id, code) DO UPDATE
-                SET name = EXCLUDED.name,
-                    description = EXCLUDED.description,
-                    status = 'ACTIVE',
-                    role_type = 'SYSTEM',
+                SET name = EXCLUDED.name, description = EXCLUDED.description,
+                    status = 'ACTIVE', role_type = 'SYSTEM',
                     privileged = EXCLUDED.privileged,
                     assignable_to_groups = EXCLUDED.assignable_to_groups,
                     builtin_role_code = EXCLUDED.builtin_role_code,
                     updated_at = CURRENT_TIMESTAMP
-                """, tenantId, role.code(), role.name(), role.description(),
-                role.privileged(), role.assignableToGroups(), role.code()));
+                """, tenantId);
     }
 
-    private void syncWorkforceResources(Long tenantId, List<String> entitlementKeys) {
-        if (!entitlementKeys.contains("core.people")) return;
-        Map<String, String> resources = Map.of(
-                "APP.WORKFORCE_MANAGEMENT", "Workforce management",
-                "DATA.WORKFORCE", "Workforce projection",
-                "ACTION.WORKFORCE_REFERENCE", "Workforce reference data",
-                "ACTION.WORKFORCE_DATA_OPERATIONS", "Workforce data operations");
-        resources.forEach((key, name) -> jdbc.update("""
-                INSERT INTO com_resources (tenant_id, type, key, name, enabled)
-                VALUES (?, CASE
-                    WHEN ? LIKE 'APP.%' THEN 'APP'
-                    WHEN ? LIKE 'DATA.%' THEN 'DATA'
-                    ELSE 'ACTION' END, ?, ?, TRUE)
-                ON CONFLICT (tenant_id, type, key) DO UPDATE
-                SET name = EXCLUDED.name, enabled = TRUE, updated_at = CURRENT_TIMESTAMP
-                """, tenantId, key, key, key, name));
+    private void grantFoundationRoles(Long tenantId, Long userId) {
         jdbc.update("""
-                INSERT INTO com_role_permissions (
-                    tenant_id, role_id, resource_id, permission_id, effect)
-                SELECT role.tenant_id, role.role_id, resource.resource_id,
-                       permission.permission_id, 'ALLOW'
+                INSERT INTO com_role_members (tenant_id, role_id, user_id)
+                SELECT role.tenant_id, role.role_id, ?
                   FROM com_roles role
-                  JOIN com_resources resource ON resource.tenant_id = role.tenant_id
-                  JOIN com_permissions permission ON permission.code = CASE
-                      WHEN resource.key = 'APP.WORKFORCE_MANAGEMENT' THEN 'VIEW'
-                      WHEN role.code = 'PEOPLE_ADMIN' THEN 'VIEW'
-                      ELSE 'MANAGE' END
                  WHERE role.tenant_id = ?
-                   AND role.code IN ('ADMIN', 'HR_ADMIN', 'PEOPLE_ADMIN')
-                   AND resource.key IN (
-                       'APP.WORKFORCE_MANAGEMENT', 'DATA.WORKFORCE',
-                       'ACTION.WORKFORCE_REFERENCE', 'ACTION.WORKFORCE_DATA_OPERATIONS')
-                ON CONFLICT (tenant_id, role_id, resource_id, permission_id) DO UPDATE
-                SET effect = 'ALLOW', updated_at = CURRENT_TIMESTAMP
+                   AND role.code IN ('TENANT_ADMIN', 'WORKSPACE_MEMBER')
+                ON CONFLICT (tenant_id, role_id, user_id) DO NOTHING
+                """, userId, tenantId);
+    }
+
+    private void syncBuiltInRolePermissions(Long tenantId) {
+        jdbc.update("""
+                DELETE FROM com_role_permissions role_permission
+                USING com_roles role, com_resources resource
+                 WHERE role_permission.tenant_id = ?
+                   AND role_permission.tenant_id = role.tenant_id
+                   AND role_permission.role_id = role.role_id
+                   AND role_permission.resource_id = resource.resource_id
+                   AND resource.tenant_id = role.tenant_id
+                   AND role.builtin_role_code IS NOT NULL
+                   AND EXISTS (
+                       SELECT 1
+                         FROM sys_tenant_role_permission_templates template
+                        WHERE template.role_code = role.code)
+                   AND EXISTS (
+                       SELECT 1
+                         FROM sys_tenant_resource_templates template
+                        WHERE template.resource_key = resource.key)
                 """, tenantId);
         jdbc.update("""
                 INSERT INTO com_role_permissions (
                     tenant_id, role_id, resource_id, permission_id, effect)
                 SELECT role.tenant_id, role.role_id, resource.resource_id,
                        permission.permission_id, 'ALLOW'
-                  FROM com_roles role
-                  JOIN com_resources resource ON resource.tenant_id = role.tenant_id
-                  JOIN com_permissions permission ON permission.code = 'VIEW'
-                 WHERE role.tenant_id = ?
-                   AND role.code IN ('WORKSPACE_MEMBER', 'ADMIN', 'HR_ADMIN', 'PEOPLE_ADMIN')
-                   AND resource.key = 'APP.PEOPLE_DIRECTORY'
+                  FROM sys_tenant_role_permission_templates template
+                  JOIN com_roles role
+                    ON role.tenant_id = ?
+                   AND role.code = template.role_code
+                   AND role.status = 'ACTIVE'
+                  JOIN com_resources resource
+                    ON resource.tenant_id = role.tenant_id
+                   AND resource.key = template.resource_key
+                   AND resource.enabled = TRUE
+                  JOIN com_permissions permission
+                    ON permission.code = template.permission_code
+                 WHERE template.lifecycle_state = 'ACTIVE'
                 ON CONFLICT (tenant_id, role_id, resource_id, permission_id) DO UPDATE
                 SET effect = 'ALLOW', updated_at = CURRENT_TIMESTAMP
                 """, tenantId);
+    }
+
+    private void revokeDisabledResourceGrants(Long tenantId) {
+        jdbc.update("""
+                UPDATE com_principal_resource_grants grant_record
+                   SET lifecycle_state = 'REVOKED', revoked_at = CURRENT_TIMESTAMP,
+                       revocation_reason = 'Tenant product entitlement was disabled.',
+                       version = version + 1, updated_at = CURRENT_TIMESTAMP
+                  FROM com_resources resource
+                 WHERE grant_record.tenant_id = ?
+                   AND resource.tenant_id = grant_record.tenant_id
+                   AND resource.resource_id = grant_record.resource_id
+                   AND resource.enabled = FALSE
+                   AND grant_record.lifecycle_state = 'ACTIVE'
+                """, tenantId);
+    }
+
+    private void syncAppResourceSets(Long tenantId) {
+        jdbc.update("""
+                UPDATE com_admin_resource_set_members member
+                   SET lifecycle_state = 'RETIRED', updated_at = CURRENT_TIMESTAMP
+                  FROM com_resources resource
+                 WHERE member.tenant_id = ?
+                   AND resource.tenant_id = member.tenant_id
+                   AND resource.type = member.resource_type
+                   AND resource.key = member.resource_key
+                   AND resource.enabled = FALSE
+                   AND member.lifecycle_state = 'ACTIVE'
+                """, tenantId);
+        jdbc.update("""
+                UPDATE com_admin_resource_sets resource_set
+                   SET lifecycle_state = 'RETIRED', updated_at = CURRENT_TIMESTAMP
+                 WHERE resource_set.tenant_id = ?
+                   AND resource_set.lifecycle_state = 'ACTIVE'
+                   AND NOT EXISTS (
+                       SELECT 1
+                         FROM com_admin_resource_set_members member
+                        WHERE member.tenant_id = resource_set.tenant_id
+                          AND member.resource_set_id = resource_set.resource_set_id
+                          AND member.lifecycle_state = 'ACTIVE')
+                """, tenantId);
+        jdbc.update("""
+                UPDATE com_admin_role_assignments assignment
+                   SET lifecycle_state = 'REVOKED', revoked_at = CURRENT_TIMESTAMP,
+                       revocation_reason = 'Application entitlement was disabled.',
+                       version = assignment.version + 1, updated_at = CURRENT_TIMESTAMP
+                  FROM com_admin_resource_sets resource_set
+                 WHERE assignment.tenant_id = ?
+                   AND resource_set.tenant_id = assignment.tenant_id
+                   AND resource_set.resource_set_id = assignment.resource_set_id
+                   AND resource_set.lifecycle_state = 'RETIRED'
+                   AND assignment.lifecycle_state IN ('PENDING_APPROVAL', 'ACTIVE')
+                """, tenantId);
+        jdbc.update("""
+                INSERT INTO com_admin_resource_sets (
+                    resource_set_id, tenant_id, resource_set_key, name, description,
+                    resource_type, lifecycle_state)
+                SELECT md5('app-resource-set:' || resource.tenant_id || ':' || resource.key)::uuid,
+                       resource.tenant_id,
+                       REGEXP_REPLACE(resource.key, '[^A-Z0-9]+', '_', 'g'),
+                       resource.name, 'Administrative boundary for ' || resource.name,
+                       'APP', 'ACTIVE'
+                  FROM com_resources resource
+                 WHERE resource.tenant_id = ? AND resource.type = 'APP'
+                   AND resource.enabled = TRUE AND resource.key <> 'APP.ADMINISTRATION'
+                ON CONFLICT (tenant_id, resource_set_key) DO UPDATE
+                SET name = EXCLUDED.name, description = EXCLUDED.description,
+                    lifecycle_state = 'ACTIVE', updated_at = CURRENT_TIMESTAMP
+                """, tenantId);
+        jdbc.update("""
+                INSERT INTO com_admin_resource_set_members (
+                    resource_set_member_id, tenant_id, resource_set_id,
+                    resource_type, resource_key, lifecycle_state)
+                SELECT md5('app-resource-member:' || resource.tenant_id || ':' || resource.key)::uuid,
+                       resource.tenant_id, resource_set.resource_set_id,
+                       resource.type, resource.key, 'ACTIVE'
+                  FROM com_resources resource
+                  JOIN com_admin_resource_sets resource_set
+                    ON resource_set.tenant_id = resource.tenant_id
+                   AND resource_set.resource_set_key =
+                       REGEXP_REPLACE(resource.key, '[^A-Z0-9]+', '_', 'g')
+                 WHERE resource.tenant_id = ? AND resource.type = 'APP'
+                   AND resource.enabled = TRUE AND resource.key <> 'APP.ADMINISTRATION'
+                ON CONFLICT (resource_set_id, resource_type, resource_key) DO UPDATE
+                SET lifecycle_state = 'ACTIVE', updated_at = CURRENT_TIMESTAMP
+                """, tenantId);
+    }
+
+    private void ensureInitialAppOwners(Long tenantId, Long administratorId) {
+        jdbc.update("""
+                INSERT INTO com_admin_role_assignments (
+                    admin_role_assignment_id, tenant_id, principal_type, principal_ref,
+                    responsibility_code, resource_set_id, assignment_source,
+                    lifecycle_state, valid_from, review_due_at, justification,
+                    approved_by, approved_at, decision_reason, created_by, updated_by)
+                SELECT gen_random_uuid(), resource_set.tenant_id, 'USER', ?::TEXT,
+                       'APP_OWNER', resource_set.resource_set_id, 'PROVISIONING',
+                       'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '90 days',
+                       'Bootstrap owner pending customer IAM responsibility assignment.',
+                       ?, CURRENT_TIMESTAMP,
+                       'Created by tenant provisioning to avoid an ownerless application.',
+                       ?, ?
+                  FROM com_admin_resource_sets resource_set
+                 WHERE resource_set.tenant_id = ?
+                   AND resource_set.lifecycle_state = 'ACTIVE'
+                   AND NOT EXISTS (
+                       SELECT 1
+                         FROM com_admin_role_assignments owner_assignment
+                        WHERE owner_assignment.tenant_id = resource_set.tenant_id
+                          AND owner_assignment.resource_set_id = resource_set.resource_set_id
+                          AND owner_assignment.responsibility_code = 'APP_OWNER'
+                          AND owner_assignment.lifecycle_state = 'ACTIVE')
+                """, administratorId, administratorId, administratorId,
+                administratorId, tenantId);
     }
 
     private Long ensureAdministrator(
@@ -388,28 +452,6 @@ public class AuthTenantProvisioningService {
                 VALUES (?, ?, 'LOCAL', 'local', ?, NULL, 'INVITED')
                 """, tenantId, userId, email);
         return userId;
-    }
-
-    private Map<String, String> entitledResources(List<String> entitlementKeys) {
-        Map<String, String> resources = new LinkedHashMap<>();
-        resources.put("APP.ADMINISTRATION", "Administration");
-        if (entitlementKeys.contains("core.workspace")) {
-            resources.put("APP.WORK", "Work");
-            resources.put("APP.ACTIVITY", "Activity");
-            resources.put("APP.APPS", "Apps");
-            resources.put("APP.MAIL_CALENDAR", "Mail and calendar");
-            resources.put("APP.COLLABORATION", "Collaboration");
-            resources.put("APP.EMPLOYEE_SERVICES", "Employee services");
-            resources.put("APP.KNOWLEDGE", "Knowledge");
-            resources.put("APP.BUSINESS_ERP", "Business ERP");
-            resources.put("APP.LEGACY_OPERATIONS", "Legacy operations");
-        }
-        if (entitlementKeys.contains("ai.agent-runtime")) resources.put("APP.ASK", "Ask DWP");
-        if (entitlementKeys.contains("core.people")) {
-            resources.put("APP.PEOPLE_DIRECTORY", "People directory");
-            resources.put("APP.EMPLOYEE_SERVICES", "Employee services");
-        }
-        return resources;
     }
 
     private TenantRecord requireTenant(UUID providerTenantId) {
@@ -554,12 +596,11 @@ public class AuthTenantProvisioningService {
     private record AdministratorRecord(Long accountId, Long userId, String email) {
     }
 
-    private record RoleSeed(
-            String code,
+    private record ResourceTemplate(
+            String key,
+            String type,
             String name,
-            String description,
-            boolean privileged,
-            boolean assignableToGroups) {
+            String requiredEntitlement) {
     }
 
     private record ActivationRecord(

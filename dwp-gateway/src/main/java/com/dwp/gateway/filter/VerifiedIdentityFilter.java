@@ -21,6 +21,7 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
     public static final String ROLES_HEADER = "X-DWP-Roles";
     public static final String PERMISSIONS_HEADER = "X-DWP-Permissions";
     public static final String GROUP_REFS_HEADER = "X-DWP-Group-Refs";
+    public static final String RESOURCE_ROLES_HEADER = "X-DWP-Resource-Roles";
 
     private final SessionVerifier sessionVerifier;
 
@@ -37,6 +38,7 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
                     headers.remove(ROLES_HEADER);
                     headers.remove(PERMISSIONS_HEADER);
                     headers.remove(GROUP_REFS_HEADER);
+                    headers.remove(RESOURCE_ROLES_HEADER);
                 })
                 .build();
         ServerWebExchange sanitizedExchange = exchange.mutate().request(sanitizedRequest).build();
@@ -67,6 +69,10 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
                                 if (!identity.groupRefs().isEmpty()) {
                                     headers.set(GROUP_REFS_HEADER,
                                             String.join(",", identity.groupRefs()));
+                                }
+                                if (!identity.resourceRoles().isEmpty()) {
+                                    headers.set(RESOURCE_ROLES_HEADER,
+                                            String.join(",", identity.resourceRoles()));
                                 }
                             })
                             .build();

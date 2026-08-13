@@ -58,7 +58,8 @@ public class AuthSessionVerifier implements SessionVerifier {
                                         data.tenantId().toString(),
                                         data.roles(),
                                         authorities(data.permissions()),
-                                        groupRefs(data.groups())))
+                                        groupRefs(data.groups()),
+                                        resourceRoles(data.resourceRoles())))
                                 .filter(identity -> !tenantAssertionPresent
                                         || requestedTenant.equals(identity.tenantId()));
                     }
@@ -91,6 +92,21 @@ public class AuthSessionVerifier implements SessionVerifier {
         if (path.startsWith("/api/platform/v1/workspace")) {
             return "APP.";
         }
+        if (path.startsWith("/api/platform/v1/communications")) {
+            return "APP.COMMUNICATIONS";
+        }
+        if (path.startsWith("/api/platform/v1/admin/announcements")) {
+            return "ADMIN.COMMUNICATIONS";
+        }
+        if (path.startsWith("/api/platform/v1/admin/services/catalog")) {
+            return "ADMIN.SERVICE_CATALOG";
+        }
+        if (path.startsWith("/api/platform/v1/admin/services/requests")) {
+            return "ADMIN.SERVICE_OPERATIONS";
+        }
+        if (path.startsWith("/api/platform/v1/services")) {
+            return "APP.EMPLOYEE_SERVICES";
+        }
         if (path.startsWith("/api/agent/v1/ask")) {
             return "APP.";
         }
@@ -121,6 +137,28 @@ public class AuthSessionVerifier implements SessionVerifier {
                 .distinct()
                 .sorted()
                 .toList();
+    }
+
+    private List<String> resourceRoles(List<ResourceRoleData> roles) {
+        if (roles == null) return List.of();
+        return roles.stream()
+                .filter(Objects::nonNull)
+                .map(role -> resourceRole(role.responsibilityCode(), role.resourceKey()))
+                .filter(Objects::nonNull)
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    private String resourceRole(String responsibilityCode, String resourceKey) {
+        if (responsibilityCode == null || resourceKey == null) return null;
+        String responsibility = responsibilityCode.trim().toUpperCase();
+        String resource = resourceKey.trim().toUpperCase();
+        if (!responsibility.matches("[A-Z][A-Z0-9_]{2,49}")
+                || !resource.matches("[A-Z][A-Z0-9_.-]{2,254}")) {
+            return null;
+        }
+        return responsibility + "@" + resource;
     }
 
     private String authority(String resourceKey, String permissionCode) {
@@ -157,7 +195,8 @@ public class AuthSessionVerifier implements SessionVerifier {
             Long tenantId,
             List<String> roles,
             List<PermissionData> permissions,
-            List<GroupData> groups) {
+            List<GroupData> groups,
+            List<ResourceRoleData> resourceRoles) {
     }
 
     private record GroupData(String groupRef, String displayName) {
@@ -167,5 +206,8 @@ public class AuthSessionVerifier implements SessionVerifier {
             String resourceKey,
             String permissionCode,
             String effect) {
+    }
+
+    private record ResourceRoleData(String responsibilityCode, String resourceKey) {
     }
 }

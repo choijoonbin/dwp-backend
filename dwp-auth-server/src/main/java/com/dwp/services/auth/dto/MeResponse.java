@@ -5,12 +5,14 @@ import lombok.Getter;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
 @Getter
 @Builder
 public class MeResponse {
 
     private Long userId;
+    private UUID personPublicId;
     private String displayName;
     private String email;
     private String jobTitle;
@@ -26,4 +28,7 @@ public class MeResponse {
 
     @Builder.Default
     private List<PermissionDTO> permissions = Collections.emptyList();
+
+    @Builder.Default
+    private List<AppGovernanceDtos.ResourceRole> resourceRoles = Collections.emptyList();
 }

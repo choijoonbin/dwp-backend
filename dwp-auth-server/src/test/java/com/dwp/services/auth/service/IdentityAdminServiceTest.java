@@ -13,6 +13,9 @@ import com.dwp.services.auth.repository.RoleMemberRepository;
 import com.dwp.services.auth.repository.RoleRepository;
 import com.dwp.services.auth.repository.UserRepository;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -54,6 +57,44 @@ class IdentityAdminServiceTest {
             accessEvidenceRepository,
             auditService,
             delegationPolicyService);
+
+    @Test
+    void identityAdministratorCanReadUsersWithoutReceivingRoleDelegation() {
+        User target = user(2L, 4L);
+        when(userRepository.findAll(
+                        org.mockito.ArgumentMatchers.<Specification<User>>any(),
+                        any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(target)));
+        when(roleMemberRepository.findByTenantIdAndUserIdIn(TENANT_ID, List.of(TARGET_ID)))
+                .thenReturn(List.of());
+        when(roleRepository.findByRoleIdIn(List.of())).thenReturn(List.of());
+        when(accessEvidenceRepository.effectiveAccess(TENANT_ID, List.of(TARGET_ID)))
+                .thenReturn(Map.of());
+        when(accessEvidenceRepository.sessionEvidence(TENANT_ID, List.of(TARGET_ID)))
+                .thenReturn(Map.of());
+        when(delegationPolicyService.findDirectDelegation(TENANT_ID, ACTOR_ID))
+                .thenReturn(Optional.empty());
+        when(delegationPolicyService.effectiveRoleCodesByUser(
+                        TENANT_ID, List.of(TARGET_ID)))
+                .thenReturn(Map.of(TARGET_ID, Set.of("WORKSPACE_MEMBER")));
+
+        IdentityAdminDtos.PageResult<IdentityAdminDtos.UserAccessSummary> result =
+                service.listUsers(TENANT_ID, ACTOR_ID, null, 0, 50);
+
+        assertThat(result.content()).hasSize(1);
+        assertThat(result.content().getFirst().roleManagement())
+                .isEqualTo(new IdentityAdminDtos.RoleManagementSummary(
+                        false, "ROLE_ASSIGNMENT_REQUIRES_TENANT_ADMIN"));
+        verify(delegationPolicyService, never()).evaluateTarget(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void identityAdministratorReceivesNoAssignableTenantRoles() {
+        when(delegationPolicyService.findDirectDelegation(TENANT_ID, ACTOR_ID))
+                .thenReturn(Optional.empty());
+
+        assertThat(service.listRoles(TENANT_ID, ACTOR_ID)).isEmpty();
+    }
 
     @Test
     void replacesOnlyDelegatedRolesRevokesSessionsAndWritesAudit() {

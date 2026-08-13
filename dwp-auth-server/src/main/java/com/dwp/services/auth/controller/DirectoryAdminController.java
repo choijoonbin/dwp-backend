@@ -40,7 +40,7 @@ public class DirectoryAdminController {
                     @RequestParam(defaultValue = "ACTIVE") String status,
                     @RequestParam(defaultValue = "0") int page,
                     @RequestParam(defaultValue = "100") int size) {
-        AuthenticatedUserResolver.requireTenantAdmin(authentication);
+        AuthenticatedUserResolver.requireIdentityAdmin(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
         return ApiResponse.success(
                 directoryAdminService.listUsers(tenantId, query, status, page, size));
@@ -55,7 +55,7 @@ public class DirectoryAdminController {
                     @RequestParam(defaultValue = "ALL") String status,
                     @RequestParam(defaultValue = "0") int page,
                     @RequestParam(defaultValue = "50") int size) {
-        AuthenticatedUserResolver.requireTenantAdmin(authentication);
+        AuthenticatedUserResolver.requireIdentityAdmin(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
         return ApiResponse.success(directoryAdminService.listOrganizations(
                 tenantId, query, status, page, size));
@@ -66,7 +66,7 @@ public class DirectoryAdminController {
             Authentication authentication,
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,
             @PathVariable Long orgUnitId) {
-        AuthenticatedUserResolver.requireTenantAdmin(authentication);
+        AuthenticatedUserResolver.requireIdentityAdmin(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
         return ApiResponse.success(directoryAdminService.getOrganization(tenantId, orgUnitId));
     }
@@ -77,7 +77,7 @@ public class DirectoryAdminController {
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @Valid @RequestBody DirectoryAdminDtos.CreateOrganizationUnitRequest request) {
-        AuthenticatedUserResolver.requireTenantAdmin(authentication);
+        AuthenticatedUserResolver.requireIdentityAdmin(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
         Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
         return ApiResponse.success(directoryAdminService.createOrganization(
@@ -91,7 +91,7 @@ public class DirectoryAdminController {
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @PathVariable Long orgUnitId,
             @Valid @RequestBody DirectoryAdminDtos.UpdateOrganizationUnitRequest request) {
-        AuthenticatedUserResolver.requireTenantAdmin(authentication);
+        AuthenticatedUserResolver.requireIdentityAdmin(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
         Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
         return ApiResponse.success(directoryAdminService.updateOrganization(
@@ -127,7 +127,7 @@ public class DirectoryAdminController {
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @PathVariable Long orgUnitId,
             @Valid @RequestBody DirectoryAdminDtos.ReplaceMembersRequest request) {
-        AuthenticatedUserResolver.requireTenantAdmin(authentication);
+        AuthenticatedUserResolver.requireIdentityAdmin(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
         Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
         return ApiResponse.success(directoryAdminService.replaceOrganizationMembers(
@@ -143,7 +143,7 @@ public class DirectoryAdminController {
                     @RequestParam(defaultValue = "ALL") String status,
                     @RequestParam(defaultValue = "0") int page,
                     @RequestParam(defaultValue = "50") int size) {
-        AuthenticatedUserResolver.requireTenantAdmin(authentication);
+        AuthenticatedUserResolver.requireIdentityAdmin(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
         return ApiResponse.success(
                 directoryAdminService.listGroups(tenantId, query, status, page, size));
@@ -154,7 +154,7 @@ public class DirectoryAdminController {
             Authentication authentication,
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,
             @PathVariable Long groupId) {
-        AuthenticatedUserResolver.requireTenantAdmin(authentication);
+        AuthenticatedUserResolver.requireIdentityAdmin(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
         return ApiResponse.success(directoryAdminService.getGroup(tenantId, groupId));
     }
@@ -165,7 +165,7 @@ public class DirectoryAdminController {
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @Valid @RequestBody DirectoryAdminDtos.CreateDirectoryGroupRequest request) {
-        AuthenticatedUserResolver.requireTenantAdmin(authentication);
+        AuthenticatedUserResolver.requireIdentityAdmin(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
         Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
         return ApiResponse.success(
@@ -179,7 +179,7 @@ public class DirectoryAdminController {
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @PathVariable Long groupId,
             @Valid @RequestBody DirectoryAdminDtos.UpdateDirectoryGroupRequest request) {
-        AuthenticatedUserResolver.requireTenantAdmin(authentication);
+        AuthenticatedUserResolver.requireIdentityAdmin(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
         Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
         return ApiResponse.success(directoryAdminService.updateGroup(
@@ -215,7 +215,7 @@ public class DirectoryAdminController {
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @PathVariable Long groupId,
             @Valid @RequestBody DirectoryAdminDtos.ReplaceMembersRequest request) {
-        AuthenticatedUserResolver.requireTenantAdmin(authentication);
+        AuthenticatedUserResolver.requireIdentityAdmin(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
         Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
         return ApiResponse.success(directoryAdminService.replaceGroupMembers(
@@ -229,7 +229,7 @@ public class DirectoryAdminController {
             Long orgUnitId,
             String status,
             DirectoryAdminDtos.LifecycleRequest request) {
-        AuthenticatedUserResolver.requireTenantAdmin(authentication);
+        AuthenticatedUserResolver.requireIdentityAdmin(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
         Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
         return ApiResponse.success(directoryAdminService.changeOrganizationStatus(
@@ -243,7 +243,7 @@ public class DirectoryAdminController {
             Long groupId,
             String status,
             DirectoryAdminDtos.LifecycleRequest request) {
-        AuthenticatedUserResolver.requireTenantAdmin(authentication);
+        AuthenticatedUserResolver.requireIdentityAdmin(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
         Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
         return ApiResponse.success(directoryAdminService.changeGroupStatus(

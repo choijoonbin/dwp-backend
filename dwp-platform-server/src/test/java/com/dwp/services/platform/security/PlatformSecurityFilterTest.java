@@ -57,6 +57,207 @@ class PlatformSecurityFilterTest {
     }
 
     @Test
+    void enforcesSeparatedCommunicationsEditorAndPublisherAuthorities() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+        MockHttpServletRequest editorCreate = new MockHttpServletRequest(
+                "POST", "/v1/admin/announcements");
+        editorCreate.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        editorCreate.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        editorCreate.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        editorCreate.addHeader(PlatformSecurityFilter.ROLES_HEADER, "COMMUNICATIONS_EDITOR");
+        editorCreate.addHeader(
+                PlatformSecurityFilter.PERMISSIONS_HEADER,
+                "ADMIN.COMMUNICATIONS:CREATE");
+        MockHttpServletResponse editorCreateResponse = new MockHttpServletResponse();
+
+        filter.doFilter(editorCreate, editorCreateResponse, new MockFilterChain());
+
+        assertThat(editorCreateResponse.getStatus()).isEqualTo(200);
+
+        MockHttpServletRequest editorPublish = new MockHttpServletRequest(
+                "POST", "/v1/admin/announcements/91/publish");
+        editorPublish.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        editorPublish.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        editorPublish.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        editorPublish.addHeader(PlatformSecurityFilter.ROLES_HEADER, "COMMUNICATIONS_EDITOR");
+        editorPublish.addHeader(
+                PlatformSecurityFilter.PERMISSIONS_HEADER,
+                "ADMIN.COMMUNICATIONS:CREATE,ADMIN.COMMUNICATIONS:UPDATE");
+        MockHttpServletResponse editorPublishResponse = new MockHttpServletResponse();
+
+        filter.doFilter(editorPublish, editorPublishResponse, new MockFilterChain());
+
+        assertThat(editorPublishResponse.getStatus()).isEqualTo(403);
+
+        MockHttpServletRequest publisherPublish = new MockHttpServletRequest(
+                "POST", "/v1/admin/announcements/91/publish");
+        publisherPublish.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        publisherPublish.addHeader(PlatformSecurityFilter.USER_HEADER, "18");
+        publisherPublish.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        publisherPublish.addHeader(
+                PlatformSecurityFilter.ROLES_HEADER, "COMMUNICATIONS_PUBLISHER");
+        publisherPublish.addHeader(
+                PlatformSecurityFilter.PERMISSIONS_HEADER,
+                "ADMIN.COMMUNICATIONS:APPROVE");
+        MockHttpServletResponse publisherPublishResponse = new MockHttpServletResponse();
+
+        filter.doFilter(publisherPublish, publisherPublishResponse, new MockFilterChain());
+
+        assertThat(publisherPublishResponse.getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void requiresTheCommunicationsApplicationEntitlementForTheReaderApi() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+        MockHttpServletRequest denied = request("/v1/communications");
+        denied.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        denied.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        denied.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        denied.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
+        MockHttpServletResponse deniedResponse = new MockHttpServletResponse();
+
+        filter.doFilter(denied, deniedResponse, new MockFilterChain());
+
+        assertThat(deniedResponse.getStatus()).isEqualTo(403);
+
+        MockHttpServletRequest allowed = request("/v1/communications");
+        allowed.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        allowed.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        allowed.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        allowed.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
+        allowed.addHeader(
+                PlatformSecurityFilter.PERMISSIONS_HEADER, "APP.COMMUNICATIONS:VIEW");
+        MockHttpServletResponse allowedResponse = new MockHttpServletResponse();
+
+        filter.doFilter(allowed, allowedResponse, new MockFilterChain());
+
+        assertThat(allowedResponse.getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void allowsScopedAppApproversOnlyOnTheAppAccessRequestSurface() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+        MockHttpServletRequest allowed = request("/v1/admin/app-access-requests");
+        allowed.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        allowed.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        allowed.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        allowed.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
+        allowed.addHeader(
+                PlatformSecurityFilter.RESOURCE_ROLES_HEADER,
+                "APP_ACCESS_APPROVER@APP.MAIL_CALENDAR");
+        MockHttpServletResponse allowedResponse = new MockHttpServletResponse();
+
+        filter.doFilter(allowed, allowedResponse, new MockFilterChain());
+
+        assertThat(allowedResponse.getStatus()).isEqualTo(200);
+
+        MockHttpServletRequest denied = request("/v1/admin/reference-sets");
+        denied.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        denied.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        denied.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        denied.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
+        denied.addHeader(
+                PlatformSecurityFilter.RESOURCE_ROLES_HEADER,
+                "APP_ACCESS_APPROVER@APP.MAIL_CALENDAR");
+        MockHttpServletResponse deniedResponse = new MockHttpServletResponse();
+
+        filter.doFilter(denied, deniedResponse, new MockFilterChain());
+
+        assertThat(deniedResponse.getStatus()).isEqualTo(403);
+    }
+
+    @Test
+    void separatesAppAccessDecisionAndFulfillmentResponsibilities() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+        MockHttpServletRequest managerFulfillment = new MockHttpServletRequest(
+                "POST", "/v1/admin/app-access-requests/abc/fulfillment");
+        managerFulfillment.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        managerFulfillment.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        managerFulfillment.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        managerFulfillment.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
+        managerFulfillment.addHeader(
+                PlatformSecurityFilter.RESOURCE_ROLES_HEADER,
+                "APP_ACCESS_MANAGER@APP.MAIL_CALENDAR");
+        MockHttpServletResponse managerResponse = new MockHttpServletResponse();
+
+        filter.doFilter(managerFulfillment, managerResponse, new MockFilterChain());
+
+        assertThat(managerResponse.getStatus()).isEqualTo(200);
+
+        MockHttpServletRequest approverFulfillment = new MockHttpServletRequest(
+                "POST", "/v1/admin/app-access-requests/abc/fulfillment");
+        approverFulfillment.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        approverFulfillment.addHeader(PlatformSecurityFilter.USER_HEADER, "18");
+        approverFulfillment.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        approverFulfillment.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
+        approverFulfillment.addHeader(
+                PlatformSecurityFilter.RESOURCE_ROLES_HEADER,
+                "APP_ACCESS_APPROVER@APP.MAIL_CALENDAR");
+        MockHttpServletResponse approverResponse = new MockHttpServletResponse();
+
+        filter.doFilter(approverFulfillment, approverResponse, new MockFilterChain());
+
+        assertThat(approverResponse.getStatus()).isEqualTo(403);
+
+        MockHttpServletRequest managerDecision = new MockHttpServletRequest(
+                "POST", "/v1/admin/app-access-requests/abc/decision");
+        managerDecision.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        managerDecision.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        managerDecision.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        managerDecision.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
+        managerDecision.addHeader(
+                PlatformSecurityFilter.RESOURCE_ROLES_HEADER,
+                "APP_ACCESS_MANAGER@APP.MAIL_CALENDAR");
+        MockHttpServletResponse managerDecisionResponse = new MockHttpServletResponse();
+
+        filter.doFilter(managerDecision, managerDecisionResponse, new MockFilterChain());
+
+        assertThat(managerDecisionResponse.getStatus()).isEqualTo(403);
+    }
+
+    @Test
+    void keepsCatalogAdministratorsReadOnlyOnTheAppAccessQueue() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+        MockHttpServletRequest queue = request("/v1/admin/app-access-requests");
+        queue.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        queue.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        queue.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        queue.addHeader(PlatformSecurityFilter.ROLES_HEADER, "APP_CATALOG_ADMIN");
+        MockHttpServletResponse queueResponse = new MockHttpServletResponse();
+
+        filter.doFilter(queue, queueResponse, new MockFilterChain());
+
+        assertThat(queueResponse.getStatus()).isEqualTo(200);
+
+        MockHttpServletRequest decision = new MockHttpServletRequest(
+                "POST", "/v1/admin/app-access-requests/abc/decision");
+        decision.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        decision.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        decision.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        decision.addHeader(PlatformSecurityFilter.ROLES_HEADER, "APP_CATALOG_ADMIN");
+        MockHttpServletResponse decisionResponse = new MockHttpServletResponse();
+
+        filter.doFilter(decision, decisionResponse, new MockFilterChain());
+
+        assertThat(decisionResponse.getStatus()).isEqualTo(403);
+    }
+
+    @Test
+    void doesNotTreatTenantAdministrationAsApplicationAccessResponsibility() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+        MockHttpServletRequest queue = request("/v1/admin/app-access-requests");
+        queue.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        queue.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        queue.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        queue.addHeader(PlatformSecurityFilter.ROLES_HEADER, "TENANT_ADMIN");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(queue, response, new MockFilterChain());
+
+        assertThat(response.getStatus()).isEqualTo(403);
+    }
+
+    @Test
     void acceptsAuditAccessFromScopedPermissionInsteadOfBuiltInRoleName() throws Exception {
         PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
         MockHttpServletRequest request = request("/v1/admin/audit-control/overview");
@@ -276,6 +477,86 @@ class PlatformSecurityFilterTest {
         filter.doFilter(request, response, new MockFilterChain());
 
         assertThat(response.getStatus()).isEqualTo(403);
+    }
+
+    @Test
+    void requiresEmployeeServicesEntitlementForTheServiceCenter() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+        MockHttpServletRequest denied = request("/v1/services/catalog");
+        denied.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        denied.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        denied.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        denied.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
+        MockHttpServletResponse deniedResponse = new MockHttpServletResponse();
+
+        filter.doFilter(denied, deniedResponse, new MockFilterChain());
+
+        assertThat(deniedResponse.getStatus()).isEqualTo(403);
+
+        MockHttpServletRequest allowed = request("/v1/services/catalog");
+        allowed.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        allowed.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        allowed.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        allowed.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
+        allowed.addHeader(
+                PlatformSecurityFilter.PERMISSIONS_HEADER,
+                "APP.EMPLOYEE_SERVICES:VIEW");
+        MockHttpServletResponse allowedResponse = new MockHttpServletResponse();
+
+        filter.doFilter(allowed, allowedResponse, new MockFilterChain());
+
+        assertThat(allowedResponse.getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void separatesServiceCatalogDesignFromRequestOperations() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+        MockHttpServletRequest catalogWrite = new MockHttpServletRequest(
+                "PUT", "/v1/admin/services/catalog/technology.account-help");
+        catalogWrite.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        catalogWrite.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        catalogWrite.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        catalogWrite.addHeader(PlatformSecurityFilter.ROLES_HEADER, "SERVICE_CATALOG_MANAGER");
+        catalogWrite.addHeader(
+                PlatformSecurityFilter.PERMISSIONS_HEADER,
+                "ADMIN.SERVICE_CATALOG:UPDATE");
+        MockHttpServletResponse catalogResponse = new MockHttpServletResponse();
+
+        filter.doFilter(catalogWrite, catalogResponse, new MockFilterChain());
+
+        assertThat(catalogResponse.getStatus()).isEqualTo(200);
+
+        MockHttpServletRequest catalogOnOperations = new MockHttpServletRequest(
+                "POST", "/v1/admin/services/requests/abc/transition");
+        catalogOnOperations.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        catalogOnOperations.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        catalogOnOperations.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        catalogOnOperations.addHeader(
+                PlatformSecurityFilter.ROLES_HEADER,
+                "SERVICE_CATALOG_MANAGER");
+        catalogOnOperations.addHeader(
+                PlatformSecurityFilter.PERMISSIONS_HEADER,
+                "ADMIN.SERVICE_CATALOG:UPDATE");
+        MockHttpServletResponse deniedResponse = new MockHttpServletResponse();
+
+        filter.doFilter(catalogOnOperations, deniedResponse, new MockFilterChain());
+
+        assertThat(deniedResponse.getStatus()).isEqualTo(403);
+
+        MockHttpServletRequest agentTransition = new MockHttpServletRequest(
+                "POST", "/v1/admin/services/requests/abc/transition");
+        agentTransition.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        agentTransition.addHeader(PlatformSecurityFilter.USER_HEADER, "18");
+        agentTransition.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        agentTransition.addHeader(PlatformSecurityFilter.ROLES_HEADER, "SERVICE_AGENT");
+        agentTransition.addHeader(
+                PlatformSecurityFilter.PERMISSIONS_HEADER,
+                "ADMIN.SERVICE_OPERATIONS:MANAGE");
+        MockHttpServletResponse agentResponse = new MockHttpServletResponse();
+
+        filter.doFilter(agentTransition, agentResponse, new MockFilterChain());
+
+        assertThat(agentResponse.getStatus()).isEqualTo(200);
     }
 
     private MockHttpServletRequest request(String path) {

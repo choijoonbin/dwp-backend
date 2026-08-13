@@ -29,7 +29,7 @@ public class IdentityAccessEvidenceRepository {
         List<EffectiveAccessRow> rows = jdbc.query("""
                 SELECT member.user_id, role.role_id, role.code AS role_code,
                        role.name AS role_name, role.privileged,
-                       'DIRECT' AS source_type, member.role_member_id AS source_id,
+                       'DIRECT' AS source_type, member.role_member_id::text AS source_id,
                        NULL::VARCHAR AS source_key, NULL::VARCHAR AS source_name,
                        'ACTIVE' AS assignment_type, 'TENANT' AS scope_type,
                        NULL::VARCHAR AS scope_ref, NULL::TIMESTAMPTZ AS valid_from,
@@ -45,7 +45,7 @@ public class IdentityAccessEvidenceRepository {
                 SELECT membership.user_id, role.role_id, role.code AS role_code,
                        role.name AS role_name, role.privileged,
                        'GROUP' AS source_type,
-                       assignment.group_role_assignment_id AS source_id,
+                       assignment.group_role_assignment_id::text AS source_id,
                        access_group.group_key AS source_key,
                        access_group.display_name AS source_name,
                        assignment.assignment_type, assignment.scope_type,
@@ -71,6 +71,46 @@ public class IdentityAccessEvidenceRepository {
                         OR assignment.valid_from <= CURRENT_TIMESTAMP)
                    AND (assignment.valid_to IS NULL
                         OR assignment.valid_to > CURRENT_TIMESTAMP)
+                UNION ALL
+                SELECT subject.user_id, 0::BIGINT AS role_id,
+                       resource.key || ':' || permission.code AS role_code,
+                       resource.name AS role_name, FALSE AS privileged,
+                       grant_record.source_type,
+                       grant_record.principal_resource_grant_id::text AS source_id,
+                       grant_record.source_ref AS source_key,
+                       'Governed application entitlement' AS source_name,
+                       grant_record.lifecycle_state AS assignment_type,
+                       'RESOURCE' AS scope_type, resource.key AS scope_ref,
+                       grant_record.valid_from, grant_record.valid_to,
+                       grant_record.created_at AS assigned_at
+                  FROM com_principal_resource_grants grant_record
+                  JOIN com_resources resource
+                    ON resource.resource_id = grant_record.resource_id
+                   AND resource.enabled = TRUE
+                  JOIN com_permissions permission
+                    ON permission.permission_id = grant_record.permission_id
+                  JOIN LATERAL (
+                       SELECT grant_record.principal_ref::BIGINT AS user_id
+                        WHERE grant_record.principal_type = 'USER'
+                          AND grant_record.principal_ref ~ '^[0-9]+$'
+                       UNION ALL
+                       SELECT membership.user_id
+                         FROM com_group_members membership
+                         JOIN com_groups access_group
+                           ON access_group.tenant_id = membership.tenant_id
+                          AND access_group.group_id = membership.group_id
+                          AND access_group.status = 'ACTIVE'
+                        WHERE grant_record.principal_type = 'GROUP'
+                          AND grant_record.principal_ref ~ '^[0-9]+$'
+                          AND membership.tenant_id = grant_record.tenant_id
+                          AND membership.group_id = grant_record.principal_ref::BIGINT
+                  ) subject ON TRUE
+                 WHERE grant_record.tenant_id = :tenantId
+                   AND subject.user_id IN (:userIds)
+                   AND grant_record.lifecycle_state = 'ACTIVE'
+                   AND grant_record.valid_from <= CURRENT_TIMESTAMP
+                   AND (grant_record.valid_to IS NULL
+                        OR grant_record.valid_to > CURRENT_TIMESTAMP)
                  ORDER BY user_id, privileged DESC, role_code, source_type, source_name
                 """, new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
@@ -123,7 +163,7 @@ public class IdentityAccessEvidenceRepository {
                 resultSet.getString("role_name"),
                 resultSet.getBoolean("privileged"),
                 resultSet.getString("source_type"),
-                resultSet.getLong("source_id"),
+                resultSet.getString("source_id"),
                 resultSet.getString("source_key"),
                 resultSet.getString("source_name"),
                 resultSet.getString("assignment_type"),
@@ -146,7 +186,7 @@ public class IdentityAccessEvidenceRepository {
             String roleName,
             boolean privileged,
             String sourceType,
-            Long sourceId,
+            String sourceId,
             String sourceKey,
             String sourceName,
             String assignmentType,

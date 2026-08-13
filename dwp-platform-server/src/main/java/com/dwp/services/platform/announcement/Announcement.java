@@ -41,6 +41,48 @@ public class Announcement extends BaseEntity {
     @Column(name = "message", nullable = false, length = 1000)
     private String message;
 
+    @Column(name = "body", columnDefinition = "text")
+    private String body;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "content_type", nullable = false, length = 24)
+    private AnnouncementContentType contentType = AnnouncementContentType.ANNOUNCEMENT;
+
+    @Builder.Default
+    @Column(name = "category_key", nullable = false, length = 40)
+    private String categoryKey = "COMPANY";
+
+    @Column(name = "cover_image_url", length = 500)
+    private String coverImageUrl;
+
+    @Builder.Default
+    @Column(name = "publisher_name", nullable = false, length = 160)
+    private String publisherName = "DWP Communications";
+
+    @Builder.Default
+    @Column(name = "featured", nullable = false)
+    private Boolean featured = false;
+
+    @Builder.Default
+    @Column(name = "acknowledgement_required", nullable = false)
+    private Boolean acknowledgementRequired = false;
+
+    @Column(name = "acknowledgement_due_at")
+    private OffsetDateTime acknowledgementDueAt;
+
+    @Builder.Default
+    @Column(name = "dismissible", nullable = false)
+    private Boolean dismissible = true;
+
+    @Builder.Default
+    @Column(name = "reading_minutes", nullable = false)
+    private Short readingMinutes = 2;
+
+    @Builder.Default
+    @Column(name = "source_locale", nullable = false, length = 16)
+    private String sourceLocale = "ko";
+
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "severity", nullable = false, length = 16)

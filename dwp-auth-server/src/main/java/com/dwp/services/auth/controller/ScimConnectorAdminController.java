@@ -37,7 +37,7 @@ public class ScimConnectorAdminController {
     public ApiResponse<List<ScimConnectorDtos.ConnectorSummary>> list(
             Authentication authentication,
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader) {
-        AuthenticatedUserResolver.requireTenantAdmin(authentication);
+        AuthenticatedUserResolver.requireIdentityAdmin(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
         return ApiResponse.success(service.list(tenantId));
     }
@@ -48,7 +48,7 @@ public class ScimConnectorAdminController {
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,
             @RequestParam(required = false) UUID connectorId,
             @RequestParam(defaultValue = "100") int limit) {
-        AuthenticatedUserResolver.requireTenantAdmin(authentication);
+        AuthenticatedUserResolver.requireIdentityAdmin(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
         return ApiResponse.success(service.events(tenantId, connectorId, limit));
     }
@@ -59,7 +59,7 @@ public class ScimConnectorAdminController {
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @Valid @RequestBody ScimConnectorDtos.CreateRequest request) {
-        AuthenticatedUserResolver.requireTenantAdmin(authentication);
+        AuthenticatedUserResolver.requireIdentityAdmin(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
         Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
         return ApiResponse.success(service.create(tenantId, actorId, correlationId, request));
@@ -71,7 +71,7 @@ public class ScimConnectorAdminController {
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @PathVariable UUID connectorId) {
-        AuthenticatedUserResolver.requireTenantAdmin(authentication);
+        AuthenticatedUserResolver.requireIdentityAdmin(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
         Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
         return ApiResponse.success(service.rotate(tenantId, actorId, correlationId, connectorId));
@@ -84,7 +84,7 @@ public class ScimConnectorAdminController {
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @PathVariable UUID connectorId,
             @Valid @RequestBody ScimConnectorDtos.LifecycleRequest request) {
-        AuthenticatedUserResolver.requireTenantAdmin(authentication);
+        AuthenticatedUserResolver.requireIdentityAdmin(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
         Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
         return ApiResponse.success(service.lifecycle(

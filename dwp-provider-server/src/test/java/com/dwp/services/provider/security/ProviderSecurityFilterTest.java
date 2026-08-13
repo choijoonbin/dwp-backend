@@ -66,6 +66,21 @@ class ProviderSecurityFilterTest {
     }
 
     @Test
+    void rejectsAnAuthRoleThatDoesNotMatchTheActiveProviderAssignment() throws Exception {
+        ProviderRequestContext.Actor actor = actor();
+        when(operatorService.activeOperator(3L, 17L)).thenReturn(java.util.Optional.of(actor));
+        ProviderSecurityFilter filter = new ProviderSecurityFilter(
+                "trusted-provider", operatorService, objectMapper);
+        MockHttpServletRequest request = request("trusted-provider", "PROVIDER_OPERATOR");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (ignoredRequest, ignoredResponse) -> {
+        });
+
+        assertThat(response.getStatus()).isEqualTo(403);
+    }
+
+    @Test
     void forwardsOnlyAnActiveProviderOperatorAndClearsTheRequestContext() throws Exception {
         ProviderRequestContext.Actor actor = actor();
         when(operatorService.activeOperator(3L, 17L)).thenReturn(java.util.Optional.of(actor));

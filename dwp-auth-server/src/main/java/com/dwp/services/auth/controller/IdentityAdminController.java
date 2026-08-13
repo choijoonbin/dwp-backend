@@ -43,7 +43,7 @@ public class IdentityAdminController {
             @RequestParam(required = false) String query,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
-        AuthenticatedUserResolver.requireTenantAdmin(authentication);
+        AuthenticatedUserResolver.requireIdentityAdmin(authentication);
         Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
         return ApiResponse.success(identityAdminService.listUsers(
@@ -54,7 +54,7 @@ public class IdentityAdminController {
     public ApiResponse<List<IdentityAdminDtos.RoleSummary>> roles(
             Authentication authentication,
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader) {
-        AuthenticatedUserResolver.requireTenantAdmin(authentication);
+        AuthenticatedUserResolver.requireIdentityAdmin(authentication);
         Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
         return ApiResponse.success(identityAdminService.listRoles(tenantId, actorId));

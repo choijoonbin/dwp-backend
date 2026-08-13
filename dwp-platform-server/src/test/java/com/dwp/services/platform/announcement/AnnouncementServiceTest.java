@@ -12,6 +12,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -62,7 +63,18 @@ class AnnouncementServiceTest {
                         OffsetDateTime.parse("2026-08-10T03:00:00Z"),
                         true,
                         "View status",
-                        "/activity")));
+                        "/activity",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null)));
 
         assertThat(result.lifecycleState()).isEqualTo(AnnouncementLifecycle.DRAFT);
         assertThat(result.title()).isEqualTo("Planned maintenance");
@@ -90,7 +102,18 @@ class AnnouncementServiceTest {
                 null,
                 false,
                 "Open",
-                "javascript:alert(1)");
+                "javascript:alert(1)",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
 
         assertThatThrownBy(() -> service.create(
                         7L,
@@ -114,7 +137,18 @@ class AnnouncementServiceTest {
                 null,
                 false,
                 "Open",
-                "/\\external.example");
+                "/\\external.example",
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
 
         assertThatThrownBy(() -> service.create(
                         7L,
@@ -134,5 +168,33 @@ class AnnouncementServiceTest {
         assertThat(service.listActive(7L, " admin, EMPLOYEE,invalid role ")).isEmpty();
 
         verify(repository).findActive(eq(7L), any(), eq(List.of("ADMIN", "EMPLOYEE")), any());
+    }
+
+    @Test
+    void publishedContentIsImmutableAndMustBeDuplicatedAsDraft() {
+        Announcement published = Announcement.builder()
+                .announcementId(91L)
+                .tenantId(7L)
+                .title("Published")
+                .message("Evidence")
+                .lifecycleState(AnnouncementLifecycle.PUBLISHED)
+                .version(3L)
+                .build();
+        when(repository.findByAnnouncementIdAndTenantId(91L, 7L))
+                .thenReturn(Optional.of(published));
+
+        AnnouncementDtos.AnnouncementDefinition definition =
+                new AnnouncementDtos.AnnouncementDefinition(
+                        "Changed", "Changed", AnnouncementSeverity.INFO,
+                        AnnouncementAudienceType.ALL, null, null, null, false,
+                        null, null, null, null, null, null, null, null, null,
+                        null, null, null, null);
+
+        assertThatThrownBy(() -> service.update(
+                        7L, 11L, "corr", 91L,
+                        new AnnouncementDtos.UpdateAnnouncementRequest(definition, 3L)))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_CONFLICT));
+        verify(repository, never()).saveAndFlush(any());
     }
 }

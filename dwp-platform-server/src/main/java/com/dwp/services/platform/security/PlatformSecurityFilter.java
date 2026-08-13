@@ -32,6 +32,7 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
     static final String TENANT_HEADER = "X-DWP-Tenant-ID";
     static final String ROLES_HEADER = "X-DWP-Roles";
     static final String PERMISSIONS_HEADER = "X-DWP-Permissions";
+    static final String RESOURCE_ROLES_HEADER = "X-DWP-Resource-Roles";
     static final String SUPPORT_SESSION_HEADER = "X-DWP-Support-Session-ID";
     static final String SUPPORT_SCOPES_HEADER = "X-DWP-Support-Scopes";
     static final String ACTOR_TENANT_HEADER = "X-DWP-Actor-Tenant-ID";
@@ -118,7 +119,32 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
             writeError(response, ErrorCode.FORBIDDEN, "Workspace permission is required.");
             return;
         }
+        boolean communicationsPath = path.startsWith("/v1/communications");
+        if (communicationsPath && !hasAuthority(
+                request.getHeader(PERMISSIONS_HEADER), "APP.COMMUNICATIONS", "VIEW")) {
+            writeError(response, ErrorCode.FORBIDDEN, "Communications access is required.");
+            return;
+        }
+        boolean serviceCenterPath = path.startsWith("/v1/services");
+        if (serviceCenterPath && !hasAuthority(
+                request.getHeader(PERMISSIONS_HEADER), "APP.EMPLOYEE_SERVICES", "VIEW")) {
+            writeError(response, ErrorCode.FORBIDDEN, "Employee services access is required.");
+            return;
+        }
+        boolean communicationsAdminPath = path.startsWith("/v1/admin/announcements");
+        boolean delegatedCommunicationsAccess = communicationsAdminPath
+                && hasCommunicationsAuthority(request);
+        boolean servicesAdminPath = path.startsWith("/v1/admin/services");
+        boolean delegatedServicesAccess = servicesAdminPath && hasServicesAuthority(request);
+        boolean appAccessRequestPath = path.startsWith("/v1/admin/app-access-requests");
+        boolean scopedAppAccess = appAccessRequestPath && hasScopedAppAccess(request);
+        if (appAccessRequestPath && !scopedAppAccess) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "An application-scoped access responsibility is required.");
+            return;
+        }
         if (!supportAccess && !auditAdminPath && !savedViewCustodyPath
+                && !scopedAppAccess && !delegatedCommunicationsAccess && !delegatedServicesAccess
                 && path.startsWith("/v1/admin/")
                 && !hasRole(request.getHeader(ROLES_HEADER), ADMIN_ROLES)) {
             writeError(response, ErrorCode.FORBIDDEN, "Tenant administrator permission is required.");
@@ -133,6 +159,23 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
         }
     }
 
+    private boolean hasScopedAppAccess(HttpServletRequest request) {
+        String resourceRoles = request.getHeader(RESOURCE_ROLES_HEADER);
+        if ("GET".equals(request.getMethod()) || "HEAD".equals(request.getMethod())) {
+            return hasRole(request.getHeader(ROLES_HEADER), Set.of("APP_CATALOG_ADMIN"))
+                    || !ResourceRoleAuthorization.resourcesFor(
+                    resourceRoles, "APP_OWNER", "APP_ACCESS_MANAGER",
+                    "APP_ACCESS_APPROVER", "APP_ACCESS_REVIEWER").isEmpty();
+        }
+        String path = request.getRequestURI();
+        if (path.endsWith("/fulfillment") || path.endsWith("/revocation")) {
+            return !ResourceRoleAuthorization.resourcesFor(
+                    resourceRoles, "APP_ACCESS_MANAGER").isEmpty();
+        }
+        return !ResourceRoleAuthorization.resourcesFor(
+                resourceRoles, "APP_ACCESS_APPROVER").isEmpty();
+    }
+
     private boolean hasPermission(String permissionsHeader, String resourceKey) {
         if (isBlank(permissionsHeader)) return false;
         String prefix = resourceKey.toUpperCase() + ":";
@@ -140,6 +183,46 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
                 .map(String::trim)
                 .map(String::toUpperCase)
                 .anyMatch(value -> value.startsWith(prefix));
+    }
+
+    private boolean hasAuthority(
+            String permissionsHeader,
+            String resourceKey,
+            String permissionCode) {
+        if (isBlank(permissionsHeader)) return false;
+        String expected = resourceKey.toUpperCase() + ":" + permissionCode.toUpperCase();
+        return Arrays.stream(permissionsHeader.split(","))
+                .map(String::trim)
+                .map(String::toUpperCase)
+                .anyMatch(expected::equals);
+    }
+
+    private boolean hasCommunicationsAuthority(HttpServletRequest request) {
+        String requiredPermission = switch (request.getMethod()) {
+            case "GET", "HEAD" -> "VIEW";
+            case "PUT" -> "UPDATE";
+            case "POST" -> request.getRequestURI().endsWith("/publish")
+                    ? "APPROVE"
+                    : request.getRequestURI().endsWith("/archive") ? "MANAGE" : "CREATE";
+            default -> "MANAGE";
+        };
+        return hasAuthority(
+                request.getHeader(PERMISSIONS_HEADER),
+                "ADMIN.COMMUNICATIONS",
+                requiredPermission);
+    }
+
+    private boolean hasServicesAuthority(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        boolean catalog = path.startsWith("/v1/admin/services/catalog");
+        String resource = catalog ? "ADMIN.SERVICE_CATALOG" : "ADMIN.SERVICE_OPERATIONS";
+        String requiredPermission = switch (request.getMethod()) {
+            case "GET", "HEAD" -> "VIEW";
+            case "PUT" -> "UPDATE";
+            case "POST" -> catalog ? "CREATE" : "MANAGE";
+            default -> "MANAGE";
+        };
+        return hasAuthority(request.getHeader(PERMISSIONS_HEADER), resource, requiredPermission);
     }
 
     private boolean isBlank(String value) {

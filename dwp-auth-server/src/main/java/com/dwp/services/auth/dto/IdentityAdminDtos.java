@@ -40,7 +40,7 @@ public final class IdentityAdminDtos {
             String roleName,
             boolean privileged,
             String sourceType,
-            Long sourceId,
+            String sourceId,
             String sourceKey,
             String sourceName,
             String assignmentType,

@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -90,8 +91,8 @@ public class IdentityAdminService {
                 accessEvidenceRepository.effectiveAccess(tenantId, userIds);
         Map<Long, IdentityAccessEvidenceRepository.SessionEvidence> sessionsByUser =
                 accessEvidenceRepository.sessionEvidence(tenantId, userIds);
-        RoleDelegationPolicyService.DelegationContext context =
-                delegationPolicyService.resolve(tenantId, actorId);
+        Optional<RoleDelegationPolicyService.DelegationContext> delegation =
+                delegationPolicyService.findDirectDelegation(tenantId, actorId);
         Map<Long, Set<String>> effectiveRolesByUser =
                 delegationPolicyService.effectiveRoleCodesByUser(
                         tenantId,
@@ -99,14 +100,18 @@ public class IdentityAdminService {
         return new IdentityAdminDtos.PageResult<>(
                 result.stream()
                         .map(user -> {
-                            RoleDelegationPolicyService.RoleManagementDecision decision =
-                                    delegationPolicyService.evaluateTarget(
+                            RoleDelegationPolicyService.RoleManagementDecision decision = delegation
+                                    .map(context -> delegationPolicyService.evaluateTarget(
                                             context,
                                             actorId,
                                             user.getUserId(),
                                             user.getStatus(),
                                             effectiveRolesByUser.getOrDefault(
-                                                    user.getUserId(), Set.of()));
+                                                    user.getUserId(), Set.of())))
+                                    .orElseGet(() -> new RoleDelegationPolicyService
+                                            .RoleManagementDecision(
+                                                    false,
+                                                    "ROLE_ASSIGNMENT_REQUIRES_TENANT_ADMIN"));
                             return toUserSummary(
                                     user,
                                     rolesByUser.getOrDefault(user.getUserId(), List.of()),
@@ -123,7 +128,8 @@ public class IdentityAdminService {
 
     @Transactional(readOnly = true)
     public List<IdentityAdminDtos.RoleSummary> listRoles(Long tenantId, Long actorId) {
-        return delegationPolicyService.resolve(tenantId, actorId).assignableRoles().stream()
+        return delegationPolicyService.findDirectDelegation(tenantId, actorId).stream()
+                .flatMap(context -> context.assignableRoles().stream())
                 .map(option -> new IdentityAdminDtos.RoleSummary(
                         option.role().getCode(),
                         option.role().getName(),
@@ -347,6 +353,8 @@ public class IdentityAdminService {
                 user.getMfaEnabled(),
                 roles,
                 effectiveAccess.stream()
+                        .filter(item -> "DIRECT".equals(item.sourceType())
+                                || "GROUP".equals(item.sourceType()))
                         .map(IdentityAdminDtos.EffectiveAccessSummary::roleCode)
                         .distinct()
                         .sorted()

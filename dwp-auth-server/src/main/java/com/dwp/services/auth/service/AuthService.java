@@ -19,6 +19,7 @@ import com.dwp.services.auth.entity.Tenant;
 import com.dwp.services.auth.entity.User;
 import com.dwp.services.auth.entity.UserAccount;
 import com.dwp.services.auth.repository.PermissionRepository;
+import com.dwp.services.auth.repository.PrincipalResourceGrantRepository;
 import com.dwp.services.auth.repository.DirectoryGroupMemberRepository;
 import com.dwp.services.auth.repository.DirectoryGroupRepository;
 import com.dwp.services.auth.repository.ResourceRepository;
@@ -36,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.IllformedLocaleException;
 import java.time.Instant;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
@@ -57,10 +59,12 @@ public class AuthService {
     private final RolePermissionRepository rolePermissionRepository;
     private final ResourceRepository resourceRepository;
     private final PermissionRepository permissionRepository;
+    private final PrincipalResourceGrantRepository principalResourceGrantRepository;
     private final AuthSessionService authSessionService;
     private final AuthPolicyService authPolicyService;
     private final IdentityAccountService identityAccountService;
     private final LoginAttemptService loginAttemptService;
+    private final AppGovernanceService appGovernanceService;
     private final PasswordEncoder passwordEncoder;
 
     public AuthService(
@@ -74,10 +78,12 @@ public class AuthService {
             RolePermissionRepository rolePermissionRepository,
             ResourceRepository resourceRepository,
             PermissionRepository permissionRepository,
+            PrincipalResourceGrantRepository principalResourceGrantRepository,
             AuthSessionService authSessionService,
             AuthPolicyService authPolicyService,
             IdentityAccountService identityAccountService,
             LoginAttemptService loginAttemptService,
+            AppGovernanceService appGovernanceService,
             PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.userAccountRepository = userAccountRepository;
@@ -89,10 +95,12 @@ public class AuthService {
         this.rolePermissionRepository = rolePermissionRepository;
         this.resourceRepository = resourceRepository;
         this.permissionRepository = permissionRepository;
+        this.principalResourceGrantRepository = principalResourceGrantRepository;
         this.authSessionService = authSessionService;
         this.authPolicyService = authPolicyService;
         this.identityAccountService = identityAccountService;
         this.loginAttemptService = loginAttemptService;
+        this.appGovernanceService = appGovernanceService;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -237,6 +245,7 @@ public class AuthService {
             User user, Tenant tenant, List<PermissionDTO> permissions) {
         return MeResponse.builder()
                 .userId(user.getUserId())
+                .personPublicId(user.getPersonPublicId())
                 .displayName(user.getDisplayName())
                 .email(user.getEmail())
                 .jobTitle(user.getJobTitle())
@@ -248,6 +257,8 @@ public class AuthService {
                 .roles(getRoleCodes(user.getUserId(), tenant.getTenantId()))
                 .groups(getGroupMemberships(user.getUserId(), tenant.getTenantId()))
                 .permissions(permissions)
+                .resourceRoles(appGovernanceService.resourceRoles(
+                        tenant.getTenantId(), user.getUserId()))
                 .build();
     }
 
@@ -284,12 +295,10 @@ public class AuthService {
     @Transactional(readOnly = true)
     public List<PermissionDTO> getPermissions(Long userId, Long tenantId) {
         List<Long> roleIds = roleMemberRepository.findRoleIds(tenantId, userId);
-        if (roleIds.isEmpty()) return List.of();
-
-        List<RolePermission> assignments =
-                rolePermissionRepository.findByTenantIdAndRoleIdInAndEffect(
+        List<RolePermission> assignments = roleIds.isEmpty()
+                ? List.of()
+                : rolePermissionRepository.findByTenantIdAndRoleIdInAndEffect(
                         tenantId, roleIds, "ALLOW");
-        if (assignments.isEmpty()) return List.of();
 
         Map<Long, Resource> resources = resourceRepository
                 .findAllById(assignments.stream().map(RolePermission::getResourceId).toList())
@@ -301,13 +310,18 @@ public class AuthService {
                 .stream()
                 .collect(Collectors.toMap(Permission::getPermissionId, Function.identity()));
 
-        return assignments.stream()
+        LinkedHashMap<String, PermissionDTO> effective = new LinkedHashMap<>();
+        assignments.stream()
                 .map(assignment -> toPermission(
                         assignment,
                         resources.get(assignment.getResourceId()),
                         permissions.get(assignment.getPermissionId())))
                 .filter(java.util.Objects::nonNull)
-                .toList();
+                .forEach(permission -> effective.putIfAbsent(permissionKey(permission), permission));
+        principalResourceGrantRepository.findEffective(tenantId, userId).stream()
+                .map(this::toPermission)
+                .forEach(permission -> effective.putIfAbsent(permissionKey(permission), permission));
+        return List.copyOf(effective.values());
     }
 
     private PermissionDTO toPermission(
@@ -323,6 +337,23 @@ public class AuthService {
                 .permissionName(permission.getName())
                 .effect(assignment.getEffect())
                 .build();
+    }
+
+    private PermissionDTO toPermission(
+            PrincipalResourceGrantRepository.EffectiveGrant grant) {
+        return PermissionDTO.builder()
+                .resourceType(grant.resourceType())
+                .resourceKey(grant.resourceKey())
+                .resourceName(grant.resourceName())
+                .permissionCode(grant.permissionCode())
+                .permissionName(grant.permissionName())
+                .effect(grant.effect())
+                .build();
+    }
+
+    private String permissionKey(PermissionDTO permission) {
+        return permission.getResourceKey() + ":" + permission.getPermissionCode()
+                + ":" + permission.getEffect();
     }
 
     @Transactional

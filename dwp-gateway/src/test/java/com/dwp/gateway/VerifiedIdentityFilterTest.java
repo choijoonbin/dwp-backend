@@ -23,7 +23,8 @@ class VerifiedIdentityFilterTest {
                 "tenant-1",
                 List.of("EMPLOYEE", "APPROVER"),
                 List.of("ADMIN.AUDIT_VIEW:VIEW"),
-                List.of("58fa4516-dc70-4785-ac9f-3606992c3f6b")));
+                List.of("58fa4516-dc70-4785-ac9f-3606992c3f6b"),
+                List.of("APP_ACCESS_APPROVER@APP.MAIL_CALENDAR")));
         VerifiedIdentityFilter filter = new VerifiedIdentityFilter(verifier);
         MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
                 .get("/api/agent/v1/plans/preview")
@@ -32,6 +33,8 @@ class VerifiedIdentityFilterTest {
                 .header(VerifiedIdentityFilter.TENANT_HEADER, "spoofed")
                 .header(VerifiedIdentityFilter.PERMISSIONS_HEADER, "SPOOFED:MANAGE")
                 .header(VerifiedIdentityFilter.GROUP_REFS_HEADER, "spoofed-team")
+                .header(VerifiedIdentityFilter.RESOURCE_ROLES_HEADER,
+                        "APP_OWNER@APP.SPOOFED")
                 .build());
         AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
                 new AtomicReference<>();
@@ -53,6 +56,9 @@ class VerifiedIdentityFilterTest {
         assertThat(forwarded.get().getHeaders().getFirst(
                 VerifiedIdentityFilter.GROUP_REFS_HEADER))
                 .isEqualTo("58fa4516-dc70-4785-ac9f-3606992c3f6b");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                VerifiedIdentityFilter.RESOURCE_ROLES_HEADER))
+                .isEqualTo("APP_ACCESS_APPROVER@APP.MAIL_CALENDAR");
     }
 
     @Test
@@ -116,6 +122,8 @@ class VerifiedIdentityFilterTest {
                 .header(VerifiedIdentityFilter.USER_HEADER, "spoofed")
                 .header(VerifiedIdentityFilter.PERMISSIONS_HEADER, "SPOOFED:MANAGE")
                 .header(VerifiedIdentityFilter.GROUP_REFS_HEADER, "spoofed-team")
+                .header(VerifiedIdentityFilter.RESOURCE_ROLES_HEADER,
+                        "APP_OWNER@APP.SPOOFED")
                 .build());
         AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
                 new AtomicReference<>();
@@ -131,5 +139,7 @@ class VerifiedIdentityFilterTest {
                 VerifiedIdentityFilter.PERMISSIONS_HEADER)).isFalse();
         assertThat(forwarded.get().getHeaders().containsKey(
                 VerifiedIdentityFilter.GROUP_REFS_HEADER)).isFalse();
+        assertThat(forwarded.get().getHeaders().containsKey(
+                VerifiedIdentityFilter.RESOURCE_ROLES_HEADER)).isFalse();
     }
 }

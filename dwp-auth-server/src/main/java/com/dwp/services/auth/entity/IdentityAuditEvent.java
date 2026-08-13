@@ -27,8 +27,11 @@ public class IdentityAuditEvent {
     @Column(name = "tenant_id", nullable = false, updatable = false)
     private Long tenantId;
 
-    @Column(name = "actor_id", nullable = false, updatable = false)
+    @Column(name = "actor_id", updatable = false)
     private Long actorId;
+
+    @Column(name = "actor_type", nullable = false, updatable = false, length = 20)
+    private String actorType;
 
     @Column(name = "action", nullable = false, updatable = false, length = 120)
     private String action;

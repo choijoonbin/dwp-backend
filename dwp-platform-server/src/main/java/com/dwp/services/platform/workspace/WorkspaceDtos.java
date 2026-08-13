@@ -140,6 +140,11 @@ public final class WorkspaceDtos {
             @NotNull @Min(0) Long version) {
     }
 
+    public record AppAccessFulfillmentRequest(
+            @NotBlank @Size(min = 10, max = 1000) String note,
+            @NotNull @Min(0) Long version) {
+    }
+
     public record AppAccessRequest(
             UUID requestId,
             Long userId,
@@ -153,6 +158,16 @@ public final class WorkspaceDtos {
             String decisionNote,
             OffsetDateTime decidedAt,
             Long decidedBy,
+            String fulfillmentState,
+            int fulfillmentAttempts,
+            String fulfillmentNote,
+            OffsetDateTime lastFulfillmentAt,
+            String lastFulfillmentError,
+            OffsetDateTime fulfilledAt,
+            Long fulfilledBy,
+            OffsetDateTime revokedAt,
+            Long revokedBy,
+            String revocationNote,
             long version,
             OffsetDateTime createdAt,
             OffsetDateTime updatedAt) {

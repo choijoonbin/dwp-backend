@@ -12,6 +12,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,13 +31,16 @@ class WorkspaceServiceTest {
     @Mock
     private AppAccessRequestRepository appAccessRequests;
     @Mock
+    private AppEntitlementProvisioner appEntitlements;
+    @Mock
     private PlatformAuditService auditService;
 
     private WorkspaceService service;
 
     @BeforeEach
     void setUp() {
-        service = new WorkspaceService(repository, appAccessRequests, auditService);
+        service = new WorkspaceService(
+                repository, appAccessRequests, appEntitlements, auditService);
     }
 
     @Test
@@ -132,6 +136,114 @@ class WorkspaceServiceTest {
                 org.mockito.ArgumentMatchers.eq("APP_ACCESS_REQUEST"),
                 org.mockito.ArgumentMatchers.eq(before.requestId().toString()),
                 anyString(), any(), any());
+    }
+
+    @Test
+    void fulfillsAnApprovedRequestThroughAnIndependentAppAccessManager() {
+        AppAccessRequestRepository.RequestRecord before = request("APPROVED", "PENDING", 3L);
+        AppAccessRequestRepository.RequestRecord after = request("APPROVED", "SUCCEEDED", 4L);
+        when(appAccessRequests.requestForUpdate(1L, before.requestId()))
+                .thenReturn(Optional.of(before));
+        when(appAccessRequests.request(1L, before.requestId())).thenReturn(Optional.of(after));
+        when(appEntitlements.synchronize(any())).thenReturn(
+                new AppEntitlementProvisioner.Result(
+                        UUID.randomUUID().toString(), "ACTIVE", 0L, true));
+        when(appAccessRequests.markFulfilled(
+                1L, 12L, before.requestId(), "Execute approved mail access", 3L))
+                .thenReturn(true);
+
+        WorkspaceDtos.AppAccessRequest result = service.fulfillAppAccessRequest(
+                1L, 12L, "en", "corr-fulfill", before.requestId(),
+                new WorkspaceDtos.AppAccessFulfillmentRequest(
+                        "Execute approved mail access", 3L),
+                Set.of("APP.ADMINISTRATION"));
+
+        assertThat(result.fulfillmentState()).isEqualTo("SUCCEEDED");
+        verify(auditService).success(
+                org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.eq(12L),
+                org.mockito.ArgumentMatchers.eq("workspace.app-access.fulfilled"),
+                org.mockito.ArgumentMatchers.eq("APP_ACCESS_REQUEST"),
+                org.mockito.ArgumentMatchers.eq(before.requestId().toString()),
+                org.mockito.ArgumentMatchers.eq("corr-fulfill"), any(), any());
+    }
+
+    @Test
+    void preventsTheBusinessApproverFromExecutingTheSameEntitlement() {
+        AppAccessRequestRepository.RequestRecord before = request("APPROVED", "PENDING", 3L);
+        when(appAccessRequests.requestForUpdate(1L, before.requestId()))
+                .thenReturn(Optional.of(before));
+
+        assertThatThrownBy(() -> service.fulfillAppAccessRequest(
+                1L, 11L, "en", "corr-fulfill", before.requestId(),
+                new WorkspaceDtos.AppAccessFulfillmentRequest(
+                        "Execute approved mail access", 3L),
+                Set.of("APP.ADMINISTRATION")))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+    }
+
+    @Test
+    void requiresAnApplicationScopedApproverForEveryDecision() {
+        AppAccessRequestRepository.RequestRecord before = request("PENDING", 0L);
+        when(appAccessRequests.requestForUpdate(1L, before.requestId()))
+                .thenReturn(Optional.of(before));
+
+        assertThatThrownBy(() -> service.decideAppAccessRequest(
+                1L, 12L, "en", "corr-decision", before.requestId(),
+                new WorkspaceDtos.AppAccessDecisionRequest(
+                        "APPROVED", "Approved for required operational access", 0L),
+                Set.of()))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+    }
+
+    @Test
+    void requiresAnApplicationScopedManagerForEveryFulfillment() {
+        AppAccessRequestRepository.RequestRecord before = request("APPROVED", "PENDING", 3L);
+        when(appAccessRequests.requestForUpdate(1L, before.requestId()))
+                .thenReturn(Optional.of(before));
+
+        assertThatThrownBy(() -> service.fulfillAppAccessRequest(
+                1L, 12L, "en", "corr-fulfill", before.requestId(),
+                new WorkspaceDtos.AppAccessFulfillmentRequest(
+                        "Execute approved administration access", 3L),
+                Set.of()))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+    }
+
+    @Test
+    void revokesAFulfilledRequestThroughTheIndependentAccessManager() {
+        AppAccessRequestRepository.RequestRecord before =
+                request("APPROVED", "SUCCEEDED", 4L);
+        AppAccessRequestRepository.RequestRecord after =
+                request("REVOKED", "REVOKED", 5L);
+        when(appAccessRequests.requestForUpdate(1L, before.requestId()))
+                .thenReturn(Optional.of(before));
+        when(appEntitlements.synchronize(any())).thenReturn(
+                new AppEntitlementProvisioner.Result(
+                        UUID.randomUUID().toString(), "REVOKED", 1L, true));
+        when(appAccessRequests.revoke(
+                1L, 13L, before.requestId(), "Revoke obsolete mail access", 4L))
+                .thenReturn(true);
+        when(appAccessRequests.request(1L, before.requestId())).thenReturn(Optional.of(after));
+
+        WorkspaceDtos.AppAccessRequest result = service.revokeAppAccessRequest(
+                1L, 13L, "en", "corr-revoke", before.requestId(),
+                new WorkspaceDtos.AppAccessFulfillmentRequest(
+                        "Revoke obsolete mail access", 4L),
+                Set.of("APP.ADMINISTRATION"));
+
+        assertThat(result.state()).isEqualTo("REVOKED");
+        assertThat(result.fulfillmentState()).isEqualTo("REVOKED");
+        verify(auditService).success(
+                org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.eq(13L),
+                org.mockito.ArgumentMatchers.eq("workspace.app-access.revoked"),
+                org.mockito.ArgumentMatchers.eq("APP_ACCESS_REQUEST"),
+                org.mockito.ArgumentMatchers.eq(before.requestId().toString()),
+                org.mockito.ArgumentMatchers.eq("corr-revoke"), any(), any());
     }
 
     @Test
@@ -308,6 +420,15 @@ class WorkspaceServiceTest {
     }
 
     private AppAccessRequestRepository.RequestRecord request(String state, long version) {
+        return request(
+                state,
+                "APPROVED".equals(state) ? "PENDING"
+                        : "EXPIRED".equals(state) ? "EXPIRED" : "NOT_REQUIRED",
+                version);
+    }
+
+    private AppAccessRequestRepository.RequestRecord request(
+            String state, String fulfillmentState, long version) {
         OffsetDateTime now = OffsetDateTime.now();
         return new AppAccessRequestRepository.RequestRecord(
                 UUID.randomUUID(),
@@ -324,6 +445,16 @@ class WorkspaceServiceTest {
                 "Approved for operational duty",
                 "PENDING".equals(state) ? null : now.minusHours(1),
                 "PENDING".equals(state) ? null : 11L,
+                fulfillmentState,
+                "SUCCEEDED".equals(fulfillmentState) ? 1 : 0,
+                "SUCCEEDED".equals(fulfillmentState) ? "Execute approved mail access" : null,
+                "SUCCEEDED".equals(fulfillmentState) ? now.minusMinutes(1) : null,
+                null,
+                "SUCCEEDED".equals(fulfillmentState) ? now.minusMinutes(1) : null,
+                "SUCCEEDED".equals(fulfillmentState) ? 12L : null,
+                null,
+                null,
+                null,
                 version,
                 now.minusDays(1),
                 now);

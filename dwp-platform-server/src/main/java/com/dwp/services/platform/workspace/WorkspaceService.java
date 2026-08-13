@@ -27,14 +27,17 @@ public class WorkspaceService {
 
     private final WorkspaceRepository repository;
     private final AppAccessRequestRepository appAccessRequests;
+    private final AppEntitlementProvisioner appEntitlements;
     private final PlatformAuditService auditService;
 
     public WorkspaceService(
             WorkspaceRepository repository,
             AppAccessRequestRepository appAccessRequests,
+            AppEntitlementProvisioner appEntitlements,
             PlatformAuditService auditService) {
         this.repository = repository;
         this.appAccessRequests = appAccessRequests;
+        this.appEntitlements = appEntitlements;
         this.auditService = auditService;
     }
 
@@ -346,13 +349,19 @@ public class WorkspaceService {
     public List<WorkspaceDtos.AppAccessRequest> appAccessRequests(
             Long tenantId,
             String locale,
-            String state) {
+            String state,
+            boolean tenantWide,
+            Set<String> resourceKeys) {
         String normalized = state == null ? "ALL" : state.trim().toUpperCase(Locale.ROOT);
-        if (!Set.of("ALL", "PENDING", "APPROVED", "REJECTED", "CANCELLED", "EXPIRED")
+        if (!Set.of("ALL", "PENDING", "APPROVED", "REJECTED", "CANCELLED", "EXPIRED", "REVOKED")
                 .contains(normalized)) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE);
         }
+        if (!tenantWide && resourceKeys.isEmpty()) {
+            throw new BaseException(ErrorCode.FORBIDDEN);
+        }
         return appAccessRequests.list(tenantId, normalized).stream()
+                .filter(value -> tenantWide || resourceKeys.contains(value.resourceKey()))
                 .map(value -> appAccessRequest(value, korean(locale)))
                 .toList();
     }
@@ -364,10 +373,19 @@ public class WorkspaceService {
             String locale,
             String correlationId,
             UUID requestId,
-            WorkspaceDtos.AppAccessDecisionRequest request) {
+            WorkspaceDtos.AppAccessDecisionRequest request,
+            Set<String> approverResourceKeys) {
         AppAccessRequestRepository.RequestRecord before = appAccessRequests
-                .request(tenantId, requestId)
+                .requestForUpdate(tenantId, requestId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        if (actorId.equals(before.userId())) {
+            throw new BaseException(ErrorCode.FORBIDDEN,
+                    "Requesters cannot approve their own application access.");
+        }
+        if (!approverResourceKeys.contains(before.resourceKey())) {
+            throw new BaseException(ErrorCode.FORBIDDEN,
+                    "Application approver responsibility is required for this resource.");
+        }
         String decision = request.decision().toUpperCase(Locale.ROOT);
         if (!appAccessRequests.decide(
                 tenantId, actorId, requestId, decision,
@@ -381,6 +399,114 @@ public class WorkspaceService {
                 "APPROVED".equals(decision)
                         ? "workspace.app-access.approved"
                         : "workspace.app-access.rejected",
+                "APP_ACCESS_REQUEST", requestId.toString(), correlationId,
+                appAccessSnapshot(before), appAccessSnapshot(after));
+        return appAccessRequest(after, korean(locale));
+    }
+
+    @Transactional
+    public WorkspaceDtos.AppAccessRequest fulfillAppAccessRequest(
+            Long tenantId,
+            Long actorId,
+            String locale,
+            String correlationId,
+            UUID requestId,
+            WorkspaceDtos.AppAccessFulfillmentRequest request,
+            Set<String> managerResourceKeys) {
+        AppAccessRequestRepository.RequestRecord before = appAccessRequests
+                .requestForUpdate(tenantId, requestId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        requireFulfillmentAuthority(actorId, managerResourceKeys, before, true);
+        if (!"APPROVED".equals(before.state())
+                || !Set.of("PENDING", "FAILED").contains(before.fulfillmentState())) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "Only approved requests awaiting fulfillment can be executed.");
+        }
+
+        try {
+            AppEntitlementProvisioner.Result result = appEntitlements.synchronize(
+                    entitlementCommand(
+                            tenantId, actorId, correlationId, before,
+                            request.note().trim(), "GRANT"));
+            if (!"ACTIVE".equals(result.lifecycleState())) {
+                throw new AppEntitlementProvisioner.ProvisioningException(
+                        "The runtime entitlement did not become active.");
+            }
+        } catch (AppEntitlementProvisioner.ProvisioningException exception) {
+            String failure = sanitizedFailure(exception);
+            if (!appAccessRequests.markFulfillmentFailed(
+                    tenantId, actorId, requestId, request.note().trim(),
+                    failure, request.version())) {
+                throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
+            }
+            AppAccessRequestRepository.RequestRecord failed = appAccessRequests
+                    .request(tenantId, requestId).orElseThrow();
+            auditService.success(
+                    tenantId, actorId, "workspace.app-access.fulfillment-failed",
+                    "APP_ACCESS_REQUEST", requestId.toString(), correlationId,
+                    appAccessSnapshot(before), appAccessSnapshot(failed));
+            return appAccessRequest(failed, korean(locale));
+        }
+
+        if (!appAccessRequests.markFulfilled(
+                tenantId, actorId, requestId, request.note().trim(), request.version())) {
+            throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
+        }
+        AppAccessRequestRepository.RequestRecord after = appAccessRequests
+                .request(tenantId, requestId).orElseThrow();
+        auditService.success(
+                tenantId, actorId, "workspace.app-access.fulfilled",
+                "APP_ACCESS_REQUEST", requestId.toString(), correlationId,
+                appAccessSnapshot(before), appAccessSnapshot(after));
+        return appAccessRequest(after, korean(locale));
+    }
+
+    @Transactional
+    public WorkspaceDtos.AppAccessRequest revokeAppAccessRequest(
+            Long tenantId,
+            Long actorId,
+            String locale,
+            String correlationId,
+            UUID requestId,
+            WorkspaceDtos.AppAccessFulfillmentRequest request,
+            Set<String> managerResourceKeys) {
+        AppAccessRequestRepository.RequestRecord before = appAccessRequests
+                .requestForUpdate(tenantId, requestId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        requireFulfillmentAuthority(actorId, managerResourceKeys, before, false);
+        if (!"APPROVED".equals(before.state())
+                || !"SUCCEEDED".equals(before.fulfillmentState())) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "Only active fulfilled application access can be revoked.");
+        }
+
+        AppEntitlementProvisioner.Result result;
+        try {
+            result = appEntitlements.synchronize(
+                    entitlementCommand(
+                            tenantId, actorId, correlationId, before,
+                            request.note().trim(), "REVOKE"));
+        } catch (AppEntitlementProvisioner.ProvisioningException exception) {
+            throw new BaseException(
+                    ErrorCode.EXTERNAL_SERVICE_ERROR,
+                    sanitizedFailure(exception),
+                    exception);
+        }
+        if (!"REVOKED".equals(result.lifecycleState())) {
+            throw new BaseException(
+                    ErrorCode.EXTERNAL_SERVICE_ERROR,
+                    "The runtime entitlement was not revoked.");
+        }
+        if (!appAccessRequests.revoke(
+                tenantId, actorId, requestId, request.note().trim(), request.version())) {
+            throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
+        }
+        AppAccessRequestRepository.RequestRecord after = appAccessRequests
+                .request(tenantId, requestId).orElseThrow();
+        auditService.success(
+                tenantId, actorId, "workspace.app-access.revoked",
                 "APP_ACCESS_REQUEST", requestId.toString(), correlationId,
                 appAccessSnapshot(before), appAccessSnapshot(after));
         return appAccessRequest(after, korean(locale));
@@ -432,6 +558,51 @@ public class WorkspaceService {
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         require(authorities, app.resourceKey().toUpperCase(Locale.ROOT) + ":VIEW");
         return app;
+    }
+
+    private void requireFulfillmentAuthority(
+            Long actorId,
+            Set<String> managerResourceKeys,
+            AppAccessRequestRepository.RequestRecord request,
+            boolean enforceDecisionSeparation) {
+        if (actorId.equals(request.userId())) {
+            throw new BaseException(
+                    ErrorCode.FORBIDDEN,
+                    "Requesters cannot fulfill their own application access.");
+        }
+        if (enforceDecisionSeparation && actorId.equals(request.decidedBy())) {
+            throw new BaseException(
+                    ErrorCode.FORBIDDEN,
+                    "The access approver cannot execute the same entitlement decision.");
+        }
+        if (!managerResourceKeys.contains(request.resourceKey())) {
+            throw new BaseException(
+                    ErrorCode.FORBIDDEN,
+                    "Application access manager responsibility is required for this resource.");
+        }
+    }
+
+    private AppEntitlementProvisioner.Command entitlementCommand(
+            Long tenantId,
+            Long actorId,
+            String correlationId,
+            AppAccessRequestRepository.RequestRecord request,
+            String justification,
+            String action) {
+        return new AppEntitlementProvisioner.Command(
+                tenantId, request.requestId().toString(), request.userId(),
+                request.resourceKey(), request.requestedPermissionCode(), action,
+                "GRANT".equals(action) ? request.requestedUntil() : null,
+                actorId, justification, correlationId);
+    }
+
+    private String sanitizedFailure(Exception exception) {
+        String message = exception.getMessage();
+        if (message == null || message.isBlank()) {
+            return "Runtime entitlement synchronization failed.";
+        }
+        String sanitized = message.replaceAll("[\\r\\n\\t]+", " ").trim();
+        return sanitized.length() <= 1000 ? sanitized : sanitized.substring(0, 1000);
     }
 
     private void validateLaunch(WorkspaceRepository.AppRow app) {
@@ -523,7 +694,11 @@ public class WorkspaceService {
                                 ? "REQUESTABLE"
                                 : "PENDING".equals(request.state())
                                         ? "PENDING"
-                                        : "APPROVED_PENDING_SYNC";
+                                        : "FAILED".equals(request.fulfillmentState())
+                                                ? "APPROVED_SYNC_FAILED"
+                                                : "SUCCEEDED".equals(request.fulfillmentState())
+                                                        ? "APPROVED_REFRESHING"
+                                                        : "APPROVED_PENDING_SYNC";
         return new WorkspaceDtos.WorkspaceApp(
                 row.id(), row.name(), row.description(), row.owner(), row.category(),
                 row.launchMode(), row.launchTarget(), row.iconKey(), row.resourceKey(),
@@ -543,7 +718,10 @@ public class WorkspaceService {
                 korean ? value.appNameKo() : value.appNameEn(), value.resourceKey(),
                 value.requestedPermissionCode(), value.justification(), value.state(),
                 value.requestedUntil(), value.decisionNote(), value.decidedAt(),
-                value.decidedBy(), value.version(), value.createdAt(), value.updatedAt());
+                value.decidedBy(), value.fulfillmentState(), value.fulfillmentAttempts(),
+                value.fulfillmentNote(), value.lastFulfillmentAt(), value.lastFulfillmentError(),
+                value.fulfilledAt(), value.fulfilledBy(), value.revokedAt(), value.revokedBy(),
+                value.revocationNote(), value.version(), value.createdAt(), value.updatedAt());
     }
 
     private java.util.Map<String, Object> appAccessSnapshot(
@@ -556,6 +734,10 @@ public class WorkspaceService {
         snapshot.put("state", value.state());
         snapshot.put("requestedUntil", value.requestedUntil());
         snapshot.put("decidedBy", value.decidedBy());
+        snapshot.put("fulfillmentState", value.fulfillmentState());
+        snapshot.put("fulfillmentAttempts", value.fulfillmentAttempts());
+        snapshot.put("fulfilledBy", value.fulfilledBy());
+        snapshot.put("revokedBy", value.revokedBy());
         snapshot.put("version", value.version());
         return snapshot;
     }

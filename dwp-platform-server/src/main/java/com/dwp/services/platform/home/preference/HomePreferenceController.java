@@ -4,6 +4,7 @@ import com.dwp.core.common.ApiResponse;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -28,7 +29,15 @@ public class HomePreferenceController {
     public ApiResponse<HomePreferenceDtos.HomePreferenceResponse> get(
             @RequestHeader(TENANT_HEADER) Long tenantId,
             @RequestHeader(USER_HEADER) Long userId) {
-        return ApiResponse.success(service.get(tenantId, userId));
+        return ApiResponse.success(service.get(tenantId, userId, HomePreferenceService.WORKSPACE_HOME));
+    }
+
+    @GetMapping("/surfaces/{surfaceKey}")
+    public ApiResponse<HomePreferenceDtos.HomePreferenceResponse> getSurface(
+            @RequestHeader(TENANT_HEADER) Long tenantId,
+            @RequestHeader(USER_HEADER) Long userId,
+            @PathVariable String surfaceKey) {
+        return ApiResponse.success(service.get(tenantId, userId, surfaceKey));
     }
 
     @PutMapping
@@ -37,7 +46,27 @@ public class HomePreferenceController {
             @RequestHeader(USER_HEADER) Long userId,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @Valid @RequestBody HomePreferenceDtos.UpdateHomePreferenceRequest request) {
-        return ApiResponse.success(service.update(tenantId, userId, correlationId, request));
+        return ApiResponse.success(service.update(
+                tenantId,
+                userId,
+                HomePreferenceService.WORKSPACE_HOME,
+                correlationId,
+                request));
+    }
+
+    @PutMapping("/surfaces/{surfaceKey}")
+    public ApiResponse<HomePreferenceDtos.HomePreferenceResponse> updateSurface(
+            @RequestHeader(TENANT_HEADER) Long tenantId,
+            @RequestHeader(USER_HEADER) Long userId,
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @PathVariable String surfaceKey,
+            @Valid @RequestBody HomePreferenceDtos.UpdateHomePreferenceRequest request) {
+        return ApiResponse.success(service.update(
+                tenantId,
+                userId,
+                surfaceKey,
+                correlationId,
+                request));
     }
 
     @PostMapping("/reset")
@@ -46,7 +75,26 @@ public class HomePreferenceController {
             @RequestHeader(USER_HEADER) Long userId,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @Valid @RequestBody HomePreferenceDtos.VersionRequest request) {
-        return ApiResponse.success(
-                service.reset(tenantId, userId, correlationId, request.version()));
+        return ApiResponse.success(service.reset(
+                tenantId,
+                userId,
+                HomePreferenceService.WORKSPACE_HOME,
+                correlationId,
+                request.version()));
+    }
+
+    @PostMapping("/surfaces/{surfaceKey}/reset")
+    public ApiResponse<HomePreferenceDtos.HomePreferenceResponse> resetSurface(
+            @RequestHeader(TENANT_HEADER) Long tenantId,
+            @RequestHeader(USER_HEADER) Long userId,
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @PathVariable String surfaceKey,
+            @Valid @RequestBody HomePreferenceDtos.VersionRequest request) {
+        return ApiResponse.success(service.reset(
+                tenantId,
+                userId,
+                surfaceKey,
+                correlationId,
+                request.version()));
     }
 }

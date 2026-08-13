@@ -44,6 +44,7 @@ public class IdentityAuditService {
                 .auditEventId(UUID.randomUUID())
                 .tenantId(tenantId)
                 .actorId(actorId)
+                .actorType(actorId == null ? "SYSTEM" : "USER")
                 .action(action)
                 .targetType(targetType)
                 .targetId(targetId)
@@ -69,6 +70,7 @@ public class IdentityAuditService {
                 .auditEventId(UUID.randomUUID())
                 .tenantId(tenantId)
                 .actorId(actorId)
+                .actorType(actorId == null ? "SYSTEM" : "USER")
                 .action(action)
                 .targetType(targetType)
                 .targetId(targetId)
@@ -101,7 +103,7 @@ public class IdentityAuditService {
     private IdentityAdminDtos.IdentityAuditEventResponse toResponse(IdentityAuditEvent event) {
         return new IdentityAdminDtos.IdentityAuditEventResponse(
                 event.getAuditEventId().toString(),
-                "USER",
+                event.getActorType(),
                 event.getActorId(),
                 event.getAction(),
                 event.getTargetType(),

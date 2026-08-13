@@ -7,6 +7,11 @@ Last verified: 2026-08-13
 Scope: tenant workforce read boundaries and governed asynchronous export requests owned
 by `dwp-people-server`.
 
+The user-facing product entry is the unified `/hr` shell. Public directory access and
+sensitive workforce operations can appear in that one product experience, but they remain
+separate authorization and data contracts. `APP.HRIS:VIEW` never implies
+`APP.WORKFORCE_MANAGEMENT:VIEW` or `DATA.WORKFORCE:*`.
+
 ## Decision
 
 DWP authorizes workforce data twice: the route permission establishes that the caller may

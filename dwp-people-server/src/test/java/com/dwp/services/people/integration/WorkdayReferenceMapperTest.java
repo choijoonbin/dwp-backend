@@ -23,7 +23,9 @@ class WorkdayReferenceMapperTest {
                 .hasSize(2)
                 .extracting(HrisModels.Assignment::changeReasonCode)
                 .containsExactly("HIRE", "INTERNAL_TRANSFER");
-        assertThat(batch.workers().get(2).workEmail()).endsWith("@example.invalid");
+        assertThat(batch.workers())
+                .extracting(HrisModels.WorkerRecord::workEmail)
+                .allMatch(email -> email.endsWith("@sk.com"));
     }
 
     @Test

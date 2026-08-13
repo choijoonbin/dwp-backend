@@ -20,7 +20,7 @@
           "Preferred_Locale": "ko-KR",
           "Time_Zone": "Asia/Seoul"
         },
-        "Contact_Data": { "Work_Email": "minseo.kim@example.invalid" },
+        "Contact_Data": { "Work_Email": "minseo.kim@sk.com" },
         "Employment_Data": {
           "Worker_Type": "EMPLOYEE",
           "Worker_Status": "ACTIVE",
@@ -59,7 +59,7 @@
           "Preferred_Locale": "ko-KR",
           "Time_Zone": "Asia/Seoul"
         },
-        "Contact_Data": { "Work_Email": "jiho.park@example.invalid" },
+        "Contact_Data": { "Work_Email": "jiho.park@sk.com" },
         "Employment_Data": {
           "Worker_Type": "EMPLOYEE",
           "Worker_Status": "ACTIVE",
@@ -115,7 +115,7 @@
           "Preferred_Locale": "en-US",
           "Time_Zone": "America/Chicago"
         },
-        "Contact_Data": { "Work_Email": "elena.garcia@example.invalid" },
+        "Contact_Data": { "Work_Email": "elena.garcia@sk.com" },
         "Employment_Data": {
           "Worker_Type": "CONTINGENT",
           "Worker_Status": "ACTIVE",

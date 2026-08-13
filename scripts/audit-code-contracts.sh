@@ -181,10 +181,12 @@ dwp-platform-contracts/src/main/java/com/dwp/platform/contract/ConnectorPort.jav
 dwp-platform-contracts/src/main/java/com/dwp/platform/contract/DataClassification.java|DataClassification
 dwp-platform-contracts/src/main/java/com/dwp/platform/contract/RiskTier.java|RiskTier
 dwp-platform-server/src/main/java/com/dwp/services/platform/announcement/AnnouncementAudienceType.java|AnnouncementAudienceType
+dwp-platform-server/src/main/java/com/dwp/services/platform/announcement/AnnouncementContentType.java|AnnouncementContentType
 dwp-platform-server/src/main/java/com/dwp/services/platform/announcement/AnnouncementLifecycle.java|AnnouncementLifecycle
 dwp-platform-server/src/main/java/com/dwp/services/platform/announcement/AnnouncementSeverity.java|AnnouncementSeverity
 dwp-platform-server/src/main/java/com/dwp/services/platform/apihistory/ApiHistoryWindow.java|ApiHistoryWindow
 dwp-platform-server/src/main/java/com/dwp/services/platform/auditcontrol/AuditWindow.java|AuditWindow
+dwp-platform-server/src/main/java/com/dwp/services/platform/communication/CommunicationReaction.java|CommunicationReaction
 dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java|AuthMode
 dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java|ConnectorHealth
 dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java|ConnectorLifecycle
@@ -198,6 +200,10 @@ dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/Product
 dwp-platform-server/src/main/java/com/dwp/services/platform/reference/ReferenceLifecycle.java|ReferenceLifecycle
 dwp-platform-server/src/main/java/com/dwp/services/platform/registry/RegistryType.java|RegistryType
 dwp-platform-server/src/main/java/com/dwp/services/platform/registry/RiskTier.java|RiskTier
+dwp-platform-server/src/main/java/com/dwp/services/platform/servicecenter/ServiceCenterTypes.java|CatalogLifecycle
+dwp-platform-server/src/main/java/com/dwp/services/platform/servicecenter/ServiceCenterTypes.java|DataClassification
+dwp-platform-server/src/main/java/com/dwp/services/platform/servicecenter/ServiceCenterTypes.java|RequestPriority
+dwp-platform-server/src/main/java/com/dwp/services/platform/servicecenter/ServiceCenterTypes.java|RequestStatus
 ENUMS
   LC_ALL=C sort -o "$actual" "$actual"
   LC_ALL=C sort -o "$expected" "$expected"
@@ -284,38 +290,45 @@ while IFS='|' read -r database owner_service; do
              pg_get_constraintdef(constraint_ref.oid) ~ '\\)::text = ANY'
              OR pg_get_constraintdef(constraint_ref.oid) ~ '<@ ARRAY'
              OR pg_get_constraintdef(constraint_ref.oid) ~
-                '^CHECK \\(\\(\\([a-zA-Z0-9_]+\\)::text = ''[^'']+''::text\\)\\)$'
+                '\\)::text = ''[^'']+''::text'
          )
     ), scalar_set_contracts AS (
-      SELECT table_name,
-             substring(definition FROM '\\(\\(([a-zA-Z0-9_]+)\\)::text = ANY') AS column_name,
-             definition
+      SELECT table_name, enum_match[1] AS column_name,
+             enum_match[2] AS value_list
         FROM checks
-       WHERE definition ~ '\\)::text = ANY'
+       CROSS JOIN LATERAL regexp_matches(
+           definition,
+           '\\(\\(([a-zA-Z0-9_]+)\\)::text = ANY \\(\\(ARRAY\\[([^]]+)\\]',
+           'g') enum_match
     ), array_set_contracts AS (
-      SELECT table_name,
-             substring(definition FROM '\\(\\(?([a-zA-Z0-9_]+) <@ ARRAY') AS column_name,
-             definition
+      SELECT table_name, enum_match[1] AS column_name,
+             enum_match[2] AS value_list
         FROM checks
-       WHERE definition ~ '<@ ARRAY'
+       CROSS JOIN LATERAL regexp_matches(
+           definition,
+           '([a-zA-Z0-9_]+) <@ ARRAY\\[([^]]+)\\]',
+           'g') enum_match
+    ), scalar_equality_contracts AS (
+      SELECT table_name, enum_match[1] AS column_name,
+             enum_match[2] AS code
+        FROM checks
+       CROSS JOIN LATERAL regexp_matches(
+           definition,
+           '\\(([a-zA-Z0-9_]+)\\)::text = ''([^'']+)''::text',
+           'g') enum_match
     ), extracted AS (
       SELECT table_name, column_name, match[1] AS code
         FROM scalar_set_contracts
        CROSS JOIN LATERAL regexp_matches(
-           definition, '''([^'']+)''::character varying', 'g') match
+           value_list, '''([^'']+)''::(character varying|text)', 'g') match
       UNION ALL
       SELECT table_name, column_name, match[1] AS code
         FROM array_set_contracts
        CROSS JOIN LATERAL regexp_matches(
-           definition, '''([^'']+)''::character varying', 'g') match
+           value_list, '''([^'']+)''::(character varying|text)', 'g') match
       UNION ALL
-      SELECT table_name,
-             substring(definition FROM
-                 '^CHECK \\(\\(\\(([a-zA-Z0-9_]+)\\)::text = ''[^'']+''::text\\)\\)$'),
-             substring(definition FROM '= ''([^'']+)''::text')
-        FROM checks
-       WHERE definition ~
-           '^CHECK \\(\\(\\([a-zA-Z0-9_]+\\)::text = ''[^'']+''::text\\)\\)$'
+      SELECT table_name, column_name, code
+        FROM scalar_equality_contracts
     )
     SELECT '${owner_service}', table_name || '.' || column_name,
            string_agg(DISTINCT code, ',' ORDER BY code)
@@ -577,6 +590,14 @@ assert_registry_codes 'system code runtime visibility contract' \
   'PLATFORM.SYS_CODE_SETS.RUNTIME_VISIBILITY' 'ADMIN_ONLY,RUNTIME'
 assert_registry_codes 'home widget contract' \
   'PLATFORM.HOME_WIDGET' 'activity,announcements,daily-brief,focus,schedule'
+assert_registry_codes 'personal home surface contract' \
+  'PLATFORM.HOME_SURFACE' 'hris-home,workspace-home'
+assert_registry_codes 'personal home presentation contract' \
+  'PLATFORM.HOME_PRESENTATION' 'balanced,expressive,focused'
+assert_registry_codes 'personal home widget size contract' \
+  'PLATFORM.HOME_WIDGET_SIZE' 'compact,full,large,medium'
+assert_registry_codes 'HRIS home widget contract' \
+  'PLATFORM.HRIS_HOME_WIDGET' 'attention,operations,people-signals,profile,quick-actions,team'
 assert_registry_codes 'API history window contract' \
   'PLATFORM.API_HISTORY.WINDOW' 'D30,D7,H1,H24,H6'
 assert_registry_codes 'API observation filter contract' \
