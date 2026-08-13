@@ -82,6 +82,9 @@ public final class CatalogDtos {
     public record ImpactAnalysis(
             Entity target,
             String operation,
+            String compatibilityState,
+            String ruleKey,
+            long ruleVersion,
             int riskScore,
             boolean blocked,
             long directDependentCount,
@@ -89,6 +92,51 @@ public final class CatalogDtos {
             List<ImpactItem> impactedEntities,
             List<String> findings,
             OffsetDateTime generatedAt) {
+    }
+
+    public record CompatibilityRule(
+            String ruleKey,
+            long ruleVersion,
+            JsonNode definition,
+            String contentSha256) {
+    }
+
+    public record AssuranceFinding(
+            UUID findingId,
+            String entityRef,
+            String findingCode,
+            String severity,
+            String lifecycleState,
+            String ruleKey,
+            long ruleVersion,
+            JsonNode evidence,
+            String evidenceSha256,
+            OffsetDateTime firstDetectedAt,
+            OffsetDateTime lastDetectedAt,
+            String dispositionReason,
+            String dispositionEvidenceRef,
+            Long disposedBy,
+            OffsetDateTime disposedAt,
+            long version) {
+    }
+
+    public record AssuranceSummary(
+            long openCount,
+            long criticalCount,
+            long ownerMissingCount,
+            long deprecationImpactCount,
+            CompatibilityRule activeRule,
+            List<AssuranceFinding> findings,
+            OffsetDateTime generatedAt) {
+    }
+
+    public record DispositionFindingRequest(
+            @NotBlank
+            @Pattern(regexp = "ACKNOWLEDGED|FALSE_POSITIVE|ACCEPTED_RISK|RESOLVED")
+            String decision,
+            @NotBlank @Size(min = 10, max = 1000) String reason,
+            @Size(max = 500) String evidenceRef,
+            @NotNull @Min(0) Long version) {
     }
 
     public record DeclareRelationRequest(

@@ -287,6 +287,48 @@ class OrganizationScenarioServiceTest {
                 validationRunId, USER_ID, 2L);
     }
 
+    @Test
+    void cancellationClosesAnInReviewScenarioWithItsPendingApproval() {
+        UUID scenarioId = UUID.randomUUID();
+        LocalDate effectiveDate = LocalDate.now().plusDays(30);
+        OrganizationScenarioRepository.ScenarioRecord scenario = scenario(
+                scenarioId, effectiveDate, "IN_REVIEW", fingerprintPlaceholder(), 3L);
+        OrganizationScenarioDtos.Scenario summary = mock(OrganizationScenarioDtos.Scenario.class);
+
+        when(repository.scenario(TENANT_ID, scenarioId)).thenReturn(Optional.of(scenario));
+        when(repository.cancel(
+                TENANT_ID, scenarioId, USER_ID, "Business priority changed.", 3L))
+                .thenReturn(true);
+        when(summary.scenarioId()).thenReturn(scenarioId);
+        when(repository.scenarios(TENANT_ID)).thenReturn(List.of(summary));
+
+        service.cancel(
+                scenarioId,
+                new OrganizationScenarioDtos.CancelScenarioRequest(
+                        "Business priority changed.", 3L),
+                "corr-cancel");
+
+        verify(repository).cancel(
+                TENANT_ID, scenarioId, USER_ID, "Business priority changed.", 3L);
+    }
+
+    @Test
+    void cancellationRejectsAStaleScenarioVersion() {
+        UUID scenarioId = UUID.randomUUID();
+        LocalDate effectiveDate = LocalDate.now().plusDays(30);
+        when(repository.scenario(TENANT_ID, scenarioId)).thenReturn(Optional.of(
+                scenario(scenarioId, effectiveDate, "DRAFT", fingerprintPlaceholder(), 4L)));
+
+        assertThatThrownBy(() -> service.cancel(
+                scenarioId,
+                new OrganizationScenarioDtos.CancelScenarioRequest("No longer needed.", 3L),
+                "corr-stale"))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("changed");
+
+        verifyNoInteractions(audit);
+    }
+
     private OrganizationScenarioRepository.ScenarioRecord scenario(
             UUID scenarioId,
             LocalDate effectiveDate,

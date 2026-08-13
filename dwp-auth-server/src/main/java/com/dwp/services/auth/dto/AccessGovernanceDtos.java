@@ -100,12 +100,12 @@ public final class AccessGovernanceDtos {
     public record CreateGroupRoleAssignmentRequest(
             @NotNull Long groupId,
             @NotNull Long roleId,
-            @NotBlank @Pattern(regexp = "ACTIVE|ELIGIBLE") String assignmentType,
+            @NotBlank @Pattern(regexp = "ACTIVE") String assignmentType,
             @NotBlank @Pattern(regexp = "TENANT|ORG_UNIT|RESOURCE") String scopeType,
             @Size(max = 160) String scopeRef,
             Instant validFrom,
             @Future Instant validTo,
-            @NotBlank @Size(max = 1000) String justification) {
+            @NotBlank @Size(min = 10, max = 500) String justification) {
     }
 
     public record EffectiveRole(

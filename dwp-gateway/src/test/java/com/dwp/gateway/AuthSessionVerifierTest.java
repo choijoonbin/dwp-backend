@@ -185,6 +185,91 @@ class AuthSessionVerifierTest {
                 "ADMIN.PRODUCTIVITY_CONNECTOR:VIEW");
     }
 
+    @Test
+    void requestsOnlySavedViewCustodyAuthoritiesForOwnershipRoutes() {
+        AtomicReference<ClientRequest> captured = new AtomicReference<>();
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+            captured.set(request);
+            return Mono.just(ClientResponse.create(HttpStatus.OK)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .body("""
+                            {"success":true,"data":{"userId":7,"tenantId":1,"roles":["TENANT_ADMIN"],
+                            "permissions":[
+                              {"resourceKey":"ADMIN.SAVED_VIEW_CUSTODY","permissionCode":"VIEW","effect":"ALLOW"},
+                              {"resourceKey":"ADMIN.SAVED_VIEW_CUSTODY","permissionCode":"MANAGE","effect":"ALLOW"}
+                            ]}}
+                            """)
+                    .build());
+        });
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+
+        VerifiedIdentity identity = verifier.verify(MockServerHttpRequest
+                .post("/api/platform/v1/admin/saved-view-ownership/preview")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery())
+                .isEqualTo("permissionPrefix=ADMIN.SAVED_VIEW_CUSTODY");
+        assertThat(identity).isNotNull();
+        assertThat(identity.permissions()).containsExactly(
+                "ADMIN.SAVED_VIEW_CUSTODY:MANAGE",
+                "ADMIN.SAVED_VIEW_CUSTODY:VIEW");
+    }
+
+    @Test
+    void requestsWorkforceDataAuthoritiesForGovernedExportRoutes() {
+        AtomicReference<ClientRequest> captured = new AtomicReference<>();
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+            captured.set(request);
+            return Mono.just(ClientResponse.create(HttpStatus.OK)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .body("""
+                            {"success":true,"data":{"userId":7,"tenantId":1,"roles":["HR_ADMIN"],
+                            "permissions":[
+                              {"resourceKey":"DATA.WORKFORCE","permissionCode":"MANAGE","effect":"ALLOW"}
+                            ]}}
+                            """)
+                    .build());
+        });
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+
+        VerifiedIdentity identity = verifier.verify(MockServerHttpRequest
+                .post("/api/people/v1/workforce/exports")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery())
+                .isEqualTo("permissionPrefix=DATA.WORKFORCE");
+        assertThat(identity).isNotNull();
+        assertThat(identity.permissions()).containsExactly("DATA.WORKFORCE:MANAGE");
+    }
+
+    @Test
+    void returnsOnlyVerifiedGroupReferencesFromTheSessionProfile() {
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> Mono.just(
+                ClientResponse.create(HttpStatus.OK)
+                        .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                        .body("""
+                                {"success":true,"data":{"userId":7,"tenantId":1,
+                                "roles":["WORKSPACE_MEMBER"],"groups":[
+                                  {"groupRef":"58fa4516-dc70-4785-ac9f-3606992c3f6b","displayName":"Finance"},
+                                  {"groupRef":"c175742b-070e-4223-a49a-b9878d280a7c","displayName":"Operations"}
+                                ]}}
+                                """)
+                        .build()));
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+
+        VerifiedIdentity identity = verifier.verify(MockServerHttpRequest
+                .get("/api/platform/v1/workspace/saved-views")
+                .build()).block();
+
+        assertThat(identity).isNotNull();
+        assertThat(identity.groupRefs()).containsExactly(
+                "58fa4516-dc70-4785-ac9f-3606992c3f6b",
+                "c175742b-070e-4223-a49a-b9878d280a7c");
+    }
+
     private AuthSessionVerifier verifierReturningTenant(String tenantId) {
         String body = """
                 {"success":true,"data":{"userId":7,"tenantId":%s,"roles":["EMPLOYEE"]}}

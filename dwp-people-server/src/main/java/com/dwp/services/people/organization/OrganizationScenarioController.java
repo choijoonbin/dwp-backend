@@ -131,6 +131,14 @@ public class OrganizationScenarioController {
         return ApiResponse.success(service.decide(scenarioId, request, correlationId));
     }
 
+    @PostMapping("/{scenarioId}/cancel")
+    public ApiResponse<OrganizationScenarioDtos.Scenario> cancel(
+            @PathVariable UUID scenarioId,
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @Valid @RequestBody OrganizationScenarioDtos.CancelScenarioRequest request) {
+        return ApiResponse.success(service.cancel(scenarioId, request, correlationId));
+    }
+
     @PostMapping("/{scenarioId}/publish")
     public ApiResponse<OrganizationScenarioDtos.Scenario> publish(
             @PathVariable UUID scenarioId,

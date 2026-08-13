@@ -8,6 +8,8 @@ import org.springframework.mock.web.MockHttpServletResponse;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.concurrent.atomic.AtomicReference;
+
 class PeopleSecurityFilterTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
@@ -59,6 +61,46 @@ class PeopleSecurityFilterTest {
         filter.doFilter(hrAdmin, permitted, new MockFilterChain());
 
         assertThat(permitted.getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void permitsDelegatedWorkforceGovernanceOnlyForTheVerifiedAction() throws Exception {
+        PeopleSecurityFilter filter = new PeopleSecurityFilter("trusted", objectMapper);
+        MockHttpServletRequest read = regularRequest(
+                "GET", "/v1/admin/workforce/access-policies", "WORKSPACE_MEMBER");
+        read.addHeader(PeopleSecurityFilter.PERMISSIONS_HEADER,
+                "ADMIN.WORKFORCE_ACCESS:VIEW");
+        MockHttpServletResponse readResponse = new MockHttpServletResponse();
+        AtomicReference<PeopleRequestContext.Actor> actor = new AtomicReference<>();
+
+        filter.doFilter(read, readResponse, (request, response) ->
+                actor.set(PeopleRequestContext.require()));
+
+        assertThat(readResponse.getStatus()).isEqualTo(200);
+        assertThat(actor.get().permissions()).contains("ADMIN.WORKFORCE_ACCESS:VIEW");
+
+        MockHttpServletRequest write = regularRequest(
+                "POST", "/v1/admin/workforce/access-policies", "WORKSPACE_MEMBER");
+        write.addHeader(PeopleSecurityFilter.PERMISSIONS_HEADER,
+                "ADMIN.WORKFORCE_ACCESS:VIEW");
+        MockHttpServletResponse denied = new MockHttpServletResponse();
+
+        filter.doFilter(write, denied, new MockFilterChain());
+
+        assertThat(denied.getStatus()).isEqualTo(403);
+    }
+
+    @Test
+    void doesNotLetARoleOverrideAVerifiedReadOnlyWorkforcePermission() throws Exception {
+        PeopleSecurityFilter filter = new PeopleSecurityFilter("trusted", objectMapper);
+        MockHttpServletRequest write = regularRequest(
+                "POST", "/v1/workforce/exports", "PEOPLE_ADMIN");
+        write.addHeader(PeopleSecurityFilter.PERMISSIONS_HEADER, "DATA.WORKFORCE:VIEW");
+        MockHttpServletResponse denied = new MockHttpServletResponse();
+
+        filter.doFilter(write, denied, new MockFilterChain());
+
+        assertThat(denied.getStatus()).isEqualTo(403);
     }
 
     private MockHttpServletRequest request(String method, String path) {

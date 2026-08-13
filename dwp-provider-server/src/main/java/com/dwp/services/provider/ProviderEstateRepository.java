@@ -405,6 +405,7 @@ public class ProviderEstateRepository {
     public UUID createSupportSession(
             UUID tenantId,
             Long operatorId,
+            UUID supportAccessRequestId,
             String justification,
             String tokenHash,
             Instant expiresAt,
@@ -416,11 +417,11 @@ public class ProviderEstateRepository {
         jdbc.update("""
                 INSERT INTO prv_support_sessions (
                     support_session_id, provider_tenant_id, provider_operator_id,
-                    justification, token_hash, expires_at, access_mode,
+                    support_access_request_id, justification, token_hash, expires_at, access_mode,
                     approval_reference, customer_approval_required, risk_tier,
                     created_by, updated_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, sessionId, tenantId, operatorId, justification, tokenHash,
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, sessionId, tenantId, operatorId, supportAccessRequestId, justification, tokenHash,
                 Timestamp.from(expiresAt), accessMode, approvalReference,
                 customerApprovalRequired, riskTier,
                 operatorId, operatorId);
@@ -444,6 +445,7 @@ public class ProviderEstateRepository {
         Object[] arguments = tenantId == null ? new Object[0] : new Object[]{tenantId};
         return jdbc.query("""
                 SELECT session.support_session_id,
+                       session.support_access_request_id,
                        session.provider_tenant_id,
                        tenant.tenant_key,
                        tenant.display_name AS tenant_name,
@@ -658,6 +660,7 @@ public class ProviderEstateRepository {
             throws SQLException {
         return new ProviderDtos.SupportSessionSummary(
                 result.getObject("support_session_id", UUID.class),
+                result.getObject("support_access_request_id", UUID.class),
                 result.getObject("provider_tenant_id", UUID.class),
                 result.getString("tenant_key"),
                 result.getString("tenant_name"),

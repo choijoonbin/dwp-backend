@@ -172,6 +172,10 @@ PYTHON
   cat >"$expected" <<'ENUMS'
 dwp-audit/src/main/java/com/dwp/audit/AuditEventPublisher.java|DeliveryResult
 dwp-core/src/main/java/com/dwp/core/common/ErrorCode.java|ErrorCode
+dwp-core/src/main/java/com/dwp/core/event/DomainEventInboxRepository.java|BeginState
+dwp-core/src/main/java/com/dwp/core/event/DomainEventInboxRepository.java|FailureState
+dwp-core/src/main/java/com/dwp/core/event/DomainEventOrderingPolicy.java|Decision
+dwp-core/src/main/java/com/dwp/core/event/IdempotentDomainEventConsumer.java|DeliveryState
 dwp-platform-contracts/src/main/java/com/dwp/platform/contract/ConnectorPort.java|Capability
 dwp-platform-contracts/src/main/java/com/dwp/platform/contract/ConnectorPort.java|HealthState
 dwp-platform-contracts/src/main/java/com/dwp/platform/contract/DataClassification.java|DataClassification
@@ -276,14 +280,42 @@ while IFS='|' read -r database owner_service; do
        WHERE namespace_ref.nspname = 'public'
          AND constraint_ref.contype = 'c'
          AND NOT relation_ref.relispartition
-         AND pg_get_constraintdef(constraint_ref.oid) ~ '\\)::text = ANY'
-    ), extracted AS (
+         AND (
+             pg_get_constraintdef(constraint_ref.oid) ~ '\\)::text = ANY'
+             OR pg_get_constraintdef(constraint_ref.oid) ~ '<@ ARRAY'
+             OR pg_get_constraintdef(constraint_ref.oid) ~
+                '^CHECK \\(\\(\\([a-zA-Z0-9_]+\\)::text = ''[^'']+''::text\\)\\)$'
+         )
+    ), scalar_set_contracts AS (
       SELECT table_name,
              substring(definition FROM '\\(\\(([a-zA-Z0-9_]+)\\)::text = ANY') AS column_name,
-             match[1] AS code
+             definition
         FROM checks
+       WHERE definition ~ '\\)::text = ANY'
+    ), array_set_contracts AS (
+      SELECT table_name,
+             substring(definition FROM '\\(\\(?([a-zA-Z0-9_]+) <@ ARRAY') AS column_name,
+             definition
+        FROM checks
+       WHERE definition ~ '<@ ARRAY'
+    ), extracted AS (
+      SELECT table_name, column_name, match[1] AS code
+        FROM scalar_set_contracts
        CROSS JOIN LATERAL regexp_matches(
            definition, '''([^'']+)''::character varying', 'g') match
+      UNION ALL
+      SELECT table_name, column_name, match[1] AS code
+        FROM array_set_contracts
+       CROSS JOIN LATERAL regexp_matches(
+           definition, '''([^'']+)''::character varying', 'g') match
+      UNION ALL
+      SELECT table_name,
+             substring(definition FROM
+                 '^CHECK \\(\\(\\(([a-zA-Z0-9_]+)\\)::text = ''[^'']+''::text\\)\\)$'),
+             substring(definition FROM '= ''([^'']+)''::text')
+        FROM checks
+       WHERE definition ~
+           '^CHECK \\(\\(\\([a-zA-Z0-9_]+\\)::text = ''[^'']+''::text\\)\\)$'
     )
     SELECT '${owner_service}', table_name || '.' || column_name,
            string_agg(DISTINCT code, ',' ORDER BY code)
@@ -299,7 +331,7 @@ dwp_provider|dwp-provider-server
 DATABASES
 
 psql_query "$PLATFORM_DB" "
-  SELECT code_set.owner_service,
+  SELECT binding.consumer_service,
          binding.source_reference,
          string_agg(DISTINCT code_value.code, ',' ORDER BY code_value.code)
     FROM sys_code_sets code_set
@@ -312,8 +344,8 @@ psql_query "$PLATFORM_DB" "
       ON code_value.code_set_key = code_set.code_set_key
      AND code_value.lifecycle_state = 'ACTIVE'
    WHERE code_set.lifecycle_state = 'ACTIVE'
-   GROUP BY code_set.owner_service, binding.source_reference
-   ORDER BY code_set.owner_service, binding.source_reference
+   GROUP BY binding.consumer_service, binding.source_reference
+   ORDER BY binding.consumer_service, binding.source_reference
 " >"$expected_file"
 
 LC_ALL=C sort -u -o "$actual_file" "$actual_file"
@@ -456,6 +488,18 @@ assert_java_enum_codes 'core API error code enum' \
 assert_java_enum_codes 'audit delivery result enum' \
   'dwp-audit/src/main/java/com/dwp/audit/AuditEventPublisher.java' \
   'DeliveryResult' 'name' 'AUDIT.DELIVERY_RESULT'
+assert_java_enum_codes 'domain event inbox begin state enum' \
+  'dwp-core/src/main/java/com/dwp/core/event/DomainEventInboxRepository.java' \
+  'BeginState' 'name' 'CORE.DOMAIN_EVENT.BEGIN_STATE'
+assert_java_enum_codes 'domain event inbox failure state enum' \
+  'dwp-core/src/main/java/com/dwp/core/event/DomainEventInboxRepository.java' \
+  'FailureState' 'name' 'CORE.DOMAIN_EVENT.FAILURE_STATE'
+assert_java_enum_codes 'domain event ordering decision enum' \
+  'dwp-core/src/main/java/com/dwp/core/event/DomainEventOrderingPolicy.java' \
+  'Decision' 'name' 'CORE.DOMAIN_EVENT.ORDERING_DECISION'
+assert_java_enum_codes 'domain event delivery state enum' \
+  'dwp-core/src/main/java/com/dwp/core/event/IdempotentDomainEventConsumer.java' \
+  'DeliveryState' 'name' 'CORE.DOMAIN_EVENT.DELIVERY_STATE'
 assert_java_enum_codes 'connector capability enum' \
   'dwp-platform-contracts/src/main/java/com/dwp/platform/contract/ConnectorPort.java' \
   'Capability' 'name' 'PLATFORM.CONNECTOR.CAPABILITY'

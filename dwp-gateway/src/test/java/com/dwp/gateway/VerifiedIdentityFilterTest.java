@@ -22,7 +22,8 @@ class VerifiedIdentityFilterTest {
                 "user-7",
                 "tenant-1",
                 List.of("EMPLOYEE", "APPROVER"),
-                List.of("ADMIN.AUDIT_VIEW:VIEW")));
+                List.of("ADMIN.AUDIT_VIEW:VIEW"),
+                List.of("58fa4516-dc70-4785-ac9f-3606992c3f6b")));
         VerifiedIdentityFilter filter = new VerifiedIdentityFilter(verifier);
         MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
                 .get("/api/agent/v1/plans/preview")
@@ -30,6 +31,7 @@ class VerifiedIdentityFilterTest {
                 .header(VerifiedIdentityFilter.USER_HEADER, "spoofed")
                 .header(VerifiedIdentityFilter.TENANT_HEADER, "spoofed")
                 .header(VerifiedIdentityFilter.PERMISSIONS_HEADER, "SPOOFED:MANAGE")
+                .header(VerifiedIdentityFilter.GROUP_REFS_HEADER, "spoofed-team")
                 .build());
         AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
                 new AtomicReference<>();
@@ -48,6 +50,9 @@ class VerifiedIdentityFilterTest {
         assertThat(forwarded.get().getHeaders().getFirst(
                 VerifiedIdentityFilter.PERMISSIONS_HEADER))
                 .isEqualTo("ADMIN.AUDIT_VIEW:VIEW");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                VerifiedIdentityFilter.GROUP_REFS_HEADER))
+                .isEqualTo("58fa4516-dc70-4785-ac9f-3606992c3f6b");
     }
 
     @Test
@@ -110,6 +115,7 @@ class VerifiedIdentityFilterTest {
                 .get("/api/auth/policy")
                 .header(VerifiedIdentityFilter.USER_HEADER, "spoofed")
                 .header(VerifiedIdentityFilter.PERMISSIONS_HEADER, "SPOOFED:MANAGE")
+                .header(VerifiedIdentityFilter.GROUP_REFS_HEADER, "spoofed-team")
                 .build());
         AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
                 new AtomicReference<>();
@@ -123,5 +129,7 @@ class VerifiedIdentityFilterTest {
                 .isFalse();
         assertThat(forwarded.get().getHeaders().containsKey(
                 VerifiedIdentityFilter.PERMISSIONS_HEADER)).isFalse();
+        assertThat(forwarded.get().getHeaders().containsKey(
+                VerifiedIdentityFilter.GROUP_REFS_HEADER)).isFalse();
     }
 }

@@ -11,11 +11,13 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class CatalogServiceTest {
@@ -124,15 +126,127 @@ class CatalogServiceTest {
         when(repository.relations(1L)).thenReturn(List.of(
                 relation(runtimeService.ref(), code.ref(), "CONSUMES", "CRITICAL"),
                 relation(app.ref(), runtimeService.ref(), "DEPENDS_ON", "OPERATIONAL")));
+        when(repository.activeCompatibilityRule()).thenReturn(rule());
 
         CatalogDtos.ImpactAnalysis result = service.impact(1L, code.ref(), "RETIRE");
 
         assertThat(result.blocked()).isTrue();
+        assertThat(result.compatibilityState()).isEqualTo("BLOCKED");
+        assertThat(result.ruleKey()).isEqualTo("DWP_CATALOG_IMPACT");
+        assertThat(result.ruleVersion()).isEqualTo(1L);
         assertThat(result.directDependentCount()).isEqualTo(1);
         assertThat(result.transitiveDependentCount()).isEqualTo(1);
         assertThat(result.impactedEntities()).extracting(item -> item.entity().ref())
                 .containsExactly(runtimeService.ref(), app.ref());
         assertThat(result.findings()).contains("CRITICAL_CONSUMER_BLOCKS_CHANGE");
+    }
+
+    @Test
+    void impactUsesThePublishedRuleInsteadOfHardCodedBlockingAndWeights() {
+        CatalogDtos.Entity code = entity("CODE_SET:PLATFORM.MODE", "CODE_SET", "Mode");
+        CatalogDtos.Entity runtimeService = entity(
+                "SERVICE:DWP-PLATFORM-SERVER", "SERVICE", "Platform");
+        when(repository.inventory(1L)).thenReturn(List.of(code, runtimeService));
+        when(repository.relations(1L)).thenReturn(List.of(relation(
+                runtimeService.ref(), code.ref(), "CONSUMES", "CRITICAL")));
+        var definition = JsonNodeFactory.instance.objectNode()
+                .put("maximumTraversalDepth", 8)
+                .put("criticalDirectBlocks", false)
+                .put("retireWithDirectDependentsBlocks", false);
+        definition.putObject("criticalityWeights")
+                .put("INFORMATIONAL", 1)
+                .put("OPERATIONAL", 3)
+                .put("CRITICAL", 9);
+        when(repository.activeCompatibilityRule()).thenReturn(new CatalogDtos.CompatibilityRule(
+                "DWP_CATALOG_IMPACT", 2L, definition, "c".repeat(64)));
+
+        CatalogDtos.ImpactAnalysis result = service.impact(1L, code.ref(), "CHANGE");
+
+        assertThat(result.blocked()).isFalse();
+        assertThat(result.compatibilityState()).isEqualTo("REVIEW_REQUIRED");
+        assertThat(result.riskScore()).isEqualTo(36);
+        assertThat(result.ruleVersion()).isEqualTo(2L);
+    }
+
+    @Test
+    void assuranceEvaluationPersistsVersionedOwnerAndOrphanEvidence() {
+        CatalogDtos.Entity orphan = new CatalogDtos.Entity(
+                "REGISTRY:APP:ORPHAN", "APP", "ORPHAN", "Orphan", null,
+                null, "ACTIVE", "HIGH", "TENANT", 7,
+                JsonNodeFactory.instance.objectNode());
+        when(repository.inventory(1L)).thenReturn(List.of(orphan));
+        when(repository.relations(1L)).thenReturn(List.of());
+        when(repository.activeCompatibilityRule()).thenReturn(rule());
+        when(repository.synchronizeFindings(
+                org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.eq(rule()),
+                org.mockito.ArgumentMatchers.anyList()))
+                .thenReturn(List.of());
+
+        CatalogDtos.AssuranceSummary result = service.evaluateAssurance(1L, 7L, "corr");
+
+        assertThat(result.activeRule().ruleVersion()).isEqualTo(1L);
+        verify(repository).synchronizeFindings(
+                org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.eq(rule()),
+                org.mockito.ArgumentMatchers.argThat(candidates ->
+                        candidates.stream().map(CatalogRepository.FindingCandidate::findingCode)
+                                .collect(java.util.stream.Collectors.toSet())
+                                .equals(java.util.Set.of("OWNER_MISSING", "ORPHAN_ASSET"))));
+        verify(auditService).success(
+                org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.eq(7L),
+                org.mockito.ArgumentMatchers.eq("catalog.assurance.evaluated"),
+                org.mockito.ArgumentMatchers.eq("CATALOG_ASSURANCE"),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.eq("corr"),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void scheduledAssuranceEvaluationUsesServiceAuditIdentity() {
+        when(repository.inventory(1L)).thenReturn(List.of());
+        when(repository.relations(1L)).thenReturn(List.of());
+        when(repository.activeCompatibilityRule()).thenReturn(rule());
+        when(repository.synchronizeFindings(1L, rule(), List.of())).thenReturn(List.of());
+
+        service.evaluateAssuranceSystem(1L);
+
+        verify(auditService).serviceSuccess(
+                org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.eq("catalog.assurance.evaluated"),
+                org.mockito.ArgumentMatchers.eq("CATALOG_ASSURANCE"),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void findingDispositionUsesOptimisticVersionAndWritesAuditEvidence() {
+        UUID findingId = UUID.randomUUID();
+        CatalogDtos.AssuranceFinding before = finding(findingId, "OPEN", 2L);
+        CatalogDtos.AssuranceFinding after = finding(findingId, "FALSE_POSITIVE", 3L);
+        CatalogDtos.DispositionFindingRequest request = new CatalogDtos.DispositionFindingRequest(
+                "FALSE_POSITIVE", "Validated against the authoritative contract source.",
+                "CASE-203", 2L);
+        when(repository.findings(1L)).thenReturn(List.of(before));
+        when(repository.dispositionFinding(1L, 7L, findingId, request)).thenReturn(after);
+
+        CatalogDtos.AssuranceFinding result = service.dispositionFinding(
+                1L, 7L, "corr", findingId, request);
+
+        assertThat(result.lifecycleState()).isEqualTo("FALSE_POSITIVE");
+        verify(auditService).success(
+                org.mockito.ArgumentMatchers.eq(1L),
+                org.mockito.ArgumentMatchers.eq(7L),
+                org.mockito.ArgumentMatchers.eq("catalog.assurance-finding.disposed"),
+                org.mockito.ArgumentMatchers.eq("CATALOG_FINDING"),
+                org.mockito.ArgumentMatchers.eq(findingId.toString()),
+                org.mockito.ArgumentMatchers.eq("corr"),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -161,5 +275,21 @@ class CatalogServiceTest {
         return new CatalogDtos.Relation(
                 null, source, target, type, "DISCOVERED", criticality,
                 "test", JsonNodeFactory.instance.objectNode(), "ACTIVE", 0);
+    }
+
+    private CatalogDtos.CompatibilityRule rule() {
+        return new CatalogDtos.CompatibilityRule(
+                "DWP_CATALOG_IMPACT", 1L,
+                JsonNodeFactory.instance.objectNode().put("maximumTraversalDepth", 8),
+                "5c56f41e26527c4225049933ba38f87b32d6f9e7f30e151fd2e6371cf9f32104");
+    }
+
+    private CatalogDtos.AssuranceFinding finding(UUID id, String state, long version) {
+        return new CatalogDtos.AssuranceFinding(
+                id, "REGISTRY:APP:WORK", "OWNER_MISSING", "HIGH", state,
+                "DWP_CATALOG_IMPACT", 1L, JsonNodeFactory.instance.objectNode(),
+                "5c56f41e26527c4225049933ba38f87b32d6f9e7f30e151fd2e6371cf9f32104",
+                java.time.OffsetDateTime.now(), java.time.OffsetDateTime.now(),
+                null, null, null, null, version);
     }
 }

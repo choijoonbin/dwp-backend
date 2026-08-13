@@ -34,6 +34,7 @@ class ProviderSupportCookieTest {
         Instant expiresAt = Instant.now().plusSeconds(600);
         ProviderDtos.SupportSessionSummary session = new ProviderDtos.SupportSessionSummary(
                 UUID.randomUUID(),
+                null,
                 UUID.randomUUID(),
                 "acme",
                 "Acme",

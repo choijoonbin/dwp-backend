@@ -148,6 +148,11 @@ class RoleDelegationPolicyServiceTest {
                         Set.of("WORKSPACE_MEMBER", "HR_ADMIN")))
                 .isEqualTo(new RoleDelegationPolicyService.RoleSetDecision(
                         false, "ROLE_CONFLICT_AUDIT_INDEPENDENCE"));
+        assertThat(service.evaluateAdditiveRoleSet(
+                        Set.of("WORKSPACE_MEMBER", "AUDITOR"),
+                        Set.of("HR_ADMIN")))
+                .isEqualTo(new RoleDelegationPolicyService.RoleSetDecision(
+                        false, "ROLE_CONFLICT_AUDIT_INDEPENDENCE"));
     }
 
     private Role role(Long id, String code, boolean privileged) {

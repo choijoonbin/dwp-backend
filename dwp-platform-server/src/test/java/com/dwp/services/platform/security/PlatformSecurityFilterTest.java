@@ -122,6 +122,38 @@ class PlatformSecurityFilterTest {
     }
 
     @Test
+    void requiresAResolvedSavedViewCustodyPermissionInsteadOfAnAdministratorLabel()
+            throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+        MockHttpServletRequest denied = request("/v1/admin/saved-view-ownership/orphaned");
+        denied.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        denied.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        denied.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        denied.addHeader(PlatformSecurityFilter.ROLES_HEADER, "TENANT_ADMIN");
+        MockHttpServletResponse deniedResponse = new MockHttpServletResponse();
+
+        filter.doFilter(denied, deniedResponse, new MockFilterChain());
+
+        assertThat(deniedResponse.getStatus()).isEqualTo(403);
+        assertThat(deniedResponse.getContentAsString())
+                .contains("Saved view custody permission is required.");
+
+        MockHttpServletRequest allowed = request("/v1/admin/saved-view-ownership/orphaned");
+        allowed.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        allowed.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        allowed.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        allowed.addHeader(PlatformSecurityFilter.ROLES_HEADER, "CUSTOM_CUSTODIAN");
+        allowed.addHeader(
+                PlatformSecurityFilter.PERMISSIONS_HEADER,
+                "ADMIN.SAVED_VIEW_CUSTODY:VIEW");
+        MockHttpServletResponse allowedResponse = new MockHttpServletResponse();
+
+        filter.doFilter(allowed, allowedResponse, new MockFilterChain());
+
+        assertThat(allowedResponse.getStatus()).isEqualTo(200);
+    }
+
+    @Test
     void acceptsTheRestrictedRuntimeIdentityOnlyForCatalogReferenceAndScopedWorkspaceReads()
             throws Exception {
         PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);

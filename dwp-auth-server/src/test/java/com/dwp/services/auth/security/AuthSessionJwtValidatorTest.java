@@ -2,10 +2,13 @@ package com.dwp.services.auth.security;
 
 import com.dwp.services.auth.entity.AuthSession;
 import com.dwp.services.auth.repository.AuthSessionRepository;
+import com.dwp.services.auth.repository.RoleMemberRepository;
+import com.dwp.services.auth.repository.RoleRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -16,7 +19,15 @@ import static org.mockito.Mockito.when;
 class AuthSessionJwtValidatorTest {
 
     private final AuthSessionRepository repository = mock(AuthSessionRepository.class);
-    private final AuthSessionJwtValidator validator = new AuthSessionJwtValidator(repository);
+    private final RoleMemberRepository roleMemberRepository = mock(RoleMemberRepository.class);
+    private final RoleRepository roleRepository = mock(RoleRepository.class);
+    private final AuthSessionJwtValidator validator = new AuthSessionJwtValidator(
+            repository, roleMemberRepository, roleRepository);
+
+    {
+        when(roleMemberRepository.findRoleIds(1L, 1L)).thenReturn(List.of());
+        when(roleRepository.findByRoleIdIn(List.of())).thenReturn(List.of());
+    }
 
     @Test
     void acceptsAnActiveSessionWithMatchingIdentityAndFamily() {

@@ -3,6 +3,8 @@ package com.dwp.services.platform.catalog;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.audit.PlatformAuditService;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -196,6 +198,7 @@ public class CatalogService {
     @Transactional(readOnly = true)
     public CatalogDtos.ImpactAnalysis impact(Long tenantId, String rawRef, String rawOperation) {
         Snapshot snapshot = snapshot(tenantId);
+        CatalogDtos.CompatibilityRule rule = repository.activeCompatibilityRule();
         String ref = normalizeRef(rawRef);
         CatalogDtos.Entity target = requireEntity(snapshot, ref);
         String operation = upper(rawOperation);
@@ -215,7 +218,7 @@ public class CatalogService {
                 int distance = current.distance() + 1;
                 impacted.computeIfAbsent(edge.dependentRef(), ignored -> new ImpactAccumulator(distance))
                         .merge(distance, edge.relation());
-                if (visited.add(edge.dependentRef()) && distance < 8) {
+                if (visited.add(edge.dependentRef()) && distance < maximumTraversalDepth(rule)) {
                     queue.add(new Traversal(edge.dependentRef(), distance));
                 }
             }
@@ -228,10 +231,12 @@ public class CatalogService {
                 .toList();
         long direct = items.stream().filter(item -> item.distance() == 1).count();
         int riskScore = items.stream().mapToInt(item ->
-                weight(item.highestCriticality()) * Math.max(1, 5 - item.distance())).sum();
+                weight(rule, item.highestCriticality()) * Math.max(1, 5 - item.distance())).sum();
         boolean hasCriticalDirect = items.stream().anyMatch(item ->
                 item.distance() == 1 && "CRITICAL".equals(item.highestCriticality()));
-        boolean blocked = hasCriticalDirect || ("RETIRE".equals(operation) && direct > 0);
+        boolean blocked = (criticalDirectBlocks(rule) && hasCriticalDirect)
+                || (retireWithDirectDependentsBlocks(rule)
+                    && "RETIRE".equals(operation) && direct > 0);
         List<String> findings = new ArrayList<>();
         if (direct == 0) findings.add("NO_DIRECT_DEPENDENTS");
         if (direct > 0) findings.add("DIRECT_DEPENDENTS_REQUIRE_REVIEW");
@@ -239,9 +244,70 @@ public class CatalogService {
         if (hasCriticalDirect) findings.add("CRITICAL_CONSUMER_BLOCKS_CHANGE");
         if (target.ownerRef() == null || target.ownerRef().isBlank()) findings.add("OWNER_MISSING");
         return new CatalogDtos.ImpactAnalysis(
-                target, operation, riskScore, blocked, direct,
+                target, operation,
+                blocked ? "BLOCKED" : items.isEmpty() ? "COMPATIBLE" : "REVIEW_REQUIRED",
+                rule.ruleKey(), rule.ruleVersion(), riskScore, blocked, direct,
                 items.stream().filter(item -> item.distance() > 1).count(),
                 items, List.copyOf(findings), OffsetDateTime.now());
+    }
+
+    @Transactional(readOnly = true)
+    public CatalogDtos.AssuranceSummary assurance(Long tenantId) {
+        return assuranceSummary(repository.activeCompatibilityRule(), repository.findings(tenantId));
+    }
+
+    @Transactional
+    public CatalogDtos.AssuranceSummary evaluateAssurance(
+            Long tenantId, Long actorId, String correlationId) {
+        Evaluation evaluation = evaluateAssuranceInternal(tenantId);
+        CatalogDtos.AssuranceSummary summary = evaluation.summary();
+        auditService.success(
+                tenantId, actorId, "catalog.assurance.evaluated", "CATALOG_ASSURANCE",
+                evaluation.rule().ruleKey() + ":" + evaluation.rule().ruleVersion(),
+                correlationId, null,
+                Map.of(
+                        "ruleKey", evaluation.rule().ruleKey(),
+                        "ruleVersion", evaluation.rule().ruleVersion(),
+                        "candidateCount", evaluation.candidateCount(),
+                        "openCount", summary.openCount(),
+                        "criticalCount", summary.criticalCount()));
+        return summary;
+    }
+
+    @Transactional
+    public CatalogDtos.AssuranceSummary evaluateAssuranceSystem(Long tenantId) {
+        Evaluation evaluation = evaluateAssuranceInternal(tenantId);
+        CatalogDtos.AssuranceSummary summary = evaluation.summary();
+        auditService.serviceSuccess(
+                tenantId, "catalog.assurance.evaluated", "CATALOG_ASSURANCE",
+                evaluation.rule().ruleKey() + ":" + evaluation.rule().ruleVersion(),
+                UUID.randomUUID().toString(), null,
+                Map.of(
+                        "ruleKey", evaluation.rule().ruleKey(),
+                        "ruleVersion", evaluation.rule().ruleVersion(),
+                        "candidateCount", evaluation.candidateCount(),
+                        "openCount", summary.openCount(),
+                        "criticalCount", summary.criticalCount()));
+        return summary;
+    }
+
+    @Transactional
+    public CatalogDtos.AssuranceFinding dispositionFinding(
+            Long tenantId,
+            Long actorId,
+            String correlationId,
+            UUID findingId,
+            CatalogDtos.DispositionFindingRequest request) {
+        CatalogDtos.AssuranceFinding before = repository.findings(tenantId).stream()
+                .filter(finding -> finding.findingId().equals(findingId))
+                .findFirst()
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        CatalogDtos.AssuranceFinding after = repository.dispositionFinding(
+                tenantId, actorId, findingId, request);
+        auditService.success(
+                tenantId, actorId, "catalog.assurance-finding.disposed", "CATALOG_FINDING",
+                findingId.toString(), correlationId, findingSnapshot(before), findingSnapshot(after));
+        return after;
     }
 
     @Transactional
@@ -368,6 +434,132 @@ public class CatalogService {
         };
     }
 
+    private int weight(CatalogDtos.CompatibilityRule rule, String criticality) {
+        int fallback = weight(criticality);
+        int configured = rule.definition()
+                .path("criticalityWeights")
+                .path(criticality)
+                .asInt(fallback);
+        return Math.max(1, Math.min(100, configured));
+    }
+
+    private boolean criticalDirectBlocks(CatalogDtos.CompatibilityRule rule) {
+        return rule.definition().path("criticalDirectBlocks").asBoolean(true);
+    }
+
+    private boolean retireWithDirectDependentsBlocks(CatalogDtos.CompatibilityRule rule) {
+        return rule.definition().path("retireWithDirectDependentsBlocks").asBoolean(true);
+    }
+
+    private int maximumTraversalDepth(CatalogDtos.CompatibilityRule rule) {
+        int configured = rule.definition().path("maximumTraversalDepth").asInt(8);
+        return Math.max(1, Math.min(16, configured));
+    }
+
+    private List<CatalogRepository.FindingCandidate> findingCandidates(
+            Snapshot snapshot, CatalogDtos.CompatibilityRule rule) {
+        Set<String> connected = new HashSet<>();
+        snapshot.relations().forEach(relation -> {
+            connected.add(relation.sourceRef());
+            connected.add(relation.targetRef());
+        });
+        Map<String, List<DependencyEdge>> dependents = dependencyEdges(snapshot.relations());
+        List<CatalogRepository.FindingCandidate> candidates = new ArrayList<>();
+        for (CatalogDtos.Entity entity : snapshot.entities()) {
+            if (!isGovernedAsset(entity)) continue;
+            if (entity.ownerRef() == null || entity.ownerRef().isBlank()) {
+                candidates.add(new CatalogRepository.FindingCandidate(
+                        entity.ref(), "OWNER_MISSING", "HIGH",
+                        findingEvidence(entity, rule, "ownerRef", null, 0)));
+            }
+            if (!connected.contains(entity.ref())) {
+                candidates.add(new CatalogRepository.FindingCandidate(
+                        entity.ref(), "ORPHAN_ASSET", "MEDIUM",
+                        findingEvidence(entity, rule, "relationshipCount", 0, 0)));
+            }
+            if (Set.of("DEPRECATED", "RETIRED").contains(entity.lifecycleState())) {
+                long directDependents = dependents.getOrDefault(entity.ref(), List.of()).stream()
+                        .map(DependencyEdge::dependentRef)
+                        .distinct()
+                        .count();
+                if (directDependents > 0) {
+                    candidates.add(new CatalogRepository.FindingCandidate(
+                            entity.ref(), "DEPRECATION_IMPACT", "CRITICAL",
+                            findingEvidence(
+                                    entity, rule, "directDependentCount", directDependents,
+                                    directDependents)));
+                }
+            }
+        }
+        return List.copyOf(candidates);
+    }
+
+    private ObjectNode findingEvidence(
+            CatalogDtos.Entity entity,
+            CatalogDtos.CompatibilityRule rule,
+            String signal,
+            Object value,
+            long dependentCount) {
+        ObjectNode evidence = JsonNodeFactory.instance.objectNode();
+        evidence.put("entityRef", entity.ref());
+        evidence.put("entityRevision", entity.revision());
+        evidence.put("lifecycleState", entity.lifecycleState());
+        evidence.put("signal", signal);
+        if (value == null) evidence.putNull("value");
+        else if (value instanceof Number number) evidence.put("value", number.longValue());
+        else evidence.put("value", String.valueOf(value));
+        evidence.put("directDependentCount", dependentCount);
+        evidence.put("ruleKey", rule.ruleKey());
+        evidence.put("ruleVersion", rule.ruleVersion());
+        return evidence;
+    }
+
+    private CatalogDtos.AssuranceSummary assuranceSummary(
+            CatalogDtos.CompatibilityRule rule,
+            List<CatalogDtos.AssuranceFinding> findings) {
+        long open = findings.stream()
+                .filter(finding -> Set.of("OPEN", "ACKNOWLEDGED").contains(finding.lifecycleState()))
+                .count();
+        long critical = findings.stream()
+                .filter(finding -> Set.of("OPEN", "ACKNOWLEDGED").contains(finding.lifecycleState()))
+                .filter(finding -> "CRITICAL".equals(finding.severity()))
+                .count();
+        return new CatalogDtos.AssuranceSummary(
+                open,
+                critical,
+                findings.stream().filter(finding -> "OWNER_MISSING".equals(finding.findingCode()))
+                        .filter(finding -> Set.of("OPEN", "ACKNOWLEDGED").contains(finding.lifecycleState()))
+                        .count(),
+                findings.stream().filter(finding -> "DEPRECATION_IMPACT".equals(finding.findingCode()))
+                        .filter(finding -> Set.of("OPEN", "ACKNOWLEDGED").contains(finding.lifecycleState()))
+                        .count(),
+                rule,
+                findings,
+                OffsetDateTime.now());
+    }
+
+    private Evaluation evaluateAssuranceInternal(Long tenantId) {
+        Snapshot snapshot = snapshot(tenantId);
+        CatalogDtos.CompatibilityRule rule = repository.activeCompatibilityRule();
+        List<CatalogRepository.FindingCandidate> candidates = findingCandidates(snapshot, rule);
+        List<CatalogDtos.AssuranceFinding> findings = repository.synchronizeFindings(
+                tenantId, rule, candidates);
+        return new Evaluation(rule, candidates.size(), assuranceSummary(rule, findings));
+    }
+
+    private Map<String, Object> findingSnapshot(CatalogDtos.AssuranceFinding finding) {
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("findingId", finding.findingId());
+        snapshot.put("entityRef", finding.entityRef());
+        snapshot.put("findingCode", finding.findingCode());
+        snapshot.put("lifecycleState", finding.lifecycleState());
+        snapshot.put("ruleKey", finding.ruleKey());
+        snapshot.put("ruleVersion", finding.ruleVersion());
+        snapshot.put("evidenceSha256", finding.evidenceSha256());
+        snapshot.put("version", finding.version());
+        return snapshot;
+    }
+
     private String normalizeRef(String value) {
         if (value == null || value.isBlank()) throw new BaseException(ErrorCode.INVALID_FORMAT);
         String normalized = value.trim().toUpperCase(Locale.ROOT);
@@ -399,6 +591,12 @@ public class CatalogService {
     }
 
     private record DependencyEdge(String dependentRef, CatalogDtos.Relation relation) {
+    }
+
+    private record Evaluation(
+            CatalogDtos.CompatibilityRule rule,
+            int candidateCount,
+            CatalogDtos.AssuranceSummary summary) {
     }
 
     private static final class ImpactAccumulator {

@@ -423,7 +423,8 @@ public final class ProviderDtos {
             Instant endsAt,
             String contractReference,
             long tenants,
-            long activeEntitlements) {
+            long activeEntitlements,
+            long version) {
     }
 
     public record EntitlementAdoption(
@@ -446,6 +447,48 @@ public final class ProviderDtos {
             List<EntitlementAdoption> entitlements) {
     }
 
+    public record SubscriptionRenewalRevision(
+            UUID renewalRevisionId,
+            UUID subscriptionId,
+            UUID organizationId,
+            String organizationKey,
+            String organizationName,
+            int revisionNumber,
+            String lifecycleState,
+            long baselineSubscriptionVersion,
+            String currentPlanKey,
+            String currentPlanName,
+            String targetPlanKey,
+            String targetPlanName,
+            String targetServiceTier,
+            Instant currentEndsAt,
+            Instant proposedEndsAt,
+            String currentContractReference,
+            String proposedContractReference,
+            String reason,
+            List<String> addedEntitlements,
+            List<String> removedEntitlements,
+            long impactedTenants,
+            long currentEntitlementCount,
+            long projectedEntitlementCount,
+            String contentSha256,
+            String requestKey,
+            Long requestedBy,
+            String requestedByName,
+            Instant requestedAt,
+            Instant decisionDueAt,
+            Long decidedBy,
+            String decidedByName,
+            Instant decidedAt,
+            String decisionReason,
+            Long publishedBy,
+            String publishedByName,
+            Instant publishedAt,
+            String executionState,
+            String notificationState,
+            long version) {
+    }
+
     public record AuditInsights(
             Instant generatedAt,
             long events24Hours,
@@ -458,6 +501,7 @@ public final class ProviderDtos {
 
     public record SupportSessionSummary(
             UUID supportSessionId,
+            UUID supportAccessRequestId,
             UUID tenantId,
             String tenantKey,
             String tenantName,
@@ -500,6 +544,39 @@ public final class ProviderDtos {
             List<String> scopes,
             String accessMode,
             Instant expiresAt,
+            long version) {
+    }
+
+    public record SupportAccessRequestSummary(
+            UUID supportAccessRequestId,
+            UUID tenantId,
+            String tenantKey,
+            String tenantName,
+            Long requesterOperatorId,
+            String requesterName,
+            String lifecycleState,
+            String accessMode,
+            String justification,
+            List<String> scopes,
+            int durationMinutes,
+            String approvalReference,
+            boolean customerApprovalRequired,
+            String riskTier,
+            String requestKey,
+            Instant requestedAt,
+            Instant decisionDueAt,
+            Instant decidedAt,
+            Long decidedBy,
+            String decidedByName,
+            String decisionReason,
+            UUID supportSessionId,
+            Instant activatedAt,
+            Instant completedAt,
+            String postReviewState,
+            Instant postReviewedAt,
+            Long postReviewedBy,
+            String postReviewedByName,
+            String postReviewSummary,
             long version) {
     }
 
@@ -652,11 +729,62 @@ public final class ProviderDtos {
             @NotNull @Min(5) @Max(60) Integer durationMinutes,
             @NotBlank @Size(max = 1000) String justification,
             @Size(max = 160) String approvalReference,
-            boolean emergencyAccess) {
+            boolean emergencyAccess,
+            @Size(min = 8, max = 160) String requestKey) {
+    }
+
+    public record CreateSupportAccessRequest(
+            @NotNull UUID tenantId,
+            @NotNull @Size(min = 1, max = 20)
+            List<@Pattern(regexp = "[A-Z][A-Z0-9_]{1,79}") String> scopes,
+            @NotNull @Min(5) @Max(60) Integer durationMinutes,
+            @NotBlank @Size(max = 1000) String justification,
+            @Size(max = 160) String approvalReference,
+            @NotBlank @Size(min = 8, max = 160) String requestKey) {
+    }
+
+    public record DecideSupportAccessRequest(
+            @NotBlank @Pattern(regexp = "APPROVED|DENIED") String decision,
+            @NotBlank @Size(max = 1000) String reason,
+            @NotNull @Min(0) Long version) {
+    }
+
+    public record ActivateSupportAccessRequest(
+            @NotNull @Min(0) Long version) {
+    }
+
+    public record CancelSupportAccessRequest(
+            @NotBlank @Size(max = 1000) String reason,
+            @NotNull @Min(0) Long version) {
+    }
+
+    public record ReviewSupportAccessRequest(
+            @NotBlank @Size(max = 2000) String summary,
+            @NotNull @Min(0) Long version) {
     }
 
     public record RevokeSupportSessionRequest(
             @NotBlank @Size(max = 1000) String justification,
+            @NotNull @Min(0) Long version) {
+    }
+
+    public record CreateSubscriptionRenewalRequest(
+            @NotNull UUID subscriptionId,
+            @NotBlank @Pattern(regexp = "[a-zA-Z][a-zA-Z0-9_-]{1,79}") String targetPlanKey,
+            @NotNull Instant proposedEndsAt,
+            @NotBlank @Size(max = 160) String proposedContractReference,
+            @NotBlank @Size(max = 1000) String reason,
+            @NotBlank @Size(min = 8, max = 160) String requestKey,
+            @NotNull @Min(0) Long subscriptionVersion) {
+    }
+
+    public record DecideSubscriptionRenewalRequest(
+            @NotBlank @Pattern(regexp = "APPROVED|REJECTED") String decision,
+            @NotBlank @Size(max = 1000) String reason,
+            @NotNull @Min(0) Long version) {
+    }
+
+    public record PublishSubscriptionRenewalRequest(
             @NotNull @Min(0) Long version) {
     }
 

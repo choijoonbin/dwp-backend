@@ -72,6 +72,36 @@ public class ProviderControlPlaneController {
         return ApiResponse.success(service.commercialOverview());
     }
 
+    @GetMapping("/subscription-renewals")
+    public ApiResponse<List<ProviderDtos.SubscriptionRenewalRevision>> subscriptionRenewals() {
+        return ApiResponse.success(service.subscriptionRenewals());
+    }
+
+    @PostMapping("/subscription-renewals")
+    public ApiResponse<ProviderDtos.SubscriptionRenewalRevision> createSubscriptionRenewal(
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @Valid @RequestBody ProviderDtos.CreateSubscriptionRenewalRequest request) {
+        return ApiResponse.success(service.createSubscriptionRenewal(correlationId, request));
+    }
+
+    @PostMapping("/subscription-renewals/{revisionId}/decision")
+    public ApiResponse<ProviderDtos.SubscriptionRenewalRevision> decideSubscriptionRenewal(
+            @PathVariable UUID revisionId,
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @Valid @RequestBody ProviderDtos.DecideSubscriptionRenewalRequest request) {
+        return ApiResponse.success(service.decideSubscriptionRenewal(
+                revisionId, correlationId, request));
+    }
+
+    @PostMapping("/subscription-renewals/{revisionId}/publish")
+    public ApiResponse<ProviderDtos.SubscriptionRenewalRevision> publishSubscriptionRenewal(
+            @PathVariable UUID revisionId,
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @Valid @RequestBody ProviderDtos.PublishSubscriptionRenewalRequest request) {
+        return ApiResponse.success(service.publishSubscriptionRenewal(
+                revisionId, correlationId, request));
+    }
+
     @GetMapping("/regions")
     public ApiResponse<List<ProviderDtos.RegionSummary>> regions() {
         return ApiResponse.success(service.regions());
@@ -228,6 +258,59 @@ public class ProviderControlPlaneController {
     @GetMapping("/support-scopes")
     public ApiResponse<List<ProviderDtos.SupportScopeSummary>> supportScopes() {
         return ApiResponse.success(service.supportScopes());
+    }
+
+    @GetMapping("/support-access-requests")
+    public ApiResponse<List<ProviderDtos.SupportAccessRequestSummary>> supportAccessRequests(
+            @RequestParam(required = false) UUID tenantId) {
+        return ApiResponse.success(service.supportAccessRequests(tenantId));
+    }
+
+    @PostMapping("/support-access-requests")
+    public ApiResponse<ProviderDtos.SupportAccessRequestSummary> createSupportAccessRequest(
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @Valid @RequestBody ProviderDtos.CreateSupportAccessRequest request) {
+        return ApiResponse.success(service.createSupportAccessRequest(correlationId, request));
+    }
+
+    @PostMapping("/support-access-requests/{requestId}/decision")
+    public ApiResponse<ProviderDtos.SupportAccessRequestSummary> decideSupportAccessRequest(
+            @PathVariable UUID requestId,
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @Valid @RequestBody ProviderDtos.DecideSupportAccessRequest request) {
+        return ApiResponse.success(service.decideSupportAccessRequest(requestId, correlationId, request));
+    }
+
+    @PostMapping("/support-access-requests/{requestId}/activate")
+    public ApiResponse<ProviderDtos.SupportAccessRequestSummary> activateSupportAccessRequest(
+            @PathVariable UUID requestId,
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @Valid @RequestBody ProviderDtos.ActivateSupportAccessRequest request,
+            HttpServletResponse response) {
+        ProviderDtos.SupportSessionGrant grant =
+                service.activateSupportAccessRequest(requestId, correlationId, request);
+        ProviderSupportCookie.issue(
+                grant.sessionToken(), grant.session().expiresAt(), supportCookieSecure)
+                .forEach(cookie -> response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString()));
+        return ApiResponse.success(service.supportAccessRequests(grant.session().tenantId()).stream()
+                .filter(item -> item.supportAccessRequestId().equals(requestId))
+                .findFirst().orElseThrow());
+    }
+
+    @PostMapping("/support-access-requests/{requestId}/cancel")
+    public ApiResponse<ProviderDtos.SupportAccessRequestSummary> cancelSupportAccessRequest(
+            @PathVariable UUID requestId,
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @Valid @RequestBody ProviderDtos.CancelSupportAccessRequest request) {
+        return ApiResponse.success(service.cancelSupportAccessRequest(requestId, correlationId, request));
+    }
+
+    @PostMapping("/support-access-requests/{requestId}/review")
+    public ApiResponse<ProviderDtos.SupportAccessRequestSummary> reviewSupportAccessRequest(
+            @PathVariable UUID requestId,
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @Valid @RequestBody ProviderDtos.ReviewSupportAccessRequest request) {
+        return ApiResponse.success(service.reviewSupportAccessRequest(requestId, correlationId, request));
     }
 
     @PostMapping("/support-sessions")

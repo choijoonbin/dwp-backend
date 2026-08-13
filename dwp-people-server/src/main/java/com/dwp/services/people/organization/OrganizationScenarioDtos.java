@@ -200,6 +200,11 @@ public final class OrganizationScenarioDtos {
             @NotNull Long version) {
     }
 
+    public record CancelScenarioRequest(
+            @NotBlank @Size(max = 1000) String reason,
+            @NotNull Long version) {
+    }
+
     public record PublishScenarioRequest(@NotNull Long version) {
     }
 }

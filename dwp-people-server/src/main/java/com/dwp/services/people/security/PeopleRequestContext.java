@@ -10,7 +10,16 @@ public final class PeopleRequestContext {
     }
 
     public static void set(Long userId, Long tenantId, Set<String> roles) {
-        ACTOR.set(new Actor(userId, tenantId, Set.copyOf(roles)));
+        set(userId, tenantId, roles, Set.of());
+    }
+
+    public static void set(
+            Long userId,
+            Long tenantId,
+            Set<String> roles,
+            Set<String> permissions) {
+        ACTOR.set(new Actor(
+                userId, tenantId, Set.copyOf(roles), Set.copyOf(permissions)));
     }
 
     public static Actor require() {
@@ -25,7 +34,11 @@ public final class PeopleRequestContext {
         ACTOR.remove();
     }
 
-    public record Actor(Long userId, Long tenantId, Set<String> roles) {
+    public record Actor(
+            Long userId,
+            Long tenantId,
+            Set<String> roles,
+            Set<String> permissions) {
 
         public boolean hasAnyRole(String... expected) {
             for (String role : expected) {

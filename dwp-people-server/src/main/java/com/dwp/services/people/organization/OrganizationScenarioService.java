@@ -453,6 +453,32 @@ public class OrganizationScenarioService {
     }
 
     @Transactional
+    public OrganizationScenarioDtos.Scenario cancel(
+            UUID scenarioId,
+            OrganizationScenarioDtos.CancelScenarioRequest request,
+            String correlationId) {
+        PeopleRequestContext.Actor actor = PeopleRequestContext.require();
+        requirePlanner(actor);
+        OrganizationScenarioRepository.ScenarioRecord scenario = requireScenario(actor.tenantId(), scenarioId);
+        requireOwnerOrAdministrator(actor, scenario);
+        requireVersion(scenario.version(), request.version());
+        if (!Set.of("DRAFT", "IN_REVIEW").contains(scenario.lifecycleState())) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "Only a draft or in-review scenario can be cancelled.");
+        }
+        if (!repository.cancel(
+                actor.tenantId(), scenarioId, actor.userId(), request.reason(), request.version())) {
+            throw new BaseException(
+                    ErrorCode.RESOURCE_CONFLICT,
+                    "The scenario changed before cancellation completed.");
+        }
+        recordAudit(actor, "organization.scenario.cancelled", scenarioId, correlationId,
+                "HIGH", 65, Map.of("reason", request.reason().trim()));
+        return requireSummary(actor.tenantId(), scenarioId);
+    }
+
+    @Transactional
     public OrganizationScenarioDtos.Scenario publish(
             UUID scenarioId,
             OrganizationScenarioDtos.PublishScenarioRequest request,

@@ -49,6 +49,7 @@ public class DirectoryAdminService {
     private final UserRepository userRepository;
     private final AuthSessionRepository authSessionRepository;
     private final IdentityAuditService auditService;
+    private final GroupRoleConflictGuard groupRoleConflictGuard;
 
     public DirectoryAdminService(
             OrganizationUnitRepository organizationRepository,
@@ -56,13 +57,15 @@ public class DirectoryAdminService {
             DirectoryGroupMemberRepository groupMemberRepository,
             UserRepository userRepository,
             AuthSessionRepository authSessionRepository,
-            IdentityAuditService auditService) {
+            IdentityAuditService auditService,
+            GroupRoleConflictGuard groupRoleConflictGuard) {
         this.organizationRepository = organizationRepository;
         this.groupRepository = groupRepository;
         this.groupMemberRepository = groupMemberRepository;
         this.userRepository = userRepository;
         this.authSessionRepository = authSessionRepository;
         this.auditService = auditService;
+        this.groupRoleConflictGuard = groupRoleConflictGuard;
     }
 
     @Transactional(readOnly = true)
@@ -572,6 +575,27 @@ public class DirectoryAdminService {
                     toGroupSummary(group, beforeIds.size()),
                     memberSummaries(tenantId, usersForIds(beforeIds, usersById)));
         }
+
+        Set<Long> addedIds = new LinkedHashSet<>(requestedIds);
+        addedIds.removeAll(beforeIds);
+        groupRoleConflictGuard.evaluateMembershipAddition(tenantId, groupId, addedIds)
+                .ifPresent(violation -> {
+                    auditService.denied(
+                            tenantId,
+                            actorId,
+                            "directory.group.members.rejected",
+                            "DIRECTORY_GROUP",
+                            groupId.toString(),
+                            correlationId,
+                            violation.reason(),
+                            Map.of(
+                                    "userId", violation.userId(),
+                                    "currentRoleCodes", violation.currentRoleCodes(),
+                                    "additionalRoleCodes", violation.additionalRoleCodes()));
+                    throw new BaseException(
+                            ErrorCode.INVALID_INPUT_VALUE,
+                            "A requested member would violate separation-of-duties policy.");
+                });
 
         List<DirectoryGroupMember> removals = currentMemberships.stream()
                 .filter(member -> !requestedIds.contains(member.getUserId()))

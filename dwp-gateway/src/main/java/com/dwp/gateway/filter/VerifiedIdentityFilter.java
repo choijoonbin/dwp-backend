@@ -20,6 +20,7 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
     public static final String TENANT_HEADER = "X-DWP-Tenant-ID";
     public static final String ROLES_HEADER = "X-DWP-Roles";
     public static final String PERMISSIONS_HEADER = "X-DWP-Permissions";
+    public static final String GROUP_REFS_HEADER = "X-DWP-Group-Refs";
 
     private final SessionVerifier sessionVerifier;
 
@@ -35,6 +36,7 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
                     headers.remove(TENANT_HEADER);
                     headers.remove(ROLES_HEADER);
                     headers.remove(PERMISSIONS_HEADER);
+                    headers.remove(GROUP_REFS_HEADER);
                 })
                 .build();
         ServerWebExchange sanitizedExchange = exchange.mutate().request(sanitizedRequest).build();
@@ -61,6 +63,10 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
                                 if (!identity.permissions().isEmpty()) {
                                     headers.set(PERMISSIONS_HEADER,
                                             String.join(",", identity.permissions()));
+                                }
+                                if (!identity.groupRefs().isEmpty()) {
+                                    headers.set(GROUP_REFS_HEADER,
+                                            String.join(",", identity.groupRefs()));
                                 }
                             })
                             .build();

@@ -98,10 +98,31 @@ public final class AuditControlDtos {
     public record RetentionPolicy(
             int standardRetentionDays, int extendedRetentionDays, int exportLimitRows,
             boolean requireExportReason, boolean integrityEnabled, int highRiskThreshold,
-            String updatedBy, Instant updatedAt) { }
+            String updatedBy, Instant updatedAt,
+            UUID activeRevisionId, long activeRevisionNumber) { }
     public record RetentionPolicyUpdate(
             int standardRetentionDays, int extendedRetentionDays, int exportLimitRows,
             boolean requireExportReason, boolean integrityEnabled, int highRiskThreshold) { }
+    public record PolicyApproval(
+            UUID approvalId, String lifecycleState, String requestedBy,
+            Instant requestedAt, Instant expiresAt, String decidedBy,
+            Instant decidedAt, String decisionReason, long version) { }
+    public record PolicyRevision(
+            UUID revisionId, long revisionNumber, String lifecycleState,
+            int standardRetentionDays, int extendedRetentionDays, int exportLimitRows,
+            boolean requireExportReason, boolean integrityEnabled, int highRiskThreshold,
+            UUID baselineRevisionId, UUID rollbackOfRevisionId, UUID incidentCaseId,
+            String changeReason, Map<String, Object> diff, String contentSha256,
+            String createdBy, Instant createdAt, String submittedBy, Instant submittedAt,
+            String publishedBy, Instant publishedAt, long version,
+            PolicyApproval approval) { }
+    public record PolicyRevisionCreate(
+            int standardRetentionDays, int extendedRetentionDays, int exportLimitRows,
+            boolean requireExportReason, boolean integrityEnabled, int highRiskThreshold,
+            String reason, UUID incidentCaseId) { }
+    public record PolicyRevisionTransition(String reason, long version) { }
+    public record PolicyRevisionDecision(String decision, String reason, long version) { }
+    public record PolicyRollbackRequest(String reason, UUID incidentCaseId) { }
     public record IntegrityCheckpoint(
             UUID checkpointId, LocalDate checkpointDate, long recordCount,
             Instant firstEventAt, Instant lastEventAt, String rootHash,

@@ -368,6 +368,31 @@ public class OrganizationScenarioRepository {
         return true;
     }
 
+    public boolean cancel(
+            Long tenantId,
+            UUID scenarioId,
+            Long actorId,
+            String reason,
+            long expectedVersion) {
+        int updated = jdbc.update("""
+                UPDATE ppl_organization_scenarios
+                   SET lifecycle_state = 'CANCELLED', version = version + 1,
+                       updated_at = CURRENT_TIMESTAMP, updated_by = ?
+                 WHERE tenant_id = ? AND organization_scenario_id = ?
+                   AND lifecycle_state IN ('DRAFT', 'IN_REVIEW') AND version = ?
+                """, actorId, tenantId, scenarioId, expectedVersion);
+        if (updated != 1) return false;
+        jdbc.update("""
+                UPDATE ppl_organization_scenario_approvals
+                   SET lifecycle_state = 'CANCELLED', decided_by = ?,
+                       decision_reason = ?, decided_at = CURRENT_TIMESTAMP,
+                       version = version + 1
+                 WHERE tenant_id = ? AND organization_scenario_id = ?
+                   AND lifecycle_state = 'PENDING'
+                """, actorId, reason.trim(), tenantId, scenarioId);
+        return true;
+    }
+
     public List<MoveRecord> moves(Long tenantId, UUID scenarioId) {
         return jdbc.query("""
                 SELECT organization_scenario_change_id, target_reference, related_reference

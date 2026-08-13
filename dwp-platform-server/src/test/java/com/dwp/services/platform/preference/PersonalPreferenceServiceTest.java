@@ -13,6 +13,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.OptimisticLockingFailureException;
 
 import java.util.Optional;
+import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -25,6 +27,8 @@ class PersonalPreferenceServiceTest {
     @Mock
     private PersonalPreferenceRepository repository;
     @Mock
+    private ManagedPreferenceRepository managedPreferenceRepository;
+    @Mock
     private PlatformAuditService auditService;
 
     private ObjectMapper objectMapper;
@@ -33,7 +37,11 @@ class PersonalPreferenceServiceTest {
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper().findAndRegisterModules();
-        service = new PersonalPreferenceService(repository, objectMapper, auditService);
+        service = new PersonalPreferenceService(
+                repository, managedPreferenceRepository, objectMapper, auditService);
+        org.mockito.Mockito.lenient()
+                .when(managedPreferenceRepository.policy(org.mockito.ArgumentMatchers.anyLong()))
+                .thenReturn(policy());
     }
 
     @Test
@@ -246,5 +254,18 @@ class PersonalPreferenceServiceTest {
                         new PersonalPreferenceDtos.PatchPersonalPreferenceRequest(patch, 2L)))
                 .isInstanceOfSatisfying(BaseException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_CONFLICT));
+    }
+
+    private ManagedPreferenceDtos.ManagedPreferencePolicy policy() {
+        UUID policyId = UUID.fromString("51000000-0000-0000-0000-000000000001");
+        return new ManagedPreferenceDtos.ManagedPreferencePolicy(
+                policyId, "TENANT", "TENANT_EXPERIENCE_POLICY", "ROLE", "TENANT_ADMIN",
+                "Tenant administrator", "/admin/experience/preference-exceptions",
+                List.of("appearance.accentColor"),
+                List.of(new ManagedPreferenceDtos.ManagedPreferenceRule(
+                        UUID.fromString("51000000-0000-0000-0000-000000000002"),
+                        "appearance.accentColor", "settings.brandAccent.title",
+                        objectMapper.getNodeFactory().nullNode(), true, 0L)),
+                0L);
     }
 }

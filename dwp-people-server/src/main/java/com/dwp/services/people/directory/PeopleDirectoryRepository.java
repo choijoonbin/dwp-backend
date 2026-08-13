@@ -10,6 +10,7 @@ import java.sql.SQLException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Repository
@@ -155,6 +156,18 @@ public class PeopleDirectoryRepository {
             String workerStatus,
             LocalDate asOf,
             int limit) {
+        return search(tenantId, afterPersonId, query, workerStatus, asOf, limit, true, Set.of());
+    }
+
+    public List<DirectoryRow> search(
+            Long tenantId,
+            long afterPersonId,
+            String query,
+            String workerStatus,
+            LocalDate asOf,
+            int limit,
+            boolean tenantWide,
+            Set<UUID> organizationIds) {
         StringBuilder sql = new StringBuilder(DIRECTORY_SELECT).append("""
              WHERE p.tenant_id = :tenantId
                AND p.person_id > :afterPersonId
@@ -182,15 +195,32 @@ public class PeopleDirectoryRepository {
             sql.append(" AND w.worker_status = :workerStatus\n");
             parameters.addValue("workerStatus", workerStatus);
         }
+        if (!tenantWide) {
+            sql.append(" AND org.public_id IN (:organizationIds)\n");
+            parameters.addValue("organizationIds", organizationIds);
+        }
         sql.append(" ORDER BY p.person_id ASC LIMIT :limit");
         return jdbc.query(sql.toString(), parameters, this::mapDirectoryRow);
     }
 
     public Optional<DirectoryRow> findByPublicId(Long tenantId, UUID publicId, LocalDate asOf) {
-        String sql = DIRECTORY_SELECT + " WHERE p.tenant_id = :tenantId AND p.public_id = :publicId";
+        return findByPublicId(tenantId, publicId, asOf, true, Set.of());
+    }
+
+    public Optional<DirectoryRow> findByPublicId(
+            Long tenantId,
+            UUID publicId,
+            LocalDate asOf,
+            boolean tenantWide,
+            Set<UUID> organizationIds) {
+        String sql = DIRECTORY_SELECT + " WHERE p.tenant_id = :tenantId AND p.public_id = :publicId"
+                + (tenantWide ? "" : " AND org.public_id IN (:organizationIds)");
+        MapSqlParameterSource parameters = commonParameters(tenantId, asOf)
+                .addValue("publicId", publicId);
+        if (!tenantWide) parameters.addValue("organizationIds", organizationIds);
         List<DirectoryRow> rows = jdbc.query(
                 sql,
-                commonParameters(tenantId, asOf).addValue("publicId", publicId),
+                parameters,
                 this::mapDirectoryRow);
         return rows.stream().findFirst();
     }

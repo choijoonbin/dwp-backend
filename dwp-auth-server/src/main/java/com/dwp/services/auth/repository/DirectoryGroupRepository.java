@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 
 public interface DirectoryGroupRepository
@@ -18,11 +20,25 @@ public interface DirectoryGroupRepository
 
     Optional<DirectoryGroup> findByPublicIdAndTenantId(UUID publicId, Long tenantId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select directoryGroup
+            from DirectoryGroup directoryGroup
+            where directoryGroup.publicId = :publicId
+                and directoryGroup.tenantId = :tenantId
+            """)
+    Optional<DirectoryGroup> findByPublicIdAndTenantIdForUpdate(
+            @Param("publicId") UUID publicId,
+            @Param("tenantId") Long tenantId);
+
     Optional<DirectoryGroup> findByTenantIdAndSourceTypeAndExternalId(
             Long tenantId, String sourceType, String externalId);
 
     Optional<DirectoryGroup> findByTenantIdAndSourceTypeAndDisplayName(
             Long tenantId, String sourceType, String displayName);
+
+    List<DirectoryGroup> findByTenantIdAndGroupIdInAndStatus(
+            Long tenantId, Collection<Long> groupIds, String status);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""

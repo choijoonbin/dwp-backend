@@ -56,6 +56,31 @@ public class AdminCatalogController {
         return ApiResponse.success(service.impact(tenantId, ref, operation));
     }
 
+    @GetMapping("/assurance")
+    public ApiResponse<CatalogDtos.AssuranceSummary> assurance(
+            @RequestHeader(TENANT_HEADER) Long tenantId) {
+        return ApiResponse.success(service.assurance(tenantId));
+    }
+
+    @PostMapping("/assurance/evaluate")
+    public ApiResponse<CatalogDtos.AssuranceSummary> evaluateAssurance(
+            @RequestHeader(TENANT_HEADER) Long tenantId,
+            @RequestHeader(USER_HEADER) Long actorId,
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId) {
+        return ApiResponse.success(service.evaluateAssurance(tenantId, actorId, correlationId));
+    }
+
+    @PostMapping("/assurance/findings/{findingId}/disposition")
+    public ApiResponse<CatalogDtos.AssuranceFinding> dispositionFinding(
+            @RequestHeader(TENANT_HEADER) Long tenantId,
+            @RequestHeader(USER_HEADER) Long actorId,
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @PathVariable UUID findingId,
+            @Valid @RequestBody CatalogDtos.DispositionFindingRequest request) {
+        return ApiResponse.success(service.dispositionFinding(
+                tenantId, actorId, correlationId, findingId, request));
+    }
+
     @PostMapping("/relations")
     public ApiResponse<CatalogDtos.Relation> declare(
             @RequestHeader(TENANT_HEADER) Long tenantId,

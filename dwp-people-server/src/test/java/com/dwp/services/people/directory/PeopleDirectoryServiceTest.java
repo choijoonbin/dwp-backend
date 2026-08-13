@@ -1,6 +1,7 @@
 package com.dwp.services.people.directory;
 
 import com.dwp.services.people.security.PeopleRequestContext;
+import com.dwp.services.people.workforce.WorkforceAccessPolicyService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,14 +25,26 @@ class PeopleDirectoryServiceTest {
 
     private final PeopleDirectoryRepository repository = mock(PeopleDirectoryRepository.class);
     private final PeopleCursorCodec cursorCodec = mock(PeopleCursorCodec.class);
-    private final PeopleDirectoryService service = new PeopleDirectoryService(repository, cursorCodec);
+    private final WorkforceAccessPolicyService accessPolicyService =
+            mock(WorkforceAccessPolicyService.class);
+    private final PeopleDirectoryService service = new PeopleDirectoryService(
+            repository, cursorCodec, accessPolicyService);
 
     @BeforeEach
     void setContext() {
         PeopleRequestContext.set(9L, TENANT_ID, Set.of("USER"));
-        when(cursorCodec.fingerprint(any(), any(), eq(AS_OF.toString())))
+        when(cursorCodec.fingerprint(any(), any(), any()))
                 .thenReturn("directory-fingerprint");
         when(repository.search(eq(TENANT_ID), anyLong(), any(), any(), eq(AS_OF), eq(21)))
+                .thenReturn(List.of(directoryRow()));
+        WorkforceAccessPolicyService.Decision decision = new WorkforceAccessPolicyService.Decision(
+                true, Set.of(),
+                Set.of("DIRECTORY", "WORKER_IDENTIFIERS", "EMPLOYMENT", "JOB_GRADE"),
+                "READ");
+        when(accessPolicyService.require("READ")).thenReturn(decision);
+        when(repository.search(
+                eq(TENANT_ID), anyLong(), any(), any(), eq(AS_OF), eq(21),
+                eq(true), eq(Set.of())))
                 .thenReturn(List.of(directoryRow()));
     }
 

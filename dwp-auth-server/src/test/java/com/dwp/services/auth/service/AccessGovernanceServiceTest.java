@@ -4,6 +4,7 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.auth.dto.AccessGovernanceDtos;
 import com.dwp.services.auth.entity.Permission;
+import com.dwp.services.auth.entity.DirectoryGroup;
 import com.dwp.services.auth.entity.Resource;
 import com.dwp.services.auth.entity.Role;
 import com.dwp.services.auth.entity.RoleMember;
@@ -52,6 +53,10 @@ class AccessGovernanceServiceTest {
     private final IdentityAuditService auditService = mock(IdentityAuditService.class);
     private final RoleDelegationPolicyService delegationPolicyService =
             mock(RoleDelegationPolicyService.class);
+    private final DelegatedAdminScopeService delegatedScopeService =
+            mock(DelegatedAdminScopeService.class);
+    private final GroupRoleConflictGuard groupRoleConflictGuard =
+            mock(GroupRoleConflictGuard.class);
     private final AccessGovernanceService service = new AccessGovernanceService(
             roleRepository,
             resourceRepository,
@@ -64,7 +69,9 @@ class AccessGovernanceServiceTest {
             userRepository,
             mock(AuthSessionRepository.class),
             auditService,
-            delegationPolicyService);
+            delegationPolicyService,
+            delegatedScopeService,
+            groupRoleConflictGuard);
 
     @Test
     void effectivePermissionNamesOnlyRolesThatContributedThatPermission() {
@@ -140,6 +147,52 @@ class AccessGovernanceServiceTest {
                 eq(TENANT_ID), eq(ACTOR_ID), eq("access.governance.rejected"),
                 eq("ROLE"), eq("90"), eq("corr-system"),
                 eq("SYSTEM_ROLE_IMMUTABLE"), any());
+    }
+
+    @Test
+    void rejectsGroupRoleAssignmentWhenAnExistingMemberViolatesSod() {
+        DirectoryGroup group = DirectoryGroup.builder()
+                .groupId(30L)
+                .tenantId(TENANT_ID)
+                .displayName("Audit team")
+                .status("ACTIVE")
+                .build();
+        Role role = role(40L, "HR_ADMIN");
+        when(groupRepository.findByGroupIdAndTenantIdForUpdate(30L, TENANT_ID))
+                .thenReturn(Optional.of(group));
+        when(roleRepository.findByRoleIdAndTenantId(40L, TENANT_ID))
+                .thenReturn(Optional.of(role));
+        when(delegationPolicyService.resolve(TENANT_ID, ACTOR_ID))
+                .thenReturn(new RoleDelegationPolicyService.DelegationContext(
+                        Set.of("TENANT_ADMIN"),
+                        Map.of("HR_ADMIN", new RoleDelegationPolicyService.AssignableRole(
+                                role, "PEOPLE", "DELEGATED", "DIRECT", 20,
+                                Set.of("AUDITOR")))));
+        when(groupRoleConflictGuard.evaluateRoleAssignment(
+                        TENANT_ID, 30L, "HR_ADMIN"))
+                .thenReturn(Optional.of(new GroupRoleConflictGuard.Violation(
+                        USER_ID,
+                        "ROLE_CONFLICT_AUDIT_INDEPENDENCE",
+                        List.of("AUDITOR", "WORKSPACE_MEMBER"),
+                        List.of("HR_ADMIN"))));
+
+        AccessGovernanceDtos.CreateGroupRoleAssignmentRequest request =
+                new AccessGovernanceDtos.CreateGroupRoleAssignmentRequest(
+                        30L, 40L, "ACTIVE", "TENANT", null, null, null,
+                        "Assign the approved people administration boundary.");
+
+        assertThatThrownBy(() -> service.createGroupAssignment(
+                        TENANT_ID, ACTOR_ID, "corr-sod", request))
+                .isInstanceOfSatisfying(
+                        BaseException.class,
+                        error -> assertThat(error.getErrorCode())
+                                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+
+        verify(groupRoleRepository, org.mockito.Mockito.never()).saveAndFlush(any());
+        verify(auditService).denied(
+                eq(TENANT_ID), eq(ACTOR_ID), eq("access.governance.rejected"),
+                eq("DIRECTORY_GROUP"), eq("30"), eq("corr-sod"),
+                eq("ROLE_CONFLICT_AUDIT_INDEPENDENCE"), any());
     }
 
     private Role role(Long id, String code) {

@@ -157,6 +157,61 @@ class AuditControlServiceTest {
                 eq(tenantId), eq(caseId), eq("NOTE_ADDED"), anyString(), anyString(), anyMap());
     }
 
+    @Test
+    void createsVersionedAuditPolicyDiffWithContentEvidence() {
+        Long tenantId = 1L;
+        String actorId = "policy-author";
+        UUID activeRevisionId = UUID.randomUUID();
+        UUID revisionId = UUID.randomUUID();
+        AuditControlDtos.RetentionPolicy active = new AuditControlDtos.RetentionPolicy(
+                365, 2_555, 50_000, true, true, 70,
+                "system", Instant.now(), activeRevisionId, 1L);
+        AuditControlDtos.PolicyRevisionCreate request = new AuditControlDtos.PolicyRevisionCreate(
+                730, 2_555, 25_000, true, true, 80,
+                "Increase regulated evidence retention.", null);
+        AuditControlDtos.PolicyRevision created = policyRevision(
+                revisionId, 2L, "DRAFT", actorId, null);
+
+        when(repository.policy(tenantId)).thenReturn(active);
+        when(repository.createPolicyRevision(
+                eq(tenantId), eq(actorId), eq(request), eq(activeRevisionId), eq(null),
+                anyMap(), anyString())).thenReturn(revisionId);
+        when(repository.policyRevision(tenantId, revisionId)).thenReturn(Optional.of(created));
+
+        AuditControlDtos.PolicyRevision result = service.createPolicyRevision(
+                tenantId, actorId, request);
+
+        assertThat(result).isEqualTo(created);
+        verify(repository).createPolicyRevision(
+                eq(tenantId), eq(actorId), eq(request), eq(activeRevisionId), eq(null),
+                argThat(diff -> diff.keySet().containsAll(Set.of(
+                        "standardRetentionDays", "exportLimitRows", "highRiskThreshold"))),
+                argThat(hash -> hash.matches("[0-9a-f]{64}")));
+    }
+
+    @Test
+    void policyRequesterCannotApproveTheirOwnRevision() {
+        Long tenantId = 1L;
+        String actorId = "policy-author";
+        UUID revisionId = UUID.randomUUID();
+        AuditControlDtos.PolicyApproval approval = new AuditControlDtos.PolicyApproval(
+                UUID.randomUUID(), "PENDING", actorId, Instant.now(),
+                Instant.now().plusSeconds(3_600), null, null, null, 0L);
+        when(repository.policyRevision(tenantId, revisionId)).thenReturn(Optional.of(
+                policyRevision(revisionId, 2L, "IN_REVIEW", actorId, approval)));
+
+        assertThatThrownBy(() -> service.decidePolicyRevision(
+                tenantId, actorId, revisionId,
+                new AuditControlDtos.PolicyRevisionDecision(
+                        "APPROVED", "Reviewed.", 0L)))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Separation of duties");
+
+        verify(repository, never()).decidePolicyRevision(
+                eq(tenantId), eq(revisionId), any(), anyString(), anyString(), anyString(),
+                eq(0L));
+    }
+
     private AuditControlDtos.AuditCase auditCase(
             UUID caseId, String status, String resolution, Instant now) {
         return new AuditControlDtos.AuditCase(
@@ -165,5 +220,18 @@ class AuditControlServiceTest {
                 now.minusSeconds(3_600), now.plusSeconds(7_200), "ON_TRACK",
                 "CLOSED".equals(status) ? now : null,
                 "creator", "analyst-1", now, 0, 1);
+    }
+
+    private AuditControlDtos.PolicyRevision policyRevision(
+            UUID revisionId,
+            long revisionNumber,
+            String state,
+            String actorId,
+            AuditControlDtos.PolicyApproval approval) {
+        return new AuditControlDtos.PolicyRevision(
+                revisionId, revisionNumber, state, 730, 2_555, 25_000,
+                true, true, 80, UUID.randomUUID(), null, null,
+                "Increase regulated evidence retention.", Map.of(), "a".repeat(64),
+                actorId, Instant.now(), null, null, null, null, 0L, approval);
     }
 }

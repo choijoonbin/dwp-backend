@@ -3,6 +3,7 @@ package com.dwp.services.people.organization;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.people.security.PeopleRequestContext;
+import com.dwp.services.people.workforce.WorkforceAccessPolicyService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,12 +32,15 @@ public class OrganizationChartService {
 
     private final OrganizationChartRepository repository;
     private final OrganizationScenarioRepository scenarioRepository;
+    private final WorkforceAccessPolicyService accessPolicyService;
 
     public OrganizationChartService(
             OrganizationChartRepository repository,
-            OrganizationScenarioRepository scenarioRepository) {
+            OrganizationScenarioRepository scenarioRepository,
+            WorkforceAccessPolicyService accessPolicyService) {
         this.repository = repository;
         this.scenarioRepository = scenarioRepository;
+        this.accessPolicyService = accessPolicyService;
     }
 
     @Transactional(readOnly = true)
@@ -52,7 +56,8 @@ public class OrganizationChartService {
             LocalDate requestedAsOf,
             UUID requestedRoot,
             int requestedDepth) {
-        return directoryProjection(get(requestedAsOf, requestedRoot, requestedDepth, null));
+        return directoryProjection(build(
+                requestedAsOf, requestedRoot, requestedDepth, null, null));
     }
 
     @Transactional(readOnly = true)
@@ -61,6 +66,17 @@ public class OrganizationChartService {
             UUID requestedRoot,
             int requestedDepth,
             UUID scenarioId) {
+        WorkforceAccessPolicyService.Decision decision = accessPolicyService.require("READ");
+        return workforceProjection(build(
+                requestedAsOf, requestedRoot, requestedDepth, scenarioId, decision), decision);
+    }
+
+    private OrganizationChartDtos.OrganizationChart build(
+            LocalDate requestedAsOf,
+            UUID requestedRoot,
+            int requestedDepth,
+            UUID scenarioId,
+            WorkforceAccessPolicyService.Decision decision) {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
         OrganizationScenarioRepository.ScenarioRecord scenario = scenarioId == null
                 ? null
@@ -78,8 +94,17 @@ public class OrganizationChartService {
                     allOrganizations,
                     scenarioRepository.moves(actor.tenantId(), scenario.scenarioId()));
         }
+        if (decision != null && !decision.tenantWide()) {
+            allOrganizations = allOrganizations.stream()
+                    .filter(organization -> decision.includes(organization.publicId()))
+                    .toList();
+        }
         if (allOrganizations.isEmpty()) {
-            throw new BaseException(ErrorCode.NOT_FOUND, "No active organization is available.");
+            throw new BaseException(
+                    decision == null ? ErrorCode.NOT_FOUND : ErrorCode.FORBIDDEN,
+                    decision == null
+                            ? "No active organization is available."
+                            : "The workforce boundary does not contain an active organization.");
         }
 
         Map<UUID, OrganizationChartRepository.OrganizationRow> organizationById = allOrganizations
@@ -112,8 +137,9 @@ public class OrganizationChartService {
                 .filter(manager -> manager != null && !manager.isBlank())
                 .forEach(manager -> reportCountByAssignment.merge(manager, 1, Integer::sum));
 
-        boolean canViewWorkerNumber = actor.hasAnyRole(
-                "ADMIN", "HR_ADMIN", "PEOPLE_ADMIN");
+        boolean canViewWorkerNumber = decision == null
+                ? actor.hasAnyRole("ADMIN", "HR_ADMIN", "PEOPLE_ADMIN")
+                : decision.field("WORKER_IDENTIFIERS");
         List<OrganizationChartDtos.Person> people = personRows.stream()
                 .map(person -> toPerson(
                         person,
@@ -277,6 +303,87 @@ public class OrganizationChartService {
                 positions,
                 List.copyOf(relationships),
                 openPositions);
+    }
+
+    private OrganizationChartDtos.OrganizationChart workforceProjection(
+            OrganizationChartDtos.OrganizationChart chart,
+            WorkforceAccessPolicyService.Decision decision) {
+        boolean identifiers = decision.field("WORKER_IDENTIFIERS");
+        boolean employment = decision.field("EMPLOYMENT");
+        boolean jobGrade = decision.field("JOB_GRADE");
+        List<OrganizationChartDtos.Person> people = chart.people().stream()
+                .map(person -> new OrganizationChartDtos.Person(
+                        person.personId(),
+                        identifiers ? person.assignmentKey() : null,
+                        person.displayName(),
+                        person.workEmail(),
+                        person.businessTitle(),
+                        person.jobProfileName(),
+                        jobGrade ? person.jobGradeKey() : null,
+                        jobGrade ? person.jobGradeName() : null,
+                        jobGrade ? person.jobGradeOrder() : 0,
+                        employment ? person.managementLevel() : null,
+                        person.organizationId(),
+                        person.managerPersonId(),
+                        person.managerReferenceMissing(),
+                        employment ? person.positionId() : null,
+                        employment ? person.positionKey() : null,
+                        identifiers ? person.workerNumber() : null,
+                        employment ? person.workerType() : null,
+                        employment ? person.workerStatus() : null,
+                        person.locationKey(),
+                        person.locationName(),
+                        person.directReportCount(),
+                        employment ? person.fullTimeEquivalent() : BigDecimal.ZERO))
+                .toList();
+        List<OrganizationChartDtos.Organization> organizations = chart.organizations().stream()
+                .map(organization -> new OrganizationChartDtos.Organization(
+                        organization.organizationId(),
+                        organization.organizationKey(),
+                        organization.name(),
+                        organization.shortName(),
+                        organization.organizationType(),
+                        organization.organizationTypeName(),
+                        organization.parentOrganizationId(),
+                        organization.description(),
+                        employment ? organization.costCenterKey() : null,
+                        organization.colorToken(),
+                        organization.directHeadcount(),
+                        organization.totalHeadcount(),
+                        organization.managerCount(),
+                        employment ? organization.openPositionCount() : 0,
+                        organization.childOrganizationCount(),
+                        organization.leaderPersonId(),
+                        organization.directMemberIds(),
+                        organization.layerDepth(),
+                        organization.averageManagerSpan(),
+                        employment ? organization.contingentHeadcount() : 0,
+                        organization.healthStatus(),
+                        employment ? organization.healthSignals() : List.of()))
+                .toList();
+        OrganizationChartDtos.Metrics metrics = chart.metrics();
+        return new OrganizationChartDtos.OrganizationChart(
+                chart.asOf(),
+                chart.company(),
+                chart.scenario(),
+                new OrganizationChartDtos.Metrics(
+                        metrics.headcount(),
+                        employment ? metrics.activeHeadcount() : 0,
+                        employment ? metrics.onLeaveHeadcount() : 0,
+                        employment ? metrics.contingentHeadcount() : 0,
+                        metrics.organizationCount(),
+                        metrics.managerCount(),
+                        employment ? metrics.openPositionCount() : 0,
+                        metrics.locationCount(),
+                        employment ? metrics.plannedFte() : BigDecimal.ZERO,
+                        employment ? metrics.workforceCostAmount() : BigDecimal.ZERO,
+                        employment ? metrics.costCurrency() : null),
+                chart.analysis(),
+                organizations,
+                people,
+                employment ? chart.positions() : List.of(),
+                chart.relationships(),
+                employment ? chart.openPositions() : List.of());
     }
 
     private OrganizationChartDtos.OrganizationChart directoryProjection(

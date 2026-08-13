@@ -23,6 +23,7 @@ public class SavedViewController {
     private static final String TENANT = "X-DWP-Tenant-ID";
     private static final String USER = "X-DWP-User-ID";
     private static final String ROLES = "X-DWP-Roles";
+    private static final String GROUP_REFS = "X-DWP-Group-Refs";
     private static final String CORRELATION = "X-Correlation-ID";
 
     private final SavedViewService service;
@@ -36,8 +37,10 @@ public class SavedViewController {
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(USER) Long actorId,
             @RequestHeader(value = ROLES, required = false) String roles,
+            @RequestHeader(value = GROUP_REFS, required = false) String groupRefs,
             @RequestParam String surfaceKey) {
-        return ApiResponse.success(service.list(tenantId, actorId, roles, surfaceKey));
+        return ApiResponse.success(service.list(
+                tenantId, actorId, roles, groupRefs, surfaceKey));
     }
 
     @PostMapping
@@ -45,11 +48,12 @@ public class SavedViewController {
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(USER) Long actorId,
             @RequestHeader(value = ROLES, required = false) String roles,
+            @RequestHeader(value = GROUP_REFS, required = false) String groupRefs,
             @RequestHeader(value = CORRELATION, required = false) String correlationId,
             @RequestParam String surfaceKey,
             @Valid @RequestBody SavedViewDtos.CreateRequest request) {
         return ApiResponse.success(service.create(
-                tenantId, actorId, roles, correlationId, surfaceKey, request));
+                tenantId, actorId, roles, groupRefs, correlationId, surfaceKey, request));
     }
 
     @PutMapping("/{savedViewId}")
@@ -57,11 +61,12 @@ public class SavedViewController {
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(USER) Long actorId,
             @RequestHeader(value = ROLES, required = false) String roles,
+            @RequestHeader(value = GROUP_REFS, required = false) String groupRefs,
             @RequestHeader(value = CORRELATION, required = false) String correlationId,
             @PathVariable UUID savedViewId,
             @Valid @RequestBody SavedViewDtos.UpdateRequest request) {
         return ApiResponse.success(service.update(
-                tenantId, actorId, roles, correlationId, savedViewId, request));
+                tenantId, actorId, roles, groupRefs, correlationId, savedViewId, request));
     }
 
     @DeleteMapping("/{savedViewId}")
@@ -69,9 +74,10 @@ public class SavedViewController {
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(USER) Long actorId,
             @RequestHeader(value = ROLES, required = false) String roles,
+            @RequestHeader(value = GROUP_REFS, required = false) String groupRefs,
             @RequestHeader(value = CORRELATION, required = false) String correlationId,
             @PathVariable UUID savedViewId) {
-        service.delete(tenantId, actorId, roles, correlationId, savedViewId);
+        service.delete(tenantId, actorId, roles, groupRefs, correlationId, savedViewId);
         return ApiResponse.success(null);
     }
 
@@ -80,18 +86,20 @@ public class SavedViewController {
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(USER) Long actorId,
             @RequestHeader(value = ROLES, required = false) String roles,
+            @RequestHeader(value = GROUP_REFS, required = false) String groupRefs,
             @PathVariable UUID savedViewId,
             @Valid @RequestBody SavedViewDtos.PreferenceRequest request) {
         return ApiResponse.success(service.preference(
-                tenantId, actorId, roles, savedViewId, request));
+                tenantId, actorId, roles, groupRefs, savedViewId, request));
     }
 
     @PostMapping("/{savedViewId}/use")
     public ApiResponse<Void> markUsed(
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(USER) Long actorId,
+            @RequestHeader(value = GROUP_REFS, required = false) String groupRefs,
             @PathVariable UUID savedViewId) {
-        service.markUsed(tenantId, actorId, savedViewId);
+        service.markUsed(tenantId, actorId, groupRefs, savedViewId);
         return ApiResponse.success(null);
     }
 }

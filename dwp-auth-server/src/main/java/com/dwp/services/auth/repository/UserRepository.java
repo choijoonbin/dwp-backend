@@ -48,6 +48,8 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
             @Param("tenantId") Long tenantId,
             @Param("userIds") Collection<Long> userIds);
 
+    List<User> findByTenantIdAndUserIdIn(Long tenantId, Collection<Long> userIds);
+
     @Query("""
             select user.primaryOrgUnitId as orgUnitId, count(user) as memberCount
             from User user

@@ -255,6 +255,72 @@ public class AdminAuditControlController {
         return ApiResponse.success(service.updatePolicy(tenantId, actorId, request));
     }
 
+    @GetMapping("/policy/revisions")
+    public ApiResponse<List<AuditControlDtos.PolicyRevision>> policyRevisions(
+            @RequestHeader(TENANT) Long tenantId,
+            @RequestHeader(PERMISSIONS) String permissions) {
+        guard.configure(permissions);
+        return ApiResponse.success(service.policyRevisions(tenantId));
+    }
+
+    @PostMapping("/policy/revisions")
+    public ApiResponse<AuditControlDtos.PolicyRevision> createPolicyRevision(
+            @RequestHeader(TENANT) Long tenantId,
+            @RequestHeader(USER) String actorId,
+            @RequestHeader(PERMISSIONS) String permissions,
+            @RequestBody AuditControlDtos.PolicyRevisionCreate request) {
+        guard.configure(permissions);
+        return ApiResponse.success(service.createPolicyRevision(tenantId, actorId, request));
+    }
+
+    @PostMapping("/policy/revisions/{revisionId}/submit")
+    public ApiResponse<AuditControlDtos.PolicyRevision> submitPolicyRevision(
+            @RequestHeader(TENANT) Long tenantId,
+            @RequestHeader(USER) String actorId,
+            @RequestHeader(PERMISSIONS) String permissions,
+            @PathVariable UUID revisionId,
+            @RequestBody AuditControlDtos.PolicyRevisionTransition request) {
+        guard.configure(permissions);
+        return ApiResponse.success(service.submitPolicyRevision(
+                tenantId, actorId, revisionId, request));
+    }
+
+    @PostMapping("/policy/revisions/{revisionId}/decision")
+    public ApiResponse<AuditControlDtos.PolicyRevision> decidePolicyRevision(
+            @RequestHeader(TENANT) Long tenantId,
+            @RequestHeader(USER) String actorId,
+            @RequestHeader(PERMISSIONS) String permissions,
+            @PathVariable UUID revisionId,
+            @RequestBody AuditControlDtos.PolicyRevisionDecision request) {
+        guard.configure(permissions);
+        return ApiResponse.success(service.decidePolicyRevision(
+                tenantId, actorId, revisionId, request));
+    }
+
+    @PostMapping("/policy/revisions/{revisionId}/publish")
+    public ApiResponse<AuditControlDtos.RetentionPolicy> publishPolicyRevision(
+            @RequestHeader(TENANT) Long tenantId,
+            @RequestHeader(USER) String actorId,
+            @RequestHeader(PERMISSIONS) String permissions,
+            @PathVariable UUID revisionId,
+            @RequestBody AuditControlDtos.PolicyRevisionTransition request) {
+        guard.configure(permissions);
+        return ApiResponse.success(service.publishPolicyRevision(
+                tenantId, actorId, revisionId, request));
+    }
+
+    @PostMapping("/policy/revisions/{revisionId}/rollback")
+    public ApiResponse<AuditControlDtos.PolicyRevision> rollbackPolicyRevision(
+            @RequestHeader(TENANT) Long tenantId,
+            @RequestHeader(USER) String actorId,
+            @RequestHeader(PERMISSIONS) String permissions,
+            @PathVariable UUID revisionId,
+            @RequestBody AuditControlDtos.PolicyRollbackRequest request) {
+        guard.configure(permissions);
+        return ApiResponse.success(service.createPolicyRollback(
+                tenantId, actorId, revisionId, request));
+    }
+
     @GetMapping("/integrity")
     public ApiResponse<List<AuditControlDtos.IntegrityCheckpoint>> integrity(
             @RequestHeader(TENANT) Long tenantId,

@@ -43,13 +43,16 @@ class DirectoryAdminServiceTest {
     private final UserRepository userRepository = mock(UserRepository.class);
     private final AuthSessionRepository authSessionRepository = mock(AuthSessionRepository.class);
     private final IdentityAuditService auditService = mock(IdentityAuditService.class);
+    private final GroupRoleConflictGuard groupRoleConflictGuard =
+            mock(GroupRoleConflictGuard.class);
     private final DirectoryAdminService service = new DirectoryAdminService(
             organizationRepository,
             groupRepository,
             groupMemberRepository,
             userRepository,
             authSessionRepository,
-            auditService);
+            auditService,
+            groupRoleConflictGuard);
 
     @Test
     void rejectsAnOrganizationParentThatWouldCreateACycle() {
@@ -216,6 +219,43 @@ class DirectoryAdminServiceTest {
                 new DirectoryAdminDtos.LifecycleRequest(0L)));
 
         verify(groupRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void rejectsGroupMemberAdditionWhenInheritedRolesWouldViolateSod() {
+        DirectoryGroup group = group(30L, "LOCAL", "ACTIVE", 1L, 0L);
+        User requestedUser = user(22L, null, "ACTIVE", 3L);
+        when(groupRepository.findByGroupIdAndTenantIdForUpdate(30L, TENANT_ID))
+                .thenReturn(Optional.of(group));
+        when(groupMemberRepository.findByTenantIdAndGroupId(TENANT_ID, 30L))
+                .thenReturn(List.of());
+        when(userRepository.findByTenantIdAndUserIdInForUpdate(TENANT_ID, Set.of(22L)))
+                .thenReturn(List.of(requestedUser));
+        when(groupRoleConflictGuard.evaluateMembershipAddition(
+                        TENANT_ID, 30L, Set.of(22L)))
+                .thenReturn(Optional.of(new GroupRoleConflictGuard.Violation(
+                        22L,
+                        "ROLE_CONFLICT_AUDIT_INDEPENDENCE",
+                        List.of("AUDITOR", "WORKSPACE_MEMBER"),
+                        List.of("HR_ADMIN"))));
+
+        assertThatThrownBy(() -> service.replaceGroupMembers(
+                        TENANT_ID,
+                        ACTOR_ID,
+                        "corr-group-sod",
+                        30L,
+                        new DirectoryAdminDtos.ReplaceMembersRequest(Set.of(22L), 0L)))
+                .isInstanceOfSatisfying(
+                        BaseException.class,
+                        error -> assertThat(error.getErrorCode())
+                                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+
+        verify(groupMemberRepository, never()).saveAll(any());
+        verify(groupRepository, never()).saveAndFlush(any());
+        verify(auditService).denied(
+                eq(TENANT_ID), eq(ACTOR_ID), eq("directory.group.members.rejected"),
+                eq("DIRECTORY_GROUP"), eq("30"), eq("corr-group-sod"),
+                eq("ROLE_CONFLICT_AUDIT_INDEPENDENCE"), any());
     }
 
     private OrganizationUnit organization(

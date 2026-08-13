@@ -7,6 +7,7 @@ import com.dwp.services.auth.dto.AuthPolicyResponse;
 import com.dwp.services.auth.dto.LoginRequest;
 import com.dwp.services.auth.dto.LoginResponse;
 import com.dwp.services.auth.dto.MeResponse;
+import com.dwp.services.auth.dto.GroupMembershipDTO;
 import com.dwp.services.auth.dto.OidcUserInfo;
 import com.dwp.services.auth.dto.PermissionDTO;
 import com.dwp.services.auth.dto.UpdatePreferredLocaleRequest;
@@ -18,6 +19,8 @@ import com.dwp.services.auth.entity.Tenant;
 import com.dwp.services.auth.entity.User;
 import com.dwp.services.auth.entity.UserAccount;
 import com.dwp.services.auth.repository.PermissionRepository;
+import com.dwp.services.auth.repository.DirectoryGroupMemberRepository;
+import com.dwp.services.auth.repository.DirectoryGroupRepository;
 import com.dwp.services.auth.repository.ResourceRepository;
 import com.dwp.services.auth.repository.RoleMemberRepository;
 import com.dwp.services.auth.repository.RolePermissionRepository;
@@ -49,6 +52,8 @@ public class AuthService {
     private final TenantRepository tenantRepository;
     private final RoleRepository roleRepository;
     private final RoleMemberRepository roleMemberRepository;
+    private final DirectoryGroupRepository groupRepository;
+    private final DirectoryGroupMemberRepository groupMemberRepository;
     private final RolePermissionRepository rolePermissionRepository;
     private final ResourceRepository resourceRepository;
     private final PermissionRepository permissionRepository;
@@ -64,6 +69,8 @@ public class AuthService {
             TenantRepository tenantRepository,
             RoleRepository roleRepository,
             RoleMemberRepository roleMemberRepository,
+            DirectoryGroupRepository groupRepository,
+            DirectoryGroupMemberRepository groupMemberRepository,
             RolePermissionRepository rolePermissionRepository,
             ResourceRepository resourceRepository,
             PermissionRepository permissionRepository,
@@ -77,6 +84,8 @@ public class AuthService {
         this.tenantRepository = tenantRepository;
         this.roleRepository = roleRepository;
         this.roleMemberRepository = roleMemberRepository;
+        this.groupRepository = groupRepository;
+        this.groupMemberRepository = groupMemberRepository;
         this.rolePermissionRepository = rolePermissionRepository;
         this.resourceRepository = resourceRepository;
         this.permissionRepository = permissionRepository;
@@ -237,8 +246,26 @@ public class AuthService {
                 .tenantCode(tenant.getCode())
                 .tenantName(tenant.getName())
                 .roles(getRoleCodes(user.getUserId(), tenant.getTenantId()))
+                .groups(getGroupMemberships(user.getUserId(), tenant.getTenantId()))
                 .permissions(permissions)
                 .build();
+    }
+
+    private List<GroupMembershipDTO> getGroupMemberships(Long userId, Long tenantId) {
+        List<Long> groupIds = groupMemberRepository.findByTenantIdAndUserId(tenantId, userId)
+                .stream()
+                .map(member -> member.getGroupId())
+                .distinct()
+                .toList();
+        if (groupIds.isEmpty()) return List.of();
+        return groupRepository.findByTenantIdAndGroupIdInAndStatus(tenantId, groupIds, "ACTIVE")
+                .stream()
+                .filter(group -> group.getPublicId() != null)
+                .map(group -> new GroupMembershipDTO(group.getPublicId(), group.getDisplayName()))
+                .sorted(java.util.Comparator.comparing(
+                        GroupMembershipDTO::displayName,
+                        String.CASE_INSENSITIVE_ORDER))
+                .toList();
     }
 
     private String canonicalLocale(String locale) {

@@ -30,6 +30,7 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
     static final String USER_HEADER = "X-DWP-User-ID";
     static final String TENANT_HEADER = "X-DWP-Tenant-ID";
     static final String ROLES_HEADER = "X-DWP-Roles";
+    static final String PERMISSIONS_HEADER = "X-DWP-Permissions";
     static final String SUPPORT_SESSION_HEADER = "X-DWP-Support-Session-ID";
     static final String SUPPORT_SCOPES_HEADER = "X-DWP-Support-Scopes";
     static final String ACTOR_TENANT_HEADER = "X-DWP-Actor-Tenant-ID";
@@ -77,6 +78,7 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
         Long actorId = positiveLong(request.getHeader(USER_HEADER));
         Long tenantId = positiveLong(request.getHeader(TENANT_HEADER));
         Set<String> roles = parseRoles(request.getHeader(ROLES_HEADER));
+        Set<String> permissions = parseRoles(request.getHeader(PERMISSIONS_HEADER));
         if (actorId == null || tenantId == null) {
             writeError(response, ErrorCode.UNAUTHORIZED,
                     "Verified user and tenant identity are required.");
@@ -89,20 +91,35 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
                     "The support session does not permit this workforce resource.");
             return;
         }
+        boolean workforceAdmin = request.getRequestURI().startsWith("/v1/admin/workforce/");
+        boolean workforceAdminPermission = hasPermission(
+                permissions,
+                "ADMIN.WORKFORCE_ACCESS",
+                isReadOnly(request) ? Set.of("VIEW", "MANAGE") : Set.of("MANAGE"));
+        boolean legacyAdminRole = permissions.isEmpty()
+                && roles.stream().anyMatch(ADMIN_ROLES::contains);
         if (!supportAccess && request.getRequestURI().startsWith("/v1/admin/")
-                && roles.stream().noneMatch(ADMIN_ROLES::contains)) {
+                && !legacyAdminRole
+                && !(workforceAdmin && workforceAdminPermission)) {
             writeError(response, ErrorCode.FORBIDDEN,
                     "People administrator permission is required.");
             return;
         }
+        boolean workforcePermission = hasPermission(
+                permissions,
+                "DATA.WORKFORCE",
+                isReadOnly(request) ? Set.of("VIEW", "MANAGE") : Set.of("MANAGE"));
+        boolean legacyWorkforceRole = permissions.isEmpty()
+                && roles.stream().anyMatch(WORKFORCE_ROLES::contains);
         if (!supportAccess && request.getRequestURI().startsWith("/v1/workforce/")
-                && roles.stream().noneMatch(WORKFORCE_ROLES::contains)) {
+                && !legacyWorkforceRole
+                && !workforcePermission) {
             writeError(response, ErrorCode.FORBIDDEN,
                     "Workforce operations permission is required.");
             return;
         }
 
-        PeopleRequestContext.set(actorId, tenantId, roles);
+        PeopleRequestContext.set(actorId, tenantId, roles, permissions);
         try {
             filterChain.doFilter(request, response);
         } finally {
@@ -116,6 +133,18 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
                 .map(String::trim)
                 .filter(value -> !value.isBlank())
                 .collect(Collectors.toUnmodifiableSet());
+    }
+
+    private boolean hasPermission(
+            Set<String> permissions,
+            String resource,
+            Set<String> allowedActions) {
+        return allowedActions.stream()
+                .anyMatch(action -> permissions.contains(resource + ":" + action));
+    }
+
+    private boolean isReadOnly(HttpServletRequest request) {
+        return "GET".equals(request.getMethod()) || "HEAD".equals(request.getMethod());
     }
 
     private boolean authorizedSupportRequest(HttpServletRequest request) {

@@ -3,6 +3,7 @@ package com.dwp.services.people.directory;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.people.security.PeopleRequestContext;
+import com.dwp.services.people.workforce.WorkforceAccessPolicyService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,12 +21,15 @@ public class PeopleDirectoryService {
 
     private final PeopleDirectoryRepository repository;
     private final PeopleCursorCodec cursorCodec;
+    private final WorkforceAccessPolicyService accessPolicyService;
 
     public PeopleDirectoryService(
             PeopleDirectoryRepository repository,
-            PeopleCursorCodec cursorCodec) {
+            PeopleCursorCodec cursorCodec,
+            WorkforceAccessPolicyService accessPolicyService) {
         this.repository = repository;
         this.cursorCodec = cursorCodec;
+        this.accessPolicyService = accessPolicyService;
     }
 
     @Transactional(readOnly = true)
@@ -59,13 +63,21 @@ public class PeopleDirectoryService {
         int size = Math.min(100, Math.max(1, requestedSize));
         LocalDate asOf = requestedAsOf == null ? LocalDate.now() : requestedAsOf;
         String normalizedStatus = normalizeStatus(status);
-        String fingerprint = cursorCodec.fingerprint(query, normalizedStatus, asOf.toString());
+        WorkforceAccessPolicyService.Decision decision = workforceAccess
+                ? accessPolicyService.require("READ")
+                : null;
+        String policyFingerprint = decision == null ? "directory" : decision.fingerprint();
+        String fingerprint = cursorCodec.fingerprint(
+                query, normalizedStatus, asOf + "|" + policyFingerprint);
         long afterPersonId = cursor == null || cursor.isBlank()
                 ? 0L
                 : cursorCodec.decode(cursor, actor.tenantId(), fingerprint);
-
-        List<PeopleDirectoryRepository.DirectoryRow> rows = repository.search(
-                actor.tenantId(), afterPersonId, query, normalizedStatus, asOf, size + 1);
+        List<PeopleDirectoryRepository.DirectoryRow> rows = workforceAccess
+                ? repository.search(
+                        actor.tenantId(), afterPersonId, query, normalizedStatus, asOf, size + 1,
+                        decision.tenantWide(), decision.organizationIds())
+                : repository.search(
+                        actor.tenantId(), afterPersonId, query, normalizedStatus, asOf, size + 1);
         boolean hasMore = rows.size() > size;
         List<PeopleDirectoryRepository.DirectoryRow> pageRows = hasMore
                 ? rows.subList(0, size)
@@ -77,7 +89,7 @@ public class PeopleDirectoryService {
                         fingerprint)
                 : null;
         return new PeopleDtos.CursorPage<>(
-                pageRows.stream().map(row -> summary(row, workforceAccess)).toList(),
+                pageRows.stream().map(row -> summary(row, decision)).toList(),
                 nextCursor,
                 pageRows.size(),
                 hasMore,
@@ -100,10 +112,17 @@ public class PeopleDirectoryService {
             boolean workforceAccess) {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
         LocalDate asOf = requestedAsOf == null ? LocalDate.now() : requestedAsOf;
-        PeopleDirectoryRepository.DirectoryRow row = repository
-                .findByPublicId(actor.tenantId(), publicId, asOf)
+        WorkforceAccessPolicyService.Decision decision = workforceAccess
+                ? accessPolicyService.require("READ")
+                : null;
+        PeopleDirectoryRepository.DirectoryRow row = (workforceAccess
+                ? repository.findByPublicId(
+                        actor.tenantId(), publicId, asOf,
+                        decision.tenantWide(), decision.organizationIds())
+                : repository.findByPublicId(actor.tenantId(), publicId, asOf))
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        List<PeopleDtos.AssignmentSummary> assignments = workforceAccess
+        boolean employment = decision != null && decision.field("EMPLOYMENT");
+        List<PeopleDtos.AssignmentSummary> assignments = employment
                 ? repository.findAssignments(actor.tenantId(), row.internalPersonId())
                         .stream()
                         .map(assignment -> new PeopleDtos.AssignmentSummary(
@@ -122,50 +141,54 @@ public class PeopleDirectoryService {
                         .toList()
                 : List.of();
         return new PeopleDtos.PersonDetail(
-                summary(row, workforceAccess),
-                workforceAccess ? row.originalHireDate() : null,
-                workforceAccess ? row.legalEmployerName() : null,
-                workforceAccess ? row.managerAssignmentKey() : null,
+                summary(row, decision),
+                employment ? row.originalHireDate() : null,
+                employment ? row.legalEmployerName() : null,
+                employment ? row.managerAssignmentKey() : null,
                 assignments);
     }
 
     private PeopleDtos.PersonSummary summary(
             PeopleDirectoryRepository.DirectoryRow row,
-            boolean workforceAccess) {
+            WorkforceAccessPolicyService.Decision decision) {
+        boolean identifiers = decision != null && decision.field("WORKER_IDENTIFIERS");
+        boolean employment = decision != null && decision.field("EMPLOYMENT");
+        boolean jobGrade = decision != null && decision.field("JOB_GRADE");
+        List<String> excluded = new java.util.ArrayList<>(List.of(
+                "personPrivate", "governmentIdentifiers", "privateContacts"));
+        if (!identifiers) excluded.add("workerIdentifiers");
+        if (!employment) excluded.add("employmentHistory");
+        if (!jobGrade) excluded.add("jobGrade");
         return new PeopleDtos.PersonSummary(
                 row.publicId(),
                 row.displayName(),
                 row.preferredLocale(),
                 row.timeZone(),
                 row.lifecycleState(),
-                workforceAccess ? row.workerNumber() : null,
+                identifiers ? row.workerNumber() : null,
                 row.workerType(),
                 row.workerStatus(),
-                workforceAccess ? row.assignmentKey() : null,
+                identifiers ? row.assignmentKey() : null,
                 row.businessTitle(),
                 row.organizationPublicId(),
                 row.organizationKey(),
                 row.organizationName(),
                 row.jobProfileName(),
                 row.managementLevel(),
-                workforceAccess ? row.gradeKey() : null,
-                workforceAccess ? row.gradeName() : null,
+                jobGrade ? row.gradeKey() : null,
+                jobGrade ? row.gradeName() : null,
                 row.locationKey(),
                 row.locationName(),
                 row.workEmail(),
                 row.profileImageKey(),
-                workforceAccess ? row.assignmentEffectiveFrom() : null,
+                employment ? row.assignmentEffectiveFrom() : null,
                 row.managerPersonPublicId(),
                 row.managerDisplayName(),
                 row.directReportCount(),
                 new PeopleDtos.DataAccess(
-                        "INTERNAL",
-                        !workforceAccess && row.workerNumber() != null,
-                        workforceAccess
-                                ? List.of("personPrivate", "governmentIdentifiers", "privateContacts")
-                                : List.of(
-                                        "personPrivate", "governmentIdentifiers", "privateContacts",
-                                        "workerIdentifiers", "employmentHistory", "jobGrade")));
+                        decision == null ? "INTERNAL" : "RESTRICTED",
+                        !identifiers && row.workerNumber() != null,
+                        List.copyOf(excluded)));
     }
 
     private String normalizeStatus(String status) {

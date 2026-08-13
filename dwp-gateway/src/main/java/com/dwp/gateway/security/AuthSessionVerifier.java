@@ -57,7 +57,8 @@ public class AuthSessionVerifier implements SessionVerifier {
                                         data.userId().toString(),
                                         data.tenantId().toString(),
                                         data.roles(),
-                                        authorities(data.permissions())))
+                                        authorities(data.permissions()),
+                                        groupRefs(data.groups())))
                                 .filter(identity -> !tenantAssertionPresent
                                         || requestedTenant.equals(identity.tenantId()));
                     }
@@ -78,6 +79,15 @@ public class AuthSessionVerifier implements SessionVerifier {
         if (path.startsWith("/api/platform/v1/admin/integrations/productivity")) {
             return "ADMIN.PRODUCTIVITY_CONNECTOR";
         }
+        if (path.startsWith("/api/platform/v1/admin/saved-view-ownership")) {
+            return "ADMIN.SAVED_VIEW_CUSTODY";
+        }
+        if (path.startsWith("/api/people/v1/admin/workforce")) {
+            return "ADMIN.WORKFORCE_ACCESS";
+        }
+        if (path.startsWith("/api/people/v1/workforce")) {
+            return "DATA.WORKFORCE";
+        }
         if (path.startsWith("/api/platform/v1/workspace")) {
             return "APP.";
         }
@@ -95,6 +105,19 @@ public class AuthSessionVerifier implements SessionVerifier {
                 .map(permission -> authority(
                         permission.resourceKey(), permission.permissionCode()))
                 .filter(Objects::nonNull)
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
+    private List<String> groupRefs(List<GroupData> groups) {
+        if (groups == null) return List.of();
+        return groups.stream()
+                .filter(Objects::nonNull)
+                .map(GroupData::groupRef)
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
                 .distinct()
                 .sorted()
                 .toList();
@@ -133,7 +156,11 @@ public class AuthSessionVerifier implements SessionVerifier {
             Long userId,
             Long tenantId,
             List<String> roles,
-            List<PermissionData> permissions) {
+            List<PermissionData> permissions,
+            List<GroupData> groups) {
+    }
+
+    private record GroupData(String groupRef, String displayName) {
     }
 
     private record PermissionData(

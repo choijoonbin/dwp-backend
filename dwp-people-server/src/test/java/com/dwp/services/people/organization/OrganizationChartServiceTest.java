@@ -1,6 +1,7 @@
 package com.dwp.services.people.organization;
 
 import com.dwp.services.people.security.PeopleRequestContext;
+import com.dwp.services.people.workforce.WorkforceAccessPolicyService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,12 +25,20 @@ class OrganizationChartServiceTest {
     private final OrganizationChartRepository repository = mock(OrganizationChartRepository.class);
     private final OrganizationScenarioRepository scenarioRepository =
             mock(OrganizationScenarioRepository.class);
+    private final WorkforceAccessPolicyService accessPolicyService =
+            mock(WorkforceAccessPolicyService.class);
     private final OrganizationChartService service =
-            new OrganizationChartService(repository, scenarioRepository);
+            new OrganizationChartService(repository, scenarioRepository, accessPolicyService);
 
     @BeforeEach
     void setContext() {
         PeopleRequestContext.set(7L, TENANT_ID, Set.of("AUDITOR"));
+        when(accessPolicyService.require("READ")).thenReturn(
+                new WorkforceAccessPolicyService.Decision(
+                        true,
+                        Set.of(),
+                        Set.of("DIRECTORY", "EMPLOYMENT", "JOB_GRADE"),
+                        "READ"));
     }
 
     @AfterEach
@@ -85,7 +94,7 @@ class OrganizationChartServiceTest {
                 .singleElement()
                 .satisfies(leader -> {
                     assertThat(leader.directReportCount()).isEqualTo(1);
-                    assertThat(leader.workerNumber()).isEqualTo("******0001");
+                    assertThat(leader.workerNumber()).isNull();
                 });
 
         OrganizationChartDtos.OrganizationChart directory = service.getDirectory(AS_OF, null, 10);

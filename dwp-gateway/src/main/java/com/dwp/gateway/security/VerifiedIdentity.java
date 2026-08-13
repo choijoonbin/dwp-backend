@@ -6,10 +6,19 @@ public record VerifiedIdentity(
         String userId,
         String tenantId,
         List<String> roles,
-        List<String> permissions) {
+        List<String> permissions,
+        List<String> groupRefs) {
 
     public VerifiedIdentity(String userId, String tenantId, List<String> roles) {
-        this(userId, tenantId, roles, List.of());
+        this(userId, tenantId, roles, List.of(), List.of());
+    }
+
+    public VerifiedIdentity(
+            String userId,
+            String tenantId,
+            List<String> roles,
+            List<String> permissions) {
+        this(userId, tenantId, roles, permissions, List.of());
     }
 
     public VerifiedIdentity {
@@ -18,5 +27,6 @@ public record VerifiedIdentity(
         }
         roles = roles == null ? List.of() : List.copyOf(roles);
         permissions = permissions == null ? List.of() : List.copyOf(permissions);
+        groupRefs = groupRefs == null ? List.of() : List.copyOf(groupRefs);
     }
 }

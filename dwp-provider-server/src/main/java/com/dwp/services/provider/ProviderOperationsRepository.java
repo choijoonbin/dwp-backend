@@ -823,6 +823,7 @@ public class ProviderOperationsRepository {
                        subscription.starts_at,
                        subscription.ends_at,
                        subscription.contract_reference,
+                       subscription.version,
                        COUNT(DISTINCT tenant.provider_tenant_id) AS tenants,
                        COUNT(DISTINCT entitlement.tenant_entitlement_id) FILTER (
                            WHERE entitlement.lifecycle_state = 'ACTIVE') AS active_entitlements
@@ -852,7 +853,8 @@ public class ProviderOperationsRepository {
                         instant(result, "ends_at"),
                         result.getString("contract_reference"),
                         result.getLong("tenants"),
-                        result.getLong("active_entitlements")));
+                        result.getLong("active_entitlements"),
+                        result.getLong("version")));
     }
 
     private List<ProviderDtos.EntitlementAdoption> entitlementAdoption() {

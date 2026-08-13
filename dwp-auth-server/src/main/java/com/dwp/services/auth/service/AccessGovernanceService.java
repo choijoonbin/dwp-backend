@@ -57,6 +57,8 @@ public class AccessGovernanceService {
     private final AuthSessionRepository sessionRepository;
     private final IdentityAuditService auditService;
     private final RoleDelegationPolicyService delegationPolicyService;
+    private final DelegatedAdminScopeService delegatedScopeService;
+    private final GroupRoleConflictGuard groupRoleConflictGuard;
 
     public AccessGovernanceService(
             RoleRepository roleRepository,
@@ -70,7 +72,9 @@ public class AccessGovernanceService {
             UserRepository userRepository,
             AuthSessionRepository sessionRepository,
             IdentityAuditService auditService,
-            RoleDelegationPolicyService delegationPolicyService) {
+            RoleDelegationPolicyService delegationPolicyService,
+            DelegatedAdminScopeService delegatedScopeService,
+            GroupRoleConflictGuard groupRoleConflictGuard) {
         this.roleRepository = roleRepository;
         this.resourceRepository = resourceRepository;
         this.permissionRepository = permissionRepository;
@@ -83,6 +87,8 @@ public class AccessGovernanceService {
         this.sessionRepository = sessionRepository;
         this.auditService = auditService;
         this.delegationPolicyService = delegationPolicyService;
+        this.delegatedScopeService = delegatedScopeService;
+        this.groupRoleConflictGuard = groupRoleConflictGuard;
     }
 
     @Transactional(readOnly = true)
@@ -102,6 +108,8 @@ public class AccessGovernanceService {
             String correlationId,
             AccessGovernanceDtos.CreateRoleRequest request) {
         delegationPolicyService.resolve(tenantId, actorId);
+        delegatedScopeService.require(
+                tenantId, actorId, "ACCESS.ROLE.MANAGE", "TENANT", null);
         if (request.privileged()) {
             auditDenied(
                     tenantId, actorId, correlationId, "ROLE", request.code(),
@@ -139,6 +147,8 @@ public class AccessGovernanceService {
         Role role = requireRole(tenantId, roleId);
         requireVersion(role.getVersion(), request.version());
         delegationPolicyService.resolve(tenantId, actorId);
+        delegatedScopeService.require(
+                tenantId, actorId, "ACCESS.ROLE.MANAGE", "TENANT", null);
         if ("SYSTEM".equals(role.getRoleType())) {
             auditDenied(
                     tenantId, actorId, correlationId, "ROLE", roleId.toString(),
@@ -180,6 +190,8 @@ public class AccessGovernanceService {
         Role role = requireRole(tenantId, roleId);
         requireVersion(role.getVersion(), request.version());
         delegationPolicyService.resolve(tenantId, actorId);
+        delegatedScopeService.require(
+                tenantId, actorId, "ACCESS.ROLE.MANAGE", "TENANT", null);
         if ("SYSTEM".equals(role.getRoleType())) {
             auditDenied(
                     tenantId, actorId, correlationId, "ROLE", roleId.toString(),
@@ -257,6 +269,8 @@ public class AccessGovernanceService {
             String correlationId,
             AccessGovernanceDtos.CreateResourceRequest request) {
         delegationPolicyService.resolve(tenantId, actorId);
+        delegatedScopeService.require(
+                tenantId, actorId, "ACCESS.RESOURCE.MANAGE", "TENANT", null);
         Resource resource = Resource.builder()
                 .tenantId(tenantId)
                 .type(request.type())
@@ -308,15 +322,24 @@ public class AccessGovernanceService {
             Long actorId,
             String correlationId,
             AccessGovernanceDtos.CreateGroupRoleAssignmentRequest request) {
-        DirectoryGroup group = groupRepository.findByGroupIdAndTenantId(request.groupId(), tenantId)
+        DirectoryGroup group = groupRepository.findByGroupIdAndTenantIdForUpdate(
+                        request.groupId(), tenantId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         Role role = requireRole(tenantId, request.roleId());
         requireAssignableRole(tenantId, actorId, correlationId, role);
+        delegatedScopeService.require(
+                tenantId, actorId, "ACCESS.ASSIGNMENT.MANAGE",
+                request.scopeType(), trimToNull(request.scopeRef()));
         if (!"ACTIVE".equals(group.getStatus()) || !"ACTIVE".equals(role.getStatus())) {
             throw new BaseException(ErrorCode.INVALID_STATE, "The group and role must be active.");
         }
         if (!Boolean.TRUE.equals(role.getAssignableToGroups())) {
             throw new BaseException(ErrorCode.INVALID_STATE, "This role cannot be assigned to groups.");
+        }
+        if (!"ACTIVE".equals(request.assignmentType())) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "Eligible access must be created through the privileged access lifecycle.");
         }
         String scopeRef = trimToNull(request.scopeRef());
         if (("TENANT".equals(request.scopeType()) && scopeRef != null)
@@ -327,6 +350,18 @@ public class AccessGovernanceService {
                 && !request.validTo().isAfter(request.validFrom())) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "The access validity window is invalid.");
         }
+        groupRoleConflictGuard.evaluateRoleAssignment(tenantId, group.getGroupId(), role.getCode())
+                .ifPresent(violation -> {
+                    auditDenied(
+                            tenantId, actorId, correlationId, "DIRECTORY_GROUP",
+                            group.getGroupId().toString(), violation.reason(), Map.of(
+                                    "userId", violation.userId(),
+                                    "currentRoleCodes", violation.currentRoleCodes(),
+                                    "additionalRoleCodes", violation.additionalRoleCodes()));
+                    throw new BaseException(
+                            ErrorCode.INVALID_INPUT_VALUE,
+                            "The group role would violate a member's separation-of-duties policy.");
+                });
         GroupRoleAssignment assignment = GroupRoleAssignment.builder()
                 .tenantId(tenantId)
                 .groupId(group.getGroupId())
@@ -372,6 +407,9 @@ public class AccessGovernanceService {
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         Role role = requireRole(tenantId, assignment.getRoleId());
         requireAssignableRole(tenantId, actorId, correlationId, role);
+        delegatedScopeService.require(
+                tenantId, actorId, "ACCESS.ASSIGNMENT.MANAGE",
+                assignment.getScopeType(), assignment.getScopeRef());
         Map<String, Object> before = assignmentSnapshot(assignment);
         assignment.setLifecycleState("REVOKED");
         assignment.setUpdatedBy(actorId);
@@ -555,6 +593,18 @@ public class AccessGovernanceService {
             String targetType,
             String targetId,
             String reason) {
+        auditDenied(
+                tenantId, actorId, correlationId, targetType, targetId, reason, Map.of());
+    }
+
+    private void auditDenied(
+            Long tenantId,
+            Long actorId,
+            String correlationId,
+            String targetType,
+            String targetId,
+            String reason,
+            Map<String, Object> attemptedState) {
         auditService.denied(
                 tenantId,
                 actorId,
@@ -563,7 +613,7 @@ public class AccessGovernanceService {
                 targetId,
                 correlationId,
                 reason,
-                Map.of());
+                attemptedState);
     }
 
     private Role saveRole(Role role) {

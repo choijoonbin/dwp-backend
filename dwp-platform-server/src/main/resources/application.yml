@@ -27,6 +27,9 @@ spring:
     validate-on-migrate: true
 
 dwp:
+  identity-sync:
+    auth-url: ${SERVICE_AUTH_URL:http://localhost:8001}
+    token: ${DWP_IDENTITY_SYNC_TOKEN:}
   audit:
     collector-url: ${DWP_AUDIT_COLLECTOR_URL:}
     ingest-token: ${DWP_AUDIT_INGEST_TOKEN:}

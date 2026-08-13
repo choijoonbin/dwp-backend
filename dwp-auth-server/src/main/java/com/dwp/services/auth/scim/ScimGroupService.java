@@ -2,10 +2,13 @@ package com.dwp.services.auth.scim;
 
 import com.dwp.services.auth.entity.DirectoryGroup;
 import com.dwp.services.auth.entity.DirectoryGroupMember;
+import com.dwp.services.auth.entity.AuthSession;
 import com.dwp.services.auth.entity.User;
+import com.dwp.services.auth.repository.AuthSessionRepository;
 import com.dwp.services.auth.repository.DirectoryGroupMemberRepository;
 import com.dwp.services.auth.repository.DirectoryGroupRepository;
 import com.dwp.services.auth.repository.UserRepository;
+import com.dwp.services.auth.service.GroupRoleConflictGuard;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -47,7 +50,9 @@ public class ScimGroupService {
     private final DirectoryGroupRepository groupRepository;
     private final DirectoryGroupMemberRepository memberRepository;
     private final UserRepository userRepository;
+    private final AuthSessionRepository sessionRepository;
     private final ScimProvisioningAuditService auditService;
+    private final GroupRoleConflictGuard groupRoleConflictGuard;
     private final ScimCursorCodec cursorCodec;
     private final String baseUrl;
 
@@ -55,13 +60,17 @@ public class ScimGroupService {
             DirectoryGroupRepository groupRepository,
             DirectoryGroupMemberRepository memberRepository,
             UserRepository userRepository,
+            AuthSessionRepository sessionRepository,
             ScimProvisioningAuditService auditService,
+            GroupRoleConflictGuard groupRoleConflictGuard,
             ScimCursorCodec cursorCodec,
             @Value("${dwp.scim.base-url:http://localhost:8080/scim/v2}") String baseUrl) {
         this.groupRepository = groupRepository;
         this.memberRepository = memberRepository;
         this.userRepository = userRepository;
+        this.sessionRepository = sessionRepository;
         this.auditService = auditService;
+        this.groupRoleConflictGuard = groupRoleConflictGuard;
         this.cursorCodec = cursorCodec;
         this.baseUrl = baseUrl.replaceAll("/$", "");
     }
@@ -123,13 +132,18 @@ public class ScimGroupService {
                     .build();
         } else if (!SCIM.equals(group.getSourceType())) {
             throw ScimException.conflict("The requested group belongs to a non-SCIM source.");
+        } else {
+            group = groupRepository.findByGroupIdAndTenantIdForUpdate(
+                            group.getGroupId(), tenantId)
+                    .orElseThrow(ScimException::notFound);
         }
         group.setDisplayName(request.displayName().trim());
         group.setExternalId(trimToNull(request.externalId()));
         group.setStatus("ACTIVE");
         group.setRevision(valueOrZero(group.getRevision()) + (created ? 0 : 1));
         group = save(group);
-        replaceMembers(group, request.members());
+        replaceMembers(
+                group, request.members(), created ? "CREATE" : "REPLACE", correlationId);
         auditService.success(
                 created ? "CREATE" : "REPLACE", "GROUP",
                 group.getPublicId().toString(), group.getExternalId(), correlationId);
@@ -143,7 +157,7 @@ public class ScimGroupService {
             String ifMatch,
             String correlationId) {
         requireSchema(request.schemas(), ScimModels.CORE_GROUP);
-        DirectoryGroup group = require(publicId);
+        DirectoryGroup group = requireForUpdate(publicId);
         requireScimOwned(group);
         ScimVersionPrecondition.verify(ifMatch, group.getVersion());
         group.setDisplayName(request.displayName().trim());
@@ -151,7 +165,7 @@ public class ScimGroupService {
         group.setStatus("ACTIVE");
         group.setRevision(valueOrZero(group.getRevision()) + 1L);
         group = save(group);
-        replaceMembers(group, request.members());
+        replaceMembers(group, request.members(), "REPLACE", correlationId);
         auditService.success("REPLACE", "GROUP", publicId.toString(), group.getExternalId(), correlationId);
         return response(group, members(group));
     }
@@ -163,7 +177,7 @@ public class ScimGroupService {
             String ifMatch,
             String correlationId) {
         requireSchema(request.schemas(), ScimModels.PATCH_OP);
-        DirectoryGroup group = require(publicId);
+        DirectoryGroup group = requireForUpdate(publicId);
         requireScimOwned(group);
         ScimVersionPrecondition.verify(ifMatch, group.getVersion());
         LinkedHashSet<UUID> memberIds = members(group).stream()
@@ -174,21 +188,29 @@ public class ScimGroupService {
         }
         group.setRevision(valueOrZero(group.getRevision()) + 1L);
         group = save(group);
-        replaceMemberIds(group, memberIds);
+        replaceMemberIds(group, memberIds, "PATCH", correlationId);
         auditService.success("PATCH", "GROUP", publicId.toString(), group.getExternalId(), correlationId);
         return response(group, members(group));
     }
 
     @Transactional
     public void deactivate(UUID publicId, String ifMatch, String correlationId) {
-        DirectoryGroup group = require(publicId);
+        DirectoryGroup group = requireForUpdate(publicId);
         requireScimOwned(group);
         ScimVersionPrecondition.verify(ifMatch, group.getVersion());
         group.setStatus("INACTIVE");
         group.setRevision(valueOrZero(group.getRevision()) + 1L);
         group = save(group);
+        Set<Long> affectedUserIds = memberRepository.findByTenantIdAndGroupId(
+                        group.getTenantId(), group.getGroupId())
+                .stream()
+                .filter(member -> SCIM.equals(member.getSourceType()))
+                .map(DirectoryGroupMember::getUserId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
         memberRepository.deleteByTenantIdAndGroupIdAndSourceType(
                 group.getTenantId(), group.getGroupId(), SCIM);
+        memberRepository.flush();
+        invalidateIdentityContext(group.getTenantId(), affectedUserIds);
         auditService.success("DELETE", "GROUP", publicId.toString(), group.getExternalId(), correlationId);
     }
 
@@ -228,15 +250,23 @@ public class ScimGroupService {
         throw ScimException.invalidValue("Unsupported SCIM group patch path: " + operation.path());
     }
 
-    private void replaceMembers(DirectoryGroup group, List<ScimModels.Member> members) {
+    private void replaceMembers(
+            DirectoryGroup group,
+            List<ScimModels.Member> members,
+            String operation,
+            String correlationId) {
         Set<UUID> ids = members == null
                 ? Set.of()
                 : members.stream().map(member -> parseUuid(member.value()))
                         .collect(Collectors.toCollection(LinkedHashSet::new));
-        replaceMemberIds(group, ids);
+        replaceMemberIds(group, ids, operation, correlationId);
     }
 
-    private void replaceMemberIds(DirectoryGroup group, Collection<UUID> publicIds) {
+    private void replaceMemberIds(
+            DirectoryGroup group,
+            Collection<UUID> publicIds,
+            String operation,
+            String correlationId) {
         Long tenantId = group.getTenantId();
         List<User> users = publicIds.isEmpty()
                 ? List.of()
@@ -246,6 +276,24 @@ public class ScimGroupService {
         }
         List<DirectoryGroupMember> current = memberRepository.findByTenantIdAndGroupId(
                 tenantId, group.getGroupId());
+        Set<Long> currentScimIds = current.stream()
+                .filter(member -> SCIM.equals(member.getSourceType()))
+                .map(DirectoryGroupMember::getUserId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<Long> nextScimIds = users.stream()
+                .map(User::getUserId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<Long> addedIds = new LinkedHashSet<>(nextScimIds);
+        addedIds.removeAll(currentScimIds);
+        groupRoleConflictGuard.evaluateMembershipAddition(
+                        tenantId, group.getGroupId(), addedIds)
+                .ifPresent(violation -> {
+                    auditService.denied(
+                            operation, "GROUP", group.getPublicId().toString(),
+                            group.getExternalId(), correlationId, violation.reason());
+                    throw ScimException.conflict(
+                            "A requested group member would violate separation-of-duties policy.");
+                });
         Set<Long> locallyManaged = current.stream()
                 .filter(member -> !SCIM.equals(member.getSourceType()))
                 .map(DirectoryGroupMember::getUserId)
@@ -262,6 +310,12 @@ public class ScimGroupService {
                         .build())
                 .toList();
         memberRepository.saveAll(next);
+        Set<Long> changedUserIds = new LinkedHashSet<>(currentScimIds);
+        changedUserIds.addAll(nextScimIds);
+        Set<Long> unchangedUserIds = new LinkedHashSet<>(currentScimIds);
+        unchangedUserIds.retainAll(nextScimIds);
+        changedUserIds.removeAll(unchangedUserIds);
+        invalidateIdentityContext(tenantId, changedUserIds);
     }
 
     private DirectoryGroup findIdempotent(Long tenantId, ScimModels.GroupRequest request) {
@@ -277,6 +331,24 @@ public class ScimGroupService {
         return groupRepository.findByPublicIdAndTenantId(
                         publicId, ScimConnectorContext.require().tenantId())
                 .orElseThrow(ScimException::notFound);
+    }
+
+    private DirectoryGroup requireForUpdate(UUID publicId) {
+        return groupRepository.findByPublicIdAndTenantIdForUpdate(
+                        publicId, ScimConnectorContext.require().tenantId())
+                .orElseThrow(ScimException::notFound);
+    }
+
+    private void invalidateIdentityContext(Long tenantId, Collection<Long> userIds) {
+        if (userIds.isEmpty()) return;
+        List<User> users = userRepository.findByTenantIdAndUserIdInForUpdate(tenantId, userIds);
+        users.forEach(user -> user.setAccessRevision(valueOrZero(user.getAccessRevision()) + 1L));
+        userRepository.saveAll(users);
+        Instant now = Instant.now();
+        List<AuthSession> sessions = sessionRepository
+                .findByTenantIdAndUserIdInAndRevokedAtIsNull(tenantId, userIds);
+        sessions.forEach(session -> session.setRevokedAt(now));
+        sessionRepository.saveAll(sessions);
     }
 
     private void requireScimOwned(DirectoryGroup group) {

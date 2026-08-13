@@ -2,6 +2,7 @@ package com.dwp.services.provider;
 
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.provider.audit.ProviderAuditService;
+import com.dwp.services.provider.commercial.ProviderCommercialRenewalRepository;
 import com.dwp.services.provider.entitlement.Entitlement;
 import com.dwp.services.provider.entitlement.EntitlementRepository;
 import com.dwp.services.provider.entitlement.TenantEntitlementRepository;
@@ -13,9 +14,11 @@ import com.dwp.services.provider.operation.ProviderOperationStepRepository;
 import com.dwp.services.provider.provisioning.DownstreamProvisioningClient;
 import com.dwp.services.provider.provisioning.ProviderProvisioningOrchestrator;
 import com.dwp.services.provider.security.ProviderRequestContext;
+import com.dwp.services.provider.support.ProviderSupportRequestRepository;
 import com.dwp.services.provider.tenant.ProviderTenant;
 import com.dwp.services.provider.tenant.ProviderTenantRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,6 +47,10 @@ class ProviderControlPlaneServiceTest {
     private final ProviderOperationStepRepository stepRepository = mock(ProviderOperationStepRepository.class);
     private final ProviderEstateRepository estateRepository = mock(ProviderEstateRepository.class);
     private final ProviderOperationsRepository operationsRepository = mock(ProviderOperationsRepository.class);
+    private final ProviderCommercialRenewalRepository commercialRenewalRepository =
+            mock(ProviderCommercialRenewalRepository.class);
+    private final ProviderSupportRequestRepository supportRequestRepository =
+            mock(ProviderSupportRequestRepository.class);
     private final ProviderControlPlaneService service = new ProviderControlPlaneService(
             tenantRepository,
             entitlementRepository,
@@ -53,10 +60,12 @@ class ProviderControlPlaneServiceTest {
             mock(ProviderOperationStepAttemptRepository.class),
             estateRepository,
             operationsRepository,
+            commercialRenewalRepository,
+            supportRequestRepository,
             mock(ProviderProvisioningOrchestrator.class),
             mock(DownstreamProvisioningClient.class),
             mock(ProviderAuditService.class),
-            new ObjectMapper());
+            JsonMapper.builder().findAndAddModules().build());
 
     @BeforeEach
     void setContext() {
@@ -176,7 +185,8 @@ class ProviderControlPlaneServiceTest {
                         30,
                         "Investigate an approved customer issue",
                         null,
-                        false);
+                        false,
+                        "support-request-1001");
 
         assertThatThrownBy(() -> service.createSupportSession("corr-5", request))
                 .isInstanceOf(BaseException.class)
@@ -209,7 +219,8 @@ class ProviderControlPlaneServiceTest {
                         15,
                         "Investigate an approved customer issue",
                         "CASE-1001",
-                        false);
+                        false,
+                        "support-request-1002");
 
         assertThatThrownBy(() -> service.createSupportSession("corr-6", request))
                 .isInstanceOf(BaseException.class)
@@ -329,6 +340,77 @@ class ProviderControlPlaneServiceTest {
         assertThatThrownBy(() -> service.createMaintenanceWindow("corr-11", request))
                 .isInstanceOf(BaseException.class)
                 .hasMessageContaining("cannot declare customer interruption");
+    }
+
+    @Test
+    void commercialRenewalRejectsAStaleSubscriptionVersion() {
+        UUID subscriptionId = UUID.fromString("60000000-0000-0000-0000-000000000001");
+        when(commercialRenewalRepository.byKey(12L, "renewal-skax-2027"))
+                .thenReturn(Optional.empty());
+        when(commercialRenewalRepository.subscription(subscriptionId)).thenReturn(Optional.of(
+                new ProviderCommercialRenewalRepository.SubscriptionRecord(
+                        subscriptionId,
+                        UUID.fromString("60000000-0000-0000-0000-000000000002"),
+                        UUID.fromString("60000000-0000-0000-0000-000000000003"),
+                        "enterprise", "Enterprise", Instant.now().minusSeconds(3600),
+                        Instant.now().plusSeconds(86400), "SKAX-2026", 4L, 3L)));
+
+        ProviderDtos.CreateSubscriptionRenewalRequest request =
+                new ProviderDtos.CreateSubscriptionRenewalRequest(
+                        subscriptionId, "regulated", Instant.now().plusSeconds(172800),
+                        "SKAX-2027", "Renew regulated services", "renewal-skax-2027", 3L);
+
+        assertThatThrownBy(() -> service.createSubscriptionRenewal("corr-commercial-1", request))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("changed");
+    }
+
+    @Test
+    void commercialRenewalIdempotencyRejectsDifferentInput() {
+        UUID revisionId = UUID.fromString("60000000-0000-0000-0000-000000000004");
+        UUID subscriptionId = UUID.fromString("60000000-0000-0000-0000-000000000005");
+        when(commercialRenewalRepository.byKey(12L, "renewal-skax-2028")).thenReturn(Optional.of(
+                new ProviderCommercialRenewalRepository.RenewalRecord(
+                        revisionId, subscriptionId,
+                        UUID.fromString("60000000-0000-0000-0000-000000000006"),
+                        "PUBLISHED", 2L,
+                        UUID.fromString("60000000-0000-0000-0000-000000000007"),
+                        Instant.now().plusSeconds(172800), "SKAX-2028", "Original reason",
+                        List.of(), List.of(), "0".repeat(64), "f".repeat(64),
+                        "renewal-skax-2028", 12L, Instant.now().plusSeconds(3600), 3L)));
+
+        ProviderDtos.CreateSubscriptionRenewalRequest request =
+                new ProviderDtos.CreateSubscriptionRenewalRequest(
+                        subscriptionId, "enterprise", Instant.now().plusSeconds(172800),
+                        "SKAX-2028", "Changed reason", "renewal-skax-2028", 2L);
+
+        assertThatThrownBy(() -> service.createSubscriptionRenewal("corr-commercial-2", request))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("different proposal");
+    }
+
+    @Test
+    void commercialRenewalCannotBeSelfApproved() {
+        UUID revisionId = UUID.fromString("60000000-0000-0000-0000-000000000008");
+        when(commercialRenewalRepository.byId(revisionId)).thenReturn(Optional.of(
+                new ProviderCommercialRenewalRepository.RenewalRecord(
+                        revisionId,
+                        UUID.fromString("60000000-0000-0000-0000-000000000009"),
+                        UUID.fromString("60000000-0000-0000-0000-000000000010"),
+                        "PENDING_APPROVAL", 0L,
+                        UUID.fromString("60000000-0000-0000-0000-000000000011"),
+                        Instant.now().plusSeconds(86400), "SKAX-2027", "Renew contract",
+                        List.of("premium.audit"), List.of(), "a".repeat(64), "b".repeat(64),
+                        "renewal-skax-2027", 12L, Instant.now().plusSeconds(3600), 0L)));
+
+        ProviderDtos.DecideSubscriptionRenewalRequest request =
+                new ProviderDtos.DecideSubscriptionRenewalRequest(
+                        "APPROVED", "Reviewed customer and entitlement impact", 0L);
+
+        assertThatThrownBy(() -> service.decideSubscriptionRenewal(
+                revisionId, "corr-commercial-3", request))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("self-approved");
     }
 
     @Test

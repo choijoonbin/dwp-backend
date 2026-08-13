@@ -16,7 +16,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.util.Iterator;
-import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
@@ -40,31 +39,28 @@ public class PersonalPreferenceService {
     private static final Set<String> FIRST_DAYS = Set.of("locale", "monday", "sunday");
     private static final Set<String> NUMBER_FORMATS = Set.of(
             "locale", "comma_decimal", "dot_decimal", "space_decimal");
-    private static final PersonalPreferenceDtos.ManagedPreferencePolicy MANAGED_POLICY =
-            new PersonalPreferenceDtos.ManagedPreferencePolicy(
-                    "TENANT",
-                    "TENANT_EXPERIENCE_POLICY",
-                    "TENANT_ADMINISTRATOR",
-                    List.of("appearance.fontFamily", "appearance.accentColor", "navigation.pattern"));
-
     private final PersonalPreferenceRepository repository;
+    private final ManagedPreferenceRepository managedPreferenceRepository;
     private final ObjectMapper objectMapper;
     private final PlatformAuditService auditService;
 
     public PersonalPreferenceService(
             PersonalPreferenceRepository repository,
+            ManagedPreferenceRepository managedPreferenceRepository,
             ObjectMapper objectMapper,
             PlatformAuditService auditService) {
         this.repository = repository;
+        this.managedPreferenceRepository = managedPreferenceRepository;
         this.objectMapper = objectMapper;
         this.auditService = auditService;
     }
 
     @Transactional(readOnly = true)
     public PersonalPreferenceDtos.PersonalPreferenceResponse get(Long tenantId, Long userId) {
+        ManagedPreferenceDtos.ManagedPreferencePolicy policy = managedPreferenceRepository.policy(tenantId);
         return repository.findByTenantIdAndUserId(tenantId, userId)
-                .map(this::response)
-                .orElseGet(this::defaultResponse);
+                .map(preference -> response(preference, policy))
+                .orElseGet(() -> defaultResponse(policy));
     }
 
     @Transactional
@@ -101,7 +97,7 @@ public class PersonalPreferenceService {
                 correlationId,
                 before,
                 snapshot(saved));
-        return response(saved);
+        return response(saved, managedPreferenceRepository.policy(tenantId));
     }
 
     @Transactional
@@ -116,7 +112,7 @@ public class PersonalPreferenceService {
             if (version == null || version != 0L) {
                 throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
             }
-            return defaultResponse();
+            return defaultResponse(managedPreferenceRepository.policy(tenantId));
         }
 
         requireVersion(preference, version);
@@ -132,7 +128,7 @@ public class PersonalPreferenceService {
                 correlationId,
                 before,
                 snapshot(null));
-        return defaultResponse();
+        return defaultResponse(managedPreferenceRepository.policy(tenantId));
     }
 
     private PersonalPreference create(Long tenantId, Long userId, Long requestedVersion) {
@@ -329,7 +325,9 @@ public class PersonalPreferenceService {
         return root;
     }
 
-    private PersonalPreferenceDtos.PersonalPreferenceResponse response(PersonalPreference preference) {
+    private PersonalPreferenceDtos.PersonalPreferenceResponse response(
+            PersonalPreference preference,
+            ManagedPreferenceDtos.ManagedPreferencePolicy managedPolicy) {
         if (preference.getSchemaVersion() == null
                 || preference.getSchemaVersion() < 1
                 || preference.getSchemaVersion() > PersonalPreferenceDtos.SCHEMA_VERSION
@@ -349,17 +347,18 @@ public class PersonalPreferenceService {
                 PersonalPreferenceDtos.SCHEMA_VERSION,
                 true,
                 preferences,
-                MANAGED_POLICY,
+                managedPolicy,
                 preference.getVersion() == null ? 0L : preference.getVersion(),
                 preference.getUpdatedAt());
     }
 
-    private PersonalPreferenceDtos.PersonalPreferenceResponse defaultResponse() {
+    private PersonalPreferenceDtos.PersonalPreferenceResponse defaultResponse(
+            ManagedPreferenceDtos.ManagedPreferencePolicy managedPolicy) {
         return new PersonalPreferenceDtos.PersonalPreferenceResponse(
                 PersonalPreferenceDtos.SCHEMA_VERSION,
                 false,
                 defaultPreferences(),
-                MANAGED_POLICY,
+                managedPolicy,
                 0L,
                 null);
     }

@@ -1,3 +1,4 @@
 com.dwp.core.autoconfig.CoreWebAutoConfiguration
 com.dwp.core.autoconfig.CoreObservabilityAutoConfiguration
 com.dwp.core.autoconfig.CoreAuditAutoConfiguration
+com.dwp.core.autoconfig.CoreDomainEventAutoConfiguration

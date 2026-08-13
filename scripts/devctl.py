@@ -265,7 +265,7 @@ def service_environment(service_name: str) -> dict[str, str]:
         environment.pop("DWP_PROVIDER_SUPPORT_COOKIE_SECURE", None)
     if service_name not in {"auth", "platform", "people", "provider"}:
         environment.pop("DWP_PROVIDER_PROVISIONING_TOKEN", None)
-    if service_name not in {"auth", "people"}:
+    if service_name not in {"auth", "platform", "people"}:
         environment.pop("DWP_IDENTITY_SYNC_TOKEN", None)
     if service_name != "people":
         environment.pop("DWP_IDENTITY_SYNC_ENABLED", None)

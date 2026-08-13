@@ -58,6 +58,7 @@ public class PlatformTenantProvisioningService {
                 VALUES (?, ?, ?, 'CENTER', 18)
                 ON CONFLICT (tenant_id) DO NOTHING
                 """, request.tenantId(), request.displayName(), "Digital Workplace");
+        seedManagedPreferencePolicy(request.tenantId());
         seedLocales(request.tenantId(), request.defaultLocale());
         seedRegistry(request.tenantId(), request.entitlementKeys());
         seedNavigation(request.tenantId(), request.defaultLocale(), request.entitlementKeys());
@@ -152,6 +153,29 @@ public class PlatformTenantProvisioningService {
                     """, tenantId, locale.getKey(), locale.getValue(),
                     locale.getKey().equals(defaultLocale), order++);
         }
+    }
+
+    private void seedManagedPreferencePolicy(Long tenantId) {
+        jdbc.update("""
+                INSERT INTO adm_managed_preference_policies (tenant_id)
+                VALUES (?)
+                ON CONFLICT (tenant_id) DO NOTHING
+                """, tenantId);
+        jdbc.update("""
+                INSERT INTO adm_managed_preference_rules (
+                    managed_preference_policy_id, tenant_id, preference_path,
+                    display_key, managed_value, exception_allowed)
+                SELECT policy.managed_preference_policy_id, policy.tenant_id,
+                       rule.preference_path, rule.display_key, rule.managed_value, TRUE
+                  FROM adm_managed_preference_policies policy
+                  CROSS JOIN (VALUES
+                    ('appearance.fontFamily', 'settings.productFont.title', 'null'::jsonb),
+                    ('appearance.accentColor', 'settings.brandAccent.title', 'null'::jsonb),
+                    ('navigation.pattern', 'settings.navigationPattern.title', '"sidebar"'::jsonb)
+                  ) AS rule(preference_path, display_key, managed_value)
+                 WHERE policy.tenant_id = ?
+                ON CONFLICT (tenant_id, preference_path) DO NOTHING
+                """, tenantId);
     }
 
     private void seedRegistry(Long tenantId, List<String> entitlements) {

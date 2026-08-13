@@ -54,6 +54,15 @@ public class RoleDelegationPolicyService {
 
     @Transactional(readOnly = true)
     public DelegationContext resolve(Long tenantId, Long actorId) {
+        return resolve(tenantId, actorId, DIRECT);
+    }
+
+    @Transactional(readOnly = true)
+    public DelegationContext resolveForApproval(Long tenantId, Long actorId) {
+        return resolve(tenantId, actorId, "APPROVAL");
+    }
+
+    private DelegationContext resolve(Long tenantId, Long actorId, String assignmentMode) {
         Set<String> actorRoleCodes = activeRoleCodes(
                 tenantId,
                 roleMemberRepository.findRoleIds(tenantId, actorId));
@@ -61,7 +70,7 @@ public class RoleDelegationPolicyService {
 
         Set<String> targetCodes = policyRepository
                 .findByGrantorRoleCodeInAndAssignmentModeAndLifecycleState(
-                        actorRoleCodes, DIRECT, ACTIVE)
+                        actorRoleCodes, assignmentMode, ACTIVE)
                 .stream()
                 .map(RoleAssignmentPolicy::getTargetRoleCode)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
@@ -87,7 +96,7 @@ public class RoleDelegationPolicyService {
                             role,
                             definition.getRoleFamily(),
                             definition.getAssignmentClass(),
-                            DIRECT,
+                            assignmentMode,
                             definition.getSortOrder(),
                             conflictsByRole.getOrDefault(role.getCode(), Set.of()));
                 })
@@ -166,6 +175,19 @@ public class RoleDelegationPolicyService {
         Set<String> prospectiveRoleCodes = new LinkedHashSet<>(currentEffectiveRoleCodes);
         prospectiveRoleCodes.removeAll(currentDirectRoleCodes);
         prospectiveRoleCodes.addAll(requestedDirectRoleCodes);
+        return evaluateProspectiveRoleSet(prospectiveRoleCodes);
+    }
+
+    @Transactional(readOnly = true)
+    public RoleSetDecision evaluateAdditiveRoleSet(
+            Collection<String> currentEffectiveRoleCodes,
+            Collection<String> additionalRoleCodes) {
+        Set<String> prospectiveRoleCodes = new LinkedHashSet<>(currentEffectiveRoleCodes);
+        prospectiveRoleCodes.addAll(additionalRoleCodes);
+        return evaluateProspectiveRoleSet(prospectiveRoleCodes);
+    }
+
+    private RoleSetDecision evaluateProspectiveRoleSet(Set<String> prospectiveRoleCodes) {
         if (!prospectiveRoleCodes.contains(BASELINE_ROLE_CODE)) {
             return new RoleSetDecision(false, "BASELINE_ROLE_REQUIRED");
         }

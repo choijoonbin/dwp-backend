@@ -22,5 +22,8 @@ public class MeResponse {
     private List<String> roles;
 
     @Builder.Default
+    private List<GroupMembershipDTO> groups = Collections.emptyList();
+
+    @Builder.Default
     private List<PermissionDTO> permissions = Collections.emptyList();
 }

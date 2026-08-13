@@ -442,15 +442,154 @@ public class AuditControlService {
     @Transactional
     public AuditControlDtos.RetentionPolicy updatePolicy(
             Long tenantId, String actorId, AuditControlDtos.RetentionPolicyUpdate request) {
-        validatePolicy(request);
-        AuditControlDtos.RetentionPolicy before = repository.policy(tenantId);
-        AuditControlDtos.RetentionPolicy result = repository.updatePolicy(tenantId, actorId, request);
-        recordControl(tenantId, actorId, "audit.policy.updated", "AUDIT_POLICY", tenantId.toString(),
-                Map.of("beforeStandardDays", before.standardRetentionDays(),
-                        "standardDays", result.standardRetentionDays(),
-                        "extendedDays", result.extendedRetentionDays(),
-                        "highRiskThreshold", result.highRiskThreshold()));
-        return result;
+        throw invalid(
+                "Direct audit policy updates are disabled. Create and approve a policy revision.");
+    }
+
+    @Transactional
+    public List<AuditControlDtos.PolicyRevision> policyRevisions(Long tenantId) {
+        return repository.policyRevisions(tenantId);
+    }
+
+    @Transactional
+    public AuditControlDtos.PolicyRevision createPolicyRevision(
+            Long tenantId,
+            String actorId,
+            AuditControlDtos.PolicyRevisionCreate request) {
+        requireReason(request.reason());
+        validatePolicy(policyUpdate(request));
+        validateIncidentCase(tenantId, request.incidentCaseId());
+        AuditControlDtos.RetentionPolicy active = repository.policy(tenantId);
+        Map<String, Object> diff = policyDiff(active, request);
+        if (diff.isEmpty()) {
+            throw invalid("The policy revision must change at least one active control.");
+        }
+        UUID revisionId = repository.createPolicyRevision(
+                tenantId, actorId, request, active.activeRevisionId(), null,
+                diff, policyContentHash(request));
+        recordControl(
+                tenantId, actorId, "audit.policy-revision.created", "AUDIT_POLICY_REVISION",
+                revisionId.toString(), Map.of(
+                        "baselineRevisionId", active.activeRevisionId().toString(),
+                        "changedControls", diff.keySet(),
+                        "incidentCaseId", optionalId(request.incidentCaseId())));
+        return requirePolicyRevision(tenantId, revisionId);
+    }
+
+    @Transactional
+    public AuditControlDtos.PolicyRevision submitPolicyRevision(
+            Long tenantId,
+            String actorId,
+            UUID revisionId,
+            AuditControlDtos.PolicyRevisionTransition request) {
+        requireReason(request.reason());
+        AuditControlDtos.PolicyRevision revision = requirePolicyRevision(tenantId, revisionId);
+        if (!"DRAFT".equals(revision.lifecycleState())) {
+            throw invalid("Only a draft audit policy revision can enter review.");
+        }
+        if (!repository.submitPolicyRevision(tenantId, revisionId, actorId, request.version())) {
+            throw conflict("The audit policy revision changed. Refresh and try again.");
+        }
+        recordControl(
+                tenantId, actorId, "audit.policy-revision.submitted", "AUDIT_POLICY_REVISION",
+                revisionId.toString(), Map.of("reason", request.reason().trim()));
+        return requirePolicyRevision(tenantId, revisionId);
+    }
+
+    @Transactional
+    public AuditControlDtos.PolicyRevision decidePolicyRevision(
+            Long tenantId,
+            String actorId,
+            UUID revisionId,
+            AuditControlDtos.PolicyRevisionDecision request) {
+        requireReason(request.reason());
+        String decision = normalized(request.decision());
+        if (!Set.of("APPROVED", "REJECTED").contains(decision)) {
+            throw invalid("The audit policy decision must be APPROVED or REJECTED.");
+        }
+        AuditControlDtos.PolicyRevision revision = requirePolicyRevision(tenantId, revisionId);
+        AuditControlDtos.PolicyApproval approval = Optional.ofNullable(revision.approval())
+                .orElseThrow(() -> invalid("The audit policy revision has no approval request."));
+        if (!"PENDING".equals(approval.lifecycleState())) {
+            throw invalid("The audit policy approval is no longer pending.");
+        }
+        if (actorId.equalsIgnoreCase(approval.requestedBy())) {
+            throw new BaseException(
+                    ErrorCode.FORBIDDEN,
+                    "Separation of duties prevents the requester from approving this revision.");
+        }
+        if (!repository.decidePolicyRevision(
+                tenantId, revisionId, approval.approvalId(), actorId,
+                decision, request.reason().trim(), request.version())) {
+            throw conflict("The audit policy approval changed or expired.");
+        }
+        recordControl(
+                tenantId, actorId, "audit.policy-revision.decision", "AUDIT_POLICY_REVISION",
+                revisionId.toString(), Map.of(
+                        "decision", decision, "reason", request.reason().trim(),
+                        "approvalId", approval.approvalId().toString()));
+        return requirePolicyRevision(tenantId, revisionId);
+    }
+
+    @Transactional
+    public AuditControlDtos.RetentionPolicy publishPolicyRevision(
+            Long tenantId,
+            String actorId,
+            UUID revisionId,
+            AuditControlDtos.PolicyRevisionTransition request) {
+        requireReason(request.reason());
+        AuditControlDtos.PolicyRevision revision = requirePolicyRevision(tenantId, revisionId);
+        if (!"APPROVED".equals(revision.lifecycleState())) {
+            throw invalid("Only an approved audit policy revision can be published.");
+        }
+        if (revision.approval() == null || !"APPROVED".equals(revision.approval().lifecycleState())) {
+            throw invalid("Published audit policies require bound approval evidence.");
+        }
+        if (!repository.publishPolicyRevision(tenantId, revisionId, actorId, request.version())) {
+            throw conflict("The audit policy revision changed before publication.");
+        }
+        AuditControlDtos.RetentionPolicy active = repository.policy(tenantId);
+        recordControl(
+                tenantId, actorId, "audit.policy-revision.published", "AUDIT_POLICY_REVISION",
+                revisionId.toString(), Map.of(
+                        "reason", request.reason().trim(),
+                        "revisionNumber", active.activeRevisionNumber(),
+                        "contentSha256", revision.contentSha256()));
+        return active;
+    }
+
+    @Transactional
+    public AuditControlDtos.PolicyRevision createPolicyRollback(
+            Long tenantId,
+            String actorId,
+            UUID revisionId,
+            AuditControlDtos.PolicyRollbackRequest request) {
+        requireReason(request.reason());
+        validateIncidentCase(tenantId, request.incidentCaseId());
+        AuditControlDtos.PolicyRevision target = requirePolicyRevision(tenantId, revisionId);
+        if (!Set.of("PUBLISHED", "SUPERSEDED").contains(target.lifecycleState())) {
+            throw invalid("Only a previously published audit policy can be restored.");
+        }
+        AuditControlDtos.RetentionPolicy active = repository.policy(tenantId);
+        if (revisionId.equals(active.activeRevisionId())) {
+            throw invalid("The selected audit policy revision is already active.");
+        }
+        AuditControlDtos.PolicyRevisionCreate rollback = new AuditControlDtos.PolicyRevisionCreate(
+                target.standardRetentionDays(), target.extendedRetentionDays(),
+                target.exportLimitRows(), target.requireExportReason(),
+                target.integrityEnabled(), target.highRiskThreshold(),
+                request.reason(), request.incidentCaseId());
+        Map<String, Object> diff = policyDiff(active, rollback);
+        UUID rollbackId = repository.createPolicyRevision(
+                tenantId, actorId, rollback, active.activeRevisionId(), revisionId,
+                diff, policyContentHash(rollback));
+        recordControl(
+                tenantId, actorId, "audit.policy-revision.rollback-created",
+                "AUDIT_POLICY_REVISION", rollbackId.toString(), Map.of(
+                        "rollbackOfRevisionId", revisionId.toString(),
+                        "baselineRevisionId", active.activeRevisionId().toString(),
+                        "incidentCaseId", optionalId(request.incidentCaseId())));
+        return requirePolicyRevision(tenantId, rollbackId);
     }
 
     @Transactional
@@ -630,6 +769,73 @@ public class AuditControlService {
                 || request.highRiskThreshold() < 50 || request.highRiskThreshold() > 100) {
             throw invalid("Audit retention policy is outside supported limits.");
         }
+    }
+
+    private AuditControlDtos.PolicyRevision requirePolicyRevision(Long tenantId, UUID revisionId) {
+        return repository.policyRevision(tenantId, revisionId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+    }
+
+    private void validateIncidentCase(Long tenantId, UUID incidentCaseId) {
+        if (incidentCaseId != null && repository.caseById(tenantId, incidentCaseId).isEmpty()) {
+            throw new BaseException(ErrorCode.NOT_FOUND, "The linked audit case does not exist.");
+        }
+    }
+
+    private void requireReason(String reason) {
+        if (reason == null || reason.isBlank() || reason.trim().length() > 1_000) {
+            throw invalid("A policy change reason of up to 1000 characters is required.");
+        }
+    }
+
+    private AuditControlDtos.RetentionPolicyUpdate policyUpdate(
+            AuditControlDtos.PolicyRevisionCreate request) {
+        return new AuditControlDtos.RetentionPolicyUpdate(
+                request.standardRetentionDays(), request.extendedRetentionDays(),
+                request.exportLimitRows(), request.requireExportReason(),
+                request.integrityEnabled(), request.highRiskThreshold());
+    }
+
+    private Map<String, Object> policyDiff(
+            AuditControlDtos.RetentionPolicy active,
+            AuditControlDtos.PolicyRevisionCreate requested) {
+        Map<String, Object> diff = new LinkedHashMap<>();
+        addDiff(diff, "standardRetentionDays",
+                active.standardRetentionDays(), requested.standardRetentionDays());
+        addDiff(diff, "extendedRetentionDays",
+                active.extendedRetentionDays(), requested.extendedRetentionDays());
+        addDiff(diff, "exportLimitRows", active.exportLimitRows(), requested.exportLimitRows());
+        addDiff(diff, "requireExportReason",
+                active.requireExportReason(), requested.requireExportReason());
+        addDiff(diff, "integrityEnabled", active.integrityEnabled(), requested.integrityEnabled());
+        addDiff(diff, "highRiskThreshold",
+                active.highRiskThreshold(), requested.highRiskThreshold());
+        return Map.copyOf(diff);
+    }
+
+    private void addDiff(Map<String, Object> diff, String field, Object before, Object after) {
+        if (!java.util.Objects.equals(before, after)) {
+            diff.put(field, Map.of("before", before, "after", after));
+        }
+    }
+
+    private String policyContentHash(AuditControlDtos.PolicyRevisionCreate request) {
+        Map<String, Object> content = new LinkedHashMap<>();
+        content.put("standardRetentionDays", request.standardRetentionDays());
+        content.put("extendedRetentionDays", request.extendedRetentionDays());
+        content.put("exportLimitRows", request.exportLimitRows());
+        content.put("requireExportReason", request.requireExportReason());
+        content.put("integrityEnabled", request.integrityEnabled());
+        content.put("highRiskThreshold", request.highRiskThreshold());
+        return AuditIntegrityService.sha256(json(content));
+    }
+
+    private static String optionalId(UUID value) {
+        return value == null ? "" : value.toString();
+    }
+
+    private BaseException conflict(String message) {
+        return new BaseException(ErrorCode.RESOURCE_CONFLICT, message);
     }
 
     private String json(Object value) {

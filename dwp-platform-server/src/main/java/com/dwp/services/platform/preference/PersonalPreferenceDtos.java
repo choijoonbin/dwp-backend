@@ -5,7 +5,6 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 public final class PersonalPreferenceDtos {
 
@@ -26,15 +25,8 @@ public final class PersonalPreferenceDtos {
             Integer schemaVersion,
             boolean customized,
             JsonNode preferences,
-            ManagedPreferencePolicy managedPolicy,
+            ManagedPreferenceDtos.ManagedPreferencePolicy managedPolicy,
             Long version,
             LocalDateTime updatedAt) {
-    }
-
-    public record ManagedPreferencePolicy(
-            String scope,
-            String source,
-            String owner,
-            List<String> managedPaths) {
     }
 }

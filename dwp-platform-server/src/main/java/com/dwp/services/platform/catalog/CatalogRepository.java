@@ -12,11 +12,17 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.HexFormat;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Repository
@@ -49,6 +55,15 @@ public class CatalogRepository {
         navigationRelations(tenantId).forEach(relation -> putRelation(relations, relation));
         connectorRelations(tenantId).forEach(relation -> putRelation(relations, relation));
         return List.copyOf(relations.values());
+    }
+
+    public List<Long> activeTenantIds() {
+        return jdbc.queryForList("""
+                SELECT tenant_id
+                  FROM sys_service_tenants
+                 WHERE lifecycle_state = 'ACTIVE'
+                 ORDER BY tenant_id
+                """, Long.class);
     }
 
     public CatalogDtos.Relation saveRelation(
@@ -109,6 +124,234 @@ public class CatalogRepository {
                 """, actorId, tenantId, relationId, version);
         if (updated != 1) throw conflict();
         return findById(tenantId, relationId);
+    }
+
+    public CatalogDtos.CompatibilityRule activeCompatibilityRule() {
+        List<CatalogDtos.CompatibilityRule> rows = jdbc.query("""
+                SELECT rule_key, rule_version, rule_definition::text, content_sha256
+                  FROM sys_catalog_compatibility_rules
+                 WHERE rule_key = 'DWP_CATALOG_IMPACT' AND lifecycle_state = 'ACTIVE'
+                 ORDER BY rule_version DESC
+                 LIMIT 1
+                """, (row, ignored) -> new CatalogDtos.CompatibilityRule(
+                row.getString("rule_key"), row.getLong("rule_version"),
+                json(row.getString("rule_definition")), row.getString("content_sha256")));
+        if (rows.isEmpty()) {
+            throw new BaseException(
+                    ErrorCode.INTERNAL_SERVER_ERROR, "No active catalog compatibility rule exists.");
+        }
+        return rows.get(0);
+    }
+
+    public List<CatalogDtos.AssuranceFinding> synchronizeFindings(
+            Long tenantId,
+            CatalogDtos.CompatibilityRule rule,
+            List<FindingCandidate> candidates) {
+        Set<String> detected = new HashSet<>();
+        Map<String, CatalogDtos.AssuranceFinding> existingByIdentity = jdbc.query("""
+                SELECT catalog_finding_id, tenant_id, entity_ref, finding_code, severity,
+                       lifecycle_state, rule_key, rule_version, evidence::text,
+                       evidence_sha256, first_detected_at, last_detected_at,
+                       disposition_reason, disposition_evidence_ref, disposed_by,
+                       disposed_at, version
+                  FROM adm_catalog_assurance_findings
+                 WHERE tenant_id = ? AND rule_key = ? AND rule_version = ?
+                """, this::mapFinding, tenantId, rule.ruleKey(), rule.ruleVersion()).stream()
+                .collect(java.util.stream.Collectors.toMap(
+                        finding -> finding.entityRef() + "|" + finding.findingCode(),
+                        finding -> finding));
+        for (FindingCandidate candidate : candidates) {
+            String identity = candidate.entityRef() + "|" + candidate.findingCode();
+            if (!detected.add(identity)) continue;
+            String evidence = jsonText(candidate.evidence());
+            String evidenceHash = sha256(evidence);
+            CatalogDtos.AssuranceFinding existing = existingByIdentity.get(identity);
+            if (existing != null && shouldReopen(existing, evidenceHash)) {
+                appendDisposition(
+                            tenantId, existing, "OPEN", "SYSTEM", null,
+                            "Automated catalog evidence changed and requires a new review.", null);
+            }
+            jdbc.update("""
+                    INSERT INTO adm_catalog_assurance_findings (
+                        tenant_id, entity_ref, finding_code, severity, lifecycle_state,
+                        rule_key, rule_version, evidence, evidence_sha256)
+                    VALUES (?, ?, ?, ?, 'OPEN', ?, ?, ?::jsonb, ?)
+                    ON CONFLICT (tenant_id, entity_ref, finding_code, rule_key, rule_version)
+                    DO UPDATE SET
+                        severity = EXCLUDED.severity,
+                        evidence = EXCLUDED.evidence,
+                        evidence_sha256 = EXCLUDED.evidence_sha256,
+                        last_detected_at = CURRENT_TIMESTAMP,
+                        lifecycle_state = CASE
+                            WHEN adm_catalog_assurance_findings.lifecycle_state = 'RESOLVED'
+                              OR (adm_catalog_assurance_findings.lifecycle_state IN ('FALSE_POSITIVE', 'ACCEPTED_RISK')
+                                  AND adm_catalog_assurance_findings.evidence_sha256 <> EXCLUDED.evidence_sha256)
+                                THEN 'OPEN'
+                            ELSE adm_catalog_assurance_findings.lifecycle_state
+                        END,
+                        disposition_reason = CASE
+                            WHEN adm_catalog_assurance_findings.lifecycle_state = 'RESOLVED'
+                              OR (adm_catalog_assurance_findings.lifecycle_state IN ('FALSE_POSITIVE', 'ACCEPTED_RISK')
+                                  AND adm_catalog_assurance_findings.evidence_sha256 <> EXCLUDED.evidence_sha256)
+                                THEN NULL
+                            ELSE adm_catalog_assurance_findings.disposition_reason
+                        END,
+                        disposition_evidence_ref = CASE
+                            WHEN adm_catalog_assurance_findings.lifecycle_state = 'RESOLVED'
+                              OR (adm_catalog_assurance_findings.lifecycle_state IN ('FALSE_POSITIVE', 'ACCEPTED_RISK')
+                                  AND adm_catalog_assurance_findings.evidence_sha256 <> EXCLUDED.evidence_sha256)
+                                THEN NULL
+                            ELSE adm_catalog_assurance_findings.disposition_evidence_ref
+                        END,
+                        disposed_by = CASE
+                            WHEN adm_catalog_assurance_findings.lifecycle_state = 'RESOLVED'
+                              OR (adm_catalog_assurance_findings.lifecycle_state IN ('FALSE_POSITIVE', 'ACCEPTED_RISK')
+                                  AND adm_catalog_assurance_findings.evidence_sha256 <> EXCLUDED.evidence_sha256)
+                                THEN NULL
+                            ELSE adm_catalog_assurance_findings.disposed_by
+                        END,
+                        disposed_at = CASE
+                            WHEN adm_catalog_assurance_findings.lifecycle_state = 'RESOLVED'
+                              OR (adm_catalog_assurance_findings.lifecycle_state IN ('FALSE_POSITIVE', 'ACCEPTED_RISK')
+                                  AND adm_catalog_assurance_findings.evidence_sha256 <> EXCLUDED.evidence_sha256)
+                                THEN NULL
+                            ELSE adm_catalog_assurance_findings.disposed_at
+                        END,
+                        version = CASE
+                            WHEN adm_catalog_assurance_findings.evidence_sha256 <> EXCLUDED.evidence_sha256
+                              OR adm_catalog_assurance_findings.severity <> EXCLUDED.severity
+                              OR adm_catalog_assurance_findings.lifecycle_state = 'RESOLVED'
+                              OR (adm_catalog_assurance_findings.lifecycle_state IN ('FALSE_POSITIVE', 'ACCEPTED_RISK')
+                                  AND adm_catalog_assurance_findings.evidence_sha256 <> EXCLUDED.evidence_sha256)
+                                THEN adm_catalog_assurance_findings.version + 1
+                            ELSE adm_catalog_assurance_findings.version
+                        END
+                    """, tenantId, candidate.entityRef(), candidate.findingCode(),
+                    candidate.severity(), rule.ruleKey(), rule.ruleVersion(), evidence, evidenceHash);
+        }
+
+        List<CatalogDtos.AssuranceFinding> active = jdbc.query("""
+                SELECT catalog_finding_id, tenant_id, entity_ref, finding_code, severity,
+                       lifecycle_state, rule_key, rule_version, evidence::text,
+                       evidence_sha256, first_detected_at, last_detected_at,
+                       disposition_reason, disposition_evidence_ref, disposed_by,
+                       disposed_at, version
+                  FROM adm_catalog_assurance_findings
+                 WHERE tenant_id = ? AND rule_key = ? AND rule_version = ?
+                   AND lifecycle_state IN ('OPEN', 'ACKNOWLEDGED')
+                """, this::mapFinding, tenantId, rule.ruleKey(), rule.ruleVersion());
+        for (CatalogDtos.AssuranceFinding finding : active) {
+            if (!detected.contains(finding.entityRef() + "|" + finding.findingCode())) {
+                appendDisposition(
+                        tenantId, finding, "RESOLVED", "SYSTEM", null,
+                        "The automated catalog evaluation no longer detects this condition.", null);
+                jdbc.update("""
+                        UPDATE adm_catalog_assurance_findings
+                           SET lifecycle_state = 'RESOLVED',
+                               disposition_reason = ?, disposition_evidence_ref = NULL,
+                               disposed_by = NULL, disposed_at = CURRENT_TIMESTAMP,
+                               version = version + 1
+                         WHERE tenant_id = ? AND catalog_finding_id = ? AND version = ?
+                        """, "The automated catalog evaluation no longer detects this condition.",
+                        tenantId, finding.findingId(), finding.version());
+            }
+        }
+        return findings(tenantId);
+    }
+
+    public List<CatalogDtos.AssuranceFinding> findings(Long tenantId) {
+        return jdbc.query("""
+                SELECT catalog_finding_id, tenant_id, entity_ref, finding_code, severity,
+                       lifecycle_state, rule_key, rule_version, evidence::text,
+                       evidence_sha256, first_detected_at, last_detected_at,
+                       disposition_reason, disposition_evidence_ref, disposed_by,
+                       disposed_at, version
+                  FROM adm_catalog_assurance_findings
+                 WHERE tenant_id = ?
+                 ORDER BY CASE lifecycle_state WHEN 'OPEN' THEN 0 WHEN 'ACKNOWLEDGED' THEN 1 ELSE 2 END,
+                          CASE severity WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1
+                               WHEN 'MEDIUM' THEN 2 ELSE 3 END,
+                          last_detected_at DESC, entity_ref
+                """, this::mapFinding, tenantId);
+    }
+
+    public CatalogDtos.AssuranceFinding dispositionFinding(
+            Long tenantId,
+            Long actorId,
+            UUID findingId,
+            CatalogDtos.DispositionFindingRequest request) {
+        CatalogDtos.AssuranceFinding before = requireFinding(tenantId, findingId);
+        if (before.version() != request.version()) throw conflict();
+        appendDisposition(
+                tenantId, before, request.decision(), "USER", actorId,
+                request.reason().trim(), trimToNull(request.evidenceRef()));
+        int updated = jdbc.update("""
+                UPDATE adm_catalog_assurance_findings
+                   SET lifecycle_state = ?, disposition_reason = ?,
+                       disposition_evidence_ref = ?, disposed_by = ?,
+                       disposed_at = CURRENT_TIMESTAMP, version = version + 1
+                 WHERE tenant_id = ? AND catalog_finding_id = ? AND version = ?
+                """, request.decision(), request.reason().trim(),
+                trimToNull(request.evidenceRef()), actorId,
+                tenantId, findingId, request.version());
+        if (updated != 1) throw conflict();
+        return requireFinding(tenantId, findingId);
+    }
+
+    private CatalogDtos.AssuranceFinding requireFinding(Long tenantId, UUID findingId) {
+        List<CatalogDtos.AssuranceFinding> rows = jdbc.query("""
+                SELECT catalog_finding_id, tenant_id, entity_ref, finding_code, severity,
+                       lifecycle_state, rule_key, rule_version, evidence::text,
+                       evidence_sha256, first_detected_at, last_detected_at,
+                       disposition_reason, disposition_evidence_ref, disposed_by,
+                       disposed_at, version
+                  FROM adm_catalog_assurance_findings
+                 WHERE tenant_id = ? AND catalog_finding_id = ?
+                """, this::mapFinding, tenantId, findingId);
+        if (rows.isEmpty()) throw new BaseException(ErrorCode.NOT_FOUND);
+        return rows.get(0);
+    }
+
+    private boolean shouldReopen(
+            CatalogDtos.AssuranceFinding finding, String nextEvidenceHash) {
+        if ("RESOLVED".equals(finding.lifecycleState())) return true;
+        return Set.of("FALSE_POSITIVE", "ACCEPTED_RISK").contains(finding.lifecycleState())
+                && !finding.evidenceSha256().equals(nextEvidenceHash);
+    }
+
+    private void appendDisposition(
+            Long tenantId,
+            CatalogDtos.AssuranceFinding finding,
+            String decision,
+            String actorType,
+            Long actorId,
+            String reason,
+            String evidenceRef) {
+        String content = String.join("|",
+                finding.findingId().toString(), finding.lifecycleState(), decision,
+                reason, evidenceRef == null ? "" : evidenceRef,
+                actorType, actorId == null ? "" : actorId.toString());
+        jdbc.update("""
+                INSERT INTO adm_catalog_finding_dispositions (
+                    catalog_finding_id, tenant_id, previous_state, decision,
+                    reason, evidence_ref, actor_type, decided_by, content_sha256)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, finding.findingId(), tenantId, finding.lifecycleState(), decision,
+                reason, evidenceRef, actorType, actorId, sha256(content));
+    }
+
+    private CatalogDtos.AssuranceFinding mapFinding(ResultSet row, int ignored) throws SQLException {
+        return new CatalogDtos.AssuranceFinding(
+                row.getObject("catalog_finding_id", UUID.class), row.getString("entity_ref"),
+                row.getString("finding_code"), row.getString("severity"),
+                row.getString("lifecycle_state"), row.getString("rule_key"),
+                row.getLong("rule_version"), json(row.getString("evidence")),
+                row.getString("evidence_sha256"),
+                row.getObject("first_detected_at", OffsetDateTime.class),
+                row.getObject("last_detected_at", OffsetDateTime.class),
+                row.getString("disposition_reason"), row.getString("disposition_evidence_ref"),
+                row.getObject("disposed_by", Long.class),
+                row.getObject("disposed_at", OffsetDateTime.class), row.getLong("version"));
     }
 
     private List<CatalogDtos.Entity> referenceSets(Long tenantId) {
@@ -469,6 +712,15 @@ public class CatalogRepository {
         }
     }
 
+    private String sha256(String value) {
+        try {
+            return HexFormat.of().formatHex(
+                    MessageDigest.getInstance("SHA-256").digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable.", exception);
+        }
+    }
+
     private String ref(String kind, String key) {
         return canonical(kind + ":" + key);
     }
@@ -492,5 +744,12 @@ public class CatalogRepository {
         return new BaseException(
                 ErrorCode.RESOURCE_CONFLICT,
                 "Catalog relation changed after it was loaded. Refresh and try again.");
+    }
+
+    public record FindingCandidate(
+            String entityRef,
+            String findingCode,
+            String severity,
+            JsonNode evidence) {
     }
 }

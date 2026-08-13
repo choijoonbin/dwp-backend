@@ -8,6 +8,8 @@ import com.dwp.services.auth.entity.Tenant;
 import com.dwp.services.auth.entity.User;
 import com.dwp.services.auth.entity.UserAccount;
 import com.dwp.services.auth.repository.PermissionRepository;
+import com.dwp.services.auth.repository.DirectoryGroupMemberRepository;
+import com.dwp.services.auth.repository.DirectoryGroupRepository;
 import com.dwp.services.auth.repository.ResourceRepository;
 import com.dwp.services.auth.repository.RoleMemberRepository;
 import com.dwp.services.auth.repository.RolePermissionRepository;
@@ -37,6 +39,9 @@ class AuthServiceTest {
     private final TenantRepository tenants = mock(TenantRepository.class);
     private final RoleRepository roles = mock(RoleRepository.class);
     private final RoleMemberRepository roleMembers = mock(RoleMemberRepository.class);
+    private final DirectoryGroupRepository groups = mock(DirectoryGroupRepository.class);
+    private final DirectoryGroupMemberRepository groupMembers =
+            mock(DirectoryGroupMemberRepository.class);
     private final RolePermissionRepository rolePermissions = mock(RolePermissionRepository.class);
     private final ResourceRepository resources = mock(ResourceRepository.class);
     private final PermissionRepository permissions = mock(PermissionRepository.class);
@@ -52,7 +57,7 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         service = new AuthService(
-                users, accounts, tenants, roles, roleMembers, rolePermissions,
+                users, accounts, tenants, roles, roleMembers, groups, groupMembers, rolePermissions,
                 resources, permissions, sessions, policies, identityAccounts, attempts, encoder);
         when(tenants.findById(1L)).thenReturn(Optional.of(Tenant.builder()
                 .tenantId(1L).code("default").name("Default").status("ACTIVE").build()));
@@ -64,6 +69,7 @@ class AuthServiceTest {
                 .ssoLoginEnabled(true)
                 .build());
         when(roleMembers.findRoleIds(1L, 10L)).thenReturn(List.of());
+        when(groupMembers.findByTenantIdAndUserId(1L, 10L)).thenReturn(List.of());
         when(sessions.create(any(), any(), any(), any())).thenReturn(
                 new AuthSessionService.IssuedSession("access-token", 3600));
     }

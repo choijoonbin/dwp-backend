@@ -2,7 +2,7 @@
 
 Status: Accepted
 
-Last verified: 2026-08-12
+Last verified: 2026-08-13
 
 Scope: tenant role delegation and separation-of-duties enforcement owned by
 `dwp-auth-server`. Provider operator authorization remains owned by
@@ -46,9 +46,14 @@ The authorization model separates four concerns:
 - Apply the same delegation boundary to group role assignment and revocation.
 - Audit denied attempts in a separate transaction with a stable reason code.
 
-## Future Workflows
+## Workflow Boundary
 
-Governed and control-plane roles require purpose-built request, approval, expiry, and activation workflows. They must not be added to the direct assignment policy as a shortcut. SCIM and HRIS provisioning must use the `PROVISIONING` mode and preserve the same baseline, conflict, audit, and session-invalidation invariants.
+Governed tenant roles use the purpose-built eligibility, request, approval, activation,
+expiry, revocation, and emergency-access lifecycle. They must not be added to the direct
+assignment policy as a shortcut. Control-plane role issuance and an external enterprise
+IdP remain separate provisioning responsibilities. SCIM and HRIS provisioning must keep
+the same baseline, conflict, audit, row-locking, access-revision, and session-invalidation
+invariants; an IdP connector cannot bypass separation-of-duties checks.
 
 ## Implementation Conformance
 
@@ -59,14 +64,18 @@ Governed and control-plane roles require purpose-built request, approval, expiry
 | Direct user role boundary, baseline, conflict, version, audit, and session invalidation | Implemented | [`IdentityAdminService`](../../dwp-auth-server/src/main/java/com/dwp/services/auth/service/IdentityAdminService.java) |
 | Group role grant/revoke delegation boundary and member session invalidation | Implemented | [`AccessGovernanceService`](../../dwp-auth-server/src/main/java/com/dwp/services/auth/service/AccessGovernanceService.java) |
 | Denied mutation audit in an independent transaction | Implemented | [`IdentityAuditService`](../../dwp-auth-server/src/main/java/com/dwp/services/auth/service/IdentityAuditService.java) |
-| Group assignment conflict evaluation for every current group member | Gap | The current group assignment path checks delegation authority but does not pre-evaluate every member's prospective effective role set. |
-| Uniform 10-500 character justification policy | Partial | Direct user role replacement enforces 10-500 characters; group role assignment currently accepts 1-1000 characters. |
-| Governed approval and provisioning assignment workflows | Planned | `APPROVAL` and `PROVISIONING` are modeled, but direct tenant administration intentionally exposes only `DIRECT`. |
+| Group assignment conflict evaluation for every current group member | Implemented | [`GroupRoleConflictGuard`](../../dwp-auth-server/src/main/java/com/dwp/services/auth/service/GroupRoleConflictGuard.java) locks affected identities and evaluates prospective effective roles before local-admin or SCIM membership writes. |
+| Uniform direct/group assignment justification policy | Implemented | Direct and group assignment DTOs require 10-500 characters; privileged workflows use the separately governed 10-1000 evidence limit. |
+| Governed tenant-role eligibility, approval, JIT, emergency, expiry, and revocation | Implemented | [`V36__add_privileged_access_lifecycle.sql`](../../dwp-auth-server/src/main/resources/db/migration/V36__add_privileged_access_lifecycle.sql), [`PrivilegedAccessService`](../../dwp-auth-server/src/main/java/com/dwp/services/auth/service/PrivilegedAccessService.java) |
+| SCIM group SoD, atomic rejection, access revision, session invalidation, and denied audit | Implemented | [`ScimGroupService`](../../dwp-auth-server/src/main/java/com/dwp/services/auth/scim/ScimGroupService.java), [`ScimProvisioningAuditService`](../../dwp-auth-server/src/main/java/com/dwp/services/auth/scim/ScimProvisioningAuditService.java) |
+| External IdP and control-plane role issuance | External Gate | Provider selection, assurance policy, credential, and sandbox evidence are tracked as frontend release decision `D-01`; no synthetic success path is enabled. |
 
 The executable policy tests are
 [`RoleDelegationPolicyServiceTest`](../../dwp-auth-server/src/test/java/com/dwp/services/auth/service/RoleDelegationPolicyServiceTest.java),
 [`IdentityAdminServiceTest`](../../dwp-auth-server/src/test/java/com/dwp/services/auth/service/IdentityAdminServiceTest.java),
-and [`AccessGovernanceServiceTest`](../../dwp-auth-server/src/test/java/com/dwp/services/auth/service/AccessGovernanceServiceTest.java).
+[`AccessGovernanceServiceTest`](../../dwp-auth-server/src/test/java/com/dwp/services/auth/service/AccessGovernanceServiceTest.java),
+[`GroupRoleConflictGuardTest`](../../dwp-auth-server/src/test/java/com/dwp/services/auth/service/GroupRoleConflictGuardTest.java),
+and [`ScimGroupServiceTest`](../../dwp-auth-server/src/test/java/com/dwp/services/auth/scim/ScimGroupServiceTest.java).
 
 ## Security Basis
 

@@ -1,6 +1,8 @@
 package com.dwp.services.auth.security;
 
 import com.dwp.services.auth.repository.AuthSessionRepository;
+import com.dwp.services.auth.repository.RoleMemberRepository;
+import com.dwp.services.auth.repository.RoleRepository;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
@@ -8,7 +10,11 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Component
 public class AuthSessionJwtValidator implements OAuth2TokenValidator<Jwt> {
@@ -19,9 +25,16 @@ public class AuthSessionJwtValidator implements OAuth2TokenValidator<Jwt> {
             null);
 
     private final AuthSessionRepository authSessionRepository;
+    private final RoleMemberRepository roleMemberRepository;
+    private final RoleRepository roleRepository;
 
-    public AuthSessionJwtValidator(AuthSessionRepository authSessionRepository) {
+    public AuthSessionJwtValidator(
+            AuthSessionRepository authSessionRepository,
+            RoleMemberRepository roleMemberRepository,
+            RoleRepository roleRepository) {
         this.authSessionRepository = authSessionRepository;
+        this.roleMemberRepository = roleMemberRepository;
+        this.roleRepository = roleRepository;
     }
 
     @Override
@@ -38,10 +51,27 @@ public class AuthSessionJwtValidator implements OAuth2TokenValidator<Jwt> {
                                 jwt.getClaimAsString("tenant_id"))
                         && Objects.equals(
                                 session.getSessionFamilyId().toString(),
-                                jwt.getClaimAsString("sid")))
+                                jwt.getClaimAsString("sid"))
+                        && currentRolesMatch(jwt, session.getTenantId(), session.getUserId()))
                 .orElse(false);
         return active
                 ? OAuth2TokenValidatorResult.success()
                 : OAuth2TokenValidatorResult.failure(INVALID_SESSION);
+    }
+
+    private boolean currentRolesMatch(Jwt jwt, Long tenantId, Long userId) {
+        Object claim = jwt.getClaims().get("roles");
+        Set<String> claimedRoles = claim instanceof Collection<?> values
+                ? values.stream().map(String::valueOf)
+                        .collect(Collectors.toCollection(LinkedHashSet::new))
+                : Set.of();
+        Set<String> currentRoles = roleRepository
+                .findByRoleIdIn(roleMemberRepository.findRoleIds(tenantId, userId))
+                .stream()
+                .filter(role -> tenantId.equals(role.getTenantId()))
+                .filter(role -> "ACTIVE".equals(role.getStatus()))
+                .map(role -> role.getCode())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        return currentRoles.equals(claimedRoles);
     }
 }

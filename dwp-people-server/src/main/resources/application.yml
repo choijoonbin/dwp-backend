@@ -55,6 +55,20 @@ dwp:
     hris:
       allowed-hosts: ${DWP_HRIS_ALLOWED_HOSTS:}
       allow-unlisted-hosts: ${DWP_HRIS_ALLOW_UNLISTED_HOSTS:false}
+    exports:
+      execution-enabled: ${DWP_WORKFORCE_EXPORT_EXECUTION_ENABLED:false}
+      blockers: ${DWP_WORKFORCE_EXPORT_BLOCKERS:D-09,D-12}
+      masking-profile: ${DWP_WORKFORCE_EXPORT_MASKING_PROFILE:WORKFORCE_MINIMUM}
+      watermark-template: ${DWP_WORKFORCE_EXPORT_WATERMARK_TEMPLATE:DWP confidential | tenant={{tenantId}} | requester={{userId}} | recipient={{recipient}} | request={{requestId}}}
+      artifact-ttl-hours: ${DWP_WORKFORCE_EXPORT_ARTIFACT_TTL_HOURS:24}
+      maximum-attempts: ${DWP_WORKFORCE_EXPORT_MAXIMUM_ATTEMPTS:5}
+      maximum-manual-retries: ${DWP_WORKFORCE_EXPORT_MAXIMUM_MANUAL_RETRIES:1}
+      expiry-scan-interval-ms: ${DWP_WORKFORCE_EXPORT_EXPIRY_SCAN_INTERVAL_MS:60000}
+      expiry-scan-batch-size: ${DWP_WORKFORCE_EXPORT_EXPIRY_SCAN_BATCH_SIZE:100}
+      worker:
+        batch-size: ${DWP_WORKFORCE_EXPORT_BATCH_SIZE:10}
+        poll-interval-ms: ${DWP_WORKFORCE_EXPORT_POLL_INTERVAL_MS:5000}
+        reference: ${DWP_WORKFORCE_EXPORT_WORKER_REFERENCE:${HOSTNAME:local}}
 
 management:
   endpoints:
