@@ -39,14 +39,14 @@ public interface RoleMemberRepository extends JpaRepository<RoleMember, Long> {
               AND (assignment.valid_from IS NULL OR assignment.valid_from <= CURRENT_TIMESTAMP)
               AND (assignment.valid_to IS NULL OR assignment.valid_to > CURRENT_TIMESTAMP)
             UNION
-            SELECT grant.role_id
-            FROM com_active_privileged_grants grant
-            WHERE grant.tenant_id = :tenantId
-              AND grant.user_id = :userId
-              AND grant.scope_type = 'TENANT'
-              AND grant.revoked_at IS NULL
-              AND grant.activated_at <= CURRENT_TIMESTAMP
-              AND grant.expires_at > CURRENT_TIMESTAMP
+            SELECT active_grant.role_id
+            FROM com_active_privileged_grants active_grant
+            WHERE active_grant.tenant_id = :tenantId
+              AND active_grant.user_id = :userId
+              AND active_grant.scope_type = 'TENANT'
+              AND active_grant.revoked_at IS NULL
+              AND active_grant.activated_at <= CURRENT_TIMESTAMP
+              AND active_grant.expires_at > CURRENT_TIMESTAMP
             """, nativeQuery = true)
     List<Long> findRoleIds(
             @Param("tenantId") Long tenantId,
@@ -74,14 +74,14 @@ public interface RoleMemberRepository extends JpaRepository<RoleMember, Long> {
               AND (assignment.valid_from IS NULL OR assignment.valid_from <= CURRENT_TIMESTAMP)
               AND (assignment.valid_to IS NULL OR assignment.valid_to > CURRENT_TIMESTAMP)
             UNION
-            SELECT grant.user_id AS userId, grant.role_id AS roleId
-            FROM com_active_privileged_grants grant
-            WHERE grant.tenant_id = :tenantId
-              AND grant.user_id IN (:userIds)
-              AND grant.scope_type = 'TENANT'
-              AND grant.revoked_at IS NULL
-              AND grant.activated_at <= CURRENT_TIMESTAMP
-              AND grant.expires_at > CURRENT_TIMESTAMP
+            SELECT active_grant.user_id AS userId, active_grant.role_id AS roleId
+            FROM com_active_privileged_grants active_grant
+            WHERE active_grant.tenant_id = :tenantId
+              AND active_grant.user_id IN (:userIds)
+              AND active_grant.scope_type = 'TENANT'
+              AND active_grant.revoked_at IS NULL
+              AND active_grant.activated_at <= CURRENT_TIMESTAMP
+              AND active_grant.expires_at > CURRENT_TIMESTAMP
             """, nativeQuery = true)
     List<EffectiveRoleMembership> findEffectiveRoleMemberships(
             @Param("tenantId") Long tenantId,
