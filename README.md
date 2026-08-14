@@ -16,10 +16,12 @@
 | `dwp-platform-server`    | 8002 | Tenant 기준정보, 제품 Registry, Lifecycle과 관리 Audit             |
 | `dwp-people-server`      | 8003 | HRIS 연계용 Workforce Projection, 발령 이력과 People Audit 기반    |
 | `dwp-provider-server`    | 8004 | Provider 조직, 테넌트, 구독, 권한과 프로비저닝 Control Plane      |
+| `dwp-approval-server`    | 8005 | 전자결재 기안, 검토, 위임, 정책과 감사 가능한 결정 처리          |
 | `dwp-gateway`            | 8080 | 단일 API 진입점, Session 재검증, 내부 Identity Relay, CSRF와 CORS |
 
 인증 서버는 `dwp_auth`, Platform Server는 `dwp_platform`, People Server는
-`dwp_people`, Provider Server는 `dwp_provider` Database를 각각 소유합니다.
+`dwp_people`, Provider Server는 `dwp_provider`, Approval Server는 `dwp_approval`
+Database를 각각 소유합니다.
 Redis는 Auth의 만료형 OIDC state, nonce와 PKCE verifier를 저장합니다.
 `dwp_people`은 외부 HRIS를 대체하지 않고
 사람·근로관계·유효일 발령·조직·프로필의 DWP 운영 Projection만 보관합니다.
@@ -56,10 +58,10 @@ JWT_SECRET=<managed-secret-at-least-256-bits>
 
 ## Requirements
 
-- Java 17
+- Java 21 이상
 - Docker Desktop
-- Node.js 20 이상과 Corepack
-- Python 3.11 이상 (`../dwp_agent/.venv` 권장)
+- Node.js 24 LTS와 Corepack
+- Python 3.14 (`../dwp_agent/.venv`, 지원 범위 3.11~3.14)
 
 ## Documentation
 
@@ -76,8 +78,8 @@ IntelliJ에서 각 Java 서비스를 실행·디버깅하거나 Run Configuratio
 ./dev up full
 ```
 
-`full` 프로필은 PostgreSQL, Redis, Auth, Platform, People, Provider, Agent, Gateway,
-Frontend를 기동합니다.
+`full` 프로필은 PostgreSQL 18, Redis 7.4, Auth, Platform, People, Provider, Approval,
+Agent, Gateway, Frontend를 기동합니다.
 업무 기능을 추가하기 전 공통 웹 셸만 확인하려면 `core`, 프론트만 실행하려면
 `web` 프로필을 사용할 수 있습니다. 이미 외부 Auth·Frontend가 실행 중이라면
 `agent gateway` 프로필로 내부 실행 경로만 재기동할 수 있습니다.
@@ -100,8 +102,8 @@ Frontend를 기동합니다.
 
 ## Database Reset
 
-기존 로컬 업무 테이블이 남은 Docker 볼륨을 제거하고 Auth·Platform·People 기반 스키마만 새로
-만들려면 아래 명령을 명시적으로 실행합니다.
+기존 로컬 업무 테이블이 남은 Docker 볼륨을 제거하고 모든 소유 서비스의 스키마와
+SKAX 개발 씨드를 새로 만들려면 아래 명령을 명시적으로 실행합니다.
 
 ```bash
 ./dev reset --yes

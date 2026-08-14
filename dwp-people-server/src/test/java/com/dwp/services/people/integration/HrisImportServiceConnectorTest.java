@@ -1,6 +1,7 @@
 package com.dwp.services.people.integration;
 
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.people.hr.HrDomainFoundationService;
 import com.dwp.services.people.security.PeopleRequestContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -31,6 +32,7 @@ class HrisImportServiceConnectorTest {
             repository,
             mock(WorkdayReferenceMapper.class),
             new ObjectMapper(),
+            mock(HrDomainFoundationService.class),
             true);
 
     @BeforeEach
@@ -99,6 +101,7 @@ class HrisImportServiceConnectorTest {
                 repository,
                 mock(WorkdayReferenceMapper.class),
                 new ObjectMapper(),
+                mock(HrDomainFoundationService.class),
                 false);
 
         assertThatThrownBy(() -> disabledService.importSyntheticWorkdayFixture(null, null))

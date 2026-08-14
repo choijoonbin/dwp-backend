@@ -20,6 +20,7 @@ import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Component
@@ -34,6 +35,7 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
     static final String SUPPORT_SESSION_HEADER = "X-DWP-Support-Session-ID";
     static final String SUPPORT_SCOPES_HEADER = "X-DWP-Support-Scopes";
     static final String ACTOR_TENANT_HEADER = "X-DWP-Actor-Tenant-ID";
+    static final String PERSON_PUBLIC_ID_HEADER = "X-DWP-Person-Public-ID";
     private static final Set<String> ADMIN_ROLES =
             Set.of("ADMIN", "TENANT_ADMIN", "PLATFORM_ADMIN", "HR_ADMIN", "PEOPLE_ADMIN");
     private static final Set<String> WORKFORCE_ROLES =
@@ -79,6 +81,7 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
         Long tenantId = positiveLong(request.getHeader(TENANT_HEADER));
         Set<String> roles = parseRoles(request.getHeader(ROLES_HEADER));
         Set<String> permissions = parseRoles(request.getHeader(PERMISSIONS_HEADER));
+        UUID personPublicId = uuid(request.getHeader(PERSON_PUBLIC_ID_HEADER));
         if (actorId == null || tenantId == null) {
             writeError(response, ErrorCode.UNAUTHORIZED,
                     "Verified user and tenant identity are required.");
@@ -118,8 +121,24 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
                     "Workforce operations permission is required.");
             return;
         }
+        boolean hcmPermission = hasPermission(
+                permissions,
+                "APP.HCM",
+                Set.of("VIEW", "MANAGE")) || hasPermission(
+                permissions,
+                "APP.HRIS",
+                Set.of("VIEW", "MANAGE"));
+        boolean legacyHcmRole = permissions.isEmpty()
+                && (roles.contains("WORKSPACE_MEMBER")
+                    || roles.stream().anyMatch(WORKFORCE_ROLES::contains));
+        if (request.getRequestURI().startsWith("/v1/hr/")
+                && (!supportAccess && !hcmPermission && !legacyHcmRole)) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "HR application permission is required.");
+            return;
+        }
 
-        PeopleRequestContext.set(actorId, tenantId, roles, permissions);
+        PeopleRequestContext.set(actorId, tenantId, personPublicId, roles, permissions);
         try {
             filterChain.doFilter(request, response);
         } finally {
@@ -163,6 +182,15 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
             long parsed = Long.parseLong(value);
             return parsed > 0 ? parsed : null;
         } catch (NumberFormatException | NullPointerException exception) {
+            return null;
+        }
+    }
+
+    private UUID uuid(String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            return UUID.fromString(value.trim());
+        } catch (IllegalArgumentException exception) {
             return null;
         }
     }

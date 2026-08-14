@@ -127,6 +127,37 @@ class AuthSessionVerifierTest {
     }
 
     @Test
+    void requestsOnlyHomeWorkAuthoritiesForTheIntegratedOverview() {
+        AtomicReference<ClientRequest> captured = new AtomicReference<>();
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+            captured.set(request);
+            return Mono.just(ClientResponse.create(HttpStatus.OK)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .body("""
+                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            "roles":["WORKSPACE_MEMBER"],"permissions":[
+                              {"resourceKey":"APP.WORK","permissionCode":"VIEW","effect":"ALLOW"},
+                              {"resourceKey":"APP.ACTIVITY","permissionCode":"VIEW","effect":"ALLOW"}
+                            ]}}
+                            """)
+                    .build());
+        });
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+
+        VerifiedIdentity identity = verifier.verify(MockServerHttpRequest
+                .get("/api/platform/v1/home/overview")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery())
+                .isEqualTo("permissionPrefix=APP.WORK,APP.ACTIVITY");
+        assertThat(identity).isNotNull();
+        assertThat(identity.permissions()).containsExactly(
+                "APP.ACTIVITY:VIEW",
+                "APP.WORK:VIEW");
+    }
+
+    @Test
     void requestsAppAuthoritiesForAskRuntimeRoutes() {
         AtomicReference<ClientRequest> captured = new AtomicReference<>();
         WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
@@ -213,6 +244,46 @@ class AuthSessionVerifierTest {
 
         assertThat(captured.get().url().getQuery())
                 .isEqualTo("permissionPrefix=APP.EMPLOYEE_SERVICES");
+    }
+
+    @Test
+    void scopesApprovalRuntimeAndControlPlaneAuthoritiesSeparately() {
+        AtomicReference<ClientRequest> captured = new AtomicReference<>();
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+            captured.set(request);
+            return Mono.just(ClientResponse.create(HttpStatus.OK)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .body("""
+                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            "roles":["APPROVAL_OPERATOR"],"permissions":[
+                              {"resourceKey":"ACTION.APPROVAL_TASK","permissionCode":"APPROVE","effect":"ALLOW"}
+                            ]}}
+                            """)
+                    .build());
+        });
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+
+        verifier.verify(MockServerHttpRequest
+                .post("/api/approvals/v1/tasks/21/decisions")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery())
+                .isEqualTo("permissionPrefix=APP.APPROVALS,ACTION.APPROVAL_");
+
+        verifier.verify(MockServerHttpRequest
+                .get("/api/approvals/v1/home")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery())
+                .isEqualTo("permissionPrefix=APP.APPROVALS,ACTION.APPROVAL_,ADMIN.APPROVAL_");
+
+        verifier.verify(MockServerHttpRequest
+                .get("/api/approvals/v1/admin/operations")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery())
+                .isEqualTo("permissionPrefix=ADMIN.APPROVAL_");
     }
 
     @Test

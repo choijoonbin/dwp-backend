@@ -1,6 +1,7 @@
 package com.dwp.services.people.security;
 
 import java.util.Set;
+import java.util.UUID;
 
 public final class PeopleRequestContext {
 
@@ -10,7 +11,7 @@ public final class PeopleRequestContext {
     }
 
     public static void set(Long userId, Long tenantId, Set<String> roles) {
-        set(userId, tenantId, roles, Set.of());
+        set(userId, tenantId, null, roles, Set.of());
     }
 
     public static void set(
@@ -18,8 +19,18 @@ public final class PeopleRequestContext {
             Long tenantId,
             Set<String> roles,
             Set<String> permissions) {
+        set(userId, tenantId, null, roles, permissions);
+    }
+
+    public static void set(
+            Long userId,
+            Long tenantId,
+            UUID personPublicId,
+            Set<String> roles,
+            Set<String> permissions) {
         ACTOR.set(new Actor(
-                userId, tenantId, Set.copyOf(roles), Set.copyOf(permissions)));
+                userId, tenantId, personPublicId,
+                Set.copyOf(roles), Set.copyOf(permissions)));
     }
 
     public static Actor require() {
@@ -37,12 +48,20 @@ public final class PeopleRequestContext {
     public record Actor(
             Long userId,
             Long tenantId,
+            UUID personPublicId,
             Set<String> roles,
             Set<String> permissions) {
 
         public boolean hasAnyRole(String... expected) {
             for (String role : expected) {
                 if (roles.contains(role)) return true;
+            }
+            return false;
+        }
+
+        public boolean hasPermission(String resource, String... actions) {
+            for (String action : actions) {
+                if (permissions.contains(resource + ":" + action)) return true;
             }
             return false;
         }

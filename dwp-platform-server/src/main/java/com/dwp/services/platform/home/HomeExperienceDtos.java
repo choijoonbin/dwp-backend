@@ -5,11 +5,13 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.Valid;
 
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.List;
 
 public final class HomeExperienceDtos {
 
@@ -43,6 +45,31 @@ public final class HomeExperienceDtos {
     public record VersionRequest(@NotNull @Min(0) Long version) {
     }
 
+    public record UpdateLaunchpadConfigurationRequest(
+            @NotNull @Valid HomeLaunchpadConfiguration configuration,
+            @NotNull @Min(0) Long version) {
+    }
+
+    public record HomeLaunchpadConfiguration(
+            Integer schemaVersion,
+            List<HomeLaunchpadGroup> groups,
+            List<HomeAppPlacement> placements) {
+    }
+
+    public record HomeLaunchpadGroup(
+            String groupKey,
+            Map<String, String> labels,
+            Map<String, String> descriptions,
+            Integer sortOrder,
+            Boolean enabled) {
+    }
+
+    public record HomeAppPlacement(
+            String resourceKey,
+            String groupKey,
+            Integer sortOrder) {
+    }
+
     public record HomeExperienceResponse(
             String headline,
             String subheadline,
@@ -56,6 +83,7 @@ public final class HomeExperienceDtos {
             Long backgroundSizeBytes,
             Integer backgroundWidth,
             Integer backgroundHeight,
+            HomeLaunchpadConfiguration launchpadConfiguration,
             Long version,
             LocalDateTime updatedAt,
             Long updatedBy) {
@@ -83,6 +111,7 @@ public final class HomeExperienceDtos {
         value.put("defaultLocale", experience.getDefaultLocale());
         value.put("backgroundPosition", experience.getBackgroundPosition());
         value.put("overlayOpacity", experience.getOverlayOpacity());
+        value.put("launchpadConfiguration", experience.getLaunchpadConfiguration());
         value.put("backgroundOriginalName", experience.getBackgroundOriginalName());
         value.put("backgroundContentType", experience.getBackgroundContentType());
         value.put("backgroundSizeBytes", experience.getBackgroundSizeBytes());

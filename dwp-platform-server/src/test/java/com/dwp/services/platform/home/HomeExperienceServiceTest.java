@@ -49,7 +49,8 @@ class HomeExperienceServiceTest {
                 validator,
                 auditService,
                 revisionStore,
-                new ObjectMapper());
+                new ObjectMapper(),
+                new HomeLaunchpadPolicy());
     }
 
     @Test

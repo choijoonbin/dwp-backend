@@ -272,9 +272,9 @@ public class PlatformTenantProvisioningService {
                     "Ask DWP", "Ask DWP", "Read-only request plans with an audit trace", "MEDIUM"));
         }
         if (entitlements.contains("core.people")) {
-            apps.add(new AppSeed("hris", "DWP_HRIS", "/hr", "hris",
-                    "APP.HRIS", "HRIS", "HRIS",
-                    "Personal HR, people, organization, and governed workforce operations",
+            apps.add(new AppSeed("hcm", "DWP_HCM", "/hr", "hcm",
+                    "APP.HCM", "HR", "인사",
+                    "DWP HCM personal HR, organization, and governed workforce operations",
                     "MEDIUM"));
         }
         return List.copyOf(apps);
@@ -341,6 +341,12 @@ public class PlatformTenantProvisioningService {
                     "DWP Communications", "PRODUCTIVITY", "NATIVE", "/communications",
                     "communications", "APP.COMMUNICATIONS", "HEALTHY", 35));
             apps.add(new WorkspaceAppSeed(
+                    "dwp-calendar", "캘린더", "Calendar",
+                    "일정, 집중시간, 참석 응답과 업무 공간 예약을 한곳에서 관리합니다.",
+                    "Manage schedules, focus time, responses, and workplace bookings in one place.",
+                    "DWP Workplace", "PRODUCTIVITY", "NATIVE", "/calendar/home",
+                    "calendar", "APP.CALENDAR", "HEALTHY", 38));
+            apps.add(new WorkspaceAppSeed(
                     "ref-app-mail", "메일 및 일정", "Mail & calendar",
                     "메시지, 일정 및 회의 후속 조치를 연결합니다.",
                     "Connect messages, calendars, and meeting follow-ups.",
@@ -385,13 +391,21 @@ public class PlatformTenantProvisioningService {
                     "DWP Platform", "KNOWLEDGE", "NATIVE", "/ask",
                     "ask", "APP.ASK", "MANAGED", 20));
         }
+        if (entitlements.contains("core.approvals")) {
+            apps.add(new WorkspaceAppSeed(
+                    "dwp-approvals", "전자결재", "Approvals",
+                    "결재 요청, 의사결정, 위임 및 처리 상태를 한곳에서 관리합니다.",
+                    "Manage requests, decisions, delegation, and approval health in one place.",
+                    "DWP Decision Hub", "BUSINESS", "NATIVE", "/approvals/home",
+                    "approvals", "APP.APPROVALS", "HEALTHY", 39));
+        }
         if (entitlements.contains("core.people")) {
             apps.add(new WorkspaceAppSeed(
-                    "ref-app-people", "HRIS", "HRIS",
-                    "나의 인사, 구성원, 조직 및 권한에 따른 인력 운영을 제공합니다.",
-                    "Personal HR, people, organization, and role-aware workforce operations.",
-                    "People Platform", "PEOPLE", "NATIVE", "/hr",
-                    "hris", "APP.HRIS", "HEALTHY", 70));
+                    "ref-app-people", "인사", "HR",
+                    "DWP HCM에서 나의 인사, 구성원, 조직 및 권한별 인력 운영을 연결합니다.",
+                    "Connect personal HR, people, organization, and role-aware workforce operations in DWP HCM.",
+                    "DWP HCM", "PEOPLE", "NATIVE", "/hr",
+                    "hcm", "APP.HCM", "HEALTHY", 70));
         }
         return List.copyOf(apps);
     }
@@ -406,13 +420,21 @@ public class PlatformTenantProvisioningService {
                         "communications", "DWP_COMMUNICATIONS", "/communications", "communications",
                         "APP.COMMUNICATIONS", "Newsroom", "소식",
                         "Targeted company news, events, and required updates", "LOW"),
+                new AppSeed(
+                        "calendar", "DWP_CALENDAR", "/calendar/home", "calendar",
+                        "APP.CALENDAR", "Calendar", "캘린더",
+                        "Schedules, focus time, responses, and workplace bookings", "LOW"),
+                new AppSeed(
+                        "approvals", "DWP_APPROVALS", "/approvals/home", "approvals",
+                        "APP.APPROVALS", "Approvals", "전자결재",
+                        "Requests, governed decisions, delegation, and approval operations", "MEDIUM"),
                 new AppSeed("apps", "DWP_APPS", "/apps", "apps", "APP.APPS",
                         "Apps", "앱", "Available workplace applications", "LOW"),
                 new AppSeed("ask", "DWP_ASK", "/ask", "ask", "APP.ASK",
                         "Ask DWP", "Ask DWP", "Read-only request plans with an audit trace", "MEDIUM"),
-                new AppSeed("hris", "DWP_HRIS", "/hr", "hris",
-                        "APP.HRIS", "HRIS", "HRIS",
-                        "Personal HR, people, organization, and governed workforce operations",
+                new AppSeed("hcm", "DWP_HCM", "/hr", "hcm",
+                        "APP.HCM", "HR", "인사",
+                        "DWP HCM personal HR, organization, and governed workforce operations",
                         "MEDIUM"));
     }
 

@@ -43,6 +43,25 @@ assert_minimum() {
 assert_zero "authorization integrity findings" \
   "SELECT COUNT(*) FROM sys_authorization_integrity_findings"
 
+assert_zero "active applications without a governance boundary" "
+  SELECT COUNT(*)
+    FROM com_resources resource
+   WHERE resource.type = 'APP'
+     AND resource.enabled = TRUE
+     AND resource.key <> 'APP.ADMINISTRATION'
+     AND NOT EXISTS (
+       SELECT 1
+         FROM com_admin_resource_set_members member
+         JOIN com_admin_resource_sets resource_set
+           ON resource_set.tenant_id = member.tenant_id
+          AND resource_set.resource_set_id = member.resource_set_id
+          AND resource_set.lifecycle_state = 'ACTIVE'
+        WHERE member.tenant_id = resource.tenant_id
+          AND member.resource_type = 'APP'
+          AND member.resource_key = resource.key
+          AND member.lifecycle_state = 'ACTIVE')
+"
+
 assert_zero "tenant administrator operational privilege leakage" "
   SELECT COUNT(*)
     FROM com_role_permissions role_permission

@@ -3,6 +3,7 @@ package com.dwp.services.people.integration;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.people.security.PeopleRequestContext;
+import com.dwp.services.people.hr.HrDomainFoundationService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
@@ -35,15 +36,18 @@ public class HrisImportService {
     private final WorkdayReferenceMapper mapper;
     private final ObjectMapper objectMapper;
     private final boolean syntheticImportEnabled;
+    private final HrDomainFoundationService hrDomainFoundation;
 
     public HrisImportService(
             HrisIntegrationRepository repository,
             WorkdayReferenceMapper mapper,
             ObjectMapper objectMapper,
+            HrDomainFoundationService hrDomainFoundation,
             @Value("${dwp.people.synthetic-import-enabled:false}") boolean syntheticImportEnabled) {
         this.repository = repository;
         this.mapper = mapper;
         this.objectMapper = objectMapper;
+        this.hrDomainFoundation = hrDomainFoundation;
         this.syntheticImportEnabled = syntheticImportEnabled;
     }
 
@@ -198,6 +202,7 @@ public class HrisImportService {
         repository.auditImport(
                 actor.tenantId(), actor.userId(), sourceSystemId, syncRunId,
                 correlationId, batch.workers().size(), created, updated);
+        hrDomainFoundation.ensure(actor.tenantId());
         HrisDtos.SyncRun run = repository.findRun(actor.tenantId(), syncRunId)
                 .orElseThrow(() -> new IllegalStateException("Completed HRIS run is missing."));
         return result(run, false, batch.synthetic());

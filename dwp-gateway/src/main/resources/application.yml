@@ -8,61 +8,69 @@ spring:
     web-application-type: reactive
   cloud:
     gateway:
-      routes:
-        - id: scim-provisioning
-          uri: ${SERVICE_AUTH_URL:http://localhost:8001}
-          predicates:
-            - Path=/scim/v2/**
-        - id: auth-server
-          uri: ${SERVICE_AUTH_URL:http://localhost:8001}
-          predicates:
-            - Path=/api/auth/**
-          filters:
-            - StripPrefix=1
-        - id: agent-runtime
-          uri: ${SERVICE_AGENT_URL:http://localhost:8010}
-          predicates:
-            - Path=/api/agent/**
-          filters:
-            - StripPrefix=2
-        - id: platform-server
-          uri: ${SERVICE_PLATFORM_URL:http://localhost:8002}
-          predicates:
-            - Path=/api/platform/**
-          filters:
-            - StripPrefix=2
-        - id: people-server
-          uri: ${SERVICE_PEOPLE_URL:http://localhost:8003}
-          predicates:
-            - Path=/api/people/**
-          filters:
-            - StripPrefix=2
-        - id: provider-server
-          uri: ${SERVICE_PROVIDER_URL:http://localhost:8004}
-          predicates:
-            - Path=/api/provider/**
-          filters:
-            - StripPrefix=2
-      globalcors:
-        add-to-simple-url-handler-mapping: true
-        cors-configurations:
-          '[/**]':
-            allowed-origin-patterns:
-              - ${CORS_ALLOWED_ORIGIN_PATTERN:http://localhost:*}
-              - ${CORS_ALLOWED_LOOPBACK_PATTERN:http://127.0.0.1:*}
-            allowed-methods:
-              - GET
-              - POST
-              - PUT
-              - PATCH
-              - DELETE
-              - OPTIONS
-            allowed-headers:
-              - '*'
-            exposed-headers:
-              - X-Correlation-ID
-            allow-credentials: true
-            max-age: 3600
+      server:
+        webflux:
+          routes:
+            - id: scim-provisioning
+              uri: ${SERVICE_AUTH_URL:http://localhost:8001}
+              predicates:
+                - Path=/scim/v2/**
+            - id: auth-server
+              uri: ${SERVICE_AUTH_URL:http://localhost:8001}
+              predicates:
+                - Path=/api/auth/**
+              filters:
+                - StripPrefix=1
+            - id: agent-runtime
+              uri: ${SERVICE_AGENT_URL:http://localhost:8010}
+              predicates:
+                - Path=/api/agent/**
+              filters:
+                - StripPrefix=2
+            - id: platform-server
+              uri: ${SERVICE_PLATFORM_URL:http://localhost:8002}
+              predicates:
+                - Path=/api/platform/**
+              filters:
+                - StripPrefix=2
+            - id: people-server
+              uri: ${SERVICE_PEOPLE_URL:http://localhost:8003}
+              predicates:
+                - Path=/api/people/**
+              filters:
+                - StripPrefix=2
+            - id: provider-server
+              uri: ${SERVICE_PROVIDER_URL:http://localhost:8004}
+              predicates:
+                - Path=/api/provider/**
+              filters:
+                - StripPrefix=2
+            - id: approval-server
+              uri: ${SERVICE_APPROVAL_URL:http://localhost:8005}
+              predicates:
+                - Path=/api/approvals/**
+              filters:
+                - StripPrefix=2
+          globalcors:
+            add-to-simple-url-handler-mapping: true
+            cors-configurations:
+              '[/**]':
+                allowed-origin-patterns:
+                  - ${CORS_ALLOWED_ORIGIN_PATTERN:http://localhost:*}
+                  - ${CORS_ALLOWED_LOOPBACK_PATTERN:http://127.0.0.1:*}
+                allowed-methods:
+                  - GET
+                  - POST
+                  - PUT
+                  - PATCH
+                  - DELETE
+                  - OPTIONS
+                allowed-headers:
+                  - '*'
+                exposed-headers:
+                  - X-Correlation-ID
+                allow-credentials: true
+                max-age: 3600
 
 management:
   endpoints:
@@ -100,3 +108,5 @@ dwp:
     service-token: ${DWP_PROVIDER_SERVICE_TOKEN:}
     support-validation-token: ${DWP_PROVIDER_SUPPORT_VALIDATION_TOKEN:}
     support-validation-timeout: ${DWP_PROVIDER_SUPPORT_VALIDATION_TIMEOUT:2s}
+  approval:
+    service-token: ${DWP_APPROVAL_SERVICE_TOKEN:}

@@ -217,11 +217,20 @@ public class AuthService {
         Tenant tenant = tenantRepository.findById(tenantId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
 
-        List<PermissionDTO> permissions = permissionPrefix == null || permissionPrefix.isBlank()
+        List<String> permissionPrefixes = permissionPrefix == null
+                ? List.of()
+                : java.util.Arrays.stream(permissionPrefix.split(","))
+                        .map(String::trim)
+                        .filter(prefix -> !prefix.isBlank())
+                        .distinct()
+                        .limit(10)
+                        .toList();
+        List<PermissionDTO> permissions = permissionPrefixes.isEmpty()
                 ? List.of()
                 : getPermissions(userId, tenantId).stream()
                         .filter(permission -> permission.getResourceKey() != null
-                                && permission.getResourceKey().startsWith(permissionPrefix))
+                                && permissionPrefixes.stream().anyMatch(
+                                        permission.getResourceKey()::startsWith))
                         .toList();
         return toMeResponse(user, tenant, permissions);
     }

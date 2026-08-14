@@ -52,6 +52,11 @@ public class HomeExperience extends BaseEntity {
     @Column(name = "overlay_opacity", nullable = false)
     private Integer overlayOpacity = 18;
 
+    @Builder.Default
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "launchpad_configuration", nullable = false, columnDefinition = "jsonb")
+    private JsonNode launchpadConfiguration = JsonNodeFactory.instance.objectNode();
+
     @Column(name = "background_asset_key", length = 320)
     private String backgroundAssetKey;
 

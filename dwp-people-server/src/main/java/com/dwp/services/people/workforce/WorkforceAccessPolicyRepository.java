@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 import java.sql.Array;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
@@ -67,7 +68,7 @@ public class WorkforceAccessPolicyRepository {
                 new MapSqlParameterSource("tenantId", tenantId)
                         .addValue("userId", userId.toString())
                         .addValue("roles", roles)
-                        .addValue("now", now),
+                        .addValue("now", timestamp(now)),
                 this::row);
     }
 
@@ -166,8 +167,8 @@ public class WorkforceAccessPolicyRepository {
                         .addValue("organizationId", request.organizationId())
                         .addValue("fieldGroups", "{" + String.join(",", fields) + "}")
                         .addValue("actionCodes", "{" + String.join(",", actions) + "}")
-                        .addValue("validFrom", request.validFrom())
-                        .addValue("validTo", request.validTo())
+                        .addValue("validFrom", timestamp(request.validFrom()))
+                        .addValue("validTo", timestamp(request.validTo()))
                         .addValue("justification", request.justification().trim())
                         .addValue("actorId", actorId));
         return find(tenantId, policyId).orElseThrow();
@@ -200,8 +201,8 @@ public class WorkforceAccessPolicyRepository {
                 result.getString("organization_name"),
                 array(result.getArray("field_groups")),
                 array(result.getArray("action_codes")),
-                result.getObject("valid_from", Instant.class),
-                result.getObject("valid_to", Instant.class),
+                instant(result, "valid_from"),
+                instant(result, "valid_to"),
                 result.getString("lifecycle_state"),
                 result.getString("justification"),
                 result.getLong("version"));
@@ -210,6 +211,15 @@ public class WorkforceAccessPolicyRepository {
     private List<String> array(Array value) throws SQLException {
         if (value == null) return List.of();
         return Arrays.asList((String[]) value.getArray());
+    }
+
+    private Timestamp timestamp(Instant value) {
+        return value == null ? null : Timestamp.from(value);
+    }
+
+    private Instant instant(ResultSet result, String column) throws SQLException {
+        Timestamp value = result.getTimestamp(column);
+        return value == null ? null : value.toInstant();
     }
 
     public record PolicyRow(

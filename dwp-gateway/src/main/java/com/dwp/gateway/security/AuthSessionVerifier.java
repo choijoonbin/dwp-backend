@@ -59,7 +59,9 @@ public class AuthSessionVerifier implements SessionVerifier {
                                         data.roles(),
                                         authorities(data.permissions()),
                                         groupRefs(data.groups()),
-                                        resourceRoles(data.resourceRoles())))
+                                        resourceRoles(data.resourceRoles()),
+                                        data.personPublicId(),
+                                        data.displayName()))
                                 .filter(identity -> !tenantAssertionPresent
                                         || requestedTenant.equals(identity.tenantId()));
                     }
@@ -89,6 +91,12 @@ public class AuthSessionVerifier implements SessionVerifier {
         if (path.startsWith("/api/people/v1/workforce")) {
             return "DATA.WORKFORCE";
         }
+        if (path.startsWith("/api/people/v1/hr")) {
+            return "APP.HCM,APP.HRIS,DATA.HR_";
+        }
+        if (path.equals("/api/platform/v1/home/overview")) {
+            return "APP.WORK,APP.ACTIVITY";
+        }
         if (path.startsWith("/api/platform/v1/workspace")) {
             return "APP.";
         }
@@ -103,6 +111,21 @@ public class AuthSessionVerifier implements SessionVerifier {
         }
         if (path.startsWith("/api/platform/v1/admin/services/requests")) {
             return "ADMIN.SERVICE_OPERATIONS";
+        }
+        if (path.startsWith("/api/platform/v1/admin/calendar")) {
+            return "ADMIN.CALENDAR";
+        }
+        if (path.startsWith("/api/platform/v1/calendar")) {
+            return "APP.CALENDAR";
+        }
+        if (path.startsWith("/api/approvals/v1/admin/")) {
+            return "ADMIN.APPROVAL_";
+        }
+        if (path.equals("/api/approvals/v1/home")) {
+            return "APP.APPROVALS,ACTION.APPROVAL_,ADMIN.APPROVAL_";
+        }
+        if (path.startsWith("/api/approvals/v1/")) {
+            return "APP.APPROVALS,ACTION.APPROVAL_";
         }
         if (path.startsWith("/api/platform/v1/services")) {
             return "APP.EMPLOYEE_SERVICES";
@@ -193,6 +216,8 @@ public class AuthSessionVerifier implements SessionVerifier {
     private record MeData(
             Long userId,
             Long tenantId,
+            String personPublicId,
+            String displayName,
             List<String> roles,
             List<PermissionData> permissions,
             List<GroupData> groups,

@@ -41,6 +41,7 @@ public class HomeExperienceService {
     private final PlatformAuditService auditService;
     private final ExperienceRevisionStore revisionStore;
     private final ObjectMapper objectMapper;
+    private final HomeLaunchpadPolicy launchpadPolicy;
 
     public HomeExperienceService(
             HomeExperienceRepository repository,
@@ -48,13 +49,15 @@ public class HomeExperienceService {
             HomeBackgroundValidator validator,
             PlatformAuditService auditService,
             ExperienceRevisionStore revisionStore,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            HomeLaunchpadPolicy launchpadPolicy) {
         this.repository = repository;
         this.assetStorage = assetStorage;
         this.validator = validator;
         this.auditService = auditService;
         this.revisionStore = revisionStore;
         this.objectMapper = objectMapper;
+        this.launchpadPolicy = launchpadPolicy;
     }
 
     @Transactional(readOnly = true)
@@ -108,6 +111,34 @@ public class HomeExperienceService {
                 actorId,
                 "home-experience.updated",
                 "HOME_EXPERIENCE",
+                String.valueOf(tenantId),
+                correlationId,
+                before,
+                snapshot(saved));
+        return response(saved);
+    }
+
+    @Transactional
+    public HomeExperienceDtos.HomeExperienceResponse updateLaunchpad(
+            Long tenantId,
+            Long actorId,
+            String correlationId,
+            HomeExperienceDtos.UpdateLaunchpadConfigurationRequest request) {
+        HomeExperience experience = findOrCreate(tenantId, request.version());
+        requireVersion(experience, request.version());
+        Object before = snapshot(experience);
+        ensureBaseline(tenantId, actorId, correlationId, experience);
+
+        HomeExperienceDtos.HomeLaunchpadConfiguration normalized =
+                launchpadPolicy.normalize(request.configuration());
+        experience.setLaunchpadConfiguration(objectMapper.valueToTree(normalized));
+        HomeExperience saved = repository.saveAndFlush(experience);
+        appendRevision(tenantId, actorId, correlationId, "SETTINGS_PUBLISHED", saved);
+        auditService.success(
+                tenantId,
+                actorId,
+                "home-experience.launchpad-updated",
+                "HOME_LAUNCHPAD_CONFIGURATION",
                 String.valueOf(tenantId),
                 correlationId,
                 before,
@@ -232,6 +263,8 @@ public class HomeExperienceService {
                     .tenantId(tenantId)
                     .backgroundPosition("RIGHT")
                     .overlayOpacity(18)
+                    .launchpadConfiguration(
+                            objectMapper.valueToTree(launchpadPolicy.defaultConfiguration()))
                     .build();
         });
     }
@@ -261,6 +294,7 @@ public class HomeExperienceService {
                 experience.getBackgroundSizeBytes(),
                 experience.getBackgroundWidth(),
                 experience.getBackgroundHeight(),
+                launchpadConfiguration(experience.getLaunchpadConfiguration()),
                 version,
                 experience.getUpdatedAt(),
                 experience.getUpdatedBy());
@@ -280,6 +314,7 @@ public class HomeExperienceService {
                 null,
                 null,
                 null,
+                launchpadPolicy.defaultConfiguration(),
                 0L,
                 null,
                 null);
@@ -357,7 +392,7 @@ public class HomeExperienceService {
     private Map<String, HomeExperienceDtos.LocalizedCopy> localizedContent(JsonNode value) {
         if (value == null || !value.isObject()) return Map.of();
         Map<String, HomeExperienceDtos.LocalizedCopy> result = new LinkedHashMap<>();
-        value.fields().forEachRemaining(entry -> result.put(
+        value.properties().forEach(entry -> result.put(
                 entry.getKey(),
                 new HomeExperienceDtos.LocalizedCopy(
                         text(entry.getValue(), "headline"),
@@ -448,6 +483,9 @@ public class HomeExperienceService {
                         : text(value, "backgroundPosition"));
         Integer overlay = integer(value, "overlayOpacity");
         experience.setOverlayOpacity(overlay == null ? 18 : overlay);
+        experience.setLaunchpadConfiguration(
+                objectMapper.valueToTree(
+                        launchpadConfiguration(value.get("launchpadConfiguration"))));
         experience.setBackgroundAssetKey(assetKey);
         experience.setBackgroundOriginalName(text(value, "backgroundOriginalName"));
         experience.setBackgroundContentType(text(value, "backgroundContentType"));
@@ -474,6 +512,24 @@ public class HomeExperienceService {
     private Long longValue(JsonNode value, String field) {
         JsonNode node = value == null ? null : value.get(field);
         return node == null || !node.isNumber() ? null : node.longValue();
+    }
+
+    private HomeExperienceDtos.HomeLaunchpadConfiguration launchpadConfiguration(JsonNode value) {
+        if (value == null || !value.isObject() || value.isEmpty()) {
+            return launchpadPolicy.defaultConfiguration();
+        }
+        try {
+            HomeExperienceDtos.HomeLaunchpadConfiguration configuration =
+                    objectMapper.treeToValue(
+                            value,
+                            HomeExperienceDtos.HomeLaunchpadConfiguration.class);
+            return launchpadPolicy.normalize(configuration);
+        } catch (Exception exception) {
+            log.warn(
+                    "Invalid persisted home launchpad configuration; using the governed default.",
+                    exception);
+            return launchpadPolicy.defaultConfiguration();
+        }
     }
 
     private BaseException invalid(String message) {

@@ -8,8 +8,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -122,11 +124,13 @@ public class PeopleDirectoryService {
                 : repository.findByPublicId(actor.tenantId(), publicId, asOf))
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         boolean employment = decision != null && decision.field("EMPLOYMENT");
+        boolean identifiers = decision != null && decision.field("WORKER_IDENTIFIERS");
+        boolean jobGrade = decision != null && decision.field("JOB_GRADE");
         List<PeopleDtos.AssignmentSummary> assignments = employment
                 ? repository.findAssignments(actor.tenantId(), row.internalPersonId())
                         .stream()
                         .map(assignment -> new PeopleDtos.AssignmentSummary(
-                                assignment.assignmentKey(),
+                                identifiers ? assignment.assignmentKey() : null,
                                 assignment.assignmentStatus(),
                                 assignment.primaryAssignment(),
                                 assignment.effectiveStartDate(),
@@ -134,17 +138,92 @@ public class PeopleDirectoryService {
                                 assignment.businessTitle(),
                                 assignment.organizationName(),
                                 assignment.jobProfileName(),
-                                assignment.jobGradeName(),
+                                jobGrade ? assignment.jobGradeName() : null,
                                 assignment.locationName(),
-                                assignment.managerAssignmentKey(),
+                                identifiers ? assignment.managerAssignmentKey() : null,
                                 assignment.changeReasonCode()))
                         .toList()
+                : List.of();
+        List<PeopleDtos.Worker> workers = employment
+                ? workforceEntities(
+                        repository.findWorkforceEntities(actor.tenantId(), row.internalPersonId()),
+                        identifiers,
+                        jobGrade)
                 : List.of();
         return new PeopleDtos.PersonDetail(
                 summary(row, decision),
                 employment ? row.originalHireDate() : null,
                 employment ? row.legalEmployerName() : null,
-                employment ? row.managerAssignmentKey() : null,
+                employment && identifiers ? row.managerAssignmentKey() : null,
+                assignments,
+                workers);
+    }
+
+    private List<PeopleDtos.Worker> workforceEntities(
+            List<PeopleDirectoryRepository.WorkforceEntityRow> rows,
+            boolean identifiers,
+            boolean jobGrade) {
+        Map<UUID, List<PeopleDirectoryRepository.WorkforceEntityRow>> workerRows =
+                new LinkedHashMap<>();
+        rows.forEach(row -> workerRows.computeIfAbsent(row.workerId(), ignored ->
+                new java.util.ArrayList<>()).add(row));
+        return workerRows.values().stream().map(workerGroup -> {
+            PeopleDirectoryRepository.WorkforceEntityRow worker = workerGroup.getFirst();
+            Map<UUID, List<PeopleDirectoryRepository.WorkforceEntityRow>> relationshipRows =
+                    new LinkedHashMap<>();
+            workerGroup.forEach(row -> relationshipRows.computeIfAbsent(
+                    row.workRelationshipId(), ignored -> new java.util.ArrayList<>()).add(row));
+            List<PeopleDtos.WorkRelationship> relationships = relationshipRows.values().stream()
+                    .map(relationshipGroup -> workRelationship(
+                            relationshipGroup, identifiers, jobGrade))
+                    .toList();
+            return new PeopleDtos.Worker(
+                    worker.workerId(),
+                    identifiers ? worker.workerNumber() : null,
+                    worker.workerType(),
+                    worker.workerStatus(),
+                    worker.originalHireDate(),
+                    relationships);
+        }).toList();
+    }
+
+    private PeopleDtos.WorkRelationship workRelationship(
+            List<PeopleDirectoryRepository.WorkforceEntityRow> rows,
+            boolean identifiers,
+            boolean jobGrade) {
+        PeopleDirectoryRepository.WorkforceEntityRow relationship = rows.getFirst();
+        List<PeopleDtos.WorkAssignment> assignments = rows.stream()
+                .filter(row -> row.assignmentId() != null)
+                .map(assignment -> new PeopleDtos.WorkAssignment(
+                        assignment.assignmentId(),
+                        identifiers ? assignment.assignmentKey() : null,
+                        assignment.assignmentStatus(),
+                        assignment.primaryAssignment(),
+                        assignment.effectiveStartDate(),
+                        assignment.effectiveEndDate(),
+                        assignment.effectiveSequence(),
+                        assignment.businessTitle(),
+                        assignment.organizationId(),
+                        assignment.organizationKey(),
+                        assignment.organizationName(),
+                        assignment.jobProfileName(),
+                        jobGrade ? assignment.jobGradeName() : null,
+                        assignment.locationKey(),
+                        assignment.locationName(),
+                        identifiers ? assignment.managerAssignmentKey() : null,
+                        assignment.changeReasonCode()))
+                .toList();
+        return new PeopleDtos.WorkRelationship(
+                relationship.workRelationshipId(),
+                identifiers ? relationship.relationshipKey() : null,
+                relationship.relationshipType(),
+                relationship.primaryRelationship(),
+                relationship.relationshipStartDate(),
+                relationship.relationshipEndDate(),
+                relationship.projectedEndDate(),
+                relationship.legalEmployerKey(),
+                relationship.legalEmployerName(),
+                relationship.legalEmployerCountryCode(),
                 assignments);
     }
 

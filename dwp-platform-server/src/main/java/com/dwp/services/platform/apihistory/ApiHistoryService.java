@@ -21,6 +21,10 @@ import java.util.stream.Collectors;
 public class ApiHistoryService {
 
     private static final int MAX_BATCH_SIZE = 200;
+    static final String DEFAULT_ALLOWED_SERVICES =
+            "dwp-gateway,dwp-auth-server,dwp-platform-server,"
+                    + "dwp-people-server,dwp-provider-server,dwp-approval-server,"
+                    + "dwp-agent-runtime";
     private static final Pattern TRACE_ID = Pattern.compile("^[0-9a-f]{32}$");
     private static final Pattern SPAN_ID = Pattern.compile("^[0-9a-f]{16}$");
     private static final Set<String> ACTOR_TYPES =
@@ -40,8 +44,7 @@ public class ApiHistoryService {
             ApiHistoryJdbcRepository repository,
             ApiHistoryCursorCodec cursorCodec,
             @Value("${dwp.platform.api-history.allowed-services:"
-                    + "dwp-gateway,dwp-auth-server,dwp-platform-server,"
-                    + "dwp-people-server,dwp-provider-server,dwp-agent-runtime}")
+                    + DEFAULT_ALLOWED_SERVICES + "}")
                     String allowedServices,
             @Value("${dwp.platform.api-history.retention-days:90}") int retentionDays) {
         this.repository = repository;

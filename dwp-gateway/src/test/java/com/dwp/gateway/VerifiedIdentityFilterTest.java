@@ -9,6 +9,8 @@ import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -24,7 +26,9 @@ class VerifiedIdentityFilterTest {
                 List.of("EMPLOYEE", "APPROVER"),
                 List.of("ADMIN.AUDIT_VIEW:VIEW"),
                 List.of("58fa4516-dc70-4785-ac9f-3606992c3f6b"),
-                List.of("APP_ACCESS_APPROVER@APP.MAIL_CALENDAR")));
+                List.of("APP_ACCESS_APPROVER@APP.MAIL_CALENDAR"),
+                null,
+                "김민서"));
         VerifiedIdentityFilter filter = new VerifiedIdentityFilter(verifier);
         MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
                 .get("/api/agent/v1/plans/preview")
@@ -35,6 +39,7 @@ class VerifiedIdentityFilterTest {
                 .header(VerifiedIdentityFilter.GROUP_REFS_HEADER, "spoofed-team")
                 .header(VerifiedIdentityFilter.RESOURCE_ROLES_HEADER,
                         "APP_OWNER@APP.SPOOFED")
+                .header(VerifiedIdentityFilter.DISPLAY_NAME_HEADER, "c3Bvb2ZlZA")
                 .build());
         AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
                 new AtomicReference<>();
@@ -59,6 +64,9 @@ class VerifiedIdentityFilterTest {
         assertThat(forwarded.get().getHeaders().getFirst(
                 VerifiedIdentityFilter.RESOURCE_ROLES_HEADER))
                 .isEqualTo("APP_ACCESS_APPROVER@APP.MAIL_CALENDAR");
+        assertThat(new String(Base64.getUrlDecoder().decode(
+                forwarded.get().getHeaders().getFirst(VerifiedIdentityFilter.DISPLAY_NAME_HEADER)),
+                StandardCharsets.UTF_8)).isEqualTo("김민서");
     }
 
     @Test

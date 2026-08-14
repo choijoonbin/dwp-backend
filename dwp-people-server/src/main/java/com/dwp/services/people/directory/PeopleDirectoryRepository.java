@@ -278,6 +278,109 @@ public class PeopleDirectoryRepository {
                         resultSet.getString("change_reason_code")));
     }
 
+    public List<WorkforceEntityRow> findWorkforceEntities(Long tenantId, long personId) {
+        String sql = """
+                SELECT worker.public_id AS worker_public_id,
+                       worker.worker_number,
+                       worker.worker_type,
+                       worker.worker_status,
+                       worker.original_hire_date,
+                       relationship.public_id AS relationship_public_id,
+                       relationship.relationship_key,
+                       relationship.relationship_type,
+                       relationship.primary_relationship,
+                       relationship.start_date AS relationship_start_date,
+                       relationship.end_date AS relationship_end_date,
+                       relationship.projected_end_date,
+                       employer.employer_key AS legal_employer_key,
+                       employer.legal_name AS legal_employer_name,
+                       employer.country_code AS legal_employer_country_code,
+                       assignment.public_id AS assignment_public_id,
+                       assignment.assignment_key,
+                       assignment.assignment_status,
+                       assignment.primary_assignment,
+                       assignment.effective_start_date,
+                       assignment.effective_end_date,
+                       assignment.effective_sequence,
+                       assignment.business_title,
+                       organization.public_id AS organization_public_id,
+                       organization.organization_key,
+                       organization.name AS organization_name,
+                       job.name AS job_profile_name,
+                       grade.name AS job_grade_name,
+                       location.location_key,
+                       location.name AS location_name,
+                       assignment.manager_assignment_key,
+                       assignment.change_reason_code
+                  FROM ppl_workers worker
+                  JOIN ppl_work_relationships relationship
+                    ON relationship.tenant_id = worker.tenant_id
+                   AND relationship.worker_id = worker.worker_id
+                  JOIN ppl_legal_employers employer
+                    ON employer.tenant_id = relationship.tenant_id
+                   AND employer.legal_employer_id = relationship.legal_employer_id
+                  LEFT JOIN ppl_assignments assignment
+                    ON assignment.tenant_id = relationship.tenant_id
+                   AND assignment.work_relationship_id = relationship.work_relationship_id
+                  LEFT JOIN ppl_organizations organization
+                    ON organization.tenant_id = assignment.tenant_id
+                   AND organization.organization_id = assignment.organization_id
+                  LEFT JOIN ppl_job_profiles job
+                    ON job.tenant_id = assignment.tenant_id
+                   AND job.job_profile_id = assignment.job_profile_id
+                  LEFT JOIN ppl_job_grades grade
+                    ON grade.tenant_id = assignment.tenant_id
+                   AND grade.job_grade_id = assignment.job_grade_id
+                  LEFT JOIN ppl_locations location
+                    ON location.tenant_id = assignment.tenant_id
+                   AND location.location_id = assignment.location_id
+                 WHERE worker.tenant_id = :tenantId
+                   AND worker.person_id = :personId
+                 ORDER BY worker.worker_id,
+                          relationship.primary_relationship DESC,
+                          relationship.start_date DESC,
+                          assignment.effective_start_date DESC NULLS LAST,
+                          assignment.effective_sequence DESC NULLS LAST,
+                          assignment.assignment_id DESC NULLS LAST
+                """;
+        return jdbc.query(
+                sql,
+                new MapSqlParameterSource("tenantId", tenantId).addValue("personId", personId),
+                (resultSet, rowNumber) -> new WorkforceEntityRow(
+                        resultSet.getObject("worker_public_id", UUID.class),
+                        resultSet.getString("worker_number"),
+                        resultSet.getString("worker_type"),
+                        resultSet.getString("worker_status"),
+                        date(resultSet, "original_hire_date"),
+                        resultSet.getObject("relationship_public_id", UUID.class),
+                        resultSet.getString("relationship_key"),
+                        resultSet.getString("relationship_type"),
+                        resultSet.getBoolean("primary_relationship"),
+                        date(resultSet, "relationship_start_date"),
+                        date(resultSet, "relationship_end_date"),
+                        date(resultSet, "projected_end_date"),
+                        resultSet.getString("legal_employer_key"),
+                        resultSet.getString("legal_employer_name"),
+                        resultSet.getString("legal_employer_country_code"),
+                        resultSet.getObject("assignment_public_id", UUID.class),
+                        resultSet.getString("assignment_key"),
+                        resultSet.getString("assignment_status"),
+                        resultSet.getBoolean("primary_assignment"),
+                        date(resultSet, "effective_start_date"),
+                        date(resultSet, "effective_end_date"),
+                        resultSet.getInt("effective_sequence"),
+                        resultSet.getString("business_title"),
+                        resultSet.getObject("organization_public_id", UUID.class),
+                        resultSet.getString("organization_key"),
+                        resultSet.getString("organization_name"),
+                        resultSet.getString("job_profile_name"),
+                        resultSet.getString("job_grade_name"),
+                        resultSet.getString("location_key"),
+                        resultSet.getString("location_name"),
+                        resultSet.getString("manager_assignment_key"),
+                        resultSet.getString("change_reason_code")));
+    }
+
     private MapSqlParameterSource commonParameters(Long tenantId, LocalDate asOf) {
         return new MapSqlParameterSource("tenantId", tenantId).addValue("asOf", Date.valueOf(asOf));
     }
@@ -362,6 +465,41 @@ public class PeopleDirectoryRepository {
             String organizationName,
             String jobProfileName,
             String jobGradeName,
+            String locationName,
+            String managerAssignmentKey,
+            String changeReasonCode) {
+    }
+
+    public record WorkforceEntityRow(
+            UUID workerId,
+            String workerNumber,
+            String workerType,
+            String workerStatus,
+            LocalDate originalHireDate,
+            UUID workRelationshipId,
+            String relationshipKey,
+            String relationshipType,
+            boolean primaryRelationship,
+            LocalDate relationshipStartDate,
+            LocalDate relationshipEndDate,
+            LocalDate projectedEndDate,
+            String legalEmployerKey,
+            String legalEmployerName,
+            String legalEmployerCountryCode,
+            UUID assignmentId,
+            String assignmentKey,
+            String assignmentStatus,
+            boolean primaryAssignment,
+            LocalDate effectiveStartDate,
+            LocalDate effectiveEndDate,
+            int effectiveSequence,
+            String businessTitle,
+            UUID organizationId,
+            String organizationKey,
+            String organizationName,
+            String jobProfileName,
+            String jobGradeName,
+            String locationKey,
             String locationName,
             String managerAssignmentKey,
             String changeReasonCode) {

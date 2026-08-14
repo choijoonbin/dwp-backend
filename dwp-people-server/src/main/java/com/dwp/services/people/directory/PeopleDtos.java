@@ -43,7 +43,51 @@ public final class PeopleDtos {
             LocalDate originalHireDate,
             String legalEmployerName,
             String managerAssignmentKey,
-            List<AssignmentSummary> assignments) {
+            List<AssignmentSummary> assignments,
+            List<Worker> workers) {
+    }
+
+    public record Worker(
+            UUID workerId,
+            String workerNumber,
+            String workerType,
+            String workerStatus,
+            LocalDate originalHireDate,
+            List<WorkRelationship> workRelationships) {
+    }
+
+    public record WorkRelationship(
+            UUID workRelationshipId,
+            String relationshipKey,
+            String relationshipType,
+            boolean primaryRelationship,
+            LocalDate startDate,
+            LocalDate endDate,
+            LocalDate projectedEndDate,
+            String legalEmployerKey,
+            String legalEmployerName,
+            String legalEmployerCountryCode,
+            List<WorkAssignment> assignments) {
+    }
+
+    public record WorkAssignment(
+            UUID assignmentId,
+            String assignmentKey,
+            String assignmentStatus,
+            boolean primaryAssignment,
+            LocalDate effectiveStartDate,
+            LocalDate effectiveEndDate,
+            int effectiveSequence,
+            String businessTitle,
+            UUID organizationId,
+            String organizationKey,
+            String organizationName,
+            String jobProfileName,
+            String jobGradeName,
+            String locationKey,
+            String locationName,
+            String managerAssignmentKey,
+            String changeReasonCode) {
     }
 
     public record AssignmentSummary(

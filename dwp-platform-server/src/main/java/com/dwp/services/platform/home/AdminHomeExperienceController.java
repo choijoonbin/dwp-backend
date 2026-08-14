@@ -52,6 +52,16 @@ public class AdminHomeExperienceController {
         return ApiResponse.success(service.update(tenantId, actorId, correlationId, request));
     }
 
+    @PutMapping("/launchpad")
+    public ApiResponse<HomeExperienceDtos.HomeExperienceResponse> updateLaunchpad(
+            @RequestHeader(TENANT_HEADER) Long tenantId,
+            @RequestHeader(USER_HEADER) Long actorId,
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @Valid @RequestBody HomeExperienceDtos.UpdateLaunchpadConfigurationRequest request) {
+        return ApiResponse.success(
+                service.updateLaunchpad(tenantId, actorId, correlationId, request));
+    }
+
     @PostMapping(path = "/background", consumes = "multipart/form-data")
     public ApiResponse<HomeExperienceDtos.HomeExperienceResponse> uploadBackground(
             @RequestHeader(TENANT_HEADER) Long tenantId,

@@ -316,7 +316,7 @@ public class ProviderControlPlaneService {
         ProviderRequestContext.requirePermission("ESTATE_READ");
         int pageNumber = Math.max(0, requestedPage);
         int size = Math.min(100, Math.max(1, requestedSize));
-        Specification<ProviderTenant> specification = Specification.where(null);
+        Specification<ProviderTenant> specification = Specification.unrestricted();
         if (query != null && !query.isBlank()) {
             String pattern = "%" + query.trim().toLowerCase(Locale.ROOT) + "%";
             List<UUID> matchingOrganizations = estateRepository.organizationIdsMatching(pattern);

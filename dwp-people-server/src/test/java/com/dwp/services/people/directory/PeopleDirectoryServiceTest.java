@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -83,6 +84,49 @@ class PeopleDirectoryServiceTest {
         assertThat(person.dataAccess().workerNumberMasked()).isFalse();
         assertThat(person.dataAccess().excludedFieldGroups())
                 .doesNotContain("workerIdentifiers", "employmentHistory", "jobGrade");
+    }
+
+    @Test
+    void workforceDetailSeparatesPersonWorkerRelationshipAndAssignment() {
+        UUID personId = UUID.randomUUID();
+        UUID workerId = UUID.randomUUID();
+        UUID relationshipId = UUID.randomUUID();
+        UUID assignmentId = UUID.randomUUID();
+        PeopleDirectoryRepository.DirectoryRow person = directoryRow();
+        when(repository.findByPublicId(TENANT_ID, personId, AS_OF))
+                .thenReturn(Optional.of(person));
+        when(repository.findByPublicId(TENANT_ID, personId, AS_OF, true, Set.of()))
+                .thenReturn(Optional.of(person));
+        when(repository.findAssignments(TENANT_ID, person.internalPersonId()))
+                .thenReturn(List.of(new PeopleDirectoryRepository.AssignmentRow(
+                        "ASG-0042", "ACTIVE", true,
+                        LocalDate.of(2025, 1, 1), null, "Enterprise Architect",
+                        "AI Platform Team", "Enterprise Architect", "Senior", "Seoul",
+                        "ASG-0001", "PROMOTION")));
+        when(repository.findWorkforceEntities(TENANT_ID, person.internalPersonId()))
+                .thenReturn(List.of(new PeopleDirectoryRepository.WorkforceEntityRow(
+                        workerId, "SK000042", "EMPLOYEE", "ACTIVE",
+                        LocalDate.of(2020, 2, 3), relationshipId, "REL-0042", "EMPLOYEE",
+                        true, LocalDate.of(2020, 2, 3), null, null,
+                        "SKAX", "SK AX", "KR", assignmentId, "ASG-0042", "ACTIVE",
+                        true, LocalDate.of(2025, 1, 1), null, 1,
+                        "Enterprise Architect", UUID.randomUUID(), "AI-PLATFORM",
+                        "AI Platform Team", "Enterprise Architect", "Senior",
+                        "SEOUL", "Seoul", "ASG-0001", "PROMOTION")));
+
+        PeopleDtos.PersonDetail directory = service.get(personId, AS_OF);
+        PeopleDtos.PersonDetail workforce = service.getWorkforce(personId, AS_OF);
+
+        assertThat(directory.workers()).isEmpty();
+        assertThat(directory.assignments()).isEmpty();
+        assertThat(workforce.workers()).singleElement().satisfies(worker -> {
+            assertThat(worker.workerId()).isEqualTo(workerId);
+            assertThat(worker.workRelationships()).singleElement().satisfies(relationship -> {
+                assertThat(relationship.workRelationshipId()).isEqualTo(relationshipId);
+                assertThat(relationship.assignments()).singleElement().satisfies(assignment ->
+                        assertThat(assignment.assignmentId()).isEqualTo(assignmentId));
+            });
+        });
     }
 
     private PeopleDirectoryRepository.DirectoryRow directoryRow() {

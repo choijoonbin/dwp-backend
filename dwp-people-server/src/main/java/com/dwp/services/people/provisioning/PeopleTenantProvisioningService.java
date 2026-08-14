@@ -2,6 +2,7 @@ package com.dwp.services.people.provisioning;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.people.hr.HrDomainFoundationService;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,9 +14,13 @@ import java.util.UUID;
 public class PeopleTenantProvisioningService {
 
     private final JdbcTemplate jdbc;
+    private final HrDomainFoundationService hrDomainFoundation;
 
-    public PeopleTenantProvisioningService(JdbcTemplate jdbc) {
+    public PeopleTenantProvisioningService(
+            JdbcTemplate jdbc,
+            HrDomainFoundationService hrDomainFoundation) {
         this.jdbc = jdbc;
+        this.hrDomainFoundation = hrDomainFoundation;
     }
 
     @Transactional
@@ -64,6 +69,8 @@ public class PeopleTenantProvisioningService {
                 ON CONFLICT (tenant_id, organization_key) DO UPDATE
                 SET name = EXCLUDED.name, updated_at = CURRENT_TIMESTAMP
                 """, request.tenantId(), request.displayName());
+        seedWorkforceAccessPolicies(request.tenantId());
+        hrDomainFoundation.ensure(request.tenantId());
         return new PeopleTenantProvisioningDtos.ProvisionTenantResponse(
                 request.providerTenantId(), request.tenantId(), "PROVISIONING", 1,
                 "people-tenant:" + request.tenantId());
@@ -128,6 +135,29 @@ public class PeopleTenantProvisioningService {
                     version = ppl_organization_role_catalog.version + 1,
                     updated_at = CURRENT_TIMESTAMP,
                     updated_by = EXCLUDED.updated_by
+                """, tenantId);
+    }
+
+    private void seedWorkforceAccessPolicies(Long tenantId) {
+        jdbc.update("""
+                INSERT INTO ppl_workforce_access_policies (
+                    tenant_id, subject_type, subject_ref, population_type,
+                    organization_public_id, field_groups, action_codes,
+                    justification, created_by, updated_by)
+                SELECT ?, 'ROLE', seed.role_code, 'TENANT', NULL,
+                       seed.field_groups, seed.action_codes,
+                       seed.justification, 1, 1
+                  FROM (VALUES
+                        ('HR_ADMIN',
+                         ARRAY['DIRECTORY', 'EMPLOYMENT', 'JOB_GRADE']::VARCHAR[],
+                         ARRAY['READ']::VARCHAR[],
+                         'Built-in HCM domain operations boundary without worker identifiers or export.'),
+                        ('PEOPLE_ADMIN',
+                         ARRAY['DIRECTORY', 'WORKER_IDENTIFIERS', 'EMPLOYMENT', 'JOB_GRADE']::VARCHAR[],
+                         ARRAY['READ', 'EXPORT']::VARCHAR[],
+                         'Built-in Core HR administration boundary with governed export capability.'))
+                       seed(role_code, field_groups, action_codes, justification)
+                ON CONFLICT DO NOTHING
                 """, tenantId);
     }
 

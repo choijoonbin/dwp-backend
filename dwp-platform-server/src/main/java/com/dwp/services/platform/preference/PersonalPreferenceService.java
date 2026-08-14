@@ -270,7 +270,7 @@ public class PersonalPreferenceService {
         ObjectNode result = target != null && target.isObject()
                 ? ((ObjectNode) target).deepCopy()
                 : objectMapper.createObjectNode();
-        patch.fields().forEachRemaining(entry -> {
+        patch.properties().forEach(entry -> {
             JsonNode patchValue = entry.getValue();
             if (patchValue.isNull()) {
                 result.remove(entry.getKey());
@@ -284,7 +284,7 @@ public class PersonalPreferenceService {
     }
 
     private void applyMissingDefaults(ObjectNode target, ObjectNode defaults) {
-        defaults.fields().forEachRemaining(entry -> {
+        defaults.properties().forEach(entry -> {
             JsonNode current = target.get(entry.getKey());
             if (current == null) {
                 target.set(entry.getKey(), entry.getValue().deepCopy());
@@ -295,7 +295,7 @@ public class PersonalPreferenceService {
     }
 
     private void mergeObject(ObjectNode target, JsonNode source) {
-        source.fields().forEachRemaining(entry -> {
+        source.properties().forEach(entry -> {
             JsonNode current = target.get(entry.getKey());
             JsonNode value = entry.getValue();
             if (current != null && current.isObject() && value.isObject()) {

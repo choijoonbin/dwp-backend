@@ -59,19 +59,33 @@ class HomePreferenceServiceTest {
     }
 
     @Test
-    void returnsRoleAwareHrisSurfaceDefaults() {
+    void returnsRoleAwareHcmSurfaceDefaults() {
         when(repository.findByTenantIdAndUserIdAndSurfaceKey(
-                7L, 11L, HomePreferenceService.HRIS_HOME))
+                7L, 11L, HomePreferenceService.HCM_HOME))
                 .thenReturn(Optional.empty());
 
         HomePreferenceDtos.HomePreferenceResponse result = service.get(
-                7L, 11L, HomePreferenceService.HRIS_HOME);
+                7L, 11L, HomePreferenceService.HCM_HOME);
 
         assertThat(result.layout().widgets())
                 .extracting(HomePreferenceDtos.WidgetPreference::widgetKey)
                 .containsExactly(
                         "quick-actions", "people-signals", "attention", "profile", "team", "operations");
         assertThat(result.layout().appLayout()).isNull();
+    }
+
+    @Test
+    void normalizesLegacyHrisSurfaceRequestsToCanonicalHcm() {
+        when(repository.findByTenantIdAndUserIdAndSurfaceKey(
+                7L, 11L, HomePreferenceService.HCM_HOME))
+                .thenReturn(Optional.empty());
+
+        HomePreferenceDtos.HomePreferenceResponse result = service.get(
+                7L, 11L, HomePreferenceService.LEGACY_HRIS_HOME);
+
+        assertThat(result.surfaceKey()).isEqualTo(HomePreferenceService.HCM_HOME);
+        verify(repository).findByTenantIdAndUserIdAndSurfaceKey(
+                7L, 11L, HomePreferenceService.HCM_HOME);
     }
 
     @Test
@@ -130,9 +144,9 @@ class HomePreferenceServiceTest {
     }
 
     @Test
-    void storesHrisCompositionIndependentlyFromWorkspaceHome() {
+    void storesHcmCompositionIndependentlyFromWorkspaceHome() {
         when(repository.findByTenantIdAndUserIdAndSurfaceKey(
-                7L, 11L, HomePreferenceService.HRIS_HOME))
+                7L, 11L, HomePreferenceService.HCM_HOME))
                 .thenReturn(Optional.empty());
         when(repository.saveAndFlush(any(HomePreference.class))).thenAnswer(invocation -> {
             HomePreference saved = invocation.getArgument(0);
@@ -151,13 +165,13 @@ class HomePreferenceServiceTest {
         HomePreferenceDtos.HomePreferenceResponse result = service.update(
                 7L,
                 11L,
-                HomePreferenceService.HRIS_HOME,
-                "corr-hris",
+                HomePreferenceService.HCM_HOME,
+                "corr-hcm",
                 new HomePreferenceDtos.UpdateHomePreferenceRequest(
                         new HomePreferenceDtos.HomeLayoutPayload(null, "focused", widgets),
                         0L));
 
-        assertThat(result.surfaceKey()).isEqualTo(HomePreferenceService.HRIS_HOME);
+        assertThat(result.surfaceKey()).isEqualTo(HomePreferenceService.HCM_HOME);
         assertThat(result.layout().presentation()).isEqualTo("focused");
         assertThat(result.layout().widgets().getFirst().widgetKey()).isEqualTo("attention");
         assertThat(result.layout().widgets().getFirst().size()).isEqualTo("full");
@@ -204,7 +218,7 @@ class HomePreferenceServiceTest {
         assertThatThrownBy(() -> service.update(
                 7L,
                 11L,
-                HomePreferenceService.HRIS_HOME,
+                HomePreferenceService.HCM_HOME,
                 null,
                 new HomePreferenceDtos.UpdateHomePreferenceRequest(
                         new HomePreferenceDtos.HomeLayoutPayload(null, "balanced", invalid),

@@ -1,0 +1,70 @@
+# Service Interface Boundary and Gateway Policy
+
+Status: Accepted
+Last reviewed: 2026-08-14
+
+## Decision
+
+DWP uses an edge Gateway boundary plus explicit internal service contracts.
+The policy is not "every backend-to-backend call must pass through the Gateway".
+The policy is:
+
+1. Browser, frontend application, and external client traffic enters through the Gateway.
+2. Frontend runtime calls use shared API clients and `/api/**` Gateway routes only.
+3. Gateway routes public API prefixes to owning services and injects trusted service identity.
+4. Backend service-to-service HTTP is allowed only for documented `/internal/**` control-plane contracts or named gateway verification contracts.
+5. Internal contracts require purpose-specific credentials such as `X-DWP-Provisioning-Token`, `X-DWP-Identity-Sync-Token`, or support validation plus service identity.
+6. Backend services may depend on shared libraries and contract modules only. They must not import or build-time depend on sibling service implementation modules.
+7. Cross-service database access is prohibited except the provider data-governance metadata scanner. That exception is read-only, uses metadata credentials, and scans schema/catalog metadata rather than business records.
+8. External SaaS connectors are separate adapter contracts and must validate host allowlists or trusted provider hosts.
+
+## Current Exceptions
+
+| Exception | Status | Reason | Guard |
+| --- | --- | --- | --- |
+| Gateway `AuthSessionVerifier` -> Auth `/auth/me` | Allowed by policy | Edge session verification before Gateway forwards the request | Session cookie/context forwarding, timeout, no `X-DWP-Service-Token` |
+| Gateway `ProviderSupportSessionVerifier` -> Provider `/v1/internal/support-access/resolve` | Allowed by policy | Support-session scope resolution for delegated support access | `X-DWP-Service-Token` plus `X-DWP-Support-Validation-Token` |
+| Provider provisioning -> Auth/Platform/People `/internal/provider/v1/**` | Allowed by policy | Tenant lifecycle orchestration across service-owned stores | `X-DWP-Provisioning-Token` |
+| Provider code catalog -> Platform `/internal/provider/v1/code-catalog/**` | Allowed by policy | Product code-contract catalog read model owned by Platform | `X-DWP-Provisioning-Token` |
+| Platform -> Auth `/internal/identity/v1/**` | Allowed by policy | Runtime app entitlement and saved-view subject validation | `X-DWP-Identity-Sync-Token` |
+| People -> Auth `/internal/identity/v1/workforce-events` | Allowed by policy | Workforce identity projection into central identity | `X-DWP-Identity-Sync-Token` |
+| Provider data-governance JDBC metadata scan | Allowed by policy | Provider control plane metadata inventory and lineage view | `connection.setReadOnly(true)`, metadata DB credentials, catalog SQL only |
+| Microsoft Graph and Workday adapters | Not a DWP app-to-app exception | External enterprise connectors | Trusted host or tenant-configured host allowlist |
+
+## Gap Assessment
+
+The direct internal calls above were not accidental public API bypasses. They are implemented as internal control-plane or projection contracts with dedicated credentials.
+
+The gap was governance, not the runtime call intent:
+
+- the rules were spread across implementation and feature documents;
+- direct HTTP client exceptions were not centrally allowlisted;
+- frontend Gateway-only runtime calls were not enforced by an API boundary check;
+- the provider metadata scan exception was not documented as the only accepted cross-service database access case.
+
+This ADR closes that gap by defining the policy and tying it to automated checks.
+
+## Enforcement
+
+Backend:
+
+- `scripts/check-service-boundaries.py` blocks sibling service imports and sibling service Gradle dependencies.
+- The same script blocks new backend `RestClient` or `WebClient` usage unless the source file is in the service-interface allowlist.
+- Allowlisted internal clients must keep their required path and credential markers.
+- New cross-service database references fail unless explicitly registered as an accepted metadata exception.
+
+Frontend:
+
+- `scripts/check-api-boundaries.mjs` blocks direct `fetch`, local Axios instances, service-port URLs, `/internal/**` calls, and literal `axiosInstance` calls that do not start with `/api/`.
+- `architecture:check`, `lint`, and `build` run the API boundary check.
+
+## Change Rule
+
+Any new DWP service-to-service interface must be added through one of these paths:
+
+1. Gateway public API route for browser or external client access.
+2. Internal HTTP contract with an owning service, `/internal/**` path, purpose-specific token, timeout, and allowlist entry.
+3. Domain event/outbox contract for asynchronous projection.
+4. External connector adapter with trusted host or tenant allowlist validation.
+
+Direct use of another service's public `/v1/**` API, Gateway `/api/**` API from a backend service, or another service's database is rejected by policy.

@@ -38,6 +38,9 @@ public class AuditControlService {
             "OPEN", "INVESTIGATING", "CONTAINED", "RESOLVED", "CLOSED");
     private static final Set<String> CASE_SEVERITIES = Set.of("LOW", "MEDIUM", "HIGH", "CRITICAL");
     private static final Set<String> TASK_STATES = Set.of("OPEN", "IN_PROGRESS", "DONE", "SKIPPED");
+    static final String DEFAULT_ALLOWED_SERVICES =
+            "dwp-auth-server,dwp-platform-server,dwp-people-server,"
+                    + "dwp-provider-server,dwp-approval-server,dwp-agent-runtime";
 
     private final AuditControlRepository repository;
     private final AuditRiskEngine riskEngine;
@@ -53,8 +56,7 @@ public class AuditControlService {
             AuditOutboxRecorder outboxRecorder,
             ObjectMapper objectMapper,
             @Value("${dwp.platform.audit.allowed-services:"
-                    + "dwp-auth-server,dwp-platform-server,dwp-people-server,"
-                    + "dwp-provider-server,dwp-agent-runtime}") String allowedServices) {
+                    + DEFAULT_ALLOWED_SERVICES + "}") String allowedServices) {
         this.repository = repository;
         this.riskEngine = riskEngine;
         this.integrityService = integrityService;

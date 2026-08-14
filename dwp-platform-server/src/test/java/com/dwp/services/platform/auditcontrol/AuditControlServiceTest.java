@@ -1,5 +1,6 @@
 package com.dwp.services.platform.auditcontrol;
 
+import com.dwp.audit.AuditEvent;
 import com.dwp.core.audit.AuditOutboxRecorder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,28 @@ class AuditControlServiceTest {
             mock(AuditOutboxRecorder.class),
             new ObjectMapper().findAndRegisterModules(),
             "dwp-platform-server");
+
+    @Test
+    void defaultServiceRegistryAcceptsApprovalAuditEvents() {
+        AuditControlService defaultRegistry = new AuditControlService(
+                repository,
+                new AuditRiskEngine(),
+                mock(AuditIntegrityService.class),
+                mock(AuditOutboxRecorder.class),
+                new ObjectMapper().findAndRegisterModules(),
+                AuditControlService.DEFAULT_ALLOWED_SERVICES);
+        AuditEvent event = AuditEvent.builder()
+                .tenantId(1L)
+                .category("SYSTEM_EVENT")
+                .action("approval.request.submitted")
+                .sourceService("dwp-approval-server")
+                .targetType("APPROVAL_REQUEST")
+                .targetId(UUID.randomUUID().toString())
+                .build();
+        int accepted = defaultRegistry.ingest("dwp-approval-server", List.of(event));
+
+        assertThat(accepted).isZero();
+    }
 
     @Test
     void assemblesCaseWorkspaceWithRiskAndTaskPressure() {

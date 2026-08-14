@@ -131,11 +131,23 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
             writeError(response, ErrorCode.FORBIDDEN, "Employee services access is required.");
             return;
         }
+        boolean calendarPath = path.startsWith("/v1/calendar");
+        if (calendarPath && !hasCalendarAuthority(request)) {
+            writeError(response, ErrorCode.FORBIDDEN, "Calendar permission is required.");
+            return;
+        }
         boolean communicationsAdminPath = path.startsWith("/v1/admin/announcements");
         boolean delegatedCommunicationsAccess = communicationsAdminPath
                 && hasCommunicationsAuthority(request);
         boolean servicesAdminPath = path.startsWith("/v1/admin/services");
         boolean delegatedServicesAccess = servicesAdminPath && hasServicesAuthority(request);
+        boolean calendarAdminPath = path.startsWith("/v1/admin/calendar");
+        boolean delegatedCalendarAccess = calendarAdminPath && hasCalendarAdminAuthority(request);
+        if (calendarAdminPath && !delegatedCalendarAccess) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "Calendar administration permission is required.");
+            return;
+        }
         boolean appAccessRequestPath = path.startsWith("/v1/admin/app-access-requests");
         boolean scopedAppAccess = appAccessRequestPath && hasScopedAppAccess(request);
         if (appAccessRequestPath && !scopedAppAccess) {
@@ -145,6 +157,7 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
         }
         if (!supportAccess && !auditAdminPath && !savedViewCustodyPath
                 && !scopedAppAccess && !delegatedCommunicationsAccess && !delegatedServicesAccess
+                && !delegatedCalendarAccess
                 && path.startsWith("/v1/admin/")
                 && !hasRole(request.getHeader(ROLES_HEADER), ADMIN_ROLES)) {
             writeError(response, ErrorCode.FORBIDDEN, "Tenant administrator permission is required.");
@@ -223,6 +236,29 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
             default -> "MANAGE";
         };
         return hasAuthority(request.getHeader(PERMISSIONS_HEADER), resource, requiredPermission);
+    }
+
+    private boolean hasCalendarAuthority(HttpServletRequest request) {
+        String requiredPermission = switch (request.getMethod()) {
+            case "GET", "HEAD" -> "VIEW";
+            case "POST" -> request.getRequestURI().endsWith("/events") ? "CREATE" : "UPDATE";
+            case "PUT", "PATCH", "DELETE" -> "UPDATE";
+            default -> "VIEW";
+        };
+        return hasAuthority(
+                request.getHeader(PERMISSIONS_HEADER), "APP.CALENDAR", requiredPermission);
+    }
+
+    private boolean hasCalendarAdminAuthority(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        String requiredPermission = switch (request.getMethod()) {
+            case "GET", "HEAD" -> "VIEW";
+            case "POST" -> path.endsWith("/decision") ? "MANAGE" : "CREATE";
+            case "PUT" -> path.endsWith("/policy") ? "MANAGE" : "UPDATE";
+            default -> "MANAGE";
+        };
+        return hasAuthority(
+                request.getHeader(PERMISSIONS_HEADER), "ADMIN.CALENDAR", requiredPermission);
     }
 
     private boolean isBlank(String value) {

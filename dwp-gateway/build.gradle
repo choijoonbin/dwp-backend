@@ -8,7 +8,7 @@ configurations.all {
 dependencies {
     implementation project(':dwp-observability')
     // Spring Cloud Gateway (Reactor Netty)
-    implementation('org.springframework.cloud:spring-cloud-starter-gateway') {
+    implementation('org.springframework.cloud:spring-cloud-starter-gateway-server-webflux') {
         exclude group: 'org.springframework.boot', module: 'spring-boot-starter-tomcat'
     }
 

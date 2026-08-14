@@ -13,6 +13,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+
 @Component
 public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
 
@@ -22,6 +25,8 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
     public static final String PERMISSIONS_HEADER = "X-DWP-Permissions";
     public static final String GROUP_REFS_HEADER = "X-DWP-Group-Refs";
     public static final String RESOURCE_ROLES_HEADER = "X-DWP-Resource-Roles";
+    public static final String PERSON_PUBLIC_ID_HEADER = "X-DWP-Person-Public-ID";
+    public static final String DISPLAY_NAME_HEADER = "X-DWP-Display-Name-B64";
 
     private final SessionVerifier sessionVerifier;
 
@@ -39,6 +44,8 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
                     headers.remove(PERMISSIONS_HEADER);
                     headers.remove(GROUP_REFS_HEADER);
                     headers.remove(RESOURCE_ROLES_HEADER);
+                    headers.remove(PERSON_PUBLIC_ID_HEADER);
+                    headers.remove(DISPLAY_NAME_HEADER);
                 })
                 .build();
         ServerWebExchange sanitizedExchange = exchange.mutate().request(sanitizedRequest).build();
@@ -73,6 +80,15 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
                                 if (!identity.resourceRoles().isEmpty()) {
                                     headers.set(RESOURCE_ROLES_HEADER,
                                             String.join(",", identity.resourceRoles()));
+                                }
+                                if (identity.personPublicId() != null) {
+                                    headers.set(PERSON_PUBLIC_ID_HEADER, identity.personPublicId());
+                                }
+                                if (identity.displayName() != null) {
+                                    headers.set(DISPLAY_NAME_HEADER, Base64.getUrlEncoder()
+                                            .withoutPadding()
+                                            .encodeToString(identity.displayName()
+                                                .getBytes(StandardCharsets.UTF_8)));
                                 }
                             })
                             .build();

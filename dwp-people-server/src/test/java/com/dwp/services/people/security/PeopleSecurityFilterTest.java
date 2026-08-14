@@ -103,6 +103,22 @@ class PeopleSecurityFilterTest {
         assertThat(denied.getStatus()).isEqualTo(403);
     }
 
+    @Test
+    void acceptsCanonicalAndLegacyHcmApplicationPermissions() throws Exception {
+        PeopleSecurityFilter filter = new PeopleSecurityFilter("trusted", objectMapper);
+
+        for (String resource : new String[] {"APP.HCM:VIEW", "APP.HRIS:VIEW"}) {
+            MockHttpServletRequest request = regularRequest(
+                    "GET", "/v1/hr/home", "WORKSPACE_MEMBER");
+            request.addHeader(PeopleSecurityFilter.PERMISSIONS_HEADER, resource);
+            MockHttpServletResponse response = new MockHttpServletResponse();
+
+            filter.doFilter(request, response, new MockFilterChain());
+
+            assertThat(response.getStatus()).isEqualTo(200);
+        }
+    }
+
     private MockHttpServletRequest request(String method, String path) {
         MockHttpServletRequest request = new MockHttpServletRequest(method, path);
         request.addHeader(PeopleSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");

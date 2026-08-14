@@ -24,8 +24,10 @@ class WorkforceAccessPolicyServiceTest {
     private final WorkforceAccessPolicyRepository repository =
             mock(WorkforceAccessPolicyRepository.class);
     private final AuditOutboxRecorder audit = mock(AuditOutboxRecorder.class);
+    private final WorkforceAccessDeniedAuditRecorder deniedAudit =
+            mock(WorkforceAccessDeniedAuditRecorder.class);
     private final WorkforceAccessPolicyService service =
-            new WorkforceAccessPolicyService(repository, audit);
+            new WorkforceAccessPolicyService(repository, audit, deniedAudit);
 
     @AfterEach
     void clearContext() {
@@ -41,7 +43,7 @@ class WorkforceAccessPolicyServiceTest {
         assertThatThrownBy(() -> service.require("READ"))
                 .isInstanceOf(BaseException.class);
 
-        verify(audit).record(any());
+        verify(deniedAudit).record(any());
     }
 
     @Test

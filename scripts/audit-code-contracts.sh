@@ -186,7 +186,17 @@ dwp-platform-server/src/main/java/com/dwp/services/platform/announcement/Announc
 dwp-platform-server/src/main/java/com/dwp/services/platform/announcement/AnnouncementSeverity.java|AnnouncementSeverity
 dwp-platform-server/src/main/java/com/dwp/services/platform/apihistory/ApiHistoryWindow.java|ApiHistoryWindow
 dwp-platform-server/src/main/java/com/dwp/services/platform/auditcontrol/AuditWindow.java|AuditWindow
+dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|AttendeeType
+dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|CalendarType
+dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|EventStatus
+dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|EventType
+dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|EventVisibility
+dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|RecurrencePattern
+dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|ResourceState
+dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|ResourceType
+dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|ResponseStatus
 dwp-platform-server/src/main/java/com/dwp/services/platform/communication/CommunicationReaction.java|CommunicationReaction
+dwp-platform-server/src/main/java/com/dwp/services/platform/home/overview/HomeOverviewDtos.java|SectionStatus
 dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java|AuthMode
 dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java|ConnectorHealth
 dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java|ConnectorLifecycle
@@ -341,6 +351,7 @@ dwp_auth|dwp-auth-server
 dwp_people|dwp-people-server
 dwp_platform|dwp-platform-server
 dwp_provider|dwp-provider-server
+dwp_approval|dwp-approval-server
 DATABASES
 
 psql_query "$PLATFORM_DB" "
@@ -549,6 +560,36 @@ assert_java_enum_codes 'API history window enum' \
 assert_java_enum_codes 'audit window enum' \
   'dwp-platform-server/src/main/java/com/dwp/services/platform/auditcontrol/AuditWindow.java' \
   'AuditWindow' 'name' 'PLATFORM.AUDIT.WINDOW'
+assert_java_enum_codes 'calendar type enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java' \
+  'CalendarType' 'name' 'PLATFORM.CAL_CALENDARS.CALENDAR_TYPE'
+assert_java_enum_codes 'calendar event type enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java' \
+  'EventType' 'name' 'PLATFORM.CAL_EVENTS.EVENT_TYPE'
+assert_java_enum_codes 'calendar event status enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java' \
+  'EventStatus' 'name' 'PLATFORM.CAL_EVENTS.STATUS'
+assert_java_enum_codes 'calendar visibility enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java' \
+  'EventVisibility' 'name' 'PLATFORM.CAL_EVENTS.VISIBILITY'
+assert_java_enum_codes 'calendar recurrence enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java' \
+  'RecurrencePattern' 'name' 'PLATFORM.CAL_EVENTS.RECURRENCE_PATTERN'
+assert_java_enum_codes 'calendar attendee type enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java' \
+  'AttendeeType' 'name' 'PLATFORM.CAL_EVENT_ATTENDEES.ATTENDEE_TYPE'
+assert_java_enum_codes 'calendar response status enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java' \
+  'ResponseStatus' 'name' 'PLATFORM.CAL_EVENT_ATTENDEES.RESPONSE_STATUS'
+assert_java_enum_codes 'calendar resource type enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java' \
+  'ResourceType' 'name' 'PLATFORM.CAL_RESOURCES.RESOURCE_TYPE'
+assert_java_enum_codes 'calendar resource state enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java' \
+  'ResourceState' 'name' 'PLATFORM.CAL_RESOURCES.LIFECYCLE_STATE'
+assert_java_enum_codes 'home overview section status enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/home/overview/HomeOverviewDtos.java' \
+  'SectionStatus' 'name' 'PLATFORM.HOME_OVERVIEW.SECTION_STATUS'
 assert_java_enum_codes 'productivity provider type enum' \
   'dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java' \
   'ProviderType' 'name' 'PLATFORM.PRODUCTIVITY_CONNECTOR.PROVIDER_TYPE'
@@ -591,13 +632,15 @@ assert_registry_codes 'system code runtime visibility contract' \
 assert_registry_codes 'home widget contract' \
   'PLATFORM.HOME_WIDGET' 'activity,announcements,daily-brief,focus,schedule'
 assert_registry_codes 'personal home surface contract' \
-  'PLATFORM.HOME_SURFACE' 'hris-home,workspace-home'
+  'PLATFORM.HOME_SURFACE' 'approval-home,hcm-home,workspace-home'
 assert_registry_codes 'personal home presentation contract' \
   'PLATFORM.HOME_PRESENTATION' 'balanced,expressive,focused'
 assert_registry_codes 'personal home widget size contract' \
   'PLATFORM.HOME_WIDGET_SIZE' 'compact,full,large,medium'
-assert_registry_codes 'HRIS home widget contract' \
-  'PLATFORM.HRIS_HOME_WIDGET' 'attention,operations,people-signals,profile,quick-actions,team'
+assert_registry_codes 'HCM home widget contract' \
+  'PLATFORM.HCM_HOME_WIDGET' 'attention,operations,people-signals,profile,quick-actions,team'
+assert_registry_codes 'approval home widget contract' \
+  'PLATFORM.APPROVAL_HOME_WIDGET' 'admin-health,decision-pulse,flow,focus-queue,insights,my-requests'
 assert_registry_codes 'API history window contract' \
   'PLATFORM.API_HISTORY.WINDOW' 'D30,D7,H1,H24,H6'
 assert_registry_codes 'API observation filter contract' \

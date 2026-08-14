@@ -8,10 +8,12 @@ public record VerifiedIdentity(
         List<String> roles,
         List<String> permissions,
         List<String> groupRefs,
-        List<String> resourceRoles) {
+        List<String> resourceRoles,
+        String personPublicId,
+        String displayName) {
 
     public VerifiedIdentity(String userId, String tenantId, List<String> roles) {
-        this(userId, tenantId, roles, List.of(), List.of(), List.of());
+        this(userId, tenantId, roles, List.of(), List.of(), List.of(), null, null);
     }
 
     public VerifiedIdentity(
@@ -19,7 +21,17 @@ public record VerifiedIdentity(
             String tenantId,
             List<String> roles,
             List<String> permissions) {
-        this(userId, tenantId, roles, permissions, List.of(), List.of());
+        this(userId, tenantId, roles, permissions, List.of(), List.of(), null, null);
+    }
+
+    public VerifiedIdentity(
+            String userId,
+            String tenantId,
+            List<String> roles,
+            List<String> permissions,
+            List<String> groupRefs,
+            List<String> resourceRoles) {
+        this(userId, tenantId, roles, permissions, groupRefs, resourceRoles, null, null);
     }
 
     public VerifiedIdentity {
@@ -30,5 +42,11 @@ public record VerifiedIdentity(
         permissions = permissions == null ? List.of() : List.copyOf(permissions);
         groupRefs = groupRefs == null ? List.of() : List.copyOf(groupRefs);
         resourceRoles = resourceRoles == null ? List.of() : List.copyOf(resourceRoles);
+        personPublicId = personPublicId == null || personPublicId.isBlank()
+                ? null
+                : personPublicId.trim();
+        displayName = displayName == null || displayName.isBlank()
+                ? null
+                : displayName.trim();
     }
 }

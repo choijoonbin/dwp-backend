@@ -21,14 +21,17 @@ import java.util.Set;
 public class HomePreferenceService {
 
     public static final String WORKSPACE_HOME = "workspace-home";
-    public static final String HRIS_HOME = "hris-home";
+    public static final String HCM_HOME = "hcm-home";
+    public static final String LEGACY_HRIS_HOME = "hris-home";
+    public static final String APPROVAL_HOME = "approval-home";
 
     private static final int MAX_LAYOUT_BYTES = 96 * 1024;
     private static final Set<String> PRESENTATIONS = Set.of("balanced", "expressive", "focused");
     private static final Set<String> WIDGET_SIZES = Set.of("compact", "medium", "large", "full");
     private static final Map<String, SurfaceContract> SURFACE_CONTRACTS = Map.of(
             WORKSPACE_HOME, workspaceContract(),
-            HRIS_HOME, hrisContract());
+            HCM_HOME, hcmContract(),
+            APPROVAL_HOME, approvalContract());
 
     private final HomePreferenceRepository repository;
     private final ObjectMapper objectMapper;
@@ -48,10 +51,12 @@ public class HomePreferenceService {
             Long tenantId,
             Long userId,
             String surfaceKey) {
-        SurfaceContract contract = requireSurface(surfaceKey);
-        return repository.findByTenantIdAndUserIdAndSurfaceKey(tenantId, userId, surfaceKey)
+        String canonicalSurfaceKey = canonicalSurfaceKey(surfaceKey);
+        SurfaceContract contract = requireSurface(canonicalSurfaceKey);
+        return repository.findByTenantIdAndUserIdAndSurfaceKey(
+                        tenantId, userId, canonicalSurfaceKey)
                 .map(preference -> response(preference, contract))
-                .orElseGet(() -> defaultResponse(surfaceKey, contract));
+                .orElseGet(() -> defaultResponse(canonicalSurfaceKey, contract));
     }
 
     @Transactional
@@ -61,14 +66,15 @@ public class HomePreferenceService {
             String surfaceKey,
             String correlationId,
             HomePreferenceDtos.UpdateHomePreferenceRequest request) {
-        SurfaceContract contract = requireSurface(surfaceKey);
+        String canonicalSurfaceKey = canonicalSurfaceKey(surfaceKey);
+        SurfaceContract contract = requireSurface(canonicalSurfaceKey);
         HomePreferenceDtos.HomeLayoutPayload normalized = normalizeLayout(
-                surfaceKey,
+                canonicalSurfaceKey,
                 contract,
                 request.layout());
         HomePreference preference = repository
-                .findByTenantIdAndUserIdAndSurfaceKey(tenantId, userId, surfaceKey)
-                .orElseGet(() -> create(tenantId, userId, surfaceKey, request.version()));
+                .findByTenantIdAndUserIdAndSurfaceKey(tenantId, userId, canonicalSurfaceKey)
+                .orElseGet(() -> create(tenantId, userId, canonicalSurfaceKey, request.version()));
         requireVersion(preference, request.version());
         Map<String, Object> before = snapshot(preference);
         preference.setSchemaVersion(HomePreferenceDtos.SCHEMA_VERSION);
@@ -79,7 +85,7 @@ public class HomePreferenceService {
                 userId,
                 "home-preference.updated",
                 "HOME_PREFERENCE",
-                userId + ":" + surfaceKey,
+                userId + ":" + canonicalSurfaceKey,
                 correlationId,
                 before,
                 snapshot(saved));
@@ -93,9 +99,10 @@ public class HomePreferenceService {
             String surfaceKey,
             String correlationId,
             Long version) {
-        SurfaceContract contract = requireSurface(surfaceKey);
+        String canonicalSurfaceKey = canonicalSurfaceKey(surfaceKey);
+        SurfaceContract contract = requireSurface(canonicalSurfaceKey);
         HomePreference preference = repository
-                .findByTenantIdAndUserIdAndSurfaceKey(tenantId, userId, surfaceKey)
+                .findByTenantIdAndUserIdAndSurfaceKey(tenantId, userId, canonicalSurfaceKey)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         requireVersion(preference, version);
         Map<String, Object> before = snapshot(preference);
@@ -106,11 +113,11 @@ public class HomePreferenceService {
                 userId,
                 "home-preference.reset",
                 "HOME_PREFERENCE",
-                userId + ":" + surfaceKey,
+                userId + ":" + canonicalSurfaceKey,
                 correlationId,
                 before,
                 snapshot(null));
-        return defaultResponse(surfaceKey, contract);
+        return defaultResponse(canonicalSurfaceKey, contract);
     }
 
     private HomePreference create(
@@ -133,6 +140,11 @@ public class HomePreferenceService {
         SurfaceContract contract = SURFACE_CONTRACTS.get(surfaceKey);
         if (contract == null) throw invalid("The personal home surface is not registered.");
         return contract;
+    }
+
+    private String canonicalSurfaceKey(String surfaceKey) {
+        if (LEGACY_HRIS_HOME.equals(surfaceKey)) return HCM_HOME;
+        return surfaceKey;
     }
 
     private HomePreferenceDtos.HomeLayoutPayload normalizeLayout(
@@ -211,7 +223,7 @@ public class HomePreferenceService {
 
     private void validateGroups(JsonNode groups) {
         if (groups.size() > 12) throw invalid("The app layout contains too many groups.");
-        groups.fields().forEachRemaining(entry -> {
+        groups.properties().forEach(entry -> {
             if (entry.getKey().length() > 40
                     || !entry.getValue().isArray()
                     || entry.getValue().size() > 100) {
@@ -227,7 +239,7 @@ public class HomePreferenceService {
 
     private void validateFolders(JsonNode folders) {
         if (folders.size() > 50) throw invalid("The app layout contains too many folders.");
-        folders.fields().forEachRemaining(entry -> {
+        folders.properties().forEach(entry -> {
             JsonNode folder = entry.getValue();
             if (entry.getKey().length() > 100
                     || !folder.isObject()
@@ -371,7 +383,7 @@ public class HomePreferenceService {
         return new SurfaceContract(true, "balanced", List.copyOf(widgets.keySet()), Map.copyOf(widgets));
     }
 
-    private static SurfaceContract hrisContract() {
+    private static SurfaceContract hcmContract() {
         Map<String, WidgetContract> widgets = new LinkedHashMap<>();
         widgets.put("quick-actions", widget(true, "full", "medium", "large", "full"));
         widgets.put("people-signals", widget(true, "full", "large", "full"));
@@ -379,6 +391,17 @@ public class HomePreferenceService {
         widgets.put("profile", widget(true, "compact", "compact", "medium"));
         widgets.put("team", widget(true, "full", "medium", "large", "full"));
         widgets.put("operations", widget(true, "full", "large", "full"));
+        return new SurfaceContract(false, "balanced", List.copyOf(widgets.keySet()), Map.copyOf(widgets));
+    }
+
+    private static SurfaceContract approvalContract() {
+        Map<String, WidgetContract> widgets = new LinkedHashMap<>();
+        widgets.put("decision-pulse", widget(false, "full", "full"));
+        widgets.put("focus-queue", widget(true, "large", "medium", "large", "full"));
+        widgets.put("flow", widget(true, "medium", "medium", "large", "full"));
+        widgets.put("my-requests", widget(true, "medium", "medium", "large", "full"));
+        widgets.put("insights", widget(true, "medium", "compact", "medium", "large"));
+        widgets.put("admin-health", widget(true, "full", "large", "full"));
         return new SurfaceContract(false, "balanced", List.copyOf(widgets.keySet()), Map.copyOf(widgets));
     }
 

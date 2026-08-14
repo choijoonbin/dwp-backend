@@ -27,12 +27,15 @@ public class WorkforceAccessPolicyService {
 
     private final WorkforceAccessPolicyRepository repository;
     private final AuditOutboxRecorder audit;
+    private final WorkforceAccessDeniedAuditRecorder deniedAudit;
 
     public WorkforceAccessPolicyService(
             WorkforceAccessPolicyRepository repository,
-            AuditOutboxRecorder audit) {
+            AuditOutboxRecorder audit,
+            WorkforceAccessDeniedAuditRecorder deniedAudit) {
         this.repository = repository;
         this.audit = audit;
+        this.deniedAudit = deniedAudit;
     }
 
     @Transactional(readOnly = true)
@@ -234,7 +237,7 @@ public class WorkforceAccessPolicyService {
     }
 
     private void denied(PeopleRequestContext.Actor actor, String action, String reason) {
-        audit.record(AuditEvent.builder()
+        deniedAudit.record(AuditEvent.builder()
                 .tenantId(actor.tenantId())
                 .category("POLICY_DENIED")
                 .action("workforce.access.denied")

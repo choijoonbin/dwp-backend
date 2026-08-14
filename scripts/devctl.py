@@ -72,6 +72,13 @@ SERVICES = {
         8004,
         "/actuator/health",
     ),
+    "approval": Service(
+        "approval",
+        BACKEND_ROOT,
+        ("./gradlew", "--no-daemon", ":dwp-approval-server:bootRun"),
+        8005,
+        "/actuator/health",
+    ),
     "agent": Service(
         "agent",
         AGENT_ROOT,
@@ -106,16 +113,23 @@ SERVICES = {
 }
 
 PROFILES = {
-    "full": {"auth", "platform", "people", "provider", "agent", "gateway", "frontend"},
-    "core": {"auth", "platform", "people", "provider", "gateway", "frontend"},
-    "backend": {"auth", "platform", "people", "provider", "agent", "gateway"},
-    "contracts": {"auth", "platform", "people", "provider"},
+    "full": {"auth", "platform", "people", "provider", "approval", "agent", "gateway", "frontend"},
+    "core": {"auth", "platform", "people", "provider", "approval", "gateway", "frontend"},
+    "backend": {"auth", "platform", "people", "provider", "approval", "agent", "gateway"},
+    "contracts": {"auth", "platform", "people", "provider", "approval"},
     "agent": {"agent"},
     "gateway": {"gateway"},
+    "approval": {"approval"},
     "web": {"frontend"},
 }
 
-START_ORDER = ("auth", "platform", "people", "provider", "agent", "gateway", "frontend")
+START_ORDER = ("auth", "platform", "people", "provider", "approval", "agent", "gateway", "frontend")
+START_PHASES = (
+    ("platform",),
+    ("auth", "people", "provider", "approval", "agent"),
+    ("gateway",),
+    ("frontend",),
+)
 
 
 def load_state() -> dict[str, dict[str, object]]:
@@ -172,6 +186,7 @@ def local_environment() -> dict[str, str]:
         "SERVICE_PLATFORM_URL": "http://localhost:8002",
         "SERVICE_PEOPLE_URL": "http://localhost:8003",
         "SERVICE_PROVIDER_URL": "http://localhost:8004",
+        "SERVICE_APPROVAL_URL": "http://localhost:8005",
         "DWP_AGENT_SERVICE_TOKEN": "dwp-local-agent-service-token",
         "DWP_AGENT_DATABASE_URL": (
             "postgresql://dwp_user:dwp_password@localhost:5432/dwp_agent"
@@ -194,7 +209,15 @@ def local_environment() -> dict[str, str]:
         ),
         "DWP_PEOPLE_SERVICE_TOKEN": "dwp-local-people-service-token",
         "DWP_PEOPLE_CURSOR_SECRET": "dwp-local-people-cursor-secret-change-outside-local",
+        "DWP_PEOPLE_FLYWAY_LOCATIONS": (
+            "classpath:db/migration,classpath:db/local-seed"
+        ),
         "DWP_PROVIDER_SERVICE_TOKEN": "dwp-local-provider-service-token",
+        "DWP_APPROVAL_SERVICE_TOKEN": "dwp-local-approval-service-token",
+        "DWP_APPROVAL_FLYWAY_LOCATIONS": (
+            "classpath:db/migration,classpath:db/local-seed"
+        ),
+        "DWP_APPROVAL_EXTERNAL_SIGNATURE_ENABLED": "false",
         "DWP_PROVIDER_SUPPORT_VALIDATION_TOKEN": (
             "dwp-local-provider-support-validation-token"
         ),
@@ -258,9 +281,15 @@ def service_environment(service_name: str) -> dict[str, str]:
         environment.pop("DWP_PEOPLE_SERVICE_TOKEN", None)
     if service_name != "people":
         environment.pop("DWP_PEOPLE_CURSOR_SECRET", None)
+        environment.pop("DWP_PEOPLE_FLYWAY_LOCATIONS", None)
     if service_name not in {"gateway", "provider"}:
         environment.pop("DWP_PROVIDER_SERVICE_TOKEN", None)
         environment.pop("DWP_PROVIDER_SUPPORT_VALIDATION_TOKEN", None)
+    if service_name not in {"gateway", "approval"}:
+        environment.pop("DWP_APPROVAL_SERVICE_TOKEN", None)
+    if service_name != "approval":
+        environment.pop("DWP_APPROVAL_FLYWAY_LOCATIONS", None)
+        environment.pop("DWP_APPROVAL_EXTERNAL_SIGNATURE_ENABLED", None)
     if service_name != "provider":
         environment.pop("DWP_PROVIDER_SUPPORT_COOKIE_SECURE", None)
     if service_name not in {"auth", "platform", "people", "provider"}:
@@ -379,6 +408,7 @@ def start_infrastructure() -> None:
             ensure_database("dwp_platform")
             ensure_database("dwp_people")
             ensure_database("dwp_provider")
+            ensure_database("dwp_approval")
             ensure_database("dwp_agent")
             print("postgres   ready at localhost:5432")
             print("redis      ready at localhost:6379")
@@ -579,9 +609,12 @@ def main() -> None:
         doctor(services)
         start_infrastructure()
         state = load_state()
-        for service in services:
-            start_service(service, state)
-        wait_for_services(services, state)
+        selected = {service.name: service for service in services}
+        for phase_names in START_PHASES:
+            phase = [selected[name] for name in phase_names if name in selected]
+            for service in phase:
+                start_service(service, state)
+            wait_for_services(phase, state)
     elif args.command == "stop":
         stop_services()
     elif args.command == "down":

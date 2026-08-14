@@ -28,7 +28,7 @@ public class WorkspaceRepository {
                        latest_activity_ko, latest_activity_en, version, updated_at
                   FROM wrk_items
                  WHERE tenant_id = ?
-                   AND (assignee_user_id IS NULL OR assignee_user_id = ?)
+                   AND assignee_user_id = ?
                  ORDER BY CASE priority WHEN 'HIGH' THEN 1 WHEN 'MEDIUM' THEN 2 ELSE 3 END,
                           CASE lifecycle_state
                               WHEN 'DUE_SOON' THEN 1 WHEN 'IN_PROGRESS' THEN 2
@@ -50,7 +50,7 @@ public class WorkspaceRepository {
                        latest_activity_ko, latest_activity_en, version, updated_at
                   FROM wrk_items
                  WHERE tenant_id = ? AND work_item_id = ?
-                   AND (assignee_user_id IS NULL OR assignee_user_id = ?)
+                   AND assignee_user_id = ?
                 """, (result, ignored) -> workRow(result, korean), tenantId, workItemId, actorId)
                 .stream().findFirst();
     }
@@ -72,7 +72,7 @@ public class WorkspaceRepository {
                        updated_at = CURRENT_TIMESTAMP,
                        updated_by = ?
                  WHERE tenant_id = ? AND work_item_id = ? AND version = ?
-                   AND (assignee_user_id IS NULL OR assignee_user_id = ?)
+                   AND assignee_user_id = ?
                 """, status, latestActivityKo, latestActivityEn, actorId,
                 tenantId, workItemId, version, actorId) == 1;
     }

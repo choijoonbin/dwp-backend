@@ -471,7 +471,7 @@ public class FeatureRolloutService {
     private void requireSecretReferences(JsonNode node, String path) {
         if (node == null || node.isNull()) return;
         if (node.isObject()) {
-            Iterator<Map.Entry<String, JsonNode>> fields = node.fields();
+            Iterator<Map.Entry<String, JsonNode>> fields = node.properties().iterator();
             while (fields.hasNext()) {
                 Map.Entry<String, JsonNode> entry = fields.next();
                 String normalized = entry.getKey().replace("_", "")

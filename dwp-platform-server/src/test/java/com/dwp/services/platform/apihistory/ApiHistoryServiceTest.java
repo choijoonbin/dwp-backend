@@ -34,6 +34,21 @@ class ApiHistoryServiceTest {
     }
 
     @Test
+    void defaultServiceRegistryAcceptsTheApprovalProductService() {
+        ApiHistoryService defaultRegistry = new ApiHistoryService(
+                repository,
+                mock(ApiHistoryCursorCodec.class),
+                ApiHistoryService.DEFAULT_ALLOWED_SERVICES,
+                90);
+        ApiHistoryEvent event = event("dwp-approval-server", "/v1/approvals/tasks/{id}");
+
+        int accepted = defaultRegistry.ingest("dwp-approval-server", List.of(event));
+
+        assertThat(accepted).isEqualTo(1);
+        verify(repository).ingest(List.of(event));
+    }
+
+    @Test
     void rejectsUnknownServicesAndQueryStrings() {
         assertThatThrownBy(() -> service.ingest(
                 "unknown", List.of(event("unknown", "/health"))))
