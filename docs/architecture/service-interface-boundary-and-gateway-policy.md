@@ -45,6 +45,20 @@ The gap was governance, not the runtime call intent:
 
 This ADR closes that gap by defining the policy and tying it to automated checks.
 
+## Service Interface Contract Manifest
+
+`docs/architecture/service-interface-contracts.json` is the single source of truth for approved backend HTTP clients and cross-database metadata exceptions.
+
+The manifest records each approved interface with an ID, classification, source service, target service, owning file, purpose, auth model, required implementation markers, and forbidden markers. The checker validates both directions:
+
+- code cannot introduce a new `RestClient` or `WebClient` without a manifest entry;
+- manifest entries cannot point to missing files, unknown services, duplicate IDs, duplicate paths, or incomplete contract metadata;
+- allowlisted clients must keep their required path, credential, and observability markers;
+- `internal-http` contracts must use `/internal/**`, propagate observability headers, require a purpose-specific service token, and forbid Gateway `/api/**` calls;
+- `gateway-verifier` contracts must originate from the Gateway and preserve W3C trace context;
+- external connectors must keep their host validation markers and must not reuse DWP service-to-service credentials;
+- cross-database exceptions must stay explicitly registered as metadata-only access and keep read-only scanner safeguards.
+
 ## Standards Alignment
 
 | Reference architecture | DWP position | Current implementation |
@@ -60,10 +74,11 @@ This ADR closes that gap by defining the policy and tying it to automated checks
 Backend:
 
 - `scripts/check-service-boundaries.py` blocks sibling service imports and sibling service Gradle dependencies.
-- The same script blocks new backend `RestClient` or `WebClient` usage unless the source file is in the service-interface allowlist.
+- The same script loads `docs/architecture/service-interface-contracts.json` and blocks new backend `RestClient` or `WebClient` usage unless the source file is registered there.
+- The manifest itself is validated for duplicate IDs, duplicate paths, unknown services, missing files, missing required fields, invalid interface types, and interface-type-specific security rules.
 - Allowlisted internal clients must keep their required path and credential markers.
 - Allowlisted internal clients must propagate request-scoped correlation and W3C trace context. Servlet services use `OutboundHttpHeaders.propagateObservability`; Gateway WebClient verifiers copy `traceparent` and `tracestate`.
-- New cross-service database references fail unless explicitly registered as an accepted metadata exception.
+- New cross-service database references fail unless explicitly registered as an accepted metadata exception in the manifest.
 
 Frontend:
 
@@ -78,5 +93,7 @@ Any new DWP service-to-service interface must be added through one of these path
 2. Internal HTTP contract with an owning service, `/internal/**` path, purpose-specific token, timeout, trace propagation, and allowlist entry.
 3. Domain event/outbox contract for asynchronous projection.
 4. External connector adapter with trusted host or tenant allowlist validation.
+
+A backend interface change is not complete until the manifest entry, owning implementation, and automated boundary check are updated together.
 
 Direct use of another service's public `/v1/**` API, Gateway `/api/**` API from a backend service, or another service's database is rejected by policy.

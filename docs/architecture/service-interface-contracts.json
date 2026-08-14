@@ -1,0 +1,267 @@
+{
+  "version": 1,
+  "httpClients": [
+    {
+      "id": "gateway-auth-session-verifier",
+      "classification": "gateway-session-verification",
+      "interfaceType": "gateway-verifier",
+      "sourceService": "dwp-gateway",
+      "targetServices": [
+        "dwp-auth-server"
+      ],
+      "path": "dwp-gateway/src/main/java/com/dwp/gateway/security/AuthSessionVerifier.java",
+      "purpose": "Verify browser session identity at the edge before Gateway forwards API traffic.",
+      "auth": "Forwards end-user session context only; service identity is forbidden.",
+      "requiredMarkers": [
+        "${SERVICE_AUTH_URL:http://localhost:8001}",
+        "/auth/me",
+        "TRACE_PARENT_HEADER",
+        "TRACE_STATE_HEADER"
+      ],
+      "forbiddenMarkers": [
+        "X-DWP-Service-Token"
+      ]
+    },
+    {
+      "id": "gateway-provider-support-session-verifier",
+      "classification": "gateway-support-session-verification",
+      "interfaceType": "gateway-verifier",
+      "sourceService": "dwp-gateway",
+      "targetServices": [
+        "dwp-provider-server"
+      ],
+      "path": "dwp-gateway/src/main/java/com/dwp/gateway/security/ProviderSupportSessionVerifier.java",
+      "purpose": "Resolve delegated support-session scope at the edge before provider support traffic is forwarded.",
+      "auth": "Uses Gateway service identity plus a support-validation token.",
+      "requiredMarkers": [
+        "${SERVICE_PROVIDER_URL:http://localhost:8004}",
+        "/v1/internal/support-access/resolve",
+        "X-DWP-Service-Token",
+        "X-DWP-Support-Validation-Token",
+        "TRACE_PARENT_HEADER",
+        "TRACE_STATE_HEADER"
+      ],
+      "forbiddenMarkers": [
+        "/api/"
+      ]
+    },
+    {
+      "id": "provider-downstream-provisioning",
+      "classification": "provider-tenant-provisioning",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-provider-server",
+      "targetServices": [
+        "dwp-auth-server",
+        "dwp-platform-server",
+        "dwp-people-server"
+      ],
+      "path": "dwp-provider-server/src/main/java/com/dwp/services/provider/provisioning/DownstreamProvisioningClient.java",
+      "purpose": "Orchestrate tenant lifecycle provisioning across service-owned stores through internal provider contracts.",
+      "auth": "Uses purpose-specific provisioning token only.",
+      "requiredMarkers": [
+        "${dwp.services.auth-url:http://localhost:8001}",
+        "${dwp.services.platform-url:http://localhost:8002}",
+        "${dwp.services.people-url:http://localhost:8003}",
+        "/internal/provider/v1/",
+        "X-DWP-Provisioning-Token",
+        "OutboundHttpHeaders.propagateObservability"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Service-Token",
+        "X-DWP-Identity-Sync-Token"
+      ]
+    },
+    {
+      "id": "provider-platform-product-catalog",
+      "classification": "provider-code-contract-catalog",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-provider-server",
+      "targetServices": [
+        "dwp-platform-server"
+      ],
+      "path": "dwp-provider-server/src/main/java/com/dwp/services/provider/codecatalog/ProductCatalogClient.java",
+      "purpose": "Read Platform-owned product code-contract catalog through a provider internal contract.",
+      "auth": "Uses purpose-specific provisioning token only.",
+      "requiredMarkers": [
+        "${dwp.services.platform-url:http://localhost:8002}",
+        "/internal/provider/v1/code-catalog/",
+        "X-DWP-Provisioning-Token",
+        "OutboundHttpHeaders.propagateObservability"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Service-Token",
+        "X-DWP-Identity-Sync-Token"
+      ]
+    },
+    {
+      "id": "platform-auth-app-entitlement-provisioner",
+      "classification": "identity-entitlement-sync",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-platform-server",
+      "targetServices": [
+        "dwp-auth-server"
+      ],
+      "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/workspace/AuthAppEntitlementProvisioner.java",
+      "purpose": "Synchronize app entitlement state into central identity through an internal identity contract.",
+      "auth": "Uses purpose-specific identity-sync token only.",
+      "requiredMarkers": [
+        "${dwp.identity-sync.auth-url:http://localhost:8001}",
+        "/internal/identity/v1/",
+        "X-DWP-Identity-Sync-Token",
+        "OutboundHttpHeaders.propagateObservability"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Service-Token",
+        "X-DWP-Provisioning-Token"
+      ]
+    },
+    {
+      "id": "platform-auth-saved-view-subject-directory",
+      "classification": "identity-subject-validation",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-platform-server",
+      "targetServices": [
+        "dwp-auth-server"
+      ],
+      "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/savedview/AuthSavedViewSubjectDirectory.java",
+      "purpose": "Validate saved-view subjects against central identity through an internal identity contract.",
+      "auth": "Uses purpose-specific identity-sync token only.",
+      "requiredMarkers": [
+        "${dwp.identity-sync.auth-url:http://localhost:8001}",
+        "/internal/identity/v1/",
+        "X-DWP-Identity-Sync-Token",
+        "OutboundHttpHeaders.propagateObservability"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Service-Token",
+        "X-DWP-Provisioning-Token"
+      ]
+    },
+    {
+      "id": "people-auth-workforce-identity-sync",
+      "classification": "workforce-identity-sync",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-people-server",
+      "targetServices": [
+        "dwp-auth-server"
+      ],
+      "path": "dwp-people-server/src/main/java/com/dwp/services/people/identity/IdentitySyncClient.java",
+      "purpose": "Project workforce identity events into central identity through an internal identity contract.",
+      "auth": "Uses purpose-specific identity-sync token only.",
+      "requiredMarkers": [
+        "${dwp.identity-sync.auth-url:http://localhost:8001}",
+        "/internal/identity/v1/",
+        "X-DWP-Identity-Sync-Token",
+        "OutboundHttpHeaders.propagateObservability"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Service-Token",
+        "X-DWP-Provisioning-Token"
+      ]
+    },
+    {
+      "id": "platform-microsoft-graph-connector",
+      "classification": "external-productivity-connector",
+      "interfaceType": "external-connector",
+      "sourceService": "dwp-platform-server",
+      "targetServices": [
+        "microsoft-graph"
+      ],
+      "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/MicrosoftGraphClient.java",
+      "purpose": "Call Microsoft Graph through trusted Microsoft hosts only.",
+      "auth": "Uses external OAuth token flow; DWP service-to-service tokens are forbidden.",
+      "requiredMarkers": [
+        "login.microsoftonline.com",
+        "graph.microsoft.com",
+        "trustedBase",
+        "requireHost"
+      ],
+      "forbiddenMarkers": [
+        "SERVICE_AUTH_URL",
+        "SERVICE_PLATFORM_URL",
+        "SERVICE_PEOPLE_URL",
+        "SERVICE_PROVIDER_URL",
+        "SERVICE_APPROVAL_URL",
+        "X-DWP-Service-Token"
+      ]
+    },
+    {
+      "id": "people-workday-rest-adapter",
+      "classification": "external-hris-connector",
+      "interfaceType": "external-connector",
+      "sourceService": "dwp-people-server",
+      "targetServices": [
+        "workday"
+      ],
+      "path": "dwp-people-server/src/main/java/com/dwp/services/people/integration/WorkdayRestAdapter.java",
+      "purpose": "Call tenant-configured Workday hosts through an explicit HRIS allowlist.",
+      "auth": "Uses external HRIS credentials; DWP service-to-service tokens are forbidden.",
+      "requiredMarkers": [
+        "dwp.people.hris.allowed-hosts",
+        "dwp.people.hris.allow-unlisted-hosts:false",
+        "requireAllowed"
+      ],
+      "forbiddenMarkers": [
+        "SERVICE_AUTH_URL",
+        "SERVICE_PLATFORM_URL",
+        "SERVICE_PEOPLE_URL",
+        "SERVICE_PROVIDER_URL",
+        "SERVICE_APPROVAL_URL",
+        "X-DWP-Service-Token"
+      ]
+    }
+  ],
+  "crossDatabaseExceptions": [
+    {
+      "id": "provider-data-governance-metadata-sources",
+      "classification": "metadata-governance",
+      "sourceService": "dwp-provider-server",
+      "path": "dwp-provider-server/src/main/resources/application.yml",
+      "purpose": "Declare read-only metadata inventory sources for the provider data-governance control plane.",
+      "allowedDatabases": [
+        "AUTH",
+        "PLATFORM",
+        "PEOPLE",
+        "PROVIDER"
+      ],
+      "requiredMarkers": [
+        "dwp:",
+        "data-governance:",
+        "sources:",
+        "${DWP_METADATA_DB_USERNAME:${DB_USERNAME:dwp_user}}",
+        "${DWP_METADATA_DB_PASSWORD:${DB_PASSWORD:dwp_password}}"
+      ]
+    }
+  ],
+  "metadataScanners": [
+    {
+      "id": "provider-data-governance-scanner",
+      "classification": "metadata-governance",
+      "sourceService": "dwp-provider-server",
+      "path": "dwp-provider-server/src/main/java/com/dwp/services/provider/governance/DataGovernanceScanner.java",
+      "purpose": "Read PostgreSQL catalog metadata only for inventory, ownership, and lineage views.",
+      "requiredMarkers": [
+        "connection.setReadOnly(true)",
+        "pg_class",
+        "pg_namespace",
+        "pg_constraint",
+        "pg_index"
+      ],
+      "forbiddenMarkers": [
+        "INSERT INTO",
+        "UPDATE ",
+        "DELETE FROM",
+        "MERGE ",
+        "TRUNCATE ",
+        "ALTER ",
+        "DROP ",
+        "CREATE "
+      ]
+    }
+  ]
+}
