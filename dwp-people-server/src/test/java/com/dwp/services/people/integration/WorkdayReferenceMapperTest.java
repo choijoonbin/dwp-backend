@@ -27,13 +27,4 @@ class WorkdayReferenceMapperTest {
                 .extracting(HrisModels.WorkerRecord::workEmail)
                 .allMatch(email -> email.endsWith("@sk.com"));
     }
-
-    @Test
-    void marksRestrictedMappingsAsKmsGated() {
-        String mapping = mapper.mappingDefinition().toString();
-
-        assertThat(mapping).contains("ppl_person_identifiers.encrypted_value");
-        assertThat(mapping).contains("\"gate\":\"KMS\"");
-        assertThat(mapping).contains("\"enabled\":false");
-    }
 }

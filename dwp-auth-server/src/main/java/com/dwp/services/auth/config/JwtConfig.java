@@ -98,6 +98,7 @@ public class JwtConfig {
                                 "/auth/activations/**",
                                 "/auth/idp/**",
                                 "/auth/oidc/**",
+                                "/v3/api-docs/**",
                                 "/actuator/health/**",
                                 "/error")
                         .permitAll()

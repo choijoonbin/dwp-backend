@@ -39,6 +39,10 @@ dependencies {
     
     // Health and readiness
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-api:2.8.17'
+    implementation 'org.springframework.boot:spring-boot-starter-aop'
+    implementation 'io.github.resilience4j:resilience4j-spring-boot3'
+    implementation 'io.opentelemetry.instrumentation:opentelemetry-spring-boot-starter'
     
     // Test
     testImplementation 'org.springframework.boot:spring-boot-starter-test'

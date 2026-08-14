@@ -4,6 +4,9 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.core.http.OutboundHttpHeaders;
 import com.fasterxml.jackson.databind.JsonNode;
+import io.github.resilience4j.bulkhead.annotation.Bulkhead;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -24,10 +27,16 @@ public class ProductCatalogClient {
         this.provisioningToken = provisioningToken == null ? "" : provisioningToken.trim();
     }
 
+    @Bulkhead(name = "platformCatalog", type = Bulkhead.Type.SEMAPHORE)
+    @CircuitBreaker(name = "platformCatalog")
+    @Retry(name = "idempotentInternal")
     public JsonNode catalog() {
         return get("/internal/provider/v1/code-catalog/code-sets");
     }
 
+    @Bulkhead(name = "platformCatalog", type = Bulkhead.Type.SEMAPHORE)
+    @CircuitBreaker(name = "platformCatalog")
+    @Retry(name = "idempotentInternal")
     public JsonNode codeSet(String codeSetKey, String locale) {
         requireConfigured();
         PlatformResponse response = platform.get()

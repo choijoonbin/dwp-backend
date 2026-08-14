@@ -86,7 +86,9 @@ SERVICES = {
             agent_python(),
             "-m",
             "uvicorn",
-            "main:app",
+            "--app-dir",
+            "src",
+            "dwp_agent.main:app",
             "--reload",
             "--host",
             "127.0.0.1",
@@ -116,7 +118,7 @@ PROFILES = {
     "full": {"auth", "platform", "people", "provider", "approval", "agent", "gateway", "frontend"},
     "core": {"auth", "platform", "people", "provider", "approval", "gateway", "frontend"},
     "backend": {"auth", "platform", "people", "provider", "approval", "agent", "gateway"},
-    "contracts": {"auth", "platform", "people", "provider", "approval"},
+    "contracts": {"auth", "platform", "people", "provider", "approval", "gateway"},
     "agent": {"agent"},
     "gateway": {"gateway"},
     "approval": {"approval"},
@@ -250,6 +252,7 @@ def local_environment() -> dict[str, str]:
             "dwp-local-audit-integrity-secret-change-outside-local"
         ),
         "DWP_ENVIRONMENT": "local",
+        "DWP_OPENAPI_ENABLED": "true",
         "VITE_API_URL": "http://localhost:8080",
     }
     for key, value in defaults.items():

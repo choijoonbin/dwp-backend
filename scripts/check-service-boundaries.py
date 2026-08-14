@@ -43,7 +43,7 @@ VALID_INTERFACE_TYPES = {
 IMPORT_RE = re.compile(r"^\s*import\s+([^;]+);", re.MULTILINE)
 PROJECT_DEP_RE = re.compile(r"^\s*(?:api|implementation|compileOnly|runtimeOnly)\s+project\(['\"]:([^'\"]+)['\"]\)", re.MULTILINE)
 HTTP_CLIENT_IMPORT_RE = re.compile(
-    r"import\s+org\.springframework\.(?:web\.client\.RestClient|web\.reactive\.function\.client\.WebClient);"
+    r"import\s+(?:org\.springframework\.(?:web\.client\.RestClient|web\.reactive\.function\.client\.WebClient)|java\.net\.http\.HttpClient);"
 )
 APP_YML_CROSS_DB_RE = re.compile(
     r"\$\{(?P<db>AUTH|PLATFORM|PEOPLE|PROVIDER)_DB_NAME:"
@@ -104,8 +104,27 @@ def validate_relative_path(
 
 def policy_manifest_violations(policy: dict[str, Any]) -> list[str]:
     violations: list[str] = []
-    if policy.get("version") != 1:
-        violations.append(f"{POLICY_FILE.relative_to(ROOT)} version must be 1")
+    if policy.get("version") != 2:
+        violations.append(f"{POLICY_FILE.relative_to(ROOT)} version must be 2")
+
+    resilience = policy.get("resilienceDefaults")
+    if not isinstance(resilience, dict):
+        violations.append(f"{POLICY_FILE.relative_to(ROOT)} must define resilienceDefaults")
+    else:
+        bounded_values = {
+            "connectTimeoutMs": (1, 30_000),
+            "readTimeoutMs": (1, 30_000),
+            "bulkheadMaxConcurrentCalls": (1, 1_000),
+            "maximumRetryAttempts": (1, 3),
+        }
+        for key, (minimum, maximum) in bounded_values.items():
+            value = resilience.get(key)
+            if not isinstance(value, int) or not minimum <= value <= maximum:
+                violations.append(
+                    f"resilienceDefaults.{key} must be between {minimum} and {maximum}"
+                )
+        if resilience.get("circuitBreaker") is not True:
+            violations.append("resilienceDefaults.circuitBreaker must be true")
 
     required_sections = {
         "httpClients",
@@ -182,6 +201,14 @@ def policy_manifest_violations(policy: dict[str, Any]) -> list[str]:
                 auth = entry.get("auth")
                 if not isinstance(auth, str) or not auth.strip():
                     violations.append(f"{section}:{entry_id} must define non-empty auth")
+                if entry.get("retryMode") not in {"none", "idempotent-only", "outbox-owned"}:
+                    violations.append(
+                        f"{section}:{entry_id} must define retryMode as none, idempotent-only, or outbox-owned"
+                    )
+                if entry.get("failureMode") not in {"fail-closed", "fail-contained"}:
+                    violations.append(
+                        f"{section}:{entry_id} must define failureMode as fail-closed or fail-contained"
+                    )
                 required_markers = validate_string_list(
                     violations, section, str(entry_id), entry, "requiredMarkers"
                 )

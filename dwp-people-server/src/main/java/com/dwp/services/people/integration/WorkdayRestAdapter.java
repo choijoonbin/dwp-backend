@@ -1,6 +1,9 @@
 package com.dwp.services.people.integration;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.github.resilience4j.bulkhead.annotation.Bulkhead;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -59,6 +62,9 @@ public class WorkdayRestAdapter {
         return "WORKDAY_REST".equals(connector.connectorType());
     }
 
+    @Bulkhead(name = "workday", type = Bulkhead.Type.SEMAPHORE)
+    @CircuitBreaker(name = "workday")
+    @Retry(name = "idempotentConnector")
     public ProbeResult probe(HrisDtos.ConnectorInstance connector) {
         if (!supports(connector)) {
             throw new HrisConnectorBlockedException(
@@ -71,6 +77,9 @@ public class WorkdayRestAdapter {
         return new ProbeResult(true, "HEALTHY");
     }
 
+    @Bulkhead(name = "workday", type = Bulkhead.Type.SEMAPHORE)
+    @CircuitBreaker(name = "workday")
+    @Retry(name = "idempotentConnector")
     public FetchResult fetch(
             HrisDtos.ConnectorInstance connector,
             HrisIntegrationRepository.MappingRuntime mapping,

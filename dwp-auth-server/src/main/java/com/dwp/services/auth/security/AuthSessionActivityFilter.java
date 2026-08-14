@@ -26,7 +26,8 @@ public class AuthSessionActivityFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return "/auth/session/refresh".equals(request.getRequestURI());
+        return "/auth/session/refresh".equals(request.getRequestURI())
+                || request.getRequestURI().startsWith("/v3/api-docs");
     }
 
     @Override

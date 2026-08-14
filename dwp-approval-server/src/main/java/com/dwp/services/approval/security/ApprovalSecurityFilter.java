@@ -48,7 +48,9 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return path.startsWith("/actuator/health") || path.equals("/error");
+        return path.startsWith("/actuator/health")
+                || path.startsWith("/v3/api-docs")
+                || path.equals("/error");
     }
 
     @Override

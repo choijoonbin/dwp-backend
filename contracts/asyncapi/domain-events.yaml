@@ -1,0 +1,94 @@
+asyncapi: 3.0.0
+info:
+  title: DWP Domain Events
+  version: 1.0.0
+  description: Versioned CloudEvents-aligned contracts published from transactional outboxes.
+defaultContentType: application/json
+servers:
+  local:
+    host: localhost:9092
+    protocol: kafka
+channels:
+  domainEvents:
+    address: dwp.domain-events.v1
+    messages:
+      domainEvent:
+        $ref: '#/components/messages/domainEvent'
+operations:
+  publishDomainEvent:
+    action: send
+    channel:
+      $ref: '#/channels/domainEvents'
+    messages:
+      - $ref: '#/channels/domainEvents/messages/domainEvent'
+components:
+  messages:
+    domainEvent:
+      name: DomainEventEnvelope
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/DomainEventEnvelope'
+  schemas:
+    DomainEventEnvelope:
+      type: object
+      additionalProperties: false
+      required:
+        - specVersion
+        - id
+        - source
+        - type
+        - schemaVersion
+        - time
+        - aggregateType
+        - aggregateId
+        - aggregateSequence
+        - correlationId
+        - data
+      properties:
+        specVersion:
+          const: '1.0'
+        id:
+          type: string
+          format: uuid
+        source:
+          type: string
+          maxLength: 240
+        type:
+          type: string
+          maxLength: 240
+        schemaVersion:
+          type: integer
+          minimum: 1
+        time:
+          type: string
+          format: date-time
+        subject:
+          type: [string, 'null']
+          maxLength: 320
+        tenantId:
+          type: [integer, 'null']
+          minimum: 1
+        aggregateType:
+          type: string
+          maxLength: 120
+        aggregateId:
+          type: string
+          maxLength: 240
+        aggregateSequence:
+          type: integer
+          minimum: 1
+        correlationId:
+          type: string
+          maxLength: 160
+        causationId:
+          type: [string, 'null']
+          maxLength: 160
+        traceParent:
+          type: [string, 'null']
+          pattern: '^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$'
+        data:
+          type: object
+        extensions:
+          type: object
+          additionalProperties:
+            type: string

@@ -1,14 +1,21 @@
 package com.dwp.gateway.security;
 
+import com.github.benmanes.caffeine.cache.AsyncCache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Duration;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
 
@@ -22,17 +29,59 @@ public class AuthSessionVerifier implements SessionVerifier {
 
     private final WebClient authClient;
     private final Duration timeout;
+    private final AsyncCache<String, VerifiedIdentity> verifiedIdentityCache;
 
+    @Autowired
     public AuthSessionVerifier(
             WebClient.Builder webClientBuilder,
             @Value("${SERVICE_AUTH_URL:http://localhost:8001}") String authServiceUrl,
-            @Value("${DWP_AUTH_VERIFICATION_TIMEOUT:2s}") Duration timeout) {
+            @Value("${DWP_AUTH_VERIFICATION_TIMEOUT:2s}") Duration timeout,
+            @Value("${DWP_AUTH_VERIFICATION_CACHE_TTL:3s}") Duration cacheTtl,
+            @Value("${DWP_AUTH_VERIFICATION_CACHE_MAX_ENTRIES:10000}") long cacheMaxEntries) {
         this.authClient = webClientBuilder.baseUrl(authServiceUrl).build();
         this.timeout = timeout;
+        if (cacheTtl.isNegative() || cacheTtl.isZero() || cacheTtl.compareTo(Duration.ofSeconds(30)) > 0) {
+            throw new IllegalArgumentException("Auth verification cache TTL must be between 1ms and 30s.");
+        }
+        if (cacheMaxEntries < 100 || cacheMaxEntries > 100_000) {
+            throw new IllegalArgumentException("Auth verification cache size must be between 100 and 100000.");
+        }
+        this.verifiedIdentityCache = Caffeine.newBuilder()
+                .maximumSize(cacheMaxEntries)
+                .expireAfterWrite(cacheTtl)
+                .buildAsync();
+    }
+
+    public AuthSessionVerifier(
+            WebClient.Builder webClientBuilder,
+            String authServiceUrl,
+            Duration timeout) {
+        this(webClientBuilder, authServiceUrl, timeout, Duration.ofSeconds(3), 10_000);
     }
 
     @Override
     public Mono<VerifiedIdentity> verify(ServerHttpRequest request) {
+        if (!isLowRiskCacheableRead(request)) {
+            return verifyUncached(request);
+        }
+        String cacheKey = cacheKey(request);
+        return Mono.fromFuture(verifiedIdentityCache.get(
+                cacheKey,
+                (ignored, executor) -> verifyUncached(request).toFuture()));
+    }
+
+    private boolean isLowRiskCacheableRead(ServerHttpRequest request) {
+        HttpMethod method = request.getMethod();
+        if (method != HttpMethod.GET && method != HttpMethod.HEAD) return false;
+        if (permissionPrefix(request) != null) return false;
+
+        String path = request.getURI().getPath();
+        return path.equals("/api/platform/v1/home-experience/background")
+                || path.equals("/api/platform/v1/tenant-branding")
+                || path.startsWith("/api/platform/v1/reference-data/");
+    }
+
+    private Mono<VerifiedIdentity> verifyUncached(ServerHttpRequest request) {
         String requestedTenant = request.getHeaders().getFirst(TENANT_HEADER);
         boolean tenantAssertionPresent = requestedTenant != null && !requestedTenant.isBlank();
 
@@ -73,6 +122,25 @@ public class AuthSessionVerifier implements SessionVerifier {
                     return response.createException().flatMap(Mono::error);
                 })
                 .timeout(timeout);
+    }
+
+    private String cacheKey(ServerHttpRequest request) {
+        String material = String.join("\n",
+                header(request, HttpHeaders.COOKIE),
+                header(request, HttpHeaders.AUTHORIZATION),
+                header(request, TENANT_HEADER),
+                Objects.toString(permissionPrefix(request), ""));
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(material.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (java.security.NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable.", exception);
+        }
+    }
+
+    private String header(ServerHttpRequest request, String name) {
+        return Objects.toString(request.getHeaders().getFirst(name), "");
     }
 
     private String permissionPrefix(ServerHttpRequest request) {

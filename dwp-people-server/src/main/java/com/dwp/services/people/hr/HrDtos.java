@@ -10,6 +10,7 @@ import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public final class HrDtos {
@@ -149,7 +150,8 @@ public final class HrDtos {
             String status,
             boolean timeValidated,
             boolean absenceValidated,
-            boolean sourceConfirmed) {
+            boolean sourceConfirmed,
+            String dataOrigin) {
     }
 
     public record PayStatement(
@@ -226,17 +228,45 @@ public final class HrDtos {
             String dataBoundary) {
     }
 
+    public enum HomeAvailability {
+        AVAILABLE,
+        UNAVAILABLE
+    }
+
+    public enum HomeDataOrigin {
+        SOURCE,
+        MANUAL,
+        REFERENCE,
+        MIXED,
+        NONE,
+        UNKNOWN
+    }
+
+    public record HomeDomainState(
+            HomeAvailability availability,
+            HomeDataOrigin dataOrigin,
+            String reasonCode) {
+    }
+
     public record HomeOverview(
             LocalDate asOf,
+            Instant generatedAt,
+            String timeZone,
+            Integer standardDayMinutes,
             EmployeeContext employee,
             TimeCard time,
             List<LeaveBalance> leaveBalances,
             PayCycle pay,
+            List<EnrollmentWindow> enrollmentWindows,
+            List<Journey> journeys,
             int activeBenefitCount,
             int openBenefitWindowCount,
             int activeGoalCount,
             int requiredLearningCount,
             int teamPendingCount,
+            int teamTimePendingCount,
+            int teamAbsencePendingCount,
+            Map<String, HomeDomainState> domainStates,
             boolean referenceDataPresent) {
     }
 

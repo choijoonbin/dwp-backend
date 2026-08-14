@@ -39,9 +39,61 @@ services:
     networks:
       - dwp-network
 
+  kafka:
+    image: apache/kafka:4.3.1
+    container_name: dwp-kafka
+    profiles: ["events"]
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    ports:
+      - "9092:9092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - dwp-network
+
+  kafka-init:
+    image: apache/kafka:4.3.1
+    container_name: dwp-kafka-init
+    profiles: ["events"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command:
+      - /bin/sh
+      - -ec
+      - >-
+        /opt/kafka/bin/kafka-topics.sh
+        --bootstrap-server kafka:9092
+        --create --if-not-exists
+        --topic dwp.domain-events.v1
+        --partitions 12
+        --replication-factor 1
+        --config cleanup.policy=delete
+        --config min.insync.replicas=1
+    networks:
+      - dwp-network
+
 volumes:
   postgres_data_v18:
   redis_data:
+  kafka_data:
 
 networks:
   dwp-network:

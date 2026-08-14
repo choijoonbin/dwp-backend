@@ -3,6 +3,9 @@ package com.dwp.services.platform.savedview;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.core.http.OutboundHttpHeaders;
+import io.github.resilience4j.bulkhead.annotation.Bulkhead;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -26,6 +29,9 @@ public class AuthSavedViewSubjectDirectory implements SavedViewSubjectDirectory 
     }
 
     @Override
+    @Bulkhead(name = "authSubjectDirectory", type = Bulkhead.Type.SEMAPHORE)
+    @CircuitBreaker(name = "authSubjectDirectory")
+    @Retry(name = "idempotentInternal")
     public Subject require(Long tenantId, Long userId) {
         if (token.isBlank()) {
             throw unavailable("Identity subject validation is not configured.");

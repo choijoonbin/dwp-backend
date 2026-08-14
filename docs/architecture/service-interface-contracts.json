@@ -1,5 +1,12 @@
 {
-  "version": 1,
+  "version": 2,
+  "resilienceDefaults": {
+    "connectTimeoutMs": 2000,
+    "readTimeoutMs": 5000,
+    "circuitBreaker": true,
+    "bulkheadMaxConcurrentCalls": 20,
+    "maximumRetryAttempts": 2
+  },
   "httpClients": [
     {
       "id": "gateway-auth-session-verifier",
@@ -12,9 +19,13 @@
       "path": "dwp-gateway/src/main/java/com/dwp/gateway/security/AuthSessionVerifier.java",
       "purpose": "Verify browser session identity at the edge before Gateway forwards API traffic.",
       "auth": "Forwards end-user session context only; service identity is forbidden.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
       "requiredMarkers": [
         "${SERVICE_AUTH_URL:http://localhost:8001}",
         "/auth/me",
+        ".timeout(timeout)",
+        "verifiedIdentityCache",
         "TRACE_PARENT_HEADER",
         "TRACE_STATE_HEADER"
       ],
@@ -33,11 +44,14 @@
       "path": "dwp-gateway/src/main/java/com/dwp/gateway/security/ProviderSupportSessionVerifier.java",
       "purpose": "Resolve delegated support-session scope at the edge before provider support traffic is forwarded.",
       "auth": "Uses Gateway service identity plus a support-validation token.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
       "requiredMarkers": [
         "${SERVICE_PROVIDER_URL:http://localhost:8004}",
         "/v1/internal/support-access/resolve",
         "X-DWP-Service-Token",
         "X-DWP-Support-Validation-Token",
+        ".timeout(timeout)",
         "TRACE_PARENT_HEADER",
         "TRACE_STATE_HEADER"
       ],
@@ -58,12 +72,16 @@
       "path": "dwp-provider-server/src/main/java/com/dwp/services/provider/provisioning/DownstreamProvisioningClient.java",
       "purpose": "Orchestrate tenant lifecycle provisioning across service-owned stores through internal provider contracts.",
       "auth": "Uses purpose-specific provisioning token only.",
+      "retryMode": "none",
+      "failureMode": "fail-contained",
       "requiredMarkers": [
         "${dwp.services.auth-url:http://localhost:8001}",
         "${dwp.services.platform-url:http://localhost:8002}",
         "${dwp.services.people-url:http://localhost:8003}",
         "/internal/provider/v1/",
         "X-DWP-Provisioning-Token",
+        "@CircuitBreaker",
+        "@Bulkhead",
         "OutboundHttpHeaders.propagateObservability"
       ],
       "forbiddenMarkers": [
@@ -83,10 +101,15 @@
       "path": "dwp-provider-server/src/main/java/com/dwp/services/provider/codecatalog/ProductCatalogClient.java",
       "purpose": "Read Platform-owned product code-contract catalog through a provider internal contract.",
       "auth": "Uses purpose-specific provisioning token only.",
+      "retryMode": "idempotent-only",
+      "failureMode": "fail-contained",
       "requiredMarkers": [
         "${dwp.services.platform-url:http://localhost:8002}",
         "/internal/provider/v1/code-catalog/",
         "X-DWP-Provisioning-Token",
+        "@CircuitBreaker",
+        "@Bulkhead",
+        "@Retry",
         "OutboundHttpHeaders.propagateObservability"
       ],
       "forbiddenMarkers": [
@@ -106,10 +129,15 @@
       "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/workspace/AuthAppEntitlementProvisioner.java",
       "purpose": "Synchronize app entitlement state into central identity through an internal identity contract.",
       "auth": "Uses purpose-specific identity-sync token only.",
+      "retryMode": "idempotent-only",
+      "failureMode": "fail-contained",
       "requiredMarkers": [
         "${dwp.identity-sync.auth-url:http://localhost:8001}",
         "/internal/identity/v1/",
         "X-DWP-Identity-Sync-Token",
+        "@CircuitBreaker",
+        "@Bulkhead",
+        "@Retry",
         "OutboundHttpHeaders.propagateObservability"
       ],
       "forbiddenMarkers": [
@@ -129,10 +157,15 @@
       "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/savedview/AuthSavedViewSubjectDirectory.java",
       "purpose": "Validate saved-view subjects against central identity through an internal identity contract.",
       "auth": "Uses purpose-specific identity-sync token only.",
+      "retryMode": "idempotent-only",
+      "failureMode": "fail-closed",
       "requiredMarkers": [
         "${dwp.identity-sync.auth-url:http://localhost:8001}",
         "/internal/identity/v1/",
         "X-DWP-Identity-Sync-Token",
+        "@CircuitBreaker",
+        "@Bulkhead",
+        "@Retry",
         "OutboundHttpHeaders.propagateObservability"
       ],
       "forbiddenMarkers": [
@@ -152,10 +185,14 @@
       "path": "dwp-people-server/src/main/java/com/dwp/services/people/identity/IdentitySyncClient.java",
       "purpose": "Project workforce identity events into central identity through an internal identity contract.",
       "auth": "Uses purpose-specific identity-sync token only.",
+      "retryMode": "outbox-owned",
+      "failureMode": "fail-contained",
       "requiredMarkers": [
         "${dwp.identity-sync.auth-url:http://localhost:8001}",
         "/internal/identity/v1/",
         "X-DWP-Identity-Sync-Token",
+        "@CircuitBreaker",
+        "@Bulkhead",
         "OutboundHttpHeaders.propagateObservability"
       ],
       "forbiddenMarkers": [
@@ -175,11 +212,16 @@
       "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/MicrosoftGraphClient.java",
       "purpose": "Call Microsoft Graph through trusted Microsoft hosts only.",
       "auth": "Uses external OAuth token flow; DWP service-to-service tokens are forbidden.",
+      "retryMode": "idempotent-only",
+      "failureMode": "fail-contained",
       "requiredMarkers": [
         "login.microsoftonline.com",
         "graph.microsoft.com",
         "trustedBase",
-        "requireHost"
+        "requireHost",
+        "@CircuitBreaker",
+        "@Bulkhead",
+        "@Retry"
       ],
       "forbiddenMarkers": [
         "SERVICE_AUTH_URL",
@@ -201,10 +243,45 @@
       "path": "dwp-people-server/src/main/java/com/dwp/services/people/integration/WorkdayRestAdapter.java",
       "purpose": "Call tenant-configured Workday hosts through an explicit HRIS allowlist.",
       "auth": "Uses external HRIS credentials; DWP service-to-service tokens are forbidden.",
+      "retryMode": "idempotent-only",
+      "failureMode": "fail-contained",
       "requiredMarkers": [
         "dwp.people.hris.allowed-hosts",
         "dwp.people.hris.allow-unlisted-hosts:false",
-        "requireAllowed"
+        "requireAllowed",
+        "@CircuitBreaker",
+        "@Bulkhead",
+        "@Retry"
+      ],
+      "forbiddenMarkers": [
+        "SERVICE_AUTH_URL",
+        "SERVICE_PLATFORM_URL",
+        "SERVICE_PEOPLE_URL",
+        "SERVICE_PROVIDER_URL",
+        "SERVICE_APPROVAL_URL",
+        "X-DWP-Service-Token"
+      ]
+    },
+    {
+      "id": "auth-oidc-provider",
+      "classification": "external-identity-provider",
+      "interfaceType": "external-connector",
+      "sourceService": "dwp-auth-server",
+      "targetServices": [
+        "oidc-provider"
+      ],
+      "path": "dwp-auth-server/src/main/java/com/dwp/services/auth/service/OidcService.java",
+      "purpose": "Perform OIDC discovery, token exchange, and user-info calls through an explicit provider host allowlist.",
+      "auth": "Uses the configured OIDC client credential; DWP service tokens are forbidden.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "dwp.auth.oidc.allowed-hosts",
+        "dwp.auth.oidc.allow-unlisted-hosts:false",
+        "requireAllowed",
+        ".timeout(Duration.ofSeconds(15))",
+        "@CircuitBreaker",
+        "@Bulkhead"
       ],
       "forbiddenMarkers": [
         "SERVICE_AUTH_URL",

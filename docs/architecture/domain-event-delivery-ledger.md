@@ -1,6 +1,6 @@
 # Domain Event Delivery Ledger
 
-Status: Accepted; broker transport and producer onboarding remain externally gated
+Status: Accepted; Kafka transport implemented, producer onboarding remains contract-gated
 
 Last verified: 2026-08-13
 
@@ -14,9 +14,11 @@ producer appends an event in the same database transaction as its aggregate muta
 transport adapter publishes leased outbox rows. A consumer validates the registered schema
 range and atomically combines handler work with inbox completion.
 
-The shared runtime is deliberately transport-neutral. It starts with transport disabled and
-a no-op publisher. Setting `dwp.events.transport-enabled=true` without a concrete publisher
-adapter fails startup instead of reporting a false integration success.
+The shared runtime keeps a transport-neutral publisher boundary. Kafka is the approved first
+adapter and uses the versioned `dwp.domain-events.v1` topic with tenant, source, aggregate type,
+and aggregate ID as the partition key. Setting `dwp.events.transport-enabled=true` without
+`dwp.events.transport=kafka` and a configured broker fails startup instead of reporting a false
+integration success.
 
 ## Envelope And Contract
 
@@ -70,10 +72,15 @@ The internal ledger, envelope, strict registry, relay, consumer factory, dedupe,
 retry, dead-letter, and replay persistence contracts are implemented. Product services do
 not yet emit synthetic events merely to claim integration coverage.
 
-Decision `D-07` must provide the production broker, partition key, schema compatibility
-policy, retention, authentication, replay/DLQ ownership, and an onboarding plan for each
-real producer and consumer. Until those inputs and failure drills are approved,
-`dwp.events.transport-enabled` remains `false`.
+Decision `D-07` is resolved for the transport foundation: Kafka, aggregate-stable partitioning,
+AsyncAPI schema ownership, idempotent producer settings, and outbox acknowledgement semantics.
+Each real producer and consumer still requires a versioned schema registration, retention and
+data-classification review, replay/DLQ owner, and failure drill. Until a service completes that
+onboarding, `dwp.events.transport-enabled` remains `false` for that service.
+
+The local broker and versioned topic can be provisioned with
+`docker compose --profile events up -d kafka kafka-init`. Topic auto-creation stays disabled so
+an incorrect topic name cannot silently become a new integration contract.
 
 ## Verification
 

@@ -4,6 +4,8 @@ import com.dwp.core.http.OutboundHttpHeaders;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.github.resilience4j.bulkhead.annotation.Bulkhead;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -28,6 +30,8 @@ public class IdentitySyncClient {
         this.token = token == null ? "" : token.strip();
     }
 
+    @Bulkhead(name = "authIdentitySync", type = Bulkhead.Type.SEMAPHORE)
+    @CircuitBreaker(name = "authIdentitySync")
     public void publish(IdentitySyncOutboxRepository.PendingEvent event) {
         if (token.isBlank()) {
             throw new IllegalStateException("The identity sync service token is not configured.");

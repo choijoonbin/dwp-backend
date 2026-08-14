@@ -13,11 +13,76 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class AuthSessionVerifierTest {
+
+    @Test
+    void cachesOnlyLowRiskIdentityReadsForTheSameSecurityContext() {
+        AtomicInteger calls = new AtomicInteger();
+        AuthSessionVerifier verifier = verifierCountingSuccessfulCalls(calls);
+        MockServerHttpRequest request = MockServerHttpRequest
+                .get("/api/platform/v1/home-experience/background")
+                .header(HttpHeaders.COOKIE, "DWP_SESSION=session-token")
+                .build();
+
+        assertThat(verifier.verify(request).block()).isNotNull();
+        assertThat(verifier.verify(request).block()).isNotNull();
+
+        assertThat(calls).hasValue(1);
+    }
+
+    @Test
+    void doesNotCachePermissionScopedReads() {
+        AtomicInteger calls = new AtomicInteger();
+        AuthSessionVerifier verifier = verifierCountingSuccessfulCalls(calls);
+        MockServerHttpRequest request = MockServerHttpRequest
+                .get("/api/platform/v1/admin/audit-control/events")
+                .header(HttpHeaders.COOKIE, "DWP_SESSION=session-token")
+                .build();
+
+        verifier.verify(request).block();
+        verifier.verify(request).block();
+
+        assertThat(calls).hasValue(2);
+    }
+
+    @Test
+    void doesNotCacheMutatingRequests() {
+        AtomicInteger calls = new AtomicInteger();
+        AuthSessionVerifier verifier = verifierCountingSuccessfulCalls(calls);
+        MockServerHttpRequest request = MockServerHttpRequest
+                .post("/api/platform/v1/reference-data/WORK_STATUS")
+                .header(HttpHeaders.COOKIE, "DWP_SESSION=session-token")
+                .build();
+
+        verifier.verify(request).block();
+        verifier.verify(request).block();
+
+        assertThat(calls).hasValue(2);
+    }
+
+    @Test
+    void isolatesCachedReadsByTenantAssertion() {
+        AtomicInteger calls = new AtomicInteger();
+        AuthSessionVerifier verifier = verifierCountingSuccessfulCalls(calls);
+
+        verifier.verify(MockServerHttpRequest
+                .get("/api/platform/v1/tenant-branding")
+                .header(HttpHeaders.COOKIE, "DWP_SESSION=session-token")
+                .header("X-Tenant-ID", "1")
+                .build()).block();
+        verifier.verify(MockServerHttpRequest
+                .get("/api/platform/v1/tenant-branding")
+                .header(HttpHeaders.COOKIE, "DWP_SESSION=session-token")
+                .header("X-Tenant-ID", "2")
+                .build()).block();
+
+        assertThat(calls).hasValue(2);
+    }
 
     @Test
     void derivesTenantFromSessionWhenClientAssertionIsAbsent() {
@@ -411,6 +476,17 @@ class AuthSessionVerifierTest {
                         .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                         .body(body)
                         .build()));
+        return new AuthSessionVerifier(builder, "http://auth.test", Duration.ofSeconds(1));
+    }
+
+    private AuthSessionVerifier verifierCountingSuccessfulCalls(AtomicInteger calls) {
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(ignored -> {
+            calls.incrementAndGet();
+            return Mono.just(ClientResponse.create(HttpStatus.OK)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .body("{\"success\":true,\"data\":{\"userId\":7,\"tenantId\":1,\"roles\":[]}}")
+                    .build());
+        });
         return new AuthSessionVerifier(builder, "http://auth.test", Duration.ofSeconds(1));
     }
 }

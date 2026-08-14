@@ -2,7 +2,7 @@ package com.dwp.core.event;
 
 import java.util.List;
 
-/** Transport adapter boundary. A broker implementation is selected only after D-07 approval. */
+/** Transport adapter boundary implemented by an approved broker integration. */
 @FunctionalInterface
 public interface DomainEventPublisher {
 

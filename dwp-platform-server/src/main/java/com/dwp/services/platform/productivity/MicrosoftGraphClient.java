@@ -1,6 +1,9 @@
 package com.dwp.services.platform.productivity;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.github.resilience4j.bulkhead.annotation.Bulkhead;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -67,6 +70,8 @@ public class MicrosoftGraphClient {
         return uri;
     }
 
+    @Bulkhead(name = "microsoftGraph", type = Bulkhead.Type.SEMAPHORE)
+    @CircuitBreaker(name = "microsoftGraph")
     public TokenResponse exchangeCode(
             ProductivityRepository.ConnectorRecord connector,
             String clientSecret,
@@ -80,6 +85,8 @@ public class MicrosoftGraphClient {
         return token(connector, form);
     }
 
+    @Bulkhead(name = "microsoftGraph", type = Bulkhead.Type.SEMAPHORE)
+    @CircuitBreaker(name = "microsoftGraph")
     public TokenResponse refresh(
             ProductivityRepository.ConnectorRecord connector,
             String clientSecret,
@@ -90,6 +97,9 @@ public class MicrosoftGraphClient {
         return token(connector, form);
     }
 
+    @Bulkhead(name = "microsoftGraph", type = Bulkhead.Type.SEMAPHORE)
+    @CircuitBreaker(name = "microsoftGraph")
+    @Retry(name = "idempotentConnector")
     public String subjectReference(String accessToken) {
         try {
             JsonNode response = restClient.get()
@@ -109,6 +119,9 @@ public class MicrosoftGraphClient {
         }
     }
 
+    @Bulkhead(name = "microsoftGraph", type = Bulkhead.Type.SEMAPHORE)
+    @CircuitBreaker(name = "microsoftGraph")
+    @Retry(name = "idempotentConnector")
     public GraphPage readPage(
             String accessToken,
             ResourceKind resourceKind,

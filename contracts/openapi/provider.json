@@ -1,0 +1,7507 @@
+{
+  "components": {
+    "schemas": {
+      "ActionItem": {
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "itemId": {
+            "type": "string"
+          },
+          "route": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "tenantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ActivateSupportAccessRequest": {
+        "properties": {
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "type": "object"
+      },
+      "AdministratorInvitation": {
+        "properties": {
+          "activationPath": {
+            "type": "string"
+          },
+          "activationToken": {
+            "type": "string"
+          },
+          "authTenantId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "authUserId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "email": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "tenantAdministratorId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AdvanceRequest": {
+        "properties": {
+          "observedHealth": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "reason": {
+            "maxLength": 1200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "observedHealth",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "ApiResponseAdministratorInvitation": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AdministratorInvitation"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseAuditInsights": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AuditInsights"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseCommandCenter": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CommandCenter"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseCommercialOverview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CommercialOverview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseDomainChallenge": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DomainChallenge"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseEstateOverview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/EstateOverview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseEvaluation": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Evaluation"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseFeatureFlag": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FeatureFlag"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseJsonNode": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListAuditEventSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/AuditEventSummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListEntitlementSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/EntitlementSummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListFeatureFlag": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/FeatureFlag"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListOperationApprovalSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/OperationApprovalSummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListPolicy": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Policy"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListRegionSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/RegionSummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListRollout": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Rollout"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListSubscriptionRenewalRevision": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/SubscriptionRenewalRevision"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListSupportAccessRequestSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/SupportAccessRequestSummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListSupportScopeSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/SupportScopeSummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListSupportSessionSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/SupportSessionSummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseMaintenanceWindowSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/MaintenanceWindowSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseOperationApprovalSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/OperationApprovalSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseOperationSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/OperationSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseOperatorProfile": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/OperatorProfile"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponsePageResultOperationSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PageResultOperationSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponsePageResultTenantSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PageResultTenantSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponsePolicy": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Policy"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseReliabilityControlOverview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ReliabilityControlOverview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseRevision": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Revision"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseRollout": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Rollout"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseServiceHealthOverview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ServiceHealthOverview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseServiceIncidentSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ServiceIncidentSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseSnapshot": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Snapshot"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseSubscriptionRenewalRevision": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SubscriptionRenewalRevision"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseSupportAccessRequestSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SupportAccessRequestSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseSupportSessionContext": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SupportSessionContext"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseSupportSessionSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SupportSessionSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseTenantDomainSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TenantDomainSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseTenantSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TenantSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Approval": {
+        "properties": {
+          "approvalId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "decidedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decidedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "decisionReason": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "requestedBy": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalDecisionRequest": {
+        "properties": {
+          "decision": {
+            "minLength": 1,
+            "pattern": "APPROVED|REJECTED",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 1200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "decision",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "AuditEventSummary": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "auditEventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "eventCategory": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "operatorId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "operatorName": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "redactedSnapshot": {
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "targetType": {
+            "type": "string"
+          },
+          "tenantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenantKey": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AuditInsights": {
+        "properties": {
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/Metric"
+            },
+            "type": "array"
+          },
+          "denied24Hours": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "events24Hours": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "failed24Hours": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "outcomes": {
+            "items": {
+              "$ref": "#/components/schemas/Metric"
+            },
+            "type": "array"
+          },
+          "privilegedAccess24Hours": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "CancelSupportAccessRequest": {
+        "properties": {
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason",
+          "version"
+        ],
+        "type": "object"
+      },
+      "CellPosture": {
+        "properties": {
+          "cellKey": {
+            "type": "string"
+          },
+          "deploymentCellId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "healthState": {
+            "type": "string"
+          },
+          "healthyInstances": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "placementCapacity": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "regionKey": {
+            "type": "string"
+          },
+          "saturationPct": {
+            "format": "double",
+            "type": "number"
+          },
+          "serviceInstances": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "tenantCount": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Column": {
+        "properties": {
+          "classification": {
+            "type": "string"
+          },
+          "dataType": {
+            "type": "string"
+          },
+          "defaultValue": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "foreignKey": {
+            "type": "boolean"
+          },
+          "indexed": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "nullable": {
+            "type": "boolean"
+          },
+          "primaryKey": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "CommandCenter": {
+        "properties": {
+          "actionQueue": {
+            "items": {
+              "$ref": "#/components/schemas/ActionItem"
+            },
+            "type": "array"
+          },
+          "activeIncidents": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/CellPosture"
+            },
+            "type": "array"
+          },
+          "estate": {
+            "$ref": "#/components/schemas/EstateOverview"
+          },
+          "expiringSubscriptions": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "operatingState": {
+            "type": "string"
+          },
+          "recentActivity": {
+            "items": {
+              "$ref": "#/components/schemas/RecentActivity"
+            },
+            "type": "array"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/ServicePosture"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "CommercialOverview": {
+        "properties": {
+          "activeSubscriptions": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "entitlements": {
+            "items": {
+              "$ref": "#/components/schemas/EntitlementAdoption"
+            },
+            "type": "array"
+          },
+          "expiringSubscriptions": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "plans": {
+            "items": {
+              "$ref": "#/components/schemas/ServicePlanPortfolio"
+            },
+            "type": "array"
+          },
+          "subscriptions": {
+            "items": {
+              "$ref": "#/components/schemas/SubscriptionPortfolio"
+            },
+            "type": "array"
+          },
+          "trialSubscriptions": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "uncontractedOrganizations": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "CreateDomainRequest": {
+        "properties": {
+          "domainName": {
+            "minLength": 1,
+            "pattern": "(?i)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}",
+            "type": "string"
+          },
+          "domainType": {
+            "minLength": 1,
+            "pattern": "LOGIN|EMAIL|CUSTOM",
+            "type": "string"
+          },
+          "primaryDomain": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "domainName",
+          "domainType"
+        ],
+        "type": "object"
+      },
+      "CreateFeatureFlagRequest": {
+        "properties": {
+          "configurationSchema": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "defaultValue": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "description": {
+            "maxLength": 1200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "displayName": {
+            "maxLength": 240,
+            "minLength": 0,
+            "type": "string"
+          },
+          "featureKey": {
+            "maxLength": 160,
+            "minLength": 0,
+            "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9-]*){1,7}$",
+            "type": "string"
+          },
+          "ownerService": {
+            "maxLength": 120,
+            "minLength": 0,
+            "type": "string"
+          },
+          "riskTier": {
+            "minLength": 1,
+            "pattern": "L1|L2|L3",
+            "type": "string"
+          },
+          "valueType": {
+            "minLength": 1,
+            "pattern": "BOOLEAN|STRING|NUMBER|JSON",
+            "type": "string"
+          }
+        },
+        "required": [
+          "configurationSchema",
+          "defaultValue",
+          "description",
+          "displayName",
+          "featureKey",
+          "ownerService",
+          "riskTier",
+          "valueType"
+        ],
+        "type": "object"
+      },
+      "CreateIncidentRequest": {
+        "properties": {
+          "customerImpact": {
+            "maxLength": 2000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "deploymentCellId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "impactScope": {
+            "minLength": 1,
+            "pattern": "GLOBAL|REGION|CELL|SERVICE|TENANT",
+            "type": "string"
+          },
+          "initialUpdate": {
+            "maxLength": 2000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "publicSummary": {
+            "maxLength": 2000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "regionKey": {
+            "maxLength": 40,
+            "minLength": 0,
+            "type": "string"
+          },
+          "serviceKey": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "severity": {
+            "minLength": 1,
+            "pattern": "SEV1|SEV2|SEV3|SEV4",
+            "type": "string"
+          },
+          "tenantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 240,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "customerImpact",
+          "impactScope",
+          "initialUpdate",
+          "severity",
+          "title"
+        ],
+        "type": "object"
+      },
+      "CreateMaintenanceWindowRequest": {
+        "properties": {
+          "customerNoticeAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "deploymentCellId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expectedImpactSeconds": {
+            "format": "int32",
+            "maximum": 86400,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "impactType": {
+            "minLength": 1,
+            "pattern": "NO_IMPACT|BRIEF_INTERRUPTION|DEGRADED_PERFORMANCE|SERVICE_UNAVAILABLE|FAILOVER|OTHER",
+            "type": "string"
+          },
+          "minimumNoticeHours": {
+            "format": "int32",
+            "maximum": 720,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "regionKey": {
+            "maxLength": 40,
+            "minLength": 0,
+            "type": "string"
+          },
+          "scopeType": {
+            "minLength": 1,
+            "pattern": "GLOBAL|SERVICE|REGION|CELL|TENANT",
+            "type": "string"
+          },
+          "serviceKey": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "summary": {
+            "maxLength": 2000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "tenantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 240,
+            "minLength": 0,
+            "type": "string"
+          },
+          "trackingKey": {
+            "minLength": 1,
+            "pattern": "[A-Z][A-Z0-9-]{2,79}",
+            "type": "string"
+          }
+        },
+        "required": [
+          "customerNoticeAt",
+          "endsAt",
+          "expectedImpactSeconds",
+          "impactType",
+          "minimumNoticeHours",
+          "scopeType",
+          "startsAt",
+          "summary",
+          "title",
+          "trackingKey"
+        ],
+        "type": "object"
+      },
+      "CreatePolicyRequest": {
+        "properties": {
+          "description": {
+            "maxLength": 1200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "displayName": {
+            "maxLength": 240,
+            "minLength": 0,
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "effectiveTo": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "justification": {
+            "maxLength": 1200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "ownerService": {
+            "maxLength": 120,
+            "minLength": 0,
+            "type": "string"
+          },
+          "policyKey": {
+            "maxLength": 160,
+            "minLength": 0,
+            "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9-]*){1,7}$",
+            "type": "string"
+          },
+          "policyRule": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "policyType": {
+            "minLength": 1,
+            "pattern": "CLASSIFICATION|MINIMIZATION|RESIDENCY|RETENTION|DELETION|LEGAL_HOLD|RESTRICTED_FIELD|TENANT_RLS",
+            "type": "string"
+          },
+          "scopeRef": {
+            "maxLength": 320,
+            "minLength": 0,
+            "type": "string"
+          },
+          "scopeType": {
+            "minLength": 1,
+            "pattern": "GLOBAL|DATABASE|ASSET",
+            "type": "string"
+          }
+        },
+        "required": [
+          "description",
+          "displayName",
+          "justification",
+          "ownerService",
+          "policyKey",
+          "policyRule",
+          "policyType",
+          "scopeType"
+        ],
+        "type": "object"
+      },
+      "CreateRevisionRequest": {
+        "properties": {
+          "effectiveFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "effectiveTo": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "justification": {
+            "maxLength": 1200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "policyRule": {
+            "$ref": "#/components/schemas/JsonNode"
+          }
+        },
+        "required": [
+          "justification",
+          "policyRule"
+        ],
+        "type": "object"
+      },
+      "CreateRolloutRequest": {
+        "properties": {
+          "justification": {
+            "maxLength": 1200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 240,
+            "minLength": 0,
+            "type": "string"
+          },
+          "rolloutValue": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/StageRequest"
+            },
+            "maxItems": 20,
+            "minItems": 0,
+            "type": "array"
+          },
+          "strategy": {
+            "minLength": 1,
+            "pattern": "RING|PERCENTAGE|ALL_AT_ONCE",
+            "type": "string"
+          },
+          "targeting": {
+            "$ref": "#/components/schemas/JsonNode"
+          }
+        },
+        "required": [
+          "justification",
+          "name",
+          "rolloutValue",
+          "stages",
+          "strategy",
+          "targeting"
+        ],
+        "type": "object"
+      },
+      "CreateSubscriptionRenewalRequest": {
+        "properties": {
+          "proposedContractReference": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "proposedEndsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "requestKey": {
+            "maxLength": 160,
+            "minLength": 8,
+            "type": "string"
+          },
+          "subscriptionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "subscriptionVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "targetPlanKey": {
+            "minLength": 1,
+            "pattern": "[a-zA-Z][a-zA-Z0-9_-]{1,79}",
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposedContractReference",
+          "proposedEndsAt",
+          "reason",
+          "requestKey",
+          "subscriptionId",
+          "subscriptionVersion",
+          "targetPlanKey"
+        ],
+        "type": "object"
+      },
+      "CreateSupportAccessRequest": {
+        "properties": {
+          "approvalReference": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "durationMinutes": {
+            "format": "int32",
+            "maximum": 60,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "justification": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "requestKey": {
+            "maxLength": 160,
+            "minLength": 8,
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "pattern": "[A-Z][A-Z0-9_]{1,79}",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "type": "array"
+          },
+          "tenantId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "durationMinutes",
+          "justification",
+          "requestKey",
+          "scopes",
+          "tenantId"
+        ],
+        "type": "object"
+      },
+      "CreateSupportSessionRequest": {
+        "properties": {
+          "approvalReference": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "durationMinutes": {
+            "format": "int32",
+            "maximum": 60,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "emergencyAccess": {
+            "type": "boolean"
+          },
+          "justification": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "requestKey": {
+            "maxLength": 160,
+            "minLength": 8,
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "pattern": "[A-Z][A-Z0-9_]{1,79}",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "type": "array"
+          },
+          "tenantId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "durationMinutes",
+          "justification",
+          "scopes",
+          "tenantId"
+        ],
+        "type": "object"
+      },
+      "DataAsset": {
+        "properties": {
+          "assetKey": {
+            "type": "string"
+          },
+          "businessDomain": {
+            "type": "string"
+          },
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/Column"
+            },
+            "type": "array"
+          },
+          "constraintCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "criticality": {
+            "type": "string"
+          },
+          "dataClassification": {
+            "type": "string"
+          },
+          "databaseKey": {
+            "type": "string"
+          },
+          "databaseName": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "estimatedRows": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "inboundRelationships": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "indexCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "objectName": {
+            "type": "string"
+          },
+          "objectType": {
+            "type": "string"
+          },
+          "outboundRelationships": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "ownerService": {
+            "type": "string"
+          },
+          "parentObjectName": {
+            "type": "string"
+          },
+          "primaryKey": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "reviewNote": {
+            "type": "string"
+          },
+          "reviewState": {
+            "type": "string"
+          },
+          "schemaName": {
+            "type": "string"
+          },
+          "tenantScoped": {
+            "type": "boolean"
+          },
+          "totalBytes": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "DatabaseSummary": {
+        "properties": {
+          "businessDomains": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "columns": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "databaseKey": {
+            "type": "string"
+          },
+          "databaseName": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "documentedAssets": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "error": {
+            "type": "string"
+          },
+          "foreignKeys": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "logicalTables": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "ownerService": {
+            "type": "string"
+          },
+          "partitions": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "totalAssets": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "totalBytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "views": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "DecideOperationApprovalRequest": {
+        "properties": {
+          "decision": {
+            "minLength": 1,
+            "pattern": "APPROVED|REJECTED",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "decision",
+          "reason",
+          "version"
+        ],
+        "type": "object"
+      },
+      "DecideSubscriptionRenewalRequest": {
+        "properties": {
+          "decision": {
+            "minLength": 1,
+            "pattern": "APPROVED|REJECTED",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "decision",
+          "reason",
+          "version"
+        ],
+        "type": "object"
+      },
+      "DecideSupportAccessRequest": {
+        "properties": {
+          "decision": {
+            "minLength": 1,
+            "pattern": "APPROVED|DENIED",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "decision",
+          "reason",
+          "version"
+        ],
+        "type": "object"
+      },
+      "DomainChallenge": {
+        "properties": {
+          "domain": {
+            "$ref": "#/components/schemas/TenantDomainSummary"
+          },
+          "recordName": {
+            "type": "string"
+          },
+          "recordType": {
+            "type": "string"
+          },
+          "recordValue": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "EntitlementAdoption": {
+        "properties": {
+          "assignedTenants": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "eligibleTenants": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "entitlementId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "entitlementKey": {
+            "type": "string"
+          },
+          "entitlementType": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "EntitlementSummary": {
+        "properties": {
+          "configuration": {
+            "type": "string"
+          },
+          "entitlementId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "entitlementKey": {
+            "type": "string"
+          },
+          "entitlementType": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "EstateOverview": {
+        "properties": {
+          "activeSupportSessions": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "activeTenants": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "failedTenants": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "openOperations": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "organizations": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "provisioningTenants": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "regions": {
+            "items": {
+              "$ref": "#/components/schemas/Metric"
+            },
+            "type": "array"
+          },
+          "serviceTiers": {
+            "items": {
+              "$ref": "#/components/schemas/Metric"
+            },
+            "type": "array"
+          },
+          "suspendedTenants": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "tenants": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Evaluation": {
+        "properties": {
+          "deterministicBucket": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "evaluatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "exposurePercentage": {
+            "type": "number"
+          },
+          "externalExecutionEnabled": {
+            "type": "boolean"
+          },
+          "featureKey": {
+            "type": "string"
+          },
+          "providerTenantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reasonCode": {
+            "type": "string"
+          },
+          "revisionNumber": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "rolloutRevisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenantKey": {
+            "type": "string"
+          },
+          "value": {
+            "$ref": "#/components/schemas/JsonNode"
+          }
+        },
+        "type": "object"
+      },
+      "ExecuteOperationRequest": {
+        "properties": {
+          "planHash": {
+            "maxLength": 64,
+            "minLength": 64,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "planHash",
+          "version"
+        ],
+        "type": "object"
+      },
+      "FeatureFlag": {
+        "properties": {
+          "configurationSchema": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "defaultValue": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "description": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "featureFlagId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "featureKey": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "ownerService": {
+            "type": "string"
+          },
+          "riskTier": {
+            "type": "string"
+          },
+          "valueType": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Finding": {
+        "properties": {
+          "assetKey": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "databaseKey": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "findingId": {
+            "type": "string"
+          },
+          "recommendation": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "GovernanceDriftSummary": {
+        "properties": {
+          "controlBehavior": {
+            "type": "string"
+          },
+          "controlCategory": {
+            "type": "string"
+          },
+          "controlKey": {
+            "type": "string"
+          },
+          "controlName": {
+            "type": "string"
+          },
+          "evaluatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "evaluationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "evaluationResult": {
+            "type": "string"
+          },
+          "expectedSnapshot": {
+            "type": "string"
+          },
+          "guidanceLevel": {
+            "type": "string"
+          },
+          "observedSnapshot": {
+            "type": "string"
+          },
+          "remediationOperationType": {
+            "type": "string"
+          },
+          "riskTier": {
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "targetType": {
+            "type": "string"
+          },
+          "tenantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenantName": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ImpactPreview": {
+        "properties": {
+          "affectedAssetCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "affectedAssetKeys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "blockers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "catalogGeneratedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "controls": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "impactHash": {
+            "type": "string"
+          },
+          "previewedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "publishable": {
+            "type": "boolean"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "IncidentUpdateSummary": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "incidentUpdateId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "operatorName": {
+            "type": "string"
+          },
+          "visibility": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "IssueAdministratorInvitationRequest": {
+        "properties": {
+          "expiresInMinutes": {
+            "format": "int32",
+            "maximum": 10080,
+            "minimum": 15,
+            "type": "integer"
+          },
+          "justification": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "expiresInMinutes",
+          "justification"
+        ],
+        "type": "object"
+      },
+      "JsonNode": {},
+      "LifecycleRequest": {
+        "properties": {
+          "justification": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "state": {
+            "minLength": 1,
+            "pattern": "ACTIVE|SUSPENDED",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "justification",
+          "state",
+          "version"
+        ],
+        "type": "object"
+      },
+      "LineageEdge": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "edgeId": {
+            "type": "string"
+          },
+          "edgeKey": {
+            "type": "string"
+          },
+          "edgeType": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "string"
+          },
+          "ownerService": {
+            "type": "string"
+          },
+          "processKey": {
+            "type": "string"
+          },
+          "sourceAssetKey": {
+            "type": "string"
+          },
+          "targetAssetKey": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "MaintenanceWindowSummary": {
+        "properties": {
+          "customerNoticeAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expectedImpactSeconds": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "impactType": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "maintenanceWindowId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "minimumNoticeHours": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "noticeCompliant": {
+            "type": "boolean"
+          },
+          "operationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "scopeLabel": {
+            "type": "string"
+          },
+          "scopeType": {
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "trackingKey": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Metric": {
+        "properties": {
+          "count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "key": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "OnboardingPlanRequest": {
+        "properties": {
+          "customerReference": {
+            "maxLength": 120,
+            "minLength": 0,
+            "type": "string"
+          },
+          "dataRegion": {
+            "minLength": 1,
+            "pattern": "[a-z0-9-]{2,40}",
+            "type": "string"
+          },
+          "defaultLocale": {
+            "minLength": 1,
+            "pattern": "[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*",
+            "type": "string"
+          },
+          "displayName": {
+            "maxLength": 240,
+            "minLength": 0,
+            "type": "string"
+          },
+          "entitlementKeys": {
+            "items": {
+              "pattern": "[a-z][a-z0-9.-]{1,119}",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "type": "array"
+          },
+          "environmentKey": {
+            "minLength": 1,
+            "pattern": "[a-z][a-z0-9-]{1,31}",
+            "type": "string"
+          },
+          "initialAdminDisplayName": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "initialAdminEmail": {
+            "format": "email",
+            "maxLength": 255,
+            "minLength": 0,
+            "type": "string"
+          },
+          "isolationModel": {
+            "minLength": 1,
+            "pattern": "POOL|BRIDGE|SILO",
+            "type": "string"
+          },
+          "justification": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "legalName": {
+            "maxLength": 320,
+            "minLength": 0,
+            "type": "string"
+          },
+          "organizationKey": {
+            "minLength": 1,
+            "pattern": "[a-z][a-z0-9-]{1,79}",
+            "type": "string"
+          },
+          "organizationName": {
+            "maxLength": 240,
+            "minLength": 0,
+            "type": "string"
+          },
+          "primaryDomain": {
+            "pattern": "(?i)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}",
+            "type": "string"
+          },
+          "serviceTier": {
+            "minLength": 1,
+            "pattern": "STANDARD|ENTERPRISE|REGULATED",
+            "type": "string"
+          },
+          "tenantKey": {
+            "minLength": 1,
+            "pattern": "[a-z][a-z0-9-]{1,79}",
+            "type": "string"
+          },
+          "timeZone": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "dataRegion",
+          "defaultLocale",
+          "displayName",
+          "entitlementKeys",
+          "environmentKey",
+          "initialAdminDisplayName",
+          "initialAdminEmail",
+          "isolationModel",
+          "justification",
+          "organizationKey",
+          "organizationName",
+          "serviceTier",
+          "tenantKey",
+          "timeZone"
+        ],
+        "type": "object"
+      },
+      "OperationApprovalSummary": {
+        "properties": {
+          "decidedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decidedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "decidedByName": {
+            "type": "string"
+          },
+          "decisionReason": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "gateKey": {
+            "type": "string"
+          },
+          "gateOrder": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "operationApprovalId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "operationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "operationType": {
+            "type": "string"
+          },
+          "requestReason": {
+            "type": "string"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "requestedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "requestedByName": {
+            "type": "string"
+          },
+          "requiredRoleCode": {
+            "type": "string"
+          },
+          "riskTier": {
+            "type": "string"
+          },
+          "separationOfDuties": {
+            "type": "boolean"
+          },
+          "tenantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenantName": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "OperationStep": {
+        "properties": {
+          "attemptCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "attempts": {
+            "items": {
+              "$ref": "#/components/schemas/OperationStepAttempt"
+            },
+            "type": "array"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "externalReference": {
+            "type": "string"
+          },
+          "lastErrorCode": {
+            "type": "string"
+          },
+          "lastErrorMessage": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "nextRetryAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "order": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "redactedResult": {
+            "type": "string"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "stepId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "stepKey": {
+            "type": "string"
+          },
+          "targetService": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "OperationStepAttempt": {
+        "properties": {
+          "attemptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "attemptNumber": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "errorMessage": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "redactedResult": {
+            "type": "string"
+          },
+          "requestFingerprint": {
+            "type": "string"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "OperationSummary": {
+        "properties": {
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "failureCode": {
+            "type": "string"
+          },
+          "failureMessage": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "operationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "operationType": {
+            "type": "string"
+          },
+          "plan": {
+            "type": "string"
+          },
+          "planHash": {
+            "type": "string"
+          },
+          "riskTier": {
+            "type": "string"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/OperationStep"
+            },
+            "type": "array"
+          },
+          "tenantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "OperatorProfile": {
+        "properties": {
+          "authUserId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "operatorId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "permissions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true
+          }
+        },
+        "type": "object"
+      },
+      "PageResultOperationSummary": {
+        "properties": {
+          "content": {
+            "items": {
+              "$ref": "#/components/schemas/OperationSummary"
+            },
+            "type": "array"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "size": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "totalElements": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "totalPages": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "PageResultTenantSummary": {
+        "properties": {
+          "content": {
+            "items": {
+              "$ref": "#/components/schemas/TenantSummary"
+            },
+            "type": "array"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "size": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "totalElements": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "totalPages": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Policy": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "ownerService": {
+            "type": "string"
+          },
+          "policyId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "policyKey": {
+            "type": "string"
+          },
+          "policyType": {
+            "type": "string"
+          },
+          "revisions": {
+            "items": {
+              "$ref": "#/components/schemas/Revision"
+            },
+            "type": "array"
+          },
+          "scopeRef": {
+            "type": "string"
+          },
+          "scopeType": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "PublishSubscriptionRenewalRequest": {
+        "properties": {
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "type": "object"
+      },
+      "RecentActivity": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "auditEventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "operatorName": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "targetType": {
+            "type": "string"
+          },
+          "tenantKey": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RegionSummary": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "jurisdictionCode": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "regionKey": {
+            "type": "string"
+          },
+          "residencyClass": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Relationship": {
+        "properties": {
+          "constraintName": {
+            "type": "string"
+          },
+          "databaseKey": {
+            "type": "string"
+          },
+          "relationshipId": {
+            "type": "string"
+          },
+          "sourceAssetKey": {
+            "type": "string"
+          },
+          "sourceColumns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "sourceIndexed": {
+            "type": "boolean"
+          },
+          "targetAssetKey": {
+            "type": "string"
+          },
+          "targetColumns": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ReliabilityControlOverview": {
+        "properties": {
+          "atRiskObjectives": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "driftFindings": {
+            "items": {
+              "$ref": "#/components/schemas/GovernanceDriftSummary"
+            },
+            "type": "array"
+          },
+          "exhaustedObjectives": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "healthyObjectives": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "maintenanceWindows": {
+            "items": {
+              "$ref": "#/components/schemas/MaintenanceWindowSummary"
+            },
+            "type": "array"
+          },
+          "objectives": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceLevelObjectiveSummary"
+            },
+            "type": "array"
+          },
+          "openDriftFindings": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "upcomingMaintenance": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ReplaceEntitlementsRequest": {
+        "properties": {
+          "entitlementKeys": {
+            "items": {
+              "pattern": "[a-z][a-z0-9.-]{1,119}",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "type": "array"
+          },
+          "justification": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "entitlementKeys",
+          "justification",
+          "version"
+        ],
+        "type": "object"
+      },
+      "RetryOperationRequest": {
+        "properties": {
+          "justification": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "justification",
+          "version"
+        ],
+        "type": "object"
+      },
+      "ReviewSupportAccessRequest": {
+        "properties": {
+          "summary": {
+            "maxLength": 2000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "summary",
+          "version"
+        ],
+        "type": "object"
+      },
+      "Revision": {
+        "properties": {
+          "approval": {
+            "$ref": "#/components/schemas/Approval"
+          },
+          "approvedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "approvedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "effectiveFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "effectiveTo": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "impact": {
+            "$ref": "#/components/schemas/ImpactPreview"
+          },
+          "justification": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "policyRule": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "previousRevisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "requestedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "revisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "revisionNumber": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "rollbackOfRevisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "RevokeSupportSessionRequest": {
+        "properties": {
+          "justification": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "justification",
+          "version"
+        ],
+        "type": "object"
+      },
+      "Rollout": {
+        "properties": {
+          "activatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "approval": {
+            "$ref": "#/components/schemas/Approval"
+          },
+          "approvedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "approvedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "currentStageOrder": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "externalExecutionEnabled": {
+            "type": "boolean"
+          },
+          "featureFlagId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "featureKey": {
+            "type": "string"
+          },
+          "justification": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "pausedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "previousRevisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "requestedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "revisionNumber": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "rollbackOfRevisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "rolloutRevisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "rolloutValue": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/Stage"
+            },
+            "type": "array"
+          },
+          "strategy": {
+            "type": "string"
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "targeting": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ServiceHealthOverview": {
+        "properties": {
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/CellPosture"
+            },
+            "type": "array"
+          },
+          "degradedInstances": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "failedInstances": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "healthyInstances": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "impactedTenants": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "incidents": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceIncidentSummary"
+            },
+            "type": "array"
+          },
+          "operatingState": {
+            "type": "string"
+          },
+          "pendingInstances": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/ServicePosture"
+            },
+            "type": "array"
+          },
+          "totalInstances": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ServiceIncidentSummary": {
+        "properties": {
+          "customerImpact": {
+            "type": "string"
+          },
+          "deploymentCellId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "detectedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "impactScope": {
+            "type": "string"
+          },
+          "incidentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "incidentKey": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "ownerName": {
+            "type": "string"
+          },
+          "publicSummary": {
+            "type": "string"
+          },
+          "regionKey": {
+            "type": "string"
+          },
+          "resolvedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "serviceKey": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "tenantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenantName": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "updates": {
+            "items": {
+              "$ref": "#/components/schemas/IncidentUpdateSummary"
+            },
+            "type": "array"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ServiceInstanceSummary": {
+        "properties": {
+          "appliedSchemaVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "dataRegion": {
+            "type": "string"
+          },
+          "deploymentCell": {
+            "type": "string"
+          },
+          "externalResourceId": {
+            "type": "string"
+          },
+          "healthSnapshot": {
+            "type": "string"
+          },
+          "lastReconciledAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "serviceInstanceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "serviceKey": {
+            "type": "string"
+          },
+          "serviceName": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ServiceLevelObjectiveSummary": {
+        "properties": {
+          "achievedPct": {
+            "format": "double",
+            "type": "number"
+          },
+          "burnRate": {
+            "format": "double",
+            "type": "number"
+          },
+          "complianceState": {
+            "type": "string"
+          },
+          "complianceWindowDays": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "criticality": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "errorBudgetRemainingPct": {
+            "format": "double",
+            "type": "number"
+          },
+          "indicatorType": {
+            "type": "string"
+          },
+          "measurementSource": {
+            "type": "string"
+          },
+          "objectiveId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "objectiveKey": {
+            "type": "string"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "scopeLabel": {
+            "type": "string"
+          },
+          "scopeType": {
+            "type": "string"
+          },
+          "serviceKey": {
+            "type": "string"
+          },
+          "serviceName": {
+            "type": "string"
+          },
+          "targetPct": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "ServicePlanPortfolio": {
+        "properties": {
+          "lifecycleState": {
+            "type": "string"
+          },
+          "organizations": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "planKey": {
+            "type": "string"
+          },
+          "planName": {
+            "type": "string"
+          },
+          "planVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "serviceTier": {
+            "type": "string"
+          },
+          "tenants": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ServicePosture": {
+        "properties": {
+          "criticality": {
+            "type": "string"
+          },
+          "degradedInstances": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "failedInstances": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "healthyInstances": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "impactedTenants": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "lastReconciledAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "pendingInstances": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "serviceKey": {
+            "type": "string"
+          },
+          "totalInstances": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Snapshot": {
+        "properties": {
+          "assets": {
+            "items": {
+              "$ref": "#/components/schemas/DataAsset"
+            },
+            "type": "array"
+          },
+          "databases": {
+            "items": {
+              "$ref": "#/components/schemas/DatabaseSummary"
+            },
+            "type": "array"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/Finding"
+            },
+            "type": "array"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lineage": {
+            "items": {
+              "$ref": "#/components/schemas/LineageEdge"
+            },
+            "type": "array"
+          },
+          "relationships": {
+            "items": {
+              "$ref": "#/components/schemas/Relationship"
+            },
+            "type": "array"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/Summary"
+          }
+        },
+        "type": "object"
+      },
+      "Stage": {
+        "properties": {
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "exposurePercentage": {
+            "type": "number"
+          },
+          "healthGate": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "minimumObservationMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "rolloutStageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "stageName": {
+            "type": "string"
+          },
+          "stageOrder": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "StageRequest": {
+        "properties": {
+          "exposurePercentage": {
+            "maximum": 100.0,
+            "minimum": 0.01,
+            "type": "number"
+          },
+          "healthGate": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "minimumObservationMinutes": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "stageName": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "exposurePercentage",
+          "healthGate",
+          "stageName"
+        ],
+        "type": "object"
+      },
+      "SubscriptionPortfolio": {
+        "properties": {
+          "activeEntitlements": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "contractReference": {
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "organizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "organizationKey": {
+            "type": "string"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "planKey": {
+            "type": "string"
+          },
+          "planName": {
+            "type": "string"
+          },
+          "serviceTier": {
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "subscriptionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenants": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SubscriptionRenewalRevision": {
+        "properties": {
+          "addedEntitlements": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "baselineSubscriptionVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "contentSha256": {
+            "type": "string"
+          },
+          "currentContractReference": {
+            "type": "string"
+          },
+          "currentEndsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "currentEntitlementCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "currentPlanKey": {
+            "type": "string"
+          },
+          "currentPlanName": {
+            "type": "string"
+          },
+          "decidedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decidedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "decidedByName": {
+            "type": "string"
+          },
+          "decisionDueAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decisionReason": {
+            "type": "string"
+          },
+          "executionState": {
+            "type": "string"
+          },
+          "impactedTenants": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "notificationState": {
+            "type": "string"
+          },
+          "organizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "organizationKey": {
+            "type": "string"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "projectedEntitlementCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "proposedContractReference": {
+            "type": "string"
+          },
+          "proposedEndsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "publishedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "publishedByName": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "removedEntitlements": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "renewalRevisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "requestKey": {
+            "type": "string"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "requestedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "requestedByName": {
+            "type": "string"
+          },
+          "revisionNumber": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "subscriptionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "targetPlanKey": {
+            "type": "string"
+          },
+          "targetPlanName": {
+            "type": "string"
+          },
+          "targetServiceTier": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SubscriptionSummary": {
+        "properties": {
+          "contractReference": {
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "planKey": {
+            "type": "string"
+          },
+          "planName": {
+            "type": "string"
+          },
+          "planVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "subscriptionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Summary": {
+        "properties": {
+          "availableDatabases": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "columns": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "databases": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "documentedAssets": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "foreignKeys": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "logicalTables": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "partitions": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "reviewRequired": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "totalBytes": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SupportAccessRequestSummary": {
+        "properties": {
+          "accessMode": {
+            "type": "string"
+          },
+          "activatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "approvalReference": {
+            "type": "string"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "customerApprovalRequired": {
+            "type": "boolean"
+          },
+          "decidedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decidedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "decidedByName": {
+            "type": "string"
+          },
+          "decisionDueAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decisionReason": {
+            "type": "string"
+          },
+          "durationMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "justification": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "postReviewState": {
+            "type": "string"
+          },
+          "postReviewSummary": {
+            "type": "string"
+          },
+          "postReviewedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "postReviewedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "postReviewedByName": {
+            "type": "string"
+          },
+          "requestKey": {
+            "type": "string"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "requesterName": {
+            "type": "string"
+          },
+          "requesterOperatorId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "riskTier": {
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "supportAccessRequestId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "supportSessionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenantKey": {
+            "type": "string"
+          },
+          "tenantName": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SupportScopeSummary": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "requiresCustomerApproval": {
+            "type": "boolean"
+          },
+          "riskTier": {
+            "type": "string"
+          },
+          "scopeCode": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SupportSessionContext": {
+        "properties": {
+          "accessMode": {
+            "type": "string"
+          },
+          "authTenantId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "supportSessionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenantKey": {
+            "type": "string"
+          },
+          "tenantName": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SupportSessionSummary": {
+        "properties": {
+          "accessMode": {
+            "type": "string"
+          },
+          "approvalReference": {
+            "type": "string"
+          },
+          "customerApprovalRequired": {
+            "type": "boolean"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "justification": {
+            "type": "string"
+          },
+          "lastUsedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "operatorId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "operatorName": {
+            "type": "string"
+          },
+          "revokedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "riskTier": {
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "supportAccessRequestId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "supportSessionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenantKey": {
+            "type": "string"
+          },
+          "tenantName": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "TenantAdministratorSummary": {
+        "properties": {
+          "activatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "authUserId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "lastInvitedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "primaryAdministrator": {
+            "type": "boolean"
+          },
+          "roleCode": {
+            "type": "string"
+          },
+          "tenantAdministratorId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "TenantDomainSummary": {
+        "properties": {
+          "domainId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "domainName": {
+            "type": "string"
+          },
+          "domainType": {
+            "type": "string"
+          },
+          "lastCheckedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "primaryDomain": {
+            "type": "boolean"
+          },
+          "verificationMethod": {
+            "type": "string"
+          },
+          "verificationState": {
+            "type": "string"
+          },
+          "verifiedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "TenantSummary": {
+        "properties": {
+          "administrators": {
+            "items": {
+              "$ref": "#/components/schemas/TenantAdministratorSummary"
+            },
+            "type": "array"
+          },
+          "authTenantId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "configuration": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "dataRegion": {
+            "type": "string"
+          },
+          "defaultLocale": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "domains": {
+            "items": {
+              "$ref": "#/components/schemas/TenantDomainSummary"
+            },
+            "type": "array"
+          },
+          "entitlements": {
+            "items": {
+              "$ref": "#/components/schemas/EntitlementSummary"
+            },
+            "type": "array"
+          },
+          "environmentKey": {
+            "type": "string"
+          },
+          "isolationModel": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "onboardingState": {
+            "type": "string"
+          },
+          "organizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "organizationKey": {
+            "type": "string"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "serviceTier": {
+            "type": "string"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceInstanceSummary"
+            },
+            "type": "array"
+          },
+          "subscription": {
+            "$ref": "#/components/schemas/SubscriptionSummary"
+          },
+          "tenantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenantKey": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateIncidentRequest": {
+        "properties": {
+          "message": {
+            "maxLength": 2000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "state": {
+            "minLength": 1,
+            "pattern": "IDENTIFIED|MONITORING|RESOLVED|CLOSED",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "visibility": {
+            "minLength": 1,
+            "pattern": "INTERNAL|CUSTOMER",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "state",
+          "version",
+          "visibility"
+        ],
+        "type": "object"
+      },
+      "VerifyDomainRequest": {
+        "properties": {
+          "justification": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "justification",
+          "version"
+        ],
+        "type": "object"
+      },
+      "VersionedReasonRequest": {
+        "properties": {
+          "reason": {
+            "maxLength": 1200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "OpenAPI definition",
+    "version": "v0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/v1/admin/audit-events": {
+      "get": {
+        "operationId": "auditEvents",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenantId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListAuditEventSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/audit-insights": {
+      "get": {
+        "operationId": "auditInsights",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAuditInsights"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/code-catalog/code-sets": {
+      "get": {
+        "operationId": "catalog",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseJsonNode"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-code-catalog-controller"
+        ]
+      }
+    },
+    "/v1/admin/code-catalog/code-sets/{codeSetKey}": {
+      "get": {
+        "operationId": "get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "codeSetKey",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "locale",
+            "required": false,
+            "schema": {
+              "default": "ko",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseJsonNode"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-code-catalog-controller"
+        ]
+      }
+    },
+    "/v1/admin/command-center": {
+      "get": {
+        "operationId": "commandCenter",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCommandCenter"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/commercial": {
+      "get": {
+        "operationId": "commercial",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCommercialOverview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/data-governance": {
+      "get": {
+        "operationId": "snapshot",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSnapshot"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "data-governance-controller"
+        ]
+      }
+    },
+    "/v1/admin/data-governance/policies": {
+      "get": {
+        "operationId": "policies",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListPolicy"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "data-policy-controller"
+        ]
+      },
+      "post": {
+        "operationId": "create",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePolicyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePolicy"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "data-policy-controller"
+        ]
+      }
+    },
+    "/v1/admin/data-governance/policies/revisions/{revisionId}/approval": {
+      "post": {
+        "operationId": "decide_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRevision"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "data-policy-controller"
+        ]
+      }
+    },
+    "/v1/admin/data-governance/policies/revisions/{revisionId}/impact-preview": {
+      "post": {
+        "operationId": "preview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRevision"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "data-policy-controller"
+        ]
+      }
+    },
+    "/v1/admin/data-governance/policies/revisions/{revisionId}/publish": {
+      "post": {
+        "operationId": "publish",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRevision"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "data-policy-controller"
+        ]
+      }
+    },
+    "/v1/admin/data-governance/policies/revisions/{revisionId}/rollback-request": {
+      "post": {
+        "operationId": "requestRollback",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRevision"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "data-policy-controller"
+        ]
+      }
+    },
+    "/v1/admin/data-governance/policies/revisions/{revisionId}/submit": {
+      "post": {
+        "operationId": "submit_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRevision"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "data-policy-controller"
+        ]
+      }
+    },
+    "/v1/admin/data-governance/policies/{policyId}/revisions": {
+      "post": {
+        "operationId": "createRevision",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRevisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRevision"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "data-policy-controller"
+        ]
+      }
+    },
+    "/v1/admin/data-governance/refresh": {
+      "post": {
+        "operationId": "refresh",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSnapshot"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "data-governance-controller"
+        ]
+      }
+    },
+    "/v1/admin/entitlements": {
+      "get": {
+        "operationId": "entitlements",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListEntitlementSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/feature-rollouts": {
+      "get": {
+        "operationId": "rollouts",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "featureKey",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListRollout"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "feature-rollout-controller"
+        ]
+      }
+    },
+    "/v1/admin/feature-rollouts/flags": {
+      "get": {
+        "operationId": "flags",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListFeatureFlag"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "feature-rollout-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createFlag",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFeatureFlagRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseFeatureFlag"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "feature-rollout-controller"
+        ]
+      }
+    },
+    "/v1/admin/feature-rollouts/flags/{featureKey}/evaluate": {
+      "get": {
+        "operationId": "evaluate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "featureKey",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tenantId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEvaluation"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "feature-rollout-controller"
+        ]
+      }
+    },
+    "/v1/admin/feature-rollouts/flags/{featureKey}/revisions": {
+      "post": {
+        "operationId": "createRollout",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "featureKey",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRolloutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRollout"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "feature-rollout-controller"
+        ]
+      }
+    },
+    "/v1/admin/feature-rollouts/{rolloutId}": {
+      "get": {
+        "operationId": "rollout",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rolloutId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRollout"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "feature-rollout-controller"
+        ]
+      }
+    },
+    "/v1/admin/feature-rollouts/{rolloutId}/activate": {
+      "post": {
+        "operationId": "activate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rolloutId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRollout"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "feature-rollout-controller"
+        ]
+      }
+    },
+    "/v1/admin/feature-rollouts/{rolloutId}/advance": {
+      "post": {
+        "operationId": "advance",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rolloutId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdvanceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRollout"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "feature-rollout-controller"
+        ]
+      }
+    },
+    "/v1/admin/feature-rollouts/{rolloutId}/approval": {
+      "post": {
+        "operationId": "decide",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rolloutId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRollout"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "feature-rollout-controller"
+        ]
+      }
+    },
+    "/v1/admin/feature-rollouts/{rolloutId}/pause": {
+      "post": {
+        "operationId": "pause",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rolloutId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRollout"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "feature-rollout-controller"
+        ]
+      }
+    },
+    "/v1/admin/feature-rollouts/{rolloutId}/resume": {
+      "post": {
+        "operationId": "resume",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rolloutId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRollout"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "feature-rollout-controller"
+        ]
+      }
+    },
+    "/v1/admin/feature-rollouts/{rolloutId}/rollback": {
+      "post": {
+        "operationId": "rollback",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rolloutId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRollout"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "feature-rollout-controller"
+        ]
+      }
+    },
+    "/v1/admin/feature-rollouts/{rolloutId}/submit": {
+      "post": {
+        "operationId": "submit",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rolloutId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRollout"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "feature-rollout-controller"
+        ]
+      }
+    },
+    "/v1/admin/incidents": {
+      "post": {
+        "operationId": "createIncident",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateIncidentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseServiceIncidentSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/incidents/{incidentId}": {
+      "patch": {
+        "operationId": "updateIncident",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incidentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateIncidentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseServiceIncidentSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/maintenance-windows": {
+      "post": {
+        "operationId": "createMaintenanceWindow",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMaintenanceWindowRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseMaintenanceWindowSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/me": {
+      "get": {
+        "operationId": "me",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOperatorProfile"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/onboarding-plans": {
+      "post": {
+        "operationId": "previewOnboarding",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardingPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOperationSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/operation-approvals": {
+      "get": {
+        "operationId": "operationApprovals",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListOperationApprovalSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/operation-approvals/{approvalId}/decision": {
+      "post": {
+        "operationId": "decideOperationApproval",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "approvalId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideOperationApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOperationApprovalSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/operations": {
+      "get": {
+        "operationId": "operations",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePageResultOperationSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/operations/{operationId}/execute": {
+      "post": {
+        "operationId": "execute",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "operationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecuteOperationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOperationSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/operations/{operationId}/retry": {
+      "post": {
+        "operationId": "retry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "operationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetryOperationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOperationSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/overview": {
+      "get": {
+        "operationId": "overview",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEstateOverview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/regions": {
+      "get": {
+        "operationId": "regions",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListRegionSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/reliability-control": {
+      "get": {
+        "operationId": "reliabilityControl",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseReliabilityControlOverview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/service-health": {
+      "get": {
+        "operationId": "serviceHealth",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseServiceHealthOverview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/subscription-renewals": {
+      "get": {
+        "operationId": "subscriptionRenewals",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListSubscriptionRenewalRevision"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createSubscriptionRenewal",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSubscriptionRenewalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSubscriptionRenewalRevision"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/subscription-renewals/{revisionId}/decision": {
+      "post": {
+        "operationId": "decideSubscriptionRenewal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideSubscriptionRenewalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSubscriptionRenewalRevision"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/subscription-renewals/{revisionId}/publish": {
+      "post": {
+        "operationId": "publishSubscriptionRenewal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishSubscriptionRenewalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSubscriptionRenewalRevision"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/support-access-requests": {
+      "get": {
+        "operationId": "supportAccessRequests",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenantId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListSupportAccessRequestSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createSupportAccessRequest",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSupportAccessRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSupportAccessRequestSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/support-access-requests/{requestId}/activate": {
+      "post": {
+        "operationId": "activateSupportAccessRequest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivateSupportAccessRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSupportAccessRequestSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/support-access-requests/{requestId}/cancel": {
+      "post": {
+        "operationId": "cancelSupportAccessRequest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelSupportAccessRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSupportAccessRequestSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/support-access-requests/{requestId}/decision": {
+      "post": {
+        "operationId": "decideSupportAccessRequest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideSupportAccessRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSupportAccessRequestSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/support-access-requests/{requestId}/review": {
+      "post": {
+        "operationId": "reviewSupportAccessRequest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewSupportAccessRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSupportAccessRequestSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/support-scopes": {
+      "get": {
+        "operationId": "supportScopes",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListSupportScopeSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/support-session-context": {
+      "get": {
+        "operationId": "supportSessionContext",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "DWP_SUPPORT_SESSION",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSupportSessionContext"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/support-sessions": {
+      "get": {
+        "operationId": "supportSessions",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenantId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListSupportSessionSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createSupportSession",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSupportSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSupportSessionSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/support-sessions/{sessionId}/revoke": {
+      "post": {
+        "operationId": "revokeSupportSession",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "sessionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeSupportSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSupportSessionSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/tenants": {
+      "get": {
+        "operationId": "tenants",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "region",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "serviceTier",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "isolationModel",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePageResultTenantSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/tenants/{tenantId}": {
+      "get": {
+        "operationId": "tenant",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenantId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTenantSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/tenants/{tenantId}/administrators/{administratorId}/invitations": {
+      "post": {
+        "operationId": "issueAdministratorInvitation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenantId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "administratorId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueAdministratorInvitationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAdministratorInvitation"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/tenants/{tenantId}/domains": {
+      "post": {
+        "operationId": "createDomain",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenantId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDomainRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDomainChallenge"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/tenants/{tenantId}/domains/{domainId}/challenge": {
+      "get": {
+        "operationId": "domainChallenge",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenantId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "domainId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDomainChallenge"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/tenants/{tenantId}/domains/{domainId}/verify": {
+      "post": {
+        "operationId": "verifyDomain",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenantId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "domainId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyDomainRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTenantDomainSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/tenants/{tenantId}/entitlements": {
+      "put": {
+        "operationId": "replaceEntitlements",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenantId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceEntitlementsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTenantSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/tenants/{tenantId}/lifecycle": {
+      "patch": {
+        "operationId": "lifecycle",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenantId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LifecycleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTenantSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/internal/support-access/resolve": {
+      "post": {
+        "operationId": "resolve",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Support-Validation-Token",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Support-Resource-Method",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Support-Resource-Path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "DWP_SUPPORT_SESSION",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSupportSessionContext"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-support-access-controller"
+        ]
+      }
+    }
+  }
+}

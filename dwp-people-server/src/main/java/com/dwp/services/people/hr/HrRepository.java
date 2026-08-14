@@ -43,6 +43,12 @@ public class HrRepository {
                          WHERE report_assignment.tenant_id = assignment.tenant_id
                            AND report_assignment.manager_assignment_key = assignment.assignment_key
                            AND report_assignment.assignment_status = 'ACTIVE'
+                           AND report_relationship.start_date <= CURRENT_DATE
+                           AND (report_relationship.end_date IS NULL
+                                OR report_relationship.end_date >= CURRENT_DATE)
+                           AND report_assignment.effective_start_date <= CURRENT_DATE
+                           AND (report_assignment.effective_end_date IS NULL
+                                OR report_assignment.effective_end_date >= CURRENT_DATE)
                            AND report_worker.worker_status IN ('ACTIVE', 'LEAVE')) AS direct_reports
                   FROM ppl_persons person
                   JOIN ppl_workers worker
@@ -56,6 +62,9 @@ public class HrRepository {
                          AND candidate.work_relationship_id = relationship.work_relationship_id
                        WHERE relationship.tenant_id = worker.tenant_id
                          AND relationship.worker_id = worker.worker_id
+                         AND relationship.start_date <= CURRENT_DATE
+                         AND (relationship.end_date IS NULL
+                              OR relationship.end_date >= CURRENT_DATE)
                          AND candidate.assignment_status = 'ACTIVE'
                          AND candidate.effective_start_date <= CURRENT_DATE
                          AND (candidate.effective_end_date IS NULL
@@ -78,6 +87,9 @@ public class HrRepository {
                   LEFT JOIN ppl_work_relationships manager_relationship
                     ON manager_relationship.tenant_id = manager_assignment.tenant_id
                    AND manager_relationship.work_relationship_id = manager_assignment.work_relationship_id
+                   AND manager_relationship.start_date <= CURRENT_DATE
+                   AND (manager_relationship.end_date IS NULL
+                        OR manager_relationship.end_date >= CURRENT_DATE)
                   LEFT JOIN ppl_workers manager_worker
                     ON manager_worker.tenant_id = manager_relationship.tenant_id
                    AND manager_worker.worker_id = manager_relationship.worker_id
@@ -120,13 +132,41 @@ public class HrRepository {
         return count != null && count > 0;
     }
 
-    public HrDtos.TimeCard currentTimeCard(Long tenantId, long workerId) {
+    public Optional<WorkerSchedule> workerSchedule(Long tenantId, long workerId, LocalDate asOf) {
+        return jdbc.query("""
+                SELECT profile.time_zone,
+                       COALESCE((
+                           SELECT ROUND(AVG((day.value #>> '{}')::NUMERIC))::INTEGER
+                             FROM jsonb_each(profile.daily_pattern) day
+                            WHERE jsonb_typeof(day.value) = 'number'
+                              AND (day.value #>> '{}')::INTEGER > 0
+                       ), NULLIF(profile.weekly_minutes / 5, 0)) AS standard_day_minutes,
+                       assignment.data_origin
+                  FROM tme_worker_schedule_assignments assignment
+                  JOIN tme_work_schedule_profiles profile
+                    ON profile.tenant_id = assignment.tenant_id
+                   AND profile.schedule_profile_id = assignment.schedule_profile_id
+                 WHERE assignment.tenant_id = ? AND assignment.worker_id = ?
+                   AND assignment.effective_start_date <= ?
+                   AND (assignment.effective_end_date IS NULL OR assignment.effective_end_date >= ?)
+                   AND profile.lifecycle_state = 'ACTIVE'
+                 ORDER BY assignment.effective_start_date DESC
+                 LIMIT 1
+                """, (result, ignored) -> new WorkerSchedule(
+                result.getString("time_zone"),
+                result.getObject("standard_day_minutes", Integer.class),
+                result.getString("data_origin")), tenantId, workerId, asOf, asOf)
+                .stream().findFirst();
+    }
+
+    public HrDtos.TimeCard currentTimeCard(Long tenantId, long workerId, LocalDate asOf) {
         return jdbc.query("""
                 SELECT public_id, period_start_date, period_end_date, status,
                        scheduled_minutes, recorded_minutes, exception_count,
                        data_origin, version
                   FROM tme_time_cards
                  WHERE tenant_id = ? AND worker_id = ?
+                   AND period_start_date <= ? AND period_end_date >= ?
                  ORDER BY period_start_date DESC
                  LIMIT 1
                 """, (result, ignored) -> new HrDtos.TimeCard(
@@ -136,7 +176,7 @@ public class HrRepository {
                 result.getString("status"), result.getInt("scheduled_minutes"),
                 result.getInt("recorded_minutes"), result.getInt("exception_count"),
                 result.getString("data_origin"), result.getLong("version")),
-                tenantId, workerId).stream().findFirst().orElse(null);
+                tenantId, workerId, asOf, asOf).stream().findFirst().orElse(null);
     }
 
     public List<HrDtos.TimeEntry> timeEntries(Long tenantId, long workerId, UUID cardId) {
@@ -267,7 +307,8 @@ public class HrRepository {
                 """, status, note, actorId, actorId, tenantId, cardId, version) == 1;
     }
 
-    public List<HrDtos.LeaveBalance> leaveBalances(Long tenantId, long workerId) {
+    public List<HrDtos.LeaveBalance> leaveBalances(
+            Long tenantId, long workerId, LocalDate asOf) {
         return jdbc.query("""
                 SELECT plan.public_id, plan.plan_key, plan.name,
                        balance.granted_minutes, balance.used_minutes,
@@ -280,7 +321,7 @@ public class HrRepository {
                     ON plan.tenant_id = balance.tenant_id
                    AND plan.leave_plan_id = balance.leave_plan_id
                  WHERE balance.tenant_id = ? AND balance.worker_id = ?
-                   AND balance.balance_year = EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER
+                   AND balance.balance_year = EXTRACT(YEAR FROM ?::DATE)::INTEGER
                  ORDER BY plan.name
                 """, (result, ignored) -> new HrDtos.LeaveBalance(
                 result.getObject("public_id", UUID.class), result.getString("plan_key"),
@@ -288,7 +329,7 @@ public class HrRepository {
                 result.getInt("used_minutes"), result.getInt("pending_minutes"),
                 result.getInt("available_minutes"),
                 result.getObject("as_of_date", LocalDate.class), result.getString("data_origin")),
-                tenantId, workerId);
+                tenantId, workerId, asOf);
     }
 
     public List<HrDtos.LeaveRequest> leaveRequests(Long tenantId, long workerId) {
@@ -489,26 +530,54 @@ public class HrRepository {
                 result.getObject("effective_end_date", LocalDate.class)), tenantId, workerId);
     }
 
-    public List<HrDtos.EnrollmentWindow> enrollmentWindows(Long tenantId) {
+    public List<HrDtos.EnrollmentWindow> enrollmentWindows(Long tenantId, long workerId) {
         return jdbc.query("""
-                SELECT public_id, name, window_type, opens_at, closes_at, lifecycle_state
-                  FROM bnf_enrollment_windows
-                 WHERE tenant_id = ? AND lifecycle_state IN ('SCHEDULED', 'OPEN')
-                 ORDER BY opens_at
+                SELECT enrollment_window.public_id, enrollment_window.name,
+                       enrollment_window.window_type, enrollment_window.opens_at,
+                       enrollment_window.closes_at, enrollment_window.lifecycle_state
+                  FROM bnf_enrollment_windows enrollment_window
+                 WHERE enrollment_window.tenant_id = ?
+                   AND enrollment_window.lifecycle_state IN ('SCHEDULED', 'OPEN')
+                   AND (
+                       (enrollment_window.window_type = 'OPEN_ENROLLMENT' AND EXISTS (
+                           SELECT 1
+                             FROM ppl_workers worker
+                            WHERE worker.tenant_id = enrollment_window.tenant_id
+                              AND worker.worker_id = ?
+                              AND worker.worker_type = 'EMPLOYEE'
+                              AND worker.worker_status IN ('ACTIVE', 'LEAVE')
+                       ))
+                       OR EXISTS (
+                           SELECT 1
+                             FROM bnf_enrollments enrollment
+                             JOIN bnf_benefit_plans plan
+                               ON plan.tenant_id = enrollment.tenant_id
+                              AND plan.benefit_plan_id = enrollment.benefit_plan_id
+                            WHERE enrollment.tenant_id = enrollment_window.tenant_id
+                              AND enrollment.worker_id = ?
+                              AND plan.benefit_program_id = enrollment_window.benefit_program_id
+                              AND enrollment.status IN ('DRAFT', 'ELECTED', 'ACTIVE')
+                       )
+                   )
+                 ORDER BY enrollment_window.opens_at
                 """, (result, ignored) -> new HrDtos.EnrollmentWindow(
                 result.getObject("public_id", UUID.class), result.getString("name"),
                 result.getString("window_type"), instant(result.getTimestamp("opens_at")),
                 instant(result.getTimestamp("closes_at")), result.getString("lifecycle_state")),
-                tenantId);
+                tenantId, workerId, workerId);
     }
 
-    public HrDtos.PayCycle nextPayCycle(Long tenantId) {
+    public HrDtos.PayCycle nextPayCycle(Long tenantId, long workerId) {
         return jdbc.query("""
-                SELECT public_id, name, period_start_date, period_end_date,
-                       pay_date, status, readiness
-                  FROM pay_pay_cycles
-                 WHERE tenant_id = ? AND status NOT IN ('PAID', 'CANCELLED')
-                 ORDER BY pay_date
+                SELECT cycle.public_id, cycle.name, cycle.period_start_date,
+                       cycle.period_end_date, cycle.pay_date, cycle.status, cycle.readiness
+                  FROM pay_pay_cycles cycle
+                  JOIN pay_statement_references statement
+                    ON statement.tenant_id = cycle.tenant_id
+                   AND statement.pay_cycle_id = cycle.pay_cycle_id
+                   AND statement.worker_id = ?
+                 WHERE cycle.tenant_id = ? AND cycle.status NOT IN ('PAID', 'CANCELLED')
+                 ORDER BY cycle.pay_date
                  LIMIT 1
                 """, (result, ignored) -> {
             Map<String, Object> readiness = json(result.getString("readiness"));
@@ -519,8 +588,28 @@ public class HrRepository {
                     result.getObject("pay_date", LocalDate.class), result.getString("status"),
                     Boolean.TRUE.equals(readiness.get("timeValidated")),
                     Boolean.TRUE.equals(readiness.get("absenceValidated")),
-                    Boolean.TRUE.equals(readiness.get("sourceConfirmed")));
-        }, tenantId).stream().findFirst().orElse(null);
+                    Boolean.TRUE.equals(readiness.get("sourceConfirmed")),
+                    String.valueOf(readiness.getOrDefault("dataOrigin", "UNKNOWN")));
+        }, workerId, tenantId).stream().findFirst().orElse(null);
+    }
+
+    public List<HrDtos.Journey> activeJourneys(Long tenantId, long workerId) {
+        return jdbc.query("""
+                SELECT instance.public_id, template.name, template.journey_type,
+                       instance.progress_percent, instance.target_date, instance.status
+                  FROM tal_journey_instances instance
+                  JOIN tal_journey_templates template
+                    ON template.tenant_id = instance.tenant_id
+                   AND template.journey_template_id = instance.journey_template_id
+                 WHERE instance.tenant_id = ? AND instance.worker_id = ?
+                   AND instance.status NOT IN ('COMPLETED', 'CANCELLED')
+                 ORDER BY instance.target_date NULLS LAST, instance.created_at DESC
+                 LIMIT 5
+                """, (result, ignored) -> new HrDtos.Journey(
+                result.getObject("public_id", UUID.class), result.getString("name"),
+                result.getString("journey_type"), result.getInt("progress_percent"),
+                result.getObject("target_date", LocalDate.class), result.getString("status")),
+                tenantId, workerId);
     }
 
     public List<HrDtos.PayStatement> payStatements(Long tenantId, long workerId) {
@@ -651,6 +740,47 @@ public class HrRepository {
                  ORDER BY request.submitted_at
                 """, (result, ignored) -> approval(result, "ABSENCE"),
                 tenantId, managerAssignmentKey);
+    }
+
+    public int teamPendingCount(
+            Long tenantId, String managerAssignmentKey, String domain, LocalDate asOf) {
+        if (managerAssignmentKey == null) return 0;
+        if ("TIME".equals(domain)) {
+            return Math.toIntExact(count("""
+                    SELECT COUNT(DISTINCT card.time_card_id)
+                      FROM tme_time_cards card
+                      JOIN ppl_work_relationships relationship
+                        ON relationship.tenant_id = card.tenant_id
+                       AND relationship.worker_id = card.worker_id
+                      JOIN ppl_assignments assignment
+                        ON assignment.tenant_id = relationship.tenant_id
+                       AND assignment.work_relationship_id = relationship.work_relationship_id
+                     WHERE card.tenant_id = ? AND card.status = 'SUBMITTED'
+                       AND assignment.assignment_status = 'ACTIVE'
+                       AND assignment.manager_assignment_key = ?
+                       AND relationship.start_date <= ?
+                       AND (relationship.end_date IS NULL OR relationship.end_date >= ?)
+                       AND assignment.effective_start_date <= ?
+                       AND (assignment.effective_end_date IS NULL OR assignment.effective_end_date >= ?)
+                    """, tenantId, managerAssignmentKey, asOf, asOf, asOf, asOf));
+        }
+        return Math.toIntExact(count("""
+                SELECT COUNT(DISTINCT request.leave_request_id)
+                  FROM abs_leave_requests request
+                  JOIN ppl_work_relationships relationship
+                    ON relationship.tenant_id = request.tenant_id
+                   AND relationship.worker_id = request.worker_id
+                  JOIN ppl_assignments assignment
+                    ON assignment.tenant_id = relationship.tenant_id
+                   AND assignment.work_relationship_id = relationship.work_relationship_id
+                 WHERE request.tenant_id = ? AND request.status = 'SUBMITTED'
+                   AND assignment.assignment_status = 'ACTIVE'
+                   AND assignment.manager_assignment_key = ?
+                   AND relationship.start_date <= ?
+                   AND (relationship.end_date IS NULL OR relationship.end_date >= ?)
+                   AND assignment.effective_start_date <= ?
+                   AND (assignment.effective_end_date IS NULL OR assignment.effective_end_date >= ?)
+                """, tenantId, managerAssignmentKey, asOf, asOf, asOf, asOf));
     }
 
     public List<HrDtos.TeamAbsence> teamAbsences(
@@ -894,6 +1024,12 @@ public class HrRepository {
             UUID managerPersonId,
             String managerDisplayName,
             int directReportCount) {
+    }
+
+    public record WorkerSchedule(
+            String timeZone,
+            Integer standardDayMinutes,
+            String dataOrigin) {
     }
 
     public record TimeCardTarget(

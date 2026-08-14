@@ -2,6 +2,9 @@ package com.dwp.services.platform.workspace;
 
 import com.dwp.core.constant.HeaderConstants;
 import com.dwp.core.http.OutboundHttpHeaders;
+import io.github.resilience4j.bulkhead.annotation.Bulkhead;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -24,6 +27,9 @@ public class AuthAppEntitlementProvisioner implements AppEntitlementProvisioner 
     }
 
     @Override
+    @Bulkhead(name = "authEntitlementSync", type = Bulkhead.Type.SEMAPHORE)
+    @CircuitBreaker(name = "authEntitlementSync")
+    @Retry(name = "idempotentInternal")
     public Result synchronize(Command command) {
         if (token.isBlank()) {
             throw new ProvisioningException(

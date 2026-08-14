@@ -63,6 +63,7 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
         return path.startsWith("/actuator/health")
+                || path.startsWith("/v3/api-docs")
                 || path.startsWith(ApiHistoryServletFilter.COLLECTOR_PATH)
                 || path.startsWith("/internal/audit/events")
                 || path.startsWith("/internal/provider/")

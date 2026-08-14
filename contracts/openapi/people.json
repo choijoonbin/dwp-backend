@@ -1,0 +1,7601 @@
+{
+  "components": {
+    "schemas": {
+      "AbsenceWorkspace": {
+        "properties": {
+          "balances": {
+            "items": {
+              "$ref": "#/components/schemas/LeaveBalance"
+            },
+            "type": "array"
+          },
+          "employee": {
+            "$ref": "#/components/schemas/EmployeeContext"
+          },
+          "requests": {
+            "items": {
+              "$ref": "#/components/schemas/LeaveRequest"
+            },
+            "type": "array"
+          },
+          "teamCalendar": {
+            "items": {
+              "$ref": "#/components/schemas/TeamAbsence"
+            },
+            "type": "array"
+          },
+          "teamQueue": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalItem"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ActivateMappingRequest": {
+        "properties": {
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "type": "object"
+      },
+      "AddOrganizationMoveRequest": {
+        "properties": {
+          "newParentOrganizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "organizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "newParentOrganizationId",
+          "organizationId",
+          "version"
+        ],
+        "type": "object"
+      },
+      "AddPositionMoveRequest": {
+        "properties": {
+          "newParentPositionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "positionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "newParentPositionId",
+          "positionId",
+          "version"
+        ],
+        "type": "object"
+      },
+      "Analysis": {
+        "properties": {
+          "averageManagerSpan": {
+            "format": "double",
+            "type": "number"
+          },
+          "contingentRatioPercent": {
+            "format": "double",
+            "type": "number"
+          },
+          "dataQualityScore": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "healthScore": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "managerRatioPercent": {
+            "format": "double",
+            "type": "number"
+          },
+          "maximumLayers": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "missingGradeCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "missingManagerCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "narrowSpanManagerCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "orphanOrganizationCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/DesignPolicy"
+          },
+          "signals": {
+            "items": {
+              "$ref": "#/components/schemas/AnalysisSignal"
+            },
+            "type": "array"
+          },
+          "singleReportManagerCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "wideSpanManagerCount": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "AnalysisSignal": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "count": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "organizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseAbsenceWorkspace": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AbsenceWorkspace"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseApprovalItem": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ApprovalItem"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseBenefitsWorkspace": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/BenefitsWorkspace"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseConfigurationCheck": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ConfigurationCheck"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseConnectorInstance": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ConnectorInstance"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseCursorPagePersonSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CursorPagePersonSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseDecisionPack": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DecisionPack"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseDomainOperations": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DomainOperations"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseHomeOverview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/HomeOverview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseImportResult": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ImportResult"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseIntelligence": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Intelligence"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseLeaveRequest": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/LeaveRequest"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListAttemptEvent": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/AttemptEvent"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListConnectorInstance": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectorInstance"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListDatasetSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/DatasetSummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListMappingProfile": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/MappingProfile"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListOrganizationOption": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/OrganizationOption"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListPolicy": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Policy"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListReconciliationIssue": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ReconciliationIssue"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListReconciliationRun": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ReconciliationRun"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListReferenceCatalog": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ReferenceCatalog"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListRequestSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/RequestSummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListScenario": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Scenario"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListSourceSystem": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/SourceSystem"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListSyncRun": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/SyncRun"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListValidationRunSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationRunSummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseMappingProfile": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/MappingProfile"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseOrganizationChart": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/OrganizationChart"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponsePayWorkspace": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PayWorkspace"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponsePersonDetail": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PersonDetail"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponsePolicy": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Policy"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponsePreview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Preview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseReconciliationRun": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ReconciliationRun"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseReferenceValue": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ReferenceValue"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseRequestSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/RequestSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseScenario": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Scenario"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseTalentWorkspace": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TalentWorkspace"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseTimeWorkspace": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TimeWorkspace"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseVoid": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {},
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Approval": {
+        "properties": {
+          "approvalId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "decidedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decidedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "decisionReason": {
+            "type": "string"
+          },
+          "decisionValidationRunId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "evidenceBindingState": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "gateKey": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "requestReason": {
+            "type": "string"
+          },
+          "requestValidationRunId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "requestedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "requiredRoleCode": {
+            "type": "string"
+          },
+          "separationOfDuties": {
+            "type": "boolean"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalItem": {
+        "properties": {
+          "domain": {
+            "type": "string"
+          },
+          "employeeName": {
+            "type": "string"
+          },
+          "employeeTitle": {
+            "type": "string"
+          },
+          "itemId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "personId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "AssignmentSummary": {
+        "properties": {
+          "assignmentKey": {
+            "type": "string"
+          },
+          "assignmentStatus": {
+            "type": "string"
+          },
+          "businessTitle": {
+            "type": "string"
+          },
+          "changeReasonCode": {
+            "type": "string"
+          },
+          "effectiveEndDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "effectiveStartDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "jobGradeName": {
+            "type": "string"
+          },
+          "jobProfileName": {
+            "type": "string"
+          },
+          "locationName": {
+            "type": "string"
+          },
+          "managerAssignmentKey": {
+            "type": "string"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "primaryAssignment": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "AttemptEvent": {
+        "properties": {
+          "artifactSha256": {
+            "type": "string"
+          },
+          "artifactSizeBytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "attemptEventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "attemptNumber": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "failureCode": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "redactedFailureMessage": {
+            "type": "string"
+          },
+          "workerReference": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "BenefitPlan": {
+        "properties": {
+          "coverageLevel": {
+            "type": "string"
+          },
+          "effectiveEnd": {
+            "format": "date",
+            "type": "string"
+          },
+          "effectiveStart": {
+            "format": "date",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "planId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "planType": {
+            "type": "string"
+          },
+          "providerName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "BenefitsWorkspace": {
+        "properties": {
+          "employee": {
+            "$ref": "#/components/schemas/EmployeeContext"
+          },
+          "plans": {
+            "items": {
+              "$ref": "#/components/schemas/BenefitPlan"
+            },
+            "type": "array"
+          },
+          "referenceData": {
+            "type": "boolean"
+          },
+          "windows": {
+            "items": {
+              "$ref": "#/components/schemas/EnrollmentWindow"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "CancelScenarioRequest": {
+        "properties": {
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason",
+          "version"
+        ],
+        "type": "object"
+      },
+      "Change": {
+        "properties": {
+          "afterSnapshot": {
+            "type": "string"
+          },
+          "beforeSnapshot": {
+            "type": "string"
+          },
+          "changeId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "changeType": {
+            "type": "string"
+          },
+          "costCurrency": {
+            "type": "string"
+          },
+          "effectiveDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "estimatedCostDelta": {
+            "type": "number"
+          },
+          "estimatedFteDelta": {
+            "format": "double",
+            "type": "number"
+          },
+          "estimatedHeadcountDelta": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "payloadSchemaVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "relatedReference": {
+            "type": "string"
+          },
+          "sequence": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "targetKind": {
+            "type": "string"
+          },
+          "targetReference": {
+            "type": "string"
+          },
+          "validationMessage": {
+            "type": "string"
+          },
+          "validationState": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "CloneScenarioRequest": {
+        "properties": {
+          "description": {
+            "maxLength": 2000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "effectiveDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 240,
+            "minLength": 0,
+            "type": "string"
+          },
+          "scenarioKey": {
+            "minLength": 1,
+            "pattern": "[a-z][a-z0-9-]{2,99}",
+            "type": "string"
+          }
+        },
+        "required": [
+          "effectiveDate",
+          "name",
+          "scenarioKey"
+        ],
+        "type": "object"
+      },
+      "ClosePositionRequest": {
+        "properties": {
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "type": "object"
+      },
+      "Company": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "organizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "organizationKey": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ComparisonSummary": {
+        "properties": {
+          "averageManagerSpanDelta": {
+            "format": "double",
+            "type": "number"
+          },
+          "costCurrency": {
+            "type": "string"
+          },
+          "dataQualityScoreDelta": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "headcountDelta": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "managerChanges": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "managerDelta": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "maximumLayersDelta": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "openPositionDelta": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "organizationDelta": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "organizationHealthScoreDelta": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "organizationMoves": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "peopleMoved": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "plannedFteDelta": {
+            "type": "number"
+          },
+          "totalChanges": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "workforceCostDelta": {
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "ConfigurationCheck": {
+        "properties": {
+          "checkedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "connectorInstanceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "externalConnectivityTested": {
+            "type": "boolean"
+          },
+          "healthState": {
+            "type": "string"
+          },
+          "issues": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "valid": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "ConnectorInstance": {
+        "properties": {
+          "authMode": {
+            "type": "string"
+          },
+          "connectorInstanceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "connectorKey": {
+            "type": "string"
+          },
+          "connectorType": {
+            "type": "string"
+          },
+          "consecutiveFailureCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "credentialReference": {
+            "type": "string"
+          },
+          "endpointUri": {
+            "type": "string"
+          },
+          "healthState": {
+            "type": "string"
+          },
+          "lastAttemptedSyncAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastErrorCode": {
+            "type": "string"
+          },
+          "lastHealthCheckedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastSuccessfulSyncAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "scheduleExpression": {
+            "type": "string"
+          },
+          "sourceKey": {
+            "type": "string"
+          },
+          "sourceSystemId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "CreateConnectorRequest": {
+        "properties": {
+          "authMode": {
+            "minLength": 1,
+            "pattern": "NONE|BASIC|OAUTH2_CLIENT_CREDENTIALS|MTLS|SIGNED_REQUEST",
+            "type": "string"
+          },
+          "connectorKey": {
+            "minLength": 1,
+            "pattern": "[A-Za-z][A-Za-z0-9_.-]{0,99}",
+            "type": "string"
+          },
+          "connectorType": {
+            "minLength": 1,
+            "pattern": "WORKDAY_REST|WORKDAY_SOAP|ORACLE_HCM_REST|SAP_SUCCESSFACTORS|SCIM_BRIDGE|CUSTOM_REST|FILE_IMPORT",
+            "type": "string"
+          },
+          "credentialReference": {
+            "maxLength": 255,
+            "minLength": 0,
+            "type": "string"
+          },
+          "endpointUri": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "scheduleExpression": {
+            "maxLength": 120,
+            "minLength": 0,
+            "type": "string"
+          },
+          "sourceKey": {
+            "minLength": 1,
+            "pattern": "[A-Za-z][A-Za-z0-9_.-]{0,79}",
+            "type": "string"
+          },
+          "sourceName": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "sourceType": {
+            "minLength": 1,
+            "pattern": "WORKDAY|ORACLE_HCM|SAP_HCM|SCIM|CUSTOM",
+            "type": "string"
+          }
+        },
+        "required": [
+          "authMode",
+          "connectorKey",
+          "connectorType",
+          "sourceKey",
+          "sourceName",
+          "sourceType"
+        ],
+        "type": "object"
+      },
+      "CreateLeaveRequest": {
+        "properties": {
+          "endAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "planId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "requestedMinutes": {
+            "format": "int32",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "startAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "endAt",
+          "planId",
+          "startAt"
+        ],
+        "type": "object"
+      },
+      "CreateMappingProfileRequest": {
+        "properties": {
+          "adapterType": {
+            "minLength": 1,
+            "pattern": "WORKDAY_REFERENCE|WORKDAY_REST|WORKDAY_SOAP|ORACLE_HCM_REST|SAP_SUCCESSFACTORS|CANONICAL_JSON",
+            "type": "string"
+          },
+          "mappingDefinition": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "profileKey": {
+            "minLength": 1,
+            "pattern": "[A-Za-z][A-Za-z0-9_.-]{0,119}",
+            "type": "string"
+          },
+          "sourceSchemaVersion": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "sourceSystemId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "targetSchemaVersion": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "adapterType",
+          "mappingDefinition",
+          "profileKey",
+          "sourceSchemaVersion",
+          "sourceSystemId",
+          "targetSchemaVersion"
+        ],
+        "type": "object"
+      },
+      "CreatePolicyRequest": {
+        "properties": {
+          "actionCodes": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 2,
+            "minItems": 0,
+            "type": "array"
+          },
+          "fieldGroups": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 4,
+            "minItems": 0,
+            "type": "array"
+          },
+          "justification": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "organizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "populationType": {
+            "minLength": 1,
+            "pattern": "TENANT|ORG_UNIT|ORG_TREE",
+            "type": "string"
+          },
+          "subjectRef": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "subjectType": {
+            "minLength": 1,
+            "pattern": "ROLE|USER",
+            "type": "string"
+          },
+          "validFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validTo": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actionCodes",
+          "fieldGroups",
+          "justification",
+          "populationType",
+          "subjectRef",
+          "subjectType"
+        ],
+        "type": "object"
+      },
+      "CreatePositionRequest": {
+        "properties": {
+          "annualCostAmount": {
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "availabilityDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "budgetedFte": {
+            "maximum": 10.0,
+            "minimum": 0.1,
+            "type": "number"
+          },
+          "costCurrency": {
+            "pattern": "[A-Z]{3}",
+            "type": "string"
+          },
+          "criticality": {
+            "minLength": 1,
+            "pattern": "LOW|MEDIUM|HIGH|CRITICAL",
+            "type": "string"
+          },
+          "organizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "positionKey": {
+            "minLength": 1,
+            "pattern": "[A-Za-z0-9][A-Za-z0-9._-]{2,99}",
+            "type": "string"
+          },
+          "positionType": {
+            "minLength": 1,
+            "pattern": "REGULAR|SHARED|ASSISTANT|TEMPORARY",
+            "type": "string"
+          },
+          "reportsToPositionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 240,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "availabilityDate",
+          "budgetedFte",
+          "criticality",
+          "organizationId",
+          "positionKey",
+          "positionType",
+          "reportsToPositionId",
+          "title",
+          "version"
+        ],
+        "type": "object"
+      },
+      "CreateRequest": {
+        "properties": {
+          "datasetKey": {
+            "minLength": 1,
+            "pattern": "[A-Z][A-Z0-9_]{2,79}",
+            "type": "string"
+          },
+          "exportFormat": {
+            "minLength": 1,
+            "pattern": "CSV",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "maxLength": 120,
+            "minLength": 0,
+            "type": "string"
+          },
+          "purpose": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "type": "string"
+          },
+          "recipientReference": {
+            "maxLength": 320,
+            "minLength": 0,
+            "type": "string"
+          },
+          "selection": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "sourceReference": {
+            "maxLength": 240,
+            "minLength": 3,
+            "type": "string"
+          }
+        },
+        "required": [
+          "datasetKey",
+          "exportFormat",
+          "idempotencyKey",
+          "purpose",
+          "recipientReference",
+          "selection",
+          "sourceReference"
+        ],
+        "type": "object"
+      },
+      "CreateScenarioRequest": {
+        "properties": {
+          "baselineDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 2000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "effectiveDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 240,
+            "minLength": 0,
+            "type": "string"
+          },
+          "scenarioKey": {
+            "minLength": 1,
+            "pattern": "[a-z][a-z0-9-]{2,99}",
+            "type": "string"
+          }
+        },
+        "required": [
+          "baselineDate",
+          "effectiveDate",
+          "name",
+          "scenarioKey"
+        ],
+        "type": "object"
+      },
+      "CursorPagePersonSummary": {
+        "properties": {
+          "asOf": {
+            "format": "date",
+            "type": "string"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PersonSummary"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          },
+          "size": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "DataAccess": {
+        "properties": {
+          "classification": {
+            "type": "string"
+          },
+          "excludedFieldGroups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "workerNumberMasked": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "DataQualityIssue": {
+        "properties": {
+          "entityId": {
+            "type": "string"
+          },
+          "entityName": {
+            "type": "string"
+          },
+          "entityType": {
+            "type": "string"
+          },
+          "issueCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "DatasetSummary": {
+        "properties": {
+          "allowedSelectionKeys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "datasetKey": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "requiredFieldGroups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "DecideScenarioRequest": {
+        "properties": {
+          "decision": {
+            "minLength": 1,
+            "pattern": "APPROVED|REJECTED",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "decision",
+          "reason",
+          "version"
+        ],
+        "type": "object"
+      },
+      "DecisionCheck": {
+        "properties": {
+          "checkCode": {
+            "type": "string"
+          },
+          "entityReference": {
+            "type": "string"
+          },
+          "entityType": {
+            "type": "string"
+          },
+          "evidence": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "DecisionMetrics": {
+        "properties": {
+          "averageManagerSpan": {
+            "format": "double",
+            "type": "number"
+          },
+          "costCurrency": {
+            "type": "string"
+          },
+          "dataQualityScore": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "headcount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "managerCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "maximumLayers": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "openPositionCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "organizationCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "organizationHealthScore": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "plannedFte": {
+            "type": "number"
+          },
+          "workforceCost": {
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "DecisionPack": {
+        "properties": {
+          "baseline": {
+            "$ref": "#/components/schemas/DecisionMetrics"
+          },
+          "baselineCurrent": {
+            "type": "boolean"
+          },
+          "baselineDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "baselineFingerprint": {
+            "type": "string"
+          },
+          "blockingIssueCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionCheck"
+            },
+            "type": "array"
+          },
+          "decisionState": {
+            "type": "string"
+          },
+          "delta": {
+            "$ref": "#/components/schemas/DecisionMetrics"
+          },
+          "effectiveDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "evaluatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "observedFingerprint": {
+            "type": "string"
+          },
+          "proposed": {
+            "$ref": "#/components/schemas/DecisionMetrics"
+          },
+          "readinessScore": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "scenarioId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "scenarioVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "validationRunId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "warningCount": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "DecisionRequest": {
+        "properties": {
+          "decision": {
+            "minLength": 1,
+            "pattern": "APPROVE|REJECT",
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 1000,
+            "minLength": 3,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "decision",
+          "note"
+        ],
+        "type": "object"
+      },
+      "DesignPolicy": {
+        "properties": {
+          "maximumContingentPercent": {
+            "format": "double",
+            "type": "number"
+          },
+          "maximumLayers": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "maximumManagerSpan": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "maximumVacancyPercent": {
+            "format": "double",
+            "type": "number"
+          },
+          "minimumManagerSpan": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "DomainMetric": {
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "value": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "DomainOperations": {
+        "properties": {
+          "dataBoundary": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/DomainMetric"
+            },
+            "type": "array"
+          },
+          "workQueue": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalItem"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "EmployeeContext": {
+        "properties": {
+          "businessTitle": {
+            "type": "string"
+          },
+          "directReportCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "managerDisplayName": {
+            "type": "string"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "personId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "EnrollmentWindow": {
+        "properties": {
+          "closesAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "opensAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "windowId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "windowType": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ExecuteConnectorRequest": {
+        "properties": {
+          "syncMode": {
+            "minLength": 1,
+            "pattern": "FULL|DELTA",
+            "type": "string"
+          }
+        },
+        "required": [
+          "syncMode"
+        ],
+        "type": "object"
+      },
+      "Goal": {
+        "properties": {
+          "dueDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "goalId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "goalType": {
+            "type": "string"
+          },
+          "progressPercent": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "HealthSummary": {
+        "properties": {
+          "attentionOrganizations": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "averageManagerSpan": {
+            "format": "double",
+            "type": "number"
+          },
+          "contingentRatioPct": {
+            "format": "double",
+            "type": "number"
+          },
+          "criticalOrganizations": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "dataQualityScore": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "disconnectedOrganizations": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "managerReferenceIssues": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "maximumLayers": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "medianManagerSpan": {
+            "format": "double",
+            "type": "number"
+          },
+          "openPositions": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "organizationHealthScore": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "organizationsAtRisk": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "overloadedManagers": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "singleReportManagers": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "HomeDomainState": {
+        "properties": {
+          "availability": {
+            "enum": [
+              "AVAILABLE",
+              "UNAVAILABLE"
+            ],
+            "type": "string"
+          },
+          "dataOrigin": {
+            "enum": [
+              "SOURCE",
+              "MANUAL",
+              "REFERENCE",
+              "MIXED",
+              "NONE",
+              "UNKNOWN"
+            ],
+            "type": "string"
+          },
+          "reasonCode": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HomeOverview": {
+        "properties": {
+          "activeBenefitCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "activeGoalCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "asOf": {
+            "format": "date",
+            "type": "string"
+          },
+          "domainStates": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/HomeDomainState"
+            },
+            "type": "object"
+          },
+          "employee": {
+            "$ref": "#/components/schemas/EmployeeContext"
+          },
+          "enrollmentWindows": {
+            "items": {
+              "$ref": "#/components/schemas/EnrollmentWindow"
+            },
+            "type": "array"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "journeys": {
+            "items": {
+              "$ref": "#/components/schemas/Journey"
+            },
+            "type": "array"
+          },
+          "leaveBalances": {
+            "items": {
+              "$ref": "#/components/schemas/LeaveBalance"
+            },
+            "type": "array"
+          },
+          "openBenefitWindowCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "pay": {
+            "$ref": "#/components/schemas/PayCycle"
+          },
+          "referenceDataPresent": {
+            "type": "boolean"
+          },
+          "requiredLearningCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "standardDayMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "teamAbsencePendingCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "teamPendingCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "teamTimePendingCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "time": {
+            "$ref": "#/components/schemas/TimeCard"
+          },
+          "timeZone": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ImportResult": {
+        "properties": {
+          "createdCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "emittedEventTypes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "readCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "rejectedCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "sourceKey": {
+            "type": "string"
+          },
+          "syncRunId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "syntheticFixture": {
+            "type": "boolean"
+          },
+          "updatedCount": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Intelligence": {
+        "properties": {
+          "asOf": {
+            "format": "date",
+            "type": "string"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/Change"
+            },
+            "type": "array"
+          },
+          "compareTo": {
+            "format": "date",
+            "type": "string"
+          },
+          "comparison": {
+            "$ref": "#/components/schemas/ComparisonSummary"
+          },
+          "dataQualityIssues": {
+            "items": {
+              "$ref": "#/components/schemas/DataQualityIssue"
+            },
+            "type": "array"
+          },
+          "health": {
+            "$ref": "#/components/schemas/HealthSummary"
+          },
+          "organizations": {
+            "items": {
+              "$ref": "#/components/schemas/OrganizationHealth"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "Journey": {
+        "properties": {
+          "journeyId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "journeyType": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "progressPercent": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "targetDate": {
+            "format": "date",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "JsonNode": {},
+      "Learning": {
+        "properties": {
+          "dueDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "learningId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "progressPercent": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "providerName": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "LeaveBalance": {
+        "properties": {
+          "asOf": {
+            "format": "date",
+            "type": "string"
+          },
+          "availableMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "dataOrigin": {
+            "type": "string"
+          },
+          "grantedMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "pendingMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "planId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "planKey": {
+            "type": "string"
+          },
+          "planName": {
+            "type": "string"
+          },
+          "usedMinutes": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "LeaveRequest": {
+        "properties": {
+          "cancellationNote": {
+            "type": "string"
+          },
+          "cancelledAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decisionNote": {
+            "type": "string"
+          },
+          "endAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "planId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "planName": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "requestId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "requestedMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "startAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "MappingProfile": {
+        "properties": {
+          "activatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "adapterType": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "mappingProfileId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "mappingSha256": {
+            "type": "string"
+          },
+          "profileKey": {
+            "type": "string"
+          },
+          "sourceSchemaVersion": {
+            "type": "string"
+          },
+          "sourceSystemId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "targetSchemaVersion": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Metrics": {
+        "properties": {
+          "activeHeadcount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "contingentHeadcount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "costCurrency": {
+            "type": "string"
+          },
+          "headcount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "locationCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "managerCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "onLeaveHeadcount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "openPositionCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "organizationCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "plannedFte": {
+            "type": "number"
+          },
+          "workforceCostAmount": {
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "OpenPosition": {
+        "properties": {
+          "annualCostAmount": {
+            "type": "number"
+          },
+          "availabilityDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "budgetedFte": {
+            "type": "number"
+          },
+          "costCurrency": {
+            "type": "string"
+          },
+          "criticality": {
+            "type": "string"
+          },
+          "jobProfileName": {
+            "type": "string"
+          },
+          "locationName": {
+            "type": "string"
+          },
+          "organizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "positionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "positionKey": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Organization": {
+        "properties": {
+          "averageManagerSpan": {
+            "format": "double",
+            "type": "number"
+          },
+          "childOrganizationCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "colorToken": {
+            "type": "string"
+          },
+          "contingentHeadcount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "costCenterKey": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "directHeadcount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "directMemberIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "healthSignals": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "healthStatus": {
+            "type": "string"
+          },
+          "layerDepth": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "leaderPersonId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "managerCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "openPositionCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "organizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "organizationKey": {
+            "type": "string"
+          },
+          "organizationType": {
+            "type": "string"
+          },
+          "organizationTypeName": {
+            "type": "string"
+          },
+          "parentOrganizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "shortName": {
+            "type": "string"
+          },
+          "totalHeadcount": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "OrganizationChart": {
+        "properties": {
+          "analysis": {
+            "$ref": "#/components/schemas/Analysis"
+          },
+          "asOf": {
+            "format": "date",
+            "type": "string"
+          },
+          "company": {
+            "$ref": "#/components/schemas/Company"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/Metrics"
+          },
+          "openPositions": {
+            "items": {
+              "$ref": "#/components/schemas/OpenPosition"
+            },
+            "type": "array"
+          },
+          "organizations": {
+            "items": {
+              "$ref": "#/components/schemas/Organization"
+            },
+            "type": "array"
+          },
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/Person"
+            },
+            "type": "array"
+          },
+          "positions": {
+            "items": {
+              "$ref": "#/components/schemas/Position"
+            },
+            "type": "array"
+          },
+          "relationships": {
+            "items": {
+              "$ref": "#/components/schemas/Relationship"
+            },
+            "type": "array"
+          },
+          "scenario": {
+            "$ref": "#/components/schemas/ScenarioProjection"
+          }
+        },
+        "type": "object"
+      },
+      "OrganizationHealth": {
+        "properties": {
+          "averageManagerSpan": {
+            "format": "double",
+            "type": "number"
+          },
+          "contingentRatioPct": {
+            "format": "double",
+            "type": "number"
+          },
+          "directHeadcount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "healthScore": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "layer": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "managerCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "openPositionCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "organizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "organizationType": {
+            "type": "string"
+          },
+          "overloadedManagerCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "riskState": {
+            "type": "string"
+          },
+          "signals": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "totalHeadcount": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "OrganizationOption": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "organizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "organizationKey": {
+            "type": "string"
+          },
+          "parentOrganizationId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PayCycle": {
+        "properties": {
+          "absenceValidated": {
+            "type": "boolean"
+          },
+          "dataOrigin": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "payCycleId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "payDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "periodEnd": {
+            "format": "date",
+            "type": "string"
+          },
+          "periodStart": {
+            "format": "date",
+            "type": "string"
+          },
+          "sourceConfirmed": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string"
+          },
+          "timeValidated": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "PayStatement": {
+        "properties": {
+          "availabilityState": {
+            "type": "string"
+          },
+          "downloadable": {
+            "type": "boolean"
+          },
+          "periodLabel": {
+            "type": "string"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "statementId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PayWorkspace": {
+        "properties": {
+          "employee": {
+            "$ref": "#/components/schemas/EmployeeContext"
+          },
+          "monetaryDataRedacted": {
+            "type": "boolean"
+          },
+          "nextCycle": {
+            "$ref": "#/components/schemas/PayCycle"
+          },
+          "statements": {
+            "items": {
+              "$ref": "#/components/schemas/PayStatement"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "Person": {
+        "properties": {
+          "assignmentKey": {
+            "type": "string"
+          },
+          "businessTitle": {
+            "type": "string"
+          },
+          "directReportCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "fullTimeEquivalent": {
+            "type": "number"
+          },
+          "jobGradeKey": {
+            "type": "string"
+          },
+          "jobGradeName": {
+            "type": "string"
+          },
+          "jobGradeOrder": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "jobProfileName": {
+            "type": "string"
+          },
+          "locationKey": {
+            "type": "string"
+          },
+          "locationName": {
+            "type": "string"
+          },
+          "managementLevel": {
+            "type": "string"
+          },
+          "managerPersonId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "managerReferenceMissing": {
+            "type": "boolean"
+          },
+          "organizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "personId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "positionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "positionKey": {
+            "type": "string"
+          },
+          "workEmail": {
+            "type": "string"
+          },
+          "workerNumber": {
+            "type": "string"
+          },
+          "workerStatus": {
+            "type": "string"
+          },
+          "workerType": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PersonDetail": {
+        "properties": {
+          "assignments": {
+            "items": {
+              "$ref": "#/components/schemas/AssignmentSummary"
+            },
+            "type": "array"
+          },
+          "legalEmployerName": {
+            "type": "string"
+          },
+          "managerAssignmentKey": {
+            "type": "string"
+          },
+          "originalHireDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "person": {
+            "$ref": "#/components/schemas/PersonSummary"
+          },
+          "workers": {
+            "items": {
+              "$ref": "#/components/schemas/Worker"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "PersonSummary": {
+        "properties": {
+          "assignmentEffectiveFrom": {
+            "format": "date",
+            "type": "string"
+          },
+          "assignmentKey": {
+            "type": "string"
+          },
+          "businessTitle": {
+            "type": "string"
+          },
+          "dataAccess": {
+            "$ref": "#/components/schemas/DataAccess"
+          },
+          "directReportCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "jobGradeKey": {
+            "type": "string"
+          },
+          "jobGradeName": {
+            "type": "string"
+          },
+          "jobProfileName": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "locationKey": {
+            "type": "string"
+          },
+          "locationName": {
+            "type": "string"
+          },
+          "managementLevel": {
+            "type": "string"
+          },
+          "managerDisplayName": {
+            "type": "string"
+          },
+          "managerPersonId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "organizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "organizationKey": {
+            "type": "string"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "personId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "preferredLocale": {
+            "type": "string"
+          },
+          "profileImageKey": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "workEmail": {
+            "type": "string"
+          },
+          "workerNumber": {
+            "type": "string"
+          },
+          "workerStatus": {
+            "type": "string"
+          },
+          "workerType": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Policy": {
+        "properties": {
+          "actionCodes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "fieldGroups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "justification": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "organizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "policyId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "populationType": {
+            "type": "string"
+          },
+          "subjectRef": {
+            "type": "string"
+          },
+          "subjectType": {
+            "type": "string"
+          },
+          "validFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validTo": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Position": {
+        "properties": {
+          "annualCostAmount": {
+            "type": "number"
+          },
+          "availabilityDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "budgetedFte": {
+            "type": "number"
+          },
+          "costCurrency": {
+            "type": "string"
+          },
+          "criticality": {
+            "type": "string"
+          },
+          "incumbentPersonIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "jobProfileName": {
+            "type": "string"
+          },
+          "locationName": {
+            "type": "string"
+          },
+          "organizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "positionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "positionKey": {
+            "type": "string"
+          },
+          "positionType": {
+            "type": "string"
+          },
+          "reportsToPositionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "subordinatePositionCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Preview": {
+        "properties": {
+          "allowedSelectionKeys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "artifactTtlHours": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "authorized": {
+            "type": "boolean"
+          },
+          "blockers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "datasetKey": {
+            "type": "string"
+          },
+          "evaluatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "executionEnabled": {
+            "type": "boolean"
+          },
+          "exportFormat": {
+            "type": "string"
+          },
+          "fieldGroups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "maskingProfile": {
+            "type": "string"
+          },
+          "maximumAttempts": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "maximumManualRetries": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "organizationIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "populationType": {
+            "type": "string"
+          },
+          "watermarkTemplate": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PreviewRequest": {
+        "properties": {
+          "datasetKey": {
+            "minLength": 1,
+            "pattern": "[A-Z][A-Z0-9_]{2,79}",
+            "type": "string"
+          },
+          "selection": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "datasetKey",
+          "selection"
+        ],
+        "type": "object"
+      },
+      "ProvisionTenantRequest": {
+        "properties": {
+          "dataRegion": {
+            "minLength": 1,
+            "pattern": "[a-z0-9-]{2,40}",
+            "type": "string"
+          },
+          "displayName": {
+            "maxLength": 240,
+            "minLength": 0,
+            "type": "string"
+          },
+          "isolationModel": {
+            "minLength": 1,
+            "pattern": "POOL|BRIDGE|SILO",
+            "type": "string"
+          },
+          "providerTenantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenantId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "tenantKey": {
+            "minLength": 1,
+            "pattern": "[a-z][a-z0-9-]{1,79}",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dataRegion",
+          "displayName",
+          "isolationModel",
+          "providerTenantId",
+          "tenantId",
+          "tenantKey"
+        ],
+        "type": "object"
+      },
+      "ProvisionTenantResponse": {
+        "properties": {
+          "externalReference": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "providerTenantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "schemaVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "tenantId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "PublishScenarioRequest": {
+        "properties": {
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "type": "object"
+      },
+      "ReconciliationIssue": {
+        "properties": {
+          "connectorInstanceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "entityType": {
+            "type": "string"
+          },
+          "externalId": {
+            "type": "string"
+          },
+          "firstDetectedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "internalKey": {
+            "type": "string"
+          },
+          "issueCode": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "reconciliationIssueId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reconciliationRunId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "redactedSummary": {
+            "type": "string"
+          },
+          "resolvedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ReconciliationRun": {
+        "properties": {
+          "checkedCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "connectorInstanceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "criticalCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "issueCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "reconciliationRunId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "syncRunId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ReferenceCatalog": {
+        "properties": {
+          "catalogKey": {
+            "type": "string"
+          },
+          "editable": {
+            "type": "boolean"
+          },
+          "ownership": {
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "$ref": "#/components/schemas/ReferenceValue"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ReferenceValue": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "localizedLabel": {
+            "type": "string"
+          },
+          "predefined": {
+            "type": "boolean"
+          },
+          "sortOrder": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Relationship": {
+        "properties": {
+          "childOrganizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "parentOrganizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "primaryRelationship": {
+            "type": "boolean"
+          },
+          "relationshipType": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RequestSummary": {
+        "properties": {
+          "artifactExpiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "artifactSha256": {
+            "type": "string"
+          },
+          "artifactSizeBytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "attemptCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "blockers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "cancellationRequestedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "datasetKey": {
+            "type": "string"
+          },
+          "executionEnabled": {
+            "type": "boolean"
+          },
+          "exportFormat": {
+            "type": "string"
+          },
+          "fieldGroups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "manualRetryCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "maskingProfile": {
+            "type": "string"
+          },
+          "nextAttemptAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "organizationIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "populationType": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "recipientReference": {
+            "type": "string"
+          },
+          "requestId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "requestSha256": {
+            "type": "string"
+          },
+          "retryCycleAttemptCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "selection": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "sourceReference": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "watermarkText": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ResolveIssueRequest": {
+        "properties": {
+          "lifecycleState": {
+            "minLength": 1,
+            "pattern": "RESOLVED|ACCEPTED",
+            "type": "string"
+          },
+          "resolutionNote": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "lifecycleState",
+          "resolutionNote"
+        ],
+        "type": "object"
+      },
+      "RevokePolicyRequest": {
+        "properties": {
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason",
+          "version"
+        ],
+        "type": "object"
+      },
+      "Scenario": {
+        "properties": {
+          "approval": {
+            "$ref": "#/components/schemas/Approval"
+          },
+          "baselineDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/Change"
+            },
+            "type": "array"
+          },
+          "description": {
+            "type": "string"
+          },
+          "effectiveDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "ownerUserId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "publicationEvidenceState": {
+            "type": "string"
+          },
+          "publicationValidationRunId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "scenarioId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "scenarioKey": {
+            "type": "string"
+          },
+          "sourceScenarioId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ScenarioProjection": {
+        "properties": {
+          "activeChangeCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "baseAsOf": {
+            "format": "date",
+            "type": "string"
+          },
+          "effectiveDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scenarioId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SourceSystem": {
+        "properties": {
+          "lifecycleState": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sourceKey": {
+            "type": "string"
+          },
+          "sourceSystemId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "systemType": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SubmitScenarioRequest": {
+        "properties": {
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason",
+          "version"
+        ],
+        "type": "object"
+      },
+      "SyncRun": {
+        "properties": {
+          "committedWatermark": {
+            "type": "string"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "connectorInstanceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "createdCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "failureCode": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "mappingProfileId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "pageCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "readCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "redactedFailureMessage": {
+            "type": "string"
+          },
+          "rejectedCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "requestedWatermark": {
+            "type": "string"
+          },
+          "retryOfSyncRunId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "sourceKey": {
+            "type": "string"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "syncMode": {
+            "type": "string"
+          },
+          "syncRunId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "unchangedCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "updatedCount": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "TalentWorkspace": {
+        "properties": {
+          "employee": {
+            "$ref": "#/components/schemas/EmployeeContext"
+          },
+          "goals": {
+            "items": {
+              "$ref": "#/components/schemas/Goal"
+            },
+            "type": "array"
+          },
+          "journeys": {
+            "items": {
+              "$ref": "#/components/schemas/Journey"
+            },
+            "type": "array"
+          },
+          "learning": {
+            "items": {
+              "$ref": "#/components/schemas/Learning"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "TeamAbsence": {
+        "properties": {
+          "employeeName": {
+            "type": "string"
+          },
+          "employeeTitle": {
+            "type": "string"
+          },
+          "endAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "personId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "planName": {
+            "type": "string"
+          },
+          "requestId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "startAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "TimeCard": {
+        "properties": {
+          "dataOrigin": {
+            "type": "string"
+          },
+          "exceptionCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "periodEnd": {
+            "format": "date",
+            "type": "string"
+          },
+          "periodStart": {
+            "format": "date",
+            "type": "string"
+          },
+          "recordedMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "scheduledMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "timeCardId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "TimeEntry": {
+        "properties": {
+          "entryType": {
+            "type": "string"
+          },
+          "minutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "note": {
+            "type": "string"
+          },
+          "timeEntryId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "workDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "workMode": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "TimeException": {
+        "properties": {
+          "exceptionCode": {
+            "type": "string"
+          },
+          "exceptionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "occurredOn": {
+            "format": "date",
+            "type": "string"
+          },
+          "resolutionNote": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "TimeWorkspace": {
+        "properties": {
+          "card": {
+            "$ref": "#/components/schemas/TimeCard"
+          },
+          "employee": {
+            "$ref": "#/components/schemas/EmployeeContext"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/TimeEntry"
+            },
+            "type": "array"
+          },
+          "exceptions": {
+            "items": {
+              "$ref": "#/components/schemas/TimeException"
+            },
+            "type": "array"
+          },
+          "teamQueue": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalItem"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "UpdateConnectorRequest": {
+        "properties": {
+          "credentialReference": {
+            "maxLength": 255,
+            "minLength": 0,
+            "type": "string"
+          },
+          "endpointUri": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "lifecycleState": {
+            "minLength": 1,
+            "pattern": "DRAFT|ACTIVE|SUSPENDED|RETIRED",
+            "type": "string"
+          },
+          "scheduleExpression": {
+            "maxLength": 120,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "lifecycleState",
+          "version"
+        ],
+        "type": "object"
+      },
+      "UpdateGoalRequest": {
+        "properties": {
+          "progressPercent": {
+            "format": "int32",
+            "maximum": 100,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "status": {
+            "minLength": 1,
+            "pattern": "ACTIVE|AT_RISK|COMPLETED|CANCELLED",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      },
+      "UpdateLifecycleRequest": {
+        "properties": {
+          "lifecycleState": {
+            "minLength": 1,
+            "pattern": "ACTIVE|SUSPENDED|RETIRED",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lifecycleState"
+        ],
+        "type": "object"
+      },
+      "UpdateReferenceValueRequest": {
+        "properties": {
+          "description": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "displayName": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "labels": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "lifecycleState": {
+            "minLength": 1,
+            "pattern": "ACTIVE|INACTIVE",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "displayName",
+          "labels",
+          "lifecycleState"
+        ],
+        "type": "object"
+      },
+      "UpsertTimeEntryRequest": {
+        "properties": {
+          "cardVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "minutes": {
+            "format": "int32",
+            "maximum": 1440,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "note": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "workMode": {
+            "minLength": 1,
+            "pattern": "OFFICE|REMOTE|FIELD|HYBRID",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workMode"
+        ],
+        "type": "object"
+      },
+      "ValidateScenarioRequest": {
+        "properties": {
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "type": "object"
+      },
+      "ValidationRunSummary": {
+        "properties": {
+          "baselineCurrent": {
+            "type": "boolean"
+          },
+          "blockingIssueCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "decisionState": {
+            "type": "string"
+          },
+          "evaluatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "evaluatedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "readinessScore": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "scenarioVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "triggerType": {
+            "type": "string"
+          },
+          "validationRunId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "warningCount": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "WithdrawLeaveRequest": {
+        "properties": {
+          "note": {
+            "maxLength": 1000,
+            "minLength": 3,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "note"
+        ],
+        "type": "object"
+      },
+      "WorkAssignment": {
+        "properties": {
+          "assignmentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "assignmentKey": {
+            "type": "string"
+          },
+          "assignmentStatus": {
+            "type": "string"
+          },
+          "businessTitle": {
+            "type": "string"
+          },
+          "changeReasonCode": {
+            "type": "string"
+          },
+          "effectiveEndDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "effectiveSequence": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "effectiveStartDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "jobGradeName": {
+            "type": "string"
+          },
+          "jobProfileName": {
+            "type": "string"
+          },
+          "locationKey": {
+            "type": "string"
+          },
+          "locationName": {
+            "type": "string"
+          },
+          "managerAssignmentKey": {
+            "type": "string"
+          },
+          "organizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "organizationKey": {
+            "type": "string"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "primaryAssignment": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "WorkRelationship": {
+        "properties": {
+          "assignments": {
+            "items": {
+              "$ref": "#/components/schemas/WorkAssignment"
+            },
+            "type": "array"
+          },
+          "endDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "legalEmployerCountryCode": {
+            "type": "string"
+          },
+          "legalEmployerKey": {
+            "type": "string"
+          },
+          "legalEmployerName": {
+            "type": "string"
+          },
+          "primaryRelationship": {
+            "type": "boolean"
+          },
+          "projectedEndDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "relationshipKey": {
+            "type": "string"
+          },
+          "relationshipType": {
+            "type": "string"
+          },
+          "startDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "workRelationshipId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Worker": {
+        "properties": {
+          "originalHireDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "workRelationships": {
+            "items": {
+              "$ref": "#/components/schemas/WorkRelationship"
+            },
+            "type": "array"
+          },
+          "workerId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "workerNumber": {
+            "type": "string"
+          },
+          "workerStatus": {
+            "type": "string"
+          },
+          "workerType": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "OpenAPI definition",
+    "version": "v0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/internal/provider/v1/tenants": {
+      "post": {
+        "operationId": "provision",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProvisionTenantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProvisionTenantResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "people-tenant-provisioning-controller"
+        ]
+      }
+    },
+    "/internal/provider/v1/tenants/{providerTenantId}/lifecycle": {
+      "patch": {
+        "operationId": "lifecycle",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "providerTenantId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateLifecycleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProvisionTenantResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "people-tenant-provisioning-controller"
+        ]
+      }
+    },
+    "/v1/admin/workforce/access-policies": {
+      "get": {
+        "operationId": "list_1",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListPolicy"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workforce-access-policy-controller"
+        ]
+      },
+      "post": {
+        "operationId": "create_2",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePolicyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePolicy"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workforce-access-policy-controller"
+        ]
+      }
+    },
+    "/v1/admin/workforce/access-policies/organizations": {
+      "get": {
+        "operationId": "organizations",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListOrganizationOption"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workforce-access-policy-controller"
+        ]
+      }
+    },
+    "/v1/admin/workforce/access-policies/{policyId}/revoke": {
+      "patch": {
+        "operationId": "revoke",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokePolicyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePolicy"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workforce-access-policy-controller"
+        ]
+      }
+    },
+    "/v1/hr/absence": {
+      "get": {
+        "operationId": "absence",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAbsenceWorkspace"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hr-controller"
+        ]
+      }
+    },
+    "/v1/hr/absence/requests": {
+      "post": {
+        "operationId": "createLeaveRequest",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateLeaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseLeaveRequest"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hr-controller"
+        ]
+      }
+    },
+    "/v1/hr/absence/requests/{requestId}/decision": {
+      "post": {
+        "operationId": "decideLeaveRequest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseApprovalItem"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hr-controller"
+        ]
+      }
+    },
+    "/v1/hr/absence/requests/{requestId}/withdraw": {
+      "post": {
+        "operationId": "withdrawLeaveRequest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WithdrawLeaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAbsenceWorkspace"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hr-controller"
+        ]
+      }
+    },
+    "/v1/hr/benefits": {
+      "get": {
+        "operationId": "benefits",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseBenefitsWorkspace"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hr-controller"
+        ]
+      }
+    },
+    "/v1/hr/home": {
+      "get": {
+        "operationId": "home",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseHomeOverview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hr-controller"
+        ]
+      }
+    },
+    "/v1/hr/operations/{domain}": {
+      "get": {
+        "operationId": "operations",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "domain",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDomainOperations"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hr-controller"
+        ]
+      }
+    },
+    "/v1/hr/pay": {
+      "get": {
+        "operationId": "pay",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePayWorkspace"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hr-controller"
+        ]
+      }
+    },
+    "/v1/hr/talent": {
+      "get": {
+        "operationId": "talent",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTalentWorkspace"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hr-controller"
+        ]
+      }
+    },
+    "/v1/hr/talent/goals/{goalId}": {
+      "put": {
+        "operationId": "updateGoal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "goalId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGoalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTalentWorkspace"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hr-controller"
+        ]
+      }
+    },
+    "/v1/hr/time": {
+      "get": {
+        "operationId": "time",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTimeWorkspace"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hr-controller"
+        ]
+      }
+    },
+    "/v1/hr/time/{cardId}/decision": {
+      "post": {
+        "operationId": "decideTimeCard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cardId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseApprovalItem"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hr-controller"
+        ]
+      }
+    },
+    "/v1/hr/time/{cardId}/entries/{workDate}": {
+      "put": {
+        "operationId": "upsertTimeEntry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cardId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "workDate",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertTimeEntryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTimeWorkspace"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hr-controller"
+        ]
+      }
+    },
+    "/v1/hr/time/{cardId}/submit": {
+      "post": {
+        "operationId": "submitTimeCard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cardId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTimeWorkspace"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hr-controller"
+        ]
+      }
+    },
+    "/v1/org-chart": {
+      "get": {
+        "operationId": "get_2",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "rootOrganizationId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "depth",
+            "required": false,
+            "schema": {
+              "default": 6,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOrganizationChart"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "organization-chart-controller"
+        ]
+      }
+    },
+    "/v1/people": {
+      "get": {
+        "operationId": "search_1",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCursorPagePersonSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "people-directory-controller"
+        ]
+      }
+    },
+    "/v1/people/{publicId}": {
+      "get": {
+        "operationId": "get_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "publicId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePersonDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "people-directory-controller"
+        ]
+      }
+    },
+    "/v1/workforce/data-operations/hris/connectors": {
+      "get": {
+        "operationId": "connectors",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListConnectorInstance"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hris-operations-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createConnector",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateConnectorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseConnectorInstance"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hris-operations-controller"
+        ]
+      }
+    },
+    "/v1/workforce/data-operations/hris/connectors/{connectorId}": {
+      "put": {
+        "operationId": "updateConnector",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connectorId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateConnectorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseConnectorInstance"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hris-operations-controller"
+        ]
+      }
+    },
+    "/v1/workforce/data-operations/hris/connectors/{connectorId}/configuration-check": {
+      "post": {
+        "operationId": "checkConnector",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connectorId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseConfigurationCheck"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hris-operations-controller"
+        ]
+      }
+    },
+    "/v1/workforce/data-operations/hris/connectors/{connectorId}/executions": {
+      "post": {
+        "operationId": "execute",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connectorId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecuteConnectorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseImportResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hris-operations-controller"
+        ]
+      }
+    },
+    "/v1/workforce/data-operations/hris/connectors/{connectorId}/reconciliations": {
+      "post": {
+        "operationId": "reconcile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connectorId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "syncRunId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseReconciliationRun"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hris-operations-controller"
+        ]
+      }
+    },
+    "/v1/workforce/data-operations/hris/mapping-profiles": {
+      "get": {
+        "operationId": "mappings",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListMappingProfile"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hris-operations-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createMapping",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMappingProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseMappingProfile"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hris-operations-controller"
+        ]
+      }
+    },
+    "/v1/workforce/data-operations/hris/mapping-profiles/{mappingId}/activate": {
+      "post": {
+        "operationId": "activateMapping",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mappingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivateMappingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseMappingProfile"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hris-operations-controller"
+        ]
+      }
+    },
+    "/v1/workforce/data-operations/hris/reconciliation-issues": {
+      "get": {
+        "operationId": "reconciliationIssues",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListReconciliationIssue"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hris-operations-controller"
+        ]
+      }
+    },
+    "/v1/workforce/data-operations/hris/reconciliation-issues/{issueId}": {
+      "put": {
+        "operationId": "resolveIssue",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "issueId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveIssueRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hris-operations-controller"
+        ]
+      }
+    },
+    "/v1/workforce/data-operations/hris/reconciliations": {
+      "get": {
+        "operationId": "reconciliations",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListReconciliationRun"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hris-operations-controller"
+        ]
+      }
+    },
+    "/v1/workforce/data-operations/hris/sample-import": {
+      "post": {
+        "operationId": "importSample",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseImportResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hris-operations-controller"
+        ]
+      }
+    },
+    "/v1/workforce/data-operations/hris/sources": {
+      "get": {
+        "operationId": "sources",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListSourceSystem"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hris-operations-controller"
+        ]
+      }
+    },
+    "/v1/workforce/data-operations/hris/sync-runs": {
+      "get": {
+        "operationId": "runs",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListSyncRun"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hris-operations-controller"
+        ]
+      }
+    },
+    "/v1/workforce/data-operations/hris/sync-runs/{syncRunId}/retry": {
+      "post": {
+        "operationId": "retry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "syncRunId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseImportResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "hris-operations-controller"
+        ]
+      }
+    },
+    "/v1/workforce/exports": {
+      "get": {
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListRequestSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workforce-export-controller"
+        ]
+      },
+      "post": {
+        "operationId": "create_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRequestSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workforce-export-controller"
+        ]
+      }
+    },
+    "/v1/workforce/exports/datasets": {
+      "get": {
+        "operationId": "datasets",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListDatasetSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workforce-export-controller"
+        ]
+      }
+    },
+    "/v1/workforce/exports/preview": {
+      "post": {
+        "operationId": "preview",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePreview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workforce-export-controller"
+        ]
+      }
+    },
+    "/v1/workforce/exports/{requestId}/attempts": {
+      "get": {
+        "operationId": "attempts",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListAttemptEvent"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workforce-export-controller"
+        ]
+      }
+    },
+    "/v1/workforce/exports/{requestId}/cancel": {
+      "patch": {
+        "operationId": "cancel_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRequestSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workforce-export-controller"
+        ]
+      }
+    },
+    "/v1/workforce/exports/{requestId}/retry": {
+      "patch": {
+        "operationId": "retry_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRequestSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workforce-export-controller"
+        ]
+      }
+    },
+    "/v1/workforce/organization/chart": {
+      "get": {
+        "operationId": "chart",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "rootOrganizationId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scenarioId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "depth",
+            "required": false,
+            "schema": {
+              "default": 6,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOrganizationChart"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workforce-organization-controller"
+        ]
+      }
+    },
+    "/v1/workforce/organization/intelligence": {
+      "get": {
+        "operationId": "intelligence",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "compareTo",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "rootOrganizationId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scenarioId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "depth",
+            "required": false,
+            "schema": {
+              "default": 6,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseIntelligence"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workforce-organization-controller"
+        ]
+      }
+    },
+    "/v1/workforce/organization/scenarios": {
+      "get": {
+        "operationId": "scenarios",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListScenario"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "organization-scenario-controller"
+        ]
+      },
+      "post": {
+        "operationId": "create",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateScenarioRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseScenario"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "organization-scenario-controller"
+        ]
+      }
+    },
+    "/v1/workforce/organization/scenarios/{scenarioId}/approval": {
+      "post": {
+        "operationId": "decide",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenarioId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecideScenarioRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseScenario"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "organization-scenario-controller"
+        ]
+      }
+    },
+    "/v1/workforce/organization/scenarios/{scenarioId}/cancel": {
+      "post": {
+        "operationId": "cancel",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenarioId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelScenarioRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseScenario"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "organization-scenario-controller"
+        ]
+      }
+    },
+    "/v1/workforce/organization/scenarios/{scenarioId}/changes/{changeId}": {
+      "delete": {
+        "operationId": "removeChange",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenarioId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "changeId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseScenario"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "organization-scenario-controller"
+        ]
+      }
+    },
+    "/v1/workforce/organization/scenarios/{scenarioId}/clone": {
+      "post": {
+        "operationId": "cloneScenario",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenarioId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloneScenarioRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseScenario"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "organization-scenario-controller"
+        ]
+      }
+    },
+    "/v1/workforce/organization/scenarios/{scenarioId}/decision-pack": {
+      "get": {
+        "operationId": "decisionPack",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenarioId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDecisionPack"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "organization-scenario-controller"
+        ]
+      }
+    },
+    "/v1/workforce/organization/scenarios/{scenarioId}/decision-pack/history": {
+      "get": {
+        "operationId": "decisionPackHistory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenarioId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListValidationRunSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "organization-scenario-controller"
+        ]
+      }
+    },
+    "/v1/workforce/organization/scenarios/{scenarioId}/decision-pack/validate": {
+      "post": {
+        "operationId": "validateDecisionPack",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenarioId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValidateScenarioRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDecisionPack"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "organization-scenario-controller"
+        ]
+      }
+    },
+    "/v1/workforce/organization/scenarios/{scenarioId}/moves": {
+      "post": {
+        "operationId": "addMove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenarioId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddOrganizationMoveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseScenario"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "organization-scenario-controller"
+        ]
+      }
+    },
+    "/v1/workforce/organization/scenarios/{scenarioId}/position-moves": {
+      "post": {
+        "operationId": "addPositionMove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenarioId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddPositionMoveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseScenario"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "organization-scenario-controller"
+        ]
+      }
+    },
+    "/v1/workforce/organization/scenarios/{scenarioId}/positions": {
+      "post": {
+        "operationId": "createPosition",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenarioId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePositionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseScenario"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "organization-scenario-controller"
+        ]
+      }
+    },
+    "/v1/workforce/organization/scenarios/{scenarioId}/positions/{positionId}/close": {
+      "post": {
+        "operationId": "closePosition",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenarioId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "positionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClosePositionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseScenario"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "organization-scenario-controller"
+        ]
+      }
+    },
+    "/v1/workforce/organization/scenarios/{scenarioId}/publish": {
+      "post": {
+        "operationId": "publish",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenarioId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishScenarioRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseScenario"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "organization-scenario-controller"
+        ]
+      }
+    },
+    "/v1/workforce/organization/scenarios/{scenarioId}/submit": {
+      "post": {
+        "operationId": "submit",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenarioId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitScenarioRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseScenario"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "organization-scenario-controller"
+        ]
+      }
+    },
+    "/v1/workforce/people": {
+      "get": {
+        "operationId": "search",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCursorPagePersonSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workforce-people-controller"
+        ]
+      }
+    },
+    "/v1/workforce/people/{publicId}": {
+      "get": {
+        "operationId": "get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "publicId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePersonDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workforce-people-controller"
+        ]
+      }
+    },
+    "/v1/workforce/reference-data": {
+      "get": {
+        "operationId": "catalogs",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "locale",
+            "required": false,
+            "schema": {
+              "default": "en",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListReferenceCatalog"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workforce-reference-controller"
+        ]
+      }
+    },
+    "/v1/workforce/reference-data/{catalogKey}/{code}": {
+      "put": {
+        "operationId": "update",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "catalogKey",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "locale",
+            "required": false,
+            "schema": {
+              "default": "en",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateReferenceValueRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseReferenceValue"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workforce-reference-controller"
+        ]
+      }
+    }
+  }
+}

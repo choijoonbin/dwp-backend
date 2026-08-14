@@ -13,6 +13,7 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -75,6 +76,7 @@ public class CoreDomainEventAutoConfiguration {
 
     @Bean(name = "domainEventPublisher")
     @ConditionalOnMissingBean(name = "domainEventPublisher")
+    @ConditionalOnProperty(name = "dwp.events.transport", havingValue = "noop", matchIfMissing = true)
     public DomainEventPublisher domainEventPublisher() {
         return DomainEventPublisher.NOOP;
     }

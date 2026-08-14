@@ -176,6 +176,8 @@ dwp-core/src/main/java/com/dwp/core/event/DomainEventInboxRepository.java|BeginS
 dwp-core/src/main/java/com/dwp/core/event/DomainEventInboxRepository.java|FailureState
 dwp-core/src/main/java/com/dwp/core/event/DomainEventOrderingPolicy.java|Decision
 dwp-core/src/main/java/com/dwp/core/event/IdempotentDomainEventConsumer.java|DeliveryState
+dwp-people-server/src/main/java/com/dwp/services/people/hr/HrDtos.java|HomeAvailability
+dwp-people-server/src/main/java/com/dwp/services/people/hr/HrDtos.java|HomeDataOrigin
 dwp-platform-contracts/src/main/java/com/dwp/platform/contract/ConnectorPort.java|Capability
 dwp-platform-contracts/src/main/java/com/dwp/platform/contract/ConnectorPort.java|HealthState
 dwp-platform-contracts/src/main/java/com/dwp/platform/contract/DataClassification.java|DataClassification
@@ -532,10 +534,10 @@ assert_java_enum_codes 'connector health state enum' \
   'HealthState' 'name' 'PLATFORM.CONNECTOR.HEALTH_STATE'
 assert_java_enum_codes 'shared data classification enum' \
   'dwp-platform-contracts/src/main/java/com/dwp/platform/contract/DataClassification.java' \
-  'DataClassification' 'name' 'PEOPLE.PPL_ATTRIBUTE_DEFINITIONS.DATA_CLASSIFICATION'
+  'DataClassification' 'name' 'PLATFORM.DATA_CLASSIFICATION'
 assert_java_enum_codes 'shared execution risk tier enum' \
   'dwp-platform-contracts/src/main/java/com/dwp/platform/contract/RiskTier.java' \
-  'RiskTier' 'name' 'PLATFORM.SYS_ADMIN_COMMAND_REQUESTS.RISK_TIER'
+  'RiskTier' 'name' 'PLATFORM.EXECUTION_RISK_TIER'
 assert_java_enum_codes 'reference lifecycle enum' \
   'dwp-platform-server/src/main/java/com/dwp/services/platform/reference/ReferenceLifecycle.java' \
   'ReferenceLifecycle' 'name' 'PLATFORM.REFERENCE_LIFECYCLE'
@@ -590,6 +592,12 @@ assert_java_enum_codes 'calendar resource state enum' \
 assert_java_enum_codes 'home overview section status enum' \
   'dwp-platform-server/src/main/java/com/dwp/services/platform/home/overview/HomeOverviewDtos.java' \
   'SectionStatus' 'name' 'PLATFORM.HOME_OVERVIEW.SECTION_STATUS'
+assert_java_enum_codes 'HR home domain availability enum' \
+  'dwp-people-server/src/main/java/com/dwp/services/people/hr/HrDtos.java' \
+  'HomeAvailability' 'name' 'PEOPLE.HR_HOME.DOMAIN_AVAILABILITY'
+assert_java_enum_codes 'HR home data origin enum' \
+  'dwp-people-server/src/main/java/com/dwp/services/people/hr/HrDtos.java' \
+  'HomeDataOrigin' 'name' 'PEOPLE.HR_HOME.DATA_ORIGIN'
 assert_java_enum_codes 'productivity provider type enum' \
   'dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java' \
   'ProviderType' 'name' 'PLATFORM.PRODUCTIVITY_CONNECTOR.PROVIDER_TYPE'

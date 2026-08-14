@@ -7,6 +7,8 @@ import com.dwp.services.auth.entity.IdentityProvider;
 import com.dwp.services.auth.repository.IdentityProviderRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.resilience4j.bulkhead.annotation.Bulkhead;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -26,9 +28,13 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class OidcService {
@@ -36,6 +42,8 @@ public class OidcService {
     private final IdentityProviderRepository identityProviderRepository;
     private final OidcStateStore stateStore;
     private final ObjectMapper objectMapper;
+    private final Set<String> allowedHosts;
+    private final boolean allowUnlistedHosts;
     private final HttpClient httpClient = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .build();
@@ -46,12 +54,18 @@ public class OidcService {
     public OidcService(
             IdentityProviderRepository identityProviderRepository,
             OidcStateStore stateStore,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            @Value("${dwp.auth.oidc.allowed-hosts:}") String allowedHosts,
+            @Value("${dwp.auth.oidc.allow-unlisted-hosts:false}") boolean allowUnlistedHosts) {
         this.identityProviderRepository = identityProviderRepository;
         this.stateStore = stateStore;
         this.objectMapper = objectMapper;
+        this.allowedHosts = parseHosts(allowedHosts);
+        this.allowUnlistedHosts = allowUnlistedHosts;
     }
 
+    @Bulkhead(name = "oidcProvider", type = Bulkhead.Type.SEMAPHORE)
+    @CircuitBreaker(name = "oidcProvider")
     public String getAuthorizationUrl(Long tenantId, String providerKey) {
         IdentityProvider provider = requireProvider(tenantId, providerKey);
         OidcStateStore.AuthorizationRequest authorization = stateStore.create(tenantId, providerKey);
@@ -69,6 +83,8 @@ public class OidcService {
                 .toUriString();
     }
 
+    @Bulkhead(name = "oidcProvider", type = Bulkhead.Type.SEMAPHORE)
+    @CircuitBreaker(name = "oidcProvider")
     public OidcExchangeResult exchange(String state, String code) {
         OidcStateStore.StateContext context = stateStore.consume(state);
         IdentityProvider provider = requireProvider(context.tenantId(), context.providerKey());
@@ -129,7 +145,33 @@ public class OidcService {
                 || isBlank(provider.getClientId())) {
             throw new BaseException(ErrorCode.INVALID_STATE, "OIDC 공급자 설정이 완전하지 않습니다.");
         }
+        requireAllowed(provider.getIssuerUri());
+        requireAllowed(provider.getAuthUrl());
+        requireAllowed(provider.getTokenUrl());
+        if (!isBlank(provider.getUserInfoUrl())) requireAllowed(provider.getUserInfoUrl());
         return provider;
+    }
+
+    private void requireAllowed(String value) {
+        try {
+            URI uri = URI.create(value);
+            String host = uri.getHost();
+            if (!"https".equalsIgnoreCase(uri.getScheme()) || host == null
+                    || (!allowUnlistedHosts && !allowedHosts.contains(host.toLowerCase(Locale.ROOT)))) {
+                throw new BaseException(ErrorCode.INVALID_STATE, "OIDC endpoint host is not allowed.");
+            }
+        } catch (IllegalArgumentException exception) {
+            throw new BaseException(ErrorCode.INVALID_STATE, "OIDC endpoint is invalid.");
+        }
+    }
+
+    private static Set<String> parseHosts(String value) {
+        if (value == null || value.isBlank()) return Set.of();
+        return Arrays.stream(value.split(","))
+                .map(String::trim)
+                .map(host -> host.toLowerCase(Locale.ROOT))
+                .filter(host -> host.matches("[a-z0-9.-]+"))
+                .collect(Collectors.toUnmodifiableSet());
     }
 
     private String resolveClientSecret(IdentityProvider provider) {

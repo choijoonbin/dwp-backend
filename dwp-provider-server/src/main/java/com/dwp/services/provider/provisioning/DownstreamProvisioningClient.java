@@ -4,6 +4,8 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.core.http.OutboundHttpHeaders;
 import com.fasterxml.jackson.databind.JsonNode;
+import io.github.resilience4j.bulkhead.annotation.Bulkhead;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -36,6 +38,8 @@ public class DownstreamProvisioningClient {
         this.provisioningToken = provisioningToken == null ? "" : provisioningToken.trim();
     }
 
+    @Bulkhead(name = "tenantProvisioning", type = Bulkhead.Type.SEMAPHORE)
+    @CircuitBreaker(name = "tenantProvisioning")
     public AuthProvisioningResult provisionAuth(UUID tenantId, JsonNode plan) {
         requireConfigured();
         List<String> entitlements = entitlements(plan);
@@ -61,6 +65,8 @@ public class DownstreamProvisioningClient {
         return result;
     }
 
+    @Bulkhead(name = "tenantProvisioning", type = Bulkhead.Type.SEMAPHORE)
+    @CircuitBreaker(name = "tenantProvisioning")
     public ServiceProvisioningResult provisionPlatform(UUID tenantId, Long authTenantId, JsonNode plan) {
         requireConfigured();
         ServiceProvisioningResult result = platform.post()
@@ -83,6 +89,8 @@ public class DownstreamProvisioningClient {
         return result;
     }
 
+    @Bulkhead(name = "tenantProvisioning", type = Bulkhead.Type.SEMAPHORE)
+    @CircuitBreaker(name = "tenantProvisioning")
     public ServiceProvisioningResult provisionPeople(UUID tenantId, Long authTenantId, JsonNode plan) {
         requireConfigured();
         ServiceProvisioningResult result = people.post()
@@ -103,6 +111,8 @@ public class DownstreamProvisioningClient {
         return result;
     }
 
+    @Bulkhead(name = "tenantProvisioning", type = Bulkhead.Type.SEMAPHORE)
+    @CircuitBreaker(name = "tenantProvisioning")
     public ServiceProvisioningResult provisionAssetStorage(UUID tenantId) {
         requireConfigured();
         ServiceProvisioningResult result = platform.post()
@@ -115,6 +125,8 @@ public class DownstreamProvisioningClient {
         return result;
     }
 
+    @Bulkhead(name = "tenantProvisioning", type = Bulkhead.Type.SEMAPHORE)
+    @CircuitBreaker(name = "tenantProvisioning")
     public void updateLifecycle(UUID tenantId, String lifecycleState) {
         requireConfigured();
         LifecycleRequest request = new LifecycleRequest(lifecycleState);
@@ -123,6 +135,8 @@ public class DownstreamProvisioningClient {
         updateLifecycle(people, tenantId, request);
     }
 
+    @Bulkhead(name = "tenantProvisioning", type = Bulkhead.Type.SEMAPHORE)
+    @CircuitBreaker(name = "tenantProvisioning")
     public InvitationResult issueAdministratorInvitation(
             UUID tenantId,
             Long administratorUserId,
@@ -140,6 +154,8 @@ public class DownstreamProvisioningClient {
         return result;
     }
 
+    @Bulkhead(name = "tenantProvisioning", type = Bulkhead.Type.SEMAPHORE)
+    @CircuitBreaker(name = "tenantProvisioning")
     public void replaceEntitlements(UUID tenantId, List<String> entitlementKeys) {
         requireConfigured();
         EntitlementsRequest request = new EntitlementsRequest(List.copyOf(entitlementKeys));

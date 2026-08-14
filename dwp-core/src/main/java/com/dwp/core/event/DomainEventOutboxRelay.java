@@ -54,7 +54,7 @@ public class DomainEventOutboxRelay implements SmartLifecycle {
     public synchronized void start() {
         if (running) return;
         if (!enabled) {
-            log.info("DWP domain-event transport is disabled pending D-07 topology approval");
+            log.info("DWP domain-event transport is disabled until this service completes producer onboarding");
             return;
         }
         if (publisher == DomainEventPublisher.NOOP) {

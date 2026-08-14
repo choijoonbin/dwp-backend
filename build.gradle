@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.5.16' apply false
     id 'io.spring.dependency-management' version '1.1.7' apply false
+    id 'org.cyclonedx.bom' version '3.3.0'
 }
 
 allprojects {
@@ -18,8 +19,14 @@ tasks.register('checkServiceBoundaries', Exec) {
     commandLine 'python3', 'scripts/check-service-boundaries.py'
 }
 
+tasks.register('checkSourceSize', Exec) {
+    workingDir rootDir
+    commandLine 'python3', 'scripts/check-source-size.py'
+}
+
 tasks.named('check') {
     dependsOn tasks.named('checkServiceBoundaries')
+    dependsOn tasks.named('checkSourceSize')
 }
 
 subprojects {
@@ -30,12 +37,13 @@ subprojects {
     ext['flyway.version'] = '12.11.0'
 
     java {
-        sourceCompatibility = '21'
-        targetCompatibility = '21'
+        sourceCompatibility = JavaVersion.VERSION_21
+        targetCompatibility = JavaVersion.VERSION_21
     }
     
     tasks.withType(JavaCompile).configureEach {
         options.encoding = 'UTF-8'
+        options.release = 21
         options.compilerArgs += ['-parameters', '-Xlint:all', '-Xlint:-processing']
     }
     
@@ -49,6 +57,7 @@ subprojects {
         imports {
             mavenBom org.springframework.boot.gradle.plugin.SpringBootPlugin.BOM_COORDINATES
             mavenBom 'org.springframework.cloud:spring-cloud-dependencies:2025.0.3'
+            mavenBom 'io.opentelemetry.instrumentation:opentelemetry-instrumentation-bom:2.30.0'
         }
     }
     
