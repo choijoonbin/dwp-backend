@@ -2,6 +2,7 @@ package com.dwp.services.provider.provisioning;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.core.http.OutboundHttpHeaders;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -40,6 +41,7 @@ public class DownstreamProvisioningClient {
         List<String> entitlements = entitlements(plan);
         AuthProvisioningResult result = auth.post()
                 .uri("/internal/provider/v1/tenants")
+                .headers(headers -> OutboundHttpHeaders.propagateObservability(headers))
                 .header(TOKEN_HEADER, provisioningToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(new AuthProvisioningRequest(
@@ -63,6 +65,7 @@ public class DownstreamProvisioningClient {
         requireConfigured();
         ServiceProvisioningResult result = platform.post()
                 .uri("/internal/provider/v1/tenants")
+                .headers(headers -> OutboundHttpHeaders.propagateObservability(headers))
                 .header(TOKEN_HEADER, provisioningToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(new PlatformProvisioningRequest(
@@ -84,6 +87,7 @@ public class DownstreamProvisioningClient {
         requireConfigured();
         ServiceProvisioningResult result = people.post()
                 .uri("/internal/provider/v1/tenants")
+                .headers(headers -> OutboundHttpHeaders.propagateObservability(headers))
                 .header(TOKEN_HEADER, provisioningToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(new PeopleProvisioningRequest(
@@ -103,6 +107,7 @@ public class DownstreamProvisioningClient {
         requireConfigured();
         ServiceProvisioningResult result = platform.post()
                 .uri("/internal/provider/v1/tenants/{tenantId}/asset-storage", tenantId)
+                .headers(headers -> OutboundHttpHeaders.propagateObservability(headers))
                 .header(TOKEN_HEADER, provisioningToken)
                 .retrieve()
                 .body(ServiceProvisioningResult.class);
@@ -125,6 +130,7 @@ public class DownstreamProvisioningClient {
         requireConfigured();
         InvitationResult result = auth.post()
                 .uri("/internal/provider/v1/tenants/{tenantId}/administrator-invitations", tenantId)
+                .headers(headers -> OutboundHttpHeaders.propagateObservability(headers))
                 .header(TOKEN_HEADER, provisioningToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(new InvitationRequest(administratorUserId, expiresInMinutes))
@@ -144,6 +150,7 @@ public class DownstreamProvisioningClient {
     private void updateLifecycle(RestClient client, UUID tenantId, LifecycleRequest request) {
         client.patch()
                 .uri("/internal/provider/v1/tenants/{tenantId}/lifecycle", tenantId)
+                .headers(headers -> OutboundHttpHeaders.propagateObservability(headers))
                 .header(TOKEN_HEADER, provisioningToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)
@@ -154,6 +161,7 @@ public class DownstreamProvisioningClient {
     private void replaceEntitlements(RestClient client, UUID tenantId, EntitlementsRequest request) {
         client.put()
                 .uri("/internal/provider/v1/tenants/{tenantId}/entitlements", tenantId)
+                .headers(headers -> OutboundHttpHeaders.propagateObservability(headers))
                 .header(TOKEN_HEADER, provisioningToken)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request)

@@ -2,6 +2,7 @@ package com.dwp.services.provider.codecatalog;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.core.http.OutboundHttpHeaders;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -34,6 +35,7 @@ public class ProductCatalogClient {
                         .path("/internal/provider/v1/code-catalog/code-sets/{codeSetKey}")
                         .queryParam("locale", locale)
                         .build(codeSetKey))
+                .headers(headers -> OutboundHttpHeaders.propagateObservability(headers))
                 .header(TOKEN_HEADER, provisioningToken)
                 .retrieve()
                 .body(PlatformResponse.class);
@@ -44,6 +46,7 @@ public class ProductCatalogClient {
         requireConfigured();
         PlatformResponse response = platform.get()
                 .uri(path)
+                .headers(headers -> OutboundHttpHeaders.propagateObservability(headers))
                 .header(TOKEN_HEADER, provisioningToken)
                 .retrieve()
                 .body(PlatformResponse.class);

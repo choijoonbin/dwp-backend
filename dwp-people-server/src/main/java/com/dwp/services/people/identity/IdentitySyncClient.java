@@ -1,5 +1,6 @@
 package com.dwp.services.people.identity;
 
+import com.dwp.core.http.OutboundHttpHeaders;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -33,6 +34,7 @@ public class IdentitySyncClient {
         }
         auth.post()
                 .uri("/internal/identity/v1/workforce-events")
+                .headers(headers -> OutboundHttpHeaders.propagateObservability(headers))
                 .header(TOKEN_HEADER, token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(request(event))

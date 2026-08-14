@@ -39,6 +39,8 @@ ALLOWED_HTTP_CLIENTS = {
         "required": [
             "${SERVICE_AUTH_URL:http://localhost:8001}",
             "/auth/me",
+            "TRACE_PARENT_HEADER",
+            "TRACE_STATE_HEADER",
         ],
         "forbidden": [
             "X-DWP-Service-Token",
@@ -51,6 +53,8 @@ ALLOWED_HTTP_CLIENTS = {
             "/v1/internal/support-access/resolve",
             "X-DWP-Service-Token",
             "X-DWP-Support-Validation-Token",
+            "TRACE_PARENT_HEADER",
+            "TRACE_STATE_HEADER",
         ],
         "forbidden": [
             "/api/",
@@ -64,6 +68,7 @@ ALLOWED_HTTP_CLIENTS = {
             "${dwp.services.people-url:http://localhost:8003}",
             "/internal/provider/v1/",
             "X-DWP-Provisioning-Token",
+            "OutboundHttpHeaders.propagateObservability",
         ],
         "forbidden": [
             "/api/",
@@ -77,6 +82,7 @@ ALLOWED_HTTP_CLIENTS = {
             "${dwp.services.platform-url:http://localhost:8002}",
             "/internal/provider/v1/code-catalog/",
             "X-DWP-Provisioning-Token",
+            "OutboundHttpHeaders.propagateObservability",
         ],
         "forbidden": [
             "/api/",
@@ -90,6 +96,7 @@ ALLOWED_HTTP_CLIENTS = {
             "${dwp.identity-sync.auth-url:http://localhost:8001}",
             "/internal/identity/v1/",
             "X-DWP-Identity-Sync-Token",
+            "OutboundHttpHeaders.propagateObservability",
         ],
         "forbidden": [
             "/api/",
@@ -103,6 +110,7 @@ ALLOWED_HTTP_CLIENTS = {
             "${dwp.identity-sync.auth-url:http://localhost:8001}",
             "/internal/identity/v1/",
             "X-DWP-Identity-Sync-Token",
+            "OutboundHttpHeaders.propagateObservability",
         ],
         "forbidden": [
             "/api/",
@@ -116,6 +124,7 @@ ALLOWED_HTTP_CLIENTS = {
             "${dwp.identity-sync.auth-url:http://localhost:8001}",
             "/internal/identity/v1/",
             "X-DWP-Identity-Sync-Token",
+            "OutboundHttpHeaders.propagateObservability",
         ],
         "forbidden": [
             "/api/",

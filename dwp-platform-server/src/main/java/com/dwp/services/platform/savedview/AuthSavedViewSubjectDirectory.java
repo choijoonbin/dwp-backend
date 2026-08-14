@@ -2,6 +2,7 @@ package com.dwp.services.platform.savedview;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.core.http.OutboundHttpHeaders;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -32,6 +33,7 @@ public class AuthSavedViewSubjectDirectory implements SavedViewSubjectDirectory 
         try {
             Subject subject = auth.get()
                     .uri("/internal/identity/v1/tenants/{tenantId}/users/{userId}", tenantId, userId)
+                    .headers(headers -> OutboundHttpHeaders.propagateObservability(headers))
                     .header(TOKEN_HEADER, token)
                     .retrieve()
                     .body(Subject.class);

@@ -14,20 +14,21 @@ The policy is:
 3. Gateway routes public API prefixes to owning services and injects trusted service identity.
 4. Backend service-to-service HTTP is allowed only for documented `/internal/**` control-plane contracts or named gateway verification contracts.
 5. Internal contracts require purpose-specific credentials such as `X-DWP-Provisioning-Token`, `X-DWP-Identity-Sync-Token`, or support validation plus service identity.
-6. Backend services may depend on shared libraries and contract modules only. They must not import or build-time depend on sibling service implementation modules.
-7. Cross-service database access is prohibited except the provider data-governance metadata scanner. That exception is read-only, uses metadata credentials, and scans schema/catalog metadata rather than business records.
-8. External SaaS connectors are separate adapter contracts and must validate host allowlists or trusted provider hosts.
+6. Internal contracts propagate `X-Correlation-ID`, W3C `traceparent`, and `tracestate` when a request context exists.
+7. Backend services may depend on shared libraries and contract modules only. They must not import or build-time depend on sibling service implementation modules.
+8. Cross-service database access is prohibited except the provider data-governance metadata scanner. That exception is read-only, uses metadata credentials, and scans schema/catalog metadata rather than business records.
+9. External SaaS connectors are separate adapter contracts and must validate host allowlists or trusted provider hosts.
 
 ## Current Exceptions
 
 | Exception | Status | Reason | Guard |
 | --- | --- | --- | --- |
-| Gateway `AuthSessionVerifier` -> Auth `/auth/me` | Allowed by policy | Edge session verification before Gateway forwards the request | Session cookie/context forwarding, timeout, no `X-DWP-Service-Token` |
-| Gateway `ProviderSupportSessionVerifier` -> Provider `/v1/internal/support-access/resolve` | Allowed by policy | Support-session scope resolution for delegated support access | `X-DWP-Service-Token` plus `X-DWP-Support-Validation-Token` |
-| Provider provisioning -> Auth/Platform/People `/internal/provider/v1/**` | Allowed by policy | Tenant lifecycle orchestration across service-owned stores | `X-DWP-Provisioning-Token` |
-| Provider code catalog -> Platform `/internal/provider/v1/code-catalog/**` | Allowed by policy | Product code-contract catalog read model owned by Platform | `X-DWP-Provisioning-Token` |
-| Platform -> Auth `/internal/identity/v1/**` | Allowed by policy | Runtime app entitlement and saved-view subject validation | `X-DWP-Identity-Sync-Token` |
-| People -> Auth `/internal/identity/v1/workforce-events` | Allowed by policy | Workforce identity projection into central identity | `X-DWP-Identity-Sync-Token` |
+| Gateway `AuthSessionVerifier` -> Auth `/auth/me` | Allowed by policy | Edge session verification before Gateway forwards the request | Session cookie/context forwarding, timeout, trace context propagation, no `X-DWP-Service-Token` |
+| Gateway `ProviderSupportSessionVerifier` -> Provider `/v1/internal/support-access/resolve` | Allowed by policy | Support-session scope resolution for delegated support access | `X-DWP-Service-Token` plus `X-DWP-Support-Validation-Token`, trace context propagation |
+| Provider provisioning -> Auth/Platform/People `/internal/provider/v1/**` | Allowed by policy | Tenant lifecycle orchestration across service-owned stores | `X-DWP-Provisioning-Token`, `OutboundHttpHeaders.propagateObservability` |
+| Provider code catalog -> Platform `/internal/provider/v1/code-catalog/**` | Allowed by policy | Product code-contract catalog read model owned by Platform | `X-DWP-Provisioning-Token`, `OutboundHttpHeaders.propagateObservability` |
+| Platform -> Auth `/internal/identity/v1/**` | Allowed by policy | Runtime app entitlement and saved-view subject validation | `X-DWP-Identity-Sync-Token`, `OutboundHttpHeaders.propagateObservability` |
+| People -> Auth `/internal/identity/v1/workforce-events` | Allowed by policy | Workforce identity projection into central identity | `X-DWP-Identity-Sync-Token`, `OutboundHttpHeaders.propagateObservability` |
 | Provider data-governance JDBC metadata scan | Allowed by policy | Provider control plane metadata inventory and lineage view | `connection.setReadOnly(true)`, metadata DB credentials, catalog SQL only |
 | Microsoft Graph and Workday adapters | Not a DWP app-to-app exception | External enterprise connectors | Trusted host or tenant-configured host allowlist |
 
@@ -44,6 +45,16 @@ The gap was governance, not the runtime call intent:
 
 This ADR closes that gap by defining the policy and tying it to automated checks.
 
+## Standards Alignment
+
+| Reference architecture | DWP position | Current implementation |
+| --- | --- | --- |
+| NIST SP 800-207 Zero Trust | Do not trust a request because it is internal; verify each resource access. | Gateway verifies session identity, service routes inject service identity, internal contracts use purpose-specific tokens. |
+| OWASP API Security Top 10 2023 | Prevent broken object/function/property authorization and unrestricted internal exposure. | Browser traffic is forced through `/api/**`; `/internal/**` is not exposed to frontend clients; sensitive backend HTTP clients are allowlisted. |
+| OpenTelemetry / W3C Trace Context | Preserve causal trace context across service hops. | Gateway creates `traceparent`; allowlisted service clients propagate `X-Correlation-ID`, `traceparent`, and `tracestate`. |
+| Spring Cloud Gateway | Centralize edge routing, identity enrichment, CSRF, service token injection, and future distributed rate limiting. | Gateway owns `/api/**` routing and service identity filters. Redis-backed request rate limiting is a production deployment decision, not enabled implicitly. |
+| Service mesh / Istio | Use workload identity and mTLS for east-west transport encryption when deployed on Kubernetes or mesh-capable infrastructure. | Current local architecture uses application-level tokens; production mTLS/workload identity remains a deployment gate. |
+
 ## Enforcement
 
 Backend:
@@ -51,6 +62,7 @@ Backend:
 - `scripts/check-service-boundaries.py` blocks sibling service imports and sibling service Gradle dependencies.
 - The same script blocks new backend `RestClient` or `WebClient` usage unless the source file is in the service-interface allowlist.
 - Allowlisted internal clients must keep their required path and credential markers.
+- Allowlisted internal clients must propagate request-scoped correlation and W3C trace context. Servlet services use `OutboundHttpHeaders.propagateObservability`; Gateway WebClient verifiers copy `traceparent` and `tracestate`.
 - New cross-service database references fail unless explicitly registered as an accepted metadata exception.
 
 Frontend:
@@ -63,7 +75,7 @@ Frontend:
 Any new DWP service-to-service interface must be added through one of these paths:
 
 1. Gateway public API route for browser or external client access.
-2. Internal HTTP contract with an owning service, `/internal/**` path, purpose-specific token, timeout, and allowlist entry.
+2. Internal HTTP contract with an owning service, `/internal/**` path, purpose-specific token, timeout, trace propagation, and allowlist entry.
 3. Domain event/outbox contract for asynchronous projection.
 4. External connector adapter with trusted host or tenant allowlist validation.
 

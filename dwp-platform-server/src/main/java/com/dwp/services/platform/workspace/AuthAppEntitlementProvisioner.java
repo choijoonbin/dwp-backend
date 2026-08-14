@@ -1,5 +1,7 @@
 package com.dwp.services.platform.workspace;
 
+import com.dwp.core.constant.HeaderConstants;
+import com.dwp.core.http.OutboundHttpHeaders;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -32,9 +34,11 @@ public class AuthAppEntitlementProvisioner implements AppEntitlementProvisioner 
                     .uri(
                             "/internal/identity/v1/tenants/{tenantId}/app-entitlements/{sourceRef}",
                             command.tenantId(), command.sourceRef())
+                    .headers(headers -> OutboundHttpHeaders.propagateObservability(headers))
                     .header(TOKEN_HEADER, token);
             if (command.correlationId() != null && !command.correlationId().isBlank()) {
-                request.header("X-Correlation-ID", command.correlationId().strip());
+                request.headers(headers ->
+                        headers.set(HeaderConstants.X_CORRELATION_ID, command.correlationId().strip()));
             }
             SyncResponse response = request
                     .body(new SyncRequest(

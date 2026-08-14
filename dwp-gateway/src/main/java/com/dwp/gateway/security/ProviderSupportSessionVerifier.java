@@ -21,6 +21,8 @@ public class ProviderSupportSessionVerifier implements SupportSessionVerifier {
     public static final String RESOURCE_PATH_HEADER = "X-DWP-Support-Resource-Path";
     private static final String SERVICE_TOKEN_HEADER = "X-DWP-Service-Token";
     private static final String CORRELATION_HEADER = "X-Correlation-ID";
+    private static final String TRACE_PARENT_HEADER = "traceparent";
+    private static final String TRACE_STATE_HEADER = "tracestate";
 
     private final WebClient providerClient;
     private final String serviceToken;
@@ -55,6 +57,8 @@ public class ProviderSupportSessionVerifier implements SupportSessionVerifier {
                     copyHeader(request.getHeaders(), headers, VerifiedIdentityFilter.TENANT_HEADER);
                     copyHeader(request.getHeaders(), headers, VerifiedIdentityFilter.ROLES_HEADER);
                     copyHeader(request.getHeaders(), headers, CORRELATION_HEADER);
+                    copyHeader(request.getHeaders(), headers, TRACE_PARENT_HEADER);
+                    copyHeader(request.getHeaders(), headers, TRACE_STATE_HEADER);
                     headers.set(RESOURCE_METHOD_HEADER, request.getMethod().name());
                     headers.set(RESOURCE_PATH_HEADER, request.getURI().getPath());
                     headers.set(HttpHeaders.ACCEPT, "application/json");

@@ -14,6 +14,7 @@ public final class HeaderConstants {
     public static final String X_DWP_PERMISSIONS = "X-DWP-Permissions";
     public static final String X_DWP_SERVICE_TOKEN = "X-DWP-Service-Token";
     public static final String TRACE_PARENT = "traceparent";
+    public static final String TRACE_STATE = "tracestate";
 
     private HeaderConstants() {
     }
