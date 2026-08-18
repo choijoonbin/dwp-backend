@@ -50,6 +50,26 @@ public final class HomeExperienceDtos {
             @NotNull @Min(0) Long version) {
     }
 
+    public record UpdateHomeCompositionPolicyRequest(
+            @NotNull @Valid HomeCompositionPolicy policy,
+            @NotNull @Min(0) Long version) {
+    }
+
+    public record HomeCompositionPolicy(
+            Integer schemaVersion,
+            Boolean personalCustomizationEnabled,
+            List<GovernedHomeZone> governedZones) {
+    }
+
+    public record GovernedHomeZone(
+            String zoneKey,
+            String placement,
+            Boolean visible,
+            String size,
+            String height,
+            Integer sortOrder) {
+    }
+
     public record HomeLaunchpadConfiguration(
             Integer schemaVersion,
             List<HomeLaunchpadGroup> groups,
@@ -84,6 +104,7 @@ public final class HomeExperienceDtos {
             Integer backgroundWidth,
             Integer backgroundHeight,
             HomeLaunchpadConfiguration launchpadConfiguration,
+            HomeCompositionPolicy compositionPolicy,
             Long version,
             LocalDateTime updatedAt,
             Long updatedBy) {
@@ -112,6 +133,7 @@ public final class HomeExperienceDtos {
         value.put("backgroundPosition", experience.getBackgroundPosition());
         value.put("overlayOpacity", experience.getOverlayOpacity());
         value.put("launchpadConfiguration", experience.getLaunchpadConfiguration());
+        value.put("compositionPolicy", experience.getCompositionPolicy());
         value.put("backgroundOriginalName", experience.getBackgroundOriginalName());
         value.put("backgroundContentType", experience.getBackgroundContentType());
         value.put("backgroundSizeBytes", experience.getBackgroundSizeBytes());

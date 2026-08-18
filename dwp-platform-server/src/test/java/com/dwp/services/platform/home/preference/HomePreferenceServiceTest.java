@@ -3,6 +3,7 @@ package com.dwp.services.platform.home.preference;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.audit.PlatformAuditService;
+import com.dwp.services.platform.home.HomeCompositionPolicyReader;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,7 +37,7 @@ class HomePreferenceServiceTest {
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper().findAndRegisterModules();
-        service = new HomePreferenceService(repository, objectMapper, auditService);
+        service = new HomePreferenceService(repository, objectMapper, auditService, tenantId -> true);
     }
 
     @Test
@@ -49,13 +50,18 @@ class HomePreferenceServiceTest {
                 7L, 11L, HomePreferenceService.WORKSPACE_HOME);
 
         assertThat(result.customized()).isFalse();
-        assertThat(result.schemaVersion()).isEqualTo(2);
+        assertThat(result.schemaVersion()).isEqualTo(5);
         assertThat(result.surfaceKey()).isEqualTo(HomePreferenceService.WORKSPACE_HOME);
         assertThat(result.layout().presentation()).isEqualTo("balanced");
         assertThat(result.layout().widgets())
                 .extracting(HomePreferenceDtos.WidgetPreference::widgetKey)
-                .containsExactly("announcements", "daily-brief", "focus", "schedule", "activity");
-        assertThat(result.layout().widgets().getFirst().size()).isEqualTo("full");
+                .containsExactly("command-rail", "activity", "focus", "schedule", "daily-brief");
+        assertThat(result.layout().widgets())
+                .extracting(HomePreferenceDtos.WidgetPreference::size)
+                .containsExactly("large", "quarter", "medium", "quarter", "full");
+        assertThat(result.layout().widgets())
+                .extracting(HomePreferenceDtos.WidgetPreference::height)
+                .containsExactly("short", "tall", "tall", "standard", "standard");
     }
 
     @Test
@@ -89,23 +95,6 @@ class HomePreferenceServiceTest {
     }
 
     @Test
-    void rejectsHiddenGovernedAnnouncements() {
-        HomePreferenceDtos.HomeLayoutPayload layout = workspaceLayout(
-                widgets(false),
-                null,
-                "balanced");
-
-        assertThatThrownBy(() -> service.update(
-                7L,
-                11L,
-                HomePreferenceService.WORKSPACE_HOME,
-                null,
-                new HomePreferenceDtos.UpdateHomePreferenceRequest(layout, 0L)))
-                .isInstanceOfSatisfying(BaseException.class, exception ->
-                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
-    }
-
-    @Test
     void storesAValidatedWorkspaceLayoutForTheCurrentUser() {
         ObjectNode appLayout = validAppLayout();
         when(repository.findByTenantIdAndUserIdAndSurfaceKey(
@@ -124,14 +113,15 @@ class HomePreferenceServiceTest {
                 HomePreferenceService.WORKSPACE_HOME,
                 "corr-home",
                 new HomePreferenceDtos.UpdateHomePreferenceRequest(
-                        workspaceLayout(widgets(true), appLayout, "expressive"),
+                        workspaceLayout(workspaceWidgets(), appLayout, "expressive"),
                         0L));
 
         assertThat(result.customized()).isTrue();
         assertThat(result.layout().presentation()).isEqualTo("expressive");
-        assertThat(result.layout().appLayout().path("hiddenAppIds").get(0).asText())
-                .isEqualTo("dwp-ask");
+        assertThat(result.layout().appLayout()).isEqualTo(appLayout);
         assertThat(result.layout().widgets()).hasSize(5);
+        assertThat(result.layout().widgets().getFirst().size()).isEqualTo("large");
+        assertThat(result.layout().widgets().getFirst().height()).isEqualTo("short");
         verify(auditService).success(
                 eq(7L),
                 eq(11L),
@@ -182,9 +172,10 @@ class HomePreferenceServiceTest {
         ObjectNode legacyLayout = objectMapper.createObjectNode();
         legacyLayout.set("appLayout", validAppLayout());
         var legacyWidgets = legacyLayout.putArray("widgets");
-        widgets(true).forEach(widget -> legacyWidgets.addObject()
+        legacyWorkspaceWidgets().forEach(widget -> legacyWidgets.addObject()
                 .put("widgetKey", widget.widgetKey())
-                .put("visible", widget.visible()));
+                .put("visible", widget.visible())
+                .put("size", widget.size()));
         HomePreference legacy = HomePreference.builder()
                 .homePreferenceId(31L)
                 .tenantId(7L)
@@ -201,15 +192,51 @@ class HomePreferenceServiceTest {
         HomePreferenceDtos.HomePreferenceResponse result = service.get(
                 7L, 11L, HomePreferenceService.WORKSPACE_HOME);
 
-        assertThat(result.schemaVersion()).isEqualTo(2);
+        assertThat(result.schemaVersion()).isEqualTo(5);
+        assertThat(result.layout().appLayout()).isEqualTo(validAppLayout());
         assertThat(result.layout().presentation()).isEqualTo("balanced");
         assertThat(result.layout().widgets())
                 .allSatisfy(widget -> assertThat(widget.size()).isNotBlank());
+        assertThat(result.layout().widgets())
+                .extracting(HomePreferenceDtos.WidgetPreference::widgetKey)
+                .containsExactly("command-rail", "activity", "focus", "schedule", "daily-brief");
     }
 
     @Test
     void rejectsUnknownSurfaceAndDisallowedWidgetSize() {
         assertThatThrownBy(() -> service.get(7L, 11L, "unregistered-home"))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+
+        List<HomePreferenceDtos.WidgetPreference> invalidWorkspaceFootprint = List.of(
+                widget("activity", true, "quarter"),
+                widget("focus", true, "fifth"),
+                widget("schedule", true, "quarter"),
+                widget("daily-brief", true, "full"));
+        assertThatThrownBy(() -> service.update(
+                7L,
+                11L,
+                HomePreferenceService.WORKSPACE_HOME,
+                null,
+                new HomePreferenceDtos.UpdateHomePreferenceRequest(
+                        workspaceLayout(invalidWorkspaceFootprint, null, "balanced"),
+                        0L)))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+
+        List<HomePreferenceDtos.WidgetPreference> invalidWorkspaceHeight = List.of(
+                widget("activity", true, "quarter"),
+                widget("focus", true, "medium"),
+                widget("schedule", true, "quarter", "expanded"),
+                widget("daily-brief", true, "full"));
+        assertThatThrownBy(() -> service.update(
+                7L,
+                11L,
+                HomePreferenceService.WORKSPACE_HOME,
+                null,
+                new HomePreferenceDtos.UpdateHomePreferenceRequest(
+                        workspaceLayout(invalidWorkspaceHeight, null, "balanced"),
+                        0L)))
                 .isInstanceOfSatisfying(BaseException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
 
@@ -228,20 +255,53 @@ class HomePreferenceServiceTest {
     }
 
     @Test
-    void rejectsHiddenAppsThatRemainInTheVisibleLayout() {
-        ObjectNode appLayout = validAppLayout();
-        appLayout.withObject("groups").withArray("work").add("dwp-ask");
+    void rejectsAppLayoutsOnSurfacesWithoutAPersonalApplicationCatalog() {
+        List<HomePreferenceDtos.WidgetPreference> widgets = List.of(
+                widget("quick-actions", true, "full"),
+                widget("people-signals", true, "full"),
+                widget("attention", true, "large"),
+                widget("profile", true, "compact"),
+                widget("team", true, "full"),
+                widget("operations", true, "full"));
 
         assertThatThrownBy(() -> service.update(
+                7L,
+                11L,
+                HomePreferenceService.HCM_HOME,
+                null,
+                new HomePreferenceDtos.UpdateHomePreferenceRequest(
+                        new HomePreferenceDtos.HomeLayoutPayload(
+                                validAppLayout(), "balanced", widgets),
+                        0L)))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+    }
+
+    @Test
+    void rejectsWorkspaceUpdatesWhenTenantDisablesPersonalCustomization() {
+        HomeCompositionPolicyReader disabled = tenantId -> false;
+        HomePreferenceService governedService = new HomePreferenceService(
+                repository, objectMapper, auditService, disabled);
+
+        assertThatThrownBy(() -> governedService.update(
                 7L,
                 11L,
                 HomePreferenceService.WORKSPACE_HOME,
                 null,
                 new HomePreferenceDtos.UpdateHomePreferenceRequest(
-                        workspaceLayout(widgets(true), appLayout, "balanced"),
+                        workspaceLayout(workspaceWidgets(), null, "balanced"),
                         0L)))
                 .isInstanceOfSatisfying(BaseException.class, exception ->
-                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+
+        assertThatThrownBy(() -> governedService.reset(
+                7L,
+                11L,
+                HomePreferenceService.WORKSPACE_HOME,
+                null,
+                0L))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
     }
 
     private HomePreferenceDtos.HomeLayoutPayload workspaceLayout(
@@ -260,19 +320,36 @@ class HomePreferenceServiceTest {
         return appLayout;
     }
 
-    private List<HomePreferenceDtos.WidgetPreference> widgets(boolean announcementsVisible) {
+    private List<HomePreferenceDtos.WidgetPreference> workspaceWidgets() {
         return List.of(
-                widget("announcements", announcementsVisible, "full"),
-                widget("daily-brief", true, "full"),
+                widget("command-rail", true, "large"),
+                widget("activity", true, "fifth"),
+                widget("focus", true, "medium"),
+                widget("schedule", true, "quarter"),
+                widget("daily-brief", true, "full"));
+    }
+
+    private List<HomePreferenceDtos.WidgetPreference> legacyWorkspaceWidgets() {
+        return List.of(
+                widget("announcements", false, "full"),
+                widget("activity", true, "compact"),
                 widget("focus", true, "medium"),
                 widget("schedule", true, "compact"),
-                widget("activity", true, "compact"));
+                widget("daily-brief", true, "full"));
     }
 
     private HomePreferenceDtos.WidgetPreference widget(
             String widgetKey,
             boolean visible,
             String size) {
-        return new HomePreferenceDtos.WidgetPreference(widgetKey, visible, size);
+        return new HomePreferenceDtos.WidgetPreference(widgetKey, visible, size, null);
+    }
+
+    private HomePreferenceDtos.WidgetPreference widget(
+            String widgetKey,
+            boolean visible,
+            String size,
+            String height) {
+        return new HomePreferenceDtos.WidgetPreference(widgetKey, visible, size, height);
     }
 }

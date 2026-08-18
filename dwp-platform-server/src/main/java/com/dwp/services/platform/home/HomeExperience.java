@@ -57,6 +57,11 @@ public class HomeExperience extends BaseEntity {
     @Column(name = "launchpad_configuration", nullable = false, columnDefinition = "jsonb")
     private JsonNode launchpadConfiguration = JsonNodeFactory.instance.objectNode();
 
+    @Builder.Default
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "composition_policy", nullable = false, columnDefinition = "jsonb")
+    private JsonNode compositionPolicy = JsonNodeFactory.instance.objectNode();
+
     @Column(name = "background_asset_key", length = 320)
     private String backgroundAssetKey;
 

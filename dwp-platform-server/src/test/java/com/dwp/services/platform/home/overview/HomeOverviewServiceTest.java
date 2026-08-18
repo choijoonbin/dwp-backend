@@ -84,11 +84,14 @@ class HomeOverviewServiceTest {
 
         assertThat(result.audience().profile()).isEqualTo("OPERATOR");
         assertThat(result.work().status()).isEqualTo(HomeOverviewDtos.SectionStatus.AVAILABLE);
-        assertThat(result.recommendations())
+        assertThat(result.recommendationSection().status())
+                .isEqualTo(HomeOverviewDtos.SectionStatus.AVAILABLE);
+        assertThat(result.recommendationSection().data())
                 .extracting(HomeOverviewDtos.Recommendation::key)
                 .containsExactly("work-due-soon", "calendar-responses", "required-communications");
-        assertThat(result.recommendations())
+        assertThat(result.recommendationSection().data())
                 .allMatch(recommendation -> recommendation.source().startsWith("DWP_"));
+        assertThat(result.recommendations()).isEqualTo(result.recommendationSection().data());
     }
 
     @Test
@@ -117,6 +120,86 @@ class HomeOverviewServiceTest {
         assertThat(result.work().data()).isNull();
         assertThat(result.calendar().status()).isEqualTo(HomeOverviewDtos.SectionStatus.AVAILABLE);
         assertThat(result.activity().status()).isEqualTo(HomeOverviewDtos.SectionStatus.AVAILABLE);
+        assertThat(result.recommendationSection().status())
+                .isEqualTo(HomeOverviewDtos.SectionStatus.AVAILABLE);
+    }
+
+    @Test
+    void calculatesRecommendationsFromAvailableSourcesDuringAPartialOutage() {
+        OffsetDateTime now = OffsetDateTime.now();
+        UUID personId = UUID.randomUUID();
+        when(feedbackRepository.suppressedKeys(1L, 7L)).thenReturn(Set.of());
+        when(workspaceService.workQueue(any(), any(), anyString(), anyString()))
+                .thenThrow(new BaseException(ErrorCode.EXTERNAL_SERVICE_ERROR));
+        when(workspaceService.activity(any(), any(), anyString(), anyString()))
+                .thenReturn(new WorkspaceDtos.ActivityFeed(List.of(), now));
+        when(calendarService.home(any(), any(), any(), anyString(), anyString()))
+                .thenReturn(new CalendarDtos.HomeResponse(
+                        LocalDate.now(), "Asia/Seoul", null, List.of(),
+                        new CalendarDtos.HomeMetrics(1, 0, 600, 600, 0, 1, 0),
+                        List.of(), List.of(), now));
+        when(communicationService.feed(
+                any(), any(), anyString(), anyString(), anyString(), isNull(), isNull(), anyInt()))
+                .thenReturn(new CommunicationDtos.FeedResponse(
+                        null, List.of(), new CommunicationDtos.FeedSummary(0, 0, 0, 0), now));
+
+        HomeOverviewDtos.HomeOverviewResponse result = service.overview(
+                1L, 7L, personId, "NONE", "WORKSPACE_MEMBER", "en-US", "Asia/Seoul");
+
+        assertThat(result.recommendationSection().status())
+                .isEqualTo(HomeOverviewDtos.SectionStatus.AVAILABLE);
+        assertThat(result.recommendationSection().reason())
+                .isEqualTo("PARTIAL_SOURCE_UNAVAILABLE");
+        assertThat(result.recommendationSection().data())
+                .extracting(HomeOverviewDtos.Recommendation::key)
+                .containsExactly("calendar-responses");
+    }
+
+    @Test
+    void marksRecommendationsUnavailableWhenNoRecoverableSourceDataExists() {
+        OffsetDateTime now = OffsetDateTime.now();
+        UUID personId = UUID.randomUUID();
+        when(workspaceService.workQueue(any(), any(), anyString(), anyString()))
+                .thenThrow(new BaseException(ErrorCode.EXTERNAL_SERVICE_ERROR));
+        when(workspaceService.activity(any(), any(), anyString(), anyString()))
+                .thenReturn(new WorkspaceDtos.ActivityFeed(List.of(), now));
+        when(calendarService.home(any(), any(), any(), anyString(), anyString()))
+                .thenThrow(new BaseException(ErrorCode.EXTERNAL_SERVICE_ERROR));
+        when(communicationService.feed(
+                any(), any(), anyString(), anyString(), anyString(), isNull(), isNull(), anyInt()))
+                .thenThrow(new BaseException(ErrorCode.EXTERNAL_SERVICE_ERROR));
+
+        HomeOverviewDtos.HomeOverviewResponse result = service.overview(
+                1L, 7L, personId, "NONE", "WORKSPACE_MEMBER", "en-US", "Asia/Seoul");
+
+        assertThat(result.recommendationSection().status())
+                .isEqualTo(HomeOverviewDtos.SectionStatus.UNAVAILABLE);
+        assertThat(result.recommendationSection().data()).isNull();
+        assertThat(result.recommendationSection().reason()).isEqualTo("SOURCE_UNAVAILABLE");
+        assertThat(result.recommendations()).isEmpty();
+    }
+
+    @Test
+    void marksRecommendationsForbiddenWhenEverySourceIsOutsideThePermissionScope() {
+        OffsetDateTime now = OffsetDateTime.now();
+        UUID personId = UUID.randomUUID();
+        when(workspaceService.workQueue(any(), any(), anyString(), anyString()))
+                .thenThrow(new BaseException(ErrorCode.FORBIDDEN));
+        when(workspaceService.activity(any(), any(), anyString(), anyString()))
+                .thenReturn(new WorkspaceDtos.ActivityFeed(List.of(), now));
+        when(calendarService.home(any(), any(), any(), anyString(), anyString()))
+                .thenThrow(new BaseException(ErrorCode.FORBIDDEN));
+        when(communicationService.feed(
+                any(), any(), anyString(), anyString(), anyString(), isNull(), isNull(), anyInt()))
+                .thenThrow(new BaseException(ErrorCode.FORBIDDEN));
+
+        HomeOverviewDtos.HomeOverviewResponse result = service.overview(
+                1L, 7L, personId, "NONE", "WORKSPACE_MEMBER", "en-US", "Asia/Seoul");
+
+        assertThat(result.recommendationSection().status())
+                .isEqualTo(HomeOverviewDtos.SectionStatus.FORBIDDEN);
+        assertThat(result.recommendationSection().reason()).isEqualTo("SOURCE_FORBIDDEN");
+        assertThat(result.recommendations()).isEmpty();
     }
 
     @Test

@@ -100,6 +100,13 @@ public class HomeOverviewService {
                     WorkspaceDtos.ActivityFeed::generatedAt,
                     tenantId,
                     userId);
+            HomeOverviewDtos.Section<List<HomeOverviewDtos.Recommendation>> recommendationSection =
+                    recommendationSection(
+                            tenantId, userId, work, calendar, communications, locale);
+            List<HomeOverviewDtos.Recommendation> recommendations =
+                    recommendationSection.data() == null
+                            ? List.of()
+                            : recommendationSection.data();
 
             return new HomeOverviewDtos.HomeOverviewResponse(
                     audience,
@@ -107,7 +114,8 @@ public class HomeOverviewService {
                     calendar,
                     communications,
                     activity,
-                    recommendations(tenantId, userId, work, calendar, communications, locale),
+                    recommendations,
+                    recommendationSection,
                     OffsetDateTime.now(ZoneOffset.UTC));
         } finally {
             sample.stop(Timer.builder("dwp.home.overview.duration")
@@ -211,6 +219,52 @@ public class HomeOverviewService {
         }
         return new HomeOverviewDtos.AudienceContext(
                 "MEMBER", RULE_VERSION, List.of("AUTHENTICATED_WORKFORCE_MEMBER"));
+    }
+
+    private HomeOverviewDtos.Section<List<HomeOverviewDtos.Recommendation>> recommendationSection(
+            Long tenantId,
+            Long userId,
+            HomeOverviewDtos.Section<WorkspaceDtos.WorkQueue> work,
+            HomeOverviewDtos.Section<CalendarDtos.HomeResponse> calendar,
+            HomeOverviewDtos.Section<CommunicationDtos.FeedResponse> communications,
+            String locale) {
+        List<HomeOverviewDtos.Section<?>> sources = List.of(work, calendar, communications);
+        boolean hasAvailableSource = sources.stream()
+                .anyMatch(section -> section.status() == HomeOverviewDtos.SectionStatus.AVAILABLE
+                        && section.data() != null);
+        if (!hasAvailableSource) {
+            boolean allForbidden = sources.stream()
+                    .allMatch(section -> section.status() == HomeOverviewDtos.SectionStatus.FORBIDDEN);
+            return unavailable(
+                    "DWP_HOME_RECOMMENDATIONS",
+                    allForbidden
+                            ? HomeOverviewDtos.SectionStatus.FORBIDDEN
+                            : HomeOverviewDtos.SectionStatus.UNAVAILABLE,
+                    allForbidden ? "SOURCE_FORBIDDEN" : "SOURCE_UNAVAILABLE");
+        }
+
+        try {
+            List<HomeOverviewDtos.Recommendation> data = recommendations(
+                    tenantId, userId, work, calendar, communications, locale);
+            boolean partiallyUnavailable = sources.stream()
+                    .anyMatch(section -> section.status() == HomeOverviewDtos.SectionStatus.UNAVAILABLE);
+            return new HomeOverviewDtos.Section<>(
+                    HomeOverviewDtos.SectionStatus.AVAILABLE,
+                    "DWP_HOME_RECOMMENDATIONS",
+                    OffsetDateTime.now(ZoneOffset.UTC),
+                    data,
+                    partiallyUnavailable ? "PARTIAL_SOURCE_UNAVAILABLE" : null);
+        } catch (RuntimeException exception) {
+            log.warn("Home recommendations failed for tenant {} and user {}", tenantId, userId, exception);
+            meterRegistry.counter(
+                    "dwp.home.section.degraded",
+                    "source", "DWP_HOME_RECOMMENDATIONS",
+                    "status", HomeOverviewDtos.SectionStatus.UNAVAILABLE.name()).increment();
+            return unavailable(
+                    "DWP_HOME_RECOMMENDATIONS",
+                    HomeOverviewDtos.SectionStatus.UNAVAILABLE,
+                    "E1000");
+        }
     }
 
     private List<HomeOverviewDtos.Recommendation> recommendations(

@@ -3,6 +3,7 @@ package com.dwp.services.platform.home.overview;
 import com.dwp.services.platform.calendar.CalendarDtos;
 import com.dwp.services.platform.communication.CommunicationDtos;
 import com.dwp.services.platform.workspace.WorkspaceDtos;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -66,7 +67,11 @@ public final class HomeOverviewDtos {
             Section<CalendarDtos.HomeResponse> calendar,
             Section<CommunicationDtos.FeedResponse> communications,
             Section<WorkspaceDtos.ActivityFeed> activity,
+            @Schema(
+                    deprecated = true,
+                    description = "Rolling-deployment compatibility field; use recommendationSection.data.")
             List<Recommendation> recommendations,
+            Section<List<Recommendation>> recommendationSection,
             OffsetDateTime generatedAt) {
     }
 }

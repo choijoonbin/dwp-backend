@@ -50,7 +50,8 @@ class HomeExperienceServiceTest {
                 auditService,
                 revisionStore,
                 new ObjectMapper(),
-                new HomeLaunchpadPolicy());
+                new HomeLaunchpadPolicy(),
+                new HomeCompositionPolicyRegistry());
     }
 
     @Test
@@ -62,8 +63,33 @@ class HomeExperienceServiceTest {
         assertThat(result.backgroundUrl()).isNull();
         assertThat(result.backgroundPosition()).isEqualTo("RIGHT");
         assertThat(result.overlayOpacity()).isEqualTo(18);
+        assertThat(result.compositionPolicy().personalCustomizationEnabled()).isTrue();
+        assertThat(result.compositionPolicy().governedZones())
+                .extracting(HomeExperienceDtos.GovernedHomeZone::zoneKey)
+                .containsExactly("announcements");
         assertThat(result.version()).isZero();
         verify(repository, never()).save(any());
+    }
+
+    @Test
+    void failsClosedWhenAPersistedCompositionPolicyIsInvalid() throws Exception {
+        HomeExperience experience = experience(7L, 2L, null);
+        experience.setCompositionPolicy(new ObjectMapper().readTree("""
+                {
+                  "schemaVersion": 99,
+                  "personalCustomizationEnabled": true,
+                  "governedZones": []
+                }
+                """));
+        when(repository.findById(7L)).thenReturn(Optional.of(experience));
+
+        HomeExperienceDtos.HomeExperienceResponse result = service.get(7L);
+
+        assertThat(result.compositionPolicy().personalCustomizationEnabled()).isFalse();
+        assertThat(service.personalCustomizationEnabled(7L)).isFalse();
+        assertThat(result.compositionPolicy().governedZones())
+                .extracting(HomeExperienceDtos.GovernedHomeZone::zoneKey)
+                .containsExactly("announcements");
     }
 
     @Test
@@ -138,6 +164,46 @@ class HomeExperienceServiceTest {
                 anyMap(),
                 eq(11L),
                 eq("corr-locales"));
+    }
+
+    @Test
+    void publishesNormalizedTenantHomeCompositionAndWritesAudit() {
+        HomeExperience experience = experience(7L, 2L, null);
+        when(repository.findById(7L)).thenReturn(Optional.of(experience));
+        when(repository.saveAndFlush(experience)).thenAnswer(invocation -> {
+            experience.setVersion(3L);
+            return experience;
+        });
+
+        HomeExperienceDtos.HomeExperienceResponse result = service.updateComposition(
+                7L,
+                11L,
+                "corr-composition",
+                new HomeExperienceDtos.UpdateHomeCompositionPolicyRequest(
+                        new HomeExperienceDtos.HomeCompositionPolicy(
+                                2,
+                                false,
+                                java.util.List.of(
+                                        new HomeExperienceDtos.GovernedHomeZone(
+                                                "announcements", "CANVAS", true, "medium", "standard", 30))),
+                        2L));
+
+        assertThat(result.compositionPolicy().personalCustomizationEnabled()).isFalse();
+        assertThat(result.compositionPolicy().governedZones())
+                .extracting(HomeExperienceDtos.GovernedHomeZone::zoneKey)
+                .containsExactly("announcements");
+        assertThat(result.compositionPolicy().governedZones().getFirst().size()).isEqualTo("medium");
+        assertThat(result.compositionPolicy().governedZones().getFirst().height())
+                .isEqualTo("standard");
+        verify(auditService).success(
+                eq(7L),
+                eq(11L),
+                eq("home-experience.composition-updated"),
+                eq("HOME_COMPOSITION_POLICY"),
+                eq("7"),
+                eq("corr-composition"),
+                anyMap(),
+                anyMap());
     }
 
     @Test

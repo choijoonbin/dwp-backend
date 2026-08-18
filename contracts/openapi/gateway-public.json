@@ -19139,6 +19139,30 @@
         },
         "type": "object"
       },
+      "platform_GovernedHomeZone": {
+        "properties": {
+          "height": {
+            "type": "string"
+          },
+          "placement": {
+            "type": "string"
+          },
+          "size": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "visible": {
+            "type": "boolean"
+          },
+          "zoneKey": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "platform_Graph": {
         "properties": {
           "focusRef": {
@@ -19200,6 +19224,24 @@
         },
         "type": "object"
       },
+      "platform_HomeCompositionPolicy": {
+        "properties": {
+          "governedZones": {
+            "items": {
+              "$ref": "#/components/schemas/platform_GovernedHomeZone"
+            },
+            "type": "array"
+          },
+          "personalCustomizationEnabled": {
+            "type": "boolean"
+          },
+          "schemaVersion": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "platform_HomeExperienceResponse": {
         "properties": {
           "backgroundContentType": {
@@ -19225,6 +19267,9 @@
           "backgroundWidth": {
             "format": "int32",
             "type": "integer"
+          },
+          "compositionPolicy": {
+            "$ref": "#/components/schemas/platform_HomeCompositionPolicy"
           },
           "defaultLocale": {
             "type": "string"
@@ -19430,7 +19475,12 @@
             "format": "date-time",
             "type": "string"
           },
+          "recommendationSection": {
+            "$ref": "#/components/schemas/platform_SectionListRecommendation"
+          },
           "recommendations": {
+            "deprecated": true,
+            "description": "Rolling-deployment compatibility field; use recommendationSection.data.",
             "items": {
               "$ref": "#/components/schemas/platform_Recommendation"
             },
@@ -22243,6 +22293,35 @@
         },
         "type": "object"
       },
+      "platform_SectionListRecommendation": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/platform_Recommendation"
+            },
+            "type": "array"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "AVAILABLE",
+              "FORBIDDEN",
+              "UNAVAILABLE"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "platform_SectionWorkQueue": {
         "properties": {
           "data": {
@@ -22697,6 +22776,23 @@
         ],
         "type": "object"
       },
+      "platform_UpdateHomeCompositionPolicyRequest": {
+        "properties": {
+          "policy": {
+            "$ref": "#/components/schemas/platform_HomeCompositionPolicy"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "policy",
+          "version"
+        ],
+        "type": "object"
+      },
       "platform_UpdateHomeExperienceRequest": {
         "properties": {
           "backgroundPosition": {
@@ -23097,8 +23193,12 @@
       },
       "platform_WidgetPreference": {
         "properties": {
+          "height": {
+            "pattern": "short|standard|tall|expanded",
+            "type": "string"
+          },
           "size": {
-            "pattern": "compact|medium|large|full",
+            "pattern": "fifth|quarter|compact|medium|large|full",
             "type": "string"
           },
           "visible": {
@@ -39104,6 +39204,64 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/platform_VersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseHomeExperienceResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/home-experience/composition": {
+      "put": {
+        "operationId": "platform_updateComposition",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_UpdateHomeCompositionPolicyRequest"
               }
             }
           },

@@ -13,7 +13,7 @@ import java.util.List;
 
 public final class HomePreferenceDtos {
 
-    public static final int SCHEMA_VERSION = 2;
+    public static final int SCHEMA_VERSION = 5;
 
     private HomePreferenceDtos() {
     }
@@ -23,8 +23,10 @@ public final class HomePreferenceDtos {
             @Pattern(regexp = "[a-z][a-z0-9-]{0,39}")
             String widgetKey,
             @NotNull Boolean visible,
-            @Pattern(regexp = "compact|medium|large|full")
-            String size) {
+            @Pattern(regexp = "fifth|quarter|compact|medium|large|full")
+            String size,
+            @Pattern(regexp = "short|standard|tall|expanded")
+            String height) {
     }
 
     public record HomeLayoutPayload(

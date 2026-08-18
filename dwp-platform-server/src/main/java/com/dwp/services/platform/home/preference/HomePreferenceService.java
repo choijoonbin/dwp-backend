@@ -3,6 +3,7 @@ package com.dwp.services.platform.home.preference;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.audit.PlatformAuditService;
+import com.dwp.services.platform.home.HomeCompositionPolicyReader;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -27,7 +28,11 @@ public class HomePreferenceService {
 
     private static final int MAX_LAYOUT_BYTES = 96 * 1024;
     private static final Set<String> PRESENTATIONS = Set.of("balanced", "expressive", "focused");
-    private static final Set<String> WIDGET_SIZES = Set.of("compact", "medium", "large", "full");
+    private static final Set<String> WIDGET_SIZES = Set.of(
+            "fifth", "quarter", "compact", "medium", "large", "full");
+    private static final Set<String> WIDGET_HEIGHTS = Set.of(
+            "short", "standard", "tall", "expanded");
+    private static final Set<String> LEGACY_WORKSPACE_FIXED_ZONE_KEYS = Set.of("announcements");
     private static final Map<String, SurfaceContract> SURFACE_CONTRACTS = Map.of(
             WORKSPACE_HOME, workspaceContract(),
             HCM_HOME, hcmContract(),
@@ -36,14 +41,17 @@ public class HomePreferenceService {
     private final HomePreferenceRepository repository;
     private final ObjectMapper objectMapper;
     private final PlatformAuditService auditService;
+    private final HomeCompositionPolicyReader compositionPolicyReader;
 
     public HomePreferenceService(
             HomePreferenceRepository repository,
             ObjectMapper objectMapper,
-            PlatformAuditService auditService) {
+            PlatformAuditService auditService,
+            HomeCompositionPolicyReader compositionPolicyReader) {
         this.repository = repository;
         this.objectMapper = objectMapper;
         this.auditService = auditService;
+        this.compositionPolicyReader = compositionPolicyReader;
     }
 
     @Transactional(readOnly = true)
@@ -68,10 +76,12 @@ public class HomePreferenceService {
             HomePreferenceDtos.UpdateHomePreferenceRequest request) {
         String canonicalSurfaceKey = canonicalSurfaceKey(surfaceKey);
         SurfaceContract contract = requireSurface(canonicalSurfaceKey);
+        requirePersonalCustomization(tenantId, canonicalSurfaceKey);
         HomePreferenceDtos.HomeLayoutPayload normalized = normalizeLayout(
                 canonicalSurfaceKey,
                 contract,
-                request.layout());
+                request.layout(),
+                true);
         HomePreference preference = repository
                 .findByTenantIdAndUserIdAndSurfaceKey(tenantId, userId, canonicalSurfaceKey)
                 .orElseGet(() -> create(tenantId, userId, canonicalSurfaceKey, request.version()));
@@ -101,6 +111,7 @@ public class HomePreferenceService {
             Long version) {
         String canonicalSurfaceKey = canonicalSurfaceKey(surfaceKey);
         SurfaceContract contract = requireSurface(canonicalSurfaceKey);
+        requirePersonalCustomization(tenantId, canonicalSurfaceKey);
         HomePreference preference = repository
                 .findByTenantIdAndUserIdAndSurfaceKey(tenantId, userId, canonicalSurfaceKey)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
@@ -150,8 +161,12 @@ public class HomePreferenceService {
     private HomePreferenceDtos.HomeLayoutPayload normalizeLayout(
             String surfaceKey,
             SurfaceContract contract,
-            HomePreferenceDtos.HomeLayoutPayload layout) {
-        if (!contract.supportsAppLayout() && layout.appLayout() != null && !layout.appLayout().isNull()) {
+            HomePreferenceDtos.HomeLayoutPayload layout,
+            boolean rejectUnsupportedAppLayout) {
+        if (rejectUnsupportedAppLayout
+                && !contract.supportsAppLayout()
+                && layout.appLayout() != null
+                && !layout.appLayout().isNull()) {
             throw invalid("This personal home surface does not support an application layout.");
         }
         if (contract.supportsAppLayout()) validateAppLayout(layout.appLayout());
@@ -166,8 +181,12 @@ public class HomePreferenceService {
         Set<String> unique = new HashSet<>();
         Map<String, HomePreferenceDtos.WidgetPreference> requested = new LinkedHashMap<>();
         for (HomePreferenceDtos.WidgetPreference widget : layout.widgets()) {
+            if (!unique.add(widget.widgetKey())) {
+                throw invalid("The personal home layout contains an unknown or duplicate widget.");
+            }
+            if (isLegacyWorkspaceFixedZonePreference(surfaceKey, widget.widgetKey())) continue;
             WidgetContract widgetContract = contract.widgets().get(widget.widgetKey());
-            if (widgetContract == null || !unique.add(widget.widgetKey())) {
+            if (widgetContract == null) {
                 throw invalid("The personal home layout contains an unknown or duplicate widget.");
             }
             if (!widgetContract.canHide() && !Boolean.TRUE.equals(widget.visible())) {
@@ -177,20 +196,36 @@ public class HomePreferenceService {
             if (!WIDGET_SIZES.contains(size) || !widgetContract.allowedSizes().contains(size)) {
                 throw invalid("The personal home widget size is not allowed for this widget.");
             }
+            String height = widget.height() == null
+                    ? widgetContract.defaultHeight()
+                    : widget.height();
+            if (!WIDGET_HEIGHTS.contains(height)
+                    || !widgetContract.allowedHeights().contains(height)) {
+                throw invalid("The personal home widget height is not allowed for this widget.");
+            }
             requested.put(
                     widget.widgetKey(),
-                    new HomePreferenceDtos.WidgetPreference(widget.widgetKey(), widget.visible(), size));
+                    new HomePreferenceDtos.WidgetPreference(
+                            widget.widgetKey(), widget.visible(), size, height));
         }
 
-        List<HomePreferenceDtos.WidgetPreference> widgets = new ArrayList<>();
-        requested.values().forEach(widgets::add);
+        List<HomePreferenceDtos.WidgetPreference> widgets = new ArrayList<>(requested.values());
         contract.widgetOrder().forEach(widgetKey -> {
             if (requested.containsKey(widgetKey)) return;
             WidgetContract widget = contract.widgets().get(widgetKey);
-            widgets.add(new HomePreferenceDtos.WidgetPreference(
-                    widgetKey,
-                    true,
-                    widget.defaultSize()));
+            HomePreferenceDtos.WidgetPreference preference =
+                    new HomePreferenceDtos.WidgetPreference(
+                            widgetKey, true, widget.defaultSize(), widget.defaultHeight());
+            int defaultIndex = contract.widgetOrder().indexOf(widgetKey);
+            int insertionIndex = widgets.size();
+            for (int index = 0; index < widgets.size(); index++) {
+                int candidateIndex = contract.widgetOrder().indexOf(widgets.get(index).widgetKey());
+                if (candidateIndex > defaultIndex) {
+                    insertionIndex = index;
+                    break;
+                }
+            }
+            widgets.add(insertionIndex, preference);
         });
         if (widgets.stream().noneMatch(widget -> Boolean.TRUE.equals(widget.visible()))) {
             throw invalid("At least one personal home widget must remain visible.");
@@ -311,7 +346,8 @@ public class HomePreferenceService {
             HomePreferenceDtos.HomeLayoutPayload stored = objectMapper.treeToValue(
                     preference.getLayoutPayload(),
                     HomePreferenceDtos.HomeLayoutPayload.class);
-            HomePreferenceDtos.HomeLayoutPayload normalized = normalizeLayout(surfaceKey, contract, stored);
+            HomePreferenceDtos.HomeLayoutPayload normalized =
+                    normalizeLayout(surfaceKey, contract, stored, false);
             return new HomePreferenceDtos.HomePreferenceResponse(
                     HomePreferenceDtos.SCHEMA_VERSION,
                     surfaceKey,
@@ -333,7 +369,8 @@ public class HomePreferenceService {
         List<HomePreferenceDtos.WidgetPreference> widgets = contract.widgetOrder().stream()
                 .map(widgetKey -> {
                     WidgetContract widget = contract.widgets().get(widgetKey);
-                    return new HomePreferenceDtos.WidgetPreference(widgetKey, true, widget.defaultSize());
+                    return new HomePreferenceDtos.WidgetPreference(
+                            widgetKey, true, widget.defaultSize(), widget.defaultHeight());
                 })
                 .toList();
         return new HomePreferenceDtos.HomePreferenceResponse(
@@ -373,43 +410,78 @@ public class HomePreferenceService {
         return new BaseException(ErrorCode.INVALID_INPUT_VALUE, message);
     }
 
+    private void requirePersonalCustomization(Long tenantId, String surfaceKey) {
+        if (WORKSPACE_HOME.equals(surfaceKey)
+                && !compositionPolicyReader.personalCustomizationEnabled(tenantId)) {
+            throw new BaseException(
+                    ErrorCode.FORBIDDEN,
+                    "Personal workspace customization is disabled by the tenant policy.");
+        }
+    }
+
+    private boolean isLegacyWorkspaceFixedZonePreference(String surfaceKey, String widgetKey) {
+        return WORKSPACE_HOME.equals(surfaceKey)
+                && LEGACY_WORKSPACE_FIXED_ZONE_KEYS.contains(widgetKey);
+    }
+
     private static SurfaceContract workspaceContract() {
         Map<String, WidgetContract> widgets = new LinkedHashMap<>();
-        widgets.put("announcements", widget(false, "full", "full"));
-        widgets.put("daily-brief", widget(true, "full", "large", "full"));
-        widgets.put("focus", widget(true, "medium", "medium", "large", "full"));
-        widgets.put("schedule", widget(true, "compact", "compact", "medium"));
-        widgets.put("activity", widget(true, "compact", "compact", "medium"));
+        widgets.put("command-rail", widget(true, "large", Set.of("large", "full"),
+                "short", Set.of("short", "standard")));
+        widgets.put("activity", widget(true, "quarter", Set.of("fifth", "quarter", "compact", "medium"),
+                "tall", Set.of("short", "standard", "tall")));
+        widgets.put("focus", widget(true, "medium", Set.of("quarter", "compact", "medium", "large", "full"),
+                "tall", Set.of("short", "standard", "tall", "expanded")));
+        widgets.put("schedule", widget(true, "quarter", Set.of("fifth", "quarter", "compact", "medium"),
+                "standard", Set.of("short", "standard", "tall")));
+        widgets.put("daily-brief", widget(true, "full", Set.of("large", "full"),
+                "standard", Set.of("short", "standard", "tall")));
         return new SurfaceContract(true, "balanced", List.copyOf(widgets.keySet()), Map.copyOf(widgets));
     }
 
     private static SurfaceContract hcmContract() {
         Map<String, WidgetContract> widgets = new LinkedHashMap<>();
-        widgets.put("quick-actions", widget(true, "full", "medium", "large", "full"));
-        widgets.put("people-signals", widget(true, "full", "large", "full"));
-        widgets.put("attention", widget(true, "large", "medium", "large", "full"));
-        widgets.put("profile", widget(true, "compact", "compact", "medium"));
-        widgets.put("team", widget(true, "full", "medium", "large", "full"));
-        widgets.put("operations", widget(true, "full", "large", "full"));
+        widgets.put("quick-actions", widget(true, "full", Set.of("medium", "large", "full"),
+                "short", Set.of("short", "standard")));
+        widgets.put("people-signals", widget(true, "full", Set.of("large", "full"),
+                "standard", Set.of("short", "standard", "tall")));
+        widgets.put("attention", widget(true, "large", Set.of("medium", "large", "full"),
+                "tall", Set.of("standard", "tall", "expanded")));
+        widgets.put("profile", widget(true, "compact", Set.of("compact", "medium"),
+                "standard", Set.of("short", "standard", "tall")));
+        widgets.put("team", widget(true, "full", Set.of("medium", "large", "full"),
+                "tall", Set.of("standard", "tall", "expanded")));
+        widgets.put("operations", widget(true, "full", Set.of("large", "full"),
+                "tall", Set.of("standard", "tall", "expanded")));
         return new SurfaceContract(false, "balanced", List.copyOf(widgets.keySet()), Map.copyOf(widgets));
     }
 
     private static SurfaceContract approvalContract() {
         Map<String, WidgetContract> widgets = new LinkedHashMap<>();
-        widgets.put("decision-pulse", widget(false, "full", "full"));
-        widgets.put("focus-queue", widget(true, "large", "medium", "large", "full"));
-        widgets.put("flow", widget(true, "medium", "medium", "large", "full"));
-        widgets.put("my-requests", widget(true, "medium", "medium", "large", "full"));
-        widgets.put("insights", widget(true, "medium", "compact", "medium", "large"));
-        widgets.put("admin-health", widget(true, "full", "large", "full"));
+        widgets.put("decision-pulse", widget(false, "full", Set.of("full"),
+                "short", Set.of("short", "standard")));
+        widgets.put("focus-queue", widget(true, "large", Set.of("medium", "large", "full"),
+                "tall", Set.of("standard", "tall", "expanded")));
+        widgets.put("flow", widget(true, "medium", Set.of("medium", "large", "full"),
+                "standard", Set.of("short", "standard", "tall")));
+        widgets.put("my-requests", widget(true, "medium", Set.of("medium", "large", "full"),
+                "standard", Set.of("short", "standard", "tall")));
+        widgets.put("insights", widget(true, "medium", Set.of("compact", "medium", "large"),
+                "standard", Set.of("short", "standard", "tall")));
+        widgets.put("admin-health", widget(true, "full", Set.of("large", "full"),
+                "tall", Set.of("standard", "tall", "expanded")));
         return new SurfaceContract(false, "balanced", List.copyOf(widgets.keySet()), Map.copyOf(widgets));
     }
 
     private static WidgetContract widget(
             boolean canHide,
             String defaultSize,
-            String... allowedSizes) {
-        return new WidgetContract(canHide, defaultSize, Set.of(allowedSizes));
+            Set<String> allowedSizes,
+            String defaultHeight,
+            Set<String> allowedHeights) {
+        return new WidgetContract(
+                canHide, defaultSize, Set.copyOf(allowedSizes),
+                defaultHeight, Set.copyOf(allowedHeights));
     }
 
     private record SurfaceContract(
@@ -422,6 +494,8 @@ public class HomePreferenceService {
     private record WidgetContract(
             boolean canHide,
             String defaultSize,
-            Set<String> allowedSizes) {
+            Set<String> allowedSizes,
+            String defaultHeight,
+            Set<String> allowedHeights) {
     }
 }

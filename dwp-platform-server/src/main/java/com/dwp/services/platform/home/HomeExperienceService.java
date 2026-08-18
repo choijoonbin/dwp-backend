@@ -28,7 +28,7 @@ import static com.dwp.services.platform.home.HomeExperienceDtos.revisionSnapshot
 import static com.dwp.services.platform.home.HomeExperienceDtos.snapshot;
 
 @Service
-public class HomeExperienceService {
+public class HomeExperienceService implements HomeCompositionPolicyReader {
 
     private static final Logger log = LoggerFactory.getLogger(HomeExperienceService.class);
     private static final String BACKGROUND_URL = "/api/platform/v1/home-experience/background";
@@ -42,6 +42,7 @@ public class HomeExperienceService {
     private final ExperienceRevisionStore revisionStore;
     private final ObjectMapper objectMapper;
     private final HomeLaunchpadPolicy launchpadPolicy;
+    private final HomeCompositionPolicyRegistry compositionPolicyRegistry;
 
     public HomeExperienceService(
             HomeExperienceRepository repository,
@@ -50,7 +51,8 @@ public class HomeExperienceService {
             PlatformAuditService auditService,
             ExperienceRevisionStore revisionStore,
             ObjectMapper objectMapper,
-            HomeLaunchpadPolicy launchpadPolicy) {
+            HomeLaunchpadPolicy launchpadPolicy,
+            HomeCompositionPolicyRegistry compositionPolicyRegistry) {
         this.repository = repository;
         this.assetStorage = assetStorage;
         this.validator = validator;
@@ -58,6 +60,7 @@ public class HomeExperienceService {
         this.revisionStore = revisionStore;
         this.objectMapper = objectMapper;
         this.launchpadPolicy = launchpadPolicy;
+        this.compositionPolicyRegistry = compositionPolicyRegistry;
     }
 
     @Transactional(readOnly = true)
@@ -144,6 +147,44 @@ public class HomeExperienceService {
                 before,
                 snapshot(saved));
         return response(saved);
+    }
+
+    @Transactional
+    public HomeExperienceDtos.HomeExperienceResponse updateComposition(
+            Long tenantId,
+            Long actorId,
+            String correlationId,
+            HomeExperienceDtos.UpdateHomeCompositionPolicyRequest request) {
+        HomeExperience experience = findOrCreate(tenantId, request.version());
+        requireVersion(experience, request.version());
+        Object before = snapshot(experience);
+        ensureBaseline(tenantId, actorId, correlationId, experience);
+
+        HomeExperienceDtos.HomeCompositionPolicy normalized =
+                compositionPolicyRegistry.normalize(request.policy());
+        experience.setCompositionPolicy(objectMapper.valueToTree(normalized));
+        HomeExperience saved = repository.saveAndFlush(experience);
+        appendRevision(tenantId, actorId, correlationId, "SETTINGS_PUBLISHED", saved);
+        auditService.success(
+                tenantId,
+                actorId,
+                "home-experience.composition-updated",
+                "HOME_COMPOSITION_POLICY",
+                String.valueOf(tenantId),
+                correlationId,
+                before,
+                snapshot(saved));
+        return response(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean personalCustomizationEnabled(Long tenantId) {
+        return repository.findById(tenantId)
+                .map(HomeExperience::getCompositionPolicy)
+                .map(this::compositionPolicy)
+                .map(HomeExperienceDtos.HomeCompositionPolicy::personalCustomizationEnabled)
+                .orElse(true);
     }
 
     @Transactional
@@ -265,6 +306,8 @@ public class HomeExperienceService {
                     .overlayOpacity(18)
                     .launchpadConfiguration(
                             objectMapper.valueToTree(launchpadPolicy.defaultConfiguration()))
+                    .compositionPolicy(
+                            objectMapper.valueToTree(compositionPolicyRegistry.defaultPolicy()))
                     .build();
         });
     }
@@ -295,6 +338,7 @@ public class HomeExperienceService {
                 experience.getBackgroundWidth(),
                 experience.getBackgroundHeight(),
                 launchpadConfiguration(experience.getLaunchpadConfiguration()),
+                compositionPolicy(experience.getCompositionPolicy()),
                 version,
                 experience.getUpdatedAt(),
                 experience.getUpdatedBy());
@@ -315,6 +359,7 @@ public class HomeExperienceService {
                 null,
                 null,
                 launchpadPolicy.defaultConfiguration(),
+                compositionPolicyRegistry.defaultPolicy(),
                 0L,
                 null,
                 null);
@@ -486,6 +531,9 @@ public class HomeExperienceService {
         experience.setLaunchpadConfiguration(
                 objectMapper.valueToTree(
                         launchpadConfiguration(value.get("launchpadConfiguration"))));
+        experience.setCompositionPolicy(
+                objectMapper.valueToTree(
+                        compositionPolicy(value.get("compositionPolicy"))));
         experience.setBackgroundAssetKey(assetKey);
         experience.setBackgroundOriginalName(text(value, "backgroundOriginalName"));
         experience.setBackgroundContentType(text(value, "backgroundContentType"));
@@ -529,6 +577,23 @@ public class HomeExperienceService {
                     "Invalid persisted home launchpad configuration; using the governed default.",
                     exception);
             return launchpadPolicy.defaultConfiguration();
+        }
+    }
+
+    private HomeExperienceDtos.HomeCompositionPolicy compositionPolicy(JsonNode value) {
+        if (value == null || !value.isObject() || value.isEmpty()) {
+            return compositionPolicyRegistry.failClosedPolicy();
+        }
+        try {
+            HomeExperienceDtos.HomeCompositionPolicy policy = objectMapper.treeToValue(
+                    value,
+                    HomeExperienceDtos.HomeCompositionPolicy.class);
+            return compositionPolicyRegistry.normalize(policy);
+        } catch (Exception exception) {
+            log.warn(
+                    "Invalid persisted home composition policy; disabling personal customization.",
+                    exception);
+            return compositionPolicyRegistry.failClosedPolicy();
         }
     }
 
