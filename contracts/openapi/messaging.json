@@ -185,6 +185,60 @@
         },
         "type": "object"
       },
+      "ApiResponseCollaborationSearch": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CollaborationSearchResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseConversationCreation": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ConversationCreationResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseTenantPolicy": {
         "properties": {
           "correlationId": {
@@ -212,6 +266,126 @@
         },
         "type": "object"
       },
+      "CollaborationConversationSummary": {
+        "properties": {
+          "conversationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "enum": [
+              "ACTIVE",
+              "ARCHIVED"
+            ],
+            "type": "string"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/CollaborationMemberSummary"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "topic": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "GROUP",
+              "CHANNEL"
+            ],
+            "type": "string"
+          },
+          "visibility": {
+            "const": "PRIVATE",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CollaborationMemberSummary": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "emailAddress": {
+            "format": "email",
+            "type": "string"
+          },
+          "personPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "OWNER",
+              "MEMBER"
+            ],
+            "type": "string"
+          },
+          "userId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "CollaborationSearchGroups": {
+        "properties": {
+          "conversations": {
+            "items": {
+              "$ref": "#/components/schemas/ConversationSearchResult"
+            },
+            "type": "array"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/MessageSearchResult"
+            },
+            "type": "array"
+          },
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/PersonSearchResult"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "CollaborationSearchResponse": {
+        "properties": {
+          "backend": {
+            "const": "SQL_FALLBACK",
+            "type": "string"
+          },
+          "limit": {
+            "format": "int32",
+            "maximum": 50,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "query": {
+            "maxLength": 100,
+            "minLength": 2,
+            "type": "string"
+          },
+          "results": {
+            "$ref": "#/components/schemas/CollaborationSearchGroups"
+          },
+          "total": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "ConversationDetail": {
         "properties": {
           "conversation": {
@@ -235,6 +409,17 @@
         },
         "type": "object"
       },
+      "ConversationCreationResponse": {
+        "properties": {
+          "conversation": {
+            "$ref": "#/components/schemas/CollaborationConversationSummary"
+          },
+          "idempotentReplay": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "ConversationPage": {
         "properties": {
           "items": {
@@ -254,6 +439,29 @@
           "total": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ConversationSearchResult": {
+        "properties": {
+          "conversationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "conversationType": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "resultType": {
+            "const": "CONVERSATION",
+            "type": "string"
+          },
+          "snippet": {
+            "maxLength": 220,
+            "type": "string"
           }
         },
         "type": "object"
@@ -355,6 +563,46 @@
             "type": "integer"
           }
         },
+        "type": "object"
+      },
+      "CreateConversationRequest": {
+        "properties": {
+          "idempotencyKey": {
+            "maxLength": 120,
+            "minLength": 8,
+            "type": "string"
+          },
+          "memberUserIds": {
+            "items": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "maxItems": 500,
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 220,
+            "type": "string"
+          },
+          "topic": {
+            "maxLength": 1200,
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "GROUP",
+              "CHANNEL"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "memberUserIds",
+          "idempotencyKey"
+        ],
         "type": "object"
       },
       "HomeResponse": {
@@ -493,6 +741,37 @@
         },
         "type": "object"
       },
+      "MessageSearchResult": {
+        "properties": {
+          "conversationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "conversationName": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "messageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resultType": {
+            "const": "MESSAGE",
+            "type": "string"
+          },
+          "senderName": {
+            "type": "string"
+          },
+          "snippet": {
+            "maxLength": 220,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "PersonSummary": {
         "properties": {
           "displayName": {
@@ -512,6 +791,39 @@
             "type": "string"
           },
           "presenceState": {
+            "type": "string"
+          },
+          "userId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "PersonSearchResult": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "emailAddress": {
+            "format": "email",
+            "type": "string"
+          },
+          "jobTitle": {
+            "type": "string"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "personPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "presenceState": {
+            "type": "string"
+          },
+          "resultType": {
+            "const": "PERSON",
             "type": "string"
           },
           "userId": {
@@ -798,6 +1110,43 @@
         "tags": [
           "messaging-controller"
         ]
+      },
+      "post": {
+        "operationId": "createConversation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateConversationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseConversationCreation"
+                }
+              }
+            },
+            "description": "Created or idempotently replayed"
+          },
+          "400": {
+            "description": "Invalid type, name, member, or idempotency input"
+          },
+          "403": {
+            "description": "Messaging write permission or active requester is missing"
+          },
+          "409": {
+            "description": "Idempotency key was reused with a different request fingerprint"
+          }
+        },
+        "tags": [
+          "collaboration-controller"
+        ]
       }
     },
     "/v1/conversations/{conversationId}": {
@@ -1016,6 +1365,66 @@
         },
         "tags": [
           "messaging-controller"
+        ]
+      }
+    },
+    "/v1/search": {
+      "get": {
+        "operationId": "search",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "maxLength": 100,
+              "minLength": 2,
+              "type": "string"
+            }
+          },
+          {
+            "description": "Comma-separated subset of CONVERSATION,MESSAGE,PERSON",
+            "in": "query",
+            "name": "types",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "format": "int32",
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCollaborationSearch"
+                }
+              }
+            },
+            "description": "ACL-filtered grouped SQL fallback results"
+          },
+          "400": {
+            "description": "Invalid query, type filter, or limit"
+          },
+          "403": {
+            "description": "Messaging view permission is missing"
+          }
+        },
+        "tags": [
+          "collaboration-controller"
         ]
       }
     },

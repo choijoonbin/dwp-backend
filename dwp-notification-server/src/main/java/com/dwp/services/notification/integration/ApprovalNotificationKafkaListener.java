@@ -27,8 +27,7 @@ public class ApprovalNotificationKafkaListener {
             groupId = "${dwp.notification.approval-pilot.group-id:"
                     + "dwp-notification-approval-pilot-v1}")
     public void receive(ConsumerRecord<String, String> record) {
-        ApprovalNotificationEventTranslator.Translation translation = translator.translate(record);
-        materializer.materialize(
-                translation.actor(), translation.request(), translation.correlationId());
+        translator.translate(record).ifPresent(translation -> materializer.materialize(
+                translation.actor(), translation.request(), translation.correlationId()));
     }
 }

@@ -27,6 +27,7 @@ public final class WorkplaceDtos {
     @Schema(name = "WorkplaceSite")
     public record Site(
             UUID siteId,
+            UUID campusId,
             String code,
             String name,
             String nameKo,
@@ -114,6 +115,7 @@ public final class WorkplaceDtos {
             int autoReleaseMinutes,
             boolean allowAssignedDeskLending,
             boolean showColleagueNames,
+            int bookingRetentionDays,
             long version) {
     }
 
@@ -248,6 +250,7 @@ public final class WorkplaceDtos {
             @Min(0) @Max(240) int autoReleaseMinutes,
             boolean allowAssignedDeskLending,
             boolean showColleagueNames,
+            @Min(30) @Max(3650) int bookingRetentionDays,
             @NotNull @Min(0) Long version) {
     }
 }

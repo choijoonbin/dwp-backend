@@ -63,6 +63,7 @@ dwp:
       flush-interval: ${DWP_API_HISTORY_FLUSH_INTERVAL:PT1S}
   approval:
     service-token: ${DWP_APPROVAL_SERVICE_TOKEN:}
+    runtime-service-token: ${DWP_APPROVAL_RUNTIME_SERVICE_TOKEN:}
     external-signature-enabled: ${DWP_APPROVAL_EXTERNAL_SIGNATURE_ENABLED:false}
     integration-relay:
       enabled: ${DWP_APPROVAL_INTEGRATION_RELAY_ENABLED:false}

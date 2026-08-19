@@ -15,9 +15,7 @@ import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 
-import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
-import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -38,6 +36,7 @@ public class WorkplaceController {
             @RequestHeader("X-DWP-User-ID") Long userId,
             @RequestHeader(value = "X-DWP-Person-Public-ID", required = false)
                     UUID personPublicId,
+            @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestParam(required = false) UUID floorId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
@@ -45,7 +44,7 @@ public class WorkplaceController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
                     OffsetDateTime to) {
         return ApiResponse.success(service.explore(
-                tenantId, userId, personPublicId, floorId, from, to, locale));
+                tenantId, userId, personPublicId, floorId, from, to, locale, groupRefs));
     }
 
     @GetMapping("/bookings")
@@ -63,30 +62,17 @@ public class WorkplaceController {
     @GetMapping("/floors/{floorId}/background")
     public ResponseEntity<org.springframework.core.io.Resource> workplaceFloorBackground(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
+            @RequestHeader("X-DWP-User-ID") Long userId,
+            @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @PathVariable UUID floorId) {
-        WorkplaceService.FloorBackground content = service.floorBackground(tenantId, floorId);
+        WorkplaceService.FloorBackground content = service.floorBackground(
+                tenantId, userId, groupRefs, floorId);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(content.contentType()))
                 .contentLength(content.sizeBytes())
                 .eTag(content.sha256())
                 .cacheControl(CacheControl.maxAge(1, TimeUnit.HOURS).cachePrivate())
                 .body(content.resource());
-    }
-
-    @PostMapping("/bookings")
-    public ApiResponse<WorkplaceDtos.Booking> createWorkplaceBooking(
-            @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
-            @RequestHeader("X-DWP-User-ID") Long userId,
-            @RequestHeader(value = "X-DWP-Person-Public-ID", required = false)
-                    UUID personPublicId,
-            @RequestHeader(value = "X-DWP-Display-Name-B64", required = false)
-                    String displayName,
-            @RequestHeader(value = "Accept-Language", required = false) String locale,
-            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
-            @Valid @RequestBody WorkplaceDtos.BookingRequest request) {
-        return ApiResponse.success(service.createBooking(
-                tenantId, userId, personPublicId, decoded(displayName),
-                locale, correlationId, request));
     }
 
     @PostMapping("/bookings/{bookingId}/check-in")
@@ -123,14 +109,5 @@ public class WorkplaceController {
             @Valid @RequestBody WorkplaceDtos.VersionRequest request) {
         return ApiResponse.success(service.releaseBooking(
                 tenantId, userId, bookingId, locale, correlationId, request));
-    }
-
-    private String decoded(String encoded) {
-        if (encoded == null || encoded.isBlank()) return null;
-        try {
-            return new String(Base64.getUrlDecoder().decode(encoded), StandardCharsets.UTF_8);
-        } catch (IllegalArgumentException ignored) {
-            return null;
-        }
     }
 }

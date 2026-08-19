@@ -1,6 +1,10 @@
 -- Local-only, database-backed approval workload for provisioned SKAX users.
 -- This location is enabled by scripts/devctl.py and is excluded from the
 -- default production Flyway locations.
+INSERT INTO apr_tenants (tenant_id)
+VALUES (1)
+ON CONFLICT (tenant_id) DO NOTHING;
+SELECT seed_approval_form_catalog(1);
 SELECT seed_approval_tenant(1);
 SELECT seed_approval_product_templates(1);
 SELECT seed_approval_form_catalog(1);
@@ -429,11 +433,15 @@ SELECT md5('skax-approval-event:v1:' || seed.request_id || ':created')::uuid,
        1, seed.request_id, 'REQUEST_CREATED', 'USER', seed.user_id::text,
        'SUCCESS', seed.display_name || '님이 결재 문서를 작성했습니다.',
        'local-seed:' || seed.request_id,
-       jsonb_build_object('source', 'DWP_LOCAL_SEED', 'email', seed.email),
+       jsonb_build_object(
+           'source', 'DWP_LOCAL_SEED',
+           'email', seed.email,
+           'actorDisplayName', seed.display_name),
        COALESCE(seed.submitted_at, CURRENT_TIMESTAMP - INTERVAL '1 hour') - INTERVAL '20 minutes'
   FROM seed_skax_requests seed
   JOIN apr_requests request ON request.tenant_id = 1 AND request.request_id = seed.request_id
-ON CONFLICT (event_id) DO NOTHING;
+ON CONFLICT (event_id) DO UPDATE
+    SET event_data = EXCLUDED.event_data;
 
 INSERT INTO apr_request_events (
     event_id, tenant_id, request_id, event_type, actor_type, actor_id,
@@ -442,11 +450,14 @@ SELECT md5('skax-approval-event:v1:' || seed.request_id || ':submitted')::uuid,
        1, seed.request_id, 'REQUEST_SUBMITTED', 'USER', seed.user_id::text,
        'SUCCESS', '결재 요청이 제출되어 승인 경로가 시작되었습니다.',
        'local-seed:' || seed.request_id,
-       jsonb_build_object('workflowKey', seed.workflow_key), seed.submitted_at
+       jsonb_build_object(
+           'workflowKey', seed.workflow_key,
+           'actorDisplayName', seed.display_name), seed.submitted_at
   FROM seed_skax_requests seed
   JOIN apr_requests request ON request.tenant_id = 1 AND request.request_id = seed.request_id
  WHERE seed.scenario_key <> 'DRAFT'
-ON CONFLICT (event_id) DO NOTHING;
+ON CONFLICT (event_id) DO UPDATE
+    SET event_data = EXCLUDED.event_data;
 
 INSERT INTO apr_request_events (
     event_id, tenant_id, request_id, event_type, actor_type, actor_id,
@@ -460,18 +471,35 @@ SELECT md5('skax-approval-event:v1:' || task.task_id || ':decision')::uuid,
            ELSE 'REQUEST_WITHDRAWN'
        END,
        'USER',
-       task.assignee_user_id::text, 'SUCCESS',
+       COALESCE(task.decision_actor_user_id, task.assignee_user_id)::text, 'SUCCESS',
        COALESCE(task.decision_reason, '결재 상태가 변경되었습니다.'),
        'local-seed:' || task.request_id,
-       jsonb_build_object('taskId', task.task_id, 'status', task.status),
-       COALESCE(task.completed_at, task.claimed_at, task.updated_at)
+       jsonb_build_object(
+           'taskId', task.task_id,
+           'status', task.status,
+           'actorDisplayName', actor.display_name,
+           'stepName', step.step_name,
+           'stepSequence', step.sequence_number,
+           'delegated', task.delegated_from_user_id IS NOT NULL),
+       CASE WHEN request.submitted_at IS NOT NULL
+            THEN request.submitted_at + make_interval(hours => step.sequence_number * 4)
+            ELSE COALESCE(task.completed_at, task.claimed_at, task.updated_at)
+       END
   FROM apr_tasks task
   JOIN apr_requests request
-    ON request.tenant_id = task.tenant_id
+   ON request.tenant_id = task.tenant_id
    AND request.request_id = task.request_id
+  JOIN apr_steps step
+    ON step.tenant_id = task.tenant_id
+   AND step.step_id = task.step_id
+  LEFT JOIN seed_skax_members actor
+    ON actor.user_id = COALESCE(task.decision_actor_user_id, task.assignee_user_id)
  WHERE request.reference_seed_key LIKE 'seed:skax-approval:v1:%'
    AND task.status IN ('APPROVED', 'REJECTED', 'INFO_REQUESTED', 'CANCELLED')
-ON CONFLICT (event_id) DO NOTHING;
+ON CONFLICT (event_id) DO UPDATE
+    SET actor_id = EXCLUDED.actor_id,
+        event_data = EXCLUDED.event_data,
+        occurred_at = EXCLUDED.occurred_at;
 
 INSERT INTO apr_delegations (
     delegation_id, tenant_id, delegator_user_id, delegate_user_id,

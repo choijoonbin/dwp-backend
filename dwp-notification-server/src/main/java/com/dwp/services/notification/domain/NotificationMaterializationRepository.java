@@ -140,6 +140,22 @@ public class NotificationMaterializationRepository {
                 : request.threadKey().trim();
         UUID notificationId = upsertNotification(
                 tenantId, request, contract, content, threadKey, occurredAt);
+        if (notificationId == null) {
+            notificationId = activeThreadId(tenantId, contract.typeKey(), threadKey);
+            jdbc.update("""
+                    UPDATE ntf_notification_intents
+                       SET notification_id = :notificationId,
+                           decision = 'DUPLICATE'
+                     WHERE tenant_id = :tenantId AND intent_id = :intentId
+                    """, new MapSqlParameterSource()
+                    .addValue("tenantId", tenantId)
+                    .addValue("intentId", intent.intentId())
+                    .addValue("notificationId", notificationId));
+            return new PersistenceResult(
+                    new MaterializationResult(
+                            intent.intentId(), notificationId, 0, true, "0"),
+                    List.of());
+        }
         jdbc.update("""
                 UPDATE ntf_notification_intents
                    SET notification_id = :notificationId
@@ -152,6 +168,14 @@ public class NotificationMaterializationRepository {
         List<ChangeSignal> signals = new ArrayList<>();
         long highestChangeVersion = 0;
         for (Long recipientUserId : new LinkedHashSet<>(request.recipientUserIds())) {
+            if (!inAppDeliveryEnabled(
+                    tenantId,
+                    recipientUserId,
+                    contract.ownerAppKey(),
+                    contract.typeKey(),
+                    request.reasonCode())) {
+                continue;
+            }
             long changeVersion = materializeRecipient(
                     tenantId,
                     recipientUserId,
@@ -180,6 +204,96 @@ public class NotificationMaterializationRepository {
                 List.copyOf(signals));
     }
 
+    boolean inAppDeliveryEnabled(
+            long tenantId,
+            long userId,
+            String appKey,
+            String typeKey,
+            String reasonCode) {
+        Boolean enabled = jdbc.queryForObject("""
+                WITH effective_policy AS (
+                    SELECT policy.mandatory,
+                           channel.enabled,
+                           channel.user_overridable,
+                           channel.default_mode
+                      FROM ntf_routing_policies policy
+                      JOIN ntf_policy_channel_rules channel
+                        ON channel.policy_id = policy.policy_id
+                       AND channel.channel = 'IN_APP'
+                     WHERE policy.state = 'PUBLISHED'
+                       AND (policy.tenant_id IS NULL OR policy.tenant_id = :tenantId)
+                       AND (policy.effective_from IS NULL
+                            OR policy.effective_from <= CURRENT_TIMESTAMP)
+                       AND (policy.effective_to IS NULL
+                            OR policy.effective_to > CURRENT_TIMESTAMP)
+                       AND (
+                            (policy.scope_type = 'TYPE' AND policy.scope_key = :typeKey)
+                         OR (policy.scope_type = 'APP' AND policy.scope_key = :appKey)
+                         OR policy.scope_type IN ('TENANT', 'PROVIDER')
+                       )
+                     ORDER BY CASE policy.scope_type
+                                  WHEN 'TYPE' THEN 4
+                                  WHEN 'APP' THEN 3
+                                  WHEN 'TENANT' THEN 2
+                                  ELSE 1
+                              END DESC,
+                              (policy.tenant_id IS NOT NULL) DESC,
+                              policy.version DESC
+                     LIMIT 1
+                ), user_rule AS (
+                    SELECT rule.delivery_mode,
+                           channel.enabled AS channel_enabled
+                      FROM ntf_user_subscription_rules rule
+                      LEFT JOIN ntf_user_subscription_rule_channels channel
+                        ON channel.tenant_id = rule.tenant_id
+                       AND channel.user_id = rule.user_id
+                       AND channel.rule_id = rule.rule_id
+                       AND channel.channel = 'IN_APP'
+                     WHERE rule.tenant_id = :tenantId
+                       AND rule.user_id = :userId
+                       AND rule.app_key = :appKey
+                       AND rule.type_key = :typeKey
+                     LIMIT 1
+                ), user_profile AS (
+                    SELECT default_channels ? 'IN_APP' AS channel_enabled
+                      FROM ntf_user_delivery_profiles
+                     WHERE tenant_id = :tenantId AND user_id = :userId
+                )
+                SELECT CASE
+                    WHEN :mandatoryReason THEN TRUE
+                    WHEN COALESCE((SELECT mandatory FROM effective_policy), FALSE)
+                        THEN COALESCE((SELECT enabled FROM effective_policy), TRUE)
+                         AND COALESCE((SELECT default_mode FROM effective_policy), 'IMMEDIATE')
+                             <> 'MUTED'
+                    WHEN EXISTS (SELECT 1 FROM effective_policy)
+                         AND NOT COALESCE(
+                             (SELECT user_overridable FROM effective_policy), TRUE)
+                        THEN COALESCE((SELECT enabled FROM effective_policy), TRUE)
+                         AND COALESCE((SELECT default_mode FROM effective_policy), 'IMMEDIATE')
+                             <> 'MUTED'
+                    WHEN EXISTS (SELECT 1 FROM user_rule)
+                        THEN COALESCE((SELECT delivery_mode FROM user_rule), 'IMMEDIATE')
+                                 <> 'MUTED'
+                         AND COALESCE(
+                             (SELECT channel_enabled FROM user_rule),
+                             (SELECT channel_enabled FROM user_profile),
+                             (SELECT enabled FROM effective_policy),
+                             TRUE)
+                    ELSE COALESCE(
+                        (SELECT channel_enabled FROM user_profile),
+                        (SELECT enabled FROM effective_policy),
+                        TRUE)
+                END
+                """, new MapSqlParameterSource()
+                .addValue("tenantId", tenantId)
+                .addValue("userId", userId)
+                .addValue("appKey", appKey)
+                .addValue("typeKey", typeKey)
+                .addValue("mandatoryReason", "MANDATORY_POLICY".equals(reasonCode)),
+                Boolean.class);
+        return Boolean.TRUE.equals(enabled);
+    }
+
     private IntentResolution createIntent(
             long tenantId,
             DirectMaterializationRequest request,
@@ -191,13 +305,13 @@ public class NotificationMaterializationRepository {
             UUID inserted = jdbc.queryForObject("""
                     INSERT INTO ntf_notification_intents (
                         intent_id, tenant_id, source_event_id, source_event_type,
-                        source_schema_version, type_version_id, type_scope_tenant_id,
+                        source_schema_version, type_key, type_version_id, type_scope_tenant_id,
                         source_payload_hash,
                         correlation_id, decision, reason_code, sanitized_variables,
                         occurred_at)
                     VALUES (
                         :intentId, :tenantId, :sourceEventId, :sourceEventType,
-                        :sourceSchemaVersion, :typeVersionId, :typeScopeTenantId,
+                        :sourceSchemaVersion, :typeKey, :typeVersionId, :typeScopeTenantId,
                         :sourcePayloadHash,
                         :correlationId, 'MATERIALIZED', :reasonCode,
                         CAST(:variables AS jsonb), :occurredAt)
@@ -208,6 +322,7 @@ public class NotificationMaterializationRepository {
                     .addValue("sourceEventId", request.sourceEventId())
                     .addValue("sourceEventType", request.sourceEventType())
                     .addValue("sourceSchemaVersion", request.sourceSchemaVersion())
+                    .addValue("typeKey", contract.typeKey())
                     .addValue("typeVersionId", contract.typeVersionId())
                     .addValue("typeScopeTenantId", contract.typeScopeTenantId())
                     .addValue("sourcePayloadHash", sourcePayloadHash)
@@ -224,11 +339,11 @@ public class NotificationMaterializationRepository {
                       FROM ntf_notification_intents
                      WHERE tenant_id = :tenantId
                        AND source_event_id = :sourceEventId
-                       AND type_version_id = :typeVersionId
+                       AND type_key = :typeKey
                     """, new MapSqlParameterSource()
                     .addValue("tenantId", tenantId)
                     .addValue("sourceEventId", request.sourceEventId())
-                    .addValue("typeVersionId", contract.typeVersionId()),
+                    .addValue("typeKey", contract.typeKey()),
                     (resultSet, rowNumber) -> new IntentResolution(
                             resultSet.getObject("intent_id", UUID.class),
                             resultSet.getObject("notification_id", UUID.class),
@@ -244,21 +359,23 @@ public class NotificationMaterializationRepository {
             RenderedContent content,
             String threadKey,
             Instant occurredAt) {
-        return jdbc.queryForObject("""
+        List<UUID> notificationIds = jdbc.query("""
                 INSERT INTO ntf_notifications (
                     notification_id, tenant_id, type_version_id, type_scope_tenant_id,
-                    thread_key,
+                    type_key, thread_key,
                     actor_ref, subject_ref, target_ref, safe_body, action_payload,
                     sanitized_template_variables, first_activity_at, last_activity_at)
                 VALUES (
                     :notificationId, :tenantId, :typeVersionId, :typeScopeTenantId,
-                    :threadKey,
+                    :typeKey, :threadKey,
                     :actorRef, :subjectRef, :targetRef, :safeBody,
                     CAST(:actionPayload AS jsonb), CAST(:variables AS jsonb),
                     :occurredAt, :occurredAt)
-                ON CONFLICT (tenant_id, type_version_id, thread_key)
+                ON CONFLICT (tenant_id, type_key, thread_key)
                     WHERE closed_at IS NULL
                 DO UPDATE SET
+                    type_version_id = EXCLUDED.type_version_id,
+                    type_scope_tenant_id = EXCLUDED.type_scope_tenant_id,
                     actor_ref = EXCLUDED.actor_ref,
                     subject_ref = EXCLUDED.subject_ref,
                     target_ref = EXCLUDED.target_ref,
@@ -270,12 +387,14 @@ public class NotificationMaterializationRepository {
                     occurrence_count = ntf_notifications.occurrence_count + 1,
                     version = ntf_notifications.version + 1,
                     updated_at = CURRENT_TIMESTAMP
+                WHERE EXCLUDED.last_activity_at >= ntf_notifications.last_activity_at
                 RETURNING notification_id
                 """, new MapSqlParameterSource()
                 .addValue("notificationId", UUID.randomUUID())
                 .addValue("tenantId", tenantId)
                 .addValue("typeVersionId", contract.typeVersionId())
                 .addValue("typeScopeTenantId", contract.typeScopeTenantId())
+                .addValue("typeKey", contract.typeKey())
                 .addValue("threadKey", threadKey)
                 .addValue("actorRef", request.actorReference())
                 .addValue("subjectRef", request.subjectReference())
@@ -283,7 +402,23 @@ public class NotificationMaterializationRepository {
                 .addValue("safeBody", content.body())
                 .addValue("actionPayload", json(content.action()))
                 .addValue("variables", json(request.variables()))
-                .addValue("occurredAt", Timestamp.from(occurredAt)), UUID.class);
+                .addValue("occurredAt", Timestamp.from(occurredAt)),
+                (resultSet, rowNumber) -> resultSet.getObject("notification_id", UUID.class));
+        return notificationIds.isEmpty() ? null : notificationIds.get(0);
+    }
+
+    private UUID activeThreadId(long tenantId, String typeKey, String threadKey) {
+        return jdbc.queryForObject("""
+                SELECT notification_id
+                  FROM ntf_notifications
+                 WHERE tenant_id = :tenantId
+                   AND type_key = :typeKey
+                   AND thread_key = :threadKey
+                   AND closed_at IS NULL
+                """, new MapSqlParameterSource()
+                .addValue("tenantId", tenantId)
+                .addValue("typeKey", typeKey)
+                .addValue("threadKey", threadKey), UUID.class);
     }
 
     private long materializeRecipient(

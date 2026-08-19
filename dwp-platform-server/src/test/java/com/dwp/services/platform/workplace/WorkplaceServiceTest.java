@@ -1,5 +1,7 @@
 package com.dwp.services.platform.workplace;
 
+import com.dwp.core.common.ErrorCode;
+import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.calendar.CalendarService;
 import com.dwp.services.platform.media.TenantMediaStorage;
 import org.junit.jupiter.api.BeforeEach;
@@ -11,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -21,6 +24,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.doThrow;
 
 @ExtendWith(MockitoExtension.class)
 class WorkplaceServiceTest {
@@ -40,12 +46,29 @@ class WorkplaceServiceTest {
     @Mock
     private WorkplaceFloorPlanValidator floorPlanValidator;
 
+    @Mock
+    private WorkplaceMediaCleanupRepository mediaCleanup;
+
+    @Mock
+    private WorkplaceSpatialGovernanceService spatialGovernance;
+
+    @Mock
+    private WorkplaceReleaseWindowRepository releaseWindows;
+
+    @Mock
+    private WorkplaceDomainEvents domainEvents;
+
+    @Mock
+    private WorkplaceRuntimeGovernance runtimeGovernance;
+
     private WorkplaceService service;
 
     @BeforeEach
     void setUp() {
         service = new WorkplaceService(
-                catalog, bookings, calendarService, mediaStorage, floorPlanValidator);
+                catalog, bookings, calendarService, mediaStorage,
+                floorPlanValidator, mediaCleanup, spatialGovernance,
+                releaseWindows, domainEvents, runtimeGovernance);
     }
 
     @Test
@@ -67,7 +90,7 @@ class WorkplaceServiceTest {
                         from, to, "동료 이름", false)));
 
         WorkplaceDtos.ExploreResponse result = service.explore(
-                1L, 9L, null, floorId, from, to, "ko-KR");
+                1L, 9L, null, floorId, from, to, "ko-KR", null);
 
         assertThat(result.occupancy()).singleElement()
                 .extracting(WorkplaceDtos.Occupancy::bookedByDisplayName)
@@ -89,7 +112,7 @@ class WorkplaceServiceTest {
         when(bookings.occupancy(1L, 9L, floorId, from, to)).thenReturn(List.of());
 
         WorkplaceDtos.Resource result = service.explore(
-                1L, 9L, UUID.randomUUID(), floorId, from, to, "en-US")
+                1L, 9L, UUID.randomUUID(), floorId, from, to, "en-US", null)
                 .resources().getFirst();
 
         assertThat(result.assignedToCurrentUser()).isFalse();
@@ -103,7 +126,7 @@ class WorkplaceServiceTest {
         UUID siteId = UUID.randomUUID();
         UUID floorId = UUID.randomUUID();
         UUID resourceId = UUID.randomUUID();
-        OffsetDateTime from = OffsetDateTime.now().plusHours(2);
+        OffsetDateTime from = nextWorkingDayStart();
         when(catalog.resource(1L, resourceId, true)).thenReturn(Optional.of(
                 resource(resourceId, floorId, ResourceType.DESK, BookingMode.ASSIGNED, 7L)));
         when(catalog.floor(1L, floorId, true)).thenReturn(Optional.of(floor(siteId, floorId)));
@@ -114,7 +137,7 @@ class WorkplaceServiceTest {
                 resourceId, from, from.plusHours(1), "집중 업무", true);
 
         assertThatThrownBy(() -> service.createBooking(
-                1L, 9L, UUID.randomUUID(), "사용자", "ko-KR", "corr", request))
+                1L, 9L, UUID.randomUUID(), "사용자", "ko-KR", "corr", null, request))
                 .hasMessageContaining("assigned workspace");
     }
 
@@ -124,7 +147,7 @@ class WorkplaceServiceTest {
         UUID floorId = UUID.randomUUID();
         UUID resourceId = UUID.randomUUID();
         UUID bookingId = UUID.randomUUID();
-        OffsetDateTime from = OffsetDateTime.now().plusHours(2);
+        OffsetDateTime from = nextWorkingDayStart();
         WorkplaceDtos.BookingRequest request = new WorkplaceDtos.BookingRequest(
                 resourceId, from, from.plusHours(1), "공유 고정석", true);
         when(catalog.resource(1L, resourceId, true)).thenReturn(Optional.of(
@@ -132,14 +155,20 @@ class WorkplaceServiceTest {
         when(catalog.floor(1L, floorId, true)).thenReturn(Optional.of(floor(siteId, floorId)));
         when(catalog.site(1L, siteId, true)).thenReturn(Optional.of(site(siteId)));
         when(catalog.policy(1L)).thenReturn(policy(true, true));
-        when(bookings.createBooking(eq(1L), eq(9L), any(), eq("사용자"), eq(request), eq(true)))
+        UUID releaseWindowId = UUID.randomUUID();
+        when(releaseWindows.coveringWindowForBooking(
+                1L, resourceId, from, from.plusHours(1)))
+                .thenReturn(Optional.of(releaseWindowId));
+        when(bookings.createBooking(
+                eq(1L), eq(9L), any(), eq("사용자"), eq(request),
+                any(WorkplaceCatalogRepository.PolicyRow.class), eq(releaseWindowId), eq(true)))
                 .thenReturn(new WorkplaceBookingRepository.BookingRow(
                         bookingId, resourceId, "고정 좌석", ResourceType.DESK,
                         "판교", "12층", request.purpose(), from, from.plusHours(1),
                         BookingStatus.RESERVED, true, null, null, 0));
 
         WorkplaceDtos.Booking result = service.createBooking(
-                1L, 9L, UUID.randomUUID(), "사용자", "ko-KR", "corr", request);
+                1L, 9L, UUID.randomUUID(), "사용자", "ko-KR", "corr", null, request);
 
         assertThat(result.bookingId()).isEqualTo(bookingId);
         assertThat(result.status()).isEqualTo(BookingStatus.RESERVED);
@@ -166,7 +195,7 @@ class WorkplaceServiceTest {
         when(bookings.occupancy(1L, 9L, activeFloorId, from, to)).thenReturn(List.of());
 
         WorkplaceDtos.ExploreResponse result = service.explore(
-                1L, 9L, null, null, from, to, "ko-KR");
+                1L, 9L, null, null, from, to, "ko-KR", null);
 
         assertThat(result.sites()).extracting(WorkplaceDtos.Site::siteId)
                 .containsExactly(activeSiteId);
@@ -190,7 +219,7 @@ class WorkplaceServiceTest {
                 resourceId, from, from.plusHours(1), "집중 업무", true);
 
         assertThatThrownBy(() -> service.createBooking(
-                1L, 9L, UUID.randomUUID(), "사용자", "ko-KR", "corr", request))
+                1L, 9L, UUID.randomUUID(), "사용자", "ko-KR", "corr", null, request))
                 .hasMessageContaining("not open");
     }
 
@@ -232,7 +261,7 @@ class WorkplaceServiceTest {
                 resourceId, from, from.plusHours(1), "회의", true);
 
         assertThatThrownBy(() -> service.createBooking(
-                1L, 9L, UUID.randomUUID(), "사용자", "ko-KR", "corr", request))
+                1L, 9L, UUID.randomUUID(), "사용자", "ko-KR", "corr", null, request))
                 .hasMessageContaining("calendar-aware room flow");
     }
 
@@ -251,13 +280,59 @@ class WorkplaceServiceTest {
                 .hasMessageContaining("require an assignee");
     }
 
+    @Test
+    void floorBackgroundRequiresSiteViewBeforeLoadingTenantMedia() {
+        UUID siteId = UUID.randomUUID();
+        UUID floorId = UUID.randomUUID();
+        WorkplaceCatalogRepository.FloorRow floor = new WorkplaceCatalogRepository.FloorRow(
+                floorId, siteId, "판교", 12, "12층", "12층", "12F",
+                1200, 760, "/api/platform/v1/workplace/floors/x/background",
+                "workplace/floors/x/plan.png", "image/png", 128L, "a".repeat(64),
+                FloorState.ACTIVE, 1, 0);
+        when(catalog.floor(1L, floorId, false)).thenReturn(Optional.of(floor));
+        doThrow(new BaseException(ErrorCode.FORBIDDEN))
+                .when(runtimeGovernance)
+                .requireViewAccess(1L, 9L, "group-a", siteId);
+
+        assertThatThrownBy(() -> service.floorBackground(1L, 9L, "group-a", floorId))
+                .isInstanceOf(RuntimeException.class);
+
+        verify(runtimeGovernance).requireViewAccess(1L, 9L, "group-a", siteId);
+        verify(mediaStorage, never()).load(any(), any());
+    }
+
+    @Test
+    void legacyFloorMutationsFailBeforeStorageOrCatalogWrites() {
+        UUID floorId = UUID.randomUUID();
+
+        assertThatThrownBy(() -> service.uploadFloorBackground(
+                1L, 9L, floorId, 0L, "ko-KR", "corr", null))
+                .hasMessageContaining("governed draft revision");
+        assertThatThrownBy(() -> service.updateLayout(
+                1L, 9L, floorId, "ko-KR", "corr", null))
+                .hasMessageContaining("governed draft revision");
+
+        verify(mediaStorage, never()).store(any(), any(), any(), any());
+        verify(catalog, never()).updatePlacement(any(), any(), any(), any());
+    }
+
     private WorkplaceCatalogRepository.SiteRow site(UUID siteId) {
         return site(siteId, SiteState.ACTIVE);
     }
 
+    private OffsetDateTime nextWorkingDayStart() {
+        return OffsetDateTime.now(ZoneId.of("Asia/Seoul"))
+                .plusDays(1)
+                .withHour(10)
+                .withMinute(0)
+                .withSecond(0)
+                .withNano(0);
+    }
+
     private WorkplaceCatalogRepository.SiteRow site(UUID siteId, SiteState state) {
         return new WorkplaceCatalogRepository.SiteRow(
-                siteId, "PANGYO", "판교", "판교", "Pangyo", SiteType.HEADQUARTERS,
+                siteId, UUID.randomUUID(), "PANGYO", "판교", "판교", "Pangyo",
+                SiteType.HEADQUARTERS,
                 "성남시", "Asia/Seoul", 15, 1, 1, state, 0);
     }
 
@@ -297,6 +372,6 @@ class WorkplaceServiceTest {
             boolean allowAssignedDeskLending) {
         return new WorkplaceCatalogRepository.PolicyRow(
                 30, 20, 30, 720, 5, LocalTime.of(8, 0), LocalTime.of(20, 0),
-                true, true, 30, 30, allowAssignedDeskLending, showNames, 0);
+                true, true, 30, 30, allowAssignedDeskLending, showNames, 365, 0);
     }
 }

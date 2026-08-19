@@ -74,6 +74,10 @@ public class ApprovalQueryRepository {
             )
             """;
 
+    private static final String COMPLETED_BY_ACTOR_ACCESS = """
+            task.decision_actor_user_id = :userId
+            """;
+
     private final NamedParameterJdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
 
@@ -97,6 +101,15 @@ public class ApprovalQueryRepository {
             }
             return;
         }
+        jdbc.update("""
+                INSERT INTO apr_tenants (tenant_id)
+                VALUES (:tenantId)
+                ON CONFLICT (tenant_id) DO NOTHING
+                """, new MapSqlParameterSource("tenantId", tenantId));
+        jdbc.queryForObject(
+                "SELECT seed_approval_form_catalog(:tenantId)",
+                new MapSqlParameterSource("tenantId", tenantId),
+                Object.class);
         jdbc.queryForObject(
                 "SELECT seed_approval_tenant(:tenantId)",
                 new MapSqlParameterSource("tenantId", tenantId),
@@ -188,15 +201,20 @@ public class ApprovalQueryRepository {
             int limit) {
         String normalized = view == null ? "INBOX" : view.trim().toUpperCase();
         String statusClause = switch (normalized) {
-            case "COMPLETED" -> "task.status IN ('APPROVED', 'REJECTED', 'SKIPPED', 'CANCELLED')";
+            case "COMPLETED" -> "task.status IN ('APPROVED', 'REJECTED')";
             case "DELEGATED" -> "task.status IN ('PENDING', 'CLAIMED', 'INFO_REQUESTED')";
             default -> "task.status IN ('PENDING', 'CLAIMED', 'INFO_REQUESTED')";
         };
-        String accessClause = "DELEGATED".equals(normalized)
-                ? DELEGATED_TASK_ACCESS
-                : "(" + DIRECT_TASK_ACCESS + " OR " + DELEGATED_TASK_ACCESS + ")";
-        return jdbc.query(
-                TASK_SELECT + """
+        String accessClause = switch (normalized) {
+            case "COMPLETED" -> COMPLETED_BY_ACTOR_ACCESS;
+            case "DELEGATED" -> DELEGATED_TASK_ACCESS;
+            default -> "(" + DIRECT_TASK_ACCESS + " OR " + DELEGATED_TASK_ACCESS + ")";
+        };
+        String orderClause = "COMPLETED".equals(normalized)
+                ? "task.completed_at DESC NULLS LAST, task.created_at DESC"
+                : "CASE WHEN task.due_at < CURRENT_TIMESTAMP THEN 0 ELSE 1 END, "
+                        + "task.risk_score DESC, task.due_at, task.created_at DESC";
+        String taskQuery = TASK_SELECT + """
                      WHERE task.tenant_id = :tenantId
                        AND (
                     """ + accessClause + """
@@ -204,10 +222,11 @@ public class ApprovalQueryRepository {
                        AND (
                     """ + statusClause + """
                        )
-                     ORDER BY CASE WHEN task.due_at < CURRENT_TIMESTAMP THEN 0 ELSE 1 END,
-                              task.risk_score DESC, task.due_at, task.created_at DESC
+                     ORDER BY %s
                      LIMIT :limit
-                    """,
+                    """.formatted(orderClause);
+        return jdbc.query(
+                taskQuery,
                 actorParams(actor).addValue("limit", Math.max(1, Math.min(limit, 200))),
                 (result, rowNumber) -> taskSummary(result));
     }
@@ -220,7 +239,8 @@ public class ApprovalQueryRepository {
                      WHERE task.tenant_id = :tenantId
                        AND task.task_id = :taskId
                        AND (
-                    """ + DIRECT_TASK_ACCESS + " OR " + DELEGATED_TASK_ACCESS + """
+                    """ + DIRECT_TASK_ACCESS + " OR " + DELEGATED_TASK_ACCESS
+                        + " OR " + COMPLETED_BY_ACTOR_ACCESS + """
                        )
                     """,
                 actorParams(actor).addValue("taskId", taskId),
@@ -287,9 +307,32 @@ public class ApprovalQueryRepository {
         return payloads.isEmpty() ? Map.of() : json(payloads.get(0));
     }
 
+    public Map<String, Object> requestFormSchema(long tenantId, UUID requestId) {
+        List<String> schemas = jdbc.query(
+                """
+                SELECT form_version.schema_payload::text
+                  FROM apr_requests request
+                  JOIN apr_form_versions form_version
+                    ON form_version.tenant_id = request.tenant_id
+                   AND form_version.form_version_id = request.form_version_id
+                 WHERE request.tenant_id = :tenantId
+                   AND request.request_id = :requestId
+                """,
+                new MapSqlParameterSource()
+                        .addValue("tenantId", tenantId)
+                        .addValue("requestId", requestId),
+                (result, rowNumber) -> result.getString(1));
+        return schemas.isEmpty() ? Map.of() : json(schemas.get(0));
+    }
+
     public List<ApprovalDtos.TimelineEvent> timeline(long tenantId, UUID requestId) {
         return jdbc.query("""
                 SELECT event_id, event_type, actor_type, actor_id, outcome,
+                       event_data ->> 'actorDisplayName' AS actor_display_name,
+                       event_data ->> 'stepName' AS step_name,
+                       CASE WHEN event_data ->> 'stepSequence' ~ '^[0-9]+$'
+                            THEN (event_data ->> 'stepSequence')::INTEGER END AS step_sequence,
+                       COALESCE((event_data ->> 'delegated')::BOOLEAN, FALSE) AS delegated,
                        message, occurred_at
                   FROM apr_request_events
                  WHERE tenant_id = :tenantId AND request_id = :requestId
@@ -303,6 +346,10 @@ public class ApprovalQueryRepository {
                         result.getString("event_type"),
                         result.getString("actor_type"),
                         result.getString("actor_id"),
+                        result.getString("actor_display_name"),
+                        result.getString("step_name"),
+                        nullableInteger(result, "step_sequence"),
+                        result.getBoolean("delegated"),
                         result.getString("outcome"),
                         result.getString("message"),
                         instant(result, "occurred_at")));
@@ -428,7 +475,8 @@ public class ApprovalQueryRepository {
             UUID requestId) {
         ApprovalDtos.RequestSummary request = request(actor, requestId);
         RequestAssetIds assets = jdbc.queryForObject("""
-                SELECT workflow_version.workflow_id, form_version.form_id
+                SELECT workflow_version.workflow_id, form_version.form_id,
+                       form_version.schema_payload::text AS form_schema
                   FROM apr_requests approval_request
                   JOIN apr_workflow_versions workflow_version
                     ON workflow_version.tenant_id = approval_request.tenant_id
@@ -442,13 +490,15 @@ public class ApprovalQueryRepository {
                 """, actorParams(actor).addValue("requestId", requestId),
                 (result, rowNumber) -> new RequestAssetIds(
                         result.getObject("workflow_id", UUID.class),
-                        result.getObject("form_id", UUID.class)));
+                        result.getObject("form_id", UUID.class),
+                        json(result.getString("form_schema"))));
         if (assets == null) throw new BaseException(ErrorCode.NOT_FOUND);
         return new ApprovalDtos.RequestDetail(
                 request,
                 assets.workflowId(),
                 assets.formId(),
                 requestPayload(actor.tenantId(), requestId),
+                assets.formSchema(),
                 timeline(actor.tenantId(), requestId));
     }
 
@@ -1200,6 +1250,9 @@ public class ApprovalQueryRepository {
             Long delegatedFromUserId) {
     }
 
-    private record RequestAssetIds(UUID workflowId, UUID formId) {
+    private record RequestAssetIds(
+            UUID workflowId,
+            UUID formId,
+            Map<String, Object> formSchema) {
     }
 }

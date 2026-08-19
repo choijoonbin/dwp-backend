@@ -6,10 +6,7 @@ import org.springframework.stereotype.Repository;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -17,9 +14,11 @@ import java.util.UUID;
 class MessagingQueryRepository {
 
     private final JdbcTemplate jdbc;
+    private final MessagingMessageQueryRepository messageQueries;
 
-    MessagingQueryRepository(JdbcTemplate jdbc) {
+    MessagingQueryRepository(JdbcTemplate jdbc, MessagingMessageQueryRepository messageQueries) {
         this.jdbc = jdbc;
+        this.messageQueries = messageQueries;
     }
 
     List<MessagingDtos.ConversationSummary> conversations(
@@ -42,7 +41,7 @@ class MessagingQueryRepository {
                    AND (? = '' OR LOWER(COALESCE(conversation.name, '')) LIKE ?
                         OR LOWER(COALESCE(conversation.topic, '')) LIKE ?)
                  GROUP BY conversation.conversation_id, member.favorite, member.pinned,
-                          member.last_read_at, last_message.message_id
+                          member.last_read_sequence, last_message.message_id
                  ORDER BY member.pinned DESC, member.favorite DESC,
                           conversation.last_message_at DESC NULLS LAST,
                           conversation.conversation_id
@@ -87,7 +86,7 @@ class MessagingQueryRepository {
                    AND member.user_id = ?
                    AND member.lifecycle_state = 'ACTIVE'
                  GROUP BY conversation.conversation_id, member.favorite, member.pinned,
-                          member.last_read_at, last_message.message_id
+                          member.last_read_sequence, last_message.message_id
                 """, (result, ignored) -> conversation(result), tenantId, conversationId, userId)
                 .stream()
                 .findFirst();
@@ -95,25 +94,7 @@ class MessagingQueryRepository {
 
     List<MessagingDtos.MessageSummary> messages(
             long tenantId, UUID conversationId, long userId, int limit) {
-        List<MessagingDtos.MessageSummary> messages = jdbc.query("""
-                SELECT message.message_id, message.conversation_id, message.sender_user_id,
-                       message.sender_person_public_id, message.sender_name,
-                       message.body, message.content_type, message.message_kind,
-                       message.reply_to_message_id, message.edited_at, message.deleted_at,
-                       message.created_at, message.version
-                  FROM msg_messages message
-                  JOIN msg_conversation_members member
-                    ON member.tenant_id = message.tenant_id
-                   AND member.conversation_id = message.conversation_id
-                   AND member.user_id = ?
-                   AND member.lifecycle_state = 'ACTIVE'
-                 WHERE message.tenant_id = ?
-                   AND message.conversation_id = ?
-                 ORDER BY message.created_at DESC, message.message_id DESC
-                 LIMIT ?
-                """, (result, ignored) -> message(result, List.of()),
-                userId, tenantId, conversationId, limit);
-        return attachReactions(tenantId, userId, reverse(messages));
+        return messageQueries.timeline(tenantId, conversationId, userId, limit);
     }
 
     List<MessagingDtos.MemberSummary> members(long tenantId, UUID conversationId) {
@@ -122,7 +103,7 @@ class MessagingQueryRepository {
                        person.email_address, person.job_title, person.organization_name,
                        person.presence_state, member.member_role, member.membership_source,
                        member.notification_level, member.favorite, member.pinned,
-                       member.last_read_at
+                       member.last_read_message_id, member.last_read_sequence, member.last_read_at
                   FROM msg_conversation_members member
                   JOIN msg_people_snapshot person
                     ON person.tenant_id = member.tenant_id
@@ -147,6 +128,8 @@ class MessagingQueryRepository {
                 result.getString("notification_level"),
                 result.getBoolean("favorite"),
                 result.getBoolean("pinned"),
+                result.getObject("last_read_message_id", UUID.class),
+                result.getLong("last_read_sequence"),
                 result.getObject("last_read_at", OffsetDateTime.class)),
                 tenantId, conversationId);
     }
@@ -182,6 +165,15 @@ class MessagingQueryRepository {
                        FILTER (WHERE conversation.conversation_type = 'DIRECT'), 0) AS direct_messages,
                        COALESCE((SELECT COUNT(*)
                            FROM msg_saved_items saved
+                           JOIN msg_messages saved_message
+                             ON saved_message.tenant_id = saved.tenant_id
+                            AND saved_message.message_id = saved.message_id
+                           JOIN msg_conversation_members saved_member
+                             ON saved_member.tenant_id = saved_message.tenant_id
+                            AND saved_member.conversation_id = saved_message.conversation_id
+                            AND saved_member.user_id = saved.user_id
+                            AND saved_member.lifecycle_state = 'ACTIVE'
+                            AND saved_message.sequence >= saved_member.history_start_sequence
                           WHERE saved.tenant_id = ? AND saved.user_id = ?), 0) AS saved_items
                   FROM msg_conversations conversation
                   JOIN msg_conversation_members member
@@ -193,7 +185,8 @@ class MessagingQueryRepository {
                     ON unread.tenant_id = conversation.tenant_id
                    AND unread.conversation_id = conversation.conversation_id
                    AND unread.sender_user_id <> ?
-                   AND (member.last_read_at IS NULL OR unread.created_at > member.last_read_at)
+                   AND unread.sequence > member.last_read_sequence
+                   AND unread.sequence >= member.history_start_sequence
                  WHERE conversation.tenant_id = ?
                    AND conversation.lifecycle_state = 'ACTIVE'
                 """, (result, ignored) -> new MessagingDtos.HomeMetrics(
@@ -278,10 +271,12 @@ class MessagingQueryRepository {
                        COUNT(DISTINCT unread.message_id) AS unread_count,
                        member.favorite, member.pinned,
                        last_message.message_id AS last_message_id,
+                       last_message.sequence AS last_message_sequence,
                        last_message.sender_user_id AS last_sender_user_id,
                        last_message.sender_person_public_id AS last_sender_person_public_id,
                        last_message.sender_name AS last_sender_name,
-                       last_message.body AS last_body,
+                       CASE WHEN last_message.deleted_at IS NULL
+                            THEN last_message.body ELSE '' END AS last_body,
                        last_message.content_type AS last_content_type,
                        last_message.message_kind AS last_message_kind,
                        last_message.reply_to_message_id AS last_reply_to_message_id,
@@ -289,7 +284,9 @@ class MessagingQueryRepository {
                        last_message.deleted_at AS last_deleted_at,
                        last_message.created_at AS last_created_at,
                        last_message.version AS last_version,
-                       conversation.last_message_at, conversation.version
+                       CASE WHEN last_message.message_id IS NOT NULL
+                            THEN conversation.last_message_at END AS last_message_at,
+                       conversation.version
                   FROM msg_conversations conversation
                   JOIN msg_conversation_members member
                     ON member.tenant_id = conversation.tenant_id
@@ -302,10 +299,13 @@ class MessagingQueryRepository {
                     ON unread.tenant_id = conversation.tenant_id
                    AND unread.conversation_id = conversation.conversation_id
                    AND unread.sender_user_id <> member.user_id
-                   AND (member.last_read_at IS NULL OR unread.created_at > member.last_read_at)
+                   AND unread.deleted_at IS NULL
+                   AND unread.sequence > member.last_read_sequence
+                   AND unread.sequence >= member.history_start_sequence
                   LEFT JOIN msg_messages last_message
                     ON last_message.message_id = conversation.last_message_id
                    AND last_message.tenant_id = conversation.tenant_id
+                   AND last_message.sequence >= member.history_start_sequence
                 """;
     }
 
@@ -314,6 +314,7 @@ class MessagingQueryRepository {
         MessagingDtos.MessageSummary lastMessage = lastMessageId == null ? null : new MessagingDtos.MessageSummary(
                 lastMessageId,
                 result.getObject("conversation_id", UUID.class),
+                result.getLong("last_message_sequence"),
                 result.getLong("last_sender_user_id"),
                 result.getObject("last_sender_person_public_id", UUID.class),
                 result.getString("last_sender_name"),
@@ -325,7 +326,9 @@ class MessagingQueryRepository {
                 result.getObject("last_deleted_at", OffsetDateTime.class),
                 result.getObject("last_created_at", OffsetDateTime.class),
                 result.getLong("last_version"),
-                List.of());
+                List.of(),
+                0,
+                null);
         return new MessagingDtos.ConversationSummary(
                 result.getObject("conversation_id", UUID.class),
                 result.getString("conversation_key"),
@@ -346,26 +349,6 @@ class MessagingQueryRepository {
                 result.getLong("version"));
     }
 
-    private MessagingDtos.MessageSummary message(
-            ResultSet result,
-            List<MessagingDtos.ReactionSummary> reactions) throws SQLException {
-        return new MessagingDtos.MessageSummary(
-                result.getObject("message_id", UUID.class),
-                result.getObject("conversation_id", UUID.class),
-                result.getLong("sender_user_id"),
-                result.getObject("sender_person_public_id", UUID.class),
-                result.getString("sender_name"),
-                result.getString("body"),
-                result.getString("content_type"),
-                result.getString("message_kind"),
-                result.getObject("reply_to_message_id", UUID.class),
-                result.getObject("edited_at", OffsetDateTime.class),
-                result.getObject("deleted_at", OffsetDateTime.class),
-                result.getObject("created_at", OffsetDateTime.class),
-                result.getLong("version"),
-                reactions);
-    }
-
     private MessagingDtos.PersonSummary person(ResultSet result) throws SQLException {
         return new MessagingDtos.PersonSummary(
                 result.getLong("user_id"),
@@ -375,58 +358,6 @@ class MessagingQueryRepository {
                 result.getString("job_title"),
                 result.getString("organization_name"),
                 result.getString("presence_state"));
-    }
-
-    private List<MessagingDtos.MessageSummary> attachReactions(
-            long tenantId,
-            long userId,
-            List<MessagingDtos.MessageSummary> messages) {
-        if (messages.isEmpty()) return messages;
-        Map<UUID, List<MessagingDtos.ReactionSummary>> reactions = reactions(
-                tenantId, userId, messages.stream().map(MessagingDtos.MessageSummary::messageId).toList());
-        return messages.stream()
-                .map(message -> new MessagingDtos.MessageSummary(
-                        message.messageId(), message.conversationId(), message.senderUserId(),
-                        message.senderPersonPublicId(), message.senderName(), message.body(),
-                        message.contentType(), message.messageKind(), message.replyToMessageId(),
-                        message.editedAt(), message.deletedAt(), message.createdAt(), message.version(),
-                        reactions.getOrDefault(message.messageId(), List.of())))
-                .toList();
-    }
-
-    private Map<UUID, List<MessagingDtos.ReactionSummary>> reactions(
-            long tenantId,
-            long userId,
-            List<UUID> messageIds) {
-        String placeholders = String.join(",", messageIds.stream().map(_id -> "?").toList());
-        List<Object> args = new ArrayList<>();
-        args.add(userId);
-        args.add(tenantId);
-        args.addAll(messageIds);
-        return jdbc.query("""
-                SELECT message_id, emoji, COUNT(*) AS reaction_count,
-                       BOOL_OR(user_id = ?) AS mine
-                  FROM msg_message_reactions
-                 WHERE tenant_id = ?
-                   AND message_id IN (""" + placeholders + """
-                   )
-                 GROUP BY message_id, emoji
-                 ORDER BY message_id, reaction_count DESC, emoji
-                """, result -> {
-            Map<UUID, List<MessagingDtos.ReactionSummary>> grouped = new LinkedHashMap<>();
-            while (result.next()) {
-                grouped.computeIfAbsent(result.getObject("message_id", UUID.class), _id -> new ArrayList<>())
-                        .add(new MessagingDtos.ReactionSummary(
-                                result.getString("emoji"),
-                                result.getInt("reaction_count"),
-                                result.getBoolean("mine")));
-            }
-            return grouped;
-        }, args.toArray());
-    }
-
-    private List<MessagingDtos.MessageSummary> reverse(List<MessagingDtos.MessageSummary> messages) {
-        return messages.reversed();
     }
 
     private String pattern(String value) {

@@ -21,6 +21,12 @@ import java.util.UUID;
 @RequestMapping("/v1")
 public class ApprovalController {
 
+    public enum TaskView {
+        INBOX,
+        DELEGATED,
+        COMPLETED
+    }
+
     private final ApprovalService service;
 
     public ApprovalController(ApprovalService service) {
@@ -34,9 +40,9 @@ public class ApprovalController {
 
     @GetMapping("/tasks")
     public ApiResponse<List<ApprovalDtos.TaskSummary>> tasks(
-            @RequestParam(defaultValue = "INBOX") String view,
+            @RequestParam(defaultValue = "INBOX") TaskView view,
             @RequestParam(defaultValue = "50") int limit) {
-        return ApiResponse.success(service.tasks(view, limit));
+        return ApiResponse.success(service.tasks(view.name(), limit));
     }
 
     @GetMapping("/tasks/{taskId}")

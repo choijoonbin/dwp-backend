@@ -8,6 +8,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
@@ -36,13 +37,21 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
     static final String DISPLAY_NAME_HEADER = "X-DWP-Display-Name-B64";
 
     private final String serviceToken;
+    private final String runtimeServiceToken;
     private final ObjectMapper objectMapper;
 
+    @Autowired
     public ApprovalSecurityFilter(
             @Value("${dwp.approval.service-token:}") String serviceToken,
+            @Value("${dwp.approval.runtime-service-token:}") String runtimeServiceToken,
             ObjectMapper objectMapper) {
         this.serviceToken = serviceToken == null ? "" : serviceToken.trim();
+        this.runtimeServiceToken = runtimeServiceToken == null ? "" : runtimeServiceToken.trim();
         this.objectMapper = objectMapper;
+    }
+
+    ApprovalSecurityFilter(String serviceToken, ObjectMapper objectMapper) {
+        this(serviceToken, "", objectMapper);
     }
 
     @Override
@@ -63,7 +72,12 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
                     "Approval service identity is not configured.");
             return;
         }
-        if (!constantTimeEquals(serviceToken, request.getHeader(SERVICE_TOKEN_HEADER))) {
+        boolean gatewayIdentity = constantTimeEquals(
+                serviceToken, request.getHeader(SERVICE_TOKEN_HEADER));
+        boolean runtimeIdentity = isRuntimeRead(request)
+                && !runtimeServiceToken.isBlank()
+                && constantTimeEquals(runtimeServiceToken, request.getHeader(SERVICE_TOKEN_HEADER));
+        if (!gatewayIdentity && !runtimeIdentity) {
             writeError(response, ErrorCode.UNAUTHORIZED,
                     "Trusted approval service identity is required.");
             return;
@@ -181,6 +195,15 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
 
     private boolean readOnly(String method) {
         return "GET".equals(method) || "HEAD".equals(method);
+    }
+
+    private boolean isRuntimeRead(HttpServletRequest request) {
+        if (!readOnly(request.getMethod())) return false;
+        String path = request.getRequestURI();
+        return path.equals("/v1/tasks")
+                || path.equals("/v1/requests")
+                || path.equals("/v1/catalog/forms")
+                || path.equals("/v1/admin/operations");
     }
 
     private Set<String> parse(String value) {

@@ -56,6 +56,10 @@ public final class ApprovalDtos {
             String eventType,
             String actorType,
             String actorId,
+            String actorDisplayName,
+            String stepName,
+            Integer stepSequence,
+            boolean delegated,
             String outcome,
             String message,
             Instant occurredAt) {
@@ -64,6 +68,7 @@ public final class ApprovalDtos {
     public record TaskDetail(
             TaskSummary task,
             Map<String, Object> payload,
+            Map<String, Object> formSchema,
             List<TimelineEvent> timeline,
             boolean canClaim,
             boolean canDecide,
@@ -96,6 +101,7 @@ public final class ApprovalDtos {
             UUID workflowId,
             UUID formId,
             Map<String, Object> payload,
+            Map<String, Object> formSchema,
             List<TimelineEvent> timeline) {
     }
 

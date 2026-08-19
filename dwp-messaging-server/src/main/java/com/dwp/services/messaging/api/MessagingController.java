@@ -48,30 +48,66 @@ public class MessagingController {
         return ApiResponse.success(service.conversation(conversationId));
     }
 
+    @GetMapping("/conversations/{conversationId}/messages")
+    public ApiResponse<MessagingDtos.MessagePage> messages(
+            @PathVariable UUID conversationId,
+            @RequestParam(required = false) Long beforeSequence,
+            @RequestParam(defaultValue = "50") int limit) {
+        return ApiResponse.success(service.messages(conversationId, beforeSequence, limit));
+    }
+
     @PostMapping("/direct-conversations")
-    public ApiResponse<MessagingDtos.ConversationDetail> directConversation(
+    public ApiResponse<MessagingDtos.ConversationSummary> directConversation(
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @Valid @RequestBody MessagingDtos.DirectConversationRequest request) {
         return ApiResponse.success(service.createDirectConversation(request, correlationId));
     }
 
     @PostMapping("/conversations/{conversationId}/messages")
-    public ApiResponse<MessagingDtos.ConversationDetail> sendMessage(
+    public ApiResponse<MessagingDtos.MessageSummary> sendMessage(
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @PathVariable UUID conversationId,
             @Valid @RequestBody MessagingDtos.SendMessageRequest request) {
         return ApiResponse.success(service.sendMessage(conversationId, request, correlationId));
     }
 
+    @PutMapping("/conversations/{conversationId}/messages/{messageId}")
+    public ApiResponse<MessagingDtos.MessageSummary> updateMessage(
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @PathVariable UUID conversationId,
+            @PathVariable UUID messageId,
+            @Valid @RequestBody MessagingDtos.UpdateMessageRequest request) {
+        return ApiResponse.success(
+                service.updateMessage(conversationId, messageId, request, correlationId));
+    }
+
+    @DeleteMapping("/conversations/{conversationId}/messages/{messageId}")
+    public ApiResponse<MessagingDtos.MessageSummary> deleteMessage(
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @PathVariable UUID conversationId,
+            @PathVariable UUID messageId,
+            @RequestParam long version) {
+        return ApiResponse.success(
+                service.deleteMessage(conversationId, messageId, version, correlationId));
+    }
+
+    @GetMapping("/conversations/{conversationId}/messages/{rootMessageId}/replies")
+    public ApiResponse<MessagingDtos.ThreadResponse> thread(
+            @PathVariable UUID conversationId,
+            @PathVariable UUID rootMessageId,
+            @RequestParam(defaultValue = "100") int limit) {
+        return ApiResponse.success(service.thread(conversationId, rootMessageId, limit));
+    }
+
     @PostMapping("/conversations/{conversationId}/read-cursor")
-    public ApiResponse<MessagingDtos.ConversationDetail> markRead(
+    public ApiResponse<MessagingDtos.ReadCursorResponse> markRead(
             @PathVariable UUID conversationId,
             @Valid @RequestBody MessagingDtos.ReadCursorRequest request) {
         return ApiResponse.success(service.markRead(conversationId, request));
     }
 
     @PostMapping("/conversations/{conversationId}/messages/{messageId}/reactions")
-    public ApiResponse<MessagingDtos.ConversationDetail> addReaction(
+    public ApiResponse<MessagingDtos.MessageSummary> addReaction(
             @PathVariable UUID conversationId,
             @PathVariable UUID messageId,
             @Valid @RequestBody MessagingDtos.ReactionRequest request) {
@@ -79,11 +115,46 @@ public class MessagingController {
     }
 
     @DeleteMapping("/conversations/{conversationId}/messages/{messageId}/reactions/{emoji}")
-    public ApiResponse<MessagingDtos.ConversationDetail> removeReaction(
+    public ApiResponse<MessagingDtos.MessageSummary> removeReaction(
             @PathVariable UUID conversationId,
             @PathVariable UUID messageId,
             @PathVariable String emoji) {
         return ApiResponse.success(service.removeReaction(conversationId, messageId, emoji));
+    }
+
+    @GetMapping("/saved-items")
+    public ApiResponse<MessagingDtos.SavedItemPage> savedItems(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "30") int pageSize) {
+        return ApiResponse.success(service.savedItems(page, pageSize));
+    }
+
+    @PostMapping("/conversations/{conversationId}/messages/{messageId}/saved")
+    public ApiResponse<MessagingDtos.SavedItemSummary> saveMessage(
+            @PathVariable UUID conversationId,
+            @PathVariable UUID messageId) {
+        return ApiResponse.success(service.saveMessage(conversationId, messageId));
+    }
+
+    @DeleteMapping("/conversations/{conversationId}/messages/{messageId}/saved")
+    public ApiResponse<Void> unsaveMessage(
+            @PathVariable UUID conversationId,
+            @PathVariable UUID messageId) {
+        service.unsaveMessage(conversationId, messageId);
+        return ApiResponse.success();
+    }
+
+    @GetMapping("/conversations/{conversationId}/settings")
+    public ApiResponse<MessagingDtos.ConversationSettings> conversationSettings(
+            @PathVariable UUID conversationId) {
+        return ApiResponse.success(service.conversationSettings(conversationId));
+    }
+
+    @PutMapping("/conversations/{conversationId}/settings")
+    public ApiResponse<MessagingDtos.ConversationSettings> updateConversationSettings(
+            @PathVariable UUID conversationId,
+            @Valid @RequestBody MessagingDtos.ConversationSettingsRequest request) {
+        return ApiResponse.success(service.updateConversationSettings(conversationId, request));
     }
 
     @GetMapping("/people")

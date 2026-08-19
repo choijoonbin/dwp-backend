@@ -34,10 +34,11 @@ public class CalendarController {
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
             @RequestHeader(value = "X-DWP-Person-Public-ID", required = false) UUID personPublicId,
+            @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestParam(defaultValue = "Asia/Seoul") String timeZone) {
         return ApiResponse.success(service.home(
-                tenantId, userId, personPublicId, timeZone, locale));
+                tenantId, userId, personPublicId, timeZone, locale, groupRefs));
     }
 
     @GetMapping("/calendars")
@@ -54,11 +55,12 @@ public class CalendarController {
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
             @RequestHeader(value = "X-DWP-Person-Public-ID", required = false) UUID personPublicId,
+            @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime to) {
         return ApiResponse.success(service.events(
-                tenantId, userId, personPublicId, from, to, locale));
+                tenantId, userId, personPublicId, groupRefs, from, to, locale));
     }
 
     @PostMapping("/events")
@@ -69,10 +71,11 @@ public class CalendarController {
             @RequestHeader(value = "X-DWP-Display-Name-B64", required = false) String displayName,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @Valid @RequestBody CalendarDtos.CreateEventRequest request) {
         return ApiResponse.success(service.create(
                 tenantId, userId, personPublicId, decoded(displayName),
-                locale, correlationId, request));
+                locale, correlationId, groupRefs, request));
     }
 
     @PutMapping("/events/{eventId}")
@@ -82,10 +85,12 @@ public class CalendarController {
             @RequestHeader(value = "X-DWP-Person-Public-ID", required = false) UUID personPublicId,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @PathVariable UUID eventId,
             @Valid @RequestBody CalendarDtos.UpdateEventRequest request) {
         return ApiResponse.success(service.update(
-                tenantId, userId, personPublicId, eventId, locale, correlationId, request));
+                tenantId, userId, personPublicId, eventId,
+                locale, correlationId, groupRefs, request));
     }
 
     @PostMapping("/events/{eventId}/response")
@@ -95,10 +100,12 @@ public class CalendarController {
             @RequestHeader(value = "X-DWP-Person-Public-ID", required = false) UUID personPublicId,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @PathVariable UUID eventId,
             @Valid @RequestBody CalendarDtos.RespondRequest request) {
         return ApiResponse.success(service.respond(
-                tenantId, userId, personPublicId, eventId, locale, correlationId, request));
+                tenantId, userId, personPublicId, eventId,
+                locale, correlationId, groupRefs, request));
     }
 
     @PostMapping("/events/{eventId}/cancel")
@@ -108,19 +115,25 @@ public class CalendarController {
             @RequestHeader(value = "X-DWP-Person-Public-ID", required = false) UUID personPublicId,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @PathVariable UUID eventId,
             @Valid @RequestBody CalendarDtos.VersionRequest request) {
-        service.cancel(tenantId, userId, personPublicId, eventId, locale, correlationId, request);
+        service.cancel(
+                tenantId, userId, personPublicId, eventId,
+                locale, correlationId, groupRefs, request);
         return ApiResponse.success(null);
     }
 
     @GetMapping("/resources")
     public ApiResponse<List<CalendarDtos.ResourceSummary>> resources(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
+            @RequestHeader("X-DWP-User-ID") Long userId,
+            @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime to) {
-        return ApiResponse.success(service.resources(tenantId, from, to, locale));
+        return ApiResponse.success(service.resources(
+                tenantId, userId, groupRefs, from, to, locale));
     }
 
     @GetMapping("/availability")

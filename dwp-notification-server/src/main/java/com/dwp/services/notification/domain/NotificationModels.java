@@ -1,6 +1,8 @@
 package com.dwp.services.notification.domain;
 
 import com.dwp.services.notification.api.DecimalVersionStringDeserializer;
+import com.fasterxml.jackson.annotation.JsonSetter;
+import com.fasterxml.jackson.annotation.Nulls;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Future;
@@ -116,6 +118,15 @@ public final class NotificationModels {
             Summary summary) {
     }
 
+    public record Capabilities(
+            List<String> enabledChannels,
+            List<String> unavailableChannels,
+            String canonicalStore,
+            String realtimeTransport,
+            String externalDeliveryState,
+            Instant generatedAt) {
+    }
+
     public record VersionRequest(
             @NotBlank
             @JsonDeserialize(using = DecimalVersionStringDeserializer.class)
@@ -191,9 +202,17 @@ public final class NotificationModels {
             @NotBlank @Size(max = 100) String appKey,
             @NotBlank @Size(max = 160) String typeKey,
             @NotBlank @Pattern(regexp = "IMMEDIATE|DAILY_DIGEST|WEEKLY_DIGEST|MUTED") String mode,
-            @NotNull Map<@Pattern(regexp = "IN_APP|EMAIL|WEB_PUSH|MOBILE_PUSH|TEAMS|SLACK") String, Boolean> channels,
+            @JsonSetter(contentNulls = Nulls.FAIL)
+            @NotNull Map<@Pattern(regexp = "IN_APP|EMAIL|WEB_PUSH|MOBILE_PUSH|TEAMS|SLACK") String, @NotNull Boolean> channels,
             @JsonDeserialize(using = DecimalVersionStringDeserializer.class)
             String expectedVersion) {
+
+        public SubscriptionRuleUpdate {
+            if (channels != null && channels.values().stream().anyMatch(value -> value == null)) {
+                throw new IllegalArgumentException(
+                        "Notification channel overrides must be boolean values.");
+            }
+        }
     }
 
     public record SubscriptionRule(

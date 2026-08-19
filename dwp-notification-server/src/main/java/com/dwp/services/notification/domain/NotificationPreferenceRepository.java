@@ -324,7 +324,9 @@ public class NotificationPreferenceRepository {
     }
 
     private void validateChannels(Map<String, Boolean> channels) {
-        if (channels == null || !channels.keySet().stream().allMatch(CHANNELS::contains)) {
+        if (channels == null
+                || !channels.keySet().stream().allMatch(CHANNELS::contains)
+                || channels.values().stream().anyMatch(value -> value == null)) {
             throw new IllegalArgumentException("Unsupported notification channel.");
         }
     }

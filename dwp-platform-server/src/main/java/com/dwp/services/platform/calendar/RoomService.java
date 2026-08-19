@@ -41,12 +41,14 @@ public class RoomService {
     @Transactional(readOnly = true)
     public CalendarDtos.RoomAvailabilityResponse roomAvailability(
             Long tenantId,
+            Long userId,
+            String verifiedGroupRefs,
             OffsetDateTime from,
             OffsetDateTime to,
             String locale) {
         validateAvailabilityRange(from, to);
         List<CalendarDtos.ResourceSummary> rooms = calendarService
-                .resources(tenantId, from, to, locale).stream()
+                .resources(tenantId, userId, verifiedGroupRefs, from, to, locale).stream()
                 .filter(value -> value.type() == ResourceType.ROOM)
                 .toList();
         Set<UUID> roomIds = rooms.stream()
@@ -67,10 +69,13 @@ public class RoomService {
             Long tenantId,
             Long userId,
             UUID personPublicId,
+            String verifiedGroupRefs,
             OffsetDateTime from,
             OffsetDateTime to,
             String locale) {
-        return calendarService.events(tenantId, userId, personPublicId, from, to, locale).stream()
+        return calendarService.events(
+                        tenantId, userId, personPublicId,
+                        verifiedGroupRefs, from, to, locale).stream()
                 .filter(event -> event.resource() != null
                         && event.resource().type() == ResourceType.ROOM)
                 .toList();
@@ -84,10 +89,12 @@ public class RoomService {
             String organizerName,
             String locale,
             String correlationId,
+            String verifiedGroupRefs,
             CalendarDtos.CreateEventRequest request) {
         requireRoomResource(tenantId, request.resourceId(), locale);
         return calendarService.create(
-                tenantId, userId, personPublicId, organizerName, locale, correlationId, request);
+                tenantId, userId, personPublicId, organizerName,
+                locale, correlationId, verifiedGroupRefs, request);
     }
 
     @Transactional
@@ -98,11 +105,13 @@ public class RoomService {
             UUID eventId,
             String locale,
             String correlationId,
+            String verifiedGroupRefs,
             CalendarDtos.UpdateEventRequest request) {
         requireRoomBooking(tenantId, userId, personPublicId, eventId, locale);
         requireRoomResource(tenantId, request.resourceId(), locale);
         return calendarService.update(
-                tenantId, userId, personPublicId, eventId, locale, correlationId, request);
+                tenantId, userId, personPublicId, eventId,
+                locale, correlationId, verifiedGroupRefs, request);
     }
 
     @Transactional
@@ -113,10 +122,12 @@ public class RoomService {
             UUID eventId,
             String locale,
             String correlationId,
+            String verifiedGroupRefs,
             CalendarDtos.VersionRequest request) {
         requireRoomBooking(tenantId, userId, personPublicId, eventId, locale);
         calendarService.cancel(
-                tenantId, userId, personPublicId, eventId, locale, correlationId, request);
+                tenantId, userId, personPublicId, eventId,
+                locale, correlationId, verifiedGroupRefs, request);
     }
 
     @Transactional
@@ -127,10 +138,12 @@ public class RoomService {
             UUID eventId,
             String locale,
             String correlationId,
+            String verifiedGroupRefs,
             CalendarDtos.RespondRequest request) {
         requireRoomBooking(tenantId, userId, personPublicId, eventId, locale);
         return calendarService.respond(
-                tenantId, userId, personPublicId, eventId, locale, correlationId, request);
+                tenantId, userId, personPublicId, eventId,
+                locale, correlationId, verifiedGroupRefs, request);
     }
 
     @Transactional(readOnly = true)

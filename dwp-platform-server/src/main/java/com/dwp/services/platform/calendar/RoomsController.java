@@ -29,15 +29,24 @@ public class RoomsController {
         this.service = service;
     }
 
+    @GetMapping("/policy")
+    public ApiResponse<CalendarDtos.Policy> getRoomPolicy(
+            @RequestHeader("X-DWP-Tenant-ID") Long tenantId) {
+        return ApiResponse.success(service.policy(tenantId));
+    }
+
     @GetMapping("/availability")
     public ApiResponse<CalendarDtos.RoomAvailabilityResponse> getRoomAvailability(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
+            @RequestHeader("X-DWP-User-ID") Long userId,
+            @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
                     OffsetDateTime from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
                     OffsetDateTime to) {
-        return ApiResponse.success(service.roomAvailability(tenantId, from, to, locale));
+        return ApiResponse.success(service.roomAvailability(
+                tenantId, userId, groupRefs, from, to, locale));
     }
 
     @GetMapping("/bookings")
@@ -45,13 +54,14 @@ public class RoomsController {
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
             @RequestHeader(value = "X-DWP-Person-Public-ID", required = false) UUID personPublicId,
+            @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
                     OffsetDateTime from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
                     OffsetDateTime to) {
         return ApiResponse.success(service.roomBookings(
-                tenantId, userId, personPublicId, from, to, locale));
+                tenantId, userId, personPublicId, groupRefs, from, to, locale));
     }
 
     @PostMapping("/bookings")
@@ -62,10 +72,11 @@ public class RoomsController {
             @RequestHeader(value = "X-DWP-Display-Name-B64", required = false) String displayName,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @Valid @RequestBody CalendarDtos.CreateEventRequest request) {
         return ApiResponse.success(service.createRoomBooking(
                 tenantId, userId, personPublicId, decoded(displayName),
-                locale, correlationId, request));
+                locale, correlationId, groupRefs, request));
     }
 
     @PutMapping("/bookings/{eventId}")
@@ -75,10 +86,12 @@ public class RoomsController {
             @RequestHeader(value = "X-DWP-Person-Public-ID", required = false) UUID personPublicId,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @PathVariable UUID eventId,
             @Valid @RequestBody CalendarDtos.UpdateEventRequest request) {
         return ApiResponse.success(service.updateRoomBooking(
-                tenantId, userId, personPublicId, eventId, locale, correlationId, request));
+                tenantId, userId, personPublicId, eventId,
+                locale, correlationId, groupRefs, request));
     }
 
     @PostMapping("/bookings/{eventId}/response")
@@ -88,10 +101,12 @@ public class RoomsController {
             @RequestHeader(value = "X-DWP-Person-Public-ID", required = false) UUID personPublicId,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @PathVariable UUID eventId,
             @Valid @RequestBody CalendarDtos.RespondRequest request) {
         return ApiResponse.success(service.respondRoomBooking(
-                tenantId, userId, personPublicId, eventId, locale, correlationId, request));
+                tenantId, userId, personPublicId, eventId,
+                locale, correlationId, groupRefs, request));
     }
 
     @PostMapping("/bookings/{eventId}/cancel")
@@ -101,10 +116,12 @@ public class RoomsController {
             @RequestHeader(value = "X-DWP-Person-Public-ID", required = false) UUID personPublicId,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @PathVariable UUID eventId,
             @Valid @RequestBody CalendarDtos.VersionRequest request) {
         service.cancelRoomBooking(
-                tenantId, userId, personPublicId, eventId, locale, correlationId, request);
+                tenantId, userId, personPublicId, eventId,
+                locale, correlationId, groupRefs, request);
         return ApiResponse.success(null);
     }
 

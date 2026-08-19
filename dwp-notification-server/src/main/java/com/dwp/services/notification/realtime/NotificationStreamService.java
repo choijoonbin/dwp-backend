@@ -1,14 +1,13 @@
 package com.dwp.services.notification.realtime;
 
-import com.dwp.services.notification.cursor.NotificationCursorCodec;
-import com.dwp.services.notification.domain.NotificationModels.ChangeSignal;
 import com.dwp.services.notification.domain.NotificationModels.SyncResponse;
 import com.dwp.services.notification.security.NotificationRequestContext;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
@@ -18,25 +17,34 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Supplier;
 
 @Service
 public class NotificationStreamService {
 
     private final Map<UserKey, Set<Client>> clients = new ConcurrentHashMap<>();
-    private final NotificationCursorCodec cursorCodec;
     private final long timeoutMillis;
+    private final Counter sendFailures;
 
     public NotificationStreamService(
-            NotificationCursorCodec cursorCodec,
-            @Value("${dwp.notification.sse-timeout:30m}") Duration timeout) {
-        this.cursorCodec = cursorCodec;
+            @Value("${dwp.notification.sse-timeout:30m}") Duration timeout,
+            MeterRegistry meterRegistry) {
         this.timeoutMillis = timeout.toMillis();
+        this.sendFailures = Counter.builder("dwp.notification.sse.send.failures")
+                .description("SSE sends that failed because a client connection was unavailable")
+                .register(meterRegistry);
+        Gauge.builder(
+                        "dwp.notification.sse.connections",
+                        clients,
+                        connections -> connections.values().stream()
+                                .mapToInt(Set::size)
+                                .sum())
+                .description("Currently registered notification SSE connections")
+                .register(meterRegistry);
     }
 
     public SseEmitter open(
             NotificationRequestContext.Actor actor,
-            Supplier<SyncResponse> durableCatchUp) {
+            SyncResponse catchUp) {
         SseEmitter emitter = new SseEmitter(timeoutMillis);
         UserKey key = new UserKey(actor.tenantId(), actor.userId());
         Client client = new Client(UUID.randomUUID(), actor, emitter);
@@ -46,58 +54,38 @@ public class NotificationStreamService {
         emitter.onTimeout(cleanup);
         emitter.onError(error -> cleanup.run());
         try {
-            SyncResponse sync = durableCatchUp.get();
             emitter.send(SseEmitter.event()
                     .name("notification.connected")
-                    .id(sync.changeVersion())
+                    .id(catchUp.changeVersion())
                     .data(Map.of(
-                            "counterVersion", sync.summary().counterVersion(),
-                            "changeVersion", highestVersion(sync))));
-            if (!sync.changedIds().isEmpty()) sendChanged(client, sync);
+                            "counterVersion", catchUp.summary().counterVersion(),
+                            "changeVersion", catchUp.changeVersion(),
+                            "changedIds", List.of())));
+            if (!catchUp.changedIds().isEmpty()) sendChanged(client, catchUp);
         } catch (RuntimeException | IOException exception) {
             remove(key, client);
-            emitter.completeWithError(exception);
+            sendFailures.increment();
         }
         return emitter;
     }
 
-    public void publishAfterCommit(List<ChangeSignal> signals) {
-        if (signals.isEmpty()) return;
-        List<ChangeSignal> immutableSignals = List.copyOf(signals);
-        if (TransactionSynchronizationManager.isActualTransactionActive()
-                && TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(
-                    new TransactionSynchronization() {
-                        @Override
-                        public void afterCommit() {
-                            publish(immutableSignals);
-                        }
-                    });
-            return;
-        }
-        publish(immutableSignals);
-    }
-
-    private void publish(List<ChangeSignal> signals) {
-        for (ChangeSignal signal : signals) {
-            UserKey key = new UserKey(signal.tenantId(), signal.userId());
-            Set<Client> connected = clients.get(key);
-            if (connected == null || connected.isEmpty()) continue;
-            for (Client client : List.copyOf(connected)) {
-                try {
-                    String cursor = cursorCodec.encodeChangeVersion(
-                            client.actor(), signal.changeVersion());
-                    client.emitter().send(SseEmitter.event()
-                            .name("notification.changed")
-                            .id(cursor)
-                            .data(livePayload(
-                                    cursor,
-                                    Long.toString(signal.changeVersion()),
-                                    List.of(signal.notificationId().toString()))));
-                } catch (IOException | RuntimeException exception) {
-                    remove(key, client);
-                    client.emitter().complete();
-                }
+    public void dispatch(NotificationRealtimeEnvelope envelope) {
+        UserKey key = new UserKey(envelope.tenantId(), envelope.userId());
+        Set<Client> connected = clients.get(key);
+        if (connected == null || connected.isEmpty()) return;
+        Map<String, Object> payload = livePayload(
+                envelope.changeVersion(),
+                envelope.counterVersion(),
+                envelope.changedIds().stream().map(UUID::toString).toList());
+        for (Client client : List.copyOf(connected)) {
+            try {
+                client.emitter().send(SseEmitter.event()
+                        .name("notification.changed")
+                        .id(envelope.changeVersion())
+                        .data(payload));
+            } catch (IOException | RuntimeException exception) {
+                remove(key, client);
+                sendFailures.increment();
             }
         }
     }
@@ -107,7 +95,7 @@ public class NotificationStreamService {
                 .name("notification.changed")
                 .id(sync.changeVersion())
                 .data(livePayload(
-                        highestVersion(sync),
+                        sync.changeVersion(),
                         sync.summary().counterVersion(),
                         sync.changedIds().stream().map(UUID::toString).toList())));
     }
@@ -122,10 +110,6 @@ public class NotificationStreamService {
                 "changedIds", List.copyOf(changedIds));
     }
 
-    private String highestVersion(SyncResponse sync) {
-        return sync.changeVersion();
-    }
-
     @Scheduled(fixedDelayString = "${dwp.notification.sse-heartbeat:15s}")
     void heartbeat() {
         clients.forEach((key, connected) -> {
@@ -134,7 +118,7 @@ public class NotificationStreamService {
                     client.emitter().send(SseEmitter.event().comment("heartbeat"));
                 } catch (IOException | RuntimeException exception) {
                     remove(key, client);
-                    client.emitter().complete();
+                    sendFailures.increment();
                 }
             }
         });

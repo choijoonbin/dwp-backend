@@ -8,6 +8,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.sql.Types;
 import java.sql.Array;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -133,9 +134,12 @@ public class NotificationAdminRepository {
             int limit) {
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("tenantId", tenantId)
-                .addValue("query", query == null ? null : "%" + escapeLike(query) + "%")
-                .addValue("state", databaseState(state))
-                .addValue("appKey", appKey)
+                .addValue(
+                        "query",
+                        query == null ? null : "%" + escapeLike(query) + "%",
+                        Types.VARCHAR)
+                .addValue("state", databaseState(state), Types.VARCHAR)
+                .addValue("appKey", appKey, Types.VARCHAR)
                 .addValue("offset", offset)
                 .addValue("limit", limit);
         return jdbc.query("""
@@ -188,11 +192,11 @@ public class NotificationAdminRepository {
                   LEFT JOIN ntf_template_versions template
                     ON template.type_version_id = type_version.type_version_id
                  WHERE (type.tenant_id IS NULL OR type.tenant_id = :tenantId)
-                   AND (:query IS NULL
+                   AND (CAST(:query AS text) IS NULL
                         OR type.type_key ILIKE :query
                         OR type.owner_team ILIKE :query)
-                   AND (:state IS NULL OR type.lifecycle_state = :state)
-                   AND (:appKey IS NULL OR type.owner_app_key = :appKey)
+                   AND (CAST(:state AS text) IS NULL OR type.lifecycle_state = :state)
+                   AND (CAST(:appKey AS text) IS NULL OR type.owner_app_key = :appKey)
                  GROUP BY type.type_id, type.type_key, type.owner_app_key,
                           type.owner_team, type.lifecycle_state, type.updated_at,
                           type_version.type_version_id, type_version.contract_payload,

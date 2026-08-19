@@ -1,6 +1,7 @@
 package com.dwp.services.platform.workplace;
 
 import com.dwp.core.common.ApiResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -13,18 +14,27 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.core.io.Resource;
+import org.springframework.http.CacheControl;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 @RestController
 @RequestMapping("/v1/admin/workplace")
 public class AdminWorkplaceController {
 
     private final WorkplaceService service;
+    private final WorkplaceDelegatedAdminScopeGuard delegatedAdminScopeGuard;
 
-    public AdminWorkplaceController(WorkplaceService service) {
+    public AdminWorkplaceController(
+            WorkplaceService service,
+            WorkplaceDelegatedAdminScopeGuard delegatedAdminScopeGuard) {
         this.service = service;
+        this.delegatedAdminScopeGuard = delegatedAdminScopeGuard;
     }
 
     @GetMapping("/overview")
@@ -36,8 +46,10 @@ public class AdminWorkplaceController {
     @GetMapping("/sites")
     public ApiResponse<List<WorkplaceDtos.Site>> getWorkplaceSites(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
-            @RequestHeader(value = "Accept-Language", required = false) String locale) {
-        return ApiResponse.success(service.sites(tenantId, locale));
+            @RequestHeader(value = "Accept-Language", required = false) String locale,
+            HttpServletRequest request) {
+        return ApiResponse.success(delegatedAdminScopeGuard.filterVisibleSites(
+                request, service.sites(tenantId, locale)));
     }
 
     @PostMapping("/sites")
@@ -107,6 +119,38 @@ public class AdminWorkplaceController {
             @RequestPart("file") MultipartFile file) {
         return ApiResponse.success(service.uploadFloorBackground(
                 tenantId, actorId, floorId, version, locale, correlationId, file));
+    }
+
+    @PutMapping(
+            path = "/governance/floor-plan-revisions/{revisionId}",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<WorkplaceSpatialGovernanceDtos.FloorPlanRevision>
+            uploadGovernedFloorPlanRevisionBackground(
+            @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
+            @RequestHeader("X-DWP-User-ID") Long actorId,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @PathVariable UUID revisionId,
+            @RequestParam Long version,
+            @RequestParam String changeSummary,
+            @RequestPart("file") MultipartFile file) {
+        return ApiResponse.success(service.uploadDraftFloorBackground(
+                tenantId, actorId, revisionId, version, changeSummary, correlationId, file));
+    }
+
+    @GetMapping(
+            path = "/governance/floor-plan-revisions/{revisionId}/snapshot",
+            params = "media=background")
+    public ResponseEntity<Resource> governedFloorPlanRevisionBackground(
+            @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
+            @PathVariable UUID revisionId) {
+        WorkplaceService.FloorBackground content =
+                service.floorPlanRevisionBackground(tenantId, revisionId);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(content.contentType()))
+                .contentLength(content.sizeBytes())
+                .cacheControl(CacheControl.maxAge(0, TimeUnit.SECONDS).mustRevalidate())
+                .eTag('"' + content.sha256() + '"')
+                .body(content.resource());
     }
 
     @GetMapping("/floors/{floorId}/resources")

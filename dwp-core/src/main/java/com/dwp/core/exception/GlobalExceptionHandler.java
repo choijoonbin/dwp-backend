@@ -11,12 +11,14 @@ import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.validation.ObjectError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -138,6 +140,26 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * 필수 요청 파라미터 누락 처리 (400)
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiResponse<Object>> handleMissingRequestParameter(
+            MissingServletRequestParameterException e,
+            HttpServletRequest request,
+            Locale locale) {
+        log.warn("Missing required parameter: {}", e.getParameterName());
+        return ResponseEntity
+                .status(ErrorCode.VALIDATION_ERROR.getHttpStatus())
+                .body(ApiResponse.error(ErrorCode.VALIDATION_ERROR,
+                        message(
+                                "request.missing-parameter",
+                                new Object[]{e.getParameterName()},
+                                "Required parameter ''{0}'' is missing.",
+                                locale),
+                        correlationId(request)));
+    }
+
+    /**
      * 파라미터 타입 불일치 처리 (400)
      */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
@@ -213,6 +235,20 @@ public class GlobalExceptionHandler {
                                 null,
                                 "The uploaded file exceeds the allowed size.",
                                 locale),
+                        correlationId(request)));
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Object>> handleNoResourceFoundException(
+            NoResourceFoundException e,
+            HttpServletRequest request,
+            Locale locale) {
+        log.warn("Resource not found: {}", e.getResourcePath());
+        return ResponseEntity
+                .status(ErrorCode.NOT_FOUND.getHttpStatus())
+                .body(ApiResponse.error(
+                        ErrorCode.NOT_FOUND,
+                        errorMessage(ErrorCode.NOT_FOUND, locale),
                         correlationId(request)));
     }
     

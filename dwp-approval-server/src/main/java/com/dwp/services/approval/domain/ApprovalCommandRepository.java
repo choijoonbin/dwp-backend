@@ -372,7 +372,10 @@ public class ApprovalCommandRepository {
                 .addValue("expectedVersion", expectedVersion));
         requireUpdated(updated);
         appendEvent(actor, task.summary().requestId(), "TASK_CLAIMED", "Task claimed",
-                correlationId, Map.of("taskId", task.summary().taskId().toString()));
+                correlationId, Map.of(
+                        "taskId", task.summary().taskId().toString(),
+                        "stepName", task.summary().stepName(),
+                        "stepSequence", task.summary().stepSequence()));
     }
 
     public DecisionResult decide(
@@ -499,6 +502,8 @@ public class ApprovalCommandRepository {
         decisionEvidence.put("taskId", task.summary().taskId().toString());
         decisionEvidence.put("decision", normalized);
         decisionEvidence.put("delegated", task.delegatedAccess());
+        decisionEvidence.put("stepName", task.summary().stepName());
+        decisionEvidence.put("stepSequence", task.summary().stepSequence());
         if (task.delegatedFromUserId() != null) {
             decisionEvidence.put("delegatedFromUserId", task.delegatedFromUserId());
         }
@@ -1460,6 +1465,10 @@ public class ApprovalCommandRepository {
             String message,
             String correlationId,
             Map<String, Object> data) {
+        Map<String, Object> evidence = new LinkedHashMap<>(data);
+        if (actor.displayName() != null && !actor.displayName().isBlank()) {
+            evidence.putIfAbsent("actorDisplayName", actor.displayName().trim());
+        }
         jdbc.update("""
                 INSERT INTO apr_request_events (
                     event_id, tenant_id, request_id, event_type,
@@ -1477,7 +1486,7 @@ public class ApprovalCommandRepository {
                 .addValue("actorId", actor.userId().toString())
                 .addValue("message", message)
                 .addValue("correlationId", correlationId)
-                .addValue("eventData", json(data)));
+                .addValue("eventData", json(evidence)));
     }
 
     private void appendIntegration(

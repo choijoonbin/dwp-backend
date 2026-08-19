@@ -2,6 +2,7 @@ package com.dwp.services.notification.domain;
 
 import com.dwp.services.notification.common.NotificationErrorCode;
 import com.dwp.services.notification.common.NotificationException;
+import com.dwp.services.notification.api.NotificationVersionCodec;
 import com.dwp.services.notification.cursor.NotificationCursorCodec;
 import com.dwp.services.notification.cursor.NotificationCursorCodec.InboxCursor;
 import com.dwp.services.notification.domain.NotificationCommandRepository.MutationOutcome;
@@ -30,7 +31,7 @@ import com.dwp.services.notification.domain.NotificationQueryRepository.CounterS
 import com.dwp.services.notification.domain.NotificationQueryRepository.InboxFilters;
 import com.dwp.services.notification.domain.NotificationQueryRepository.InboxRow;
 import com.dwp.services.notification.domain.NotificationQueryRepository.ViewCounts;
-import com.dwp.services.notification.realtime.NotificationStreamService;
+import com.dwp.services.notification.realtime.NotificationChangePublisher;
 import com.dwp.services.notification.security.NotificationDatabaseScope;
 import com.dwp.services.notification.security.NotificationRequestContext;
 import org.springframework.stereotype.Service;
@@ -54,7 +55,7 @@ public class NotificationService {
     private final NotificationPreferenceRepository preferenceRepository;
     private final NotificationIdempotencyRepository idempotencyRepository;
     private final NotificationCursorCodec cursorCodec;
-    private final NotificationStreamService streamService;
+    private final NotificationChangePublisher changePublisher;
 
     public NotificationService(
             NotificationDatabaseScope databaseScope,
@@ -63,14 +64,14 @@ public class NotificationService {
             NotificationPreferenceRepository preferenceRepository,
             NotificationIdempotencyRepository idempotencyRepository,
             NotificationCursorCodec cursorCodec,
-            NotificationStreamService streamService) {
+            NotificationChangePublisher changePublisher) {
         this.databaseScope = databaseScope;
         this.queryRepository = queryRepository;
         this.commandRepository = commandRepository;
         this.preferenceRepository = preferenceRepository;
         this.idempotencyRepository = idempotencyRepository;
         this.cursorCodec = cursorCodec;
-        this.streamService = streamService;
+        this.changePublisher = changePublisher;
     }
 
     @Transactional(readOnly = true)
@@ -153,7 +154,7 @@ public class NotificationService {
             String afterToken,
             int limit) {
         databaseScope.applyUser(actor);
-        long afterVersion = cursorCodec.decodeChangeVersion(actor, afterToken);
+        long afterVersion = decodeChangeVersion(afterToken);
         CounterSnapshot counter = queryRepository.counter(actor);
         if (afterVersion < counter.minimumAvailableVersion()) {
             throw new NotificationException(NotificationErrorCode.NOTIFICATION_SYNC_RESET_REQUIRED);
@@ -169,7 +170,7 @@ public class NotificationService {
                 : changed.get(changed.size() - 1).changeVersion();
         Summary summary = summaryInScope(actor);
         return new SyncResponse(
-                cursorCodec.encodeChangeVersion(actor, nextVersion),
+                NotificationVersionCodec.external(nextVersion),
                 summary.counterVersion(),
                 changed.stream().map(ChangedProjection::notificationId).toList(),
                 List.of(),
@@ -179,7 +180,7 @@ public class NotificationService {
     @Transactional(readOnly = true)
     public void validateSyncCursor(NotificationRequestContext.Actor actor, String afterToken) {
         databaseScope.applyUser(actor);
-        long afterVersion = cursorCodec.decodeChangeVersion(actor, afterToken);
+        long afterVersion = decodeChangeVersion(afterToken);
         if (afterVersion < queryRepository.counter(actor).minimumAvailableVersion()) {
             throw new NotificationException(NotificationErrorCode.NOTIFICATION_SYNC_RESET_REQUIRED);
         }
@@ -198,7 +199,7 @@ public class NotificationService {
                 actor, notificationId, action, expectedVersion, snoozedUntil, idempotencyKey);
         Summary summary = summaryInScope(actor);
         if (outcome.changed() && !outcome.replayed()) {
-            streamService.publishAfterCommit(List.of(new ChangeSignal(
+            changePublisher.publishAfterCommit(List.of(new ChangeSignal(
                     actor.tenantId(),
                     actor.userId(),
                     outcome.changeVersion(),
@@ -206,7 +207,7 @@ public class NotificationService {
         }
         return new ActionResult(
                 queryRepository.detail(actor, notificationId).item(),
-                cursorCodec.encodeChangeVersion(actor, outcome.changeVersion()),
+                NotificationVersionCodec.external(outcome.changeVersion()),
                 summary);
     }
 
@@ -237,7 +238,7 @@ public class NotificationService {
                         mutation.changeVersion(),
                         mutation.result().notificationId()))
                 .toList();
-        if (!changedSignals.isEmpty()) streamService.publishAfterCommit(changedSignals);
+        if (!changedSignals.isEmpty()) changePublisher.publishAfterCommit(changedSignals);
         BulkResult result = new BulkResult(results, summary.changeVersion(), summary);
         idempotencyRepository.complete(actor, receipt, result);
         return result;
@@ -294,7 +295,10 @@ public class NotificationService {
                         NotificationQueryRepository.appName(entry.getKey()),
                         entry.getKey(),
                         entry.getValue().stream()
-                                .map(type -> typeSetting(type, ruleIndex.get(ruleKey(type))))
+                                .map(type -> typeSetting(
+                                        type,
+                                        ruleIndex.get(ruleKey(type)),
+                                        profile.channels()))
                                 .toList()))
                 .toList();
         return new EffectiveSettings(
@@ -336,8 +340,8 @@ public class NotificationService {
                 counter.actionable(),
                 counter.unread(),
                 Map.copyOf(counts.asMap()),
-                cursorCodec.encodeChangeVersion(actor, counter.version()),
-                Long.toString(counter.version()),
+                NotificationVersionCodec.external(counter.version()),
+                NotificationVersionCodec.external(counter.version()),
                 counter.updatedAt());
     }
 
@@ -373,23 +377,27 @@ public class NotificationService {
             return new BulkMutationResult(
                     new BulkItemResult(notificationId, outcome, null, exception.getMessage()),
                     null);
-        } catch (RuntimeException exception) {
-            return new BulkMutationResult(
-                    new BulkItemResult(notificationId, "CONFLICT", null, exception.getMessage()),
-                    null);
         }
     }
 
-    private NotificationTypeSetting typeSetting(CatalogType type, SubscriptionRule rule) {
+    private NotificationTypeSetting typeSetting(
+            CatalogType type,
+            SubscriptionRule rule,
+            Map<String, Boolean> profileChannels) {
         Map<String, ManagedValue<Boolean>> channels = new LinkedHashMap<>();
-        NotificationQueryRepository.channels().forEach(channel -> channels.put(
-                channel,
-                new ManagedValue<>(
-                        rule == null ? null : rule.channels().get(channel),
-                        rule == null ? "SYSTEM_DEFAULT" : "USER",
-                        false,
-                        true,
-                        rule == null ? "Default notification policy" : "User subscription rule")));
+        NotificationQueryRepository.channels().forEach(channel -> {
+            boolean explicit = rule != null && rule.channels().containsKey(channel);
+            channels.put(
+                    channel,
+                    new ManagedValue<>(
+                            explicit
+                                    ? Boolean.TRUE.equals(rule.channels().get(channel))
+                                    : Boolean.TRUE.equals(profileChannels.get(channel)),
+                            explicit ? "USER" : "SYSTEM_DEFAULT",
+                            false,
+                            true,
+                            explicit ? "User subscription rule" : "Global delivery profile"));
+        });
         return new NotificationTypeSetting(
                 type.typeKey(),
                 type.displayName(),
@@ -425,6 +433,15 @@ public class NotificationService {
         if (trimmed.isEmpty()) return null;
         if ("ALL".equalsIgnoreCase(trimmed)) return null;
         return trimmed;
+    }
+
+    private long decodeChangeVersion(String value) {
+        if (value == null || value.isBlank()) return 0;
+        try {
+            return NotificationVersionCodec.nonNegative(value.trim(), "after");
+        } catch (IllegalArgumentException exception) {
+            throw new NotificationException(NotificationErrorCode.NOTIFICATION_INVALID_CURSOR);
+        }
     }
 
     private record BulkMutationResult(BulkItemResult result, Long changeVersion) {

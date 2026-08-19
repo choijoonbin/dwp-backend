@@ -1,5 +1,6 @@
 package com.dwp.services.messaging.domain;
 
+import com.dwp.services.messaging.attachment.AttachmentDtos;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -31,9 +32,18 @@ public final class MessagingDtos {
             boolean mine) {
     }
 
+    public record ThreadRootPreview(
+            UUID messageId,
+            String senderName,
+            String body,
+            OffsetDateTime deletedAt,
+            OffsetDateTime createdAt) {
+    }
+
     public record MessageSummary(
             UUID messageId,
             UUID conversationId,
+            long sequence,
             long senderUserId,
             UUID senderPersonPublicId,
             String senderName,
@@ -45,7 +55,33 @@ public final class MessagingDtos {
             OffsetDateTime deletedAt,
             OffsetDateTime createdAt,
             long version,
-            List<ReactionSummary> reactions) {
+            List<ReactionSummary> reactions,
+            int replyCount,
+            ThreadRootPreview rootPreview,
+            List<AttachmentDtos.AttachmentSummary> attachments) {
+
+        public MessageSummary(
+                UUID messageId,
+                UUID conversationId,
+                long sequence,
+                long senderUserId,
+                UUID senderPersonPublicId,
+                String senderName,
+                String body,
+                String contentType,
+                String messageKind,
+                UUID replyToMessageId,
+                OffsetDateTime editedAt,
+                OffsetDateTime deletedAt,
+                OffsetDateTime createdAt,
+                long version,
+                List<ReactionSummary> reactions,
+                int replyCount,
+                ThreadRootPreview rootPreview) {
+            this(messageId, conversationId, sequence, senderUserId, senderPersonPublicId,
+                    senderName, body, contentType, messageKind, replyToMessageId, editedAt,
+                    deletedAt, createdAt, version, reactions, replyCount, rootPreview, List.of());
+        }
     }
 
     public record MemberSummary(
@@ -61,6 +97,8 @@ public final class MessagingDtos {
             String notificationLevel,
             boolean favorite,
             boolean pinned,
+            UUID lastReadMessageId,
+            long lastReadSequence,
             OffsetDateTime lastReadAt) {
     }
 
@@ -121,10 +159,65 @@ public final class MessagingDtos {
             int pageSize) {
     }
 
+    public record MessagePage(
+            List<MessageSummary> items,
+            boolean hasMore,
+            Long nextBeforeSequence) {
+    }
+
+    public record ThreadResponse(
+            MessageSummary root,
+            List<MessageSummary> replies,
+            long total) {
+    }
+
+    public record SavedItemSummary(
+            MessageSummary message,
+            String conversationName,
+            String conversationType,
+            OffsetDateTime savedAt) {
+    }
+
+    public record SavedItemPage(
+            List<SavedItemSummary> items,
+            long total,
+            int page,
+            int pageSize) {
+    }
+
+    public record ConversationSettings(
+            UUID conversationId,
+            String notificationLevel,
+            boolean favorite,
+            boolean pinned,
+            long version) {
+    }
+
     public record SendMessageRequest(
             @NotBlank @Size(max = 20_000) String body,
             @NotNull UUID idempotencyKey,
-            UUID replyToMessageId) {
+            UUID replyToMessageId,
+            @Size(max = 10) List<@NotNull UUID> attachmentIds) {
+
+        public SendMessageRequest(String body, UUID idempotencyKey, UUID replyToMessageId) {
+            this(body, idempotencyKey, replyToMessageId, List.of());
+        }
+
+        public SendMessageRequest {
+            attachmentIds = attachmentIds == null ? List.of() : List.copyOf(attachmentIds);
+        }
+    }
+
+    public record UpdateMessageRequest(
+            @NotBlank @Size(max = 20_000) String body,
+            @Min(0) long version) {
+    }
+
+    public record ConversationSettingsRequest(
+            @NotBlank String notificationLevel,
+            boolean favorite,
+            boolean pinned,
+            @Min(0) long version) {
     }
 
     public record DirectConversationRequest(
@@ -133,6 +226,14 @@ public final class MessagingDtos {
 
     public record ReadCursorRequest(
             @NotNull UUID messageId) {
+    }
+
+    public record ReadCursorResponse(
+            UUID conversationId,
+            UUID lastReadMessageId,
+            long lastReadSequence,
+            OffsetDateTime lastReadAt,
+            long version) {
     }
 
     public record ReactionRequest(

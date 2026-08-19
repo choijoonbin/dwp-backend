@@ -30,18 +30,23 @@ public class ApprovalNotificationKafkaConfiguration {
         if (deadLetterTopic == null || deadLetterTopic.isBlank()) {
             throw new IllegalArgumentException("Approval notification DLT must be configured.");
         }
-        if (maximumAttempts < 1) {
-            throw new IllegalArgumentException(
-                    "Approval notification maximum attempts must be positive.");
-        }
+        long retryCount = retryCount(maximumAttempts);
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(
                 kafkaTemplate,
                 (record, exception) -> new TopicPartition(
                         deadLetterTopic.trim(), record.partition()));
         DefaultErrorHandler handler = new DefaultErrorHandler(
                 recoverer,
-                new FixedBackOff(retryInterval.toMillis(), maximumAttempts - 1L));
+                new FixedBackOff(retryInterval.toMillis(), retryCount));
         handler.addNotRetryableExceptions(ApprovalNotificationEventException.class);
         return handler;
+    }
+
+    static long retryCount(int maximumAttempts) {
+        if (maximumAttempts < 1) {
+            throw new IllegalArgumentException(
+                    "Approval notification maximum attempts must be at least 1.");
+        }
+        return maximumAttempts - 1L;
     }
 }

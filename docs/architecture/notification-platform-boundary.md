@@ -1,6 +1,6 @@
 # Notification Platform Backend Boundary
 
-Status: `build-ready`; final candidate review complete, implementation not started
+Status: `foundation-pilot-implemented`; production release gates remain open
 
 Last reviewed: 2026-08-19
 
@@ -12,9 +12,14 @@ Feature acceptance package:
 
 ## Current Baseline
 
-The backend does not currently have a notification service, notification database, user inbox,
-preference policy engine, delivery worker, or realtime endpoint. The frontend header notification
-menu is a static prototype and must not be represented as an operational capability.
+The repository now has an independent `dwp-notification-server`, a dedicated
+`dwp_notification` database, direct-recipient inbox and preference APIs, tenant administration
+queries, Redis live hints and a durable SSE catch-up endpoint. The frontend header, notification
+center and account preference surface use these APIs rather than static notification rows.
+
+This is an implemented **in-app foundation pilot**, not a claim that external omnichannel delivery
+is production-ready. Email, Web/Mobile Push, Teams, Slack, large audience fan-out, provider
+callbacks and production HA/load/DR evidence remain disabled release-gate work.
 
 The reusable implementation baseline is:
 
@@ -29,7 +34,7 @@ The reusable implementation baseline is:
 Producer onboarding is still contract-gated. A service does not become a notification producer
 merely because it writes an audit record or has a local application event.
 
-## Planned Module
+## Implemented Module
 
 ```text
 dwp-notification-server
@@ -92,26 +97,23 @@ and bulk lanes. Bulk traffic cannot consume the reserved critical worker capacit
 | Audit                  | Existing audit delivery contract; no private duplicate audit store                           |
 | Reference codes        | Existing governed code catalog plus startup drift validation                                 |
 
-## Required Build Sequence
+## Build Sequence Status
 
-1. Add `dwp-notification-server` Gradle module, dedicated database, separated DB roles, RLS and
-   health checks.
-2. Add a gateway route and explicit service-interface policy entry.
-3. Create catalog, policy, template, intent, direct-recipient inbox, preference and delivery
-   migrations in the new service only.
-4. Reuse `dwp-core` event ledger and register notification consumer contracts.
-5. Implement keyset inbox, transactional counter·change version, REST sync/mutation and SSE
-   catch-up.
-6. Implement tenant policy and user preference composition.
-7. Implement the in-app delivery adapter before external channels.
-8. Add a narrow cross-tenant scheduler DB role, fair due scheduler, critical·interactive·bulk
+1. [x] Add `dwp-notification-server`, dedicated database, separated DB roles, RLS and health checks.
+2. [x] Add a gateway route and explicit service-interface policy entry.
+3. [x] Create foundation catalog, intent, direct-recipient inbox and preference migrations.
+4. [x] Reuse `dwp-core` event semantics and register the approval pilot consumer contract.
+5. [x] Implement keyset inbox, counter·change version, REST mutation and SSE catch-up.
+6. [x] Implement tenant policy and user preference composition for the enabled in-app capability.
+7. [x] Implement the in-app delivery path before external channels.
+8. [ ] Add a narrow cross-tenant scheduler DB role, fair due scheduler, critical·interactive·bulk
    dispatch lanes and tenant-scoped workers.
-9. Add the People internal target-population snapshot contract, then enable resumable
+9. [ ] Add the People internal target-population snapshot contract, then enable resumable
    organization·role fan-out behind a feature flag.
-10. Add email and push adapters, verified-contact resolution, callback receipts, suppression and
+10. [ ] Add email and push adapters, verified-contact resolution, callback receipts, suppression and
     `UNKNOWN` reconciliation behind disabled-by-default configuration.
-11. Onboard no more than three pilot producer event types through schema review.
-12. Run contract, RLS, tenant isolation, QoS, load, retry, callback, DLQ, replay and
+11. [x] Onboard the approval pilot producer types through schema review.
+12. [ ] Run production contract, tenant isolation, QoS, load, retry, callback, DLQ, replay and
     disaster-recovery gates.
 
 ## Startup and Configuration Invariants
@@ -151,10 +153,10 @@ Traces preserve `traceparent`, source event ID, correlation ID, intent ID, notif
 delivery job ID. User-visible title, body, template variables, endpoint tokens and provider secrets
 must not appear in logs, metrics or trace attributes.
 
-## Implementation Gate
+## Release Gate
 
-The source module, migrations, API contract and infrastructure changes must not be started as an
-unreviewed bulk feature. The product ADR and feature package require architecture, privacy,
-security, SRE and design approval. Decisions `D-NTF-01` through `D-NTF-09` remain explicit external
-release gates; adapters can be scaffolded but cannot be reported as connected before those gates
-are resolved and evidenced.
+Foundation implementation is covered by migration, repository, security, cursor, realtime,
+translation, API and browser evidence. Decisions `D-NTF-01` through `D-NTF-09` remain explicit
+external production gates. External adapters and large-audience processing cannot be reported as
+connected before those gates are resolved and evidenced; capability discovery must continue to
+return them as unavailable.

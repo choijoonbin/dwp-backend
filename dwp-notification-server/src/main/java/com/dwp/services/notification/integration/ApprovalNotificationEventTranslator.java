@@ -18,6 +18,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -69,7 +70,7 @@ public class ApprovalNotificationEventTranslator {
         this.allowedEventTypes = parseAllowlist(allowedEventTypes);
     }
 
-    public Translation translate(ConsumerRecord<String, String> record) {
+    public Optional<Translation> translate(ConsumerRecord<String, String> record) {
         UUID eventId = uuid(requiredHeader(record.headers(), EVENT_ID_HEADER), "event ID");
         String headerEventType = requiredHeader(record.headers(), EVENT_TYPE_HEADER);
         long headerTenantId = positiveLong(
@@ -91,9 +92,7 @@ public class ApprovalNotificationEventTranslator {
         }
         Mapping mapping = MAPPINGS.get(eventType);
         if (mapping == null || !allowedEventTypes.contains(eventType)) {
-            throw permanent(
-                    ApprovalNotificationEventException.Classification.EVENT_TYPE_NOT_ALLOWED,
-                    "Approval event type is not allowlisted for notification materialization.");
+            return Optional.empty();
         }
 
         UUID requestId = uuid(
@@ -133,7 +132,8 @@ public class ApprovalNotificationEventTranslator {
                 Set.of(),
                 true,
                 SOURCE_SERVICE);
-        return new Translation(actor, request, optionalText(root, "correlationId", 160));
+        return Optional.of(new Translation(
+                actor, request, optionalText(root, "correlationId", 160)));
     }
 
     private Set<String> parseAllowlist(String value) {

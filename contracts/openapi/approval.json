@@ -1563,6 +1563,10 @@
             "format": "uuid",
             "type": "string"
           },
+          "formSchema": {
+            "additionalProperties": {},
+            "type": "object"
+          },
           "payload": {
             "additionalProperties": {},
             "type": "object"
@@ -1724,6 +1728,10 @@
           "canDecide": {
             "type": "boolean"
           },
+          "formSchema": {
+            "additionalProperties": {},
+            "type": "object"
+          },
           "payload": {
             "additionalProperties": {},
             "type": "object"
@@ -1814,11 +1822,17 @@
       },
       "TimelineEvent": {
         "properties": {
+          "actorDisplayName": {
+            "type": "string"
+          },
           "actorId": {
             "type": "string"
           },
           "actorType": {
             "type": "string"
+          },
+          "delegated": {
+            "type": "boolean"
           },
           "eventId": {
             "format": "uuid",
@@ -1836,6 +1850,13 @@
           },
           "outcome": {
             "type": "string"
+          },
+          "stepName": {
+            "type": "string"
+          },
+          "stepSequence": {
+            "format": "int32",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -3530,6 +3551,11 @@
             "required": false,
             "schema": {
               "default": "INBOX",
+              "enum": [
+                "INBOX",
+                "DELEGATED",
+                "COMPLETED"
+              ],
               "type": "string"
             }
           },

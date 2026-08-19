@@ -20,29 +20,28 @@ class NotificationCursorCodecTest {
             new NotificationRequestContext.Actor(7, 11L, Set.of(), Set.of(), false, null);
 
     @Test
-    void roundTripsInboxAndSyncCursor() {
+    void roundTripsOpaqueInboxCursor() {
         Instant activity = Instant.parse("2026-08-19T00:00:00Z");
         UUID notificationId = UUID.fromString("93af7315-2271-462e-a819-3d238a28830f");
 
         NotificationCursorCodec.InboxCursor inbox = codec.decodeInbox(
                 actor, codec.encodeInbox(actor, activity, notificationId));
-        long version = codec.decodeChangeVersion(
-                actor, codec.encodeChangeVersion(actor, 41));
-
         assertThat(inbox.lastActivityAt()).isEqualTo(activity);
         assertThat(inbox.notificationId()).isEqualTo(notificationId);
-        assertThat(version).isEqualTo(41);
     }
 
     @Test
     void rejectsTamperingAndCrossUserReplay() {
-        String token = codec.encodeChangeVersion(actor, 9);
+        String token = codec.encodeInbox(
+                actor,
+                Instant.parse("2026-08-19T00:00:00Z"),
+                UUID.fromString("93af7315-2271-462e-a819-3d238a28830f"));
         NotificationRequestContext.Actor anotherUser =
                 new NotificationRequestContext.Actor(7, 12L, Set.of(), Set.of(), false, null);
 
-        assertThatThrownBy(() -> codec.decodeChangeVersion(actor, token + "x"))
+        assertThatThrownBy(() -> codec.decodeInbox(actor, token + "x"))
                 .isInstanceOf(NotificationException.class);
-        assertThatThrownBy(() -> codec.decodeChangeVersion(anotherUser, token))
+        assertThatThrownBy(() -> codec.decodeInbox(anotherUser, token))
                 .isInstanceOf(NotificationException.class);
     }
 }

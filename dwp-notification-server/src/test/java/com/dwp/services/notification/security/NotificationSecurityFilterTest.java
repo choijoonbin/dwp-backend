@@ -10,11 +10,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class NotificationSecurityFilterTest {
 
+    private static final String GATEWAY_TOKEN = "gateway-secret-token-at-least-24";
+    private static final String APPROVAL_TOKEN = "approval-secret-token-at-least-24";
+    private static final String PEOPLE_TOKEN = "people-secret-token-at-least-24";
+
     private final NotificationSecurityFilter filter = new NotificationSecurityFilter(
-            "gateway-secret",
+            GATEWAY_TOKEN,
             "dwp-gateway",
             "dwp-approval-server,dwp-people-server",
-            "dwp-approval-server=approval-secret,dwp-people-server=people-secret",
+            "dwp-approval-server=" + APPROVAL_TOKEN
+                    + ",dwp-people-server=" + PEOPLE_TOKEN,
             new ObjectMapper().findAndRegisterModules());
 
     @Test
@@ -102,12 +107,12 @@ class NotificationSecurityFilterTest {
     @Test
     void internalProducerMustBeExplicitlyAllowlisted() throws Exception {
         MockHttpServletRequest allowed = internal(
-                "dwp-approval-server", "approval-secret");
-        MockHttpServletRequest denied = internal("unknown-service", "approval-secret");
+                "dwp-approval-server", APPROVAL_TOKEN);
+        MockHttpServletRequest denied = internal("unknown-service", APPROVAL_TOKEN);
         MockHttpServletRequest wrongBinding = internal(
-                "dwp-approval-server", "people-secret");
+                "dwp-approval-server", PEOPLE_TOKEN);
         MockHttpServletRequest gatewayToken = internal(
-                "dwp-approval-server", "gateway-secret");
+                "dwp-approval-server", GATEWAY_TOKEN);
 
         assertThat(execute(allowed).getStatus()).isEqualTo(200);
         assertThat(execute(denied).getStatus()).isEqualTo(403);
@@ -117,7 +122,7 @@ class NotificationSecurityFilterTest {
 
     private MockHttpServletRequest request(String method, String path, String permissions) {
         MockHttpServletRequest request = new MockHttpServletRequest(method, path);
-        request.addHeader(NotificationSecurityFilter.SERVICE_TOKEN_HEADER, "gateway-secret");
+        request.addHeader(NotificationSecurityFilter.SERVICE_TOKEN_HEADER, GATEWAY_TOKEN);
         request.addHeader(NotificationSecurityFilter.SOURCE_SERVICE_HEADER, "dwp-gateway");
         request.addHeader(NotificationSecurityFilter.TENANT_HEADER, "42");
         request.addHeader(NotificationSecurityFilter.USER_HEADER, "17");

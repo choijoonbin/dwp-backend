@@ -27,6 +27,8 @@ RUNTIME_ROOT = BACKEND_ROOT / ".dev-runtime"
 LOG_ROOT = RUNTIME_ROOT / "logs"
 STATE_FILE = RUNTIME_ROOT / "processes.json"
 MIN_AGENT_PYTHON = (3, 11)
+MIN_FRONTEND_NODE = (24, 18, 0)
+MAX_FRONTEND_NODE_MAJOR = 25
 
 
 @dataclass(frozen=True)
@@ -41,6 +43,33 @@ class Service:
 def agent_python() -> str:
     virtualenv_python = AGENT_ROOT / ".venv" / "bin" / "python"
     return str(virtualenv_python) if virtualenv_python.exists() else "python3"
+
+
+def frontend_node() -> str:
+    return os.environ.get("DWP_NODE_BIN", "node")
+
+
+def frontend_corepack_command(*arguments: str) -> tuple[str, ...]:
+    corepack = shutil.which("corepack") or "corepack"
+    configured_node = os.environ.get("DWP_NODE_BIN")
+    if configured_node:
+        return (configured_node, corepack, *arguments)
+    return (corepack, *arguments)
+
+
+def frontend_node_version() -> tuple[int, int, int]:
+    result = subprocess.run(
+        (frontend_node(), "--version"),
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    raw_version = result.stdout.strip().removeprefix("v")
+    try:
+        major, minor, patch = raw_version.split(".", maxsplit=2)
+        return int(major), int(minor), int(patch.split("-", maxsplit=1)[0])
+    except (TypeError, ValueError) as error:
+        raise RuntimeError(f"Unable to parse Node.js version: {raw_version}") from error
 
 
 def spring_boot_module_ready(module_name: str) -> bool:
@@ -140,7 +169,7 @@ SERVICES = {
     "frontend": Service(
         "frontend",
         FRONTEND_ROOT,
-        ("corepack", "yarn", "dev", "--host", "0.0.0.0"),
+        frontend_corepack_command("yarn", "dev", "--host", "0.0.0.0"),
         4200,
         "/",
     ),
@@ -242,6 +271,13 @@ def local_environment() -> dict[str, str]:
         "DB_NAME": "dwp_auth",
         "DB_USERNAME": "dwp_user",
         "DB_PASSWORD": "dwp_password",
+        "SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE": "4",
+        "SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE": "0",
+        "DWP_NOTIFICATION_DB_POOL_SIZE": "4",
+        "NOTIFICATION_DB_USERNAME": "dwp_notification_runtime",
+        "NOTIFICATION_DB_PASSWORD": "dwp_notification_runtime_password",
+        "NOTIFICATION_MIGRATION_DB_USERNAME": "dwp_user",
+        "NOTIFICATION_MIGRATION_DB_PASSWORD": "dwp_password",
         "REDIS_HOST": "localhost",
         "REDIS_PORT": "6379",
         "REDIS_PASSWORD": "dwp_redis_password",
@@ -280,6 +316,7 @@ def local_environment() -> dict[str, str]:
         ),
         "DWP_PROVIDER_SERVICE_TOKEN": "dwp-local-provider-service-token",
         "DWP_APPROVAL_SERVICE_TOKEN": "dwp-local-approval-service-token",
+        "DWP_APPROVAL_RUNTIME_SERVICE_TOKEN": "dwp-local-approval-runtime-token",
         "DWP_APPROVAL_FLYWAY_LOCATIONS": (
             "classpath:db/migration,classpath:db/local-seed"
         ),
@@ -290,6 +327,12 @@ def local_environment() -> dict[str, str]:
             "classpath:db/migration,classpath:db/local-seed"
         ),
         "DWP_MESSAGING_SERVICE_TOKEN": "dwp-local-messaging-service-token",
+        "DWP_MESSAGING_MEETING_PROVIDER": "livekit",
+        "DWP_MESSAGING_MEETING_TOKEN_TTL": "PT5M",
+        "LIVEKIT_API_URL": "http://localhost:7880",
+        "LIVEKIT_URL": "ws://localhost:7880",
+        "LIVEKIT_API_KEY": "devkey",
+        "LIVEKIT_API_SECRET": "secret",
         "DWP_NOTIFICATION_SERVICE_TOKEN": "dwp-local-notification-service-token",
         "DWP_NOTIFICATION_CURSOR_SECRET": (
             "dwp-local-notification-cursor-secret-change-outside-local"
@@ -375,6 +418,8 @@ def service_environment(service_name: str) -> dict[str, str]:
         environment.pop("DWP_PROVIDER_SUPPORT_VALIDATION_TOKEN", None)
     if service_name not in {"gateway", "approval"}:
         environment.pop("DWP_APPROVAL_SERVICE_TOKEN", None)
+    if service_name not in {"agent", "approval"}:
+        environment.pop("DWP_APPROVAL_RUNTIME_SERVICE_TOKEN", None)
     if service_name != "approval":
         environment.pop("DWP_APPROVAL_FLYWAY_LOCATIONS", None)
         environment.pop("DWP_APPROVAL_EXTERNAL_SIGNATURE_ENABLED", None)
@@ -387,6 +432,13 @@ def service_environment(service_name: str) -> dict[str, str]:
         environment.pop("DWP_IDENTITY_SYNC_TOKEN", None)
     if service_name not in {"gateway", "messaging"}:
         environment.pop("DWP_MESSAGING_SERVICE_TOKEN", None)
+    if service_name != "messaging":
+        environment.pop("DWP_MESSAGING_MEETING_PROVIDER", None)
+        environment.pop("DWP_MESSAGING_MEETING_TOKEN_TTL", None)
+        environment.pop("LIVEKIT_API_URL", None)
+        environment.pop("LIVEKIT_URL", None)
+        environment.pop("LIVEKIT_API_KEY", None)
+        environment.pop("LIVEKIT_API_SECRET", None)
     if service_name not in {"gateway", "notification"}:
         environment.pop("DWP_NOTIFICATION_SERVICE_TOKEN", None)
     if service_name != "notification":
@@ -394,6 +446,10 @@ def service_environment(service_name: str) -> dict[str, str]:
         environment.pop("DWP_NOTIFICATION_CURSOR_SECRET", None)
         environment.pop("DWP_NOTIFICATION_PRODUCER_TOKENS", None)
         environment.pop("DWP_NOTIFICATION_APPROVAL_PILOT_ENABLED", None)
+        environment.pop("NOTIFICATION_DB_USERNAME", None)
+        environment.pop("NOTIFICATION_DB_PASSWORD", None)
+        environment.pop("NOTIFICATION_MIGRATION_DB_USERNAME", None)
+        environment.pop("NOTIFICATION_MIGRATION_DB_PASSWORD", None)
     if service_name != "people":
         environment.pop("DWP_IDENTITY_SYNC_ENABLED", None)
     return environment
@@ -460,8 +516,20 @@ def doctor(required_services: Iterable[Service] | None = None) -> None:
             stdout=subprocess.DEVNULL,
         )
     if "frontend" in selected:
+        node_version = frontend_node_version()
+        if not (
+            node_version >= MIN_FRONTEND_NODE
+            and node_version[0] < MAX_FRONTEND_NODE_MAJOR
+        ):
+            current = ".".join(str(part) for part in node_version)
+            required = ".".join(str(part) for part in MIN_FRONTEND_NODE)
+            raise RuntimeError(
+                f"The frontend runtime requires Node.js {required} or newer and "
+                f"older than {MAX_FRONTEND_NODE_MAJOR}; found {current}. "
+                "Activate .node-version or set DWP_NODE_BIN."
+            )
         subprocess.run(
-            ("corepack", "yarn", "--version"),
+            frontend_corepack_command("yarn", "--version"),
             cwd=FRONTEND_ROOT,
             check=True,
             stdout=subprocess.DEVNULL,
@@ -475,14 +543,19 @@ def doctor(required_services: Iterable[Service] | None = None) -> None:
     print("Development environment is ready.")
 
 
-def start_infrastructure(include_events: bool = False) -> None:
+def start_infrastructure(
+    include_events: bool = False,
+    include_media: bool = False,
+) -> None:
+    profile_arguments: list[str] = []
+    services = ["postgres", "redis"]
     if include_events:
-        docker_compose(
-            "--profile", "events", "up", "-d",
-            "postgres", "redis", "kafka", "kafka-init"
-        )
-    else:
-        docker_compose("up", "-d", "postgres", "redis")
+        profile_arguments.extend(("--profile", "events"))
+        services.extend(("kafka", "kafka-init"))
+    if include_media:
+        profile_arguments.extend(("--profile", "media"))
+        services.append("livekit")
+    docker_compose(*profile_arguments, "up", "-d", *services)
     deadline = time.monotonic() + 60
     while time.monotonic() < deadline:
         postgres = docker_compose(
@@ -516,6 +589,7 @@ def start_infrastructure(include_events: bool = False) -> None:
             ensure_database("dwp_space")
             ensure_database("dwp_messaging")
             ensure_database("dwp_notification")
+            ensure_notification_runtime_role()
             ensure_database("dwp_agent")
             print("postgres   ready at localhost:5432")
             print("redis      ready at localhost:6379")
@@ -538,6 +612,15 @@ def start_infrastructure(include_events: bool = False) -> None:
                     time.sleep(1)
                 else:
                     raise RuntimeError("Kafka topics did not become ready within 90 seconds.")
+            if include_media:
+                media_deadline = time.monotonic() + 60
+                while time.monotonic() < media_deadline:
+                    if port_open(7880):
+                        print("livekit    ready at ws://localhost:7880")
+                        break
+                    time.sleep(1)
+                else:
+                    raise RuntimeError("LiveKit did not become ready within 60 seconds.")
             return
         time.sleep(1)
     raise RuntimeError("PostgreSQL and Redis did not become ready within 60 seconds.")
@@ -567,6 +650,39 @@ def ensure_database(database_name: str) -> None:
         "-U",
         "dwp_user",
         database_name,
+    )
+
+
+def ensure_notification_runtime_role() -> None:
+    docker_compose(
+        "exec",
+        "-T",
+        "postgres",
+        "psql",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-U",
+        "dwp_user",
+        "-d",
+        "postgres",
+        "-c",
+        """
+DO $runtime_role$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_roles WHERE rolname = 'dwp_notification_runtime'
+    ) THEN
+        CREATE ROLE dwp_notification_runtime
+            LOGIN PASSWORD 'dwp_notification_runtime_password'
+            NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+    END IF;
+    ALTER ROLE dwp_notification_runtime
+        LOGIN PASSWORD 'dwp_notification_runtime_password'
+        NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS;
+END
+$runtime_role$;
+GRANT CONNECT ON DATABASE dwp_notification TO dwp_notification_runtime;
+""",
     )
 
 
@@ -684,7 +800,9 @@ def print_status() -> None:
         port = SERVICES[name].port
         status = "running" if managed else "external" if port_open(port) else "stopped"
         print(f"{name:10} {status:8} port={port}" + (f" pid={pid}" if managed else ""))
-    docker_compose("ps", check=False)
+    docker_compose(
+        "--profile", "events", "--profile", "media", "ps", check=False
+    )
 
 
 def show_logs(service_name: str | None, follow: bool) -> None:
@@ -703,7 +821,10 @@ def reset_database(confirmed: bool) -> None:
     if not confirmed:
         raise RuntimeError("Database reset requires --yes because it deletes the Docker volume.")
     stop_services()
-    docker_compose("down", "-v", "--remove-orphans")
+    docker_compose(
+        "--profile", "events", "--profile", "media",
+        "down", "-v", "--remove-orphans"
+    )
     shutil.rmtree(RUNTIME_ROOT, ignore_errors=True)
     print("Local PostgreSQL and Redis data was removed. Run './dev up full' for a fresh schema.")
 
@@ -736,9 +857,14 @@ def main() -> None:
     elif args.command == "up":
         services = resolve_services(args.profiles)
         doctor(services)
-        start_infrastructure(include_events=any(
-            service.name == "notification" for service in services
-        ))
+        start_infrastructure(
+            include_events=any(
+                service.name == "notification" for service in services
+            ),
+            include_media=any(
+                service.name == "messaging" for service in services
+            ),
+        )
         state = load_state()
         selected = {service.name: service for service in services}
         for phase_names in START_PHASES:
@@ -750,7 +876,10 @@ def main() -> None:
         stop_services()
     elif args.command == "down":
         stop_services()
-        docker_compose("down", "--remove-orphans")
+        docker_compose(
+            "--profile", "events", "--profile", "media",
+            "down", "--remove-orphans"
+        )
     elif args.command == "status":
         print_status()
     elif args.command == "logs":

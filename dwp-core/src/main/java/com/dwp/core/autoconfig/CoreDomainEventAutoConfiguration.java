@@ -15,7 +15,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration;
+import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -23,7 +25,12 @@ import org.springframework.transaction.PlatformTransactionManager;
 import java.time.Duration;
 
 /** Shared event-delivery control plane; transport remains fail-closed by default. */
-@AutoConfiguration(after = {JdbcTemplateAutoConfiguration.class, JacksonAutoConfiguration.class})
+@AutoConfiguration(after = {
+    JdbcTemplateAutoConfiguration.class,
+    JacksonAutoConfiguration.class,
+    DataSourceTransactionManagerAutoConfiguration.class,
+    HibernateJpaAutoConfiguration.class
+})
 @ConditionalOnClass(NamedParameterJdbcTemplate.class)
 @ConditionalOnBean({NamedParameterJdbcTemplate.class, PlatformTransactionManager.class})
 public class CoreDomainEventAutoConfiguration {

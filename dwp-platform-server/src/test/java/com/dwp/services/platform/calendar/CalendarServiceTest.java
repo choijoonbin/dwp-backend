@@ -1,5 +1,6 @@
 package com.dwp.services.platform.calendar;
 
+import com.dwp.services.platform.workplace.WorkplaceRoomAccessPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,6 +21,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -29,11 +31,14 @@ class CalendarServiceTest {
     @Mock
     private CalendarRepository repository;
 
+    @Mock
+    private WorkplaceRoomAccessPort roomAccess;
+
     private CalendarService service;
 
     @BeforeEach
     void setUp() {
-        service = new CalendarService(repository);
+        service = new CalendarService(repository, roomAccess);
     }
 
     @Test
@@ -199,6 +204,145 @@ class CalendarServiceTest {
 
         verify(repository).cancelEvent(1L, 20L, personId, eventId, 0L);
         verify(repository).cancelBookings(1L, 20L, eventId);
+    }
+
+    @Test
+    void sameIdempotencyKeyWithDifferentPayloadIsRejectedAfterLocking() {
+        CalendarDtos.CreateEventRequest request = createRequest(UUID.randomUUID(), null);
+        when(repository.eventIdempotency(1L, 7L, request.idempotencyKey()))
+                .thenReturn(Optional.of(new CalendarRepository.IdempotencyRow(
+                        UUID.randomUUID(), "0".repeat(64))));
+
+        assertThatThrownBy(() -> service.create(
+                1L, 7L, UUID.randomUUID(), "User", "en-US", "corr",
+                UUID.randomUUID().toString(), request))
+                .hasMessageContaining("different request");
+
+        var ordered = inOrder(repository);
+        ordered.verify(repository).lockEventIdempotency(1L, 7L, request.idempotencyKey());
+        ordered.verify(repository).eventIdempotency(1L, 7L, request.idempotencyKey());
+        verify(repository, never()).insertEvent(
+                any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void deterministicReplayReturnsTheExistingEventAndRechecksRoomAccess() {
+        UUID personId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        UUID resourceId = UUID.randomUUID();
+        CalendarDtos.CreateEventRequest request = createRequest(UUID.randomUUID(), resourceId);
+        CalendarRepository.EventRow existing = eventWithResource(eventId, resourceId, personId);
+        String fingerprint = CalendarRequestFingerprint.create(request);
+        when(repository.eventIdempotency(1L, 7L, request.idempotencyKey()))
+                .thenReturn(Optional.of(new CalendarRepository.IdempotencyRow(eventId, fingerprint)));
+        when(repository.event(1L, 7L, personId, eventId, true))
+                .thenReturn(Optional.of(existing));
+        when(repository.attendees(1L, eventId)).thenReturn(List.of());
+
+        CalendarDtos.EventSummary replay = service.create(
+                1L, 7L, personId, "사용자", "ko-KR", "corr",
+                "a5a5a5a5-1111-2222-3333-444444444444", request);
+
+        assertThat(replay.eventId()).isEqualTo(eventId);
+        verify(roomAccess).requireBook(
+                1L, 7L, "a5a5a5a5-1111-2222-3333-444444444444", resourceId);
+        verify(repository, never()).ensurePersonalCalendar(any(), any(), any());
+    }
+
+    @Test
+    void workplaceRoomAuthorizationRunsBeforeEventInsertion() {
+        UUID personId = UUID.randomUUID();
+        UUID resourceId = UUID.randomUUID();
+        CalendarDtos.CreateEventRequest request = createRequest(UUID.randomUUID(), resourceId);
+        when(repository.policy(1L)).thenReturn(policy());
+        when(repository.resource(1L, resourceId, true)).thenReturn(Optional.of(
+                resource(resourceId)));
+        org.mockito.Mockito.doThrow(new com.dwp.core.exception.BaseException(
+                        com.dwp.core.common.ErrorCode.FORBIDDEN, "denied"))
+                .when(roomAccess).requireBook(1L, 7L, "group-ref", resourceId);
+
+        assertThatThrownBy(() -> service.create(
+                1L, 7L, personId, "User", "ko-KR", "corr",
+                "group-ref", request))
+                .hasMessageContaining("denied");
+
+        verify(repository, never()).insertEvent(
+                any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void calendarEventQueriesExcludeWorkplaceRoomsWithoutViewAccess() {
+        UUID personId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        UUID resourceId = UUID.randomUUID();
+        OffsetDateTime from = OffsetDateTime.now();
+        OffsetDateTime to = from.plusDays(2);
+        when(repository.visibleEvents(1L, 7L, personId, from, to, true))
+                .thenReturn(List.of(eventWithResource(eventId, resourceId, personId)));
+        when(repository.attendees(1L, eventId)).thenReturn(List.of());
+        when(roomAccess.viewableResourceIds(
+                1L, 7L, "groups", java.util.Set.of(resourceId)))
+                .thenReturn(java.util.Set.of());
+
+        assertThat(service.events(
+                1L, 7L, personId, "groups", from, to, "ko-KR")).isEmpty();
+    }
+
+    @Test
+    void calendarCancellationCannotBypassWorkplaceBookAccess() {
+        UUID personId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        UUID resourceId = UUID.randomUUID();
+        when(repository.event(1L, 7L, personId, eventId, true))
+                .thenReturn(Optional.of(eventWithResource(eventId, resourceId, personId)));
+        org.mockito.Mockito.doThrow(new com.dwp.core.exception.BaseException(
+                        com.dwp.core.common.ErrorCode.FORBIDDEN, "denied"))
+                .when(roomAccess).requireBook(1L, 7L, "groups", resourceId);
+
+        assertThatThrownBy(() -> service.cancel(
+                1L, 7L, personId, eventId, "ko-KR", "corr", "groups",
+                new CalendarDtos.VersionRequest(0L)))
+                .hasMessageContaining("denied");
+
+        verify(repository, never()).cancelEvent(any(), any(), any(), any(),
+                org.mockito.ArgumentMatchers.anyLong());
+        verify(repository, never()).cancelBookings(any(), any(), any());
+    }
+
+    private CalendarDtos.CreateEventRequest createRequest(
+            UUID idempotencyKey, UUID resourceId) {
+        OffsetDateTime startsAt = OffsetDateTime.now().plusDays(2)
+                .withSecond(0).withNano(0);
+        return new CalendarDtos.CreateEventRequest(
+                "회의", "안건", CalendarTypes.EventType.MEETING,
+                startsAt, startsAt.plusMinutes(30), "Asia/Seoul", false,
+                "본사", null, CalendarTypes.EventVisibility.DEFAULT,
+                CalendarTypes.RecurrencePattern.NONE, 1, null, true,
+                List.of(), resourceId, idempotencyKey);
+    }
+
+    private CalendarRepository.EventRow eventWithResource(
+            UUID eventId, UUID resourceId, UUID personId) {
+        OffsetDateTime startsAt = OffsetDateTime.now().plusDays(1);
+        CalendarRepository.EventRow base = event(
+                eventId, startsAt, startsAt.plusMinutes(30), "Asia/Seoul",
+                CalendarTypes.RecurrencePattern.NONE, null, 7L, personId);
+        return new CalendarRepository.EventRow(
+                base.eventId(), base.calendarId(), base.calendarName(), base.calendarColor(),
+                base.organizerUserId(), base.organizerPersonPublicId(), base.organizerName(),
+                base.organizerEmail(), base.title(), base.description(), base.type(),
+                base.startsAt(), base.endsAt(), base.timeZone(), base.allDay(), base.location(),
+                base.conferenceUrl(), base.status(), base.visibility(), base.recurrence(),
+                base.recurrenceInterval(), base.recurrenceUntil(), base.responseRequired(),
+                base.myResponse(), resource(resourceId), base.version());
+    }
+
+    private CalendarRepository.ResourceRow resource(UUID resourceId) {
+        return new CalendarRepository.ResourceRow(
+                resourceId, "ROOM-1", "회의실", "회의실", "Room",
+                CalendarTypes.ResourceType.ROOM, "판교", "3F", 8,
+                List.of("VIDEO"), "Asia/Seoul", false,
+                CalendarTypes.ResourceState.AVAILABLE, true, 0L);
     }
 
     private CalendarRepository.EventRow event(

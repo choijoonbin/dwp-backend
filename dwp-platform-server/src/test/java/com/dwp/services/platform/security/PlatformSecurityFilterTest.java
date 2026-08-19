@@ -163,6 +163,46 @@ class PlatformSecurityFilterTest {
     }
 
     @Test
+    void limitsTheAgentRuntimeIdentityToTheExactCalendarReadEndpoint() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+        MockHttpServletRequest allowed = request("/v1/calendar/events");
+        allowed.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "runtime");
+        allowed.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        allowed.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        allowed.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
+        allowed.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER, "APP.CALENDAR:VIEW");
+        MockHttpServletResponse allowedResponse = new MockHttpServletResponse();
+
+        filter.doFilter(allowed, allowedResponse, new MockFilterChain());
+
+        assertThat(allowedResponse.getStatus()).isEqualTo(200);
+
+        MockHttpServletRequest deniedWrite = new MockHttpServletRequest(
+                "POST", "/v1/calendar/events");
+        deniedWrite.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "runtime");
+        deniedWrite.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        deniedWrite.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        deniedWrite.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER, "APP.CALENDAR:CREATE");
+        MockHttpServletResponse deniedWriteResponse = new MockHttpServletResponse();
+
+        filter.doFilter(deniedWrite, deniedWriteResponse, new MockFilterChain());
+
+        assertThat(deniedWriteResponse.getStatus()).isEqualTo(401);
+
+        MockHttpServletRequest deniedBroaderRead = request("/v1/calendar/calendars");
+        deniedBroaderRead.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "runtime");
+        deniedBroaderRead.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        deniedBroaderRead.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        deniedBroaderRead.addHeader(
+                PlatformSecurityFilter.PERMISSIONS_HEADER, "APP.CALENDAR:VIEW");
+        MockHttpServletResponse deniedBroaderReadResponse = new MockHttpServletResponse();
+
+        filter.doFilter(deniedBroaderRead, deniedBroaderReadResponse, new MockFilterChain());
+
+        assertThat(deniedBroaderReadResponse.getStatus()).isEqualTo(401);
+    }
+
+    @Test
     void requiresCalendarManagePermissionForBookingDecisions() throws Exception {
         PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
         MockHttpServletRequest denied = new MockHttpServletRequest(
@@ -318,6 +358,38 @@ class PlatformSecurityFilterTest {
         filter.doFilter(admin, adminResponse, new MockFilterChain());
 
         assertThat(adminResponse.getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void workplaceLegalHoldRequiresManagePermission() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+        String path = "/v1/admin/workplace/bookings/"
+                + "00000000-0000-0000-0000-000000000001/legal-hold";
+        MockHttpServletRequest updateOnly = new MockHttpServletRequest("PUT", path);
+        updateOnly.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        updateOnly.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        updateOnly.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        updateOnly.addHeader(PlatformSecurityFilter.ROLES_HEADER, "TENANT_ADMIN");
+        updateOnly.addHeader(
+                PlatformSecurityFilter.PERMISSIONS_HEADER, "ADMIN.WORKPLACE:UPDATE");
+        MockHttpServletResponse denied = new MockHttpServletResponse();
+
+        filter.doFilter(updateOnly, denied, new MockFilterChain());
+
+        assertThat(denied.getStatus()).isEqualTo(403);
+
+        MockHttpServletRequest manager = new MockHttpServletRequest("PUT", path);
+        manager.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        manager.addHeader(PlatformSecurityFilter.USER_HEADER, "18");
+        manager.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        manager.addHeader(PlatformSecurityFilter.ROLES_HEADER, "TENANT_ADMIN");
+        manager.addHeader(
+                PlatformSecurityFilter.PERMISSIONS_HEADER, "ADMIN.WORKPLACE:MANAGE");
+        MockHttpServletResponse allowed = new MockHttpServletResponse();
+
+        filter.doFilter(manager, allowed, new MockFilterChain());
+
+        assertThat(allowed.getStatus()).isEqualTo(200);
     }
 
     @Test

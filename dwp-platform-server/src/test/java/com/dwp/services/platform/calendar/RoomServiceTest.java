@@ -39,7 +39,8 @@ class RoomServiceTest {
         UUID equipmentId = UUID.randomUUID();
         OffsetDateTime from = OffsetDateTime.parse("2026-08-19T08:00:00+09:00");
         OffsetDateTime to = OffsetDateTime.parse("2026-08-19T20:00:00+09:00");
-        when(calendarService.resources(1L, from, to, "ko-KR")).thenReturn(List.of(
+        when(calendarService.resources(
+                1L, 7L, "group-refs", from, to, "ko-KR")).thenReturn(List.of(
                 resource(roomId, CalendarTypes.ResourceType.ROOM),
                 resource(equipmentId, CalendarTypes.ResourceType.EQUIPMENT)));
         when(roomRepository.resourceOccupancy(1L, from, to)).thenReturn(List.of(
@@ -49,7 +50,7 @@ class RoomServiceTest {
                         equipmentId, from.plusHours(3), from.plusHours(4), "CONFIRMED")));
 
         CalendarDtos.RoomAvailabilityResponse result = service.roomAvailability(
-                1L, from, to, "ko-KR");
+                1L, 7L, "group-refs", from, to, "ko-KR");
 
         assertThat(result.rooms()).singleElement()
                 .extracting(CalendarDtos.ResourceSummary::resourceId)
@@ -66,7 +67,7 @@ class RoomServiceTest {
         OffsetDateTime from = OffsetDateTime.parse("2026-08-01T00:00:00+09:00");
 
         assertThatThrownBy(() -> service.roomAvailability(
-                1L, from, from.plusDays(32), "ko-KR"))
+                1L, 7L, null, from, from.plusDays(32), "ko-KR"))
                 .hasMessageContaining("31 days");
     }
 

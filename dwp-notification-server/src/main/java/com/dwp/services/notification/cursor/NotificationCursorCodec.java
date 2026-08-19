@@ -58,27 +58,6 @@ public class NotificationCursorCodec {
         }
     }
 
-    public String encodeChangeVersion(NotificationRequestContext.Actor actor, long version) {
-        return encode(String.join("|",
-                "S",
-                Long.toString(actor.tenantId()),
-                Long.toString(actor.userId()),
-                Long.toString(version),
-                Long.toString(Instant.now().plus(ttl).getEpochSecond())));
-    }
-
-    public long decodeChangeVersion(NotificationRequestContext.Actor actor, String token) {
-        if (token == null || token.isBlank()) return 0;
-        String[] values = decode(token, "S", actor, 5);
-        try {
-            long version = Long.parseLong(values[3]);
-            if (version < 0) throw invalidCursor();
-            return version;
-        } catch (NumberFormatException exception) {
-            throw invalidCursor();
-        }
-    }
-
     private String[] decode(
             String token,
             String expectedKind,

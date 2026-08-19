@@ -9,6 +9,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException;
+import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
 
 @RestControllerAdvice
 public class NotificationExceptionHandler {
@@ -35,6 +37,11 @@ public class NotificationExceptionHandler {
                 NotificationErrorCode.INVALID_INPUT,
                 "The request does not satisfy the notification contract.",
                 correlationId(request)));
+    }
+
+    @ExceptionHandler({AsyncRequestNotUsableException.class, AsyncRequestTimeoutException.class})
+    void asyncClientDisconnected(Exception exception) {
+        log.debug("Notification SSE client disconnected: {}", exception.getMessage());
     }
 
     @ExceptionHandler(Exception.class)

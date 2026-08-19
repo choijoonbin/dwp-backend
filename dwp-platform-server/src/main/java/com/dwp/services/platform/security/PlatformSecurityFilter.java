@@ -328,12 +328,26 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         String requiredPermission = switch (request.getMethod()) {
             case "GET", "HEAD" -> "VIEW";
-            case "POST" -> path.endsWith("/background") ? "UPDATE" : "CREATE";
-            case "PUT" -> path.endsWith("/policy") ? "MANAGE" : "UPDATE";
+            case "POST" -> path.endsWith("/background")
+                    ? "UPDATE"
+                    : isWorkplaceGovernanceTransition(path) ? "MANAGE" : "CREATE";
+            case "PUT" -> isSensitiveWorkplaceOperation(path) ? "MANAGE" : "UPDATE";
             default -> "MANAGE";
         };
         return hasAuthority(
                 request.getHeader(PERMISSIONS_HEADER), "ADMIN.WORKPLACE", requiredPermission);
+    }
+
+    private boolean isSensitiveWorkplaceOperation(String path) {
+        return path.endsWith("/policy")
+                || path.endsWith("/force-cancel")
+                || path.endsWith("/legal-hold");
+    }
+
+    private boolean isWorkplaceGovernanceTransition(String path) {
+        return path.endsWith("/review")
+                || path.endsWith("/publish")
+                || path.endsWith("/restore");
     }
 
     private boolean hasCalendarAdminAuthority(HttpServletRequest request) {
@@ -419,7 +433,8 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
                 || path.startsWith("/v1/reference-data/")
                 || path.equals("/v1/workspace/work-items")
                 || path.equals("/v1/workspace/productivity/items")
-                || path.equals("/v1/mail/threads"));
+                || path.equals("/v1/mail/threads")
+                || path.equals("/v1/calendar/events"));
     }
 
     private Long positiveLong(String value) {

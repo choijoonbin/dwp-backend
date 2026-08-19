@@ -62,7 +62,7 @@ public class ApprovalService {
                 metrics,
                 tasks,
                 requests,
-                queries.flow(actor),
+                canUseTasks || canUseRequests ? queries.flow(actor) : List.of(),
                 insights(metrics, pulse),
                 actor.canAdminister(),
                 pulse);
@@ -86,12 +86,18 @@ public class ApprovalService {
         boolean delegated = access.delegatedAccess();
         boolean pending = "PENDING".equals(access.summary().status());
         boolean decisionOpen = pending || "CLAIMED".equals(access.summary().status());
+        boolean canClaimTask = actor.hasPermission(
+                "ACTION.APPROVAL_TASK", "UPDATE", "MANAGE");
+        boolean canDecideTask = actor.hasPermission(
+                "ACTION.APPROVAL_TASK", "APPROVE", "MANAGE");
         return new ApprovalDtos.TaskDetail(
                 access.summary(),
                 queries.requestPayload(actor.tenantId(), access.summary().requestId()),
+                queries.requestFormSchema(actor.tenantId(), access.summary().requestId()),
                 queries.timeline(actor.tenantId(), access.summary().requestId()),
-                pending && access.assigneeUserId() == null && (candidate || delegated),
-                decisionOpen && !selfApprovalBlocked && (assigned || candidate || delegated),
+                canClaimTask && pending && access.assigneeUserId() == null && (candidate || delegated),
+                canDecideTask && decisionOpen && !selfApprovalBlocked
+                        && (assigned || candidate || delegated),
                 selfApprovalBlocked);
     }
 
@@ -577,7 +583,7 @@ public class ApprovalService {
             Map<String, Object> afterState) {
         audit.record(AuditEvent.builder()
                 .tenantId(actor.tenantId())
-                .category("ADMIN_CHANGE")
+                .category(auditCategory(targetType))
                 .action(action)
                 .outcome("SUCCESS")
                 .severity("INFO")
@@ -593,5 +599,12 @@ public class ApprovalService {
                 .afterState(afterState)
                 .retentionClass("EXTENDED")
                 .build());
+    }
+
+    private String auditCategory(String targetType) {
+        return switch (targetType) {
+            case "APPROVAL_REQUEST", "APPROVAL_TASK" -> "SYSTEM_EVENT";
+            default -> "ADMIN_CHANGE";
+        };
     }
 }

@@ -22,6 +22,13 @@ spring:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${MESSAGING_DB_NAME:dwp_messaging}
     username: ${DB_USERNAME:dwp_user}
     password: ${DB_PASSWORD:dwp_password}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: ${DWP_MESSAGING_REDIS_TIMEOUT:2s}
+      connect-timeout: ${DWP_MESSAGING_REDIS_CONNECT_TIMEOUT:2s}
   flyway:
     enabled: true
     locations: ${DWP_MESSAGING_FLYWAY_LOCATIONS:classpath:db/migration}
@@ -50,8 +57,44 @@ dwp:
       flush-interval: ${DWP_API_HISTORY_FLUSH_INTERVAL:PT1S}
   messaging:
     service-token: ${DWP_MESSAGING_SERVICE_TOKEN:}
+    sse-timeout: ${DWP_MESSAGING_SSE_TIMEOUT:30m}
+    sse-heartbeat: ${DWP_MESSAGING_SSE_HEARTBEAT:15s}
+    realtime:
+      redis-enabled: ${DWP_MESSAGING_REDIS_ENABLED:true}
+      channel-prefix: ${DWP_MESSAGING_REDIS_CHANNEL_PREFIX:dwp.messaging.signal.v1}
+      typing-channel-prefix: ${DWP_MESSAGING_TYPING_CHANNEL_PREFIX:dwp.messaging.typing.v1}
+      typing-key-prefix: ${DWP_MESSAGING_TYPING_KEY_PREFIX:dwp:messaging:typing:v1}
+      typing-ttl: ${DWP_MESSAGING_TYPING_TTL:8s}
+      shard-count: ${DWP_MESSAGING_REDIS_SHARD_COUNT:32}
+    meeting:
+      provider: ${DWP_MESSAGING_MEETING_PROVIDER:disabled}
+      token-ttl: ${DWP_MESSAGING_MEETING_TOKEN_TTL:PT5M}
+      livekit:
+        api-url: ${LIVEKIT_API_URL:}
+        client-url: ${LIVEKIT_URL:}
+        api-key: ${LIVEKIT_API_KEY:}
+        api-secret: ${LIVEKIT_API_SECRET:}
+    attachments:
+      storage: ${DWP_MESSAGING_ATTACHMENT_STORAGE:local}
+      local-root: ${DWP_MESSAGING_ATTACHMENT_LOCAL_ROOT:.dwp-data/messaging-attachments}
+      scanner: ${DWP_MESSAGING_ATTACHMENT_SCANNER:local}
+      upload-ttl: ${DWP_MESSAGING_ATTACHMENT_UPLOAD_TTL:PT10M}
+      download-ttl: ${DWP_MESSAGING_ATTACHMENT_DOWNLOAD_TTL:PT1M}
+      clamav-host: ${DWP_MESSAGING_CLAMAV_HOST:localhost}
+      clamav-port: ${DWP_MESSAGING_CLAMAV_PORT:3310}
+      clamav-timeout: ${DWP_MESSAGING_CLAMAV_TIMEOUT:PT10S}
+      s3:
+        bucket: ${DWP_MESSAGING_ATTACHMENT_S3_BUCKET:}
+        region: ${DWP_MESSAGING_ATTACHMENT_S3_REGION:ap-northeast-2}
+        endpoint: ${DWP_MESSAGING_ATTACHMENT_S3_ENDPOINT:}
+        path-style-access: ${DWP_MESSAGING_ATTACHMENT_S3_PATH_STYLE:false}
+        prefix: ${DWP_MESSAGING_ATTACHMENT_S3_PREFIX:dwp-messaging/quarantine}
+        kms-key-id: ${DWP_MESSAGING_ATTACHMENT_S3_KMS_KEY_ID:}
 
 management:
+  health:
+    redis:
+      enabled: ${DWP_MESSAGING_REDIS_HEALTH_ENABLED:false}
   endpoints:
     web:
       exposure:

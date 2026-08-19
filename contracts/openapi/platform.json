@@ -1567,6 +1567,33 @@
         },
         "type": "object"
       },
+      "ApiResponseEffectivePolicyPreview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/EffectivePolicyPreview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseEvent": {
         "properties": {
           "correlationId": {
@@ -1736,6 +1763,60 @@
           },
           "data": {
             "$ref": "#/components/schemas/FindingContext"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseFloorPlanProjection": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FloorPlanProjection"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseFloorPlanRevisionSnapshot": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FloorPlanRevisionSnapshot"
           },
           "errorCode": {
             "type": "string"
@@ -2092,6 +2173,36 @@
         },
         "type": "object"
       },
+      "ApiResponseListAssignedResource": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/AssignedResource"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseListAuditCase": {
         "properties": {
           "correlationId": {
@@ -2250,6 +2361,36 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/Connector"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListEffectiveDelegatedScope": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/EffectiveDelegatedScope"
             },
             "type": "array"
           },
@@ -2490,6 +2631,36 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/PreferenceExceptionRequest"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListReleaseWindow": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ReleaseWindow"
             },
             "type": "array"
           },
@@ -2842,6 +3013,36 @@
         },
         "type": "object"
       },
+      "ApiResponseListWorkplaceDelegatedAdminScope": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/WorkplaceDelegatedAdminScope"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseListWorkplaceFloor": {
         "properties": {
           "correlationId": {
@@ -2850,6 +3051,156 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/WorkplaceFloor"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListWorkplaceFloorPlanRevision": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/WorkplaceFloorPlanRevision"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListWorkplaceGovernanceCampus": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/WorkplaceGovernanceCampus"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListWorkplaceGovernanceSection": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/WorkplaceGovernanceSection"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListWorkplaceGovernanceZone": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/WorkplaceGovernanceZone"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListWorkplacePolicyOverride": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/WorkplacePolicyOverride"
             },
             "type": "array"
           },
@@ -2910,6 +3261,36 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/WorkplaceSite"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListWorkplaceSiteAccessRule": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/WorkplaceSiteAccessRule"
             },
             "type": "array"
           },
@@ -3448,6 +3829,33 @@
         },
         "type": "object"
       },
+      "ApiResponseReleaseWindow": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ReleaseWindow"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseRequestDetail": {
         "properties": {
           "correlationId": {
@@ -3745,6 +4153,60 @@
         },
         "type": "object"
       },
+      "ApiResponseSiteAccessDecision": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SiteAccessDecision"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseSiteCampusAssignment": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SiteCampusAssignment"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseSyncRun": {
         "properties": {
           "correlationId": {
@@ -3986,6 +4448,60 @@
         },
         "type": "object"
       },
+      "ApiResponseWorkplaceAdminBooking": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/WorkplaceAdminBooking"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseWorkplaceAdminBookingPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/WorkplaceAdminBookingPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseWorkplaceAdminOverview": {
         "properties": {
           "correlationId": {
@@ -4013,6 +4529,33 @@
         },
         "type": "object"
       },
+      "ApiResponseWorkplaceAuditEventPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/WorkplaceAuditEventPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseWorkplaceBooking": {
         "properties": {
           "correlationId": {
@@ -4020,6 +4563,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/WorkplaceBooking"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseWorkplaceDelegatedAdminScope": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/WorkplaceDelegatedAdminScope"
           },
           "errorCode": {
             "type": "string"
@@ -4094,6 +4664,114 @@
         },
         "type": "object"
       },
+      "ApiResponseWorkplaceFloorPlanRevision": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/WorkplaceFloorPlanRevision"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseWorkplaceGovernanceCampus": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/WorkplaceGovernanceCampus"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseWorkplaceGovernanceSection": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/WorkplaceGovernanceSection"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseWorkplaceGovernanceZone": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/WorkplaceGovernanceZone"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseWorkplacePolicy": {
         "properties": {
           "correlationId": {
@@ -4101,6 +4779,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/WorkplacePolicy"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseWorkplacePolicyOverride": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/WorkplacePolicyOverride"
           },
           "errorCode": {
             "type": "string"
@@ -4155,6 +4860,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/WorkplaceSite"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseWorkplaceSiteAccessRule": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/WorkplaceSiteAccessRule"
           },
           "errorCode": {
             "type": "string"
@@ -4407,6 +5139,38 @@
           "assignedUserId",
           "version"
         ],
+        "type": "object"
+      },
+      "AssignedResource": {
+        "properties": {
+          "floorId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "floorName": {
+            "type": "string"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resourceName": {
+            "type": "string"
+          },
+          "resourceType": {
+            "type": "string"
+          },
+          "siteId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "siteName": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "AssuranceFinding": {
@@ -5235,6 +5999,45 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "CampusRequest": {
+        "properties": {
+          "code": {
+            "minLength": 1,
+            "pattern": "[A-Z0-9][A-Z0-9_-]{2,79}",
+            "type": "string"
+          },
+          "nameEn": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "nameKo": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "ACTIVE",
+              "MAINTENANCE",
+              "CLOSED"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "nameEn",
+          "nameKo",
+          "state"
+        ],
         "type": "object"
       },
       "CaseActivity": {
@@ -6719,6 +7522,23 @@
         ],
         "type": "object"
       },
+      "CreateFloorPlanRevisionRequest": {
+        "properties": {
+          "basedOnRevisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "changeSummary": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "changeSummary"
+        ],
+        "type": "object"
+      },
       "CreateItemRequest": {
         "properties": {
           "code": {
@@ -7019,6 +7839,84 @@
         ],
         "type": "object"
       },
+      "DelegatedAdminScopeRequest": {
+        "properties": {
+          "delegateGroupRef": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "delegateType": {
+            "enum": [
+              "USER",
+              "GROUP_REF"
+            ],
+            "type": "string"
+          },
+          "delegateUserId": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "managedGroupRef": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "permissions": {
+            "items": {
+              "enum": [
+                "CATALOG_VIEW",
+                "CATALOG_MANAGE",
+                "ACCESS_MANAGE",
+                "POLICY_MANAGE",
+                "FLOOR_PLAN_MANAGE",
+                "DELEGATION_VIEW"
+              ],
+              "type": "string"
+            },
+            "maxItems": 6,
+            "minItems": 0,
+            "type": "array"
+          },
+          "scopeType": {
+            "enum": [
+              "SITE",
+              "GROUP_REF"
+            ],
+            "type": "string"
+          },
+          "siteId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "ACTIVE",
+              "REVOKED"
+            ],
+            "type": "string"
+          },
+          "validFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "delegateType",
+          "permissions",
+          "scopeType",
+          "state"
+        ],
+        "type": "object"
+      },
       "Diff": {
         "properties": {
           "added": {
@@ -7180,6 +8078,84 @@
           "toEmail",
           "version"
         ],
+        "type": "object"
+      },
+      "EffectiveDelegatedScope": {
+        "properties": {
+          "delegationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "permissions": {
+            "items": {
+              "enum": [
+                "CATALOG_VIEW",
+                "CATALOG_MANAGE",
+                "ACCESS_MANAGE",
+                "POLICY_MANAGE",
+                "FLOOR_PLAN_MANAGE",
+                "DELEGATION_VIEW"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "scopeId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "scopeType": {
+            "enum": [
+              "SITE",
+              "GROUP_REF"
+            ],
+            "type": "string"
+          },
+          "validUntil": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "EffectivePolicyPreview": {
+        "properties": {
+          "appliedOverrideIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "effectivePolicy": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "fieldSources": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/PolicyFieldSource"
+            },
+            "type": "object"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "targetScopeId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "targetScopeType": {
+            "enum": [
+              "TENANT",
+              "CAMPUS",
+              "SITE",
+              "FLOOR",
+              "ZONE",
+              "RESOURCE"
+            ],
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "Entity": {
@@ -7927,6 +8903,183 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "FloorPlanPlacementRequest": {
+        "properties": {
+          "heightPercent": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "number"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "positionX": {
+            "maximum": 99.99,
+            "minimum": 0,
+            "type": "number"
+          },
+          "positionY": {
+            "maximum": 99.99,
+            "minimum": 0,
+            "type": "number"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resourceVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "rotationDegrees": {
+            "format": "int32",
+            "maximum": 359,
+            "minimum": -359,
+            "type": "integer"
+          },
+          "sectionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "widthPercent": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "number"
+          },
+          "zoneId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "heightPercent",
+          "metadata",
+          "positionX",
+          "positionY",
+          "resourceId",
+          "resourceVersion",
+          "widthPercent",
+          "zoneId"
+        ],
+        "type": "object"
+      },
+      "FloorPlanProjection": {
+        "properties": {
+          "backgroundAssetPath": {
+            "type": "string"
+          },
+          "floorId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "placements": {
+            "items": {
+              "$ref": "#/components/schemas/WorkplaceFloorPlanPlacement"
+            },
+            "type": "array"
+          },
+          "planHeight": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "planWidth": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "publishedRevisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "revisionNumber": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "FloorPlanRevisionSnapshot": {
+        "properties": {
+          "placements": {
+            "items": {
+              "$ref": "#/components/schemas/WorkplaceFloorPlanPlacement"
+            },
+            "type": "array"
+          },
+          "revision": {
+            "$ref": "#/components/schemas/WorkplaceFloorPlanRevision"
+          }
+        },
+        "type": "object"
+      },
+      "FloorPlanSnapshotRequest": {
+        "properties": {
+          "backgroundAssetKey": {
+            "maxLength": 320,
+            "minLength": 0,
+            "type": "string"
+          },
+          "backgroundAssetPath": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "backgroundContentType": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "backgroundSha256": {
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "backgroundSizeBytes": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "changeSummary": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "placements": {
+            "items": {
+              "$ref": "#/components/schemas/FloorPlanPlacementRequest"
+            },
+            "maxItems": 5000,
+            "minItems": 0,
+            "type": "array"
+          },
+          "planHeight": {
+            "format": "int32",
+            "maximum": 5000,
+            "minimum": 300,
+            "type": "integer"
+          },
+          "planWidth": {
+            "format": "int32",
+            "maximum": 5000,
+            "minimum": 400,
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "changeSummary",
+          "placements",
+          "version"
+        ],
         "type": "object"
       },
       "FloorRequest": {
@@ -9390,6 +10543,74 @@
         },
         "type": "object"
       },
+      "PolicyFieldSource": {
+        "properties": {
+          "policyOverrideId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "scopeId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "scopeType": {
+            "enum": [
+              "TENANT",
+              "CAMPUS",
+              "SITE",
+              "FLOOR",
+              "ZONE",
+              "RESOURCE"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "PolicyOverrideRequest": {
+        "properties": {
+          "policyPatch": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "scopeId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "scopeType": {
+            "enum": [
+              "TENANT",
+              "CAMPUS",
+              "SITE",
+              "FLOOR",
+              "ZONE",
+              "RESOURCE"
+            ],
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "policyPatch",
+          "scopeType",
+          "state"
+        ],
+        "type": "object"
+      },
       "PolicyRequest": {
         "properties": {
           "allowAssignedDeskLending": {
@@ -9402,6 +10623,12 @@
             "format": "int32",
             "maximum": 240,
             "minimum": 0,
+            "type": "integer"
+          },
+          "bookingRetentionDays": {
+            "format": "int32",
+            "maximum": 3650,
+            "minimum": 30,
             "type": "integer"
           },
           "bookingWindowDays": {
@@ -10365,6 +11592,49 @@
         ],
         "type": "object"
       },
+      "ReleaseWindow": {
+        "properties": {
+          "canCancel": {
+            "type": "boolean"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "floorName": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "releaseWindowId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resourceName": {
+            "type": "string"
+          },
+          "siteName": {
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "ReorderItem": {
         "properties": {
           "navigationItemId": {
@@ -10972,6 +12242,25 @@
         },
         "type": "object"
       },
+      "RevisionTransitionRequest": {
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason",
+          "version"
+        ],
+        "type": "object"
+      },
       "RoomAvailabilityResponse": {
         "properties": {
           "generatedAt": {
@@ -11495,6 +12784,49 @@
         },
         "type": "object"
       },
+      "SectionRequest": {
+        "properties": {
+          "boundary": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "code": {
+            "minLength": 1,
+            "pattern": "[A-Z0-9][A-Z0-9_-]{2,79}",
+            "type": "string"
+          },
+          "nameEn": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "nameKo": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "ACTIVE",
+              "MAINTENANCE",
+              "CLOSED"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "boundary",
+          "code",
+          "nameEn",
+          "nameKo",
+          "state"
+        ],
+        "type": "object"
+      },
       "SectionWorkQueue": {
         "properties": {
           "data": {
@@ -11642,6 +12974,141 @@
           "displayName",
           "lifecycleState",
           "version"
+        ],
+        "type": "object"
+      },
+      "SiteAccessDecision": {
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "evaluatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "matchedRuleIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "requestedPermission": {
+            "enum": [
+              "VIEW",
+              "BOOK",
+              "MANAGE"
+            ],
+            "type": "string"
+          },
+          "siteId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "userId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SiteAccessRuleRequest": {
+        "properties": {
+          "effect": {
+            "enum": [
+              "ALLOW",
+              "DENY"
+            ],
+            "type": "string"
+          },
+          "permission": {
+            "enum": [
+              "VIEW",
+              "BOOK",
+              "MANAGE"
+            ],
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ],
+            "type": "string"
+          },
+          "subjectGroupRef": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "subjectType": {
+            "enum": [
+              "USER",
+              "GROUP_REF"
+            ],
+            "type": "string"
+          },
+          "subjectUserId": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "validFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "effect",
+          "permission",
+          "state",
+          "subjectType"
+        ],
+        "type": "object"
+      },
+      "SiteCampusAssignment": {
+        "properties": {
+          "campusId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "siteId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "siteVersion": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SiteCampusAssignmentRequest": {
+        "properties": {
+          "campusId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "siteVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "campusId",
+          "siteVersion"
         ],
         "type": "object"
       },
@@ -12985,6 +14452,138 @@
         },
         "type": "object"
       },
+      "WorkplaceAdminBooking": {
+        "properties": {
+          "anonymizedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "bookedForDisplayName": {
+            "type": "string"
+          },
+          "bookingId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "cancelledAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "checkedInAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "floorName": {
+            "type": "string"
+          },
+          "legalHold": {
+            "type": "boolean"
+          },
+          "personPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "personalDataExpiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "releasedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resourceName": {
+            "type": "string"
+          },
+          "resourceType": {
+            "enum": [
+              "ROOM",
+              "DESK",
+              "LOCKER",
+              "PARKING",
+              "FOCUS_POD",
+              "PHONE_BOOTH",
+              "EQUIPMENT"
+            ],
+            "type": "string"
+          },
+          "siteName": {
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "RESERVED",
+              "CHECKED_IN",
+              "COMPLETED",
+              "NO_SHOW",
+              "RELEASED",
+              "CANCELLED"
+            ],
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "userId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "visibleToColleagues": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "WorkplaceAdminBookingPage": {
+        "properties": {
+          "content": {
+            "items": {
+              "$ref": "#/components/schemas/WorkplaceAdminBooking"
+            },
+            "type": "array"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "size": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "totalElements": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "totalPages": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "WorkplaceAdminOverview": {
         "properties": {
           "activeSites": {
@@ -13019,6 +14618,66 @@
             "type": "integer"
           },
           "utilizationPercent": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "WorkplaceAuditEvent": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "actorUserId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "aggregateId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "aggregateType": {
+            "type": "string"
+          },
+          "auditEventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/JsonNode"
+          }
+        },
+        "type": "object"
+      },
+      "WorkplaceAuditEventPage": {
+        "properties": {
+          "content": {
+            "items": {
+              "$ref": "#/components/schemas/WorkplaceAuditEvent"
+            },
+            "type": "array"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "size": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "totalElements": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "totalPages": {
             "format": "int32",
             "type": "integer"
           }
@@ -13109,6 +14768,78 @@
           },
           "visibleToColleagues": {
             "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "WorkplaceDelegatedAdminScope": {
+        "properties": {
+          "delegateGroupRef": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "delegateType": {
+            "enum": [
+              "USER",
+              "GROUP_REF"
+            ],
+            "type": "string"
+          },
+          "delegateUserId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "delegationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "managedGroupRef": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "permissions": {
+            "items": {
+              "enum": [
+                "CATALOG_VIEW",
+                "CATALOG_MANAGE",
+                "ACCESS_MANAGE",
+                "POLICY_MANAGE",
+                "FLOOR_PLAN_MANAGE",
+                "DELEGATION_VIEW"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "scopeType": {
+            "enum": [
+              "SITE",
+              "GROUP_REF"
+            ],
+            "type": "string"
+          },
+          "siteId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "ACTIVE",
+              "REVOKED"
+            ],
+            "type": "string"
+          },
+          "validFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -13208,6 +14939,318 @@
         },
         "type": "object"
       },
+      "WorkplaceFloorPlanPlacement": {
+        "properties": {
+          "heightPercent": {
+            "type": "number"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "placementId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "positionX": {
+            "type": "number"
+          },
+          "positionY": {
+            "type": "number"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resourceVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "rotationDegrees": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "sectionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "widthPercent": {
+            "type": "number"
+          },
+          "zoneId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "WorkplaceFloorPlanRevision": {
+        "properties": {
+          "backgroundAssetKey": {
+            "type": "string"
+          },
+          "backgroundAssetPath": {
+            "type": "string"
+          },
+          "backgroundContentType": {
+            "type": "string"
+          },
+          "backgroundSha256": {
+            "type": "string"
+          },
+          "backgroundSizeBytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "basedOnRevisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "changeSummary": {
+            "type": "string"
+          },
+          "contentHash": {
+            "type": "string"
+          },
+          "floorId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "placementCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "planHeight": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "planWidth": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "publishedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "restoreSourceRevisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "revisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "revisionNumber": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "DRAFT",
+              "REVIEW",
+              "PUBLISHED",
+              "ARCHIVED"
+            ],
+            "type": "string"
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "submittedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "WorkplaceForceCancelBookingRequest": {
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason",
+          "version"
+        ],
+        "type": "object"
+      },
+      "WorkplaceGovernanceCampus": {
+        "properties": {
+          "buildingCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "campusId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "nameKo": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "ACTIVE",
+              "MAINTENANCE",
+              "CLOSED"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "WorkplaceGovernanceSection": {
+        "properties": {
+          "boundary": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "code": {
+            "type": "string"
+          },
+          "floorId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "nameKo": {
+            "type": "string"
+          },
+          "resourceCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "sectionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "ACTIVE",
+              "MAINTENANCE",
+              "CLOSED"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "zoneId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "WorkplaceGovernanceZone": {
+        "properties": {
+          "boundary": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "code": {
+            "type": "string"
+          },
+          "floorId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "nameKo": {
+            "type": "string"
+          },
+          "resourceCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "sectionCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "ACTIVE",
+              "MAINTENANCE",
+              "CLOSED"
+            ],
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "GENERAL",
+              "WORK_AREA",
+              "COLLABORATION",
+              "QUIET",
+              "SERVICE",
+              "RESTRICTED"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "zoneId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "WorkplaceLegalHoldRequest": {
+        "properties": {
+          "legalHold": {
+            "type": "boolean"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason",
+          "version"
+        ],
+        "type": "object"
+      },
       "WorkplaceOccupancy": {
         "properties": {
           "bookedByDisplayName": {
@@ -13258,6 +15301,10 @@
             "format": "int32",
             "type": "integer"
           },
+          "bookingRetentionDays": {
+            "format": "int32",
+            "type": "integer"
+          },
           "bookingWindowDays": {
             "format": "int32",
             "type": "integer"
@@ -13299,6 +15346,77 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "WorkplacePolicyOverride": {
+        "properties": {
+          "policyOverrideId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "policyPatch": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "scopeId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "scopeType": {
+            "enum": [
+              "TENANT",
+              "CAMPUS",
+              "SITE",
+              "FLOOR",
+              "ZONE",
+              "RESOURCE"
+            ],
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "WorkplaceRelocateBookingRequest": {
+        "properties": {
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "endsAt",
+          "resourceId",
+          "startsAt",
+          "version"
+        ],
         "type": "object"
       },
       "WorkplaceResource": {
@@ -13421,6 +15539,10 @@
           "address": {
             "type": "string"
           },
+          "campusId": {
+            "format": "uuid",
+            "type": "string"
+          },
           "code": {
             "type": "string"
           },
@@ -13467,6 +15589,68 @@
               "SATELLITE",
               "CLIENT_SITE"
             ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "WorkplaceSiteAccessRule": {
+        "properties": {
+          "accessRuleId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "effect": {
+            "enum": [
+              "ALLOW",
+              "DENY"
+            ],
+            "type": "string"
+          },
+          "permission": {
+            "enum": [
+              "VIEW",
+              "BOOK",
+              "MANAGE"
+            ],
+            "type": "string"
+          },
+          "siteId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "ACTIVE",
+              "INACTIVE"
+            ],
+            "type": "string"
+          },
+          "subjectGroupRef": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "subjectType": {
+            "enum": [
+              "USER",
+              "GROUP_REF"
+            ],
+            "type": "string"
+          },
+          "subjectUserId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "validFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validUntil": {
+            "format": "date-time",
             "type": "string"
           },
           "version": {
@@ -13568,6 +15752,61 @@
             "type": "integer"
           }
         },
+        "type": "object"
+      },
+      "ZoneRequest": {
+        "properties": {
+          "boundary": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "code": {
+            "minLength": 1,
+            "pattern": "[A-Z0-9][A-Z0-9_-]{2,79}",
+            "type": "string"
+          },
+          "nameEn": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "nameKo": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "ACTIVE",
+              "MAINTENANCE",
+              "CLOSED"
+            ],
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "GENERAL",
+              "WORK_AREA",
+              "COLLABORATION",
+              "QUIET",
+              "SERVICE",
+              "RESTRICTED"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "boundary",
+          "code",
+          "nameEn",
+          "nameKo",
+          "state",
+          "type"
+        ],
         "type": "object"
       }
     }
@@ -13886,7 +16125,7 @@
         ]
       },
       "post": {
-        "operationId": "create_7",
+        "operationId": "create_8",
         "parameters": [
           {
             "in": "header",
@@ -16727,7 +18966,7 @@
         ]
       },
       "post": {
-        "operationId": "create_6",
+        "operationId": "create_7",
         "parameters": [
           {
             "in": "header",
@@ -17685,7 +19924,7 @@
         ]
       },
       "post": {
-        "operationId": "create_5",
+        "operationId": "create_6",
         "parameters": [
           {
             "in": "header",
@@ -17875,7 +20114,7 @@
     },
     "/v1/admin/navigation/studio/drafts/{revisionId}/cancel": {
       "post": {
-        "operationId": "cancel_3",
+        "operationId": "cancel_4",
         "parameters": [
           {
             "in": "header",
@@ -18310,7 +20549,7 @@
         ]
       },
       "post": {
-        "operationId": "create_4",
+        "operationId": "create_5",
         "parameters": [
           {
             "in": "header",
@@ -18866,7 +21105,7 @@
         ]
       },
       "post": {
-        "operationId": "create_3",
+        "operationId": "create_4",
         "parameters": [
           {
             "in": "header",
@@ -20128,6 +22367,316 @@
         ]
       }
     },
+    "/v1/admin/workplace/audit-events": {
+      "get": {
+        "operationId": "workplaceAuditEvents",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "action",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "aggregateType",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "aggregateId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actorUserId",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplaceAuditEventPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-operations-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/bookings": {
+      "get": {
+        "operationId": "searchWorkplaceBookings",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "RESERVED",
+                "CHECKED_IN",
+                "COMPLETED",
+                "NO_SHOW",
+                "RELEASED",
+                "CANCELLED"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "resourceId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "userId",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplaceAdminBookingPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-operations-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/bookings/{bookingId}/force-cancel": {
+      "put": {
+        "operationId": "forceCancelWorkplaceBooking",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "bookingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkplaceForceCancelBookingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplaceAdminBooking"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-operations-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/bookings/{bookingId}/legal-hold": {
+      "put": {
+        "operationId": "updateWorkplaceLegalHold",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "bookingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkplaceLegalHoldRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplaceAdminBooking"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-operations-controller"
+        ]
+      }
+    },
     "/v1/admin/workplace/floors": {
       "get": {
         "operationId": "getWorkplaceFloors",
@@ -20455,6 +23004,1252 @@
         },
         "tags": [
           "admin-workplace-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/governance/campuses": {
+      "get": {
+        "operationId": "campuses",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListWorkplaceGovernanceCampus"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createCampus",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplaceGovernanceCampus"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/governance/campuses/{campusId}": {
+      "put": {
+        "operationId": "updateCampus",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "campusId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplaceGovernanceCampus"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/governance/delegated-admin-scopes": {
+      "get": {
+        "operationId": "delegatedScopes",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListWorkplaceDelegatedAdminScope"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createDelegatedScope",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DelegatedAdminScopeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplaceDelegatedAdminScope"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/governance/delegated-admin-scopes/effective": {
+      "get": {
+        "operationId": "effectiveDelegatedScopes",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Group-Refs",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListEffectiveDelegatedScope"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/governance/delegated-admin-scopes/{delegationId}": {
+      "put": {
+        "operationId": "updateDelegatedScope",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "delegationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DelegatedAdminScopeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplaceDelegatedAdminScope"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/governance/floor-plan-revisions/{revisionId}": {
+      "put": {
+        "operationId": "updateFloorPlanRevision",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FloorPlanSnapshotRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplaceFloorPlanRevision"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/governance/floor-plan-revisions/{revisionId}/publish": {
+      "post": {
+        "operationId": "publishFloorPlan",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevisionTransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplaceFloorPlanRevision"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/governance/floor-plan-revisions/{revisionId}/restore": {
+      "post": {
+        "operationId": "restoreFloorPlanRevision",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevisionTransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplaceFloorPlanRevision"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/governance/floor-plan-revisions/{revisionId}/review": {
+      "post": {
+        "operationId": "submitFloorPlanReview",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevisionTransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplaceFloorPlanRevision"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/governance/floor-plan-revisions/{revisionId}/snapshot": {
+      "get": {
+        "operationId": "floorPlanRevisionSnapshot",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseFloorPlanRevisionSnapshot"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/governance/floors/{floorId}/floor-plan-revisions": {
+      "get": {
+        "operationId": "floorPlanRevisions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "floorId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListWorkplaceFloorPlanRevision"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createFloorPlanRevision",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "floorId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFloorPlanRevisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplaceFloorPlanRevision"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/governance/floors/{floorId}/projection": {
+      "get": {
+        "operationId": "publishedProjection",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "floorId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseFloorPlanProjection"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/governance/floors/{floorId}/zones": {
+      "get": {
+        "operationId": "zones",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "floorId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListWorkplaceGovernanceZone"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createZone",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "floorId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ZoneRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplaceGovernanceZone"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/governance/floors/{floorId}/zones/{zoneId}": {
+      "put": {
+        "operationId": "updateZone",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "floorId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "zoneId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ZoneRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplaceGovernanceZone"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/governance/policy-overrides": {
+      "get": {
+        "operationId": "policyOverrides",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListWorkplacePolicyOverride"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createPolicyOverride",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyOverrideRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplacePolicyOverride"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/governance/policy-overrides/{overrideId}": {
+      "put": {
+        "operationId": "updatePolicyOverride",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "overrideId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyOverrideRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplacePolicyOverride"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/governance/policy-preview": {
+      "get": {
+        "operationId": "policyPreview",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "scopeType",
+            "required": true,
+            "schema": {
+              "enum": [
+                "TENANT",
+                "CAMPUS",
+                "SITE",
+                "FLOOR",
+                "ZONE",
+                "RESOURCE"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scopeId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEffectivePolicyPreview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/governance/sites/{siteId}/access-preview": {
+      "get": {
+        "operationId": "accessPreview",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Group-Refs",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "siteId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "permission",
+            "required": true,
+            "schema": {
+              "enum": [
+                "VIEW",
+                "BOOK",
+                "MANAGE"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSiteAccessDecision"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/governance/sites/{siteId}/access-rules": {
+      "get": {
+        "operationId": "accessRules",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "siteId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListWorkplaceSiteAccessRule"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createAccessRule",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "siteId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SiteAccessRuleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplaceSiteAccessRule"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/governance/sites/{siteId}/access-rules/{ruleId}": {
+      "put": {
+        "operationId": "updateAccessRule",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "siteId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "ruleId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SiteAccessRuleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplaceSiteAccessRule"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/governance/sites/{siteId}/campus": {
+      "put": {
+        "operationId": "assignSiteCampus",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "siteId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SiteCampusAssignmentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSiteCampusAssignment"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/governance/zones/{zoneId}/sections": {
+      "get": {
+        "operationId": "sections",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "zoneId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListWorkplaceGovernanceSection"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createSection",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "zoneId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplaceGovernanceSection"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/governance/zones/{zoneId}/sections/{sectionId}": {
+      "put": {
+        "operationId": "updateSection",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "zoneId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sectionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplaceGovernanceSection"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-spatial-governance-admin-controller"
         ]
       }
     },
@@ -21060,7 +24855,7 @@
         ]
       },
       "post": {
-        "operationId": "create_2",
+        "operationId": "create_3",
         "parameters": [
           {
             "in": "header",
@@ -21165,7 +24960,7 @@
     },
     "/v1/calendar/events/{eventId}/cancel": {
       "post": {
-        "operationId": "cancel_2",
+        "operationId": "cancel_3",
         "parameters": [
           {
             "in": "header",
@@ -22903,7 +26698,7 @@
     },
     "/v1/personal-preferences/exceptions/{requestId}/cancel": {
       "post": {
-        "operationId": "cancel_1",
+        "operationId": "cancel_2",
         "parameters": [
           {
             "in": "header",
@@ -23362,6 +27157,27 @@
         ]
       }
     },
+    "/v1/rooms/policy": {
+      "get": {
+        "operationId": "getRoomPolicy",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePolicy"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "rooms-controller"
+        ]
+      }
+    },
     "/v1/search/audit": {
       "post": {
         "operationId": "record",
@@ -23480,7 +27296,7 @@
         ]
       },
       "post": {
-        "operationId": "create_1",
+        "operationId": "create_2",
         "parameters": [
           {
             "in": "header",
@@ -23551,7 +27367,7 @@
     },
     "/v1/services/requests/{requestId}/cancel": {
       "post": {
-        "operationId": "cancel",
+        "operationId": "cancel_1",
         "parameters": [
           {
             "in": "header",
@@ -23804,6 +27620,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Group-Refs",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -23829,7 +27661,7 @@
           }
         },
         "tags": [
-          "workplace-controller"
+          "workplace-operations-controller"
         ]
       }
     },
@@ -24004,10 +27836,83 @@
         ]
       }
     },
+    "/v1/workplace/bookings/{bookingId}/relocate": {
+      "post": {
+        "operationId": "relocateWorkplaceBooking",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Group-Refs",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "bookingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkplaceRelocateBookingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplaceBooking"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-operations-controller"
+        ]
+      }
+    },
     "/v1/workplace/explore": {
       "get": {
         "operationId": "exploreWorkplace",
         "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Group-Refs",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -24090,6 +27995,211 @@
         },
         "tags": [
           "workplace-controller"
+        ]
+      }
+    },
+    "/v1/workplace/release-windows": {
+      "get": {
+        "operationId": "ownedWindows",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListReleaseWindow"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-release-window-controller"
+        ]
+      },
+      "post": {
+        "operationId": "create_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Group-Refs",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseReleaseWindow"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-release-window-controller"
+        ]
+      }
+    },
+    "/v1/workplace/release-windows/eligible-resources": {
+      "get": {
+        "operationId": "assignedResources",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Group-Refs",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListAssignedResource"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-release-window-controller"
+        ]
+      }
+    },
+    "/v1/workplace/release-windows/{releaseWindowId}/cancel": {
+      "post": {
+        "operationId": "cancel",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "releaseWindowId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseReleaseWindow"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-release-window-controller"
         ]
       }
     },

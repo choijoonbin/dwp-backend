@@ -8,14 +8,19 @@ spring:
     default: local
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${NOTIFICATION_DB_NAME:dwp_notification}
-    username: ${DB_USERNAME:dwp_user}
-    password: ${DB_PASSWORD:dwp_password}
+    username: ${NOTIFICATION_DB_USERNAME:dwp_notification_runtime}
+    password: ${NOTIFICATION_DB_PASSWORD:dwp_notification_runtime_password}
     hikari:
       maximum-pool-size: ${DWP_NOTIFICATION_DB_POOL_SIZE:20}
       auto-commit: false
   flyway:
     enabled: true
-    locations: classpath:db/migration
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${NOTIFICATION_DB_NAME:dwp_notification}
+    user: ${NOTIFICATION_MIGRATION_DB_USERNAME:${DB_USERNAME:dwp_user}}
+    password: ${NOTIFICATION_MIGRATION_DB_PASSWORD:${DB_PASSWORD:dwp_password}}
+    locations: ${DWP_NOTIFICATION_FLYWAY_LOCATIONS:classpath:db/migration}
+    placeholders:
+      notificationRuntimeRole: ${NOTIFICATION_DB_USERNAME:dwp_notification_runtime}
     baseline-on-migrate: true
     baseline-version: 0
     validate-on-migrate: true
@@ -35,6 +40,13 @@ spring:
     listener:
       ack-mode: record
       missing-topics-fatal: false
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: ${DWP_NOTIFICATION_REDIS_TIMEOUT:2s}
+      connect-timeout: ${DWP_NOTIFICATION_REDIS_CONNECT_TIMEOUT:2s}
 
 springdoc:
   api-docs:
@@ -51,6 +63,10 @@ dwp:
     cursor-ttl: ${DWP_NOTIFICATION_CURSOR_TTL:24h}
     sse-timeout: ${DWP_NOTIFICATION_SSE_TIMEOUT:30m}
     sse-heartbeat: ${DWP_NOTIFICATION_SSE_HEARTBEAT:15s}
+    realtime:
+      redis-enabled: ${DWP_NOTIFICATION_REDIS_ENABLED:true}
+      channel-prefix: ${DWP_NOTIFICATION_REDIS_CHANNEL_PREFIX:dwp.notification.signal.v1}
+      shard-count: ${DWP_NOTIFICATION_REDIS_SHARD_COUNT:32}
     allowed-producers: ${DWP_NOTIFICATION_ALLOWED_PRODUCERS:dwp-approval-server,dwp-people-server,dwp-platform-server,dwp-space-server,dwp-messaging-server}
     approval-pilot:
       enabled: ${DWP_NOTIFICATION_APPROVAL_PILOT_ENABLED:false}
@@ -65,7 +81,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,metrics
   endpoint:
     health:
       probes:
@@ -74,3 +90,11 @@ management:
 logging:
   level:
     com.dwp.services.notification: ${LOG_LEVEL_NOTIFICATION:INFO}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+  flyway:
+    locations: classpath:db/migration,classpath:db/local-seed

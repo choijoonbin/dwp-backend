@@ -2,6 +2,7 @@ package com.dwp.services.platform.calendar;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.platform.workplace.WorkplaceRoomAccessPort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,9 +33,13 @@ public class CalendarService {
     private static final int MAX_OCCURRENCES = 4000;
     private static final Duration MAX_QUERY_SPAN = Duration.ofDays(370);
     private final CalendarRepository repository;
+    private final WorkplaceRoomAccessPort roomAccess;
 
-    public CalendarService(CalendarRepository repository) {
+    public CalendarService(
+            CalendarRepository repository,
+            WorkplaceRoomAccessPort roomAccess) {
         this.repository = repository;
+        this.roomAccess = roomAccess;
     }
 
     @Transactional(readOnly = true)
@@ -56,9 +61,23 @@ public class CalendarService {
             OffsetDateTime from,
             OffsetDateTime to,
             String locale) {
+        return events(tenantId, userId, personPublicId, null, from, to, locale);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CalendarDtos.EventSummary> events(
+            Long tenantId,
+            Long userId,
+            UUID personPublicId,
+            String verifiedGroupRefs,
+            OffsetDateTime from,
+            OffsetDateTime to,
+            String locale) {
         validateRange(from, to);
         repository.linkIdentity(tenantId, userId, personPublicId);
-        return summaries(tenantId, userId, personPublicId, from, to, locale);
+        return filterViewableEvents(
+                tenantId, userId, verifiedGroupRefs,
+                summaries(tenantId, userId, personPublicId, from, to, locale));
     }
 
     @Transactional(readOnly = true)
@@ -68,6 +87,17 @@ public class CalendarService {
             UUID personPublicId,
             String timeZone,
             String locale) {
+        return home(tenantId, userId, personPublicId, timeZone, locale, null);
+    }
+
+    @Transactional(readOnly = true)
+    public CalendarDtos.HomeResponse home(
+            Long tenantId,
+            Long userId,
+            UUID personPublicId,
+            String timeZone,
+            String locale,
+            String verifiedGroupRefs) {
         ZoneId zone = zone(timeZone);
         repository.linkIdentity(tenantId, userId, personPublicId);
         CalendarRepository.PolicyRow policy = repository.policy(tenantId);
@@ -78,8 +108,9 @@ public class CalendarService {
         OffsetDateTime weekEnd = weekStart.plusDays(7);
         OffsetDateTime horizonEnd = now.plusDays(30).toOffsetDateTime();
         if (horizonEnd.isBefore(weekEnd)) horizonEnd = weekEnd;
-        List<CalendarDtos.EventSummary> horizonEvents = summaries(
-                tenantId, userId, personPublicId, weekStart, horizonEnd, locale);
+        List<CalendarDtos.EventSummary> horizonEvents = filterViewableEvents(
+                tenantId, userId, verifiedGroupRefs,
+                summaries(tenantId, userId, personPublicId, weekStart, horizonEnd, locale));
         List<CalendarDtos.EventSummary> weekEvents = horizonEvents.stream()
                 .filter(event -> event.startsAt().isBefore(weekEnd)
                         && event.endsAt().isAfter(weekStart))
@@ -100,9 +131,10 @@ public class CalendarService {
         int responses = (int) weekEvents.stream()
                 .filter(event -> event.myResponse() == ResponseStatus.NEEDS_ACTION)
                 .count();
-        int availableRooms = (int) repository.resources(
+        int availableRooms = (int) filterViewableResources(
+                tenantId, userId, verifiedGroupRefs, repository.resources(
                         tenantId, now.toOffsetDateTime(), now.plusHours(1).toOffsetDateTime(),
-                        korean(locale), false).stream()
+                        korean(locale), false)).stream()
                 .filter(resource -> resource.type() == ResourceType.ROOM && resource.available())
                 .count();
         CalendarDtos.HomeMetrics metrics = new CalendarDtos.HomeMetrics(
@@ -139,10 +171,36 @@ public class CalendarService {
             String locale,
             String correlationId,
             CalendarDtos.CreateEventRequest request) {
+        return create(
+                tenantId, userId, personPublicId, organizerName,
+                locale, correlationId, null, request);
+    }
+
+    @Transactional
+    public CalendarDtos.EventSummary create(
+            Long tenantId,
+            Long userId,
+            UUID personPublicId,
+            String organizerName,
+            String locale,
+            String correlationId,
+            String verifiedGroupRefs,
+            CalendarDtos.CreateEventRequest request) {
         repository.linkIdentity(tenantId, userId, personPublicId);
-        CalendarRepository.EventRow existing = repository.eventByIdempotency(
-                tenantId, userId, personPublicId, request.idempotencyKey(), korean(locale)).orElse(null);
-        if (existing != null) {
+        String requestFingerprint = CalendarRequestFingerprint.create(request);
+        repository.lockEventIdempotency(tenantId, userId, request.idempotencyKey());
+        CalendarRepository.IdempotencyRow idempotency = repository.eventIdempotency(
+                tenantId, userId, request.idempotencyKey()).orElse(null);
+        if (idempotency != null) {
+            if (!requestFingerprint.equals(idempotency.requestFingerprint())) {
+                throw conflict("The idempotency key was already used with a different request.");
+            }
+            CalendarRepository.EventRow existing = repository.event(
+                            tenantId, userId, personPublicId,
+                            idempotency.eventId(), korean(locale))
+                    .orElseThrow(() -> conflict(
+                            "The calendar idempotency state is unavailable."));
+            requireBookAccess(tenantId, userId, verifiedGroupRefs, existing.resource());
             return summary(tenantId, userId, personPublicId, existing, false, locale);
         }
         CalendarRepository.PolicyRow policy = validateEvent(
@@ -153,9 +211,11 @@ public class CalendarService {
                 tenantId, request.resourceId(), request.startsAt(), request.endsAt(), null,
                 request.timeZone(), request.recurrence(), request.recurrenceInterval(),
                 request.recurrenceUntil(), policy, locale);
+        requireBookAccess(tenantId, userId, verifiedGroupRefs, resource);
         UUID calendarId = repository.ensurePersonalCalendar(tenantId, userId, personPublicId);
         UUID eventId = repository.insertEvent(
-                tenantId, userId, personPublicId, organizerName, calendarId, request);
+                tenantId, userId, personPublicId, organizerName,
+                calendarId, requestFingerprint, request);
         if (resource != null) {
             repository.insertBooking(
                     tenantId, userId, eventId, resource, request.startsAt(), request.endsAt());
@@ -182,12 +242,28 @@ public class CalendarService {
             String locale,
             String correlationId,
             CalendarDtos.UpdateEventRequest request) {
+        return update(
+                tenantId, userId, personPublicId, eventId,
+                locale, correlationId, null, request);
+    }
+
+    @Transactional
+    public CalendarDtos.EventSummary update(
+            Long tenantId,
+            Long userId,
+            UUID personPublicId,
+            UUID eventId,
+            String locale,
+            String correlationId,
+            String verifiedGroupRefs,
+            CalendarDtos.UpdateEventRequest request) {
         CalendarRepository.EventRow before = repository.event(
                         tenantId, userId, personPublicId, eventId, korean(locale))
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         if (!isOrganizer(before, userId, personPublicId)) {
             throw new BaseException(ErrorCode.FORBIDDEN, "Only the organizer can update this event.");
         }
+        requireBookAccess(tenantId, userId, verifiedGroupRefs, before.resource());
         CalendarRepository.PolicyRow policy = validateEvent(
                 tenantId, request.startsAt(), request.endsAt(), request.timeZone(),
                 request.type(), request.description(), request.recurrence(),
@@ -196,6 +272,11 @@ public class CalendarService {
                 tenantId, request.resourceId(), request.startsAt(), request.endsAt(), eventId,
                 request.timeZone(), request.recurrence(), request.recurrenceInterval(),
                 request.recurrenceUntil(), policy, locale);
+        if (before.resource() == null
+                || resource == null
+                || !before.resource().resourceId().equals(resource.resourceId())) {
+            requireBookAccess(tenantId, userId, verifiedGroupRefs, resource);
+        }
         if (repository.updateEvent(tenantId, userId, personPublicId, eventId, request) == 0) {
             throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
                     "The event changed. Refresh and try again.");
@@ -242,12 +323,28 @@ public class CalendarService {
             String locale,
             String correlationId,
             CalendarDtos.VersionRequest request) {
+        cancel(
+                tenantId, userId, personPublicId, eventId,
+                locale, correlationId, null, request);
+    }
+
+    @Transactional
+    public void cancel(
+            Long tenantId,
+            Long userId,
+            UUID personPublicId,
+            UUID eventId,
+            String locale,
+            String correlationId,
+            String verifiedGroupRefs,
+            CalendarDtos.VersionRequest request) {
         CalendarRepository.EventRow before = repository.event(
                         tenantId, userId, personPublicId, eventId, korean(locale))
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         if (!isOrganizer(before, userId, personPublicId)) {
             throw new BaseException(ErrorCode.FORBIDDEN, "Only the organizer can cancel this event.");
         }
+        requireBookAccess(tenantId, userId, verifiedGroupRefs, before.resource());
         if (repository.cancelEvent(
                 tenantId, userId, personPublicId, eventId, request.version()) == 0) {
             throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
@@ -267,12 +364,28 @@ public class CalendarService {
             String locale,
             String correlationId,
             CalendarDtos.RespondRequest request) {
+        return respond(
+                tenantId, userId, personPublicId, eventId,
+                locale, correlationId, null, request);
+    }
+
+    @Transactional
+    public CalendarDtos.EventSummary respond(
+            Long tenantId,
+            Long userId,
+            UUID personPublicId,
+            UUID eventId,
+            String locale,
+            String correlationId,
+            String verifiedGroupRefs,
+            CalendarDtos.RespondRequest request) {
         if (request.response() == ResponseStatus.NEEDS_ACTION) {
             throw invalid("A final attendance response is required.");
         }
         CalendarRepository.EventRow before = repository.event(
                         tenantId, userId, personPublicId, eventId, korean(locale))
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        requireViewAccess(tenantId, userId, verifiedGroupRefs, before.resource());
         if (repository.respond(tenantId, userId, personPublicId, eventId, request.response()) == 0) {
             throw new BaseException(ErrorCode.NOT_FOUND, "The attendee record was not found.");
         }
@@ -293,6 +406,22 @@ public class CalendarService {
             String locale) {
         validateRange(from, to);
         return repository.resources(tenantId, from, to, korean(locale), false).stream()
+                .map(this::resource)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<CalendarDtos.ResourceSummary> resources(
+            Long tenantId,
+            Long userId,
+            String verifiedGroupRefs,
+            OffsetDateTime from,
+            OffsetDateTime to,
+            String locale) {
+        validateRange(from, to);
+        return filterViewableResources(
+                tenantId, userId, verifiedGroupRefs,
+                repository.resources(tenantId, from, to, korean(locale), false)).stream()
                 .map(this::resource)
                 .toList();
     }
@@ -860,8 +989,77 @@ public class CalendarService {
         return locale != null && locale.toLowerCase(Locale.ROOT).startsWith("ko");
     }
 
+    private void requireBookAccess(
+            Long tenantId,
+            Long userId,
+            String verifiedGroupRefs,
+            CalendarRepository.ResourceRow resource) {
+        if (resource != null) {
+            roomAccess.requireBook(
+                    tenantId, userId, verifiedGroupRefs, resource.resourceId());
+        }
+    }
+
+    private void requireViewAccess(
+            Long tenantId,
+            Long userId,
+            String verifiedGroupRefs,
+            CalendarRepository.ResourceRow resource) {
+        if (!canViewResource(tenantId, userId, verifiedGroupRefs, resource)) {
+            throw new BaseException(
+                    ErrorCode.FORBIDDEN,
+                    "This Workplace location is not available to the current member.");
+        }
+    }
+
+    private boolean canViewResource(
+            Long tenantId,
+            Long userId,
+            String verifiedGroupRefs,
+            CalendarRepository.ResourceRow resource) {
+        return resource == null || roomAccess.canView(
+                tenantId, userId, verifiedGroupRefs, resource.resourceId());
+    }
+
+    private List<CalendarDtos.EventSummary> filterViewableEvents(
+            Long tenantId,
+            Long userId,
+            String verifiedGroupRefs,
+            List<CalendarDtos.EventSummary> events) {
+        Set<UUID> resourceIds = events.stream()
+                .map(CalendarDtos.EventSummary::resource)
+                .filter(Objects::nonNull)
+                .map(CalendarDtos.ResourceSummary::resourceId)
+                .collect(java.util.stream.Collectors.toSet());
+        Set<UUID> viewable = roomAccess.viewableResourceIds(
+                tenantId, userId, verifiedGroupRefs, resourceIds);
+        return events.stream()
+                .filter(event -> event.resource() == null
+                        || viewable.contains(event.resource().resourceId()))
+                .toList();
+    }
+
+    private List<CalendarRepository.ResourceRow> filterViewableResources(
+            Long tenantId,
+            Long userId,
+            String verifiedGroupRefs,
+            List<CalendarRepository.ResourceRow> resources) {
+        Set<UUID> resourceIds = resources.stream()
+                .map(CalendarRepository.ResourceRow::resourceId)
+                .collect(java.util.stream.Collectors.toSet());
+        Set<UUID> viewable = roomAccess.viewableResourceIds(
+                tenantId, userId, verifiedGroupRefs, resourceIds);
+        return resources.stream()
+                .filter(resource -> viewable.contains(resource.resourceId()))
+                .toList();
+    }
+
     private BaseException invalid(String message) {
         return new BaseException(ErrorCode.INVALID_INPUT_VALUE, message);
+    }
+
+    private BaseException conflict(String message) {
+        return new BaseException(ErrorCode.RESOURCE_CONFLICT, message);
     }
 
     private record Occurrence(

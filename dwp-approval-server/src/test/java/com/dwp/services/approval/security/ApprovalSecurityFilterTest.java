@@ -54,6 +54,43 @@ class ApprovalSecurityFilterTest {
     }
 
     @Test
+    void limitsTheAgentRuntimeIdentityToExactReadOnlyApprovalSources() throws Exception {
+        ApprovalSecurityFilter filter = new ApprovalSecurityFilter(
+                "trusted", "runtime", objectMapper);
+        MockHttpServletRequest allowed = request(
+                "GET", "/v1/tasks", "WORKSPACE_MEMBER",
+                "APP.APPROVALS:VIEW,ACTION.APPROVAL_TASK:VIEW");
+        allowed.removeHeader(ApprovalSecurityFilter.SERVICE_TOKEN_HEADER);
+        allowed.addHeader(ApprovalSecurityFilter.SERVICE_TOKEN_HEADER, "runtime");
+        MockHttpServletResponse allowedResponse = new MockHttpServletResponse();
+
+        filter.doFilter(allowed, allowedResponse, new MockFilterChain());
+
+        assertThat(allowedResponse.getStatus()).isEqualTo(200);
+
+        MockHttpServletRequest deniedMutation = request(
+                "POST", "/v1/tasks/0fd4362f-1a3f-40b9-8f5a-2791e08e02eb/claim",
+                "WORKSPACE_MEMBER", "APP.APPROVALS:VIEW,ACTION.APPROVAL_TASK:UPDATE");
+        deniedMutation.removeHeader(ApprovalSecurityFilter.SERVICE_TOKEN_HEADER);
+        deniedMutation.addHeader(ApprovalSecurityFilter.SERVICE_TOKEN_HEADER, "runtime");
+        MockHttpServletResponse deniedMutationResponse = new MockHttpServletResponse();
+
+        filter.doFilter(deniedMutation, deniedMutationResponse, new MockFilterChain());
+
+        assertThat(deniedMutationResponse.getStatus()).isEqualTo(401);
+
+        MockHttpServletRequest deniedBroaderRead = request(
+                "GET", "/v1/home", "WORKSPACE_MEMBER", "APP.APPROVALS:VIEW");
+        deniedBroaderRead.removeHeader(ApprovalSecurityFilter.SERVICE_TOKEN_HEADER);
+        deniedBroaderRead.addHeader(ApprovalSecurityFilter.SERVICE_TOKEN_HEADER, "runtime");
+        MockHttpServletResponse deniedBroaderReadResponse = new MockHttpServletResponse();
+
+        filter.doFilter(deniedBroaderRead, deniedBroaderReadResponse, new MockFilterChain());
+
+        assertThat(deniedBroaderReadResponse.getStatus()).isEqualTo(401);
+    }
+
+    @Test
     void permitsRequesterToResumeAnInformationRequestWithUpdatePermission() throws Exception {
         ApprovalSecurityFilter filter = new ApprovalSecurityFilter("trusted", objectMapper);
         MockHttpServletResponse response = new MockHttpServletResponse();

@@ -209,24 +209,24 @@ public class CalendarRepository {
                 .findFirst();
     }
 
-    Optional<EventRow> eventByIdempotency(
-            Long tenantId,
-            Long userId,
-            UUID personPublicId,
-            UUID idempotencyKey,
-            boolean korean) {
-        List<UUID> eventIds = jdbc.query("""
-                SELECT event_id FROM cal_events
-                 WHERE tenant_id = ? AND idempotency_key = ?
-                   AND (
-                       organizer_person_public_id = ?
-                       OR (organizer_person_public_id IS NULL AND organizer_user_id = ?)
-                   )
-                """, (result, ignored) -> result.getObject("event_id", UUID.class),
-                tenantId, idempotencyKey, personPublicId, userId);
-        return eventIds.isEmpty()
-                ? Optional.empty()
-                : event(tenantId, userId, personPublicId, eventIds.get(0), korean);
+    void lockEventIdempotency(Long tenantId, Long userId, UUID idempotencyKey) {
+        jdbc.query(
+                "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
+                statement -> statement.setString(
+                        1, "calendar:" + tenantId + ":" + userId + ":" + idempotencyKey),
+                result -> null);
+    }
+
+    Optional<IdempotencyRow> eventIdempotency(
+            Long tenantId, Long userId, UUID idempotencyKey) {
+        return jdbc.query("""
+                SELECT event_id, request_fingerprint
+                  FROM cal_events
+                 WHERE tenant_id = ? AND organizer_user_id = ? AND idempotency_key = ?
+                """, (result, ignored) -> new IdempotencyRow(
+                result.getObject("event_id", UUID.class),
+                result.getString("request_fingerprint")),
+                tenantId, userId, idempotencyKey).stream().findFirst();
     }
 
     List<AttendeeRow> attendees(Long tenantId, UUID eventId) {
@@ -251,6 +251,7 @@ public class CalendarRepository {
             UUID personPublicId,
             String organizerName,
             UUID calendarId,
+            String requestFingerprint,
             CalendarDtos.CreateEventRequest value) {
         UUID eventId = UUID.randomUUID();
         jdbc.update("""
@@ -260,9 +261,9 @@ public class CalendarRepository {
                     starts_at, ends_at, time_zone, all_day, location,
                     conference_url, visibility, recurrence_pattern,
                     recurrence_interval, recurrence_until, response_required,
-                    source_type, idempotency_key, created_by, updated_by)
+                    source_type, idempotency_key, request_fingerprint, created_by, updated_by)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                        'NATIVE', ?, ?, ?)
+                        'NATIVE', ?, ?, ?, ?)
                 """, eventId, tenantId, calendarId, userId, personPublicId,
                 organizerName == null || organizerName.isBlank()
                         ? "User " + userId : organizerName.trim(), value.title().trim(),
@@ -270,7 +271,7 @@ public class CalendarRepository {
                 value.endsAt(), value.timeZone(), value.allDay(), blankToNull(value.location()),
                 blankToNull(value.conferenceUrl()), value.visibility().name(),
                 value.recurrence().name(), value.recurrenceInterval(), value.recurrenceUntil(),
-                value.responseRequired(), value.idempotencyKey(), userId, userId);
+                value.responseRequired(), value.idempotencyKey(), requestFingerprint, userId, userId);
         upsertAttendees(tenantId, eventId, value.attendees(), false);
         return eventId;
     }
@@ -1005,6 +1006,9 @@ public class CalendarRepository {
             String name,
             AttendeeType type,
             ResponseStatus response) {
+    }
+
+    record IdempotencyRow(UUID eventId, String requestFingerprint) {
     }
 
     record ResourceRow(

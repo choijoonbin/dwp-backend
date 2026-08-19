@@ -36,7 +36,11 @@ class ApprovalServiceTest {
                 42L,
                 null,
                 Set.of("FINANCE_APPROVERS"),
-                Set.of("APP.APPROVALS:VIEW", "ACTION.APPROVAL_TASK:APPROVE"));
+                Set.of(
+                        "APP.APPROVALS:VIEW",
+                        "ACTION.APPROVAL_TASK:VIEW",
+                        "ACTION.APPROVAL_TASK:UPDATE",
+                        "ACTION.APPROVAL_TASK:APPROVE"));
     }
 
     @AfterEach
@@ -52,6 +56,9 @@ class ApprovalServiceTest {
         ApprovalDtos.TaskSummary approved = summary(taskId, requestId, "APPROVED");
 
         when(queries.requestPayload(42L, requestId)).thenReturn(Map.of());
+        when(queries.requestFormSchema(42L, requestId)).thenReturn(Map.of(
+                "schemaVersion", 1,
+                "fields", List.of(Map.of("key", "summary", "labelKo", "요청 개요"))));
         when(queries.timeline(42L, requestId)).thenReturn(List.of());
         when(queries.taskDetail(ApprovalRequestContext.require(), taskId))
                 .thenReturn(new ApprovalQueryRepository.TaskAccess(
@@ -64,6 +71,7 @@ class ApprovalServiceTest {
 
         assertThat(open.canClaim()).isTrue();
         assertThat(open.canDecide()).isTrue();
+        assertThat(open.formSchema()).containsEntry("schemaVersion", 1);
         assertThat(completed.canClaim()).isFalse();
         assertThat(completed.canDecide()).isFalse();
     }
@@ -120,6 +128,10 @@ class ApprovalServiceTest {
 
         verify(commands).claim(ApprovalRequestContext.require(), access, 0L, "direct-delegation");
         verify(queries, times(2)).taskDetail(ApprovalRequestContext.require(), taskId);
+        ArgumentCaptor<com.dwp.audit.AuditEvent> event =
+                ArgumentCaptor.forClass(com.dwp.audit.AuditEvent.class);
+        verify(audit).record(event.capture());
+        assertThat(event.getValue().category()).isEqualTo("SYSTEM_EVENT");
     }
 
     @Test
@@ -153,6 +165,7 @@ class ApprovalServiceTest {
         verify(audit).record(event.capture());
         assertThat(event.getValue().action())
                 .isEqualTo("approval.integration.delivery.retried");
+        assertThat(event.getValue().category()).isEqualTo("ADMIN_CHANGE");
         assertThat(event.getValue().targetType())
                 .isEqualTo("APPROVAL_INTEGRATION_EVENT");
         assertThat(event.getValue().targetId()).isEqualTo(outboxId.toString());
@@ -181,6 +194,53 @@ class ApprovalServiceTest {
         assertThat(home.flow()).isEqualTo(flow);
         assertThat(home.administrator()).isFalse();
         verify(queries).flow(actor);
+    }
+
+    @Test
+    void doesNotQueryTaskOrRequestFlowWithoutEitherReadPermission() {
+        ApprovalRequestContext.set(
+                17L,
+                42L,
+                null,
+                Set.of("WORKSPACE_MEMBER"),
+                Set.of("APP.APPROVALS:VIEW"));
+        ApprovalRequestContext.Actor actor = ApprovalRequestContext.require();
+
+        ApprovalDtos.HomeResponse home = service.home();
+
+        assertThat(home.flow()).isEmpty();
+        assertThat(home.focusQueue()).isEmpty();
+        assertThat(home.recentRequests()).isEmpty();
+        verify(queries, org.mockito.Mockito.never()).metrics(actor);
+        verify(queries, org.mockito.Mockito.never()).flow(actor);
+    }
+
+    @Test
+    void hidesMutationActionsWhenTheActorOnlyHasTaskReadPermission() {
+        ApprovalRequestContext.set(
+                17L,
+                42L,
+                null,
+                Set.of("FINANCE_APPROVERS"),
+                Set.of("APP.APPROVALS:VIEW", "ACTION.APPROVAL_TASK:VIEW"));
+        UUID taskId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        when(queries.taskDetail(ApprovalRequestContext.require(), taskId))
+                .thenReturn(new ApprovalQueryRepository.TaskAccess(
+                        summary(taskId, requestId, "PENDING"),
+                        99L,
+                        null,
+                        "FINANCE_APPROVERS",
+                        false,
+                        null));
+        when(queries.requestPayload(42L, requestId)).thenReturn(Map.of());
+        when(queries.requestFormSchema(42L, requestId)).thenReturn(Map.of());
+        when(queries.timeline(42L, requestId)).thenReturn(List.of());
+
+        ApprovalDtos.TaskDetail detail = service.task(taskId);
+
+        assertThat(detail.canClaim()).isFalse();
+        assertThat(detail.canDecide()).isFalse();
     }
 
     private ApprovalDtos.TaskSummary summary(UUID taskId, UUID requestId, String status) {

@@ -4,6 +4,7 @@ import com.dwp.services.notification.common.ApiResponse;
 import com.dwp.services.notification.domain.NotificationModels.ActionResult;
 import com.dwp.services.notification.domain.NotificationModels.BulkActionRequest;
 import com.dwp.services.notification.domain.NotificationModels.BulkResult;
+import com.dwp.services.notification.domain.NotificationModels.Capabilities;
 import com.dwp.services.notification.domain.NotificationModels.DeliveryProfile;
 import com.dwp.services.notification.domain.NotificationModels.DeliveryProfileUpdate;
 import com.dwp.services.notification.domain.NotificationModels.Detail;
@@ -61,6 +62,17 @@ public class NotificationController {
         return ApiResponse.success(service.summary(actor()));
     }
 
+    @GetMapping("/capabilities")
+    public ApiResponse<Capabilities> capabilities() {
+        return ApiResponse.success(new Capabilities(
+                List.of("IN_APP"),
+                List.of("EMAIL", "WEB_PUSH", "MOBILE_PUSH", "TEAMS", "SLACK"),
+                "POSTGRESQL",
+                "SSE_HINT_WITH_DURABLE_SYNC",
+                "DISABLED",
+                Instant.now()));
+    }
+
     @GetMapping("/inbox")
     public ApiResponse<InboxPage> inbox(
             @RequestParam(defaultValue = "PRIORITY") String view,
@@ -96,7 +108,8 @@ public class NotificationController {
         NotificationRequestContext.Actor actor = actor();
         String cursor = after == null || after.isBlank() ? lastEventId : after;
         service.validateSyncCursor(actor, cursor);
-        return streamService.open(actor, () -> service.sync(actor, cursor, 100));
+        SyncResponse catchUp = service.sync(actor, cursor, 100);
+        return streamService.open(actor, catchUp);
     }
 
     @PostMapping("/inbox/{notificationId}/read")

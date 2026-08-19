@@ -51,6 +51,7 @@ public class NotificationSecurityFilter extends OncePerRequestFilter {
         this.allowedProducers = parse(allowedProducers);
         this.producerTokens = parseBindings(producerTokens);
         this.objectMapper = objectMapper;
+        validateIdentityConfiguration();
     }
 
     @Override
@@ -184,6 +185,24 @@ public class NotificationSecurityFilter extends OncePerRequestFilter {
         return expectedToken != null
                 && !expectedToken.isBlank()
                 && constantTimeEquals(expectedToken, presentedToken);
+    }
+
+    private void validateIdentityConfiguration() {
+        if (gatewayToken.length() < 24 || gatewaySource.isBlank()) {
+            throw new IllegalStateException(
+                    "Notification gateway identity must use a non-empty source and a 24+ character token.");
+        }
+        if (!producerTokens.keySet().equals(allowedProducers)) {
+            throw new IllegalStateException(
+                    "Every allowlisted notification producer must have exactly one token binding.");
+        }
+        Set<String> distinctTokens = Set.copyOf(producerTokens.values());
+        if (distinctTokens.size() != producerTokens.size()
+                || distinctTokens.contains(gatewayToken)
+                || distinctTokens.stream().anyMatch(token -> token.length() < 24)) {
+            throw new IllegalStateException(
+                    "Notification service identities must use distinct 24+ character tokens.");
+        }
     }
 
     private Long positiveLong(String value) {

@@ -309,7 +309,8 @@ class WorkplaceCatalogRepository {
                        maximum_consecutive_days = ?, working_day_start = ?, working_day_end = ?,
                        allow_recurring = ?, require_check_in = ?, check_in_lead_minutes = ?,
                        auto_release_minutes = ?, allow_assigned_desk_lending = ?,
-                       show_colleague_names = ?, version = version + 1,
+                       show_colleague_names = ?, booking_retention_days = ?,
+                       version = version + 1,
                        updated_at = CURRENT_TIMESTAMP, updated_by = ?
                  WHERE tenant_id = ? AND version = ?
                 """, value.bookingWindowDays(), value.maximumActiveBookings(),
@@ -317,7 +318,8 @@ class WorkplaceCatalogRepository {
                 value.maximumConsecutiveDays(), value.workingDayStart(), value.workingDayEnd(),
                 value.allowRecurring(), value.requireCheckIn(), value.checkInLeadMinutes(),
                 value.autoReleaseMinutes(), value.allowAssignedDeskLending(),
-                value.showColleagueNames(), actorId, tenantId, value.version());
+                value.showColleagueNames(), value.bookingRetentionDays(),
+                actorId, tenantId, value.version());
         return updated == 0 ? null : policy(tenantId);
     }
 
@@ -382,7 +384,9 @@ class WorkplaceCatalogRepository {
 
     private SiteRow site(ResultSet result) throws SQLException {
         return new SiteRow(
-                result.getObject("site_id", UUID.class), result.getString("site_code"),
+                result.getObject("site_id", UUID.class),
+                result.getObject("campus_id", UUID.class),
+                result.getString("site_code"),
                 result.getString("display_name"), result.getString("name_ko"),
                 result.getString("name_en"), SiteType.valueOf(result.getString("site_type")),
                 result.getString("address"), result.getString("time_zone"),
@@ -436,7 +440,8 @@ class WorkplaceCatalogRepository {
                 result.getObject("working_day_end", LocalTime.class), result.getBoolean("allow_recurring"),
                 result.getBoolean("require_check_in"), result.getInt("check_in_lead_minutes"),
                 result.getInt("auto_release_minutes"), result.getBoolean("allow_assigned_desk_lending"),
-                result.getBoolean("show_colleague_names"), result.getLong("version"));
+                result.getBoolean("show_colleague_names"),
+                result.getInt("booking_retention_days"), result.getLong("version"));
     }
 
     private List<String> strings(String value) {
@@ -460,7 +465,7 @@ class WorkplaceCatalogRepository {
     }
 
     record SiteRow(
-            UUID siteId, String code, String name, String nameKo, String nameEn,
+            UUID siteId, UUID campusId, String code, String name, String nameKo, String nameEn,
             SiteType type, String address, String timeZone, int totalFloorCount,
             long configuredFloorCount, long resourceCount, SiteState state, long version) {
     }
@@ -488,7 +493,7 @@ class WorkplaceCatalogRepository {
             int maximumBookingMinutes, int maximumConsecutiveDays, LocalTime workingDayStart,
             LocalTime workingDayEnd, boolean allowRecurring, boolean requireCheckIn,
             int checkInLeadMinutes, int autoReleaseMinutes, boolean allowAssignedDeskLending,
-            boolean showColleagueNames, long version) {
+            boolean showColleagueNames, int bookingRetentionDays, long version) {
     }
 
     record AdminStats(

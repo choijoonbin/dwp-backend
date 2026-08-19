@@ -14,6 +14,13 @@ channels:
     messages:
       domainEvent:
         $ref: '#/components/messages/domainEvent'
+      workplaceBookingEvent:
+        $ref: '#/components/messages/workplaceBookingEvent'
+  workplaceOccupancySignals:
+    address: dwp.workplace.occupancy-signals.v1
+    messages:
+      workplaceOccupancySignal:
+        $ref: '#/components/messages/workplaceOccupancySignal'
 operations:
   publishDomainEvent:
     action: send
@@ -21,6 +28,13 @@ operations:
       $ref: '#/channels/domainEvents'
     messages:
       - $ref: '#/channels/domainEvents/messages/domainEvent'
+      - $ref: '#/channels/domainEvents/messages/workplaceBookingEvent'
+  receiveWorkplaceOccupancySignal:
+    action: receive
+    channel:
+      $ref: '#/channels/workplaceOccupancySignals'
+    messages:
+      - $ref: '#/channels/workplaceOccupancySignals/messages/workplaceOccupancySignal'
 components:
   messages:
     domainEvent:
@@ -28,6 +42,16 @@ components:
       contentType: application/json
       payload:
         $ref: '#/components/schemas/DomainEventEnvelope'
+    workplaceBookingEvent:
+      name: WorkplaceBookingEvent
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/WorkplaceBookingEventEnvelope'
+    workplaceOccupancySignal:
+      name: WorkplaceOccupancySignal
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/WorkplaceOccupancySignal'
   schemas:
     DomainEventEnvelope:
       type: object
@@ -92,3 +116,104 @@ components:
           type: object
           additionalProperties:
             type: string
+    WorkplaceBookingEventEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/DomainEventEnvelope'
+        - type: object
+          properties:
+            type:
+              enum:
+                - workplace.booking.created.v1
+                - workplace.booking.relocated.v1
+                - workplace.booking.checked-in.v1
+                - workplace.booking.released.v1
+                - workplace.booking.cancelled.v1
+                - workplace.booking.completed.v1
+                - workplace.booking.no-show.v1
+            data:
+              $ref: '#/components/schemas/WorkplaceBookingEventData'
+    WorkplaceBookingEventData:
+      type: object
+      additionalProperties: false
+      required:
+        - bookingId
+        - resourceId
+        - siteId
+        - floorId
+        - status
+        - startsAt
+        - endsAt
+      properties:
+        bookingId:
+          type: string
+          format: uuid
+        seriesId:
+          type: [string, 'null']
+          format: uuid
+        resourceId:
+          type: string
+          format: uuid
+        siteId:
+          type: string
+          format: uuid
+        floorId:
+          type: string
+          format: uuid
+        status:
+          enum: [RESERVED, CHECKED_IN, COMPLETED, NO_SHOW, RELEASED, CANCELLED]
+        startsAt:
+          type: string
+          format: date-time
+        endsAt:
+          type: string
+          format: date-time
+        reasonCode:
+          type: [string, 'null']
+          maxLength: 80
+    WorkplaceOccupancySignal:
+      type: object
+      additionalProperties: false
+      required:
+        - schemaVersion
+        - signalId
+        - tenantKey
+        - provider
+        - deviceId
+        - resourceCode
+        - observedAt
+        - receivedAt
+        - state
+        - confidence
+      properties:
+        schemaVersion:
+          const: 1
+        signalId:
+          type: string
+          maxLength: 160
+        tenantKey:
+          type: string
+          maxLength: 80
+        provider:
+          type: string
+          pattern: '^[A-Z][A-Z0-9_-]{1,39}$'
+        deviceId:
+          type: string
+          maxLength: 160
+        resourceCode:
+          type: string
+          maxLength: 80
+        sequence:
+          type: [integer, 'null']
+          minimum: 0
+        observedAt:
+          type: string
+          format: date-time
+        receivedAt:
+          type: string
+          format: date-time
+        state:
+          enum: [OCCUPIED, VACANT, UNKNOWN]
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1

@@ -5,7 +5,7 @@ import com.dwp.services.notification.domain.NotificationMaterializationRepositor
 import com.dwp.services.notification.domain.NotificationMaterializationRepository.TemplateContract;
 import com.dwp.services.notification.domain.NotificationModels.DirectMaterializationRequest;
 import com.dwp.services.notification.domain.NotificationModels.MaterializationResult;
-import com.dwp.services.notification.realtime.NotificationStreamService;
+import com.dwp.services.notification.realtime.NotificationChangePublisher;
 import com.dwp.services.notification.security.NotificationDatabaseScope;
 import com.dwp.services.notification.security.NotificationRequestContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -33,17 +33,17 @@ public class DirectNotificationMaterializer {
 
     private final NotificationDatabaseScope databaseScope;
     private final NotificationMaterializationRepository repository;
-    private final NotificationStreamService streamService;
+    private final NotificationChangePublisher changePublisher;
     private final ObjectMapper objectMapper;
 
     public DirectNotificationMaterializer(
             NotificationDatabaseScope databaseScope,
             NotificationMaterializationRepository repository,
-            NotificationStreamService streamService,
+            NotificationChangePublisher changePublisher,
             ObjectMapper objectMapper) {
         this.databaseScope = databaseScope;
         this.repository = repository;
-        this.streamService = streamService;
+        this.changePublisher = changePublisher;
         this.objectMapper = objectMapper;
     }
 
@@ -85,7 +85,7 @@ public class DirectNotificationMaterializer {
                 content,
                 payloadHash,
                 correlationId);
-        streamService.publishAfterCommit(result.signals());
+        changePublisher.publishAfterCommit(result.signals());
         return result.result();
     }
 

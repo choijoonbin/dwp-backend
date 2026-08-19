@@ -2,11 +2,15 @@ package com.dwp.services.messaging.domain;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.messaging.attachment.AttachmentService;
+import com.dwp.services.messaging.realtime.MessagingEventRecorder;
 import com.dwp.services.messaging.security.MessagingRequestContext;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -17,13 +21,38 @@ import java.util.UUID;
 public class MessagingService {
 
     private static final Set<String> SCOPES = Set.of("ALL", "FAVORITES", "SPACES", "DIRECT", "CHANNELS");
+    private static final Set<String> NOTIFICATION_LEVELS = Set.of("DEFAULT", "MENTIONS", "MUTE");
 
     private final MessagingQueryRepository queries;
     private final MessagingCommandRepository commands;
+    private final MessagingMessageQueryRepository messageQueries;
+    private final MessagingInteractionCommandRepository interactions;
+    private final MessagingEventRecorder events;
+    private final AttachmentService attachments;
 
-    public MessagingService(MessagingQueryRepository queries, MessagingCommandRepository commands) {
+    @Autowired
+    public MessagingService(
+            MessagingQueryRepository queries,
+            MessagingCommandRepository commands,
+            MessagingMessageQueryRepository messageQueries,
+            MessagingInteractionCommandRepository interactions,
+            MessagingEventRecorder events,
+            AttachmentService attachments) {
         this.queries = queries;
         this.commands = commands;
+        this.messageQueries = messageQueries;
+        this.interactions = interactions;
+        this.events = events;
+        this.attachments = attachments;
+    }
+
+    MessagingService(
+            MessagingQueryRepository queries,
+            MessagingCommandRepository commands,
+            MessagingMessageQueryRepository messageQueries,
+            MessagingInteractionCommandRepository interactions,
+            MessagingEventRecorder events) {
+        this(queries, commands, messageQueries, interactions, events, null);
     }
 
     @Transactional(readOnly = true)
@@ -68,8 +97,24 @@ public class MessagingService {
         return detail(subject.tenantId(), subject.userId(), conversation);
     }
 
+    @Transactional(readOnly = true)
+    public MessagingDtos.MessagePage messages(
+            UUID conversationId, Long beforeSequence, int limit) {
+        MessagingRequestContext.Subject subject = MessagingRequestContext.get();
+        visibleConversation(subject.tenantId(), subject.userId(), conversationId);
+        if (beforeSequence != null && beforeSequence < 1) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "The message cursor must be a positive conversation sequence.");
+        }
+        int resolvedLimit = Math.max(1, Math.min(100, limit));
+        return messageQueries.messagePage(
+                subject.tenantId(), conversationId, subject.userId(),
+                beforeSequence, resolvedLimit);
+    }
+
     @Transactional
-    public MessagingDtos.ConversationDetail createDirectConversation(
+    public MessagingDtos.ConversationSummary createDirectConversation(
             MessagingDtos.DirectConversationRequest request,
             String correlationId) {
         MessagingRequestContext.Subject subject = MessagingRequestContext.get();
@@ -86,11 +131,11 @@ public class MessagingService {
                 subject.tenantId(), subject.userId(), "messaging.direct.opened",
                 "MSG_CONVERSATION", conversationId.toString(), correlationId,
                 Map.of("targetUserId", request.targetUserId()));
-        return conversation(conversationId);
+        return visibleConversation(subject.tenantId(), subject.userId(), conversationId);
     }
 
     @Transactional
-    public MessagingDtos.ConversationDetail sendMessage(
+    public MessagingDtos.MessageSummary sendMessage(
             UUID conversationId,
             MessagingDtos.SendMessageRequest request,
             String correlationId) {
@@ -102,55 +147,260 @@ public class MessagingService {
             throw new BaseException(ErrorCode.FORBIDDEN,
                     "Only moderators can post to announcement conversations.");
         }
-        UUID messageId = commands.insertMessage(
-                subject.tenantId(),
-                subject.userId(),
-                conversationId,
-                request.idempotencyKey(),
-                senderName(subject),
-                subject.personPublicId(),
-                request.body(),
-                request.replyToMessageId());
-        commands.audit(
-                subject.tenantId(), subject.userId(), "messaging.message.created",
-                "MSG_MESSAGE", messageId.toString(), correlationId,
-                Map.of("conversationId", conversationId));
-        return conversation(conversationId);
+        List<UUID> attachmentIds = request.attachmentIds();
+        var replay = attachmentIds.isEmpty()
+                ? commands.replayMessage(
+                        subject.tenantId(), subject.userId(), conversationId,
+                        request.idempotencyKey(), request.body(), request.replyToMessageId())
+                : commands.replayMessage(
+                        subject.tenantId(), subject.userId(), conversationId,
+                        request.idempotencyKey(), request.body(), request.replyToMessageId(), attachmentIds);
+        if (replay.isPresent()) {
+            return message(subject, conversationId, replay.orElseThrow().messageId());
+        }
+        validateReplyParent(subject, conversationId, request.replyToMessageId());
+        if (!attachmentIds.isEmpty()) {
+            if (attachments == null) throw new BaseException(
+                    ErrorCode.INTERNAL_SERVER_ERROR, "Attachment support is unavailable.");
+            attachments.requireAttachable(conversationId, subject.userId(), attachmentIds);
+        }
+        MessagingCommandRepository.MessageInsertResult result = attachmentIds.isEmpty()
+                ? commands.insertMessage(
+                        subject.tenantId(), subject.userId(), conversationId,
+                        request.idempotencyKey(), senderName(subject), subject.personPublicId(),
+                        request.body(), request.replyToMessageId())
+                : commands.insertMessage(
+                        subject.tenantId(), subject.userId(), conversationId,
+                        request.idempotencyKey(), senderName(subject), subject.personPublicId(),
+                        request.body(), request.replyToMessageId(), attachmentIds);
+        if (result.created()) {
+            if (!attachmentIds.isEmpty()) {
+                attachments.attachToMessage(
+                        subject.tenantId(), conversationId, subject.userId(),
+                        result.messageId(), attachmentIds);
+            }
+            commands.audit(
+                    subject.tenantId(), subject.userId(), "messaging.message.created",
+                    "MSG_MESSAGE", result.messageId().toString(), correlationId,
+                    Map.of("conversationId", conversationId));
+            events.conversationEvent(
+                    subject, "messaging.message.created", conversationId, result.messageId(),
+                    messagePayload(0, result.sequence(), request.replyToMessageId()));
+        }
+        return message(subject, conversationId, result.messageId());
     }
 
     @Transactional
-    public MessagingDtos.ConversationDetail markRead(
+    public MessagingDtos.MessageSummary updateMessage(
+            UUID conversationId,
+            UUID messageId,
+            MessagingDtos.UpdateMessageRequest request,
+            String correlationId) {
+        MessagingRequestContext.Subject subject = MessagingRequestContext.get();
+        visibleConversation(subject.tenantId(), subject.userId(), conversationId);
+        MessagingMessageAccess access = visibleMessage(subject, conversationId, messageId);
+        if (!access.isAuthor(subject.userId())) {
+            throw new BaseException(ErrorCode.FORBIDDEN,
+                    "Only the message author can edit its content.");
+        }
+        if (!queries.policy(subject.tenantId()).allowMessageEdit()) {
+            throw new BaseException(ErrorCode.FORBIDDEN,
+                    "Message editing is disabled by the tenant policy.");
+        }
+        requireMutable(access, request.version());
+        if (interactions.editMessage(
+                subject.tenantId(), subject.userId(), conversationId, messageId,
+                request.body(), request.version()) == 0) {
+            throw versionConflict();
+        }
+        interactions.touchConversation(subject.tenantId(), subject.userId(), conversationId);
+        commands.audit(
+                subject.tenantId(), subject.userId(), "messaging.message.updated",
+                "MSG_MESSAGE", messageId.toString(), correlationId,
+                Map.of("conversationId", conversationId, "version", request.version() + 1));
+        events.conversationEvent(
+                subject, "messaging.message.updated", conversationId, messageId,
+                Map.of("version", request.version() + 1));
+        return message(subject, conversationId, messageId);
+    }
+
+    @Transactional
+    public MessagingDtos.MessageSummary deleteMessage(
+            UUID conversationId,
+            UUID messageId,
+            long version,
+            String correlationId) {
+        MessagingRequestContext.Subject subject = MessagingRequestContext.get();
+        visibleConversation(subject.tenantId(), subject.userId(), conversationId);
+        MessagingMessageAccess access = visibleMessage(subject, conversationId, messageId);
+        if (!access.isAuthor(subject.userId()) && !access.canModerate()) {
+            throw new BaseException(ErrorCode.FORBIDDEN,
+                    "Only the message author or a conversation moderator can delete it.");
+        }
+        if (!queries.policy(subject.tenantId()).allowMessageDelete()) {
+            throw new BaseException(ErrorCode.FORBIDDEN,
+                    "Message deletion is disabled by the tenant policy.");
+        }
+        requireMutable(access, version);
+        if (interactions.softDeleteMessage(
+                subject.tenantId(), conversationId, messageId, version) == 0) {
+            throw versionConflict();
+        }
+        interactions.touchConversation(subject.tenantId(), subject.userId(), conversationId);
+        commands.audit(
+                subject.tenantId(), subject.userId(), "messaging.message.deleted",
+                "MSG_MESSAGE", messageId.toString(), correlationId,
+                Map.of("conversationId", conversationId, "version", version + 1));
+        events.conversationEvent(
+                subject, "messaging.message.deleted", conversationId, messageId,
+                Map.of("version", version + 1));
+        return message(subject, conversationId, messageId);
+    }
+
+    @Transactional
+    public MessagingDtos.ReadCursorResponse markRead(
             UUID conversationId,
             MessagingDtos.ReadCursorRequest request) {
         MessagingRequestContext.Subject subject = MessagingRequestContext.get();
         visibleConversation(subject.tenantId(), subject.userId(), conversationId);
-        if (commands.markRead(subject.tenantId(), subject.userId(), conversationId, request.messageId()) == 0) {
-            throw new BaseException(ErrorCode.ENTITY_NOT_FOUND,
-                    "The read cursor message was not found in this conversation.");
+        MessagingCommandRepository.ReadCursorState cursor = commands.markRead(
+                        subject.tenantId(), subject.userId(), conversationId, request.messageId())
+                .orElseThrow(() -> new BaseException(
+                        ErrorCode.ENTITY_NOT_FOUND,
+                        "The read cursor message was not found in this conversation."));
+        if (cursor.advanced()) {
+            events.privateEvent(
+                    subject, "messaging.read-cursor.updated", conversationId,
+                    cursor.currentMessageId(), Map.of("messageSequence", cursor.currentSequence()));
         }
-        return conversation(conversationId);
+        return new MessagingDtos.ReadCursorResponse(
+                conversationId,
+                cursor.currentMessageId(),
+                cursor.currentSequence(),
+                cursor.currentReadAt(),
+                cursor.currentVersion());
+    }
+
+    @Transactional(readOnly = true)
+    public MessagingDtos.ThreadResponse thread(
+            UUID conversationId, UUID rootMessageId, int limit) {
+        MessagingRequestContext.Subject subject = MessagingRequestContext.get();
+        visibleConversation(subject.tenantId(), subject.userId(), conversationId);
+        MessagingMessageAccess rootAccess = visibleMessage(subject, conversationId, rootMessageId);
+        if (!rootAccess.isRoot()) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
+                    "Thread replies must be requested with the root message identifier.");
+        }
+        int resolvedLimit = Math.max(1, Math.min(200, limit));
+        return new MessagingDtos.ThreadResponse(
+                message(subject, conversationId, rootMessageId),
+                messageQueries.replies(
+                        subject.tenantId(), conversationId, subject.userId(), rootMessageId, resolvedLimit),
+                messageQueries.replyCount(subject.tenantId(), conversationId, rootMessageId));
     }
 
     @Transactional
-    public MessagingDtos.ConversationDetail addReaction(
+    public MessagingDtos.MessageSummary addReaction(
             UUID conversationId,
             UUID messageId,
             MessagingDtos.ReactionRequest request) {
         MessagingRequestContext.Subject subject = MessagingRequestContext.get();
         visibleConversation(subject.tenantId(), subject.userId(), conversationId);
-        commands.react(subject.tenantId(), subject.userId(), messageId, request.emoji());
-        return conversation(conversationId);
+        MessagingMessageAccess access = visibleMessage(subject, conversationId, messageId);
+        requireNotDeleted(access);
+        if (commands.react(subject.tenantId(), subject.userId(), messageId, request.emoji()) > 0) {
+            events.conversationEvent(
+                    subject, "messaging.reaction.added", conversationId, messageId,
+                    Map.of("emoji", request.emoji().trim()));
+        }
+        return message(subject, conversationId, messageId);
     }
 
     @Transactional
-    public MessagingDtos.ConversationDetail removeReaction(
+    public MessagingDtos.MessageSummary removeReaction(
             UUID conversationId,
             UUID messageId,
             String emoji) {
         MessagingRequestContext.Subject subject = MessagingRequestContext.get();
         visibleConversation(subject.tenantId(), subject.userId(), conversationId);
-        commands.removeReaction(subject.tenantId(), subject.userId(), messageId, emoji);
-        return conversation(conversationId);
+        visibleMessage(subject, conversationId, messageId);
+        if (commands.removeReaction(subject.tenantId(), subject.userId(), messageId, emoji) > 0) {
+            events.conversationEvent(
+                    subject, "messaging.reaction.removed", conversationId, messageId,
+                    Map.of("emoji", emoji.trim()));
+        }
+        return message(subject, conversationId, messageId);
+    }
+
+    @Transactional(readOnly = true)
+    public MessagingDtos.SavedItemPage savedItems(int page, int pageSize) {
+        MessagingRequestContext.Subject subject = MessagingRequestContext.get();
+        int resolvedPage = Math.max(0, page);
+        int resolvedPageSize = Math.max(1, Math.min(100, pageSize));
+        return messageQueries.savedItems(
+                subject.tenantId(), subject.userId(), resolvedPage, resolvedPageSize);
+    }
+
+    @Transactional
+    public MessagingDtos.SavedItemSummary saveMessage(UUID conversationId, UUID messageId) {
+        MessagingRequestContext.Subject subject = MessagingRequestContext.get();
+        visibleConversation(subject.tenantId(), subject.userId(), conversationId);
+        MessagingMessageAccess access = visibleMessage(subject, conversationId, messageId);
+        requireNotDeleted(access);
+        if (interactions.saveMessage(
+                subject.tenantId(), subject.userId(), conversationId, messageId) > 0) {
+            events.privateEvent(
+                    subject, "messaging.saved-item.created", conversationId, messageId, Map.of());
+        }
+        return messageQueries.savedItem(subject.tenantId(), subject.userId(), messageId)
+                .orElseThrow(() -> new BaseException(
+                        ErrorCode.ENTITY_NOT_FOUND, "The saved message was not found."));
+    }
+
+    @Transactional
+    public void unsaveMessage(UUID conversationId, UUID messageId) {
+        MessagingRequestContext.Subject subject = MessagingRequestContext.get();
+        visibleConversation(subject.tenantId(), subject.userId(), conversationId);
+        visibleMessage(subject, conversationId, messageId);
+        if (interactions.unsaveMessage(
+                subject.tenantId(), subject.userId(), conversationId, messageId) > 0) {
+            events.privateEvent(
+                    subject, "messaging.saved-item.deleted", conversationId, messageId, Map.of());
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public MessagingDtos.ConversationSettings conversationSettings(UUID conversationId) {
+        MessagingRequestContext.Subject subject = MessagingRequestContext.get();
+        visibleConversation(subject.tenantId(), subject.userId(), conversationId);
+        return messageQueries.settings(subject.tenantId(), conversationId, subject.userId());
+    }
+
+    @Transactional
+    public MessagingDtos.ConversationSettings updateConversationSettings(
+            UUID conversationId, MessagingDtos.ConversationSettingsRequest request) {
+        MessagingRequestContext.Subject subject = MessagingRequestContext.get();
+        visibleConversation(subject.tenantId(), subject.userId(), conversationId);
+        String notificationLevel = request.notificationLevel().trim().toUpperCase(Locale.ROOT);
+        if (!NOTIFICATION_LEVELS.contains(notificationLevel)) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
+                    "Notification level must be DEFAULT, MENTIONS, or MUTE.");
+        }
+        MessagingDtos.ConversationSettingsRequest normalized =
+                new MessagingDtos.ConversationSettingsRequest(
+                        notificationLevel, request.favorite(), request.pinned(), request.version());
+        if (interactions.updateSettings(
+                subject.tenantId(), subject.userId(), conversationId, normalized) == 0) {
+            throw versionConflict();
+        }
+        events.privateEvent(
+                subject, "messaging.conversation-settings.updated", conversationId, null,
+                Map.of(
+                        "notificationLevel", notificationLevel,
+                        "favorite", request.favorite(),
+                        "pinned", request.pinned(),
+                        "version", request.version() + 1));
+        return messageQueries.settings(subject.tenantId(), conversationId, subject.userId());
     }
 
     @Transactional(readOnly = true)
@@ -182,6 +432,9 @@ public class MessagingService {
                 subject.tenantId(), subject.userId(), "messaging.policy.updated",
                 "MSG_TENANT_POLICY", String.valueOf(subject.tenantId()), correlationId,
                 Map.of("retentionDays", request.retentionDays()));
+        events.tenantEvent(
+                subject, "messaging.tenant-policy.updated",
+                Map.of("version", request.version() + 1));
         return queries.policy(subject.tenantId());
     }
 
@@ -203,10 +456,10 @@ public class MessagingService {
                 queries.members(tenantId, conversation.conversationId()),
                 queries.messages(tenantId, conversation.conversationId(), userId, 80),
                 new MessagingDtos.RealtimeStatus(
-                        "REST",
-                        "/api/messaging/v1/realtime",
-                        "READY_FOR_WEBSOCKET_GATEWAY",
-                        "Durable reads and commands are active; live fanout can attach to this contract."));
+                        "SSE",
+                        "/api/messaging/v1/stream",
+                        "ACTIVE",
+                        "Durable event replay supports Last-Event-ID reconnect recovery."));
     }
 
     private boolean canModerate(long tenantId, UUID conversationId, long userId) {
@@ -214,6 +467,68 @@ public class MessagingService {
                 .anyMatch(member -> member.userId() == userId
                         && ("OWNER".equals(member.memberRole())
                         || "MODERATOR".equals(member.memberRole())));
+    }
+
+    private void validateReplyParent(
+            MessagingRequestContext.Subject subject,
+            UUID conversationId,
+            UUID replyToMessageId) {
+        if (replyToMessageId == null) return;
+        MessagingMessageAccess parent = visibleMessage(subject, conversationId, replyToMessageId);
+        if (!parent.isRoot()) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
+                    "A thread reply must reference the thread root message.");
+        }
+        requireNotDeleted(parent);
+    }
+
+    private MessagingMessageAccess visibleMessage(
+            MessagingRequestContext.Subject subject,
+            UUID conversationId,
+            UUID messageId) {
+        return messageQueries.access(
+                        subject.tenantId(), conversationId, subject.userId(), messageId)
+                .orElseThrow(() -> new BaseException(
+                        ErrorCode.ENTITY_NOT_FOUND,
+                        "The message was not found in this conversation."));
+    }
+
+    private MessagingDtos.MessageSummary message(
+            MessagingRequestContext.Subject subject,
+            UUID conversationId,
+            UUID messageId) {
+        return messageQueries.message(
+                        subject.tenantId(), conversationId, subject.userId(), messageId)
+                .orElseThrow(() -> new BaseException(
+                        ErrorCode.ENTITY_NOT_FOUND,
+                        "The message was not found in this conversation."));
+    }
+
+    private void requireMutable(MessagingMessageAccess access, long expectedVersion) {
+        requireNotDeleted(access);
+        if (expectedVersion < 0 || access.version() != expectedVersion) throw versionConflict();
+    }
+
+    private void requireNotDeleted(MessagingMessageAccess access) {
+        if (access.deletedAt() != null) {
+            throw new BaseException(ErrorCode.INVALID_STATE,
+                    "The message has already been deleted.");
+        }
+    }
+
+    private BaseException versionConflict() {
+        return new BaseException(
+                ErrorCode.RESOURCE_CONFLICT,
+                "The message or conversation settings changed before this request completed.");
+    }
+
+    private Map<String, Object> messagePayload(
+            long version, long messageSequence, UUID replyToMessageId) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("version", version);
+        payload.put("messageSequence", messageSequence);
+        if (replyToMessageId != null) payload.put("replyToMessageId", replyToMessageId);
+        return Map.copyOf(payload);
     }
 
     private String scope(String value) {
