@@ -328,7 +328,7 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         String requiredPermission = switch (request.getMethod()) {
             case "GET", "HEAD" -> "VIEW";
-            case "POST" -> "CREATE";
+            case "POST" -> path.endsWith("/background") ? "UPDATE" : "CREATE";
             case "PUT" -> path.endsWith("/policy") ? "MANAGE" : "UPDATE";
             default -> "MANAGE";
         };

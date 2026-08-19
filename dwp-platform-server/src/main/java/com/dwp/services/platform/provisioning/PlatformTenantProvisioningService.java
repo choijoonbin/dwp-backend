@@ -59,6 +59,7 @@ public class PlatformTenantProvisioningService {
                 ON CONFLICT (tenant_id) DO NOTHING
                 """, request.tenantId(), request.displayName(), "Digital Workplace");
         seedManagedPreferencePolicy(request.tenantId());
+        seedWorkplacePolicy(request.tenantId());
         seedLocales(request.tenantId(), request.defaultLocale());
         seedRegistry(request.tenantId(), request.entitlementKeys());
         seedNavigation(request.tenantId(), request.defaultLocale(), request.entitlementKeys());
@@ -175,6 +176,21 @@ public class PlatformTenantProvisioningService {
                   ) AS rule(preference_path, display_key, managed_value)
                  WHERE policy.tenant_id = ?
                 ON CONFLICT (tenant_id, preference_path) DO NOTHING
+                """, tenantId);
+    }
+
+    private void seedWorkplacePolicy(Long tenantId) {
+        jdbc.update("""
+                INSERT INTO wp_tenant_policies (
+                    tenant_id, booking_window_days, maximum_active_bookings,
+                    minimum_booking_minutes, maximum_booking_minutes,
+                    maximum_consecutive_days, working_day_start, working_day_end,
+                    allow_recurring, require_check_in, check_in_lead_minutes,
+                    auto_release_minutes, allow_assigned_desk_lending,
+                    show_colleague_names, created_by, updated_by)
+                VALUES (?, 28, 12, 30, 720, 5, '08:00', '20:00',
+                        TRUE, TRUE, 30, 20, FALSE, FALSE, 1, 1)
+                ON CONFLICT (tenant_id) DO NOTHING
                 """, tenantId);
     }
 

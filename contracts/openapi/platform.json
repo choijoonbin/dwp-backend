@@ -13031,6 +13031,23 @@
             "format": "uuid",
             "type": "string"
           },
+          "canCancel": {
+            "type": "boolean"
+          },
+          "canCheckIn": {
+            "type": "boolean"
+          },
+          "canRelease": {
+            "type": "boolean"
+          },
+          "checkInClosesAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "checkInOpensAt": {
+            "format": "date-time",
+            "type": "string"
+          },
           "checkedInAt": {
             "format": "date-time",
             "type": "string"
@@ -13079,6 +13096,8 @@
             "enum": [
               "RESERVED",
               "CHECKED_IN",
+              "COMPLETED",
+              "NO_SHOW",
               "RELEASED",
               "CANCELLED"
             ],
@@ -13217,6 +13236,8 @@
             "enum": [
               "RESERVED",
               "CHECKED_IN",
+              "COMPLETED",
+              "NO_SHOW",
               "RELEASED",
               "CANCELLED"
             ],
@@ -13294,6 +13315,9 @@
           "assignedPersonPublicId": {
             "format": "uuid",
             "type": "string"
+          },
+          "assignedToCurrentUser": {
+            "type": "boolean"
           },
           "assignedUserId": {
             "format": "int64",
@@ -13844,17 +13868,7 @@
     "/v1/admin/announcements": {
       "get": {
         "operationId": "list_4",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -13874,24 +13888,6 @@
       "post": {
         "operationId": "create_7",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -13932,24 +13928,6 @@
       "put": {
         "operationId": "update_7",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -14001,24 +13979,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -14068,24 +14028,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -14133,15 +14075,6 @@
       "get": {
         "operationId": "events_2",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "query",
             "name": "window",
@@ -14241,15 +14174,6 @@
         "operationId": "detail_5",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
             "in": "path",
             "name": "historyId",
             "required": true,
@@ -14280,15 +14204,6 @@
       "get": {
         "operationId": "overview_6",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "query",
             "name": "window",
@@ -14371,15 +14286,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-DWP-Roles",
             "required": false,
             "schema": {
@@ -14433,24 +14339,6 @@
       "post": {
         "operationId": "decide_2",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-DWP-Resource-Roles",
@@ -14518,24 +14406,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-DWP-Resource-Roles",
             "required": false,
             "schema": {
@@ -14601,24 +14471,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-DWP-Resource-Roles",
             "required": false,
             "schema": {
@@ -14681,25 +14533,7 @@
     "/v1/admin/audit-control/cases": {
       "get": {
         "operationId": "cases",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -14718,33 +14552,7 @@
       },
       "post": {
         "operationId": "createCase",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "requestBody": {
           "content": {
             "application/json": {
@@ -14776,31 +14584,6 @@
       "patch": {
         "operationId": "updateCase",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "path",
             "name": "caseId",
@@ -14843,23 +14626,6 @@
         "operationId": "caseClosureReport",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "in": "path",
             "name": "caseId",
             "required": true,
@@ -14888,31 +14654,6 @@
       "post": {
         "operationId": "ensureCaseClosureReport",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "path",
             "name": "caseId",
@@ -14944,31 +14685,6 @@
       "post": {
         "operationId": "linkEvent",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "path",
             "name": "caseId",
@@ -15011,31 +14727,6 @@
         "operationId": "addCaseNote",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "in": "path",
             "name": "caseId",
             "required": true,
@@ -15077,31 +14768,6 @@
         "operationId": "createCaseTask",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "in": "path",
             "name": "caseId",
             "required": true,
@@ -15142,31 +14808,6 @@
       "patch": {
         "operationId": "updateCaseTask",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "path",
             "name": "caseId",
@@ -15218,23 +14859,6 @@
         "operationId": "caseWorkspace",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "in": "path",
             "name": "caseId",
             "required": true,
@@ -15265,23 +14889,6 @@
       "get": {
         "operationId": "correlations",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "query",
             "name": "window",
@@ -15366,23 +14973,6 @@
         "operationId": "detail_4",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "in": "query",
             "name": "correlationId",
             "required": true,
@@ -15412,23 +15002,6 @@
       "get": {
         "operationId": "events_1",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "query",
             "name": "window",
@@ -15538,23 +15111,6 @@
         "operationId": "event",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "in": "path",
             "name": "eventId",
             "required": true,
@@ -15584,33 +15140,7 @@
     "/v1/admin/audit-control/exports": {
       "post": {
         "operationId": "export",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "requestBody": {
           "content": {
             "application/json": {
@@ -15642,23 +15172,6 @@
       "get": {
         "operationId": "exportContent",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "path",
             "name": "exportId",
@@ -15692,23 +15205,6 @@
         "operationId": "findings",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "in": "query",
             "name": "status",
             "required": false,
@@ -15739,31 +15235,6 @@
       "patch": {
         "operationId": "updateFinding",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "path",
             "name": "findingId",
@@ -15806,23 +15277,6 @@
         "operationId": "findingContext",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "in": "path",
             "name": "findingId",
             "required": true,
@@ -15852,25 +15306,7 @@
     "/v1/admin/audit-control/integrity": {
       "get": {
         "operationId": "integrity",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -15891,33 +15327,7 @@
     "/v1/admin/audit-control/integrity/checkpoint": {
       "post": {
         "operationId": "checkpoint",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -15939,23 +15349,6 @@
       "get": {
         "operationId": "overview_5",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "query",
             "name": "window",
@@ -15992,25 +15385,7 @@
     "/v1/admin/audit-control/policy": {
       "get": {
         "operationId": "policy_1",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -16029,33 +15404,7 @@
       },
       "put": {
         "operationId": "updatePolicy_2",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "requestBody": {
           "content": {
             "application/json": {
@@ -16086,25 +15435,7 @@
     "/v1/admin/audit-control/policy/revisions": {
       "get": {
         "operationId": "policyRevisions",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -16123,33 +15454,7 @@
       },
       "post": {
         "operationId": "createPolicyRevision",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "requestBody": {
           "content": {
             "application/json": {
@@ -16181,31 +15486,6 @@
       "post": {
         "operationId": "decidePolicyRevision",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "path",
             "name": "revisionId",
@@ -16248,31 +15528,6 @@
         "operationId": "publishPolicyRevision",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "in": "path",
             "name": "revisionId",
             "required": true,
@@ -16313,31 +15568,6 @@
       "post": {
         "operationId": "rollbackPolicyRevision",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "path",
             "name": "revisionId",
@@ -16380,31 +15610,6 @@
         "operationId": "submitPolicyRevision",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "in": "path",
             "name": "revisionId",
             "required": true,
@@ -16444,33 +15649,7 @@
     "/v1/admin/audit-control/saved-searches": {
       "get": {
         "operationId": "savedSearches",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -16489,33 +15668,7 @@
       },
       "post": {
         "operationId": "saveSearch",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "requestBody": {
           "content": {
             "application/json": {
@@ -16548,31 +15701,6 @@
         "operationId": "deleteSavedSearch",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "in": "path",
             "name": "savedSearchId",
             "required": true,
@@ -16603,15 +15731,6 @@
       "get": {
         "operationId": "list_8",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "query",
             "name": "page",
@@ -16656,15 +15775,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "Accept-Language",
             "required": false,
             "schema": {
@@ -16693,24 +15803,6 @@
       "post": {
         "operationId": "decideBooking",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -16770,15 +15862,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "Accept-Language",
             "required": false,
             "schema": {
@@ -16806,17 +15889,7 @@
     "/v1/admin/calendar/policy": {
       "get": {
         "operationId": "policy",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -16836,24 +15909,6 @@
       "put": {
         "operationId": "updatePolicy_1",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -16894,24 +15949,6 @@
       "post": {
         "operationId": "createResource",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -16960,24 +15997,6 @@
       "put": {
         "operationId": "updateResource",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -17036,15 +16055,6 @@
         "operationId": "overview_3",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
             "in": "query",
             "name": "query",
             "required": false,
@@ -17089,17 +16099,7 @@
     "/v1/admin/catalog/assurance": {
       "get": {
         "operationId": "assurance",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -17121,24 +16121,6 @@
       "post": {
         "operationId": "evaluateAssurance",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -17169,24 +16151,6 @@
       "post": {
         "operationId": "dispositionFinding",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -17237,15 +16201,6 @@
         "operationId": "graph",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
             "in": "query",
             "name": "focusRef",
             "required": false,
@@ -17288,15 +16243,6 @@
         "operationId": "impact",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
             "in": "query",
             "name": "ref",
             "required": true,
@@ -17337,24 +16283,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -17393,24 +16321,6 @@
       "post": {
         "operationId": "retire_2",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -17459,17 +16369,7 @@
     "/v1/admin/home-experience": {
       "get": {
         "operationId": "get_2",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -17489,24 +16389,6 @@
       "put": {
         "operationId": "update_6",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -17546,17 +16428,7 @@
     "/v1/admin/home-experience/background": {
       "get": {
         "operationId": "background",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -17577,24 +16449,6 @@
       "post": {
         "operationId": "uploadBackground",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -17655,24 +16509,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -17711,24 +16547,6 @@
       "put": {
         "operationId": "updateComposition",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -17771,24 +16589,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -17828,15 +16628,6 @@
         "operationId": "history_1",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
             "in": "query",
             "name": "limit",
             "required": false,
@@ -17869,24 +16660,6 @@
       "post": {
         "operationId": "rollback_1",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -17936,25 +16709,7 @@
     "/v1/admin/integrations/productivity/connectors": {
       "get": {
         "operationId": "connectors",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -17974,32 +16729,6 @@
       "post": {
         "operationId": "create_6",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -18040,32 +16769,6 @@
       "put": {
         "operationId": "update_5",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -18117,32 +16820,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -18191,23 +16868,6 @@
         "operationId": "configurationCheck",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "in": "path",
             "name": "connectorId",
             "required": true,
@@ -18238,32 +16898,6 @@
       "post": {
         "operationId": "suspend",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -18312,25 +16946,7 @@
     "/v1/admin/integrations/productivity/overview": {
       "get": {
         "operationId": "overview_2",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -18352,23 +16968,6 @@
       "get": {
         "operationId": "runs",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "query",
             "name": "limit",
@@ -18402,23 +17001,6 @@
         "operationId": "subjects",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "in": "query",
             "name": "limit",
             "required": false,
@@ -18449,17 +17031,7 @@
     "/v1/admin/localization": {
       "get": {
         "operationId": "workspace_1",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -18481,24 +17053,6 @@
       "post": {
         "operationId": "createBundle",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -18539,24 +17093,6 @@
       "post": {
         "operationId": "createDraft_1",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -18607,15 +17143,6 @@
         "operationId": "revisions",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
             "in": "path",
             "name": "bundleId",
             "required": true,
@@ -18647,15 +17174,6 @@
         "operationId": "revision",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
             "in": "path",
             "name": "revisionId",
             "required": true,
@@ -18684,24 +17202,6 @@
       "put": {
         "operationId": "saveDraft_1",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -18753,24 +17253,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -18819,15 +17301,6 @@
         "operationId": "diff",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
             "in": "path",
             "name": "revisionId",
             "required": true,
@@ -18859,15 +17332,6 @@
         "operationId": "preview_1",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
             "in": "path",
             "name": "revisionId",
             "required": true,
@@ -18898,24 +17362,6 @@
       "post": {
         "operationId": "publish_1",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -18967,24 +17413,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -19032,24 +17460,6 @@
       "post": {
         "operationId": "submit_1",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -19101,24 +17511,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -19165,17 +17557,7 @@
     "/v1/admin/mail/overview": {
       "get": {
         "operationId": "overview_1",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -19197,24 +17579,6 @@
       "put": {
         "operationId": "updatePolicy",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -19255,24 +17619,6 @@
       "put": {
         "operationId": "updateSharedInbox",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -19321,17 +17667,7 @@
     "/v1/admin/navigation": {
       "get": {
         "operationId": "list_3",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -19351,24 +17687,6 @@
       "post": {
         "operationId": "create_5",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -19411,24 +17729,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -19466,26 +17766,7 @@
     "/v1/admin/navigation/studio": {
       "get": {
         "operationId": "workspace",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -19507,24 +17788,6 @@
       "post": {
         "operationId": "createDraft",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -19565,24 +17828,6 @@
       "put": {
         "operationId": "saveDraft",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -19634,24 +17879,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -19699,24 +17926,6 @@
       "post": {
         "operationId": "publish",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -19768,24 +17977,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -19833,24 +18024,6 @@
       "put": {
         "operationId": "update_4",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -19902,24 +18075,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -19967,24 +18122,6 @@
       "post": {
         "operationId": "retire_1",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -20035,15 +18172,6 @@
         "operationId": "requests_3",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
             "in": "query",
             "name": "state",
             "required": false,
@@ -20074,24 +18202,6 @@
       "post": {
         "operationId": "decide",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -20141,15 +18251,6 @@
       "get": {
         "operationId": "list_2",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "query",
             "name": "query",
@@ -20213,24 +18314,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -20270,15 +18353,6 @@
         "operationId": "detail",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
             "in": "path",
             "name": "setKey",
             "required": true,
@@ -20306,24 +18380,6 @@
       "patch": {
         "operationId": "update_8",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -20374,24 +18430,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -20438,15 +18476,6 @@
       "get": {
         "operationId": "activity_1",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "path",
             "name": "setKey",
@@ -20499,24 +18528,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -20563,24 +18574,6 @@
       "patch": {
         "operationId": "updateItem",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -20639,24 +18632,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -20711,24 +18686,6 @@
       "post": {
         "operationId": "retireItem",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -20787,24 +18744,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -20851,15 +18790,6 @@
       "get": {
         "operationId": "list_1",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "query",
             "name": "registryType",
@@ -20940,24 +18870,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -20996,15 +18908,6 @@
       "get": {
         "operationId": "detail_3",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "path",
             "name": "registryType",
@@ -21052,24 +18955,6 @@
       "post": {
         "operationId": "createRevision",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -21135,24 +19020,6 @@
       "patch": {
         "operationId": "updateRevision",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -21229,24 +19096,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -21319,24 +19168,6 @@
       "post": {
         "operationId": "retireRevision",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -21413,15 +19244,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "Accept-Language",
             "required": false,
             "schema": {
@@ -21450,24 +19272,6 @@
       "post": {
         "operationId": "decideRoomBooking",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -21527,15 +19331,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "Accept-Language",
             "required": false,
             "schema": {
@@ -21563,17 +19358,7 @@
     "/v1/admin/rooms/policy": {
       "get": {
         "operationId": "getRoomsPolicy",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -21593,24 +19378,6 @@
       "put": {
         "operationId": "updateRoomsPolicy",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -21651,24 +19418,6 @@
       "post": {
         "operationId": "createRoomResource",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -21717,24 +19466,6 @@
       "put": {
         "operationId": "updateRoomResource",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -21791,25 +19522,7 @@
     "/v1/admin/saved-view-ownership/orphaned": {
       "get": {
         "operationId": "orphaned",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -21830,25 +19543,7 @@
     "/v1/admin/saved-view-ownership/preview": {
       "post": {
         "operationId": "preview",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "requestBody": {
           "content": {
             "application/json": {
@@ -21881,23 +19576,6 @@
         "operationId": "transfers",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "in": "query",
             "name": "limit",
             "required": false,
@@ -21927,32 +19605,6 @@
       "post": {
         "operationId": "transfer",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -21992,17 +19644,7 @@
     "/v1/admin/services/catalog": {
       "get": {
         "operationId": "catalog",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -22022,24 +19664,6 @@
       "post": {
         "operationId": "createCatalog",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -22080,24 +19704,6 @@
       "put": {
         "operationId": "saveCatalog",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -22147,15 +19753,6 @@
         "operationId": "requests_2",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
             "in": "query",
             "name": "status",
             "required": false,
@@ -22196,15 +19793,6 @@
         "operationId": "request_2",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
             "in": "path",
             "name": "requestId",
             "required": true,
@@ -22235,24 +19823,6 @@
       "post": {
         "operationId": "transition",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -22301,17 +19871,7 @@
     "/v1/admin/tenant-branding": {
       "get": {
         "operationId": "get_1",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -22331,24 +19891,6 @@
       "put": {
         "operationId": "update_3",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -22388,17 +19930,7 @@
     "/v1/admin/tenant-branding/logo": {
       "get": {
         "operationId": "logo",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -22419,24 +19951,6 @@
       "post": {
         "operationId": "uploadLogo",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -22497,24 +20011,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -22554,15 +20050,6 @@
         "operationId": "history",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
             "in": "query",
             "name": "limit",
             "required": false,
@@ -22595,24 +20082,6 @@
       "post": {
         "operationId": "rollback",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -22665,15 +20134,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "Accept-Language",
             "required": false,
             "schema": {
@@ -22711,24 +20171,6 @@
       "post": {
         "operationId": "uploadWorkplaceFloorBackground",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -22805,24 +20247,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "Accept-Language",
             "required": false,
             "schema": {
@@ -22880,15 +20304,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "Accept-Language",
             "required": false,
             "schema": {
@@ -22924,24 +20339,6 @@
       "post": {
         "operationId": "createWorkplaceResource",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -22999,24 +20396,6 @@
       "put": {
         "operationId": "updateWorkplaceResource",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -23082,17 +20461,7 @@
     "/v1/admin/workplace/overview": {
       "get": {
         "operationId": "getWorkplaceAdminOverview",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -23113,17 +20482,7 @@
     "/v1/admin/workplace/policy": {
       "get": {
         "operationId": "getWorkplacePolicy",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -23143,24 +20502,6 @@
       "put": {
         "operationId": "updateWorkplacePolicy",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -23203,15 +20544,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "Accept-Language",
             "required": false,
             "schema": {
@@ -23238,24 +20570,6 @@
       "post": {
         "operationId": "createWorkplaceSite",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -23304,24 +20618,6 @@
       "put": {
         "operationId": "updateWorkplaceSite",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -23381,24 +20677,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "Accept-Language",
             "required": false,
             "schema": {
@@ -23454,24 +20732,6 @@
       "put": {
         "operationId": "updateWorkplaceFloor",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -23540,15 +20800,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-DWP-Roles",
             "required": false,
             "schema": {
@@ -23577,24 +20828,6 @@
       "post": {
         "operationId": "recordAction",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-DWP-Roles",
@@ -23636,24 +20869,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-DWP-Roles",
             "required": false,
             "schema": {
@@ -23691,33 +20906,6 @@
       "get": {
         "operationId": "availability",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Person-Public-ID",
-            "required": false,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -23800,33 +20988,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Person-Public-ID",
-            "required": false,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
             "name": "Accept-Language",
             "required": false,
             "schema": {
@@ -23855,33 +21016,6 @@
       "get": {
         "operationId": "events",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Person-Public-ID",
-            "required": false,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -23930,41 +21064,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Person-Public-ID",
-            "required": false,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Display-Name-B64",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
             "name": "Accept-Language",
             "required": false,
             "schema": {
@@ -24011,33 +21110,6 @@
       "put": {
         "operationId": "update_2",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Person-Public-ID",
-            "required": false,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -24097,33 +21169,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Person-Public-ID",
-            "required": false,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
             "name": "Accept-Language",
             "required": false,
             "schema": {
@@ -24179,33 +21224,6 @@
       "post": {
         "operationId": "respond",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Person-Public-ID",
-            "required": false,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -24265,33 +21283,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Person-Public-ID",
-            "required": false,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
             "name": "Accept-Language",
             "required": false,
             "schema": {
@@ -24329,15 +21320,6 @@
       "get": {
         "operationId": "resources",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -24425,15 +21407,6 @@
         "operationId": "list_6",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
             "in": "query",
             "name": "registryType",
             "required": false,
@@ -24472,15 +21445,6 @@
       "get": {
         "operationId": "detail_2",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "path",
             "name": "registryType",
@@ -24528,24 +21492,6 @@
       "get": {
         "operationId": "feed",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-DWP-Roles",
@@ -24623,24 +21569,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-DWP-Roles",
             "required": false,
             "schema": {
@@ -24688,24 +21616,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-DWP-Roles",
             "required": false,
             "schema": {
@@ -24743,24 +21653,6 @@
       "post": {
         "operationId": "recordInteraction",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-DWP-Roles",
@@ -24808,24 +21700,6 @@
       "put": {
         "operationId": "updateReaction",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-DWP-Roles",
@@ -24877,24 +21751,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-DWP-Roles",
             "required": false,
             "schema": {
@@ -24941,17 +21797,7 @@
     "/v1/home-experience": {
       "get": {
         "operationId": "get_6",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -24972,17 +21818,7 @@
     "/v1/home-experience/background": {
       "get": {
         "operationId": "background_1",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -25004,26 +21840,7 @@
     "/v1/home-preferences": {
       "get": {
         "operationId": "get",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -25043,24 +21860,6 @@
       "put": {
         "operationId": "update_1",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -25103,24 +21902,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -25160,24 +21941,6 @@
         "operationId": "getSurface",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
             "in": "path",
             "name": "surfaceKey",
             "required": true,
@@ -25205,24 +21968,6 @@
       "put": {
         "operationId": "updateSurface",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -25273,24 +22018,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -25337,41 +22064,6 @@
       "get": {
         "operationId": "overview",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Person-Public-ID",
-            "required": false,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "header",
             "name": "X-DWP-Roles",
@@ -25421,24 +22113,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -25485,26 +22159,7 @@
     "/v1/mail/home": {
       "get": {
         "operationId": "home",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -25526,24 +22181,6 @@
       "post": {
         "operationId": "compose",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -25584,32 +22221,6 @@
       "post": {
         "operationId": "decideProposal",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -25659,24 +22270,6 @@
       "get": {
         "operationId": "threads",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "query",
             "name": "lane",
@@ -25765,24 +22358,6 @@
         "operationId": "thread",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
             "in": "path",
             "name": "threadId",
             "required": true,
@@ -25813,24 +22388,6 @@
       "post": {
         "operationId": "action",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -25882,24 +22439,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -25947,32 +22486,6 @@
       "post": {
         "operationId": "comment",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Display-Name-B64",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -26024,24 +22537,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -26091,24 +22586,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -26155,24 +22632,6 @@
       "post": {
         "operationId": "reply",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -26224,24 +22683,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -26289,15 +22730,6 @@
       "get": {
         "operationId": "list_5",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "query",
             "name": "locale",
@@ -26354,26 +22786,7 @@
     "/v1/personal-preferences": {
       "get": {
         "operationId": "get_3",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -26393,24 +22806,6 @@
       "patch": {
         "operationId": "patch",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -26450,26 +22845,7 @@
     "/v1/personal-preferences/exceptions": {
       "get": {
         "operationId": "requests_1",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -26489,24 +22865,6 @@
       "post": {
         "operationId": "request",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -26547,24 +22905,6 @@
       "post": {
         "operationId": "cancel_1",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -26613,17 +22953,7 @@
     "/v1/personal-preferences/managed-policy": {
       "get": {
         "operationId": "policy_2",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -26645,24 +22975,6 @@
       "post": {
         "operationId": "reset",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -26704,15 +23016,6 @@
         "operationId": "get_5",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
             "in": "path",
             "name": "setKey",
             "required": true,
@@ -26750,15 +23053,6 @@
       "get": {
         "operationId": "getRoomAvailability",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -26809,33 +23103,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Person-Public-ID",
-            "required": false,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
             "name": "Accept-Language",
             "required": false,
             "schema": {
@@ -26880,41 +23147,6 @@
       "post": {
         "operationId": "createRoomBooking",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Person-Public-ID",
-            "required": false,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Display-Name-B64",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -26963,33 +23195,6 @@
       "put": {
         "operationId": "updateRoomBooking",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Person-Public-ID",
-            "required": false,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -27049,33 +23254,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Person-Public-ID",
-            "required": false,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
             "name": "Accept-Language",
             "required": false,
             "schema": {
@@ -27131,33 +23309,6 @@
       "post": {
         "operationId": "respondToRoomBooking",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Person-Public-ID",
-            "required": false,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -27217,24 +23368,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-DWP-Roles",
             "required": false,
             "schema": {
@@ -27283,15 +23416,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "Accept-Language",
             "required": false,
             "schema": {
@@ -27320,24 +23444,6 @@
       "get": {
         "operationId": "requests",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "query",
             "name": "status",
@@ -27376,24 +23482,6 @@
       "post": {
         "operationId": "create_1",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -27435,24 +23523,6 @@
         "operationId": "request_1",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
             "in": "path",
             "name": "requestId",
             "required": true,
@@ -27483,24 +23553,6 @@
       "post": {
         "operationId": "cancel",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -27552,24 +23604,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -27619,24 +23653,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -27683,17 +23699,7 @@
     "/v1/tenant-branding": {
       "get": {
         "operationId": "get_4",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -27714,17 +23720,7 @@
     "/v1/tenant-branding/logo": {
       "get": {
         "operationId": "logo_1",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -27747,24 +23743,6 @@
       "get": {
         "operationId": "getWorkplaceBookings",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -27813,41 +23791,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Person-Public-ID",
-            "required": false,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Display-Name-B64",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
             "name": "Accept-Language",
             "required": false,
             "schema": {
@@ -27894,24 +23837,6 @@
       "post": {
         "operationId": "cancelWorkplaceBooking",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -27971,24 +23896,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "Accept-Language",
             "required": false,
             "schema": {
@@ -28044,24 +23951,6 @@
       "post": {
         "operationId": "releaseWorkplaceBooking",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -28121,24 +24010,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "Accept-Language",
             "required": false,
             "schema": {
@@ -28195,15 +24066,6 @@
         "operationId": "workplaceFloorBackground",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
             "in": "path",
             "name": "floorId",
             "required": true,
@@ -28237,32 +24099,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
             "name": "Accept-Language",
             "required": false,
             "schema": {
@@ -28291,32 +24127,6 @@
       "post": {
         "operationId": "cancelAccessRequest",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -28376,32 +24186,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
             "name": "Accept-Language",
             "required": false,
             "schema": {
@@ -28430,32 +24214,6 @@
       "post": {
         "operationId": "requestAccess",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -28514,32 +24272,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
             "name": "Accept-Language",
             "required": false,
             "schema": {
@@ -28584,32 +24316,6 @@
       "patch": {
         "operationId": "setPinned",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -28668,32 +24374,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -28731,34 +24411,7 @@
     "/v1/workspace/productivity/connections": {
       "get": {
         "operationId": "connections",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -28780,32 +24433,6 @@
       "post": {
         "operationId": "beginAuthorization",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "path",
             "name": "connectorId",
@@ -28837,32 +24464,6 @@
       "post": {
         "operationId": "sync",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -28912,32 +24513,6 @@
       "get": {
         "operationId": "items",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "query",
             "name": "resourceKind",
@@ -28994,24 +24569,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-DWP-Roles",
             "required": false,
             "schema": {
@@ -29054,24 +24611,6 @@
       "post": {
         "operationId": "create",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-DWP-Roles",
@@ -29138,24 +24677,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-DWP-Roles",
             "required": false,
             "schema": {
@@ -29207,24 +24728,6 @@
       "put": {
         "operationId": "update",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
           {
             "in": "header",
             "name": "X-DWP-Roles",
@@ -29292,24 +24795,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-DWP-Roles",
             "required": false,
             "schema": {
@@ -29367,24 +24852,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-DWP-Group-Refs",
             "required": false,
             "schema": {
@@ -29424,32 +24891,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
             "name": "Accept-Language",
             "required": false,
             "schema": {
@@ -29478,32 +24919,6 @@
       "patch": {
         "operationId": "updateWorkStatuses",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -29552,32 +24967,6 @@
       "patch": {
         "operationId": "updateWorkStatus",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Tenant-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-User-ID",
-            "required": true,
-            "schema": {
-              "format": "int64",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Permissions",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",

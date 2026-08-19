@@ -133,6 +133,20 @@ class WorkplaceBookingRepository {
         return booking(tenantId, userId, bookingId, korean).orElseThrow();
     }
 
+    void lockUserBookingScope(Long tenantId, Long userId) {
+        jdbc.query(
+                "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
+                statement -> statement.setString(1, "workplace:" + tenantId + ":" + userId),
+                result -> null);
+    }
+
+    boolean tryLifecycleLock() {
+        Boolean acquired = jdbc.queryForObject(
+                "SELECT pg_try_advisory_xact_lock(hashtext('workplace-booking-lifecycle'))",
+                Boolean.class);
+        return Boolean.TRUE.equals(acquired);
+    }
+
     int activeBookingCount(Long tenantId, Long userId, OffsetDateTime now) {
         Integer value = jdbc.queryForObject("""
                 SELECT COUNT(*) FROM wp_bookings
@@ -183,7 +197,7 @@ class WorkplaceBookingRepository {
                    SET booking_status = 'CANCELLED', cancelled_at = ?,
                        version = version + 1, updated_at = CURRENT_TIMESTAMP, updated_by = ?
                  WHERE tenant_id = ? AND user_id = ? AND booking_id = ? AND version = ?
-                   AND booking_status IN ('RESERVED', 'CHECKED_IN')
+                   AND booking_status = 'RESERVED'
                 """, now, userId, tenantId, userId, bookingId, version);
     }
 
@@ -203,27 +217,95 @@ class WorkplaceBookingRepository {
     }
 
     int releaseNoShows(Long tenantId, OffsetDateTime now) {
-        return jdbc.update("""
-                UPDATE wp_bookings booking
-                   SET booking_status = 'RELEASED', released_at = ?,
-                       version = booking.version + 1,
-                       updated_at = CURRENT_TIMESTAMP
-                  FROM wp_tenant_policies policy
-                 WHERE policy.tenant_id = booking.tenant_id
-                   AND booking.tenant_id = ?
-                   AND policy.require_check_in = TRUE
-                   AND booking.booking_status = 'RESERVED'
-                   AND booking.starts_at + make_interval(mins => policy.auto_release_minutes) < ?
-                """, now, tenantId, now);
+        return releaseNoShows(now, "AND booking.tenant_id = ?", tenantId);
+    }
+
+    int releaseNoShows(OffsetDateTime now) {
+        return releaseNoShows(now, "", null);
+    }
+
+    private int releaseNoShows(OffsetDateTime now, String tenantPredicate, Long tenantId) {
+        String sql = """
+                WITH released AS (
+                    UPDATE wp_bookings booking
+                       SET booking_status = 'NO_SHOW', released_at = ?,
+                           version = booking.version + 1,
+                           updated_at = CURRENT_TIMESTAMP, updated_by = 0
+                      FROM wp_tenant_policies policy
+                     WHERE policy.tenant_id = booking.tenant_id
+                       %s
+                       AND policy.require_check_in = TRUE
+                       AND booking.booking_status = 'RESERVED'
+                       AND booking.starts_at + make_interval(mins => policy.auto_release_minutes) < ?
+                    RETURNING booking.tenant_id, booking.booking_id, booking.user_id,
+                              booking.released_at
+                ), audited AS (
+                    INSERT INTO wp_audit_events (
+                        tenant_id, action, aggregate_type, aggregate_id, actor_user_id,
+                        correlation_id, snapshot)
+                    SELECT tenant_id, 'workplace.booking.no_show', 'BOOKING', booking_id,
+                           0, 'workplace:no-show-sweep',
+                           jsonb_build_object('userId', user_id, 'releasedAt', released_at)
+                      FROM released
+                    RETURNING audit_event_id
+                )
+                SELECT COUNT(*) FROM audited
+                """.formatted(tenantPredicate);
+        Integer released = tenantId == null
+                ? jdbc.queryForObject(sql, Integer.class, now, now)
+                : jdbc.queryForObject(sql, Integer.class, now, tenantId, now);
+        return released == null ? 0 : released;
+    }
+
+    int completeEndedBookings(Long tenantId, OffsetDateTime now) {
+        return completeEndedBookings(now, "AND booking.tenant_id = ?", tenantId);
+    }
+
+    int completeEndedBookings(OffsetDateTime now) {
+        return completeEndedBookings(now, "", null);
+    }
+
+    private int completeEndedBookings(OffsetDateTime now, String tenantPredicate, Long tenantId) {
+        String sql = """
+                WITH completed AS (
+                    UPDATE wp_bookings booking
+                       SET booking_status = 'COMPLETED', version = booking.version + 1,
+                           updated_at = CURRENT_TIMESTAMP, updated_by = 0
+                      FROM wp_tenant_policies policy
+                     WHERE policy.tenant_id = booking.tenant_id
+                       %s
+                       AND booking.ends_at <= ?
+                       AND (booking.booking_status = 'CHECKED_IN'
+                            OR (booking.booking_status = 'RESERVED'
+                                AND policy.require_check_in = FALSE))
+                    RETURNING booking.tenant_id, booking.booking_id, booking.user_id,
+                              booking.ends_at
+                ), audited AS (
+                    INSERT INTO wp_audit_events (
+                        tenant_id, action, aggregate_type, aggregate_id, actor_user_id,
+                        correlation_id, snapshot)
+                    SELECT tenant_id, 'workplace.booking.completed', 'BOOKING', booking_id,
+                           0, 'workplace:lifecycle-sweep',
+                           jsonb_build_object('userId', user_id, 'endedAt', ends_at)
+                      FROM completed
+                    RETURNING audit_event_id
+                )
+                SELECT COUNT(*) FROM audited
+                """.formatted(tenantPredicate);
+        Integer completed = tenantId == null
+                ? jdbc.queryForObject(sql, Integer.class, now)
+                : jdbc.queryForObject(sql, Integer.class, tenantId, now);
+        return completed == null ? 0 : completed;
     }
 
     long occupiedMinutes(Long tenantId, OffsetDateTime from, OffsetDateTime to) {
         Long value = jdbc.queryForObject("""
-                SELECT COALESCE(SUM(EXTRACT(EPOCH FROM (
-                           LEAST(booking.ends_at, ?) - GREATEST(booking.starts_at, ?))) / 60), 0)
+                SELECT COALESCE(SUM(GREATEST(0, EXTRACT(EPOCH FROM (
+                           LEAST(booking.ends_at, COALESCE(booking.released_at, booking.ends_at), ?)
+                           - GREATEST(booking.starts_at, ?))) / 60)), 0)
                   FROM wp_bookings booking
                  WHERE booking.tenant_id = ?
-                   AND booking.booking_status IN ('RESERVED', 'CHECKED_IN', 'RELEASED')
+                   AND booking.booking_status IN ('RESERVED', 'CHECKED_IN', 'COMPLETED', 'RELEASED')
                    AND booking.starts_at < ? AND booking.ends_at > ?
                 """, Long.class, to, from, tenantId, to, from);
         return value == null ? 0L : value;

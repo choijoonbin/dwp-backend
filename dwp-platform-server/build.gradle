@@ -7,6 +7,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-aop'
     implementation 'io.github.resilience4j:resilience4j-spring-boot3'
     implementation 'io.opentelemetry.instrumentation:opentelemetry-spring-boot-starter'
+    implementation 'software.amazon.awssdk:s3:2.53.3'
+    implementation 'software.amazon.awssdk:url-connection-client:2.53.3'
 
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'

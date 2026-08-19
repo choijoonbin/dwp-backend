@@ -90,7 +90,15 @@ dwp:
       integrity-cron: ${DWP_AUDIT_INTEGRITY_CRON:0 15 0 * * *}
       retention-cron: ${DWP_AUDIT_RETENTION_CRON:0 10 2 * * *}
     assets:
+      storage: ${DWP_PLATFORM_ASSET_STORAGE:local}
       root: ${DWP_PLATFORM_ASSET_DIR:${DWP_HOME_ASSET_DIR:${user.home}/.dwp/platform-assets}}
+      s3:
+        bucket: ${DWP_PLATFORM_ASSET_S3_BUCKET:}
+        region: ${DWP_PLATFORM_ASSET_S3_REGION:ap-northeast-2}
+        endpoint: ${DWP_PLATFORM_ASSET_S3_ENDPOINT:}
+        path-style-access: ${DWP_PLATFORM_ASSET_S3_PATH_STYLE:false}
+        prefix: ${DWP_PLATFORM_ASSET_S3_PREFIX:dwp-platform}
+        kms-key-id: ${DWP_PLATFORM_ASSET_S3_KMS_KEY_ID:}
     home-assets:
       max-bytes: ${DWP_HOME_ASSET_MAX_BYTES:10485760}
     productivity:

@@ -56,7 +56,7 @@ class WorkplaceServiceTest {
         OffsetDateTime from = OffsetDateTime.now().plusHours(1);
         OffsetDateTime to = from.plusHours(1);
         WorkplaceCatalogRepository.FloorRow floor = floor(siteId, floorId);
-        when(catalog.sites(1L, true)).thenReturn(List.of());
+        when(catalog.sites(1L, true)).thenReturn(List.of(site(siteId)));
         when(catalog.floors(1L, null, true)).thenReturn(List.of(floor));
         when(catalog.policy(1L)).thenReturn(policy(false));
         when(catalog.resources(1L, floorId, true)).thenReturn(List.of(
@@ -67,11 +67,35 @@ class WorkplaceServiceTest {
                         from, to, "동료 이름", false)));
 
         WorkplaceDtos.ExploreResponse result = service.explore(
-                1L, 9L, floorId, from, to, "ko-KR");
+                1L, 9L, null, floorId, from, to, "ko-KR");
 
         assertThat(result.occupancy()).singleElement()
                 .extracting(WorkplaceDtos.Occupancy::bookedByDisplayName)
                 .isNull();
+    }
+
+    @Test
+    void exploreDoesNotExposeAnotherMembersFixedSeatIdentifiers() {
+        UUID siteId = UUID.randomUUID();
+        UUID floorId = UUID.randomUUID();
+        UUID resourceId = UUID.randomUUID();
+        OffsetDateTime from = OffsetDateTime.now().plusHours(1);
+        OffsetDateTime to = from.plusHours(1);
+        when(catalog.sites(1L, false)).thenReturn(List.of(site(siteId)));
+        when(catalog.floors(1L, null, false)).thenReturn(List.of(floor(siteId, floorId)));
+        when(catalog.policy(1L)).thenReturn(policy(false));
+        when(catalog.resources(1L, floorId, false)).thenReturn(List.of(
+                resource(resourceId, floorId, ResourceType.DESK, BookingMode.ASSIGNED, 7L)));
+        when(bookings.occupancy(1L, 9L, floorId, from, to)).thenReturn(List.of());
+
+        WorkplaceDtos.Resource result = service.explore(
+                1L, 9L, UUID.randomUUID(), floorId, from, to, "en-US")
+                .resources().getFirst();
+
+        assertThat(result.assignedToCurrentUser()).isFalse();
+        assertThat(result.assignedUserId()).isNull();
+        assertThat(result.assignedPersonPublicId()).isNull();
+        assertThat(result.assignedDisplayName()).isNull();
     }
 
     @Test
@@ -119,6 +143,77 @@ class WorkplaceServiceTest {
 
         assertThat(result.bookingId()).isEqualTo(bookingId);
         assertThat(result.status()).isEqualTo(BookingStatus.RESERVED);
+        assertThat(result.canCancel()).isTrue();
+        assertThat(result.canCheckIn()).isFalse();
+    }
+
+    @Test
+    void exploreExcludesLocationsThatAreNotOperational() {
+        UUID activeSiteId = UUID.randomUUID();
+        UUID closedSiteId = UUID.randomUUID();
+        UUID activeFloorId = UUID.randomUUID();
+        UUID draftFloorId = UUID.randomUUID();
+        OffsetDateTime from = OffsetDateTime.now().plusHours(1);
+        OffsetDateTime to = from.plusHours(1);
+        when(catalog.sites(1L, true)).thenReturn(List.of(
+                site(activeSiteId), site(closedSiteId, SiteState.CLOSED)));
+        when(catalog.floors(1L, null, true)).thenReturn(List.of(
+                floor(activeSiteId, activeFloorId),
+                floor(activeSiteId, draftFloorId, FloorState.DRAFT),
+                floor(closedSiteId, UUID.randomUUID())));
+        when(catalog.policy(1L)).thenReturn(policy(true));
+        when(catalog.resources(1L, activeFloorId, true)).thenReturn(List.of());
+        when(bookings.occupancy(1L, 9L, activeFloorId, from, to)).thenReturn(List.of());
+
+        WorkplaceDtos.ExploreResponse result = service.explore(
+                1L, 9L, null, null, from, to, "ko-KR");
+
+        assertThat(result.sites()).extracting(WorkplaceDtos.Site::siteId)
+                .containsExactly(activeSiteId);
+        assertThat(result.floors()).extracting(WorkplaceDtos.Floor::floorId)
+                .containsExactly(activeFloorId);
+    }
+
+    @Test
+    void closedSiteCannotBeBookedEvenWhenResourceIsAvailable() {
+        UUID siteId = UUID.randomUUID();
+        UUID floorId = UUID.randomUUID();
+        UUID resourceId = UUID.randomUUID();
+        OffsetDateTime from = OffsetDateTime.now().plusHours(2);
+        when(catalog.resource(1L, resourceId, true)).thenReturn(Optional.of(
+                resource(resourceId, floorId, ResourceType.DESK, BookingMode.RESERVABLE, null)));
+        when(catalog.floor(1L, floorId, true)).thenReturn(Optional.of(floor(siteId, floorId)));
+        when(catalog.site(1L, siteId, true)).thenReturn(Optional.of(site(siteId, SiteState.CLOSED)));
+        when(catalog.policy(1L)).thenReturn(policy(true));
+
+        WorkplaceDtos.BookingRequest request = new WorkplaceDtos.BookingRequest(
+                resourceId, from, from.plusHours(1), "집중 업무", true);
+
+        assertThatThrownBy(() -> service.createBooking(
+                1L, 9L, UUID.randomUUID(), "사용자", "ko-KR", "corr", request))
+                .hasMessageContaining("not open");
+    }
+
+    @Test
+    void siteRejectsUnknownTimeZoneBeforePersistence() {
+        WorkplaceDtos.SiteRequest request = new WorkplaceDtos.SiteRequest(
+                "SEOUL", "서울", "Seoul", SiteType.HEADQUARTERS,
+                "서울", "Asia/Not-A-Zone", 20, SiteState.ACTIVE, null);
+
+        assertThatThrownBy(() -> service.saveSite(
+                1L, 9L, null, "ko-KR", "corr", request))
+                .hasMessageContaining("IANA time zone");
+    }
+
+    @Test
+    void updateRequiresAnOptimisticVersionAndCannotEnterTheInsertPath() {
+        WorkplaceDtos.SiteRequest request = new WorkplaceDtos.SiteRequest(
+                "SEOUL", "서울", "Seoul", SiteType.HEADQUARTERS,
+                "서울", "Asia/Seoul", 20, SiteState.ACTIVE, null);
+
+        assertThatThrownBy(() -> service.saveSite(
+                1L, 9L, UUID.randomUUID(), "ko-KR", "corr", request))
+                .hasMessageContaining("requires its version");
     }
 
     @Test
@@ -141,17 +236,41 @@ class WorkplaceServiceTest {
                 .hasMessageContaining("calendar-aware room flow");
     }
 
+    @Test
+    void assignedResourceRequiresADirectoryIdentityRatherThanADisplayLabel() {
+        UUID floorId = UUID.randomUUID();
+        WorkplaceDtos.ResourceRequest request = new WorkplaceDtos.ResourceRequest(
+                "DESK-101", "고정 좌석", "Assigned desk", ResourceType.DESK,
+                BookingMode.ASSIGNED, ResourceState.AVAILABLE, "집중 업무 존", 1,
+                List.of("MONITOR"), false, false,
+                BigDecimal.TEN, BigDecimal.TEN, BigDecimal.TEN, BigDecimal.TEN,
+                0, null, null, "임의 표시명", null);
+
+        assertThatThrownBy(() -> service.saveResource(
+                1L, 9L, floorId, null, "ko-KR", "corr", request))
+                .hasMessageContaining("require an assignee");
+    }
+
     private WorkplaceCatalogRepository.SiteRow site(UUID siteId) {
+        return site(siteId, SiteState.ACTIVE);
+    }
+
+    private WorkplaceCatalogRepository.SiteRow site(UUID siteId, SiteState state) {
         return new WorkplaceCatalogRepository.SiteRow(
                 siteId, "PANGYO", "판교", "판교", "Pangyo", SiteType.HEADQUARTERS,
-                "성남시", "Asia/Seoul", 15, 1, 1, SiteState.ACTIVE, 0);
+                "성남시", "Asia/Seoul", 15, 1, 1, state, 0);
     }
 
     private WorkplaceCatalogRepository.FloorRow floor(UUID siteId, UUID floorId) {
+        return floor(siteId, floorId, FloorState.ACTIVE);
+    }
+
+    private WorkplaceCatalogRepository.FloorRow floor(
+            UUID siteId, UUID floorId, FloorState state) {
         return new WorkplaceCatalogRepository.FloorRow(
                 floorId, siteId, "판교", 12, "12층", "12층", "12F",
                 1200, 760, null, null, null, null, null,
-                FloorState.ACTIVE, 1, 0);
+                state, 1, 0);
     }
 
     private WorkplaceCatalogRepository.ResourceRow resource(

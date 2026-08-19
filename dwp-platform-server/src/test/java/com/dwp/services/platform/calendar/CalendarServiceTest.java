@@ -89,6 +89,24 @@ class CalendarServiceTest {
     }
 
     @Test
+    void workplaceManagedRoomRejectsDirectCalendarAdministration() {
+        UUID resourceId = UUID.randomUUID();
+        when(repository.isWorkplaceManagedResource(1L, resourceId)).thenReturn(true);
+        CalendarDtos.ResourceRequest request = new CalendarDtos.ResourceRequest(
+                "ROOM-01", "회의실", "Meeting room", CalendarTypes.ResourceType.ROOM,
+                "본사", "8F", 8, List.of("DISPLAY"), "Asia/Seoul",
+                false, CalendarTypes.ResourceState.AVAILABLE, 1L);
+
+        assertThatThrownBy(() -> service.saveResource(
+                1L, 11L, resourceId, "ko-KR", "corr-workplace", request))
+                .isInstanceOf(com.dwp.core.exception.BaseException.class)
+                .hasMessageContaining("managed by Workplace");
+
+        verify(repository, never()).saveResource(
+                eq(1L), eq(11L), eq(resourceId), any(), eq(true));
+    }
+
+    @Test
     void recurrenceKeepsLocalWallClockAcrossDaylightSavingTime() {
         UUID personId = UUID.randomUUID();
         UUID eventId = UUID.randomUUID();

@@ -19,5 +19,5 @@ public final class WorkplaceTypes {
 
     public enum ResourceState { AVAILABLE, MAINTENANCE, RETIRED }
 
-    public enum BookingStatus { RESERVED, CHECKED_IN, RELEASED, CANCELLED }
+    public enum BookingStatus { RESERVED, CHECKED_IN, COMPLETED, NO_SHOW, RELEASED, CANCELLED }
 }

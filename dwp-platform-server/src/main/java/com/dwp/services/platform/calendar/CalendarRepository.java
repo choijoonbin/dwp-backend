@@ -711,6 +711,42 @@ public class CalendarRepository {
         return resource(tenantId, id, korean).orElse(null);
     }
 
+    boolean isWorkplaceManagedResource(Long tenantId, UUID resourceId) {
+        Boolean managed = jdbc.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1
+                      FROM wp_resources
+                     WHERE tenant_id = ?
+                       AND calendar_resource_id = ?)
+                """, Boolean.class, tenantId, resourceId);
+        return Boolean.TRUE.equals(managed);
+    }
+
+    boolean isWorkplaceResourceBookable(Long tenantId, UUID resourceId) {
+        Boolean bookable = jdbc.queryForObject("""
+                SELECT NOT EXISTS (
+                           SELECT 1
+                             FROM wp_resources
+                            WHERE tenant_id = ?
+                              AND calendar_resource_id = ?)
+                    OR EXISTS (
+                           SELECT 1
+                             FROM wp_resources resource
+                             JOIN wp_floors floor
+                               ON floor.tenant_id = resource.tenant_id
+                              AND floor.floor_id = resource.floor_id
+                             JOIN wp_sites site
+                               ON site.tenant_id = floor.tenant_id
+                              AND site.site_id = floor.site_id
+                            WHERE resource.tenant_id = ?
+                              AND resource.calendar_resource_id = ?
+                              AND resource.lifecycle_state = 'AVAILABLE'
+                              AND floor.lifecycle_state = 'ACTIVE'
+                              AND site.lifecycle_state = 'ACTIVE')
+                """, Boolean.class, tenantId, resourceId, tenantId, resourceId);
+        return Boolean.TRUE.equals(bookable);
+    }
+
     AdminStats adminStats(Long tenantId, OffsetDateTime weekStart, OffsetDateTime weekEnd) {
         return jdbc.queryForObject("""
                 WITH event_occurrences AS (

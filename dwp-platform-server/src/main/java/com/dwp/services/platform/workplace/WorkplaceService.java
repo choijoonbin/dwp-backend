@@ -16,6 +16,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.time.DayOfWeek;
+import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -25,6 +26,7 @@ import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import static com.dwp.services.platform.workplace.WorkplaceTypes.*;
@@ -54,19 +56,27 @@ public class WorkplaceService {
         this.floorPlanValidator = floorPlanValidator;
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public WorkplaceDtos.ExploreResponse explore(
             Long tenantId,
             Long userId,
+            UUID personPublicId,
             UUID floorId,
             OffsetDateTime from,
             OffsetDateTime to,
             String locale) {
         validateRange(from, to, MAX_EXPLORE_SPAN, "Workplace searches are limited to 31 days.");
-        bookings.releaseNoShows(tenantId, OffsetDateTime.now());
         boolean ko = korean(locale);
-        List<WorkplaceCatalogRepository.SiteRow> siteRows = catalog.sites(tenantId, ko);
-        List<WorkplaceCatalogRepository.FloorRow> floorRows = catalog.floors(tenantId, null, ko);
+        List<WorkplaceCatalogRepository.SiteRow> siteRows = catalog.sites(tenantId, ko).stream()
+                .filter(value -> value.state() == SiteState.ACTIVE)
+                .toList();
+        Set<UUID> activeSiteIds = siteRows.stream()
+                .map(WorkplaceCatalogRepository.SiteRow::siteId)
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        List<WorkplaceCatalogRepository.FloorRow> floorRows = catalog.floors(tenantId, null, ko).stream()
+                .filter(value -> value.state() == FloorState.ACTIVE)
+                .filter(value -> activeSiteIds.contains(value.siteId()))
+                .toList();
         WorkplaceCatalogRepository.FloorRow selected = selectFloor(floorRows, floorId);
         WorkplaceCatalogRepository.PolicyRow policy = catalog.policy(tenantId);
         if (selected == null) {
@@ -78,7 +88,9 @@ public class WorkplaceService {
         List<WorkplaceDtos.Resource> resources = catalog
                 .resources(tenantId, selected.floorId(), ko).stream()
                 .filter(value -> value.state() != ResourceState.RETIRED)
-                .map(value -> resource(value, selected.siteId()))
+                .map(value -> publicResource(
+                        value, selected.siteId(), userId, personPublicId,
+                        policy.showColleagueNames()))
                 .toList();
         List<WorkplaceDtos.Occupancy> occupancy = bookings
                 .occupancy(tenantId, userId, selected.floorId(), from, to).stream()
@@ -90,7 +102,7 @@ public class WorkplaceService {
                 resources, occupancy, policy(policy), OffsetDateTime.now());
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public List<WorkplaceDtos.Booking> myBookings(
             Long tenantId,
             Long userId,
@@ -100,9 +112,10 @@ public class WorkplaceService {
         validateRange(
                 from, to, MAX_BOOKING_HISTORY_SPAN,
                 "Workplace booking history is limited to 400 days.");
-        bookings.releaseNoShows(tenantId, OffsetDateTime.now());
+        WorkplaceCatalogRepository.PolicyRow policy = catalog.policy(tenantId);
+        OffsetDateTime now = OffsetDateTime.now();
         return bookings.bookings(tenantId, userId, from, to, korean(locale)).stream()
-                .map(this::booking)
+                .map(value -> booking(value, policy, now))
                 .toList();
     }
 
@@ -126,7 +139,8 @@ public class WorkplaceService {
                 .site(tenantId, floor.siteId(), ko)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         WorkplaceCatalogRepository.PolicyRow policy = catalog.policy(tenantId);
-        validateBookable(resource, userId, personPublicId, request, site, policy);
+        validateBookable(resource, userId, personPublicId, request, site, floor, policy);
+        bookings.lockUserBookingScope(tenantId, userId);
         if (bookings.activeBookingCount(tenantId, userId, OffsetDateTime.now())
                 >= policy.maximumActiveBookings()) {
             throw invalid("The active Workplace booking limit has been reached.");
@@ -142,9 +156,9 @@ public class WorkplaceService {
                             "resourceId", saved.resourceId(),
                             "startsAt", saved.startsAt(),
                             "endsAt", saved.endsAt()));
-            return booking(saved);
+            return booking(saved, policy, OffsetDateTime.now());
         } catch (DataIntegrityViolationException exception) {
-            throw conflict("The selected space was reserved by someone else.");
+            throw conflict("The selected time conflicts with an existing Workplace reservation.");
         }
     }
 
@@ -156,10 +170,13 @@ public class WorkplaceService {
             String locale,
             String correlationId,
             WorkplaceDtos.VersionRequest request) {
-        WorkplaceDtos.Booking current = requireBooking(
-                tenantId, userId, bookingId, locale);
         WorkplaceCatalogRepository.PolicyRow policy = catalog.policy(tenantId);
+        WorkplaceBookingRepository.BookingRow current = requireBookingRow(
+                tenantId, userId, bookingId, locale);
         OffsetDateTime now = OffsetDateTime.now();
+        if (!policy.requireCheckIn() || current.status() != BookingStatus.RESERVED) {
+            throw invalid("This reservation is not eligible for check-in.");
+        }
         OffsetDateTime opens = current.startsAt().minusMinutes(policy.checkInLeadMinutes());
         OffsetDateTime closes = current.startsAt().plusMinutes(policy.autoReleaseMinutes());
         if (now.isBefore(opens) || now.isAfter(closes) || now.isAfter(current.endsAt())) {
@@ -170,7 +187,7 @@ public class WorkplaceService {
         }
         bookings.audit(tenantId, userId, "workplace.booking.checked_in", "BOOKING",
                 bookingId, correlationId, Map.of("checkedInAt", now));
-        return requireBooking(tenantId, userId, bookingId, locale);
+        return booking(requireBookingRow(tenantId, userId, bookingId, locale), policy, now);
     }
 
     @Transactional
@@ -181,14 +198,19 @@ public class WorkplaceService {
             String locale,
             String correlationId,
             WorkplaceDtos.VersionRequest request) {
-        requireBooking(tenantId, userId, bookingId, locale);
+        WorkplaceBookingRepository.BookingRow current = requireBookingRow(
+                tenantId, userId, bookingId, locale);
         OffsetDateTime now = OffsetDateTime.now();
+        if (current.status() != BookingStatus.RESERVED || !now.isBefore(current.startsAt())) {
+            throw invalid("Only a future reserved booking can be cancelled.");
+        }
         if (bookings.cancel(tenantId, userId, bookingId, request.version(), now) == 0) {
             throw conflict("The reservation changed. Refresh and try again.");
         }
         bookings.audit(tenantId, userId, "workplace.booking.cancelled", "BOOKING",
                 bookingId, correlationId, Map.of("cancelledAt", now));
-        return requireBooking(tenantId, userId, bookingId, locale);
+        WorkplaceCatalogRepository.PolicyRow policy = catalog.policy(tenantId);
+        return booking(requireBookingRow(tenantId, userId, bookingId, locale), policy, now);
     }
 
     @Transactional
@@ -199,14 +221,21 @@ public class WorkplaceService {
             String locale,
             String correlationId,
             WorkplaceDtos.VersionRequest request) {
-        requireBooking(tenantId, userId, bookingId, locale);
+        WorkplaceBookingRepository.BookingRow current = requireBookingRow(
+                tenantId, userId, bookingId, locale);
         OffsetDateTime now = OffsetDateTime.now();
+        boolean active = current.status() == BookingStatus.RESERVED
+                || current.status() == BookingStatus.CHECKED_IN;
+        if (!active || now.isBefore(current.startsAt()) || !now.isBefore(current.endsAt())) {
+            throw invalid("Only an active booking can be released after it starts.");
+        }
         if (bookings.release(tenantId, userId, bookingId, request.version(), now) == 0) {
             throw conflict("The reservation changed. Refresh and try again.");
         }
         bookings.audit(tenantId, userId, "workplace.booking.released", "BOOKING",
                 bookingId, correlationId, Map.of("releasedAt", now));
-        return requireBooking(tenantId, userId, bookingId, locale);
+        WorkplaceCatalogRepository.PolicyRow policy = catalog.policy(tenantId);
+        return booking(requireBookingRow(tenantId, userId, bookingId, locale), policy, now);
     }
 
     @Transactional(readOnly = true)
@@ -236,6 +265,11 @@ public class WorkplaceService {
             String locale,
             String correlationId,
             WorkplaceDtos.SiteRequest request) {
+        requireWriteMode(siteId, request.version(), "site");
+        if (siteId != null) {
+            requireSite(tenantId, siteId, locale);
+        }
+        validateTimeZone(request.timeZone());
         try {
             WorkplaceCatalogRepository.SiteRow saved = catalog.saveSite(
                     tenantId, actorId, siteId, request, korean(locale));
@@ -258,7 +292,15 @@ public class WorkplaceService {
             String locale,
             String correlationId,
             WorkplaceDtos.FloorRequest request) {
+        requireWriteMode(floorId, request.version(), "floor");
         requireSite(tenantId, siteId, locale);
+        if (floorId != null) {
+            WorkplaceCatalogRepository.FloorRow current =
+                    requireFloor(tenantId, floorId, locale);
+            if (!current.siteId().equals(siteId)) {
+                throw invalid("The floor does not belong to the selected site.");
+            }
+        }
         try {
             WorkplaceCatalogRepository.FloorRow saved = catalog.saveFloor(
                     tenantId, actorId, siteId, floorId, request, korean(locale));
@@ -328,6 +370,7 @@ public class WorkplaceService {
             String locale,
             String correlationId,
             WorkplaceDtos.ResourceRequest request) {
+        requireWriteMode(resourceId, request.version(), "resource");
         validateResource(request);
         WorkplaceCatalogRepository.FloorRow floor = requireFloor(tenantId, floorId, locale);
         WorkplaceCatalogRepository.SiteRow site = requireSite(
@@ -408,17 +451,25 @@ public class WorkplaceService {
         return policy(saved);
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public WorkplaceDtos.AdminOverview adminOverview(Long tenantId) {
-        bookings.releaseNoShows(tenantId, OffsetDateTime.now());
         WorkplaceCatalogRepository.PolicyRow policy = catalog.policy(tenantId);
-        ZoneId zone = ZoneId.of("Asia/Seoul");
+        ZoneId zone = catalog.sites(tenantId, false).stream()
+                .filter(value -> value.state() == SiteState.ACTIVE)
+                .sorted(java.util.Comparator.comparingInt(value ->
+                        value.type() == SiteType.HEADQUARTERS ? 0 : 1))
+                .map(WorkplaceCatalogRepository.SiteRow::timeZone)
+                .map(ZoneId::of)
+                .findFirst()
+                .orElse(ZoneId.of("UTC"));
         LocalDate monday = LocalDate.now(zone)
                 .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
         OffsetDateTime from = monday.atStartOfDay(zone).toOffsetDateTime();
         OffsetDateTime to = from.plusDays(7);
-        WorkplaceCatalogRepository.AdminStats stats = catalog.adminStats(tenantId, from, to);
-        long availableMinutes = stats.reservableResources()
+        OffsetDateTime dayStart = LocalDate.now(zone).atStartOfDay(zone).toOffsetDateTime();
+        WorkplaceCatalogRepository.AdminStats stats = catalog.adminStats(
+                tenantId, from, to, dayStart, dayStart.plusDays(1));
+        long availableMinutes = stats.utilizationResources()
                 * 5L * Duration.between(policy.workingDayStart(), policy.workingDayEnd()).toMinutes();
         int utilization = availableMinutes == 0 ? 0 : (int) Math.min(100,
                 Math.round(bookings.occupiedMinutes(tenantId, from, to) * 100.0 / availableMinutes));
@@ -446,7 +497,7 @@ public class WorkplaceService {
                 site.nameKo(), floor.nameEn(), request.capacity(), request.features(), site.timeZone(),
                 request.approvalRequired(), CalendarTypes.ResourceState.valueOf(request.state().name()),
                 calendarVersion);
-        return calendarService.saveResource(
+        return calendarService.saveWorkplaceManagedResource(
                 tenantId, actorId, existing == null ? null : existing.calendarResourceId(),
                 locale, correlationId, calendarRequest).resourceId();
     }
@@ -457,7 +508,11 @@ public class WorkplaceService {
             UUID personPublicId,
             WorkplaceDtos.BookingRequest request,
             WorkplaceCatalogRepository.SiteRow site,
+            WorkplaceCatalogRepository.FloorRow floor,
             WorkplaceCatalogRepository.PolicyRow policy) {
+        if (site.state() != SiteState.ACTIVE || floor.state() != FloorState.ACTIVE) {
+            throw invalid("This Workplace location is not open for booking.");
+        }
         if (resource.type() == ResourceType.ROOM) {
             throw invalid("Meeting rooms must be reserved with the calendar-aware room flow.");
         }
@@ -503,8 +558,7 @@ public class WorkplaceService {
         validateBounds(request.positionX(), request.positionY(),
                 request.widthPercent(), request.heightPercent());
         boolean hasAssignee = request.assignedUserId() != null
-                || request.assignedPersonPublicId() != null
-                || (request.assignedDisplayName() != null && !request.assignedDisplayName().isBlank());
+                || request.assignedPersonPublicId() != null;
         if (request.mode() == BookingMode.ASSIGNED && !hasAssignee) {
             throw invalid("Assigned resources require an assignee.");
         }
@@ -537,10 +591,9 @@ public class WorkplaceService {
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
     }
 
-    private WorkplaceDtos.Booking requireBooking(
+    private WorkplaceBookingRepository.BookingRow requireBookingRow(
             Long tenantId, Long userId, UUID bookingId, String locale) {
         return bookings.booking(tenantId, userId, bookingId, korean(locale))
-                .map(this::booking)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
     }
 
@@ -604,8 +657,30 @@ public class WorkplaceService {
                 value.mode(), value.state(), value.neighborhood(), value.capacity(), value.features(),
                 value.accessible(), value.approvalRequired(), value.positionX(), value.positionY(),
                 value.widthPercent(), value.heightPercent(), value.rotationDegrees(),
+                false,
                 value.assignedUserId(), value.assignedPersonPublicId(),
                 value.assignedDisplayName(), value.version());
+    }
+
+    private WorkplaceDtos.Resource publicResource(
+            WorkplaceCatalogRepository.ResourceRow value,
+            UUID siteId,
+            Long userId,
+            UUID personPublicId,
+            boolean showColleagueNames) {
+        boolean assignedToCurrentUser = userId.equals(value.assignedUserId())
+                || (personPublicId != null
+                    && personPublicId.equals(value.assignedPersonPublicId()));
+        return new WorkplaceDtos.Resource(
+                value.resourceId(), value.floorId(), siteId, value.calendarResourceId(),
+                value.code(), value.name(), value.nameKo(), value.nameEn(), value.type(),
+                value.mode(), value.state(), value.neighborhood(), value.capacity(), value.features(),
+                value.accessible(), value.approvalRequired(), value.positionX(), value.positionY(),
+                value.widthPercent(), value.heightPercent(), value.rotationDegrees(),
+                assignedToCurrentUser, null, null,
+                assignedToCurrentUser || showColleagueNames
+                        ? value.assignedDisplayName() : null,
+                value.version());
     }
 
     private WorkplaceDtos.Occupancy occupancy(
@@ -616,12 +691,54 @@ public class WorkplaceService {
                 value.endsAt(), displayName, value.currentUser());
     }
 
-    private WorkplaceDtos.Booking booking(WorkplaceBookingRepository.BookingRow value) {
+    private WorkplaceDtos.Booking booking(
+            WorkplaceBookingRepository.BookingRow value,
+            WorkplaceCatalogRepository.PolicyRow policy,
+            OffsetDateTime now) {
+        OffsetDateTime checkInOpensAt = value.startsAt().minusMinutes(policy.checkInLeadMinutes());
+        OffsetDateTime checkInClosesAt = value.startsAt().plusMinutes(policy.autoReleaseMinutes());
+        boolean active = value.status() == BookingStatus.RESERVED
+                || value.status() == BookingStatus.CHECKED_IN;
+        boolean canCheckIn = policy.requireCheckIn()
+                && value.status() == BookingStatus.RESERVED
+                && !now.isBefore(checkInOpensAt)
+                && !now.isAfter(checkInClosesAt)
+                && now.isBefore(value.endsAt());
+        boolean canCancel = value.status() == BookingStatus.RESERVED
+                && now.isBefore(value.startsAt());
+        boolean canRelease = active
+                && !now.isBefore(value.startsAt())
+                && now.isBefore(value.endsAt());
         return new WorkplaceDtos.Booking(
                 value.bookingId(), value.resourceId(), value.resourceName(), value.resourceType(),
                 value.siteName(), value.floorName(), value.purpose(), value.startsAt(), value.endsAt(),
                 value.status(), value.visibleToColleagues(), value.checkedInAt(),
-                value.releasedAt(), value.version());
+                value.releasedAt(), canCheckIn, canCancel, canRelease,
+                checkInOpensAt, checkInClosesAt, value.version());
+    }
+
+    @Transactional
+    public int maintainBookingLifecycle() {
+        if (!bookings.tryLifecycleLock()) return 0;
+        OffsetDateTime now = OffsetDateTime.now();
+        return bookings.releaseNoShows(now) + bookings.completeEndedBookings(now);
+    }
+
+    private void validateTimeZone(String value) {
+        try {
+            ZoneId.of(value == null ? "" : value.trim());
+        } catch (DateTimeException exception) {
+            throw invalid("A valid IANA time zone is required.");
+        }
+    }
+
+    private void requireWriteMode(UUID resourceId, Long version, String resourceName) {
+        if (resourceId == null && version != null) {
+            throw invalid("A new Workplace " + resourceName + " cannot include a version.");
+        }
+        if (resourceId != null && version == null) {
+            throw invalid("Updating a Workplace " + resourceName + " requires its version.");
+        }
     }
 
     private WorkplaceDtos.Policy policy(WorkplaceCatalogRepository.PolicyRow value) {

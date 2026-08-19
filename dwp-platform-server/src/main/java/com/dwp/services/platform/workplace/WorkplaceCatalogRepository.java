@@ -144,7 +144,7 @@ class WorkplaceCatalogRepository {
             WorkplaceDtos.SiteRequest value,
             boolean korean) {
         UUID id = siteId == null ? UUID.randomUUID() : siteId;
-        if (value.version() == null) {
+        if (siteId == null) {
             jdbc.update("""
                     INSERT INTO wp_sites (
                         site_id, tenant_id, site_code, name_ko, name_en, site_type,
@@ -178,7 +178,7 @@ class WorkplaceCatalogRepository {
             WorkplaceDtos.FloorRequest value,
             boolean korean) {
         UUID id = floorId == null ? UUID.randomUUID() : floorId;
-        if (value.version() == null) {
+        if (floorId == null) {
             jdbc.update("""
                     INSERT INTO wp_floors (
                         floor_id, tenant_id, site_id, floor_number, name_ko, name_en,
@@ -235,7 +235,12 @@ class WorkplaceCatalogRepository {
             WorkplaceDtos.ResourceRequest value,
             boolean korean) {
         UUID id = resourceId == null ? UUID.randomUUID() : resourceId;
-        if (value.version() == null) {
+        boolean assigned = value.mode() == BookingMode.ASSIGNED;
+        Long assignedUserId = assigned && value.assignedPersonPublicId() == null
+                ? value.assignedUserId() : null;
+        UUID assignedPersonPublicId = assigned ? value.assignedPersonPublicId() : null;
+        String assignedDisplayName = assigned ? blank(value.assignedDisplayName()) : null;
+        if (resourceId == null) {
             jdbc.update("""
                     INSERT INTO wp_resources (
                         resource_id, tenant_id, floor_id, calendar_resource_id,
@@ -253,8 +258,8 @@ class WorkplaceCatalogRepository {
                     json(value.features()), value.accessible(), value.approvalRequired(),
                     value.positionX(), value.positionY(),
                     value.widthPercent(), value.heightPercent(), value.rotationDegrees(),
-                    value.assignedUserId(), value.assignedPersonPublicId(),
-                    blank(value.assignedDisplayName()), actorId, actorId);
+                    assignedUserId, assignedPersonPublicId,
+                    assignedDisplayName, actorId, actorId);
         } else {
             int updated = jdbc.update("""
                     UPDATE wp_resources
@@ -272,8 +277,8 @@ class WorkplaceCatalogRepository {
                     value.capacity(), json(value.features()), value.accessible(),
                     value.approvalRequired(), value.positionX(),
                     value.positionY(), value.widthPercent(), value.heightPercent(),
-                    value.rotationDegrees(), value.assignedUserId(), value.assignedPersonPublicId(),
-                    blank(value.assignedDisplayName()), calendarResourceId, actorId,
+                    value.rotationDegrees(), assignedUserId, assignedPersonPublicId,
+                    assignedDisplayName, calendarResourceId, actorId,
                     tenantId, floorId, id, value.version());
             if (updated == 0) return null;
         }
@@ -316,33 +321,63 @@ class WorkplaceCatalogRepository {
         return updated == 0 ? null : policy(tenantId);
     }
 
-    AdminStats adminStats(Long tenantId, OffsetDateTime weekStart, OffsetDateTime weekEnd) {
+    AdminStats adminStats(
+            Long tenantId,
+            OffsetDateTime weekStart,
+            OffsetDateTime weekEnd,
+            OffsetDateTime dayStart,
+            OffsetDateTime dayEnd) {
         return jdbc.queryForObject("""
                 SELECT
                     (SELECT COUNT(*) FROM wp_sites
                       WHERE tenant_id = ? AND lifecycle_state = 'ACTIVE') AS active_sites,
-                    (SELECT COUNT(*) FROM wp_floors
-                      WHERE tenant_id = ? AND lifecycle_state = 'ACTIVE') AS configured_floors,
-                    (SELECT COUNT(*) FROM wp_resources
-                      WHERE tenant_id = ? AND lifecycle_state = 'AVAILABLE'
-                        AND booking_mode IN ('RESERVABLE', 'DROP_IN')) AS reservable_resources,
-                    (SELECT COUNT(*) FROM wp_resources
-                      WHERE tenant_id = ? AND booking_mode = 'ASSIGNED'
-                        AND lifecycle_state <> 'RETIRED') AS assigned_resources,
+                    (SELECT COUNT(*) FROM wp_floors floor
+                      JOIN wp_sites site ON site.tenant_id = floor.tenant_id
+                       AND site.site_id = floor.site_id
+                     WHERE floor.tenant_id = ? AND floor.lifecycle_state = 'ACTIVE'
+                       AND site.lifecycle_state = 'ACTIVE') AS configured_floors,
+                    (SELECT COUNT(*) FROM wp_resources resource
+                      JOIN wp_floors floor ON floor.tenant_id = resource.tenant_id
+                       AND floor.floor_id = resource.floor_id
+                      JOIN wp_sites site ON site.tenant_id = floor.tenant_id
+                       AND site.site_id = floor.site_id
+                     WHERE resource.tenant_id = ? AND resource.lifecycle_state = 'AVAILABLE'
+                       AND floor.lifecycle_state = 'ACTIVE' AND site.lifecycle_state = 'ACTIVE'
+                       AND resource.booking_mode IN ('RESERVABLE', 'DROP_IN')) AS reservable_resources,
+                    (SELECT COUNT(*) FROM wp_resources resource
+                      JOIN wp_floors floor ON floor.tenant_id = resource.tenant_id
+                       AND floor.floor_id = resource.floor_id
+                      JOIN wp_sites site ON site.tenant_id = floor.tenant_id
+                       AND site.site_id = floor.site_id
+                     WHERE resource.tenant_id = ? AND resource.lifecycle_state = 'AVAILABLE'
+                       AND floor.lifecycle_state = 'ACTIVE' AND site.lifecycle_state = 'ACTIVE'
+                       AND resource.resource_type <> 'ROOM'
+                       AND resource.booking_mode IN ('RESERVABLE', 'DROP_IN', 'ASSIGNED'))
+                        AS utilization_resources,
+                    (SELECT COUNT(*) FROM wp_resources resource
+                      JOIN wp_floors floor ON floor.tenant_id = resource.tenant_id
+                       AND floor.floor_id = resource.floor_id
+                      JOIN wp_sites site ON site.tenant_id = floor.tenant_id
+                       AND site.site_id = floor.site_id
+                     WHERE resource.tenant_id = ? AND resource.booking_mode = 'ASSIGNED'
+                       AND resource.lifecycle_state <> 'RETIRED'
+                       AND floor.lifecycle_state = 'ACTIVE' AND site.lifecycle_state = 'ACTIVE')
+                        AS assigned_resources,
                     (SELECT COUNT(*) FROM wp_bookings
                       WHERE tenant_id = ? AND starts_at < ? AND ends_at > ?
-                        AND booking_status IN ('RESERVED', 'CHECKED_IN', 'RELEASED'))
+                        AND booking_status IN (
+                            'RESERVED', 'CHECKED_IN', 'COMPLETED', 'NO_SHOW', 'RELEASED'))
                         AS bookings_this_week,
                     (SELECT COUNT(*) FROM wp_bookings
-                      WHERE tenant_id = ? AND checked_in_at >= date_trunc('day', CURRENT_TIMESTAMP)
-                        AND checked_in_at < date_trunc('day', CURRENT_TIMESTAMP) + INTERVAL '1 day')
+                      WHERE tenant_id = ? AND checked_in_at >= ? AND checked_in_at < ?)
                         AS checked_in_today
                 """, (result, ignored) -> new AdminStats(
                         result.getLong("active_sites"), result.getLong("configured_floors"),
-                        result.getLong("reservable_resources"), result.getLong("assigned_resources"),
+                        result.getLong("reservable_resources"), result.getLong("utilization_resources"),
+                        result.getLong("assigned_resources"),
                         result.getLong("bookings_this_week"), result.getLong("checked_in_today")),
-                tenantId, tenantId, tenantId, tenantId,
-                tenantId, weekEnd, weekStart, tenantId);
+                tenantId, tenantId, tenantId, tenantId, tenantId,
+                tenantId, weekEnd, weekStart, tenantId, dayStart, dayEnd);
     }
 
     private SiteRow site(ResultSet result) throws SQLException {
@@ -458,6 +493,7 @@ class WorkplaceCatalogRepository {
 
     record AdminStats(
             long activeSites, long configuredFloors, long reservableResources,
+            long utilizationResources,
             long assignedResources, long bookingsThisWeek, long checkedInToday) {
     }
 }

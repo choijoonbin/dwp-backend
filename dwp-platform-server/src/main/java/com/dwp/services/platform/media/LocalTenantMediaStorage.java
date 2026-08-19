@@ -3,6 +3,7 @@ package com.dwp.services.platform.media;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
@@ -16,6 +17,11 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 @Component
+@ConditionalOnProperty(
+        prefix = "dwp.platform.assets",
+        name = "storage",
+        havingValue = "local",
+        matchIfMissing = true)
 public class LocalTenantMediaStorage implements TenantMediaStorage {
 
     private static final Pattern CATEGORY_PATTERN =

@@ -461,6 +461,37 @@ public class CalendarService {
             String locale,
             String correlationId,
             CalendarDtos.ResourceRequest request) {
+        return saveResource(
+                tenantId, actorId, resourceId, locale, correlationId, request, false);
+    }
+
+    @Transactional
+    public CalendarDtos.ResourceSummary saveWorkplaceManagedResource(
+            Long tenantId,
+            Long actorId,
+            UUID resourceId,
+            String locale,
+            String correlationId,
+            CalendarDtos.ResourceRequest request) {
+        return saveResource(
+                tenantId, actorId, resourceId, locale, correlationId, request, true);
+    }
+
+    private CalendarDtos.ResourceSummary saveResource(
+            Long tenantId,
+            Long actorId,
+            UUID resourceId,
+            String locale,
+            String correlationId,
+            CalendarDtos.ResourceRequest request,
+            boolean workplaceWrite) {
+        if (resourceId != null
+                && !workplaceWrite
+                && repository.isWorkplaceManagedResource(tenantId, resourceId)) {
+            throw new BaseException(
+                    ErrorCode.RESOURCE_CONFLICT,
+                    "This room is managed by Workplace. Update it from Workplace locations.");
+        }
         CalendarRepository.ResourceRow saved = repository.saveResource(
                 tenantId, actorId, resourceId, request, korean(locale));
         if (saved == null) {
@@ -665,6 +696,12 @@ public class CalendarService {
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND, "The resource was not found."));
         if (resource.state() != ResourceState.AVAILABLE) {
             throw new BaseException(ErrorCode.RESOURCE_CONFLICT, "The resource is not available.");
+        }
+        if (repository.isWorkplaceManagedResource(tenantId, resourceId)
+                && !repository.isWorkplaceResourceBookable(tenantId, resourceId)) {
+            throw new BaseException(
+                    ErrorCode.RESOURCE_CONFLICT,
+                    "The Workplace location for this room is not open for booking.");
         }
         if (recurrence != RecurrencePattern.NONE && recurrenceUntil == null) {
             throw invalid("Recurring resource reservations require an end date.");

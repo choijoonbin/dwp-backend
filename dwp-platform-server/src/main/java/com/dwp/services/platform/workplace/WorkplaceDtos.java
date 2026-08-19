@@ -81,6 +81,7 @@ public final class WorkplaceDtos {
             BigDecimal widthPercent,
             BigDecimal heightPercent,
             int rotationDegrees,
+            boolean assignedToCurrentUser,
             Long assignedUserId,
             UUID assignedPersonPublicId,
             String assignedDisplayName,
@@ -142,6 +143,11 @@ public final class WorkplaceDtos {
             boolean visibleToColleagues,
             OffsetDateTime checkedInAt,
             OffsetDateTime releasedAt,
+            boolean canCheckIn,
+            boolean canCancel,
+            boolean canRelease,
+            OffsetDateTime checkInOpensAt,
+            OffsetDateTime checkInClosesAt,
             long version) {
     }
 

@@ -36,6 +36,8 @@ public class WorkplaceController {
     public ApiResponse<WorkplaceDtos.ExploreResponse> exploreWorkplace(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
+            @RequestHeader(value = "X-DWP-Person-Public-ID", required = false)
+                    UUID personPublicId,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestParam(required = false) UUID floorId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
@@ -43,7 +45,7 @@ public class WorkplaceController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
                     OffsetDateTime to) {
         return ApiResponse.success(service.explore(
-                tenantId, userId, floorId, from, to, locale));
+                tenantId, userId, personPublicId, floorId, from, to, locale));
     }
 
     @GetMapping("/bookings")
@@ -126,7 +128,7 @@ public class WorkplaceController {
     private String decoded(String encoded) {
         if (encoded == null || encoded.isBlank()) return null;
         try {
-            return new String(Base64.getDecoder().decode(encoded), StandardCharsets.UTF_8);
+            return new String(Base64.getUrlDecoder().decode(encoded), StandardCharsets.UTF_8);
         } catch (IllegalArgumentException ignored) {
             return null;
         }
