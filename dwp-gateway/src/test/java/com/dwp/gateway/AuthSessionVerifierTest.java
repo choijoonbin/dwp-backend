@@ -348,6 +348,41 @@ class AuthSessionVerifierTest {
     }
 
     @Test
+    void requestsSeparatedRoomsApplicationAndAdministrationAuthorities() {
+        AtomicReference<ClientRequest> captured = new AtomicReference<>();
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+            captured.set(request);
+            return Mono.just(ClientResponse.create(HttpStatus.OK)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .body("""
+                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            "roles":["WORKSPACE_MEMBER"],"permissions":[
+                              {"resourceKey":"APP.ROOMS","permissionCode":"VIEW","effect":"ALLOW"}
+                            ]}}
+                            """)
+                    .build());
+        });
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+
+        VerifiedIdentity runtime = verifier.verify(MockServerHttpRequest
+                .get("/api/platform/v1/rooms/availability")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery())
+                .isEqualTo("permissionPrefix=APP.ROOMS");
+        assertThat(runtime).isNotNull();
+
+        VerifiedIdentity admin = verifier.verify(MockServerHttpRequest
+                .get("/api/platform/v1/admin/rooms/overview")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery())
+                .isEqualTo("permissionPrefix=ADMIN.ROOMS");
+        assertThat(admin).isNotNull();
+    }
+
+    @Test
     void scopesApprovalRuntimeAndControlPlaneAuthoritiesSeparately() {
         AtomicReference<ClientRequest> captured = new AtomicReference<>();
         WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {

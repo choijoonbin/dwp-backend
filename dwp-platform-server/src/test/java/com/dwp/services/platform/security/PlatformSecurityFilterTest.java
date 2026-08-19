@@ -193,6 +193,92 @@ class PlatformSecurityFilterTest {
     }
 
     @Test
+    void isolatesRoomAvailabilityBehindItsApplicationPermission() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+        MockHttpServletRequest denied = request("/v1/rooms/availability");
+        denied.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        denied.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        denied.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        denied.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
+        denied.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER, "APP.CALENDAR:VIEW");
+        MockHttpServletResponse deniedResponse = new MockHttpServletResponse();
+
+        filter.doFilter(denied, deniedResponse, new MockFilterChain());
+
+        assertThat(deniedResponse.getStatus()).isEqualTo(403);
+
+        MockHttpServletRequest allowed = request("/v1/rooms/availability");
+        allowed.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        allowed.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        allowed.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        allowed.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
+        allowed.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER, "APP.ROOMS:VIEW");
+        MockHttpServletResponse allowedResponse = new MockHttpServletResponse();
+
+        filter.doFilter(allowed, allowedResponse, new MockFilterChain());
+
+        assertThat(allowedResponse.getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void separatesRoomBookingCreationFromBookingUpdates() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+        MockHttpServletRequest deniedUpdate = new MockHttpServletRequest(
+                "POST", "/v1/rooms/bookings/event-1/cancel");
+        deniedUpdate.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        deniedUpdate.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        deniedUpdate.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        deniedUpdate.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
+        deniedUpdate.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER, "APP.ROOMS:CREATE");
+        MockHttpServletResponse deniedResponse = new MockHttpServletResponse();
+
+        filter.doFilter(deniedUpdate, deniedResponse, new MockFilterChain());
+
+        assertThat(deniedResponse.getStatus()).isEqualTo(403);
+
+        MockHttpServletRequest allowedUpdate = new MockHttpServletRequest(
+                "POST", "/v1/rooms/bookings/event-1/cancel");
+        allowedUpdate.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        allowedUpdate.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        allowedUpdate.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        allowedUpdate.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
+        allowedUpdate.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER, "APP.ROOMS:UPDATE");
+        MockHttpServletResponse allowedResponse = new MockHttpServletResponse();
+
+        filter.doFilter(allowedUpdate, allowedResponse, new MockFilterChain());
+
+        assertThat(allowedResponse.getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void isolatesRoomAdministrationFromCalendarAdministration() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+        MockHttpServletRequest denied = request("/v1/admin/rooms/overview");
+        denied.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        denied.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        denied.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        denied.addHeader(PlatformSecurityFilter.ROLES_HEADER, "CALENDAR_ADMIN");
+        denied.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER, "ADMIN.CALENDAR:VIEW");
+        MockHttpServletResponse deniedResponse = new MockHttpServletResponse();
+
+        filter.doFilter(denied, deniedResponse, new MockFilterChain());
+
+        assertThat(deniedResponse.getStatus()).isEqualTo(403);
+
+        MockHttpServletRequest allowed = request("/v1/admin/rooms/overview");
+        allowed.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        allowed.addHeader(PlatformSecurityFilter.USER_HEADER, "18");
+        allowed.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        allowed.addHeader(PlatformSecurityFilter.ROLES_HEADER, "CALENDAR_ADMIN");
+        allowed.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER, "ADMIN.ROOMS:VIEW");
+        MockHttpServletResponse allowedResponse = new MockHttpServletResponse();
+
+        filter.doFilter(allowed, allowedResponse, new MockFilterChain());
+
+        assertThat(allowedResponse.getStatus()).isEqualTo(200);
+    }
+
+    @Test
     void separatesMailUseFromDelegatedMailAdministration() throws Exception {
         PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
         MockHttpServletRequest inbox = request("/v1/mail/threads");

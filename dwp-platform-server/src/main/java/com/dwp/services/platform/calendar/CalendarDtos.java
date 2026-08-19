@@ -1,5 +1,6 @@
 package com.dwp.services.platform.calendar;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Max;
@@ -202,6 +203,19 @@ public final class CalendarDtos {
             long version) {
     }
 
+    public record ResourceOccupancy(
+            UUID resourceId,
+            OffsetDateTime startsAt,
+            OffsetDateTime endsAt,
+            String bookingStatus) {
+    }
+
+    public record RoomAvailabilityResponse(
+            List<ResourceSummary> rooms,
+            List<ResourceOccupancy> occupancy,
+            OffsetDateTime generatedAt) {
+    }
+
     public record BookingSummary(
             UUID bookingId,
             UUID eventId,
@@ -273,6 +287,7 @@ public final class CalendarDtos {
             Long version) {
     }
 
+    @Schema(name = "CalendarAdminOverview")
     public record AdminOverview(
             long activeResources,
             long resourcesInMaintenance,

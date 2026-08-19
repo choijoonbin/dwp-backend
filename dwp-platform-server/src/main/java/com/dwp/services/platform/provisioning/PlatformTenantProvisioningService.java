@@ -347,6 +347,12 @@ public class PlatformTenantProvisioningService {
                     "DWP Workplace", "PRODUCTIVITY", "NATIVE", "/calendar/home",
                     "calendar", "APP.CALENDAR", "HEALTHY", 38));
             apps.add(new WorkspaceAppSeed(
+                    "dwp-rooms", "회의실", "Rooms",
+                    "실시간 가용성을 확인하고 회의실 예약, 참석자 초대와 운영 승인을 관리합니다.",
+                    "Find live availability and manage room bookings, invitations, and approvals.",
+                    "DWP Workplace", "PRODUCTIVITY", "NATIVE", "/rooms/find",
+                    "rooms", "APP.ROOMS", "HEALTHY", 39));
+            apps.add(new WorkspaceAppSeed(
                     "ref-app-mail", "메일", "Mail",
                     "중요 메일을 선별하고 회신, 일정, 업무와 협업 후속 조치를 연결합니다.",
                     "Triage important mail and connect replies, schedules, work, and collaborative follow-ups.",
@@ -432,6 +438,10 @@ public class PlatformTenantProvisioningService {
                         "calendar", "DWP_CALENDAR", "/calendar/home", "calendar",
                         "APP.CALENDAR", "Calendar", "캘린더",
                         "Schedules, focus time, responses, and workplace bookings", "LOW"),
+                new AppSeed(
+                        "rooms", "DWP_ROOMS", "/rooms/find", "rooms",
+                        "APP.ROOMS", "Rooms", "회의실",
+                        "Live room availability, booking, invitations, and operations", "LOW"),
                 new AppSeed(
                         "approvals", "DWP_APPROVALS", "/approvals/home", "approvals",
                         "APP.APPROVALS", "Approvals", "전자결재",
