@@ -7,6 +7,12 @@
             "format": "int32",
             "type": "integer"
           },
+          "assurance": {
+            "items": {
+              "$ref": "#/components/schemas/AssuranceSignal"
+            },
+            "type": "array"
+          },
           "draftWorkflows": {
             "format": "int32",
             "type": "integer"
@@ -107,6 +113,36 @@
         },
         "type": "object"
       },
+      "ApiResponseListDelegationCandidate": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/DelegationCandidate"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseListDelegationSummary": {
         "properties": {
           "correlationId": {
@@ -115,6 +151,36 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/DelegationSummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListFormCategorySummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/FormCategorySummary"
             },
             "type": "array"
           },
@@ -175,6 +241,36 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/PolicySummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListPolicyVersionSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyVersionSummary"
             },
             "type": "array"
           },
@@ -512,6 +608,21 @@
         },
         "type": "object"
       },
+      "AssuranceSignal": {
+        "properties": {
+          "exceptions": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "key": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "CreateDelegationRequest": {
         "properties": {
           "delegateUserId": {
@@ -524,7 +635,7 @@
           },
           "reason": {
             "maxLength": 1000,
-            "minLength": 0,
+            "minLength": 10,
             "type": "string"
           },
           "scopeType": {
@@ -548,8 +659,126 @@
         ],
         "type": "object"
       },
+      "CreateFormCategoryRequest": {
+        "properties": {
+          "categoryKey": {
+            "minLength": 1,
+            "pattern": "[A-Z][A-Z0-9_]{1,99}",
+            "type": "string"
+          },
+          "descriptionEn": {
+            "maxLength": 600,
+            "minLength": 0,
+            "type": "string"
+          },
+          "descriptionKo": {
+            "maxLength": 600,
+            "minLength": 0,
+            "type": "string"
+          },
+          "iconKey": {
+            "minLength": 1,
+            "pattern": "[a-z][a-z0-9-]{1,79}",
+            "type": "string"
+          },
+          "nameEn": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "nameKo": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "parentCategoryId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "sortOrder": {
+            "format": "int32",
+            "maximum": 10000,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "categoryKey",
+          "iconKey",
+          "nameEn",
+          "nameKo",
+          "sortOrder"
+        ],
+        "type": "object"
+      },
+      "CreateFormDraftRequest": {
+        "properties": {
+          "categoryId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "defaultWorkflowId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "descriptionEn": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "descriptionKo": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/FormFieldInput"
+            },
+            "maxItems": 50,
+            "minItems": 0,
+            "type": "array"
+          },
+          "formKey": {
+            "minLength": 1,
+            "pattern": "[A-Z][A-Z0-9_]{2,99}",
+            "type": "string"
+          },
+          "nameEn": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "nameKo": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "ownerGroupRef": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "categoryId",
+          "defaultWorkflowId",
+          "descriptionEn",
+          "descriptionKo",
+          "fields",
+          "formKey",
+          "nameEn",
+          "nameKo",
+          "ownerGroupRef"
+        ],
+        "type": "object"
+      },
       "CreateRequest": {
         "properties": {
+          "formId": {
+            "format": "uuid",
+            "type": "string"
+          },
           "payload": {
             "additionalProperties": {},
             "type": "object"
@@ -574,6 +803,7 @@
           }
         },
         "required": [
+          "formId",
           "priority",
           "summary",
           "title",
@@ -698,8 +928,40 @@
         ],
         "type": "object"
       },
+      "DelegationCandidate": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "jobTitle": {
+            "type": "string"
+          },
+          "personPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "userId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "DelegationSummary": {
         "properties": {
+          "delegateDisplayName": {
+            "type": "string"
+          },
+          "delegateEmail": {
+            "type": "string"
+          },
+          "delegatePersonPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
           "delegateUserId": {
             "format": "int64",
             "type": "integer"
@@ -711,6 +973,9 @@
           "delegatorUserId": {
             "format": "int64",
             "type": "integer"
+          },
+          "direction": {
+            "type": "string"
           },
           "endsAt": {
             "format": "date-time",
@@ -739,10 +1004,62 @@
         },
         "type": "object"
       },
+      "FormCategorySummary": {
+        "properties": {
+          "categoryId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "categoryKey": {
+            "type": "string"
+          },
+          "descriptionEn": {
+            "type": "string"
+          },
+          "descriptionKo": {
+            "type": "string"
+          },
+          "formCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "iconKey": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "nameKo": {
+            "type": "string"
+          },
+          "parentCategoryId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "sortOrder": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "FormDetail": {
         "properties": {
           "form": {
             "$ref": "#/components/schemas/FormSummary"
+          },
+          "routes": {
+            "items": {
+              "$ref": "#/components/schemas/FormRouteSummary"
+            },
+            "type": "array"
           },
           "schema": {
             "additionalProperties": {},
@@ -807,11 +1124,70 @@
         ],
         "type": "object"
       },
+      "FormRouteSummary": {
+        "properties": {
+          "bindingId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "bindingType": {
+            "type": "string"
+          },
+          "priority": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "slaMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "workflowId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "workflowKey": {
+            "type": "string"
+          },
+          "workflowLifecycleState": {
+            "type": "string"
+          },
+          "workflowNameEn": {
+            "type": "string"
+          },
+          "workflowNameKo": {
+            "type": "string"
+          },
+          "workflowVersion": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "FormSummary": {
         "properties": {
+          "categoryId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "categoryKey": {
+            "type": "string"
+          },
+          "categoryNameEn": {
+            "type": "string"
+          },
+          "categoryNameKo": {
+            "type": "string"
+          },
           "currentVersion": {
             "format": "int32",
             "type": "integer"
+          },
+          "descriptionEn": {
+            "type": "string"
+          },
+          "descriptionKo": {
+            "type": "string"
           },
           "fieldCount": {
             "format": "int32",
@@ -824,6 +1200,9 @@
           "formKey": {
             "type": "string"
           },
+          "formKind": {
+            "type": "string"
+          },
           "lifecycleState": {
             "type": "string"
           },
@@ -833,9 +1212,20 @@
           "nameKo": {
             "type": "string"
           },
+          "ownerGroupRef": {
+            "type": "string"
+          },
+          "routeCount": {
+            "format": "int32",
+            "type": "integer"
+          },
           "updatedAt": {
             "format": "date-time",
             "type": "string"
+          },
+          "usageCount": {
+            "format": "int64",
+            "type": "integer"
           },
           "version": {
             "format": "int64",
@@ -896,12 +1286,66 @@
             "maxLength": 2000,
             "minLength": 0,
             "type": "string"
+          },
+          "payload": {
+            "additionalProperties": {},
+            "type": "object"
           }
         },
         "required": [
           "expectedVersion",
           "message"
         ],
+        "type": "object"
+      },
+      "IntegrationDeliverySummary": {
+        "properties": {
+          "attemptCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "availableAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "eventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "lastError": {
+            "type": "string"
+          },
+          "lastRetriedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "manualRetryCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "outboxId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "requestId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "OperationSignal": {
@@ -943,6 +1387,12 @@
             "format": "date-time",
             "type": "string"
           },
+          "integrationDeliveries": {
+            "items": {
+              "$ref": "#/components/schemas/IntegrationDeliverySummary"
+            },
+            "type": "array"
+          },
           "signals": {
             "items": {
               "$ref": "#/components/schemas/OperationSignal"
@@ -964,6 +1414,33 @@
             "type": "string"
           },
           "nameKo": {
+            "type": "string"
+          },
+          "pendingAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "pendingBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "pendingChangeReason": {
+            "type": "string"
+          },
+          "pendingEnforcementMode": {
+            "type": "string"
+          },
+          "pendingLifecycleState": {
+            "type": "string"
+          },
+          "pendingReview": {
+            "type": "boolean"
+          },
+          "pendingRule": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "pendingSeverity": {
             "type": "string"
           },
           "policyId": {
@@ -990,6 +1467,84 @@
         },
         "type": "object"
       },
+      "PolicyVersionSummary": {
+        "properties": {
+          "changeReason": {
+            "type": "string"
+          },
+          "enforcementMode": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "policyVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "publishedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "reviewComment": {
+            "type": "string"
+          },
+          "rule": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "submittedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "versionNumber": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "PublishFormRequest": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expectedVersion"
+        ],
+        "type": "object"
+      },
+      "PublishPolicyRequest": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "reviewComment": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "reviewComment"
+        ],
+        "type": "object"
+      },
       "PublishWorkflowRequest": {
         "properties": {
           "expectedVersion": {
@@ -1004,12 +1559,22 @@
       },
       "RequestDetail": {
         "properties": {
+          "formId": {
+            "format": "uuid",
+            "type": "string"
+          },
           "payload": {
             "additionalProperties": {},
             "type": "object"
           },
           "request": {
             "$ref": "#/components/schemas/RequestSummary"
+          },
+          "timeline": {
+            "items": {
+              "$ref": "#/components/schemas/TimelineEvent"
+            },
+            "type": "array"
           },
           "workflowId": {
             "format": "uuid",
@@ -1088,6 +1653,10 @@
         "properties": {
           "form": {
             "$ref": "#/components/schemas/FormDetail"
+          },
+          "routeDefinition": {
+            "additionalProperties": {},
+            "type": "object"
           },
           "workflow": {
             "$ref": "#/components/schemas/WorkflowSummary"
@@ -1277,6 +1846,10 @@
             "format": "int64",
             "type": "integer"
           },
+          "formId": {
+            "format": "uuid",
+            "type": "string"
+          },
           "payload": {
             "additionalProperties": {},
             "type": "object"
@@ -1302,6 +1875,7 @@
         },
         "required": [
           "expectedVersion",
+          "formId",
           "priority",
           "summary",
           "title",
@@ -1309,8 +1883,83 @@
         ],
         "type": "object"
       },
+      "UpdateFormCategoryRequest": {
+        "properties": {
+          "descriptionEn": {
+            "maxLength": 600,
+            "minLength": 0,
+            "type": "string"
+          },
+          "descriptionKo": {
+            "maxLength": 600,
+            "minLength": 0,
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "iconKey": {
+            "minLength": 1,
+            "pattern": "[a-z][a-z0-9-]{1,79}",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "minLength": 1,
+            "pattern": "ACTIVE|INACTIVE",
+            "type": "string"
+          },
+          "nameEn": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "nameKo": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "parentCategoryId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "sortOrder": {
+            "format": "int32",
+            "maximum": 10000,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "iconKey",
+          "lifecycleState",
+          "nameEn",
+          "nameKo",
+          "sortOrder"
+        ],
+        "type": "object"
+      },
       "UpdateFormDraftRequest": {
         "properties": {
+          "categoryId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "defaultWorkflowId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "descriptionEn": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "descriptionKo": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
           "expectedVersion": {
             "format": "int64",
             "type": "integer"
@@ -1332,18 +1981,33 @@
             "maxLength": 200,
             "minLength": 0,
             "type": "string"
+          },
+          "ownerGroupRef": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
           }
         },
         "required": [
+          "categoryId",
+          "defaultWorkflowId",
+          "descriptionEn",
+          "descriptionKo",
           "expectedVersion",
           "fields",
           "nameEn",
-          "nameKo"
+          "nameKo",
+          "ownerGroupRef"
         ],
         "type": "object"
       },
       "UpdatePolicyRequest": {
         "properties": {
+          "changeReason": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "type": "string"
+          },
           "enforcementMode": {
             "minLength": 1,
             "type": "string"
@@ -1366,6 +2030,7 @@
           }
         },
         "required": [
+          "changeReason",
           "enforcementMode",
           "expectedVersion",
           "lifecycleState",
@@ -1570,6 +2235,113 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/v1/admin/form-categories": {
+      "get": {
+        "operationId": "formCategories",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListFormCategorySummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "approval-admin-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createFormCategory",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFormCategoryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListFormCategorySummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "approval-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/form-categories/{categoryId}": {
+      "put": {
+        "operationId": "updateFormCategory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "categoryId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateFormCategoryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListFormCategorySummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "approval-admin-controller"
+        ]
+      }
+    },
     "/v1/admin/forms": {
       "get": {
         "operationId": "forms",
@@ -1579,6 +2351,44 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseListFormSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "approval-admin-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createFormDraft",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFormDraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseFormDetail"
                 }
               }
             },
@@ -1670,9 +2480,97 @@
         ]
       }
     },
+    "/v1/admin/forms/{formId}/publish": {
+      "post": {
+        "operationId": "publishForm",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "formId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishFormRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseFormDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "approval-admin-controller"
+        ]
+      }
+    },
     "/v1/admin/operations": {
       "get": {
         "operationId": "operations",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOperationsResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "approval-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/operations/events/{outboxId}/retry": {
+      "post": {
+        "operationId": "retryIntegrationDelivery",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "outboxId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -1768,6 +2666,86 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseListPolicySummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "approval-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/policies/{policyId}/publish": {
+      "post": {
+        "operationId": "publishPolicy",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishPolicyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListPolicySummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "approval-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/policies/{policyId}/versions": {
+      "get": {
+        "operationId": "policyVersions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListPolicyVersionSummary"
                 }
               }
             },
@@ -1986,6 +2964,57 @@
         ]
       }
     },
+    "/v1/catalog/forms": {
+      "get": {
+        "operationId": "formCatalog",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListFormSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "approval-controller"
+        ]
+      }
+    },
+    "/v1/catalog/forms/{formId}/template": {
+      "get": {
+        "operationId": "formTemplate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "formId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRequestTemplate"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "approval-controller"
+        ]
+      }
+    },
     "/v1/delegations": {
       "get": {
         "operationId": "delegations",
@@ -2022,6 +3051,96 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CreateDelegationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListDelegationSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "approval-controller"
+        ]
+      }
+    },
+    "/v1/delegations/candidates": {
+      "get": {
+        "operationId": "delegationCandidates",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListDelegationCandidate"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "approval-controller"
+        ]
+      }
+    },
+    "/v1/delegations/{delegationId}/revoke": {
+      "post": {
+        "operationId": "revokeDelegation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "delegationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedActionRequest"
               }
             }
           },

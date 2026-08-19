@@ -50,6 +50,8 @@ SERVICES = (
     ServiceContract("provider", 8004, prefixed("/api/provider")),
     ServiceContract("approval", 8005, prefixed("/api/approvals")),
     ServiceContract("space", 8006, prefixed("/api/spaces")),
+    ServiceContract("messaging", 8007, prefixed("/api/messaging")),
+    ServiceContract("notification", 8008, prefixed("/api/notifications")),
 )
 
 

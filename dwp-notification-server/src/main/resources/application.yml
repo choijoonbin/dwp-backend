@@ -1,0 +1,76 @@
+server:
+  port: 8008
+
+spring:
+  application:
+    name: dwp-notification-server
+  profiles:
+    default: local
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${NOTIFICATION_DB_NAME:dwp_notification}
+    username: ${DB_USERNAME:dwp_user}
+    password: ${DB_PASSWORD:dwp_password}
+    hikari:
+      maximum-pool-size: ${DWP_NOTIFICATION_DB_POOL_SIZE:20}
+      auto-commit: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    baseline-version: 0
+    validate-on-migrate: true
+  mvc:
+    async:
+      request-timeout: ${DWP_NOTIFICATION_SSE_TIMEOUT:30m}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      enable-auto-commit: false
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    listener:
+      ack-mode: record
+      missing-topics-fatal: false
+
+springdoc:
+  api-docs:
+    enabled: ${DWP_OPENAPI_ENABLED:false}
+  paths-to-match: /v1/**
+  paths-to-exclude: /internal/**
+
+dwp:
+  notification:
+    service-token: ${DWP_NOTIFICATION_SERVICE_TOKEN:}
+    gateway-source: ${DWP_NOTIFICATION_GATEWAY_SOURCE:dwp-gateway}
+    producer-tokens: ${DWP_NOTIFICATION_PRODUCER_TOKENS:}
+    cursor-secret: ${DWP_NOTIFICATION_CURSOR_SECRET:}
+    cursor-ttl: ${DWP_NOTIFICATION_CURSOR_TTL:24h}
+    sse-timeout: ${DWP_NOTIFICATION_SSE_TIMEOUT:30m}
+    sse-heartbeat: ${DWP_NOTIFICATION_SSE_HEARTBEAT:15s}
+    allowed-producers: ${DWP_NOTIFICATION_ALLOWED_PRODUCERS:dwp-approval-server,dwp-people-server,dwp-platform-server,dwp-space-server,dwp-messaging-server}
+    approval-pilot:
+      enabled: ${DWP_NOTIFICATION_APPROVAL_PILOT_ENABLED:false}
+      topic: ${DWP_NOTIFICATION_APPROVAL_PILOT_TOPIC:dwp.approval.events.v1}
+      group-id: ${DWP_NOTIFICATION_APPROVAL_PILOT_GROUP_ID:dwp-notification-approval-pilot-v1}
+      dead-letter-topic: ${DWP_NOTIFICATION_APPROVAL_PILOT_DLT:dwp.approval.events.v1.DLT}
+      retry-interval: ${DWP_NOTIFICATION_APPROVAL_PILOT_RETRY_INTERVAL:1s}
+      maximum-attempts: ${DWP_NOTIFICATION_APPROVAL_PILOT_MAX_ATTEMPTS:4}
+      allowed-event-types: ${DWP_NOTIFICATION_APPROVAL_PILOT_EVENT_TYPES:approval.task.assigned,approval.request.submitted,approval.request.approved,approval.request.rejected}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+logging:
+  level:
+    com.dwp.services.notification: ${LOG_LEVEL_NOTIFICATION:INFO}

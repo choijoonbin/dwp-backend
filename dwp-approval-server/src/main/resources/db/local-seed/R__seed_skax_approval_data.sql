@@ -3,6 +3,7 @@
 -- default production Flyway locations.
 SELECT seed_approval_tenant(1);
 SELECT seed_approval_product_templates(1);
+SELECT seed_approval_form_catalog(1);
 
 CREATE TEMP TABLE seed_skax_members (
     member_order INTEGER PRIMARY KEY,
@@ -474,10 +475,14 @@ ON CONFLICT (event_id) DO NOTHING;
 
 INSERT INTO apr_delegations (
     delegation_id, tenant_id, delegator_user_id, delegate_user_id,
+    delegate_person_public_id, delegate_display_name, delegate_email,
+    delegated_role_codes,
     scope_type, workflow_key, starts_at, ends_at, lifecycle_state,
     reason, version, created_at, created_by, updated_at, updated_by)
 SELECT md5('skax-approval-delegation:v1:' || delegator.user_id)::uuid,
        1, delegator.user_id, delegate.user_id,
+       delegate.person_public_id, delegate.display_name, delegate.email,
+       jsonb_build_array('WORKSPACE_MEMBER'),
        CASE WHEN MOD(delegator.user_id, 2) = 0 THEN 'WORKFLOW' ELSE 'ALL' END,
        CASE WHEN MOD(delegator.user_id, 2) = 0 THEN 'CAPEX_PURCHASE' ELSE NULL END,
        CURRENT_TIMESTAMP - INTERVAL '5 days',
@@ -501,6 +506,10 @@ SELECT md5('skax-approval-delegation:v1:' || delegator.user_id)::uuid,
  WHERE MOD(delegator.member_order - 1, 4) = 0
 ON CONFLICT (delegation_id) DO UPDATE
     SET delegate_user_id = EXCLUDED.delegate_user_id,
+        delegate_person_public_id = EXCLUDED.delegate_person_public_id,
+        delegate_display_name = EXCLUDED.delegate_display_name,
+        delegate_email = EXCLUDED.delegate_email,
+        delegated_role_codes = EXCLUDED.delegated_role_codes,
         scope_type = EXCLUDED.scope_type,
         workflow_key = EXCLUDED.workflow_key,
         starts_at = EXCLUDED.starts_at,

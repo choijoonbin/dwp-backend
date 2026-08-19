@@ -7,6 +7,12 @@
             "format": "int32",
             "type": "integer"
           },
+          "assurance": {
+            "items": {
+              "$ref": "#/components/schemas/approval_AssuranceSignal"
+            },
+            "type": "array"
+          },
           "draftWorkflows": {
             "format": "int32",
             "type": "integer"
@@ -107,6 +113,36 @@
         },
         "type": "object"
       },
+      "approval_ApiResponseListDelegationCandidate": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/approval_DelegationCandidate"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "approval_ApiResponseListDelegationSummary": {
         "properties": {
           "correlationId": {
@@ -115,6 +151,36 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/approval_DelegationSummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "approval_ApiResponseListFormCategorySummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/approval_FormCategorySummary"
             },
             "type": "array"
           },
@@ -175,6 +241,36 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/approval_PolicySummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "approval_ApiResponseListPolicyVersionSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/approval_PolicyVersionSummary"
             },
             "type": "array"
           },
@@ -512,6 +608,21 @@
         },
         "type": "object"
       },
+      "approval_AssuranceSignal": {
+        "properties": {
+          "exceptions": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "key": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "approval_CreateDelegationRequest": {
         "properties": {
           "delegateUserId": {
@@ -524,7 +635,7 @@
           },
           "reason": {
             "maxLength": 1000,
-            "minLength": 0,
+            "minLength": 10,
             "type": "string"
           },
           "scopeType": {
@@ -548,8 +659,126 @@
         ],
         "type": "object"
       },
+      "approval_CreateFormCategoryRequest": {
+        "properties": {
+          "categoryKey": {
+            "minLength": 1,
+            "pattern": "[A-Z][A-Z0-9_]{1,99}",
+            "type": "string"
+          },
+          "descriptionEn": {
+            "maxLength": 600,
+            "minLength": 0,
+            "type": "string"
+          },
+          "descriptionKo": {
+            "maxLength": 600,
+            "minLength": 0,
+            "type": "string"
+          },
+          "iconKey": {
+            "minLength": 1,
+            "pattern": "[a-z][a-z0-9-]{1,79}",
+            "type": "string"
+          },
+          "nameEn": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "nameKo": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "parentCategoryId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "sortOrder": {
+            "format": "int32",
+            "maximum": 10000,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "categoryKey",
+          "iconKey",
+          "nameEn",
+          "nameKo",
+          "sortOrder"
+        ],
+        "type": "object"
+      },
+      "approval_CreateFormDraftRequest": {
+        "properties": {
+          "categoryId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "defaultWorkflowId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "descriptionEn": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "descriptionKo": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/approval_FormFieldInput"
+            },
+            "maxItems": 50,
+            "minItems": 0,
+            "type": "array"
+          },
+          "formKey": {
+            "minLength": 1,
+            "pattern": "[A-Z][A-Z0-9_]{2,99}",
+            "type": "string"
+          },
+          "nameEn": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "nameKo": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "ownerGroupRef": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "categoryId",
+          "defaultWorkflowId",
+          "descriptionEn",
+          "descriptionKo",
+          "fields",
+          "formKey",
+          "nameEn",
+          "nameKo",
+          "ownerGroupRef"
+        ],
+        "type": "object"
+      },
       "approval_CreateRequest": {
         "properties": {
+          "formId": {
+            "format": "uuid",
+            "type": "string"
+          },
           "payload": {
             "additionalProperties": {},
             "type": "object"
@@ -574,6 +803,7 @@
           }
         },
         "required": [
+          "formId",
           "priority",
           "summary",
           "title",
@@ -698,8 +928,40 @@
         ],
         "type": "object"
       },
+      "approval_DelegationCandidate": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "jobTitle": {
+            "type": "string"
+          },
+          "personPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "userId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "approval_DelegationSummary": {
         "properties": {
+          "delegateDisplayName": {
+            "type": "string"
+          },
+          "delegateEmail": {
+            "type": "string"
+          },
+          "delegatePersonPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
           "delegateUserId": {
             "format": "int64",
             "type": "integer"
@@ -711,6 +973,9 @@
           "delegatorUserId": {
             "format": "int64",
             "type": "integer"
+          },
+          "direction": {
+            "type": "string"
           },
           "endsAt": {
             "format": "date-time",
@@ -739,10 +1004,62 @@
         },
         "type": "object"
       },
+      "approval_FormCategorySummary": {
+        "properties": {
+          "categoryId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "categoryKey": {
+            "type": "string"
+          },
+          "descriptionEn": {
+            "type": "string"
+          },
+          "descriptionKo": {
+            "type": "string"
+          },
+          "formCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "iconKey": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "nameKo": {
+            "type": "string"
+          },
+          "parentCategoryId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "sortOrder": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "approval_FormDetail": {
         "properties": {
           "form": {
             "$ref": "#/components/schemas/approval_FormSummary"
+          },
+          "routes": {
+            "items": {
+              "$ref": "#/components/schemas/approval_FormRouteSummary"
+            },
+            "type": "array"
           },
           "schema": {
             "additionalProperties": {},
@@ -807,11 +1124,70 @@
         ],
         "type": "object"
       },
+      "approval_FormRouteSummary": {
+        "properties": {
+          "bindingId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "bindingType": {
+            "type": "string"
+          },
+          "priority": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "slaMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "workflowId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "workflowKey": {
+            "type": "string"
+          },
+          "workflowLifecycleState": {
+            "type": "string"
+          },
+          "workflowNameEn": {
+            "type": "string"
+          },
+          "workflowNameKo": {
+            "type": "string"
+          },
+          "workflowVersion": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "approval_FormSummary": {
         "properties": {
+          "categoryId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "categoryKey": {
+            "type": "string"
+          },
+          "categoryNameEn": {
+            "type": "string"
+          },
+          "categoryNameKo": {
+            "type": "string"
+          },
           "currentVersion": {
             "format": "int32",
             "type": "integer"
+          },
+          "descriptionEn": {
+            "type": "string"
+          },
+          "descriptionKo": {
+            "type": "string"
           },
           "fieldCount": {
             "format": "int32",
@@ -824,6 +1200,9 @@
           "formKey": {
             "type": "string"
           },
+          "formKind": {
+            "type": "string"
+          },
           "lifecycleState": {
             "type": "string"
           },
@@ -833,9 +1212,20 @@
           "nameKo": {
             "type": "string"
           },
+          "ownerGroupRef": {
+            "type": "string"
+          },
+          "routeCount": {
+            "format": "int32",
+            "type": "integer"
+          },
           "updatedAt": {
             "format": "date-time",
             "type": "string"
+          },
+          "usageCount": {
+            "format": "int64",
+            "type": "integer"
           },
           "version": {
             "format": "int64",
@@ -896,12 +1286,66 @@
             "maxLength": 2000,
             "minLength": 0,
             "type": "string"
+          },
+          "payload": {
+            "additionalProperties": {},
+            "type": "object"
           }
         },
         "required": [
           "expectedVersion",
           "message"
         ],
+        "type": "object"
+      },
+      "approval_IntegrationDeliverySummary": {
+        "properties": {
+          "attemptCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "availableAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "eventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "lastError": {
+            "type": "string"
+          },
+          "lastRetriedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "manualRetryCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "outboxId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "requestId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "approval_OperationSignal": {
@@ -943,6 +1387,12 @@
             "format": "date-time",
             "type": "string"
           },
+          "integrationDeliveries": {
+            "items": {
+              "$ref": "#/components/schemas/approval_IntegrationDeliverySummary"
+            },
+            "type": "array"
+          },
           "signals": {
             "items": {
               "$ref": "#/components/schemas/approval_OperationSignal"
@@ -964,6 +1414,33 @@
             "type": "string"
           },
           "nameKo": {
+            "type": "string"
+          },
+          "pendingAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "pendingBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "pendingChangeReason": {
+            "type": "string"
+          },
+          "pendingEnforcementMode": {
+            "type": "string"
+          },
+          "pendingLifecycleState": {
+            "type": "string"
+          },
+          "pendingReview": {
+            "type": "boolean"
+          },
+          "pendingRule": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "pendingSeverity": {
             "type": "string"
           },
           "policyId": {
@@ -990,6 +1467,84 @@
         },
         "type": "object"
       },
+      "approval_PolicyVersionSummary": {
+        "properties": {
+          "changeReason": {
+            "type": "string"
+          },
+          "enforcementMode": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "policyVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "publishedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "reviewComment": {
+            "type": "string"
+          },
+          "rule": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "submittedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "versionNumber": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "approval_PublishFormRequest": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expectedVersion"
+        ],
+        "type": "object"
+      },
+      "approval_PublishPolicyRequest": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "reviewComment": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "reviewComment"
+        ],
+        "type": "object"
+      },
       "approval_PublishWorkflowRequest": {
         "properties": {
           "expectedVersion": {
@@ -1004,12 +1559,22 @@
       },
       "approval_RequestDetail": {
         "properties": {
+          "formId": {
+            "format": "uuid",
+            "type": "string"
+          },
           "payload": {
             "additionalProperties": {},
             "type": "object"
           },
           "request": {
             "$ref": "#/components/schemas/approval_RequestSummary"
+          },
+          "timeline": {
+            "items": {
+              "$ref": "#/components/schemas/approval_TimelineEvent"
+            },
+            "type": "array"
           },
           "workflowId": {
             "format": "uuid",
@@ -1088,6 +1653,10 @@
         "properties": {
           "form": {
             "$ref": "#/components/schemas/approval_FormDetail"
+          },
+          "routeDefinition": {
+            "additionalProperties": {},
+            "type": "object"
           },
           "workflow": {
             "$ref": "#/components/schemas/approval_WorkflowSummary"
@@ -1277,6 +1846,10 @@
             "format": "int64",
             "type": "integer"
           },
+          "formId": {
+            "format": "uuid",
+            "type": "string"
+          },
           "payload": {
             "additionalProperties": {},
             "type": "object"
@@ -1302,6 +1875,7 @@
         },
         "required": [
           "expectedVersion",
+          "formId",
           "priority",
           "summary",
           "title",
@@ -1309,8 +1883,83 @@
         ],
         "type": "object"
       },
+      "approval_UpdateFormCategoryRequest": {
+        "properties": {
+          "descriptionEn": {
+            "maxLength": 600,
+            "minLength": 0,
+            "type": "string"
+          },
+          "descriptionKo": {
+            "maxLength": 600,
+            "minLength": 0,
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "iconKey": {
+            "minLength": 1,
+            "pattern": "[a-z][a-z0-9-]{1,79}",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "minLength": 1,
+            "pattern": "ACTIVE|INACTIVE",
+            "type": "string"
+          },
+          "nameEn": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "nameKo": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "parentCategoryId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "sortOrder": {
+            "format": "int32",
+            "maximum": 10000,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "iconKey",
+          "lifecycleState",
+          "nameEn",
+          "nameKo",
+          "sortOrder"
+        ],
+        "type": "object"
+      },
       "approval_UpdateFormDraftRequest": {
         "properties": {
+          "categoryId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "defaultWorkflowId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "descriptionEn": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "descriptionKo": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
           "expectedVersion": {
             "format": "int64",
             "type": "integer"
@@ -1332,18 +1981,33 @@
             "maxLength": 200,
             "minLength": 0,
             "type": "string"
+          },
+          "ownerGroupRef": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
           }
         },
         "required": [
+          "categoryId",
+          "defaultWorkflowId",
+          "descriptionEn",
+          "descriptionKo",
           "expectedVersion",
           "fields",
           "nameEn",
-          "nameKo"
+          "nameKo",
+          "ownerGroupRef"
         ],
         "type": "object"
       },
       "approval_UpdatePolicyRequest": {
         "properties": {
+          "changeReason": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "type": "string"
+          },
           "enforcementMode": {
             "minLength": 1,
             "type": "string"
@@ -1366,6 +2030,7 @@
           }
         },
         "required": [
+          "changeReason",
           "enforcementMode",
           "expectedVersion",
           "lifecycleState",
@@ -4340,6 +5005,39 @@
         },
         "type": "object"
       },
+      "auth_DirectorySubject": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "jobTitle": {
+            "type": "string"
+          },
+          "personPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "publicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "tenantId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "userId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "auth_EffectiveAccess": {
         "properties": {
           "accessRevision": {
@@ -6682,9 +7380,22 @@
           "email": {
             "type": "string"
           },
+          "jobTitle": {
+            "type": "string"
+          },
+          "personPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
           "publicId": {
             "format": "uuid",
             "type": "string"
+          },
+          "roles": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "status": {
             "type": "string"
@@ -7252,6 +7963,2244 @@
           "providerTenantId",
           "workerStatus"
         ],
+        "type": "object"
+      },
+      "messaging_AdminMetrics": {
+        "properties": {
+          "activeConversations": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "activeMembers": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "restrictedConversations": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "retainedMessages": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "spaceLinkedConversations": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "messaging_AdminOverview": {
+        "properties": {
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "governedConversations": {
+            "items": {
+              "$ref": "#/components/schemas/messaging_ConversationSummary"
+            },
+            "type": "array"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/messaging_AdminMetrics"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/messaging_TenantPolicy"
+          }
+        },
+        "type": "object"
+      },
+      "messaging_ApiResponseAdminOverview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/messaging_AdminOverview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "messaging_ApiResponseConversationDetail": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/messaging_ConversationDetail"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "messaging_ApiResponseConversationPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/messaging_ConversationPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "messaging_ApiResponseHomeResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/messaging_HomeResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "messaging_ApiResponseListPersonSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/messaging_PersonSummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "messaging_ApiResponseTenantPolicy": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/messaging_TenantPolicy"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "messaging_ConversationDetail": {
+        "properties": {
+          "conversation": {
+            "$ref": "#/components/schemas/messaging_ConversationSummary"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/messaging_MemberSummary"
+            },
+            "type": "array"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/messaging_MessageSummary"
+            },
+            "type": "array"
+          },
+          "realtime": {
+            "$ref": "#/components/schemas/messaging_RealtimeStatus"
+          }
+        },
+        "type": "object"
+      },
+      "messaging_ConversationPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/messaging_ConversationSummary"
+            },
+            "type": "array"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "pageSize": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "messaging_ConversationSummary": {
+        "properties": {
+          "conversationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "conversationKey": {
+            "type": "string"
+          },
+          "conversationType": {
+            "type": "string"
+          },
+          "dataClassification": {
+            "type": "string"
+          },
+          "favorite": {
+            "type": "boolean"
+          },
+          "lastMessage": {
+            "$ref": "#/components/schemas/messaging_MessageSummary"
+          },
+          "lastMessageAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "linkedSpaceKey": {
+            "type": "string"
+          },
+          "linkedSpaceName": {
+            "type": "string"
+          },
+          "memberCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "pinned": {
+            "type": "boolean"
+          },
+          "topic": {
+            "type": "string"
+          },
+          "unreadCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "visibility": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "messaging_DirectConversationRequest": {
+        "properties": {
+          "targetUserId": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "targetUserId"
+        ],
+        "type": "object"
+      },
+      "messaging_HomeMetrics": {
+        "properties": {
+          "directMessages": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "mentions": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "savedItems": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "spaceChannels": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "unreadConversations": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "messaging_HomeResponse": {
+        "properties": {
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/messaging_HomeMetrics"
+          },
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/messaging_PersonSummary"
+            },
+            "type": "array"
+          },
+          "priority": {
+            "items": {
+              "$ref": "#/components/schemas/messaging_ConversationSummary"
+            },
+            "type": "array"
+          },
+          "spaces": {
+            "items": {
+              "$ref": "#/components/schemas/messaging_ConversationSummary"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "messaging_MemberSummary": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "emailAddress": {
+            "type": "string"
+          },
+          "favorite": {
+            "type": "boolean"
+          },
+          "jobTitle": {
+            "type": "string"
+          },
+          "lastReadAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "memberRole": {
+            "type": "string"
+          },
+          "membershipSource": {
+            "type": "string"
+          },
+          "notificationLevel": {
+            "type": "string"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "personPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "pinned": {
+            "type": "boolean"
+          },
+          "presenceState": {
+            "type": "string"
+          },
+          "userId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "messaging_MessageSummary": {
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "conversationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "deletedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "editedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "messageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "messageKind": {
+            "type": "string"
+          },
+          "reactions": {
+            "items": {
+              "$ref": "#/components/schemas/messaging_ReactionSummary"
+            },
+            "type": "array"
+          },
+          "replyToMessageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "senderName": {
+            "type": "string"
+          },
+          "senderPersonPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "senderUserId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "messaging_PersonSummary": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "emailAddress": {
+            "type": "string"
+          },
+          "jobTitle": {
+            "type": "string"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "personPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "presenceState": {
+            "type": "string"
+          },
+          "userId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "messaging_ReactionRequest": {
+        "properties": {
+          "emoji": {
+            "maxLength": 40,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "emoji"
+        ],
+        "type": "object"
+      },
+      "messaging_ReactionSummary": {
+        "properties": {
+          "count": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "emoji": {
+            "type": "string"
+          },
+          "mine": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "messaging_ReadCursorRequest": {
+        "properties": {
+          "messageId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "messageId"
+        ],
+        "type": "object"
+      },
+      "messaging_RealtimeStatus": {
+        "properties": {
+          "detail": {
+            "type": "string"
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "messaging_SendMessageRequest": {
+        "properties": {
+          "body": {
+            "maxLength": 20000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "replyToMessageId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "body",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "messaging_TenantPolicy": {
+        "properties": {
+          "aiAssistanceEnabled": {
+            "type": "boolean"
+          },
+          "aiAutoExecuteEnabled": {
+            "type": "boolean"
+          },
+          "allowMessageDelete": {
+            "type": "boolean"
+          },
+          "allowMessageEdit": {
+            "type": "boolean"
+          },
+          "directMessagesEnabled": {
+            "type": "boolean"
+          },
+          "maximumAttachmentMb": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "retentionDays": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "spaceMessagingEnabled": {
+            "type": "boolean"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "messaging_TenantPolicyRequest": {
+        "properties": {
+          "aiAssistanceEnabled": {
+            "type": "boolean"
+          },
+          "allowMessageDelete": {
+            "type": "boolean"
+          },
+          "allowMessageEdit": {
+            "type": "boolean"
+          },
+          "directMessagesEnabled": {
+            "type": "boolean"
+          },
+          "maximumAttachmentMb": {
+            "format": "int32",
+            "maximum": 1024,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "retentionDays": {
+            "format": "int32",
+            "maximum": 3650,
+            "minimum": 30,
+            "type": "integer"
+          },
+          "spaceMessagingEnabled": {
+            "type": "boolean"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "notification_ActionResult": {
+        "properties": {
+          "changeVersion": {
+            "type": "string"
+          },
+          "item": {
+            "$ref": "#/components/schemas/notification_InboxItem"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/notification_Summary"
+          }
+        },
+        "type": "object"
+      },
+      "notification_AdminMetric": {
+        "properties": {
+          "baseline": {
+            "format": "double",
+            "type": "number"
+          },
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "value": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "notification_AdminOverview": {
+        "properties": {
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/notification_OperationalFinding"
+            },
+            "type": "array"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/notification_AdminMetric"
+            },
+            "type": "array"
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "trend": {
+            "items": {
+              "$ref": "#/components/schemas/notification_AdminTrendPoint"
+            },
+            "type": "array"
+          },
+          "unavailableSources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "notification_AdminTrendPoint": {
+        "properties": {
+          "actionable": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "bucket": {
+            "type": "string"
+          },
+          "created": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "failed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "muted": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "notification_ApiResponseActionResult": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/notification_ActionResult"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "notification_ApiResponseAdminOverview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/notification_AdminOverview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "notification_ApiResponseBulkResult": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/notification_BulkResult"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "notification_ApiResponseDeliveryOperations": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/notification_DeliveryOperations"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "notification_ApiResponseDeliveryProfile": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/notification_DeliveryProfile"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "notification_ApiResponseDetail": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/notification_Detail"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "notification_ApiResponseEffectiveSettings": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/notification_EffectiveSettings"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "notification_ApiResponseInboxPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/notification_InboxPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "notification_ApiResponseListSubscriptionRule": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/notification_SubscriptionRule"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "notification_ApiResponseMaterializationResult": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/notification_MaterializationResult"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "notification_ApiResponseSubscriptionRule": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/notification_SubscriptionRule"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "notification_ApiResponseSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/notification_Summary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "notification_ApiResponseSyncResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/notification_SyncResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "notification_ApiResponseTypeContractPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/notification_TypeContractPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "notification_ApiResponseVoid": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {},
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "notification_BulkActionRequest": {
+        "properties": {
+          "action": {
+            "minLength": 1,
+            "pattern": "READ|UNREAD|SAVE|UNSAVE|COMPLETE|RESTORE|SNOOZE",
+            "type": "string"
+          },
+          "notificationIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 0,
+            "type": "array"
+          },
+          "snoozedUntil": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "notificationIds"
+        ],
+        "type": "object"
+      },
+      "notification_BulkItemResult": {
+        "properties": {
+          "item": {
+            "$ref": "#/components/schemas/notification_InboxItem"
+          },
+          "message": {
+            "type": "string"
+          },
+          "notificationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "notification_BulkResult": {
+        "properties": {
+          "changeVersion": {
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/notification_BulkItemResult"
+            },
+            "type": "array"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/notification_Summary"
+          }
+        },
+        "type": "object"
+      },
+      "notification_DeliveryLane": {
+        "properties": {
+          "failureRatePercent": {
+            "format": "double",
+            "type": "number"
+          },
+          "lane": {
+            "type": "string"
+          },
+          "oldestAgeSeconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "queued": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          },
+          "throughputPerMinute": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "notification_DeliveryOperations": {
+        "properties": {
+          "deadLetterQueue": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/notification_OperationalFinding"
+            },
+            "type": "array"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lanes": {
+            "items": {
+              "$ref": "#/components/schemas/notification_DeliveryLane"
+            },
+            "type": "array"
+          },
+          "message": {
+            "type": "string"
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/notification_ProviderHealth"
+            },
+            "type": "array"
+          },
+          "retryQueue": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unavailableSources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "unknownOutcomes": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "notification_DeliveryProfile": {
+        "properties": {
+          "channels": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "type": "object"
+          },
+          "digest": {
+            "$ref": "#/components/schemas/notification_Digest"
+          },
+          "quietHours": {
+            "$ref": "#/components/schemas/notification_QuietHours"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "channels",
+          "digest",
+          "quietHours"
+        ],
+        "type": "object"
+      },
+      "notification_DeliveryProfileUpdate": {
+        "properties": {
+          "channels": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "type": "object"
+          },
+          "digest": {
+            "$ref": "#/components/schemas/notification_Digest"
+          },
+          "quietHours": {
+            "$ref": "#/components/schemas/notification_QuietHours"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "channels",
+          "digest",
+          "quietHours"
+        ],
+        "type": "object"
+      },
+      "notification_Detail": {
+        "properties": {
+          "absoluteOccurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "item": {
+            "$ref": "#/components/schemas/notification_InboxItem"
+          },
+          "reasonExplanation": {
+            "type": "string"
+          },
+          "targetState": {
+            "type": "string"
+          },
+          "targetStateReason": {
+            "type": "string"
+          },
+          "timeline": {
+            "items": {
+              "$ref": "#/components/schemas/notification_TimelineEntry"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "notification_Digest": {
+        "properties": {
+          "dayOfWeek": {
+            "format": "int32",
+            "maximum": 7,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "deliveryTime": {
+            "minLength": 1,
+            "pattern": "(?:[01]\\d|2[0-3]):[0-5]\\d",
+            "type": "string"
+          },
+          "mode": {
+            "minLength": 1,
+            "pattern": "OFF|DAILY|WEEKLY",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deliveryTime",
+          "mode"
+        ],
+        "type": "object"
+      },
+      "notification_DirectMaterializationRequest": {
+        "properties": {
+          "actionRequired": {
+            "type": "boolean"
+          },
+          "actorReference": {
+            "maxLength": 300,
+            "minLength": 0,
+            "type": "string"
+          },
+          "dueAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "locale": {
+            "maxLength": 35,
+            "minLength": 0,
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reasonCode": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "recipientUserIds": {
+            "items": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "maxItems": 100,
+            "minItems": 0,
+            "type": "array"
+          },
+          "sourceEventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "sourceEventType": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "sourceSchemaVersion": {
+            "format": "int32",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "subjectReference": {
+            "maxLength": 300,
+            "minLength": 0,
+            "type": "string"
+          },
+          "targetReference": {
+            "maxLength": 300,
+            "minLength": 0,
+            "type": "string"
+          },
+          "threadKey": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "typeKey": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "variables": {
+            "additionalProperties": {},
+            "type": "object"
+          }
+        },
+        "required": [
+          "recipientUserIds",
+          "sourceEventId",
+          "sourceEventType",
+          "typeKey",
+          "variables"
+        ],
+        "type": "object"
+      },
+      "notification_EffectiveSettings": {
+        "properties": {
+          "apps": {
+            "items": {
+              "$ref": "#/components/schemas/notification_NotificationAppSetting"
+            },
+            "type": "array"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "globalChannels": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/notification_ManagedValueBoolean"
+            },
+            "type": "object"
+          },
+          "message": {
+            "type": "string"
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "unavailableSources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "notification_InboxItem": {
+        "properties": {
+          "actionable": {
+            "type": "boolean"
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/notification_NotificationAction"
+            },
+            "type": "array"
+          },
+          "actorLabel": {
+            "type": "string"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "dueAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastActivityAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "notificationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "preview": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "readAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/notification_NotificationReason"
+          },
+          "receivedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "savedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "sensitive": {
+            "type": "boolean"
+          },
+          "snoozedUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/notification_NotificationSource"
+          },
+          "threadCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "threadKey": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "typeKey": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "notification_InboxPage": {
+        "properties": {
+          "approximateTotal": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "changeVersion": {
+            "type": "string"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/notification_InboxItem"
+            },
+            "type": "array"
+          },
+          "message": {
+            "type": "string"
+          },
+          "nextCursor": {
+            "type": "string"
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "unavailableSources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "notification_ManagedValueBoolean": {
+        "properties": {
+          "effectiveValue": {
+            "type": "boolean"
+          },
+          "exceptionAllowed": {
+            "type": "boolean"
+          },
+          "managed": {
+            "type": "boolean"
+          },
+          "ownerLabel": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "notification_ManagedValueString": {
+        "properties": {
+          "effectiveValue": {
+            "type": "string"
+          },
+          "exceptionAllowed": {
+            "type": "boolean"
+          },
+          "managed": {
+            "type": "boolean"
+          },
+          "ownerLabel": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "notification_MaterializationResult": {
+        "properties": {
+          "duplicate": {
+            "type": "boolean"
+          },
+          "highestChangeVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "intentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "notificationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "recipientCount": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "notification_NotificationAction": {
+        "properties": {
+          "actionKey": {
+            "type": "string"
+          },
+          "disabledReason": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "href": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "primary": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "notification_NotificationAppSetting": {
+        "properties": {
+          "appKey": {
+            "type": "string"
+          },
+          "appName": {
+            "type": "string"
+          },
+          "iconKey": {
+            "type": "string"
+          },
+          "types": {
+            "items": {
+              "$ref": "#/components/schemas/notification_NotificationTypeSetting"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "notification_NotificationReason": {
+        "properties": {
+          "detail": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "notification_NotificationSource": {
+        "properties": {
+          "accent": {
+            "type": "string"
+          },
+          "appKey": {
+            "type": "string"
+          },
+          "appName": {
+            "type": "string"
+          },
+          "iconKey": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "notification_NotificationTypeSetting": {
+        "properties": {
+          "channels": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/notification_ManagedValueBoolean"
+            },
+            "type": "object"
+          },
+          "description": {
+            "type": "string"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/notification_ManagedValueString"
+          },
+          "ruleId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "ruleVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "typeKey": {
+            "type": "string"
+          },
+          "typeName": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "notification_OperationalFinding": {
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "detectedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "findingId": {
+            "type": "string"
+          },
+          "href": {
+            "type": "string"
+          },
+          "ownerLabel": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "notification_ProviderHealth": {
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "circuitState": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "lastCheckedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "p95LatencyMs": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "providerKey": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "successRatePercent": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "notification_QuietHours": {
+        "properties": {
+          "allowUrgentBypass": {
+            "type": "boolean"
+          },
+          "days": {
+            "items": {
+              "format": "int32",
+              "maximum": 7,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "maxItems": 7,
+            "minItems": 0,
+            "type": "array"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "end": {
+            "minLength": 1,
+            "pattern": "(?:[01]\\d|2[0-3]):[0-5]\\d",
+            "type": "string"
+          },
+          "start": {
+            "minLength": 1,
+            "pattern": "(?:[01]\\d|2[0-3]):[0-5]\\d",
+            "type": "string"
+          },
+          "timeZone": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "days",
+          "end",
+          "start",
+          "timeZone"
+        ],
+        "type": "object"
+      },
+      "notification_SnoozeRequest": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "snoozedUntil": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snoozedUntil"
+        ],
+        "type": "object"
+      },
+      "notification_SseEmitter": {
+        "properties": {
+          "timeout": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "notification_SubscriptionRule": {
+        "properties": {
+          "appKey": {
+            "type": "string"
+          },
+          "channels": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "type": "object"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "ruleId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "typeKey": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "notification_SubscriptionRuleUpdate": {
+        "properties": {
+          "appKey": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string"
+          },
+          "channels": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "type": "object"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "mode": {
+            "minLength": 1,
+            "pattern": "IMMEDIATE|DAILY_DIGEST|WEEKLY_DIGEST|MUTED",
+            "type": "string"
+          },
+          "typeKey": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "appKey",
+          "channels",
+          "mode",
+          "typeKey"
+        ],
+        "type": "object"
+      },
+      "notification_Summary": {
+        "properties": {
+          "actionableUnread": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "changeVersion": {
+            "type": "string"
+          },
+          "counterVersion": {
+            "type": "string"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "totalUnread": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unavailableSources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "viewCounts": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "notification_SyncResponse": {
+        "properties": {
+          "changeVersion": {
+            "type": "string"
+          },
+          "changedIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "counterVersion": {
+            "type": "string"
+          },
+          "deletedIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/notification_Summary"
+          }
+        },
+        "type": "object"
+      },
+      "notification_TimelineEntry": {
+        "properties": {
+          "actorLabel": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "entryId": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "notification_TypeContract": {
+        "properties": {
+          "appKey": {
+            "type": "string"
+          },
+          "appName": {
+            "type": "string"
+          },
+          "channels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "contractHealth": {
+            "type": "string"
+          },
+          "contractId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "mandatory": {
+            "type": "boolean"
+          },
+          "ownerLabel": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "sourceEventType": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "typeKey": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "volume24Hours": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "notification_TypeContractPage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/notification_TypeContract"
+            },
+            "type": "array"
+          },
+          "message": {
+            "type": "string"
+          },
+          "nextCursor": {
+            "type": "string"
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "unavailableSources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "notification_VersionRequest": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
         "type": "object"
       },
       "people_AbsenceWorkspace": {
@@ -32353,6 +35302,113 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/approvals/v1/admin/form-categories": {
+      "get": {
+        "operationId": "approval_formCategories",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/approval_ApiResponseListFormCategorySummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "approval"
+        ]
+      },
+      "post": {
+        "operationId": "approval_createFormCategory",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/approval_CreateFormCategoryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/approval_ApiResponseListFormCategorySummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "approval"
+        ]
+      }
+    },
+    "/api/approvals/v1/admin/form-categories/{categoryId}": {
+      "put": {
+        "operationId": "approval_updateFormCategory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "categoryId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/approval_UpdateFormCategoryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/approval_ApiResponseListFormCategorySummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "approval"
+        ]
+      }
+    },
     "/api/approvals/v1/admin/forms": {
       "get": {
         "operationId": "approval_forms",
@@ -32362,6 +35418,44 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/approval_ApiResponseListFormSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "approval"
+        ]
+      },
+      "post": {
+        "operationId": "approval_createFormDraft",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/approval_CreateFormDraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/approval_ApiResponseFormDetail"
                 }
               }
             },
@@ -32453,9 +35547,97 @@
         ]
       }
     },
+    "/api/approvals/v1/admin/forms/{formId}/publish": {
+      "post": {
+        "operationId": "approval_publishForm",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "formId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/approval_PublishFormRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/approval_ApiResponseFormDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "approval"
+        ]
+      }
+    },
     "/api/approvals/v1/admin/operations": {
       "get": {
         "operationId": "approval_operations",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/approval_ApiResponseOperationsResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "approval"
+        ]
+      }
+    },
+    "/api/approvals/v1/admin/operations/events/{outboxId}/retry": {
+      "post": {
+        "operationId": "approval_retryIntegrationDelivery",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "outboxId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -32551,6 +35733,86 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/approval_ApiResponseListPolicySummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "approval"
+        ]
+      }
+    },
+    "/api/approvals/v1/admin/policies/{policyId}/publish": {
+      "post": {
+        "operationId": "approval_publishPolicy",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/approval_PublishPolicyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/approval_ApiResponseListPolicySummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "approval"
+        ]
+      }
+    },
+    "/api/approvals/v1/admin/policies/{policyId}/versions": {
+      "get": {
+        "operationId": "approval_policyVersions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/approval_ApiResponseListPolicyVersionSummary"
                 }
               }
             },
@@ -32769,6 +36031,57 @@
         ]
       }
     },
+    "/api/approvals/v1/catalog/forms": {
+      "get": {
+        "operationId": "approval_formCatalog",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/approval_ApiResponseListFormSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "approval"
+        ]
+      }
+    },
+    "/api/approvals/v1/catalog/forms/{formId}/template": {
+      "get": {
+        "operationId": "approval_formTemplate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "formId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/approval_ApiResponseRequestTemplate"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "approval"
+        ]
+      }
+    },
     "/api/approvals/v1/delegations": {
       "get": {
         "operationId": "approval_delegations",
@@ -32805,6 +36118,96 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/approval_CreateDelegationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/approval_ApiResponseListDelegationSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "approval"
+        ]
+      }
+    },
+    "/api/approvals/v1/delegations/candidates": {
+      "get": {
+        "operationId": "approval_delegationCandidates",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/approval_ApiResponseListDelegationCandidate"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "approval"
+        ]
+      }
+    },
+    "/api/approvals/v1/delegations/{delegationId}/revoke": {
+      "post": {
+        "operationId": "approval_revokeDelegation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "delegationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/approval_VersionedActionRequest"
               }
             }
           },
@@ -36888,6 +40291,1377 @@
         },
         "tags": [
           "auth"
+        ]
+      }
+    },
+    "/api/messaging/v1/admin/overview": {
+      "get": {
+        "operationId": "messaging_adminOverview",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/messaging_ApiResponseAdminOverview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging"
+        ]
+      }
+    },
+    "/api/messaging/v1/admin/policy": {
+      "put": {
+        "operationId": "messaging_updatePolicy",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/messaging_TenantPolicyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/messaging_ApiResponseTenantPolicy"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging"
+        ]
+      }
+    },
+    "/api/messaging/v1/conversations": {
+      "get": {
+        "operationId": "messaging_conversations",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "ALL",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/messaging_ApiResponseConversationPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging"
+        ]
+      }
+    },
+    "/api/messaging/v1/conversations/{conversationId}": {
+      "get": {
+        "operationId": "messaging_conversation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/messaging_ApiResponseConversationDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging"
+        ]
+      }
+    },
+    "/api/messaging/v1/conversations/{conversationId}/messages": {
+      "post": {
+        "operationId": "messaging_sendMessage",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/messaging_SendMessageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/messaging_ApiResponseConversationDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging"
+        ]
+      }
+    },
+    "/api/messaging/v1/conversations/{conversationId}/messages/{messageId}/reactions": {
+      "post": {
+        "operationId": "messaging_addReaction",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "messageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/messaging_ReactionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/messaging_ApiResponseConversationDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging"
+        ]
+      }
+    },
+    "/api/messaging/v1/conversations/{conversationId}/messages/{messageId}/reactions/{emoji}": {
+      "delete": {
+        "operationId": "messaging_removeReaction",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "messageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "emoji",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/messaging_ApiResponseConversationDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging"
+        ]
+      }
+    },
+    "/api/messaging/v1/conversations/{conversationId}/read-cursor": {
+      "post": {
+        "operationId": "messaging_markRead",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/messaging_ReadCursorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/messaging_ApiResponseConversationDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging"
+        ]
+      }
+    },
+    "/api/messaging/v1/direct-conversations": {
+      "post": {
+        "operationId": "messaging_directConversation",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/messaging_DirectConversationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/messaging_ApiResponseConversationDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging"
+        ]
+      }
+    },
+    "/api/messaging/v1/home": {
+      "get": {
+        "operationId": "messaging_home",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/messaging_ApiResponseHomeResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging"
+        ]
+      }
+    },
+    "/api/messaging/v1/people": {
+      "get": {
+        "operationId": "messaging_people",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/messaging_ApiResponseListPersonSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging"
+        ]
+      }
+    },
+    "/api/notifications/v1/admin/operations": {
+      "get": {
+        "operationId": "notification_operations",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/notification_ApiResponseDeliveryOperations"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification"
+        ]
+      }
+    },
+    "/api/notifications/v1/admin/overview": {
+      "get": {
+        "operationId": "notification_overview",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/notification_ApiResponseAdminOverview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification"
+        ]
+      }
+    },
+    "/api/notifications/v1/admin/types": {
+      "get": {
+        "operationId": "notification_types",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 40,
+              "format": "int32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "appKey",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/notification_ApiResponseTypeContractPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification"
+        ]
+      }
+    },
+    "/api/notifications/v1/inbox": {
+      "get": {
+        "operationId": "notification_inbox",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "default": "PRIORITY",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "appKey",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "priority",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "readState",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reason",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/notification_ApiResponseInboxPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification"
+        ]
+      }
+    },
+    "/api/notifications/v1/inbox/bulk-actions": {
+      "post": {
+        "operationId": "notification_bulkActions",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/notification_BulkActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/notification_ApiResponseBulkResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification"
+        ]
+      }
+    },
+    "/api/notifications/v1/inbox/{notificationId}": {
+      "get": {
+        "operationId": "notification_detail",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notificationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/notification_ApiResponseDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification"
+        ]
+      }
+    },
+    "/api/notifications/v1/inbox/{notificationId}/complete": {
+      "post": {
+        "operationId": "notification_complete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notificationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/notification_VersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/notification_ApiResponseActionResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification"
+        ]
+      }
+    },
+    "/api/notifications/v1/inbox/{notificationId}/read": {
+      "post": {
+        "operationId": "notification_read",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notificationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/notification_VersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/notification_ApiResponseActionResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification"
+        ]
+      }
+    },
+    "/api/notifications/v1/inbox/{notificationId}/restore": {
+      "post": {
+        "operationId": "notification_restore",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notificationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/notification_VersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/notification_ApiResponseActionResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification"
+        ]
+      }
+    },
+    "/api/notifications/v1/inbox/{notificationId}/save": {
+      "post": {
+        "operationId": "notification_save",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notificationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/notification_VersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/notification_ApiResponseActionResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification"
+        ]
+      }
+    },
+    "/api/notifications/v1/inbox/{notificationId}/snooze": {
+      "post": {
+        "operationId": "notification_snooze",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notificationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/notification_SnoozeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/notification_ApiResponseActionResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification"
+        ]
+      }
+    },
+    "/api/notifications/v1/inbox/{notificationId}/unread": {
+      "post": {
+        "operationId": "notification_unread",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notificationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/notification_VersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/notification_ApiResponseActionResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification"
+        ]
+      }
+    },
+    "/api/notifications/v1/inbox/{notificationId}/unsave": {
+      "post": {
+        "operationId": "notification_unsave",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notificationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/notification_VersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/notification_ApiResponseActionResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification"
+        ]
+      }
+    },
+    "/api/notifications/v1/me/delivery-profile": {
+      "get": {
+        "operationId": "notification_deliveryProfile",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/notification_ApiResponseDeliveryProfile"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification"
+        ]
+      },
+      "put": {
+        "operationId": "notification_updateDeliveryProfile",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/notification_DeliveryProfileUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/notification_ApiResponseDeliveryProfile"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification"
+        ]
+      }
+    },
+    "/api/notifications/v1/me/effective-settings": {
+      "get": {
+        "operationId": "notification_effectiveSettings",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/notification_ApiResponseEffectiveSettings"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification"
+        ]
+      }
+    },
+    "/api/notifications/v1/me/subscription-rules": {
+      "get": {
+        "operationId": "notification_subscriptionRules",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/notification_ApiResponseListSubscriptionRule"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification"
+        ]
+      }
+    },
+    "/api/notifications/v1/me/subscription-rules/{ruleId}": {
+      "delete": {
+        "operationId": "notification_deleteSubscriptionRule",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ruleId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expectedVersion",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/notification_ApiResponseVoid"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification"
+        ]
+      },
+      "put": {
+        "operationId": "notification_putSubscriptionRule",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ruleId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/notification_SubscriptionRuleUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/notification_ApiResponseSubscriptionRule"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification"
+        ]
+      }
+    },
+    "/api/notifications/v1/stream": {
+      "get": {
+        "operationId": "notification_stream",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Last-Event-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/notification_SseEmitter"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification"
+        ]
+      }
+    },
+    "/api/notifications/v1/summary": {
+      "get": {
+        "operationId": "notification_summary",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/notification_ApiResponseSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification"
+        ]
+      }
+    },
+    "/api/notifications/v1/sync": {
+      "get": {
+        "operationId": "notification_sync",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "format": "int32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/notification_ApiResponseSyncResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification"
         ]
       }
     },
@@ -55163,6 +59937,14 @@
     {
       "description": "space service",
       "name": "space"
+    },
+    {
+      "description": "messaging service",
+      "name": "messaging"
+    },
+    {
+      "description": "notification service",
+      "name": "notification"
     }
   ]
 }

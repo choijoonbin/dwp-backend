@@ -2,9 +2,11 @@ package com.dwp.services.approval.domain;
 
 import com.dwp.core.audit.AuditOutboxRecorder;
 import com.dwp.services.approval.security.ApprovalRequestContext;
+import com.dwp.services.approval.integration.ApprovalIdentityDirectory;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.time.Instant;
 import java.util.List;
@@ -13,6 +15,9 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -21,7 +26,8 @@ class ApprovalServiceTest {
     private final ApprovalQueryRepository queries = mock(ApprovalQueryRepository.class);
     private final ApprovalCommandRepository commands = mock(ApprovalCommandRepository.class);
     private final AuditOutboxRecorder audit = mock(AuditOutboxRecorder.class);
-    private final ApprovalService service = new ApprovalService(queries, commands, audit);
+    private final ApprovalIdentityDirectory identities = mock(ApprovalIdentityDirectory.class);
+    private final ApprovalService service = new ApprovalService(queries, commands, audit, identities);
 
     @BeforeEach
     void setContext() {
@@ -49,9 +55,9 @@ class ApprovalServiceTest {
         when(queries.timeline(42L, requestId)).thenReturn(List.of());
         when(queries.taskDetail(ApprovalRequestContext.require(), taskId))
                 .thenReturn(new ApprovalQueryRepository.TaskAccess(
-                        pending, 99L, null, "FINANCE_APPROVERS"))
+                        pending, 99L, null, "FINANCE_APPROVERS", false, null))
                 .thenReturn(new ApprovalQueryRepository.TaskAccess(
-                        approved, 99L, 17L, "FINANCE_APPROVERS"));
+                        approved, 99L, 17L, "FINANCE_APPROVERS", false, null));
 
         ApprovalDtos.TaskDetail open = service.task(taskId);
         ApprovalDtos.TaskDetail completed = service.task(taskId);
@@ -69,14 +75,112 @@ class ApprovalServiceTest {
         ApprovalDtos.TaskSummary pending = summary(taskId, requestId, "PENDING");
         when(queries.taskDetail(ApprovalRequestContext.require(), taskId))
                 .thenReturn(new ApprovalQueryRepository.TaskAccess(
-                        pending, 17L, 17L, "FINANCE_APPROVERS"));
+                        pending, 17L, 17L, "FINANCE_APPROVERS", false, null));
         when(queries.requestPayload(42L, requestId)).thenReturn(Map.of());
         when(queries.timeline(42L, requestId)).thenReturn(List.of());
+        when(queries.isBlockingPolicyActive(42L, "BLOCK_SELF_APPROVAL")).thenReturn(true);
 
         ApprovalDtos.TaskDetail detail = service.task(taskId);
 
         assertThat(detail.selfApprovalBlocked()).isTrue();
         assertThat(detail.canDecide()).isFalse();
+    }
+
+    @Test
+    void exposesDelegatedTasksWithoutGrantingSelfApproval() {
+        UUID taskId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        ApprovalDtos.TaskSummary pending = summary(taskId, requestId, "PENDING");
+        when(queries.taskDetail(ApprovalRequestContext.require(), taskId))
+                .thenReturn(new ApprovalQueryRepository.TaskAccess(
+                        pending, 99L, 23L, "FINANCE_APPROVERS", true, 23L));
+        when(queries.requestPayload(42L, requestId)).thenReturn(Map.of());
+        when(queries.timeline(42L, requestId)).thenReturn(List.of());
+
+        ApprovalDtos.TaskDetail detail = service.task(taskId);
+
+        assertThat(detail.canClaim()).isFalse();
+        assertThat(detail.canDecide()).isTrue();
+        assertThat(detail.selfApprovalBlocked()).isFalse();
+    }
+
+    @Test
+    void acceptsDelegationOfADirectAssignmentWhileTheOriginalAssigneeIsActive() {
+        UUID taskId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        ApprovalDtos.TaskSummary pending = summary(taskId, requestId, "PENDING");
+        ApprovalQueryRepository.TaskAccess access = new ApprovalQueryRepository.TaskAccess(
+                pending, 99L, 23L, "FINANCE_APPROVERS", true, 23L);
+        when(queries.taskDetail(ApprovalRequestContext.require(), taskId)).thenReturn(access);
+        when(identities.require(42L, 23L)).thenReturn(subject(23L, List.of()));
+        when(queries.requestPayload(42L, requestId)).thenReturn(Map.of());
+        when(queries.timeline(42L, requestId)).thenReturn(List.of());
+
+        service.claim(taskId, 0L, "direct-delegation");
+
+        verify(commands).claim(ApprovalRequestContext.require(), access, 0L, "direct-delegation");
+        verify(queries, times(2)).taskDetail(ApprovalRequestContext.require(), taskId);
+    }
+
+    @Test
+    void rejectsRoleBasedDelegationAfterTheOriginalApproverLosesTheRole() {
+        UUID taskId = UUID.randomUUID();
+        ApprovalDtos.TaskSummary pending = summary(taskId, UUID.randomUUID(), "PENDING");
+        ApprovalQueryRepository.TaskAccess access = new ApprovalQueryRepository.TaskAccess(
+                pending, 99L, null, "FINANCE_APPROVERS", true, 23L);
+        when(queries.taskDetail(ApprovalRequestContext.require(), taskId)).thenReturn(access);
+        when(identities.require(42L, 23L)).thenReturn(subject(23L, List.of("WORKSPACE_MEMBER")));
+
+        assertThatThrownBy(() -> service.claim(taskId, 0L, "stale-role-delegation"))
+                .isInstanceOf(com.dwp.core.exception.BaseException.class)
+                .hasMessageContaining("no longer holds");
+    }
+
+    @Test
+    void retriesAnIsolatedIntegrationDeliveryWithExtendedAuditEvidence() {
+        UUID outboxId = UUID.randomUUID();
+        when(queries.adminPulse(42L)).thenReturn(new ApprovalDtos.AdminPulse(
+                1, 0, 2, 0, 1, List.of()));
+        when(queries.breachedTasks(42L, 20)).thenReturn(List.of());
+        when(queries.integrationDeliveries(42L, 50)).thenReturn(List.of());
+
+        ApprovalDtos.OperationsResponse response = service.retryIntegrationDelivery(
+                outboxId, "approval-retry-correlation");
+
+        verify(commands).retryIntegrationDelivery(ApprovalRequestContext.require(), outboxId);
+        ArgumentCaptor<com.dwp.audit.AuditEvent> event =
+                ArgumentCaptor.forClass(com.dwp.audit.AuditEvent.class);
+        verify(audit).record(event.capture());
+        assertThat(event.getValue().action())
+                .isEqualTo("approval.integration.delivery.retried");
+        assertThat(event.getValue().targetType())
+                .isEqualTo("APPROVAL_INTEGRATION_EVENT");
+        assertThat(event.getValue().targetId()).isEqualTo(outboxId.toString());
+        assertThat(event.getValue().correlationId())
+                .isEqualTo("approval-retry-correlation");
+        assertThat(event.getValue().afterState())
+                .containsEntry("outboxId", outboxId.toString());
+        assertThat(event.getValue().retentionClass()).isEqualTo("EXTENDED");
+        assertThat(response.integrationDeliveries()).isEmpty();
+    }
+
+    @Test
+    void buildsThePersonalHomeFlowFromTheVerifiedActorScope() {
+        ApprovalRequestContext.Actor actor = ApprovalRequestContext.require();
+        ApprovalDtos.ApprovalMetrics metrics = new ApprovalDtos.ApprovalMetrics(
+                1, 0, 1, 0, 2, 8.5, 95.0);
+        List<ApprovalDtos.StageMetric> flow = List.of(
+                new ApprovalDtos.StageMetric("IN_REVIEW", 3, 1));
+        when(queries.metrics(actor)).thenReturn(metrics);
+        when(queries.tasks(actor, "INBOX", 6)).thenReturn(List.of());
+        when(queries.requests(actor, "SUBMITTED", 5)).thenReturn(List.of());
+        when(queries.flow(actor)).thenReturn(flow);
+
+        ApprovalDtos.HomeResponse home = service.home();
+
+        assertThat(home.flow()).isEqualTo(flow);
+        assertThat(home.administrator()).isFalse();
+        verify(queries).flow(actor);
     }
 
     private ApprovalDtos.TaskSummary summary(UUID taskId, UUID requestId, String status) {
@@ -100,5 +204,18 @@ class ApprovalServiceTest {
                 Instant.now(),
                 Instant.now().plusSeconds(3600),
                 0L);
+    }
+
+    private ApprovalIdentityDirectory.Subject subject(long userId, List<String> roles) {
+        return new ApprovalIdentityDirectory.Subject(
+                42L,
+                userId,
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                "Delegator",
+                "delegator@sk.com",
+                "Approver",
+                "ACTIVE",
+                roles);
     }
 }

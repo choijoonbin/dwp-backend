@@ -70,6 +70,33 @@ public class ApprovalAdminController {
         return ApiResponse.success(service.forms());
     }
 
+    @GetMapping("/form-categories")
+    public ApiResponse<List<ApprovalDtos.FormCategorySummary>> formCategories() {
+        return ApiResponse.success(service.formCategories());
+    }
+
+    @PostMapping("/form-categories")
+    public ApiResponse<List<ApprovalDtos.FormCategorySummary>> createFormCategory(
+            @Valid @RequestBody ApprovalDtos.CreateFormCategoryRequest request,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId) {
+        return ApiResponse.success(service.createFormCategory(request, correlationId));
+    }
+
+    @PutMapping("/form-categories/{categoryId}")
+    public ApiResponse<List<ApprovalDtos.FormCategorySummary>> updateFormCategory(
+            @PathVariable UUID categoryId,
+            @Valid @RequestBody ApprovalDtos.UpdateFormCategoryRequest request,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId) {
+        return ApiResponse.success(service.updateFormCategory(categoryId, request, correlationId));
+    }
+
+    @PostMapping("/forms")
+    public ApiResponse<ApprovalDtos.FormDetail> createFormDraft(
+            @Valid @RequestBody ApprovalDtos.CreateFormDraftRequest request,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId) {
+        return ApiResponse.success(service.createFormDraft(request, correlationId));
+    }
+
     @GetMapping("/forms/{formId}")
     public ApiResponse<ApprovalDtos.FormDetail> form(@PathVariable UUID formId) {
         return ApiResponse.success(service.form(formId));
@@ -81,6 +108,15 @@ public class ApprovalAdminController {
             @Valid @RequestBody ApprovalDtos.UpdateFormDraftRequest request,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId) {
         return ApiResponse.success(service.updateFormDraft(formId, request, correlationId));
+    }
+
+    @PostMapping("/forms/{formId}/publish")
+    public ApiResponse<ApprovalDtos.FormDetail> publishForm(
+            @PathVariable UUID formId,
+            @Valid @RequestBody ApprovalDtos.PublishFormRequest request,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId) {
+        return ApiResponse.success(service.publishForm(
+                formId, request.expectedVersion(), correlationId));
     }
 
     @GetMapping("/policies")
@@ -96,9 +132,30 @@ public class ApprovalAdminController {
         return ApiResponse.success(service.updatePolicy(policyId, request, correlationId));
     }
 
+    @PostMapping("/policies/{policyId}/publish")
+    public ApiResponse<List<ApprovalDtos.PolicySummary>> publishPolicy(
+            @PathVariable UUID policyId,
+            @Valid @RequestBody ApprovalDtos.PublishPolicyRequest request,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId) {
+        return ApiResponse.success(service.publishPolicy(policyId, request, correlationId));
+    }
+
+    @GetMapping("/policies/{policyId}/versions")
+    public ApiResponse<List<ApprovalDtos.PolicyVersionSummary>> policyVersions(
+            @PathVariable UUID policyId) {
+        return ApiResponse.success(service.policyVersions(policyId));
+    }
+
     @GetMapping("/operations")
     public ApiResponse<ApprovalDtos.OperationsResponse> operations() {
         return ApiResponse.success(service.operations());
+    }
+
+    @PostMapping("/operations/events/{outboxId}/retry")
+    public ApiResponse<ApprovalDtos.OperationsResponse> retryIntegrationDelivery(
+            @PathVariable UUID outboxId,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId) {
+        return ApiResponse.success(service.retryIntegrationDelivery(outboxId, correlationId));
     }
 
     @GetMapping("/signatures")

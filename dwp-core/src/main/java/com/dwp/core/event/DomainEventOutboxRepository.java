@@ -64,6 +64,7 @@ public class DomainEventOutboxRepository {
                            SELECT 1
                              FROM sys_domain_event_outbox predecessor
                             WHERE predecessor.event_source = candidate.event_source
+                              AND predecessor.tenant_id IS NOT DISTINCT FROM candidate.tenant_id
                               AND predecessor.aggregate_type = candidate.aggregate_type
                               AND predecessor.aggregate_id = candidate.aggregate_id
                               AND predecessor.aggregate_sequence < candidate.aggregate_sequence

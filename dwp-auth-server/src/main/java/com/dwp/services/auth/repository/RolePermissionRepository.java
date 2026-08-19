@@ -13,6 +13,10 @@ public interface RolePermissionRepository extends JpaRepository<RolePermission, 
             Collection<Long> roleIds,
             String effect);
 
+    List<RolePermission> findByTenantIdAndRoleIdIn(
+            Long tenantId,
+            Collection<Long> roleIds);
+
     List<RolePermission> findByTenantIdAndRoleId(Long tenantId, Long roleId);
 
     void deleteByTenantIdAndRoleId(Long tenantId, Long roleId);

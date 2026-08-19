@@ -115,12 +115,21 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
                                     : "UPDATE";
             return has(permissions, "ADMIN.APPROVAL_DESIGN", action, "MANAGE");
         }
-        if (path.startsWith("/v1/admin/forms")) {
-            return has(permissions, "ADMIN.APPROVAL_DESIGN",
-                    readOnly(method) ? "VIEW" : "UPDATE", "MANAGE");
+        if (path.startsWith("/v1/admin/forms") || path.startsWith("/v1/admin/form-categories")) {
+            String action = readOnly(method)
+                    ? "VIEW"
+                    : path.endsWith("/publish")
+                            ? "APPROVE"
+                            : "POST".equals(method)
+                                    ? "CREATE"
+                                    : "UPDATE";
+            return has(permissions, "ADMIN.APPROVAL_DESIGN", action, "MANAGE");
         }
         if (path.startsWith("/v1/admin/policies")) {
-            return has(permissions, "ADMIN.APPROVAL_POLICY", readOnly(method) ? "VIEW" : "MANAGE");
+            String action = readOnly(method)
+                    ? "VIEW"
+                    : path.endsWith("/publish") ? "APPROVE" : "UPDATE";
+            return has(permissions, "ADMIN.APPROVAL_POLICY", action, "MANAGE");
         }
         if (path.startsWith("/v1/admin/operations")) {
             return has(permissions, "ADMIN.APPROVAL_OPERATIONS", readOnly(method) ? "VIEW" : "MANAGE");
@@ -143,6 +152,9 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
             if (path.startsWith("/v1/workflows/published")) {
                 return has(permissions, "ACTION.APPROVAL_REQUEST", "VIEW", "CREATE", "MANAGE");
             }
+            if (path.startsWith("/v1/catalog/forms")) {
+                return has(permissions, "ACTION.APPROVAL_REQUEST", "VIEW", "CREATE", "MANAGE");
+            }
             return path.equals("/v1/home");
         }
         if (path.matches("/v1/tasks/[^/]+/decisions")) {
@@ -154,8 +166,11 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
         if (path.startsWith("/v1/delegations")) {
             return has(permissions, "ACTION.APPROVAL_DELEGATION", "MANAGE");
         }
-        if (path.startsWith("/v1/requests")) {
-            return has(permissions, "ACTION.APPROVAL_REQUEST", "CREATE", "UPDATE", "MANAGE");
+        if (path.equals("/v1/requests") && "POST".equals(method)) {
+            return has(permissions, "ACTION.APPROVAL_REQUEST", "CREATE", "MANAGE");
+        }
+        if (path.matches("/v1/requests/[^/]+/(draft|submit|information-response|withdraw)")) {
+            return has(permissions, "ACTION.APPROVAL_REQUEST", "UPDATE", "MANAGE");
         }
         return false;
     }

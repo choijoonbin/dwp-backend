@@ -102,4 +102,19 @@ class RequiredHeaderFilterTest {
 
         assertThat(called).isTrue();
     }
+
+    @Test
+    void allowsNativeEventSourceToDeriveTenantFromVerifiedSession() {
+        RequiredHeaderFilter filter = new RequiredHeaderFilter();
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/notifications/v1/stream").build());
+        AtomicBoolean called = new AtomicBoolean();
+
+        filter.filter(exchange, ignored -> {
+            called.set(true);
+            return Mono.empty();
+        }).block();
+
+        assertThat(called).isTrue();
+    }
 }

@@ -223,11 +223,26 @@ public class AuthSessionVerifier implements SessionVerifier {
         if (path.startsWith("/api/spaces/v1/")) {
             return "APP.SPACES,ACTION.SPACE_";
         }
+        if (path.startsWith("/api/messaging/v1/admin/")) {
+            return "ADMIN.MESSAGING";
+        }
+        if (path.equals("/api/messaging/v1/home")) {
+            return "APP.MESSAGING,ADMIN.MESSAGING";
+        }
+        if (path.startsWith("/api/messaging/v1/")) {
+            return "APP.MESSAGING";
+        }
+        if (path.startsWith("/api/notifications/v1/admin/")) {
+            return "ADMIN.NOTIFICATION_";
+        }
+        if (path.startsWith("/api/notifications/v1/")) {
+            return "APP.NOTIFICATIONS";
+        }
         if (path.startsWith("/api/platform/v1/services")) {
             return "APP.EMPLOYEE_SERVICES";
         }
-        if (path.startsWith("/api/agent/v1/ask")) {
-            return "APP.";
+        if (path.startsWith("/api/agent/v1/")) {
+            return "APP.,ACTION.";
         }
         return null;
     }

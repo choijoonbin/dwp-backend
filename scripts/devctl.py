@@ -43,6 +43,17 @@ def agent_python() -> str:
     return str(virtualenv_python) if virtualenv_python.exists() else "python3"
 
 
+def spring_boot_module_ready(module_name: str) -> bool:
+    module_root = BACKEND_ROOT / module_name
+    source_root = module_root / "src" / "main" / "java"
+    return (
+        (module_root / "build.gradle").is_file()
+        and (module_root / "src" / "main" / "resources" / "application.yml").is_file()
+        and source_root.is_dir()
+        and any(source_root.rglob("*Application.java"))
+    )
+
+
 SERVICES = {
     "auth": Service(
         "auth",
@@ -86,6 +97,20 @@ SERVICES = {
         8006,
         "/actuator/health",
     ),
+    "messaging": Service(
+        "messaging",
+        BACKEND_ROOT,
+        ("./gradlew", "--no-daemon", ":dwp-messaging-server:bootRun"),
+        8007,
+        "/actuator/health",
+    ),
+    "notification": Service(
+        "notification",
+        BACKEND_ROOT,
+        ("./gradlew", "--no-daemon", ":dwp-notification-server:bootRun"),
+        8008,
+        "/actuator/health",
+    ),
     "agent": Service(
         "agent",
         AGENT_ROOT,
@@ -121,22 +146,50 @@ SERVICES = {
     ),
 }
 
+CORE_SERVICES = {"auth", "platform", "people", "provider", "approval", "space"}
+OPTIONAL_RUNTIME_SERVICES = {
+    service_name
+    for service_name, module_name in {
+        "messaging": "dwp-messaging-server",
+        "notification": "dwp-notification-server",
+    }.items()
+    if spring_boot_module_ready(module_name)
+}
+
 PROFILES = {
-    "full": {"auth", "platform", "people", "provider", "approval", "space", "agent", "gateway", "frontend"},
-    "core": {"auth", "platform", "people", "provider", "approval", "space", "gateway", "frontend"},
-    "backend": {"auth", "platform", "people", "provider", "approval", "space", "agent", "gateway"},
-    "contracts": {"auth", "platform", "people", "provider", "approval", "space", "gateway"},
+    "full": CORE_SERVICES | OPTIONAL_RUNTIME_SERVICES | {"agent", "gateway", "frontend"},
+    "core": CORE_SERVICES | OPTIONAL_RUNTIME_SERVICES | {"gateway", "frontend"},
+    "backend": CORE_SERVICES | OPTIONAL_RUNTIME_SERVICES | {"agent", "gateway"},
+    "contracts": CORE_SERVICES | OPTIONAL_RUNTIME_SERVICES | {"gateway"},
+    "auth": {"auth"},
+    "platform": {"platform"},
+    "people": {"people"},
+    "provider": {"provider"},
     "agent": {"agent"},
     "gateway": {"gateway"},
     "approval": {"approval"},
     "space": {"space"},
     "web": {"frontend"},
 }
+for optional_service in OPTIONAL_RUNTIME_SERVICES:
+    PROFILES[optional_service] = {optional_service}
 
-START_ORDER = ("auth", "platform", "people", "provider", "approval", "space", "agent", "gateway", "frontend")
+START_ORDER = (
+    "auth",
+    "platform",
+    "people",
+    "provider",
+    "approval",
+    "space",
+    "messaging",
+    "notification",
+    "agent",
+    "gateway",
+    "frontend",
+)
 START_PHASES = (
     ("platform",),
-    ("auth", "people", "provider", "approval", "space", "agent"),
+    ("auth", "people", "provider", "approval", "space", "messaging", "notification", "agent"),
     ("gateway",),
     ("frontend",),
 )
@@ -198,6 +251,8 @@ def local_environment() -> dict[str, str]:
         "SERVICE_PROVIDER_URL": "http://localhost:8004",
         "SERVICE_APPROVAL_URL": "http://localhost:8005",
         "SERVICE_SPACE_URL": "http://localhost:8006",
+        "SERVICE_MESSAGING_URL": "http://localhost:8007",
+        "SERVICE_NOTIFICATION_URL": "http://localhost:8008",
         "DWP_AGENT_SERVICE_TOKEN": "dwp-local-agent-service-token",
         "DWP_AGENT_DATABASE_URL": (
             "postgresql://dwp_user:dwp_password@localhost:5432/dwp_agent"
@@ -229,8 +284,25 @@ def local_environment() -> dict[str, str]:
             "classpath:db/migration,classpath:db/local-seed"
         ),
         "DWP_APPROVAL_EXTERNAL_SIGNATURE_ENABLED": "false",
+        "DWP_APPROVAL_INTEGRATION_RELAY_ENABLED": "true",
         "DWP_SPACE_SERVICE_TOKEN": "dwp-local-space-service-token",
         "DWP_SPACE_FLYWAY_LOCATIONS": (
+            "classpath:db/migration,classpath:db/local-seed"
+        ),
+        "DWP_MESSAGING_SERVICE_TOKEN": "dwp-local-messaging-service-token",
+        "DWP_NOTIFICATION_SERVICE_TOKEN": "dwp-local-notification-service-token",
+        "DWP_NOTIFICATION_CURSOR_SECRET": (
+            "dwp-local-notification-cursor-secret-change-outside-local"
+        ),
+        "DWP_NOTIFICATION_PRODUCER_TOKENS": (
+            "dwp-approval-server=dwp-local-approval-notification-token,"
+            "dwp-people-server=dwp-local-people-notification-token,"
+            "dwp-platform-server=dwp-local-platform-notification-token,"
+            "dwp-space-server=dwp-local-space-notification-token,"
+            "dwp-messaging-server=dwp-local-messaging-notification-token"
+        ),
+        "DWP_NOTIFICATION_APPROVAL_PILOT_ENABLED": "true",
+        "DWP_NOTIFICATION_FLYWAY_LOCATIONS": (
             "classpath:db/migration,classpath:db/local-seed"
         ),
         "DWP_PROVIDER_SUPPORT_VALIDATION_TOKEN": (
@@ -306,12 +378,22 @@ def service_environment(service_name: str) -> dict[str, str]:
     if service_name != "approval":
         environment.pop("DWP_APPROVAL_FLYWAY_LOCATIONS", None)
         environment.pop("DWP_APPROVAL_EXTERNAL_SIGNATURE_ENABLED", None)
+        environment.pop("DWP_APPROVAL_INTEGRATION_RELAY_ENABLED", None)
     if service_name != "provider":
         environment.pop("DWP_PROVIDER_SUPPORT_COOKIE_SECURE", None)
     if service_name not in {"auth", "platform", "people", "provider"}:
         environment.pop("DWP_PROVIDER_PROVISIONING_TOKEN", None)
     if service_name not in {"auth", "platform", "people", "space"}:
         environment.pop("DWP_IDENTITY_SYNC_TOKEN", None)
+    if service_name not in {"gateway", "messaging"}:
+        environment.pop("DWP_MESSAGING_SERVICE_TOKEN", None)
+    if service_name not in {"gateway", "notification"}:
+        environment.pop("DWP_NOTIFICATION_SERVICE_TOKEN", None)
+    if service_name != "notification":
+        environment.pop("DWP_NOTIFICATION_FLYWAY_LOCATIONS", None)
+        environment.pop("DWP_NOTIFICATION_CURSOR_SECRET", None)
+        environment.pop("DWP_NOTIFICATION_PRODUCER_TOKENS", None)
+        environment.pop("DWP_NOTIFICATION_APPROVAL_PILOT_ENABLED", None)
     if service_name != "people":
         environment.pop("DWP_IDENTITY_SYNC_ENABLED", None)
     return environment
@@ -343,7 +425,7 @@ def doctor(required_services: Iterable[Service] | None = None) -> None:
         else {service.name for service in required_services}
     )
     commands = {"docker", "python3"}
-    if selected.intersection({"auth", "platform", "people", "provider", "gateway"}):
+    if selected.intersection({"auth", "platform", "people", "provider", "approval", "space", "messaging", "notification", "gateway"}):
         commands.add("java")
     if "frontend" in selected:
         commands.add("corepack")
@@ -393,8 +475,14 @@ def doctor(required_services: Iterable[Service] | None = None) -> None:
     print("Development environment is ready.")
 
 
-def start_infrastructure() -> None:
-    docker_compose("up", "-d", "postgres", "redis")
+def start_infrastructure(include_events: bool = False) -> None:
+    if include_events:
+        docker_compose(
+            "--profile", "events", "up", "-d",
+            "postgres", "redis", "kafka", "kafka-init"
+        )
+    else:
+        docker_compose("up", "-d", "postgres", "redis")
     deadline = time.monotonic() + 60
     while time.monotonic() < deadline:
         postgres = docker_compose(
@@ -426,9 +514,30 @@ def start_infrastructure() -> None:
             ensure_database("dwp_provider")
             ensure_database("dwp_approval")
             ensure_database("dwp_space")
+            ensure_database("dwp_messaging")
+            ensure_database("dwp_notification")
             ensure_database("dwp_agent")
             print("postgres   ready at localhost:5432")
             print("redis      ready at localhost:6379")
+            if include_events:
+                kafka_deadline = time.monotonic() + 90
+                while time.monotonic() < kafka_deadline:
+                    kafka = docker_compose(
+                        "--profile", "events", "ps", "--status", "running", "kafka",
+                        check=False,
+                        capture_output=True,
+                    )
+                    init = docker_compose(
+                        "--profile", "events", "ps", "-a", "kafka-init",
+                        check=False,
+                        capture_output=True,
+                    )
+                    if "dwp-kafka" in kafka.stdout and "Exited (0)" in init.stdout:
+                        print("kafka      ready at localhost:9092")
+                        break
+                    time.sleep(1)
+                else:
+                    raise RuntimeError("Kafka topics did not become ready within 90 seconds.")
             return
         time.sleep(1)
     raise RuntimeError("PostgreSQL and Redis did not become ready within 60 seconds.")
@@ -490,8 +599,11 @@ def start_service(service: Service, state: dict[str, dict[str, object]]) -> None
         print(f"{service.name:10} already running (pid={current['pid']})")
         return
     if port_open(service.port):
+        if health_ready(service):
+            print(f"{service.name:10} already available (external, port={service.port})")
+            return
         raise RuntimeError(
-            f"Port {service.port} for {service.name} is used by an unmanaged process."
+            f"Port {service.port} for {service.name} is occupied by an unhealthy process."
         )
 
     LOG_ROOT.mkdir(parents=True, exist_ok=True)
@@ -624,7 +736,9 @@ def main() -> None:
     elif args.command == "up":
         services = resolve_services(args.profiles)
         doctor(services)
-        start_infrastructure()
+        start_infrastructure(include_events=any(
+            service.name == "notification" for service in services
+        ))
         state = load_state()
         selected = {service.name: service for service in services}
         for phase_names in START_PHASES:

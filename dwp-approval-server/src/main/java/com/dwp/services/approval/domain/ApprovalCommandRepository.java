@@ -2,6 +2,7 @@ package com.dwp.services.approval.domain;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.approval.integration.ApprovalIdentityDirectory;
 import com.dwp.services.approval.security.ApprovalRequestContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -14,6 +15,7 @@ import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.Duration;
 import java.time.format.DateTimeParseException;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -40,13 +42,14 @@ public class ApprovalCommandRepository {
             ApprovalRequestContext.Actor actor,
             ApprovalDtos.CreateRequest request,
             String correlationId) {
-        WorkflowRuntime workflow = workflow(actor.tenantId(), request.workflowId());
         String priority = normalizedPriority(request.priority());
         UUID requestId = UUID.randomUUID();
         String requestNumber = "APR-" + Instant.now().toEpochMilli() + "-"
                 + requestId.toString().substring(0, 6).toUpperCase(Locale.ROOT);
         Map<String, Object> payload = requestPayload(request.summary(), request.payload());
-        validateRequestPayload(workflow.formSchema(), payload);
+        WorkflowRuntime workflow = workflow(
+                actor.tenantId(), request.workflowId(), request.formId(), payload, false);
+        validateRequestPayload(workflow.formSchema(), payload, false);
         String payloadJson = json(payload);
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("requestId", requestId)
@@ -84,6 +87,7 @@ public class ApprovalCommandRepository {
                     :tenantId, :requestId, CAST(:payload AS jsonb),
                     encode(sha256(convert_to(:payload, 'UTF8')), 'hex'), 1)
                 """, params);
+        appendPayloadRevision(actor, requestId, "DRAFT_CREATED", correlationId, "Draft created");
         appendEvent(actor, requestId, "REQUEST_DRAFTED", "Draft created", correlationId, Map.of());
         return requestId;
     }
@@ -93,10 +97,11 @@ public class ApprovalCommandRepository {
             UUID requestId,
             ApprovalDtos.UpdateDraftRequest request,
             String correlationId) {
-        WorkflowRuntime workflow = workflow(actor.tenantId(), request.workflowId());
         String priority = normalizedPriority(request.priority());
         Map<String, Object> payload = requestPayload(request.summary(), request.payload());
-        validateRequestPayload(workflow.formSchema(), payload);
+        WorkflowRuntime workflow = workflow(
+                actor.tenantId(), request.workflowId(), request.formId(), payload, false);
+        validateRequestPayload(workflow.formSchema(), payload, false);
         String payloadJson = json(payload);
         MapSqlParameterSource params = actorParams(actor)
                 .addValue("requestId", requestId)
@@ -134,6 +139,7 @@ public class ApprovalCommandRepository {
                        updated_at = CURRENT_TIMESTAMP
                  WHERE tenant_id = :tenantId AND request_id = :requestId
                 """, params);
+        appendPayloadRevision(actor, requestId, "DRAFT_UPDATED", correlationId, "Draft updated");
         appendEvent(actor, requestId, "REQUEST_DRAFT_UPDATED", "Draft updated", correlationId,
                 Map.of("workflowId", request.workflowId().toString()));
     }
@@ -145,6 +151,18 @@ public class ApprovalCommandRepository {
             String correlationId) {
         RequestRuntime request = ownedRequest(actor, requestId);
         if (!"DRAFT".equals(request.status())) throw new BaseException(ErrorCode.INVALID_STATE);
+        if (request.title() == null || request.title().isBlank()) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "Approval title is required before submission.");
+        }
+        validateRequestPayload(request.formSchema(), request.payload(), true);
+        if ("CONDITIONAL".equals(request.bindingType())
+                && !matchesRouteCondition(request.bindingCondition(), request.payload())) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "The selected approval route does not match this request.");
+        }
         List<RuntimeStep> steps = request.steps();
         RuntimeStep firstStep = steps.get(0);
         UUID firstStepId = UUID.randomUUID();
@@ -216,6 +234,8 @@ public class ApprovalCommandRepository {
                 Map.of(
                         "requestId", requestId.toString(),
                         "taskId", firstTaskId.toString(),
+                        "recipientUserId", actor.userId(),
+                        "requestTitle", request.title(),
                         "stepKey", firstStep.key(),
                         "stepCount", steps.size()));
     }
@@ -263,10 +283,23 @@ public class ApprovalCommandRepository {
             UUID requestId,
             ApprovalDtos.InformationResponseRequest request,
             String correlationId) {
+        InformationRuntime current = informationRuntime(actor, requestId);
+        Map<String, Object> amendedPayload = new LinkedHashMap<>(current.payload());
+        if (request.payload() != null) amendedPayload.putAll(request.payload());
+        validateRequestPayload(current.formSchema(), amendedPayload, true);
+        List<String> amendedFields = new java.util.ArrayList<>();
+        for (String key : amendedPayload.keySet()) {
+            if (!java.util.Objects.equals(current.payload().get(key), amendedPayload.get(key))) {
+                amendedFields.add(key);
+            }
+        }
+        amendedFields.sort(String::compareTo);
+        String amendedPayloadJson = json(amendedPayload);
         MapSqlParameterSource params = actorParams(actor)
                 .addValue("requestId", requestId)
                 .addValue("expectedVersion", request.expectedVersion())
-                .addValue("message", request.message().trim());
+                .addValue("message", request.message().trim())
+                .addValue("payload", amendedPayloadJson);
         int updated = jdbc.update("""
                 UPDATE apr_requests
                    SET status = 'IN_REVIEW', version = version + 1,
@@ -276,6 +309,22 @@ public class ApprovalCommandRepository {
                    AND status = 'NEEDS_INFO' AND version = :expectedVersion
                 """, params);
         requireUpdated(updated);
+        if (!amendedFields.isEmpty()) {
+            jdbc.update("""
+                    UPDATE apr_request_payloads
+                       SET payload = CAST(:payload AS jsonb),
+                           payload_sha256 = encode(sha256(convert_to(:payload, 'UTF8')), 'hex'),
+                           schema_version = schema_version + 1,
+                           updated_at = CURRENT_TIMESTAMP
+                     WHERE tenant_id = :tenantId AND request_id = :requestId
+                    """, params);
+            appendPayloadRevision(
+                    actor,
+                    requestId,
+                    "INFORMATION_RESPONDED",
+                    correlationId,
+                    request.message().trim());
+        }
         int resumed = jdbc.update("""
                 UPDATE apr_tasks
                    SET status = CASE WHEN assignee_user_id IS NULL THEN 'PENDING' ELSE 'CLAIMED' END,
@@ -286,7 +335,9 @@ public class ApprovalCommandRepository {
                 """, params);
         if (resumed == 0) throw new BaseException(ErrorCode.INVALID_STATE);
         appendEvent(actor, requestId, "INFORMATION_RESPONDED", request.message().trim(), correlationId,
-                Map.of("responseLength", request.message().trim().length()));
+                Map.of(
+                        "responseLength", request.message().trim().length(),
+                        "amendedFields", amendedFields));
         appendIntegration(actor, requestId, "approval.request.information.responded", correlationId,
                 Map.of("requestId", requestId.toString()));
     }
@@ -296,17 +347,19 @@ public class ApprovalCommandRepository {
             ApprovalQueryRepository.TaskAccess task,
             long expectedVersion,
             String correlationId) {
-        if (task.assigneeUserId() != null && !task.assigneeUserId().equals(actor.userId())) {
+        if (task.assigneeUserId() != null && !task.assigneeUserId().equals(actor.userId())
+                && !task.delegatedAccess()) {
             throw new BaseException(ErrorCode.FORBIDDEN);
         }
         if (task.candidateRole() != null && !actor.roles().contains(task.candidateRole())
-                && task.assigneeUserId() == null) {
+                && task.assigneeUserId() == null && !task.delegatedAccess()) {
             throw new BaseException(ErrorCode.FORBIDDEN);
         }
         int updated = jdbc.update("""
                 UPDATE apr_tasks
                    SET assignee_user_id = :userId,
                        assignee_person_public_id = :personPublicId,
+                       delegated_from_user_id = :delegatedFromUserId,
                        status = 'CLAIMED', claimed_at = CURRENT_TIMESTAMP,
                        version = version + 1, updated_at = CURRENT_TIMESTAMP
                  WHERE tenant_id = :tenantId AND task_id = :taskId
@@ -314,6 +367,7 @@ public class ApprovalCommandRepository {
                    AND version = :expectedVersion
                 """, actorParams(actor)
                 .addValue("personPublicId", actor.personPublicId())
+                .addValue("delegatedFromUserId", task.delegatedFromUserId())
                 .addValue("taskId", task.summary().taskId())
                 .addValue("expectedVersion", expectedVersion));
         requireUpdated(updated);
@@ -326,10 +380,14 @@ public class ApprovalCommandRepository {
             ApprovalQueryRepository.TaskAccess task,
             ApprovalDtos.DecisionRequest decision,
             String correlationId) {
-        if (task.requesterUserId() == actor.userId()) {
+        PolicyRuntime selfApprovalPolicy = policy(
+                actor.tenantId(), "BLOCK_SELF_APPROVAL");
+        if (task.requesterUserId() == actor.userId()
+                && selfApprovalPolicy.blocks()) {
             throw new BaseException(ErrorCode.FORBIDDEN, "A requester cannot decide their own request.");
         }
-        if (task.assigneeUserId() != null && !task.assigneeUserId().equals(actor.userId())) {
+        if (task.assigneeUserId() != null && !task.assigneeUserId().equals(actor.userId())
+                && !task.delegatedAccess()) {
             throw new BaseException(ErrorCode.FORBIDDEN);
         }
         String normalized = decision.decision().trim().toUpperCase(Locale.ROOT);
@@ -343,10 +401,16 @@ public class ApprovalCommandRepository {
                 eventType = "TASK_APPROVED";
             }
             case "REJECT" -> {
-                if (decision.comment() == null || decision.comment().trim().length() < 8) {
+                PolicyRuntime rejectionPolicy = policy(
+                        actor.tenantId(), "REQUIRE_REJECT_REASON");
+                int minimumLength = rejectionPolicy.integer("minimumLength", 8, 4, 1000);
+                if (rejectionPolicy.blocks()
+                        && (decision.comment() == null
+                            || decision.comment().trim().length() < minimumLength)) {
                     throw new BaseException(
                             ErrorCode.INVALID_INPUT_VALUE,
-                            "A rejection reason of at least 8 characters is required.");
+                            "A rejection reason of at least " + minimumLength
+                                    + " characters is required.");
                 }
                 taskStatus = "REJECTED";
                 requestStatus = "REJECTED";
@@ -373,10 +437,16 @@ public class ApprovalCommandRepository {
                 .addValue("expectedVersion", decision.expectedVersion())
                 .addValue("taskStatus", taskStatus)
                 .addValue("requestStatus", requestStatus)
+                .addValue("personPublicId", actor.personPublicId())
+                .addValue("delegatedFromUserId", task.delegatedFromUserId())
                 .addValue("reason", normalizeComment(decision.comment()));
         int updated = jdbc.update("""
                 UPDATE apr_tasks
                    SET assignee_user_id = COALESCE(assignee_user_id, :userId),
+                       decision_actor_user_id = :userId,
+                       decision_actor_person_public_id = :personPublicId,
+                       delegated_from_user_id = COALESCE(
+                           delegated_from_user_id, :delegatedFromUserId),
                        status = :taskStatus, decision_reason = :reason,
                        completed_at = CASE WHEN :taskStatus = 'INFO_REQUESTED'
                                            THEN NULL ELSE CURRENT_TIMESTAMP END,
@@ -425,13 +495,26 @@ public class ApprovalCommandRepository {
                        updated_by = :userId
                  WHERE tenant_id = :tenantId AND request_id = :requestId
                 """, params);
+        Map<String, Object> decisionEvidence = new LinkedHashMap<>();
+        decisionEvidence.put("taskId", task.summary().taskId().toString());
+        decisionEvidence.put("decision", normalized);
+        decisionEvidence.put("delegated", task.delegatedAccess());
+        if (task.delegatedFromUserId() != null) {
+            decisionEvidence.put("delegatedFromUserId", task.delegatedFromUserId());
+        }
         appendEvent(actor, task.summary().requestId(), eventType,
-                normalizeComment(decision.comment()), correlationId,
-                Map.of("taskId", task.summary().taskId().toString(), "decision", normalized));
+                normalizeComment(decision.comment()), correlationId, decisionEvidence);
+        String integrationEventType = switch (requestStatus) {
+            case "APPROVED" -> "approval.request.approved";
+            case "REJECTED" -> "approval.request.rejected";
+            default -> "approval.task." + normalized.toLowerCase(Locale.ROOT);
+        };
         appendIntegration(actor, task.summary().requestId(),
-                "approval.task." + normalized.toLowerCase(Locale.ROOT), correlationId,
+                integrationEventType, correlationId,
                 Map.of("requestId", task.summary().requestId().toString(),
                         "taskId", task.summary().taskId().toString(),
+                        "recipientUserId", task.requesterUserId(),
+                        "requestTitle", task.summary().title(),
                         "decision", normalized));
         return new DecisionResult(normalized, requestStatus);
     }
@@ -495,8 +578,17 @@ public class ApprovalCommandRepository {
 
     public UUID createDelegation(
             ApprovalRequestContext.Actor actor,
-            ApprovalDtos.CreateDelegationRequest request) {
+            ApprovalDtos.CreateDelegationRequest request,
+            ApprovalIdentityDirectory.Subject delegate) {
         if (request.delegateUserId().equals(actor.userId()) || !request.endsAt().isAfter(request.startsAt())) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        Instant now = Instant.now();
+        if (request.startsAt().isBefore(now.minus(Duration.ofMinutes(5)))
+                || Duration.between(request.startsAt(), request.endsAt()).compareTo(Duration.ofDays(90)) > 0
+                || !delegate.active()
+                || !request.delegateUserId().equals(delegate.userId())
+                || !actor.tenantId().equals(delegate.tenantId())) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE);
         }
         String scope = request.scopeType().trim().toUpperCase(Locale.ROOT);
@@ -507,25 +599,210 @@ public class ApprovalCommandRepository {
                 && (request.workflowKey() == null || request.workflowKey().isBlank())) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE);
         }
+        String workflowKey = "WORKFLOW".equals(scope)
+                ? request.workflowKey().trim().toUpperCase(Locale.ROOT)
+                : null;
+        if (workflowKey != null) {
+            Integer workflowCount = jdbc.queryForObject("""
+                    SELECT COUNT(*)::INTEGER
+                      FROM apr_workflow_definitions
+                     WHERE tenant_id = :tenantId AND workflow_key = :workflowKey
+                       AND lifecycle_state = 'PUBLISHED'
+                    """, actorParams(actor).addValue("workflowKey", workflowKey), Integer.class);
+            if (workflowCount == null || workflowCount == 0) {
+                throw new BaseException(ErrorCode.NOT_FOUND);
+            }
+        }
+        MapSqlParameterSource lockParams = actorParams(actor)
+                .addValue("delegateUserId", request.delegateUserId())
+                .addValue("scopeType", scope)
+                .addValue("workflowKey", workflowKey)
+                .addValue("startsAt", request.startsAt())
+                .addValue("endsAt", request.endsAt());
+        jdbc.queryForObject(
+                "SELECT pg_advisory_xact_lock(hashtextextended(:lockKey, 0))",
+                lockParams.addValue(
+                        "lockKey",
+                        actor.tenantId() + ":approval-delegation:" + actor.userId()),
+                Object.class);
+        Integer overlaps = jdbc.queryForObject("""
+                SELECT COUNT(*)::INTEGER
+                  FROM apr_delegations
+                 WHERE tenant_id = :tenantId AND delegator_user_id = :userId
+                   AND delegate_user_id = :delegateUserId
+                   AND lifecycle_state = 'ACTIVE'
+                   AND scope_type = :scopeType
+                   AND COALESCE(workflow_key, '') = COALESCE(:workflowKey, '')
+                   AND starts_at < :endsAt AND ends_at > :startsAt
+                """, lockParams, Integer.class);
+        if (overlaps != null && overlaps > 0) {
+            throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
+        }
         UUID id = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO apr_delegations (
                     delegation_id, tenant_id, delegator_user_id, delegate_user_id,
+                    delegate_person_public_id, delegate_display_name, delegate_email,
+                    delegated_role_codes,
                     scope_type, workflow_key, starts_at, ends_at,
                     lifecycle_state, reason, created_by, updated_by)
                 VALUES (
                     :id, :tenantId, :userId, :delegateUserId,
+                    :delegatePersonPublicId, :delegateDisplayName, :delegateEmail,
+                    CAST(:delegatedRoles AS jsonb),
                     :scopeType, :workflowKey, :startsAt, :endsAt,
                     'ACTIVE', :reason, :userId, :userId)
                 """, actorParams(actor)
                 .addValue("id", id)
                 .addValue("delegateUserId", request.delegateUserId())
+                .addValue("delegatePersonPublicId", delegate.personPublicId())
+                .addValue("delegateDisplayName", delegate.displayName())
+                .addValue("delegateEmail", delegate.email())
+                .addValue("delegatedRoles", json(actor.roles().stream().sorted().toList()))
                 .addValue("scopeType", scope)
-                .addValue("workflowKey", request.workflowKey())
+                .addValue("workflowKey", workflowKey)
                 .addValue("startsAt", request.startsAt())
                 .addValue("endsAt", request.endsAt())
                 .addValue("reason", request.reason().trim()));
         return id;
+    }
+
+    public void revokeDelegation(
+            ApprovalRequestContext.Actor actor,
+            UUID delegationId,
+            long expectedVersion) {
+        int updated = jdbc.update("""
+                UPDATE apr_delegations
+                   SET lifecycle_state = 'REVOKED', version = version + 1,
+                       updated_at = CURRENT_TIMESTAMP, updated_by = :userId
+                 WHERE tenant_id = :tenantId AND delegation_id = :delegationId
+                   AND delegator_user_id = :userId AND lifecycle_state = 'ACTIVE'
+                   AND version = :expectedVersion
+                """, actorParams(actor)
+                .addValue("delegationId", delegationId)
+                .addValue("expectedVersion", expectedVersion));
+        requireUpdated(updated);
+    }
+
+    public UUID createFormCategory(
+            ApprovalRequestContext.Actor actor,
+            ApprovalDtos.CreateFormCategoryRequest request) {
+        String categoryKey = request.categoryKey().trim().toUpperCase(Locale.ROOT);
+        validateCategoryParent(actor.tenantId(), null, request.parentCategoryId());
+        UUID categoryId = UUID.randomUUID();
+        try {
+            jdbc.update("""
+                    INSERT INTO apr_form_categories (
+                        category_id, tenant_id, category_key, parent_category_id,
+                        name_ko, name_en, description_ko, description_en,
+                        icon_key, sort_order, lifecycle_state, created_by, updated_by)
+                    VALUES (
+                        :categoryId, :tenantId, :categoryKey, :parentCategoryId,
+                        :nameKo, :nameEn, :descriptionKo, :descriptionEn,
+                        :iconKey, :sortOrder, 'ACTIVE', :userId, :userId)
+                    """, actorParams(actor)
+                    .addValue("categoryId", categoryId)
+                    .addValue("categoryKey", categoryKey)
+                    .addValue("parentCategoryId", request.parentCategoryId())
+                    .addValue("nameKo", request.nameKo().trim())
+                    .addValue("nameEn", request.nameEn().trim())
+                    .addValue("descriptionKo", normalizedOptional(request.descriptionKo()))
+                    .addValue("descriptionEn", normalizedOptional(request.descriptionEn()))
+                    .addValue("iconKey", request.iconKey().trim())
+                    .addValue("sortOrder", request.sortOrder()));
+        } catch (org.springframework.dao.DuplicateKeyException exception) {
+            throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
+        }
+        return categoryId;
+    }
+
+    public void updateFormCategory(
+            ApprovalRequestContext.Actor actor,
+            UUID categoryId,
+            ApprovalDtos.UpdateFormCategoryRequest request) {
+        validateCategoryParent(actor.tenantId(), categoryId, request.parentCategoryId());
+        int updated = jdbc.update("""
+                UPDATE apr_form_categories
+                   SET parent_category_id = :parentCategoryId,
+                       name_ko = :nameKo, name_en = :nameEn,
+                       description_ko = :descriptionKo, description_en = :descriptionEn,
+                       icon_key = :iconKey, sort_order = :sortOrder,
+                       lifecycle_state = :lifecycleState,
+                       version = version + 1, updated_at = CURRENT_TIMESTAMP,
+                       updated_by = :userId
+                 WHERE tenant_id = :tenantId AND category_id = :categoryId
+                   AND version = :expectedVersion
+                """, actorParams(actor)
+                .addValue("categoryId", categoryId)
+                .addValue("parentCategoryId", request.parentCategoryId())
+                .addValue("nameKo", request.nameKo().trim())
+                .addValue("nameEn", request.nameEn().trim())
+                .addValue("descriptionKo", normalizedOptional(request.descriptionKo()))
+                .addValue("descriptionEn", normalizedOptional(request.descriptionEn()))
+                .addValue("iconKey", request.iconKey().trim())
+                .addValue("sortOrder", request.sortOrder())
+                .addValue("lifecycleState", request.lifecycleState().trim().toUpperCase(Locale.ROOT))
+                .addValue("expectedVersion", request.expectedVersion()));
+        requireUpdated(updated);
+    }
+
+    public UUID createFormDraft(
+            ApprovalRequestContext.Actor actor,
+            ApprovalDtos.CreateFormDraftRequest request) {
+        validateFormFields(request.fields());
+        requireCategory(actor.tenantId(), request.categoryId());
+        requireWorkflow(actor.tenantId(), request.defaultWorkflowId());
+        String formKey = request.formKey().trim().toUpperCase(Locale.ROOT);
+        UUID formId = UUID.randomUUID();
+        UUID formVersionId = UUID.randomUUID();
+        String schema = json(formSchema(request.fields()));
+        MapSqlParameterSource params = actorParams(actor)
+                .addValue("formId", formId)
+                .addValue("formVersionId", formVersionId)
+                .addValue("formKey", formKey)
+                .addValue("categoryId", request.categoryId())
+                .addValue("nameKo", request.nameKo().trim())
+                .addValue("nameEn", request.nameEn().trim())
+                .addValue("descriptionKo", request.descriptionKo().trim())
+                .addValue("descriptionEn", request.descriptionEn().trim())
+                .addValue("ownerGroupRef", request.ownerGroupRef().trim())
+                .addValue("workflowId", request.defaultWorkflowId())
+                .addValue("schema", schema)
+                .addValue("bindingId", UUID.randomUUID());
+        try {
+            jdbc.update("""
+                    INSERT INTO apr_forms (
+                        form_id, tenant_id, form_key, category_id,
+                        name_ko, name_en, description_ko, description_en,
+                        owner_group_ref, form_kind, lifecycle_state,
+                        current_version, created_by, updated_by)
+                    VALUES (
+                        :formId, :tenantId, :formKey, :categoryId,
+                        :nameKo, :nameEn, :descriptionKo, :descriptionEn,
+                        :ownerGroupRef, 'REQUEST', 'DRAFT', 1, :userId, :userId)
+                    """, params);
+        } catch (org.springframework.dao.DuplicateKeyException exception) {
+            throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
+        }
+        jdbc.update("""
+                INSERT INTO apr_form_versions (
+                    form_version_id, tenant_id, form_id, version_number,
+                    schema_payload, schema_sha256, lifecycle_state, created_by)
+                VALUES (
+                    :formVersionId, :tenantId, :formId, 1,
+                    CAST(:schema AS jsonb),
+                    encode(sha256(convert_to(:schema, 'UTF8')), 'hex'),
+                    'DRAFT', :userId)
+                """, params);
+        jdbc.update("""
+                INSERT INTO apr_form_workflow_bindings (
+                    binding_id, tenant_id, form_id, workflow_id,
+                    binding_type, priority, lifecycle_state, created_by, updated_by)
+                VALUES (
+                    :bindingId, :tenantId, :formId, :workflowId,
+                    'DEFAULT', 100, 'ACTIVE', :userId, :userId)
+                """, params);
+        return formId;
     }
 
     public UUID createWorkflowDraft(
@@ -590,10 +867,15 @@ public class ApprovalCommandRepository {
                 """, params);
         jdbc.update("""
                 INSERT INTO apr_forms (
-                    form_id, tenant_id, form_key, name_ko, name_en,
+                    form_id, tenant_id, form_key, category_id, name_ko, name_en,
+                    description_ko, description_en, owner_group_ref,
                     lifecycle_state, current_version, created_by, updated_by)
                 VALUES (
-                    :formId, :tenantId, :formKey, :formNameKo, :formNameEn,
+                    :formId, :tenantId, :formKey,
+                    (SELECT category_id FROM apr_form_categories
+                      WHERE tenant_id = :tenantId AND category_key = :category),
+                    :formNameKo, :formNameEn,
+                    :descriptionKo, :descriptionEn, :ownerGroupRef,
                     'DRAFT', 1, :userId, :userId)
                 """, params);
         jdbc.update("""
@@ -606,6 +888,14 @@ public class ApprovalCommandRepository {
                     encode(sha256(convert_to(:schema, 'UTF8')), 'hex'),
                     'DRAFT', :userId)
                 """, params);
+        jdbc.update("""
+                INSERT INTO apr_form_workflow_bindings (
+                    binding_id, tenant_id, form_id, workflow_id, binding_type,
+                    lifecycle_state, priority, created_by, updated_by)
+                VALUES (
+                    :bindingId, :tenantId, :formId, :workflowId, 'DEFAULT',
+                    'ACTIVE', 100, :userId, :userId)
+                """, params.addValue("bindingId", UUID.randomUUID()));
         return workflowId;
     }
 
@@ -658,16 +948,26 @@ public class ApprovalCommandRepository {
             UUID formId,
             ApprovalDtos.UpdateFormDraftRequest request) {
         validateFormFields(request.fields());
+        requireCategory(actor.tenantId(), request.categoryId());
+        requireWorkflow(actor.tenantId(), request.defaultWorkflowId());
         String schema = json(formSchema(request.fields()));
         MapSqlParameterSource params = actorParams(actor)
                 .addValue("formId", formId)
+                .addValue("categoryId", request.categoryId())
                 .addValue("nameKo", request.nameKo().trim())
                 .addValue("nameEn", request.nameEn().trim())
+                .addValue("descriptionKo", request.descriptionKo().trim())
+                .addValue("descriptionEn", request.descriptionEn().trim())
+                .addValue("ownerGroupRef", request.ownerGroupRef().trim())
+                .addValue("workflowId", request.defaultWorkflowId())
                 .addValue("schema", schema)
                 .addValue("expectedVersion", request.expectedVersion());
         int updated = jdbc.update("""
                 UPDATE apr_forms
-                   SET name_ko = :nameKo, name_en = :nameEn,
+                   SET category_id = :categoryId,
+                       name_ko = :nameKo, name_en = :nameEn,
+                       description_ko = :descriptionKo, description_en = :descriptionEn,
+                       owner_group_ref = :ownerGroupRef,
                        version = version + 1, updated_at = CURRENT_TIMESTAMP,
                        updated_by = :userId
                  WHERE tenant_id = :tenantId AND form_id = :formId
@@ -678,6 +978,47 @@ public class ApprovalCommandRepository {
                 UPDATE apr_form_versions
                    SET schema_payload = CAST(:schema AS jsonb),
                        schema_sha256 = encode(sha256(convert_to(:schema, 'UTF8')), 'hex')
+                 WHERE tenant_id = :tenantId AND form_id = :formId
+                   AND lifecycle_state = 'DRAFT'
+                   AND version_number = (
+                       SELECT current_version FROM apr_forms
+                        WHERE tenant_id = :tenantId AND form_id = :formId)
+                """, params);
+        replaceDefaultFormRoute(actor, formId, request.defaultWorkflowId());
+    }
+
+    public void publishForm(
+            ApprovalRequestContext.Actor actor,
+            UUID formId,
+            long expectedVersion) {
+        MapSqlParameterSource params = actorParams(actor)
+                .addValue("formId", formId)
+                .addValue("expectedVersion", expectedVersion);
+        int updated = jdbc.update("""
+                UPDATE apr_forms form
+                   SET lifecycle_state = 'PUBLISHED', version = version + 1,
+                       updated_at = CURRENT_TIMESTAMP, updated_by = :userId
+                 WHERE form.tenant_id = :tenantId AND form.form_id = :formId
+                   AND form.lifecycle_state = 'DRAFT'
+                   AND form.version = :expectedVersion
+                   AND COALESCE(form.updated_by, form.created_by, -1) <> :userId
+                   AND EXISTS (
+                       SELECT 1
+                         FROM apr_form_workflow_bindings binding
+                         JOIN apr_workflow_definitions workflow
+                           ON workflow.tenant_id = binding.tenant_id
+                          AND workflow.workflow_id = binding.workflow_id
+                        WHERE binding.tenant_id = form.tenant_id
+                          AND binding.form_id = form.form_id
+                          AND binding.binding_type = 'DEFAULT'
+                          AND binding.lifecycle_state = 'ACTIVE'
+                          AND workflow.lifecycle_state = 'PUBLISHED')
+                """, params);
+        requireUpdated(updated);
+        jdbc.update("""
+                UPDATE apr_form_versions
+                   SET lifecycle_state = 'PUBLISHED', published_at = CURRENT_TIMESTAMP,
+                       published_by = :userId
                  WHERE tenant_id = :tenantId AND form_id = :formId
                    AND lifecycle_state = 'DRAFT'
                    AND version_number = (
@@ -696,10 +1037,24 @@ public class ApprovalCommandRepository {
                 Set.of("LOW", "MEDIUM", "HIGH", "CRITICAL"));
         String state = normalized(request.lifecycleState(),
                 Set.of("ACTIVE", "DISABLED", "RETIRED"));
+        String policyKey = jdbc.query("""
+                SELECT policy_key
+                  FROM apr_policy_rules
+                 WHERE tenant_id = :tenantId AND policy_id = :policyId
+                """, actorParams(actor).addValue("policyId", policyId), result -> {
+            if (!result.next()) throw new BaseException(ErrorCode.NOT_FOUND);
+            return result.getString("policy_key");
+        });
+        validatePolicyRule(policyKey, request.rule());
         int updated = jdbc.update("""
                 UPDATE apr_policy_rules
-                   SET enforcement_mode = :mode, severity = :severity,
-                       lifecycle_state = :state, rule_payload = CAST(:rule AS jsonb),
+                   SET pending_enforcement_mode = :mode,
+                       pending_severity = :severity,
+                       pending_lifecycle_state = :state,
+                       pending_rule_payload = CAST(:rule AS jsonb),
+                       pending_change_reason = :changeReason,
+                       pending_by = :userId,
+                       pending_at = CURRENT_TIMESTAMP,
                        version = version + 1, updated_at = CURRENT_TIMESTAMP,
                        updated_by = :userId
                  WHERE tenant_id = :tenantId AND policy_id = :policyId
@@ -710,8 +1065,155 @@ public class ApprovalCommandRepository {
                 .addValue("severity", severity)
                 .addValue("state", state)
                 .addValue("rule", json(request.rule()))
+                .addValue("changeReason", request.changeReason().trim())
                 .addValue("expectedVersion", request.expectedVersion()));
         requireUpdated(updated);
+    }
+
+    public void publishPolicy(
+            ApprovalRequestContext.Actor actor,
+            UUID policyId,
+            ApprovalDtos.PublishPolicyRequest request) {
+        int updated = jdbc.update("""
+                WITH candidate AS (
+                    SELECT tenant_id, policy_id,
+                           pending_enforcement_mode, pending_severity,
+                           pending_lifecycle_state, pending_rule_payload,
+                           pending_change_reason, pending_by, pending_at
+                      FROM apr_policy_rules
+                     WHERE tenant_id = :tenantId AND policy_id = :policyId
+                       AND version = :expectedVersion
+                       AND pending_by IS NOT NULL
+                       AND pending_by <> :userId
+                     FOR UPDATE
+                ), published AS (
+                    UPDATE apr_policy_rules policy
+                       SET enforcement_mode = candidate.pending_enforcement_mode,
+                           severity = candidate.pending_severity,
+                           lifecycle_state = candidate.pending_lifecycle_state,
+                           rule_payload = candidate.pending_rule_payload,
+                           pending_enforcement_mode = NULL,
+                           pending_severity = NULL,
+                           pending_lifecycle_state = NULL,
+                           pending_rule_payload = NULL,
+                           pending_change_reason = NULL,
+                           pending_by = NULL,
+                           pending_at = NULL,
+                           version = policy.version + 1,
+                           updated_at = CURRENT_TIMESTAMP,
+                           updated_by = :userId
+                      FROM candidate
+                     WHERE policy.tenant_id = candidate.tenant_id
+                       AND policy.policy_id = candidate.policy_id
+                    RETURNING policy.tenant_id, policy.policy_id,
+                              policy.enforcement_mode, policy.severity,
+                              policy.lifecycle_state, policy.rule_payload
+                )
+                INSERT INTO apr_policy_rule_versions (
+                    policy_version_id, tenant_id, policy_id, version_number,
+                    enforcement_mode, severity, lifecycle_state, rule_payload,
+                    change_reason, submitted_by, submitted_at,
+                    published_by, published_at, review_comment)
+                SELECT :policyVersionId, published.tenant_id, published.policy_id,
+                       COALESCE((
+                           SELECT MAX(version_number) + 1
+                             FROM apr_policy_rule_versions history
+                            WHERE history.tenant_id = published.tenant_id
+                              AND history.policy_id = published.policy_id
+                       ), 1),
+                       published.enforcement_mode, published.severity,
+                       published.lifecycle_state, published.rule_payload,
+                       candidate.pending_change_reason, candidate.pending_by,
+                       candidate.pending_at, :userId, CURRENT_TIMESTAMP,
+                       :reviewComment
+                  FROM published
+                  JOIN candidate
+                    ON candidate.tenant_id = published.tenant_id
+                   AND candidate.policy_id = published.policy_id
+                """, actorParams(actor)
+                .addValue("policyId", policyId)
+                .addValue("policyVersionId", UUID.randomUUID())
+                .addValue("expectedVersion", request.expectedVersion())
+                .addValue("reviewComment", request.reviewComment().trim()));
+        requireUpdated(updated);
+    }
+
+    public void retryIntegrationDelivery(
+            ApprovalRequestContext.Actor actor,
+            UUID outboxId) {
+        int updated = jdbc.update("""
+                UPDATE apr_integration_outbox
+                   SET status = 'PENDING', attempt_count = 0,
+                       available_at = CURRENT_TIMESTAMP,
+                       locked_by = NULL, locked_until = NULL,
+                       manual_retry_count = manual_retry_count + 1,
+                       last_retried_at = CURRENT_TIMESTAMP,
+                       last_retried_by = :userId,
+                       updated_at = CURRENT_TIMESTAMP
+                 WHERE tenant_id = :tenantId AND outbox_id = :outboxId
+                   AND status IN ('FAILED', 'DEAD')
+                """, actorParams(actor).addValue("outboxId", outboxId));
+        requireUpdated(updated);
+    }
+
+    void validatePolicyRule(String policyKey, Map<String, Object> rule) {
+        Set<String> expectedKeys;
+        switch (policyKey) {
+            case "BLOCK_SELF_APPROVAL" -> {
+                expectedKeys = Set.of("requesterCannotDecide");
+                if (!Boolean.TRUE.equals(rule.get("requesterCannotDecide"))) {
+                    throw new BaseException(ErrorCode.INVALID_INPUT_VALUE);
+                }
+            }
+            case "REQUIRE_REJECT_REASON" -> {
+                expectedKeys = Set.of("minimumLength");
+                boundedInteger(rule.get("minimumLength"), 4, 1000);
+            }
+            case "CAPTURE_DECISION_EVIDENCE" -> {
+                expectedKeys = Set.of("retentionClass");
+                if (!Set.of("STANDARD", "EXTENDED").contains(
+                        String.valueOf(rule.get("retentionClass")))) {
+                    throw new BaseException(ErrorCode.INVALID_INPUT_VALUE);
+                }
+            }
+            case "SLA_ESCALATION" -> {
+                expectedKeys = Set.of("warningPercent", "breachPercent");
+                int warning = boundedInteger(rule.get("warningPercent"), 1, 99);
+                int breach = boundedInteger(rule.get("breachPercent"), warning, 100);
+                if (breach < warning) throw new BaseException(ErrorCode.INVALID_INPUT_VALUE);
+            }
+            default -> throw new BaseException(ErrorCode.INVALID_STATE);
+        }
+        if (!rule.keySet().equals(expectedKeys)) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+    }
+
+    private int boundedInteger(Object value, int minimum, int maximum) {
+        if (!(value instanceof Number number)) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        int parsed = number.intValue();
+        if (parsed < minimum || parsed > maximum) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+        return parsed;
+    }
+
+    private PolicyRuntime policy(long tenantId, String policyKey) {
+        return jdbc.query("""
+                SELECT enforcement_mode, lifecycle_state, rule_payload::text
+                  FROM apr_policy_rules
+                 WHERE tenant_id = :tenantId AND policy_key = :policyKey
+                """, new MapSqlParameterSource()
+                .addValue("tenantId", tenantId)
+                .addValue("policyKey", policyKey), result -> {
+            if (!result.next()) return PolicyRuntime.disabled();
+            return new PolicyRuntime(
+                    result.getString("enforcement_mode"),
+                    result.getString("lifecycle_state"),
+                    object(result.getString("rule_payload")));
+        });
     }
 
     public void publishWorkflow(
@@ -728,7 +1230,7 @@ public class ApprovalCommandRepository {
                        updated_at = CURRENT_TIMESTAMP, updated_by = :userId
                  WHERE tenant_id = :tenantId AND workflow_id = :workflowId
                    AND lifecycle_state = 'DRAFT' AND version = :expectedVersion
-                   AND COALESCE(created_by, -1) <> :userId
+                   AND COALESCE(updated_by, created_by, -1) <> :userId
                 """, params);
         requireUpdated(updated);
         jdbc.update("""
@@ -738,54 +1240,37 @@ public class ApprovalCommandRepository {
                  WHERE tenant_id = :tenantId AND workflow_id = :workflowId
                    AND lifecycle_state = 'DRAFT'
                 """, params);
-        jdbc.update("""
-                UPDATE apr_forms form
-                   SET lifecycle_state = 'PUBLISHED', version = version + 1,
-                       updated_at = CURRENT_TIMESTAMP, updated_by = :userId
-                 WHERE form.tenant_id = :tenantId
-                   AND form.form_key = (
-                       SELECT workflow_key || '_FORM' FROM apr_workflow_definitions
-                        WHERE tenant_id = :tenantId AND workflow_id = :workflowId)
-                """, params);
-        jdbc.update("""
-                UPDATE apr_form_versions form_version
-                   SET lifecycle_state = 'PUBLISHED', published_at = CURRENT_TIMESTAMP,
-                       published_by = :userId
-                 WHERE form_version.tenant_id = :tenantId
-                   AND form_version.lifecycle_state = 'DRAFT'
-                   AND form_version.form_id = (
-                       SELECT form.form_id FROM apr_forms form
-                        WHERE form.tenant_id = :tenantId
-                          AND form.form_key = (
-                              SELECT workflow_key || '_FORM'
-                                FROM apr_workflow_definitions
-                               WHERE tenant_id = :tenantId
-                                 AND workflow_id = :workflowId))
-                """, params);
-        UUID evidenceRequest = jdbc.query("""
-                SELECT request_id FROM apr_requests
-                 WHERE tenant_id = :tenantId ORDER BY created_at LIMIT 1
-                """, params, result -> result.next() ? result.getObject(1, UUID.class) : null);
-        if (evidenceRequest != null) {
-            appendEvent(actor, evidenceRequest, "WORKFLOW_PUBLISHED",
-                    "Workflow published", correlationId,
-                    Map.of("workflowId", workflowId.toString()));
-        }
     }
 
-    private WorkflowRuntime workflow(long tenantId, UUID workflowId) {
+    private WorkflowRuntime workflow(
+            long tenantId,
+            UUID workflowId,
+            UUID formId,
+            Map<String, Object> requestPayload,
+            boolean requireRouteMatch) {
         return jdbc.query("""
                 SELECT version.workflow_version_id, form_version.form_version_id,
                        definition.data_classification,
-                       form_version.schema_payload::text AS form_schema
+                       form_version.schema_payload::text AS form_schema,
+                       binding.binding_type,
+                       binding.condition_payload::text AS binding_condition
                   FROM apr_workflow_definitions definition
                   JOIN apr_workflow_versions version
                     ON version.tenant_id = definition.tenant_id
                    AND version.workflow_id = definition.workflow_id
                    AND version.version_number = definition.current_version
+                  JOIN apr_form_workflow_bindings binding
+                    ON binding.tenant_id = definition.tenant_id
+                   AND binding.workflow_id = definition.workflow_id
+                   AND binding.form_id = :formId
+                   AND binding.lifecycle_state = 'ACTIVE'
+                   AND (binding.effective_from IS NULL
+                        OR binding.effective_from <= CURRENT_TIMESTAMP)
+                   AND (binding.effective_to IS NULL
+                        OR binding.effective_to > CURRENT_TIMESTAMP)
                   JOIN apr_forms form
-                    ON form.tenant_id = definition.tenant_id
-                   AND form.form_key = definition.workflow_key || '_FORM'
+                    ON form.tenant_id = binding.tenant_id
+                   AND form.form_id = binding.form_id
                   JOIN apr_form_versions form_version
                     ON form_version.tenant_id = form.tenant_id
                    AND form_version.form_id = form.form_id
@@ -793,11 +1278,27 @@ public class ApprovalCommandRepository {
                  WHERE definition.tenant_id = :tenantId
                    AND definition.workflow_id = :workflowId
                    AND definition.lifecycle_state = 'PUBLISHED'
+                   AND version.lifecycle_state = 'PUBLISHED'
+                   AND (version.effective_from IS NULL
+                        OR version.effective_from <= CURRENT_TIMESTAMP)
+                   AND (version.effective_to IS NULL
+                        OR version.effective_to > CURRENT_TIMESTAMP)
+                   AND form.lifecycle_state = 'PUBLISHED'
+                   AND form_version.lifecycle_state = 'PUBLISHED'
                 """, new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
-                        .addValue("workflowId", workflowId),
+                        .addValue("workflowId", workflowId)
+                        .addValue("formId", formId),
                 result -> {
                     if (!result.next()) throw new BaseException(ErrorCode.NOT_FOUND);
+                    if (requireRouteMatch
+                            && "CONDITIONAL".equals(result.getString("binding_type"))
+                            && !matchesRouteCondition(
+                                    result.getString("binding_condition"), requestPayload)) {
+                        throw new BaseException(
+                                ErrorCode.INVALID_STATE,
+                                "The selected approval route does not match this request.");
+                    }
                     return new WorkflowRuntime(
                             result.getObject("workflow_version_id", UUID.class),
                             result.getObject("form_version_id", UUID.class),
@@ -806,10 +1307,63 @@ public class ApprovalCommandRepository {
                 });
     }
 
+    boolean matchesRouteCondition(
+            String storedCondition,
+            Map<String, Object> requestPayload) {
+        try {
+            Map<String, Object> condition = objectMapper.readValue(
+                    storedCondition, new TypeReference<Map<String, Object>>() { });
+            Object rawClauses = condition.get("all");
+            if (!(rawClauses instanceof List<?> clauses) || clauses.isEmpty()) return false;
+            for (Object rawClause : clauses) {
+                if (!(rawClause instanceof Map<?, ?> clause)) return false;
+                Object fieldValue = clause.get("field");
+                String field = fieldValue == null ? "" : String.valueOf(fieldValue).trim();
+                Object operatorValue = clause.get("operator");
+                String operator = (operatorValue == null ? "EQ" : String.valueOf(operatorValue))
+                        .trim().toUpperCase(Locale.ROOT);
+                if (field.isEmpty() || !requestPayload.containsKey(field)) return false;
+                Object actual = requestPayload.get(field);
+                Object expected = clause.get("value");
+                boolean matched = switch (operator) {
+                    case "EQ" -> java.util.Objects.equals(actual, expected);
+                    case "IN" -> expected instanceof List<?> values && values.contains(actual);
+                    case "GTE", "GT", "LTE", "LT" -> compareNumbers(actual, expected, operator);
+                    default -> false;
+                };
+                if (!matched) return false;
+            }
+            return true;
+        } catch (JsonProcessingException exception) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "The approval route condition is invalid.");
+        }
+    }
+
+    private boolean compareNumbers(Object actual, Object expected, String operator) {
+        if (!(actual instanceof Number actualNumber) || !(expected instanceof Number expectedNumber)) {
+            return false;
+        }
+        int comparison = new BigDecimal(actualNumber.toString())
+                .compareTo(new BigDecimal(expectedNumber.toString()));
+        return switch (operator) {
+            case "GTE" -> comparison >= 0;
+            case "GT" -> comparison > 0;
+            case "LTE" -> comparison <= 0;
+            case "LT" -> comparison < 0;
+            default -> false;
+        };
+    }
+
     private RequestRuntime ownedRequest(ApprovalRequestContext.Actor actor, UUID requestId) {
         return jdbc.query("""
-                SELECT request.status, workflow.sla_minutes,
-                       workflow_version.definition::text AS workflow_definition
+                SELECT request.status, request.title, workflow.sla_minutes,
+                       workflow_version.definition::text AS workflow_definition,
+                       form_version.schema_payload::text AS form_schema,
+                       payload.payload::text AS request_payload,
+                       binding.binding_type,
+                       binding.condition_payload::text AS binding_condition
                   FROM apr_requests request
                   JOIN apr_workflow_versions workflow_version
                     ON workflow_version.tenant_id = request.tenant_id
@@ -817,6 +1371,21 @@ public class ApprovalCommandRepository {
                   JOIN apr_workflow_definitions workflow
                     ON workflow.tenant_id = workflow_version.tenant_id
                    AND workflow.workflow_id = workflow_version.workflow_id
+                  JOIN apr_form_versions form_version
+                    ON form_version.tenant_id = request.tenant_id
+                   AND form_version.form_version_id = request.form_version_id
+                  JOIN apr_request_payloads payload
+                    ON payload.tenant_id = request.tenant_id
+                   AND payload.request_id = request.request_id
+                  JOIN apr_form_workflow_bindings binding
+                    ON binding.tenant_id = request.tenant_id
+                   AND binding.workflow_id = workflow.workflow_id
+                   AND binding.form_id = form_version.form_id
+                   AND binding.lifecycle_state = 'ACTIVE'
+                   AND (binding.effective_from IS NULL
+                        OR binding.effective_from <= CURRENT_TIMESTAMP)
+                   AND (binding.effective_to IS NULL
+                        OR binding.effective_to > CURRENT_TIMESTAMP)
                  WHERE request.tenant_id = :tenantId
                    AND request.request_id = :requestId
                    AND request.requester_user_id = :userId
@@ -825,9 +1394,63 @@ public class ApprovalCommandRepository {
             int slaMinutes = result.getInt("sla_minutes");
             return new RequestRuntime(
                     result.getString("status"),
+                    result.getString("title"),
                     slaMinutes,
-                    runtimeSteps(result.getString("workflow_definition"), slaMinutes));
+                    runtimeSteps(result.getString("workflow_definition"), slaMinutes),
+                    result.getString("form_schema"),
+                    object(result.getString("request_payload")),
+                    result.getString("binding_type"),
+                    result.getString("binding_condition"));
         });
+    }
+
+    private InformationRuntime informationRuntime(
+            ApprovalRequestContext.Actor actor,
+            UUID requestId) {
+        return jdbc.query("""
+                SELECT form_version.schema_payload::text AS form_schema,
+                       payload.payload::text AS request_payload
+                  FROM apr_requests request
+                  JOIN apr_form_versions form_version
+                    ON form_version.tenant_id = request.tenant_id
+                   AND form_version.form_version_id = request.form_version_id
+                  JOIN apr_request_payloads payload
+                    ON payload.tenant_id = request.tenant_id
+                   AND payload.request_id = request.request_id
+                 WHERE request.tenant_id = :tenantId
+                   AND request.request_id = :requestId
+                   AND request.requester_user_id = :userId
+                   AND request.status = 'NEEDS_INFO'
+                """, actorParams(actor).addValue("requestId", requestId), result -> {
+            if (!result.next()) throw new BaseException(ErrorCode.INVALID_STATE);
+            return new InformationRuntime(
+                    result.getString("form_schema"),
+                    object(result.getString("request_payload")));
+        });
+    }
+
+    private void appendPayloadRevision(
+            ApprovalRequestContext.Actor actor,
+            UUID requestId,
+            String changeType,
+            String correlationId,
+            String reason) {
+        jdbc.update("""
+                INSERT INTO apr_request_payload_versions (
+                    payload_version_id, tenant_id, request_id, revision_number,
+                    payload, payload_sha256, change_type,
+                    changed_by, change_reason, correlation_id)
+                SELECT gen_random_uuid(), payload.tenant_id, payload.request_id,
+                       payload.schema_version, payload.payload, payload.payload_sha256,
+                       :changeType, :userId, :reason, :correlationId
+                  FROM apr_request_payloads payload
+                 WHERE payload.tenant_id = :tenantId AND payload.request_id = :requestId
+                ON CONFLICT (tenant_id, request_id, revision_number) DO NOTHING
+                """, actorParams(actor)
+                .addValue("requestId", requestId)
+                .addValue("changeType", changeType)
+                .addValue("reason", reason)
+                .addValue("correlationId", correlationId));
     }
 
     private void appendEvent(
@@ -907,11 +1530,18 @@ public class ApprovalCommandRepository {
             Map<String, Object> rawPayload) {
         Map<String, Object> payload = new LinkedHashMap<>();
         if (rawPayload != null) payload.putAll(rawPayload);
-        payload.put("summary", summary.trim());
+        payload.put("summary", summary == null ? "" : summary.trim());
         return payload;
     }
 
     void validateRequestPayload(String schema, Map<String, Object> payload) {
+        validateRequestPayload(schema, payload, true);
+    }
+
+    void validateRequestPayload(
+            String schema,
+            Map<String, Object> payload,
+            boolean requireRequiredFields) {
         try {
             Map<String, Object> definition = objectMapper.readValue(
                     schema, new TypeReference<Map<String, Object>>() { });
@@ -931,7 +1561,7 @@ public class ApprovalCommandRepository {
                 knownKeys.add(key);
                 Object value = payload.get(key);
                 boolean empty = value == null || (value instanceof String text && text.isBlank());
-                if (required && empty) {
+                if (requireRequiredFields && required && empty) {
                     throw new BaseException(
                             ErrorCode.INVALID_INPUT_VALUE,
                             "Required approval field is missing: " + key);
@@ -987,6 +1617,91 @@ public class ApprovalCommandRepository {
 
     private String normalizeComment(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private void requireCategory(long tenantId, UUID categoryId) {
+        Integer count = jdbc.queryForObject("""
+                SELECT COUNT(*)::INTEGER
+                  FROM apr_form_categories
+                 WHERE tenant_id = :tenantId AND category_id = :categoryId
+                   AND lifecycle_state = 'ACTIVE'
+                """, new MapSqlParameterSource()
+                        .addValue("tenantId", tenantId)
+                        .addValue("categoryId", categoryId), Integer.class);
+        if (count == null || count == 0) throw new BaseException(ErrorCode.INVALID_INPUT_VALUE);
+    }
+
+    private void requireWorkflow(long tenantId, UUID workflowId) {
+        Integer count = jdbc.queryForObject("""
+                SELECT COUNT(*)::INTEGER
+                  FROM apr_workflow_definitions
+                 WHERE tenant_id = :tenantId AND workflow_id = :workflowId
+                   AND lifecycle_state <> 'RETIRED'
+                """, new MapSqlParameterSource()
+                        .addValue("tenantId", tenantId)
+                        .addValue("workflowId", workflowId), Integer.class);
+        if (count == null || count == 0) throw new BaseException(ErrorCode.INVALID_INPUT_VALUE);
+    }
+
+    private void validateCategoryParent(long tenantId, UUID categoryId, UUID parentCategoryId) {
+        if (parentCategoryId == null) return;
+        if (parentCategoryId.equals(categoryId)) throw new BaseException(ErrorCode.INVALID_INPUT_VALUE);
+        requireCategory(tenantId, parentCategoryId);
+        if (categoryId == null) return;
+        Integer descendants = jdbc.queryForObject("""
+                WITH RECURSIVE descendants AS (
+                    SELECT category_id
+                      FROM apr_form_categories
+                     WHERE tenant_id = :tenantId AND parent_category_id = :categoryId
+                    UNION ALL
+                    SELECT child.category_id
+                      FROM apr_form_categories child
+                      JOIN descendants parent ON child.parent_category_id = parent.category_id
+                     WHERE child.tenant_id = :tenantId
+                )
+                SELECT COUNT(*)::INTEGER FROM descendants WHERE category_id = :parentCategoryId
+                """, new MapSqlParameterSource()
+                        .addValue("tenantId", tenantId)
+                        .addValue("categoryId", categoryId)
+                        .addValue("parentCategoryId", parentCategoryId), Integer.class);
+        if (descendants != null && descendants > 0) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE);
+        }
+    }
+
+    private void replaceDefaultFormRoute(
+            ApprovalRequestContext.Actor actor,
+            UUID formId,
+            UUID workflowId) {
+        MapSqlParameterSource params = actorParams(actor)
+                .addValue("formId", formId)
+                .addValue("workflowId", workflowId);
+        jdbc.update("""
+                UPDATE apr_form_workflow_bindings
+                   SET lifecycle_state = 'INACTIVE', version = version + 1,
+                       updated_at = CURRENT_TIMESTAMP, updated_by = :userId
+                 WHERE tenant_id = :tenantId AND form_id = :formId
+                   AND binding_type = 'DEFAULT' AND lifecycle_state = 'ACTIVE'
+                   AND workflow_id <> :workflowId
+                """, params);
+        int updated = jdbc.update("""
+                UPDATE apr_form_workflow_bindings
+                   SET binding_type = 'DEFAULT', lifecycle_state = 'ACTIVE',
+                       priority = 100, version = version + 1,
+                       updated_at = CURRENT_TIMESTAMP, updated_by = :userId
+                 WHERE tenant_id = :tenantId AND form_id = :formId
+                   AND workflow_id = :workflowId
+                """, params);
+        if (updated == 0) {
+            jdbc.update("""
+                    INSERT INTO apr_form_workflow_bindings (
+                        binding_id, tenant_id, form_id, workflow_id,
+                        binding_type, priority, lifecycle_state, created_by, updated_by)
+                    VALUES (
+                        :bindingId, :tenantId, :formId, :workflowId,
+                        'DEFAULT', 100, 'ACTIVE', :userId, :userId)
+                    """, params.addValue("bindingId", UUID.randomUUID()));
+        }
     }
 
     private void validateWorkflowInput(
@@ -1164,6 +1879,17 @@ public class ApprovalCommandRepository {
         }
     }
 
+    private Map<String, Object> object(String value) {
+        try {
+            return objectMapper.readValue(
+                    value, new TypeReference<Map<String, Object>>() { });
+        } catch (JsonProcessingException exception) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "Stored approval policy data is invalid.");
+        }
+    }
+
     private void requireUpdated(int updated) {
         if (updated == 0) throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
     }
@@ -1175,7 +1901,20 @@ public class ApprovalCommandRepository {
             String formSchema) {
     }
 
-    private record RequestRuntime(String status, int slaMinutes, List<RuntimeStep> steps) {
+    private record RequestRuntime(
+            String status,
+            String title,
+            int slaMinutes,
+            List<RuntimeStep> steps,
+            String formSchema,
+            Map<String, Object> payload,
+            String bindingType,
+            String bindingCondition) {
+    }
+
+    private record InformationRuntime(
+            String formSchema,
+            Map<String, Object> payload) {
     }
 
     record RuntimeStep(
@@ -1192,6 +1931,26 @@ public class ApprovalCommandRepository {
             String stepName,
             String candidateRole,
             Instant dueAt) {
+    }
+
+    private record PolicyRuntime(
+            String enforcementMode,
+            String lifecycleState,
+            Map<String, Object> rule) {
+
+        private static PolicyRuntime disabled() {
+            return new PolicyRuntime("MONITOR", "DISABLED", Map.of());
+        }
+
+        private boolean blocks() {
+            return "ACTIVE".equals(lifecycleState) && "BLOCK".equals(enforcementMode);
+        }
+
+        private int integer(String key, int fallback, int minimum, int maximum) {
+            Object value = rule.get(key);
+            if (!(value instanceof Number number)) return fallback;
+            return Math.max(minimum, Math.min(maximum, number.intValue()));
+        }
     }
 
     public record DecisionResult(String decision, String requestStatus) {

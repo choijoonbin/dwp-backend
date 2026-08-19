@@ -73,18 +73,20 @@ public class DomainEventInboxRepository {
 
         jdbc.update("""
                 INSERT INTO sys_domain_event_offsets (
-                    consumer_name, event_source, aggregate_type, aggregate_id,
+                    consumer_name, tenant_id, event_source, aggregate_type, aggregate_id,
                     last_sequence, updated_at)
                 VALUES (
-                    :consumerName, :eventSource, :aggregateType, :aggregateId,
+                    :consumerName, :tenantScope, :eventSource, :aggregateType, :aggregateId,
                     0, CURRENT_TIMESTAMP)
-                ON CONFLICT (consumer_name, event_source, aggregate_type, aggregate_id)
+                ON CONFLICT (
+                    consumer_name, tenant_id, event_source, aggregate_type, aggregate_id)
                 DO NOTHING
                 """, offsetParameters(consumerName, event));
         long lastSequence = jdbc.queryForObject("""
                 SELECT last_sequence
                   FROM sys_domain_event_offsets
                  WHERE consumer_name = :consumerName
+                   AND tenant_id = :tenantScope
                    AND event_source = :eventSource
                    AND aggregate_type = :aggregateType
                    AND aggregate_id = :aggregateId
@@ -150,6 +152,7 @@ public class DomainEventInboxRepository {
                        last_event_id = :eventId,
                        updated_at = CURRENT_TIMESTAMP
                  WHERE consumer_name = :consumerName
+                   AND tenant_id = :tenantScope
                    AND event_source = :eventSource
                    AND aggregate_type = :aggregateType
                    AND aggregate_id = :aggregateId
@@ -348,6 +351,7 @@ public class DomainEventInboxRepository {
             DomainEventEnvelope event) {
         return new MapSqlParameterSource()
                 .addValue("consumerName", consumerName)
+                .addValue("tenantScope", event.tenantId() == null ? 0L : event.tenantId())
                 .addValue("eventSource", event.source())
                 .addValue("aggregateType", event.aggregateType())
                 .addValue("aggregateId", event.aggregateId());

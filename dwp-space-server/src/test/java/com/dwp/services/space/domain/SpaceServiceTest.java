@@ -97,7 +97,7 @@ class SpaceServiceTest {
     }
 
     @Test
-    void moderatorCanGovernContentButCannotManageMemberships() {
+    void moderatorCanInspectMembershipsButCannotChangeThem() {
         SpaceRequestContext.set(subject(Set.of("APP.SPACES:VIEW")));
         UUID spaceId = UUID.randomUUID();
         SpaceDtos.SpaceSummary summary = summary(spaceId, "HIDDEN", "MODERATOR");
@@ -108,12 +108,17 @@ class SpaceServiceTest {
         when(queries.content(1L, spaceId, true, 20)).thenReturn(List.of());
         when(queries.apps(1L, spaceId)).thenReturn(List.of());
         when(queries.activity(1L, spaceId, 20)).thenReturn(List.of());
+        when(queries.members(1L, spaceId)).thenReturn(List.of());
 
         SpaceDtos.SpaceDetail detail = service().space("governed-space");
 
         assertThat(detail.canModerate()).isTrue();
         assertThat(detail.canManage()).isFalse();
-        assertThatThrownBy(() -> service().members("governed-space"))
+        assertThat(service().members("governed-space")).isEmpty();
+        assertThatThrownBy(() -> service().saveMember(
+                "governed-space",
+                new SpaceDtos.SaveMemberRequest("USER", "person-42", "VIEWER", null),
+                "corr-member"))
                 .isInstanceOf(BaseException.class);
     }
 

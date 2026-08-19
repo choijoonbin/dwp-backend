@@ -25,6 +25,7 @@ public class RequiredHeaderFilter implements GlobalFilter, Ordered {
             "/scim/v2/",
             "/api/platform/v1/home-experience/background",
             "/api/platform/v1/tenant-branding/logo",
+            "/api/notifications/v1/stream",
             "/actuator/");
 
     @Override

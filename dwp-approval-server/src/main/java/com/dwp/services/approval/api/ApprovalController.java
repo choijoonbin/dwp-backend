@@ -127,9 +127,26 @@ public class ApprovalController {
         return ApiResponse.success(service.publishedTemplate(workflowId));
     }
 
+    @GetMapping("/catalog/forms")
+    public ApiResponse<List<ApprovalDtos.FormSummary>> formCatalog() {
+        return ApiResponse.success(service.publishedForms());
+    }
+
+    @GetMapping("/catalog/forms/{formId}/template")
+    public ApiResponse<ApprovalDtos.RequestTemplate> formTemplate(@PathVariable UUID formId) {
+        return ApiResponse.success(service.publishedTemplateByForm(formId));
+    }
+
     @GetMapping("/delegations")
     public ApiResponse<List<ApprovalDtos.DelegationSummary>> delegations() {
         return ApiResponse.success(service.delegations());
+    }
+
+    @GetMapping("/delegations/candidates")
+    public ApiResponse<List<ApprovalDtos.DelegationCandidate>> delegationCandidates(
+            @RequestParam(defaultValue = "") String query,
+            @RequestParam(defaultValue = "10") int limit) {
+        return ApiResponse.success(service.delegationCandidates(query, limit));
     }
 
     @PostMapping("/delegations")
@@ -137,5 +154,14 @@ public class ApprovalController {
             @Valid @RequestBody ApprovalDtos.CreateDelegationRequest request,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId) {
         return ApiResponse.success(service.createDelegation(request, correlationId));
+    }
+
+    @PostMapping("/delegations/{delegationId}/revoke")
+    public ApiResponse<List<ApprovalDtos.DelegationSummary>> revokeDelegation(
+            @PathVariable UUID delegationId,
+            @Valid @RequestBody ApprovalDtos.VersionedActionRequest request,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId) {
+        return ApiResponse.success(service.revokeDelegation(
+                delegationId, request.expectedVersion(), correlationId));
     }
 }

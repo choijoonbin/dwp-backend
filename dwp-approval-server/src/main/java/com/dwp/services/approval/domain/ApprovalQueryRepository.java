@@ -49,6 +49,31 @@ public class ApprovalQueryRepository {
                AND step.step_id = task.step_id
             """;
 
+    private static final String DIRECT_TASK_ACCESS = """
+            (task.assignee_user_id = :userId
+             OR (task.assignee_user_id IS NULL AND task.candidate_role IN (:roles)))
+            """;
+
+    private static final String DELEGATED_TASK_ACCESS = """
+            EXISTS (
+                SELECT 1
+                  FROM apr_delegations delegation
+                 WHERE delegation.tenant_id = task.tenant_id
+                   AND delegation.delegate_user_id = :userId
+                   AND delegation.lifecycle_state = 'ACTIVE'
+                   AND CURRENT_TIMESTAMP BETWEEN delegation.starts_at AND delegation.ends_at
+                   AND (delegation.scope_type = 'ALL'
+                        OR delegation.workflow_key = workflow.workflow_key)
+                   AND (
+                        task.assignee_user_id = delegation.delegator_user_id
+                        OR (task.assignee_user_id IS NULL
+                            AND jsonb_exists(
+                                delegation.delegated_role_codes,
+                                task.candidate_role))
+                   )
+            )
+            """;
+
     private final NamedParameterJdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
 
@@ -60,12 +85,28 @@ public class ApprovalQueryRepository {
     }
 
     public void ensureTenant(long tenantId) {
+        List<String> states = jdbc.query(
+                "SELECT lifecycle_state FROM apr_tenants WHERE tenant_id = :tenantId",
+                new MapSqlParameterSource("tenantId", tenantId),
+                (result, rowNumber) -> result.getString("lifecycle_state"));
+        if (!states.isEmpty()) {
+            if (!"ACTIVE".equals(states.get(0))) {
+                throw new BaseException(
+                        ErrorCode.FORBIDDEN,
+                        "The approval capability is not active for this tenant.");
+            }
+            return;
+        }
         jdbc.queryForObject(
                 "SELECT seed_approval_tenant(:tenantId)",
                 new MapSqlParameterSource("tenantId", tenantId),
                 Object.class);
         jdbc.queryForObject(
                 "SELECT seed_approval_product_templates(:tenantId)",
+                new MapSqlParameterSource("tenantId", tenantId),
+                Object.class);
+        jdbc.queryForObject(
+                "SELECT seed_approval_form_catalog(:tenantId)",
                 new MapSqlParameterSource("tenantId", tenantId),
                 Object.class);
     }
@@ -76,10 +117,19 @@ public class ApprovalQueryRepository {
                 WITH visible_tasks AS (
                     SELECT task.*
                       FROM apr_tasks task
+                      JOIN apr_requests request
+                        ON request.tenant_id = task.tenant_id
+                       AND request.request_id = task.request_id
+                      JOIN apr_workflow_versions workflow_version
+                        ON workflow_version.tenant_id = request.tenant_id
+                       AND workflow_version.workflow_version_id = request.workflow_version_id
+                      JOIN apr_workflow_definitions workflow
+                        ON workflow.tenant_id = workflow_version.tenant_id
+                       AND workflow.workflow_id = workflow_version.workflow_id
                      WHERE task.tenant_id = :tenantId
-                       AND (task.assignee_user_id = :userId
-                            OR (task.assignee_user_id IS NULL
-                                AND task.candidate_role IN (:roles)))
+                       AND (
+                """ + DIRECT_TASK_ACCESS + " OR " + DELEGATED_TASK_ACCESS + """
+                       )
                 ), task_metrics AS (
                     SELECT COUNT(*) FILTER (WHERE status IN ('PENDING', 'CLAIMED'))::INTEGER AS pending,
                            COUNT(*) FILTER (
@@ -118,6 +168,20 @@ public class ApprovalQueryRepository {
                 round(result.getDouble("sla_compliance"))));
     }
 
+    public boolean isBlockingPolicyActive(long tenantId, String policyKey) {
+        Integer count = jdbc.queryForObject("""
+                SELECT COUNT(*)::INTEGER
+                  FROM apr_policy_rules
+                 WHERE tenant_id = :tenantId
+                   AND policy_key = :policyKey
+                   AND lifecycle_state = 'ACTIVE'
+                   AND enforcement_mode = 'BLOCK'
+                """, new MapSqlParameterSource()
+                .addValue("tenantId", tenantId)
+                .addValue("policyKey", policyKey), Integer.class);
+        return count != null && count > 0;
+    }
+
     public List<ApprovalDtos.TaskSummary> tasks(
             ApprovalRequestContext.Actor actor,
             String view,
@@ -125,15 +189,18 @@ public class ApprovalQueryRepository {
         String normalized = view == null ? "INBOX" : view.trim().toUpperCase();
         String statusClause = switch (normalized) {
             case "COMPLETED" -> "task.status IN ('APPROVED', 'REJECTED', 'SKIPPED', 'CANCELLED')";
-            case "DELEGATED" -> "task.assignee_user_id IS NULL";
+            case "DELEGATED" -> "task.status IN ('PENDING', 'CLAIMED', 'INFO_REQUESTED')";
             default -> "task.status IN ('PENDING', 'CLAIMED', 'INFO_REQUESTED')";
         };
+        String accessClause = "DELEGATED".equals(normalized)
+                ? DELEGATED_TASK_ACCESS
+                : "(" + DIRECT_TASK_ACCESS + " OR " + DELEGATED_TASK_ACCESS + ")";
         return jdbc.query(
                 TASK_SELECT + """
                      WHERE task.tenant_id = :tenantId
-                       AND (task.assignee_user_id = :userId
-                            OR (task.assignee_user_id IS NULL
-                                AND task.candidate_role IN (:roles)))
+                       AND (
+                    """ + accessClause + """
+                       )
                        AND (
                     """ + statusClause + """
                        )
@@ -152,18 +219,58 @@ public class ApprovalQueryRepository {
                 TASK_SELECT + """
                      WHERE task.tenant_id = :tenantId
                        AND task.task_id = :taskId
-                       AND (task.assignee_user_id = :userId
-                            OR (task.assignee_user_id IS NULL
-                                AND task.candidate_role IN (:roles)))
+                       AND (
+                    """ + DIRECT_TASK_ACCESS + " OR " + DELEGATED_TASK_ACCESS + """
+                       )
                     """,
                 actorParams(actor).addValue("taskId", taskId),
                 (result, rowNumber) -> new TaskAccess(
                         taskSummary(result),
                         result.getLong("requester_user_id"),
                         nullableLong(result, "assignee_user_id"),
-                        result.getString("candidate_role")));
+                        result.getString("candidate_role"),
+                        false,
+                        null));
         if (matches.isEmpty()) throw new BaseException(ErrorCode.NOT_FOUND);
-        return matches.get(0);
+        TaskAccess match = matches.get(0);
+        Long delegatedFrom = delegationSource(actor, taskId);
+        return new TaskAccess(
+                match.summary(), match.requesterUserId(), match.assigneeUserId(),
+                match.candidateRole(), delegatedFrom != null, delegatedFrom);
+    }
+
+    private Long delegationSource(ApprovalRequestContext.Actor actor, UUID taskId) {
+        return jdbc.query("""
+                SELECT delegation.delegator_user_id
+                  FROM apr_tasks task
+                  JOIN apr_requests request
+                    ON request.tenant_id = task.tenant_id
+                   AND request.request_id = task.request_id
+                  JOIN apr_workflow_versions workflow_version
+                    ON workflow_version.tenant_id = request.tenant_id
+                   AND workflow_version.workflow_version_id = request.workflow_version_id
+                  JOIN apr_workflow_definitions workflow
+                    ON workflow.tenant_id = workflow_version.tenant_id
+                   AND workflow.workflow_id = workflow_version.workflow_id
+                  JOIN apr_delegations delegation
+                    ON delegation.tenant_id = task.tenant_id
+                   AND delegation.delegate_user_id = :userId
+                   AND delegation.lifecycle_state = 'ACTIVE'
+                   AND CURRENT_TIMESTAMP BETWEEN delegation.starts_at AND delegation.ends_at
+                   AND (delegation.scope_type = 'ALL'
+                        OR delegation.workflow_key = workflow.workflow_key)
+                   AND (
+                        task.assignee_user_id = delegation.delegator_user_id
+                        OR (task.assignee_user_id IS NULL
+                            AND jsonb_exists(
+                                delegation.delegated_role_codes,
+                                task.candidate_role))
+                   )
+                 WHERE task.tenant_id = :tenantId AND task.task_id = :taskId
+                 ORDER BY delegation.starts_at DESC, delegation.created_at DESC
+                 LIMIT 1
+                """, actorParams(actor).addValue("taskId", taskId),
+                result -> result.next() ? result.getLong(1) : null);
     }
 
     public Map<String, Object> requestPayload(long tenantId, UUID requestId) {
@@ -320,39 +427,88 @@ public class ApprovalQueryRepository {
             ApprovalRequestContext.Actor actor,
             UUID requestId) {
         ApprovalDtos.RequestSummary request = request(actor, requestId);
-        UUID workflowId = jdbc.queryForObject("""
-                SELECT workflow_version.workflow_id
+        RequestAssetIds assets = jdbc.queryForObject("""
+                SELECT workflow_version.workflow_id, form_version.form_id
                   FROM apr_requests approval_request
                   JOIN apr_workflow_versions workflow_version
                     ON workflow_version.tenant_id = approval_request.tenant_id
                    AND workflow_version.workflow_version_id = approval_request.workflow_version_id
+                  JOIN apr_form_versions form_version
+                    ON form_version.tenant_id = approval_request.tenant_id
+                   AND form_version.form_version_id = approval_request.form_version_id
                  WHERE approval_request.tenant_id = :tenantId
                    AND approval_request.request_id = :requestId
                    AND approval_request.requester_user_id = :userId
-                """, actorParams(actor).addValue("requestId", requestId), UUID.class);
+                """, actorParams(actor).addValue("requestId", requestId),
+                (result, rowNumber) -> new RequestAssetIds(
+                        result.getObject("workflow_id", UUID.class),
+                        result.getObject("form_id", UUID.class)));
+        if (assets == null) throw new BaseException(ErrorCode.NOT_FOUND);
         return new ApprovalDtos.RequestDetail(
                 request,
-                workflowId,
-                requestPayload(actor.tenantId(), requestId));
+                assets.workflowId(),
+                assets.formId(),
+                requestPayload(actor.tenantId(), requestId),
+                timeline(actor.tenantId(), requestId));
     }
 
-    public List<ApprovalDtos.StageMetric> flow(long tenantId) {
+    public List<ApprovalDtos.StageMetric> flow(ApprovalRequestContext.Actor actor) {
         Map<String, Integer> counts = jdbc.query("""
+                WITH visible_requests AS (
+                    SELECT request.request_id, request.status
+                      FROM apr_requests request
+                     WHERE request.tenant_id = :tenantId
+                       AND request.requester_user_id = :userId
+                    UNION
+                    SELECT request.request_id, request.status
+                      FROM apr_tasks task
+                      JOIN apr_requests request
+                        ON request.tenant_id = task.tenant_id
+                       AND request.request_id = task.request_id
+                      JOIN apr_workflow_versions workflow_version
+                        ON workflow_version.tenant_id = request.tenant_id
+                       AND workflow_version.workflow_version_id = request.workflow_version_id
+                      JOIN apr_workflow_definitions workflow
+                        ON workflow.tenant_id = workflow_version.tenant_id
+                       AND workflow.workflow_id = workflow_version.workflow_id
+                     WHERE task.tenant_id = :tenantId
+                       AND (
+                """ + DIRECT_TASK_ACCESS + " OR " + DELEGATED_TASK_ACCESS + """
+                       )
+                )
                 SELECT status, COUNT(*)::INTEGER AS count
-                  FROM apr_requests
-                 WHERE tenant_id = :tenantId
-                   AND status NOT IN ('DRAFT', 'WITHDRAWN', 'CANCELLED')
+                  FROM visible_requests
+                 WHERE status NOT IN ('DRAFT', 'WITHDRAWN', 'CANCELLED')
                  GROUP BY status
-                """, new MapSqlParameterSource("tenantId", tenantId), result -> {
+                """, actorParams(actor), result -> {
             Map<String, Integer> values = new java.util.LinkedHashMap<>();
             while (result.next()) values.put(result.getString("status"), result.getInt("count"));
             return values;
         });
+        int atRisk = jdbc.queryForObject("""
+                SELECT COUNT(*)::INTEGER
+                  FROM apr_tasks task
+                  JOIN apr_requests request
+                    ON request.tenant_id = task.tenant_id
+                   AND request.request_id = task.request_id
+                  JOIN apr_workflow_versions workflow_version
+                    ON workflow_version.tenant_id = request.tenant_id
+                   AND workflow_version.workflow_version_id = request.workflow_version_id
+                  JOIN apr_workflow_definitions workflow
+                    ON workflow.tenant_id = workflow_version.tenant_id
+                   AND workflow.workflow_id = workflow_version.workflow_id
+                 WHERE task.tenant_id = :tenantId
+                   AND task.status IN ('PENDING', 'CLAIMED')
+                   AND task.due_at < CURRENT_TIMESTAMP
+                   AND (
+                """ + DIRECT_TASK_ACCESS + " OR " + DELEGATED_TASK_ACCESS + """
+                   )
+                """, actorParams(actor), Integer.class);
         List<ApprovalDtos.StageMetric> stages = new ArrayList<>();
         for (String stage : List.of("SUBMITTED", "IN_REVIEW", "NEEDS_INFO", "APPROVED")) {
             int count = counts.getOrDefault(stage, 0);
-            int atRisk = stage.equals("IN_REVIEW") ? overdueCount(tenantId) : 0;
-            stages.add(new ApprovalDtos.StageMetric(stage, count, atRisk));
+            stages.add(new ApprovalDtos.StageMetric(
+                    stage, count, stage.equals("IN_REVIEW") ? atRisk : 0));
         }
         return List.copyOf(stages);
     }
@@ -376,14 +532,39 @@ public class ApprovalQueryRepository {
                         AND due_at < CURRENT_TIMESTAMP)::INTEGER AS overdue_tasks,
                     (SELECT COUNT(*) FROM apr_integration_outbox
                       WHERE tenant_id = :tenantId AND status IN ('FAILED', 'DEAD'))::INTEGER
-                        AS failed_integrations
+                        AS failed_integrations,
+                    (SELECT COUNT(*) FROM apr_delegations
+                      WHERE tenant_id = :tenantId AND lifecycle_state = 'ACTIVE'
+                        AND CURRENT_TIMESTAMP BETWEEN starts_at AND ends_at
+                        AND (delegate_person_public_id IS NULL
+                             OR delegate_display_name IS NULL))::INTEGER AS identity_gaps,
+                    ((SELECT COUNT(*) FROM apr_workflow_versions
+                       WHERE tenant_id = :tenantId AND lifecycle_state = 'PUBLISHED'
+                         AND created_by = published_by)
+                     + (SELECT COUNT(*) FROM apr_form_versions
+                         WHERE tenant_id = :tenantId AND lifecycle_state = 'PUBLISHED'
+                           AND created_by = published_by))::INTEGER AS sod_violations,
+                    (SELECT COUNT(*) FROM apr_tasks
+                      WHERE tenant_id = :tenantId
+                        AND status IN ('APPROVED', 'REJECTED')
+                        AND decision_actor_user_id IS NULL)::INTEGER AS evidence_gaps
                 """, new MapSqlParameterSource("tenantId", tenantId),
                 (result, rowNumber) -> new ApprovalDtos.AdminPulse(
                         result.getInt("published_workflows"),
                         result.getInt("draft_workflows"),
                         result.getInt("active_requests"),
                         result.getInt("overdue_tasks"),
-                        result.getInt("failed_integrations")));
+                        result.getInt("failed_integrations"),
+                        List.of(
+                                assurance("identity", result.getInt("identity_gaps")),
+                                assurance("segregation", result.getInt("sod_violations")),
+                                assurance("evidence", result.getInt("evidence_gaps")),
+                                assurance("delivery", result.getInt("failed_integrations")))));
+    }
+
+    private ApprovalDtos.AssuranceSignal assurance(String key, int exceptions) {
+        return new ApprovalDtos.AssuranceSignal(
+                key, exceptions == 0 ? "ENFORCED" : "ATTENTION", exceptions);
     }
 
     public List<ApprovalDtos.WorkflowSummary> workflows(long tenantId, boolean publishedOnly) {
@@ -471,52 +652,166 @@ public class ApprovalQueryRepository {
         }
         List<UUID> formIds = jdbc.query("""
                 SELECT form.form_id
-                  FROM apr_forms form
-                  JOIN apr_workflow_definitions workflow
-                    ON workflow.tenant_id = form.tenant_id
-                   AND form.form_key = workflow.workflow_key || '_FORM'
-                 WHERE workflow.tenant_id = :tenantId
-                   AND workflow.workflow_id = :workflowId
+                  FROM apr_form_workflow_bindings binding
+                  JOIN apr_forms form
+                    ON form.tenant_id = binding.tenant_id
+                   AND form.form_id = binding.form_id
+                 WHERE binding.tenant_id = :tenantId
+                   AND binding.workflow_id = :workflowId
+                   AND binding.lifecycle_state = 'ACTIVE'
                    AND form.lifecycle_state = 'PUBLISHED'
+                 ORDER BY CASE binding.binding_type WHEN 'DEFAULT' THEN 0 ELSE 1 END,
+                          binding.priority, form.name_en
+                 LIMIT 1
                 """, new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
                         .addValue("workflowId", workflowId),
                 (result, rowNumber) -> result.getObject("form_id", UUID.class));
         if (formIds.isEmpty()) throw new BaseException(ErrorCode.NOT_FOUND);
-        return new ApprovalDtos.RequestTemplate(workflow.workflow(), form(tenantId, formIds.get(0)));
+        return new ApprovalDtos.RequestTemplate(
+                workflow.workflow(), workflow.definition(), form(tenantId, formIds.get(0)));
+    }
+
+    public ApprovalDtos.RequestTemplate publishedTemplateByForm(long tenantId, UUID formId) {
+        List<UUID> workflowIds = jdbc.query("""
+                SELECT binding.workflow_id
+                  FROM apr_form_workflow_bindings binding
+                  JOIN apr_forms form
+                    ON form.tenant_id = binding.tenant_id
+                   AND form.form_id = binding.form_id
+                  JOIN apr_workflow_definitions workflow
+                    ON workflow.tenant_id = binding.tenant_id
+                   AND workflow.workflow_id = binding.workflow_id
+                 WHERE binding.tenant_id = :tenantId
+                   AND binding.form_id = :formId
+                   AND binding.binding_type = 'DEFAULT'
+                   AND binding.lifecycle_state = 'ACTIVE'
+                   AND form.lifecycle_state = 'PUBLISHED'
+                   AND workflow.lifecycle_state = 'PUBLISHED'
+                   AND (binding.effective_from IS NULL OR binding.effective_from <= CURRENT_TIMESTAMP)
+                   AND (binding.effective_to IS NULL OR binding.effective_to > CURRENT_TIMESTAMP)
+                 LIMIT 1
+                """, new MapSqlParameterSource()
+                        .addValue("tenantId", tenantId)
+                        .addValue("formId", formId),
+                (result, rowNumber) -> result.getObject("workflow_id", UUID.class));
+        if (workflowIds.isEmpty()) throw new BaseException(ErrorCode.NOT_FOUND);
+        ApprovalDtos.WorkflowDetail workflow = workflow(tenantId, workflowIds.get(0));
+        return new ApprovalDtos.RequestTemplate(
+                workflow.workflow(), workflow.definition(), form(tenantId, formId));
+    }
+
+    public List<ApprovalDtos.FormCategorySummary> formCategories(long tenantId) {
+        return jdbc.query("""
+                SELECT category.category_id, category.category_key,
+                       category.parent_category_id, category.name_ko, category.name_en,
+                       category.description_ko, category.description_en, category.icon_key,
+                       category.sort_order, category.lifecycle_state, category.version,
+                       COUNT(form.form_id)::INTEGER AS form_count
+                  FROM apr_form_categories category
+                  LEFT JOIN apr_forms form
+                    ON form.tenant_id = category.tenant_id
+                   AND form.category_id = category.category_id
+                   AND form.lifecycle_state <> 'RETIRED'
+                 WHERE category.tenant_id = :tenantId
+                 GROUP BY category.category_id
+                 ORDER BY category.sort_order, category.name_en
+                """, new MapSqlParameterSource("tenantId", tenantId),
+                (result, rowNumber) -> new ApprovalDtos.FormCategorySummary(
+                        result.getObject("category_id", UUID.class),
+                        result.getString("category_key"),
+                        result.getObject("parent_category_id", UUID.class),
+                        result.getString("name_ko"),
+                        result.getString("name_en"),
+                        result.getString("description_ko"),
+                        result.getString("description_en"),
+                        result.getString("icon_key"),
+                        result.getInt("sort_order"),
+                        result.getString("lifecycle_state"),
+                        result.getInt("form_count"),
+                        result.getLong("version")));
     }
 
     public List<ApprovalDtos.FormSummary> forms(long tenantId) {
+        return forms(tenantId, false);
+    }
+
+    public List<ApprovalDtos.FormSummary> publishedForms(long tenantId) {
+        return forms(tenantId, true);
+    }
+
+    private List<ApprovalDtos.FormSummary> forms(long tenantId, boolean publishedOnly) {
         return jdbc.query("""
-                SELECT form.form_id, form.form_key, form.name_ko, form.name_en,
+                SELECT form.form_id, form.form_key,
+                       category.category_id, category.category_key,
+                       category.name_ko AS category_name_ko,
+                       category.name_en AS category_name_en,
+                       form.name_ko, form.name_en, form.description_ko, form.description_en,
+                       form.owner_group_ref, form.form_kind,
                        form.lifecycle_state, form.current_version,
                        jsonb_array_length(version.schema_payload -> 'fields') AS field_count,
+                       COALESCE(route_count.value, 0)::INTEGER AS route_count,
+                       COALESCE(usage_count.value, 0)::BIGINT AS usage_count,
                        form.version, form.updated_at
                   FROM apr_forms form
                   JOIN apr_form_versions version
                     ON version.tenant_id = form.tenant_id
                    AND version.form_id = form.form_id
                    AND version.version_number = form.current_version
+                  JOIN apr_form_categories category
+                    ON category.tenant_id = form.tenant_id
+                   AND category.category_id = form.category_id
+                  LEFT JOIN LATERAL (
+                      SELECT COUNT(*) AS value
+                        FROM apr_form_workflow_bindings binding
+                       WHERE binding.tenant_id = form.tenant_id
+                         AND binding.form_id = form.form_id
+                         AND binding.lifecycle_state = 'ACTIVE'
+                  ) route_count ON TRUE
+                  LEFT JOIN LATERAL (
+                      SELECT COUNT(*) AS value
+                        FROM apr_requests request
+                        JOIN apr_form_versions used_version
+                          ON used_version.tenant_id = request.tenant_id
+                         AND used_version.form_version_id = request.form_version_id
+                       WHERE request.tenant_id = form.tenant_id
+                         AND used_version.form_id = form.form_id
+                  ) usage_count ON TRUE
                  WHERE form.tenant_id = :tenantId
-                 ORDER BY form.lifecycle_state, form.name_en
-                """, new MapSqlParameterSource("tenantId", tenantId),
-                (result, rowNumber) -> new ApprovalDtos.FormSummary(
-                        result.getObject("form_id", UUID.class),
-                        result.getString("form_key"),
-                        result.getString("name_ko"),
-                        result.getString("name_en"),
-                        result.getString("lifecycle_state"),
-                        result.getInt("current_version"),
-                        result.getInt("field_count"),
-                        result.getLong("version"),
-                        instant(result, "updated_at")));
+                   AND (:publishedOnly = FALSE OR (
+                       form.lifecycle_state = 'PUBLISHED'
+                       AND category.lifecycle_state = 'ACTIVE'
+                       AND EXISTS (
+                           SELECT 1 FROM apr_form_workflow_bindings active_binding
+                           JOIN apr_workflow_definitions active_workflow
+                             ON active_workflow.tenant_id = active_binding.tenant_id
+                            AND active_workflow.workflow_id = active_binding.workflow_id
+                          WHERE active_binding.tenant_id = form.tenant_id
+                            AND active_binding.form_id = form.form_id
+                            AND active_binding.binding_type = 'DEFAULT'
+                            AND active_binding.lifecycle_state = 'ACTIVE'
+                            AND active_workflow.lifecycle_state = 'PUBLISHED')))
+                 ORDER BY category.sort_order,
+                          CASE form.lifecycle_state WHEN 'PUBLISHED' THEN 0 WHEN 'DRAFT' THEN 1 ELSE 2 END,
+                          form.name_en
+                """, new MapSqlParameterSource()
+                        .addValue("tenantId", tenantId)
+                        .addValue("publishedOnly", publishedOnly),
+                (result, rowNumber) -> formSummary(result));
     }
 
     public ApprovalDtos.FormDetail form(long tenantId, UUID formId) {
         List<ApprovalDtos.FormDetail> matches = jdbc.query("""
-                SELECT form.form_id, form.form_key, form.name_ko, form.name_en,
+                SELECT form.form_id, form.form_key,
+                       category.category_id, category.category_key,
+                       category.name_ko AS category_name_ko,
+                       category.name_en AS category_name_en,
+                       form.name_ko, form.name_en, form.description_ko, form.description_en,
+                       form.owner_group_ref, form.form_kind,
                        form.lifecycle_state, form.current_version,
                        jsonb_array_length(version.schema_payload -> 'fields') AS field_count,
+                       COALESCE(route_count.value, 0)::INTEGER AS route_count,
+                       COALESCE(usage_count.value, 0)::BIGINT AS usage_count,
                        form.version, form.updated_at,
                        version.schema_payload::text, version.schema_sha256
                   FROM apr_forms form
@@ -524,33 +819,78 @@ public class ApprovalQueryRepository {
                     ON version.tenant_id = form.tenant_id
                    AND version.form_id = form.form_id
                    AND version.version_number = form.current_version
+                  JOIN apr_form_categories category
+                    ON category.tenant_id = form.tenant_id
+                   AND category.category_id = form.category_id
+                  LEFT JOIN LATERAL (
+                      SELECT COUNT(*) AS value
+                        FROM apr_form_workflow_bindings binding
+                       WHERE binding.tenant_id = form.tenant_id
+                         AND binding.form_id = form.form_id
+                         AND binding.lifecycle_state = 'ACTIVE'
+                  ) route_count ON TRUE
+                  LEFT JOIN LATERAL (
+                      SELECT COUNT(*) AS value
+                        FROM apr_requests request
+                        JOIN apr_form_versions used_version
+                          ON used_version.tenant_id = request.tenant_id
+                         AND used_version.form_version_id = request.form_version_id
+                       WHERE request.tenant_id = form.tenant_id
+                         AND used_version.form_id = form.form_id
+                  ) usage_count ON TRUE
                  WHERE form.tenant_id = :tenantId
                    AND form.form_id = :formId
                 """, new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
                         .addValue("formId", formId),
                 (result, rowNumber) -> new ApprovalDtos.FormDetail(
-                        new ApprovalDtos.FormSummary(
-                                result.getObject("form_id", UUID.class),
-                                result.getString("form_key"),
-                                result.getString("name_ko"),
-                                result.getString("name_en"),
-                                result.getString("lifecycle_state"),
-                                result.getInt("current_version"),
-                                result.getInt("field_count"),
-                                result.getLong("version"),
-                                instant(result, "updated_at")),
+                        formSummary(result),
                         json(result.getString("schema_payload")),
-                        result.getString("schema_sha256")));
+                        result.getString("schema_sha256"),
+                        formRoutes(tenantId, formId)));
         if (matches.isEmpty()) throw new BaseException(ErrorCode.NOT_FOUND);
         return matches.get(0);
+    }
+
+    private List<ApprovalDtos.FormRouteSummary> formRoutes(long tenantId, UUID formId) {
+        return jdbc.query("""
+                SELECT binding.binding_id, workflow.workflow_id, workflow.workflow_key,
+                       workflow.name_ko, workflow.name_en, workflow.lifecycle_state,
+                       workflow.current_version, workflow.sla_minutes,
+                       binding.binding_type, binding.priority
+                  FROM apr_form_workflow_bindings binding
+                  JOIN apr_workflow_definitions workflow
+                    ON workflow.tenant_id = binding.tenant_id
+                   AND workflow.workflow_id = binding.workflow_id
+                 WHERE binding.tenant_id = :tenantId
+                   AND binding.form_id = :formId
+                   AND binding.lifecycle_state = 'ACTIVE'
+                 ORDER BY CASE binding.binding_type WHEN 'DEFAULT' THEN 0 ELSE 1 END,
+                          binding.priority, workflow.name_en
+                """, new MapSqlParameterSource()
+                        .addValue("tenantId", tenantId)
+                        .addValue("formId", formId),
+                (result, rowNumber) -> new ApprovalDtos.FormRouteSummary(
+                        result.getObject("binding_id", UUID.class),
+                        result.getObject("workflow_id", UUID.class),
+                        result.getString("workflow_key"),
+                        result.getString("name_ko"),
+                        result.getString("name_en"),
+                        result.getString("lifecycle_state"),
+                        result.getInt("current_version"),
+                        result.getInt("sla_minutes"),
+                        result.getString("binding_type"),
+                        result.getInt("priority")));
     }
 
     public List<ApprovalDtos.PolicySummary> policies(long tenantId) {
         return jdbc.query("""
                 SELECT policy_id, policy_key, name_ko, name_en, policy_type,
                        enforcement_mode, severity, lifecycle_state,
-                       rule_payload::text, version
+                       rule_payload::text, version,
+                       pending_enforcement_mode, pending_severity,
+                       pending_lifecycle_state, pending_rule_payload::text,
+                       pending_change_reason, pending_by, pending_at
                   FROM apr_policy_rules
                  WHERE tenant_id = :tenantId
                  ORDER BY CASE severity WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1
@@ -567,7 +907,45 @@ public class ApprovalQueryRepository {
                         result.getString("severity"),
                         result.getString("lifecycle_state"),
                         json(result.getString("rule_payload")),
-                        result.getLong("version")));
+                        result.getLong("version"),
+                        result.getObject("pending_by") != null,
+                        result.getString("pending_enforcement_mode"),
+                        result.getString("pending_severity"),
+                        result.getString("pending_lifecycle_state"),
+                        json(result.getString("pending_rule_payload")),
+                        result.getString("pending_change_reason"),
+                        result.getObject("pending_by", Long.class),
+                        instant(result, "pending_at")));
+    }
+
+    public List<ApprovalDtos.PolicyVersionSummary> policyVersions(
+            long tenantId,
+            UUID policyId) {
+        return jdbc.query("""
+                SELECT policy_version_id, version_number, enforcement_mode,
+                       severity, lifecycle_state, rule_payload::text,
+                       change_reason, submitted_by, submitted_at,
+                       published_by, published_at, review_comment
+                  FROM apr_policy_rule_versions
+                 WHERE tenant_id = :tenantId AND policy_id = :policyId
+                 ORDER BY version_number DESC
+                 LIMIT 100
+                """, new MapSqlParameterSource()
+                        .addValue("tenantId", tenantId)
+                        .addValue("policyId", policyId),
+                (result, rowNumber) -> new ApprovalDtos.PolicyVersionSummary(
+                        result.getObject("policy_version_id", UUID.class),
+                        result.getInt("version_number"),
+                        result.getString("enforcement_mode"),
+                        result.getString("severity"),
+                        result.getString("lifecycle_state"),
+                        json(result.getString("rule_payload")),
+                        result.getString("change_reason"),
+                        result.getObject("submitted_by", Long.class),
+                        instant(result, "submitted_at"),
+                        result.getObject("published_by", Long.class),
+                        instant(result, "published_at"),
+                        result.getString("review_comment")));
     }
 
     public List<ApprovalDtos.SignatureProviderSummary> signatureProviders(long tenantId) {
@@ -596,23 +974,32 @@ public class ApprovalQueryRepository {
     public List<ApprovalDtos.DelegationSummary> delegations(ApprovalRequestContext.Actor actor) {
         return jdbc.query("""
                 SELECT delegation_id, delegator_user_id, delegate_user_id,
+                       delegate_person_public_id, delegate_display_name, delegate_email,
                        scope_type, workflow_key, starts_at, ends_at,
-                       lifecycle_state, reason, version
+                       lifecycle_state, reason, version,
+                       CASE WHEN delegator_user_id = :userId THEN 'OUTGOING' ELSE 'INCOMING' END
+                           AS direction
                   FROM apr_delegations
-                 WHERE tenant_id = :tenantId AND delegator_user_id = :userId
-                 ORDER BY starts_at DESC
+                 WHERE tenant_id = :tenantId
+                   AND (delegator_user_id = :userId OR delegate_user_id = :userId)
+                 ORDER BY CASE lifecycle_state WHEN 'ACTIVE' THEN 0 ELSE 1 END,
+                          starts_at DESC
                 """, actorParams(actor),
                 (result, rowNumber) -> new ApprovalDtos.DelegationSummary(
                         result.getObject("delegation_id", UUID.class),
                         result.getLong("delegator_user_id"),
                         result.getLong("delegate_user_id"),
+                        result.getObject("delegate_person_public_id", UUID.class),
+                        result.getString("delegate_display_name"),
+                        result.getString("delegate_email"),
                         result.getString("scope_type"),
                         result.getString("workflow_key"),
                         instant(result, "starts_at"),
                         instant(result, "ends_at"),
                         result.getString("lifecycle_state"),
                         result.getString("reason"),
-                        result.getLong("version")));
+                        result.getLong("version"),
+                        result.getString("direction")));
     }
 
     public int failedIntegrationCount(long tenantId) {
@@ -629,6 +1016,42 @@ public class ApprovalQueryRepository {
                  WHERE tenant_id = :tenantId AND status IN ('PENDING', 'SENDING')
                 """, new MapSqlParameterSource("tenantId", tenantId), Integer.class);
         return count == null ? 0 : count;
+    }
+
+    public List<ApprovalDtos.IntegrationDeliverySummary> integrationDeliveries(
+            long tenantId,
+            int limit) {
+        return jdbc.query("""
+                SELECT outbox_id, event_id, request_id, event_type, status,
+                       attempt_count, manual_retry_count, available_at,
+                       published_at, last_error, created_at, last_retried_at
+                  FROM apr_integration_outbox
+                 WHERE tenant_id = :tenantId
+                 ORDER BY CASE status
+                              WHEN 'DEAD' THEN 0
+                              WHEN 'FAILED' THEN 1
+                              WHEN 'SENDING' THEN 2
+                              WHEN 'PENDING' THEN 3
+                              ELSE 4
+                          END,
+                          updated_at DESC, outbox_id
+                 LIMIT :limit
+                """, new MapSqlParameterSource()
+                        .addValue("tenantId", tenantId)
+                        .addValue("limit", Math.max(1, Math.min(limit, 100))),
+                (result, rowNumber) -> new ApprovalDtos.IntegrationDeliverySummary(
+                        result.getObject("outbox_id", UUID.class),
+                        result.getObject("event_id", UUID.class),
+                        result.getObject("request_id", UUID.class),
+                        result.getString("event_type"),
+                        result.getString("status"),
+                        result.getInt("attempt_count"),
+                        result.getInt("manual_retry_count"),
+                        instant(result, "available_at"),
+                        instant(result, "published_at"),
+                        result.getString("last_error"),
+                        instant(result, "created_at"),
+                        instant(result, "last_retried_at")));
     }
 
     public int activeDelegationCount(long tenantId) {
@@ -716,6 +1139,29 @@ public class ApprovalQueryRepository {
                 result.getLong("version"));
     }
 
+    private ApprovalDtos.FormSummary formSummary(ResultSet result) throws SQLException {
+        return new ApprovalDtos.FormSummary(
+                result.getObject("form_id", UUID.class),
+                result.getString("form_key"),
+                result.getObject("category_id", UUID.class),
+                result.getString("category_key"),
+                result.getString("category_name_ko"),
+                result.getString("category_name_en"),
+                result.getString("name_ko"),
+                result.getString("name_en"),
+                result.getString("description_ko"),
+                result.getString("description_en"),
+                result.getString("owner_group_ref"),
+                result.getString("form_kind"),
+                result.getString("lifecycle_state"),
+                result.getInt("current_version"),
+                result.getInt("field_count"),
+                result.getInt("route_count"),
+                result.getLong("usage_count"),
+                result.getLong("version"),
+                instant(result, "updated_at"));
+    }
+
     private Instant instant(ResultSet result, String column) throws SQLException {
         Timestamp timestamp = result.getTimestamp(column);
         return timestamp == null ? null : timestamp.toInstant();
@@ -749,6 +1195,11 @@ public class ApprovalQueryRepository {
             ApprovalDtos.TaskSummary summary,
             long requesterUserId,
             Long assigneeUserId,
-            String candidateRole) {
+            String candidateRole,
+            boolean delegatedAccess,
+            Long delegatedFromUserId) {
+    }
+
+    private record RequestAssetIds(UUID workflowId, UUID formId) {
     }
 }

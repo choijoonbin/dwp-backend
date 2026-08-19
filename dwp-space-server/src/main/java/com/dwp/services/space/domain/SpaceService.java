@@ -184,7 +184,7 @@ public class SpaceService {
     public List<SpaceDtos.MemberSummary> members(String spaceKey) {
         SpaceRequestContext.Subject subject = SpaceRequestContext.get();
         SpaceDtos.SpaceSummary space = queries.space(subject, spaceKey);
-        if (!queries.canManage(subject, space.spaceId())) throw new BaseException(ErrorCode.FORBIDDEN);
+        if (!queries.canModerate(subject, space.spaceId())) throw new BaseException(ErrorCode.FORBIDDEN);
         return queries.members(subject.tenantId(), space.spaceId());
     }
 

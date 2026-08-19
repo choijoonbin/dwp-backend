@@ -307,8 +307,9 @@ public class AuthService {
         List<Long> roleIds = roleMemberRepository.findRoleIds(tenantId, userId);
         List<RolePermission> assignments = roleIds.isEmpty()
                 ? List.of()
-                : rolePermissionRepository.findByTenantIdAndRoleIdInAndEffect(
-                        tenantId, roleIds, "ALLOW");
+                : rolePermissionRepository.findByTenantIdAndRoleIdIn(tenantId, roleIds);
+        List<PrincipalResourceGrantRepository.EffectiveGrant> principalGrants =
+                principalResourceGrantRepository.findEffective(tenantId, userId);
 
         Map<Long, Resource> resources = resourceRepository
                 .findAllById(assignments.stream().map(RolePermission::getResourceId).toList())
@@ -320,18 +321,35 @@ public class AuthService {
                 .stream()
                 .collect(Collectors.toMap(Permission::getPermissionId, Function.identity()));
 
-        LinkedHashMap<String, PermissionDTO> effective = new LinkedHashMap<>();
+        LinkedHashMap<String, PermissionDTO> allowed = new LinkedHashMap<>();
+        java.util.Set<String> denied = new java.util.HashSet<>();
         assignments.stream()
                 .map(assignment -> toPermission(
                         assignment,
                         resources.get(assignment.getResourceId()),
                         permissions.get(assignment.getPermissionId())))
                 .filter(java.util.Objects::nonNull)
-                .forEach(permission -> effective.putIfAbsent(permissionKey(permission), permission));
-        principalResourceGrantRepository.findEffective(tenantId, userId).stream()
+                .forEach(permission -> collectPermission(permission, allowed, denied));
+        principalGrants.stream()
                 .map(this::toPermission)
-                .forEach(permission -> effective.putIfAbsent(permissionKey(permission), permission));
-        return List.copyOf(effective.values());
+                .forEach(permission -> collectPermission(permission, allowed, denied));
+        denied.forEach(allowed::remove);
+        return List.copyOf(allowed.values());
+    }
+
+    private void collectPermission(
+            PermissionDTO permission,
+            Map<String, PermissionDTO> allowed,
+            java.util.Set<String> denied) {
+        String key = permissionKey(permission);
+        if ("DENY".equalsIgnoreCase(permission.getEffect())) {
+            denied.add(key);
+            allowed.remove(key);
+            return;
+        }
+        if (!denied.contains(key) && "ALLOW".equalsIgnoreCase(permission.getEffect())) {
+            allowed.putIfAbsent(key, permission);
+        }
     }
 
     private PermissionDTO toPermission(
@@ -362,8 +380,7 @@ public class AuthService {
     }
 
     private String permissionKey(PermissionDTO permission) {
-        return permission.getResourceKey() + ":" + permission.getPermissionCode()
-                + ":" + permission.getEffect();
+        return permission.getResourceKey() + ":" + permission.getPermissionCode();
     }
 
     @Transactional

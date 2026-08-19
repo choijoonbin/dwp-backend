@@ -150,6 +150,48 @@ spring:
                   args:
                     name: spaceServer
                     fallbackUri: forward:/_gateway/fallback
+            - id: notification-stream
+              uri: ${SERVICE_NOTIFICATION_URL:http://localhost:8008}
+              predicates:
+                - Path=/api/notifications/v1/stream
+              filters:
+                - StripPrefix=2
+                - SetResponseHeader=X-Accel-Buffering, no
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 2
+                    redis-rate-limiter.burstCapacity: 4
+                    key-resolver: "#{@enterpriseKeyResolver}"
+            - id: notification-server
+              uri: ${SERVICE_NOTIFICATION_URL:http://localhost:8008}
+              predicates:
+                - Path=/api/notifications/v1/**
+              filters:
+                - StripPrefix=2
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 100
+                    redis-rate-limiter.burstCapacity: 200
+                    key-resolver: "#{@enterpriseKeyResolver}"
+                - name: CircuitBreaker
+                  args:
+                    name: notificationServer
+                    fallbackUri: forward:/_gateway/fallback
+            - id: messaging-server
+              uri: ${SERVICE_MESSAGING_URL:http://localhost:8007}
+              predicates:
+                - Path=/api/messaging/**
+              filters:
+                - StripPrefix=2
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 140
+                    redis-rate-limiter.burstCapacity: 280
+                    key-resolver: "#{@enterpriseKeyResolver}"
+                - name: CircuitBreaker
+                  args:
+                    name: messagingServer
+                    fallbackUri: forward:/_gateway/fallback
           globalcors:
             add-to-simple-url-handler-mapping: true
             cors-configurations:
@@ -230,3 +272,7 @@ dwp:
     service-token: ${DWP_APPROVAL_SERVICE_TOKEN:}
   space:
     service-token: ${DWP_SPACE_SERVICE_TOKEN:}
+  notification:
+    service-token: ${DWP_NOTIFICATION_SERVICE_TOKEN:}
+  messaging:
+    service-token: ${DWP_MESSAGING_SERVICE_TOKEN:}

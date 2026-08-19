@@ -62,6 +62,7 @@ public class PlatformTenantProvisioningService {
         seedWorkplacePolicy(request.tenantId());
         seedLocales(request.tenantId(), request.defaultLocale());
         seedRegistry(request.tenantId(), request.entitlementKeys());
+        seedGovernedAgents(request.tenantId(), request.entitlementKeys());
         seedNavigation(request.tenantId(), request.defaultLocale(), request.entitlementKeys());
         seedWorkspaceApps(request.tenantId(), request.entitlementKeys());
         return new PlatformTenantProvisioningDtos.ProvisionTenantResponse(
@@ -90,6 +91,7 @@ public class PlatformTenantProvisioningService {
             PlatformTenantProvisioningDtos.ReplaceEntitlementsRequest request) {
         ServiceTenant tenant = requireTenant(providerTenantId);
         seedRegistry(tenant.tenantId(), request.entitlementKeys());
+        seedGovernedAgents(tenant.tenantId(), request.entitlementKeys());
         seedNavigation(tenant.tenantId(), "en", request.entitlementKeys());
         seedWorkspaceApps(tenant.tenantId(), request.entitlementKeys());
         Set<String> desired = applications(request.entitlementKeys()).stream()
@@ -211,6 +213,57 @@ public class PlatformTenantProvisioningService {
         }
     }
 
+    private void seedGovernedAgents(Long tenantId, List<String> entitlements) {
+        java.util.ArrayList<AgentSeed> desired = new java.util.ArrayList<>();
+        if (entitlements.contains("ai.agent-runtime")) {
+            desired.add(new AgentSeed(
+                    "DWP_ASSISTANT",
+                    "DWAI-ON Workplace Assistant",
+                    "Read-only grounded workplace answers with permission-scoped evidence",
+                    "agent:runtime",
+                    "MEDIUM",
+                    "ask-runtime-v2"));
+            if (entitlements.contains("core.approvals")) {
+                desired.add(new AgentSeed(
+                        "DWP_APPROVAL_EXPERT",
+                        "DWAI-ON Approval Expert",
+                        "Read-only approval intelligence for tasks, requests, forms, SLA, and evidence",
+                        "agent:approval",
+                        "MEDIUM",
+                        "approval-expert-v1"));
+            }
+        }
+        Set<String> desiredKeys = desired.stream().map(AgentSeed::entryKey).collect(Collectors.toSet());
+        for (AgentSeed agent : desired) {
+            jdbc.update("""
+                    INSERT INTO adm_registry_entries (
+                        tenant_id, registry_type, entry_key, revision, name,
+                        description, owner_ref, risk_tier, artifact_version, lifecycle_state)
+                    VALUES (?, 'AGENT', ?, 1, ?, ?, ?, ?, ?, 'ACTIVE')
+                    ON CONFLICT (tenant_id, registry_type, entry_key, revision) DO UPDATE
+                    SET name = EXCLUDED.name,
+                        description = EXCLUDED.description,
+                        owner_ref = EXCLUDED.owner_ref,
+                        risk_tier = EXCLUDED.risk_tier,
+                        artifact_version = EXCLUDED.artifact_version,
+                        lifecycle_state = 'ACTIVE',
+                        updated_at = CURRENT_TIMESTAMP
+                    """, tenantId, agent.entryKey(), agent.name(), agent.description(),
+                    agent.ownerRef(), agent.riskTier(), agent.artifactVersion());
+        }
+        for (String managedKey : List.of("DWP_ASSISTANT", "DWP_APPROVAL_EXPERT")) {
+            if (desiredKeys.contains(managedKey)) continue;
+            jdbc.update("""
+                    UPDATE adm_registry_entries
+                       SET lifecycle_state = 'RETIRED', updated_at = CURRENT_TIMESTAMP
+                     WHERE tenant_id = ?
+                       AND registry_type = 'AGENT'
+                       AND entry_key = ?
+                       AND lifecycle_state <> 'RETIRED'
+                    """, tenantId, managedKey);
+        }
+    }
+
     private void seedNavigation(Long tenantId, String defaultLocale, List<String> entitlements) {
         jdbc.update("""
                 INSERT INTO adm_navigation_items (
@@ -284,8 +337,9 @@ public class PlatformTenantProvisioningService {
                     "Apps", "앱", "Available workplace applications", "LOW"));
         }
         if (entitlements.contains("ai.agent-runtime")) {
-            apps.add(new AppSeed("ask", "DWP_ASK", "/ask", "ask", "APP.ASK",
-                    "Ask DWP", "Ask DWP", "Read-only request plans with an audit trace", "MEDIUM"));
+            apps.add(new AppSeed("ask", "DWP_ASK", "/dwaion", "ask", "APP.ASK",
+                    "DWAI·ON Workspace", "DWAI·ON 워크스페이스",
+                    "AI workspace with evidence, sources, and an audit trace", "MEDIUM"));
         }
         if (entitlements.contains("core.people")) {
             apps.add(new AppSeed("hcm", "DWP_HCM", "/hr", "hcm",
@@ -407,10 +461,10 @@ public class PlatformTenantProvisioningService {
         }
         if (entitlements.contains("ai.agent-runtime")) {
             apps.add(new WorkspaceAppSeed(
-                    "dwp-ask", "Ask DWP", "Ask DWP",
-                    "감사 추적이 포함된 읽기 전용 요청 계획을 준비합니다.",
-                    "Prepare read-only request plans with an audit trace.",
-                    "DWP Platform", "KNOWLEDGE", "NATIVE", "/ask",
+                    "dwp-ask", "DWAI·ON 워크스페이스", "DWAI·ON Workspace",
+                    "업무 근거, 출처 및 감사 증적을 함께 확인하는 AI 작업공간입니다.",
+                    "AI workspace for work evidence, sources, and audit evidence.",
+                    "DWP AI Platform", "KNOWLEDGE", "NATIVE", "/dwaion",
                     "ask", "APP.ASK", "MANAGED", 20));
         }
         if (entitlements.contains("core.approvals")) {
@@ -468,8 +522,9 @@ public class PlatformTenantProvisioningService {
                         "Purpose-built collaboration with governed content and membership", "MEDIUM"),
                 new AppSeed("apps", "DWP_APPS", "/apps", "apps", "APP.APPS",
                         "Apps", "앱", "Available workplace applications", "LOW"),
-                new AppSeed("ask", "DWP_ASK", "/ask", "ask", "APP.ASK",
-                        "Ask DWP", "Ask DWP", "Read-only request plans with an audit trace", "MEDIUM"),
+                new AppSeed("ask", "DWP_ASK", "/dwaion", "ask", "APP.ASK",
+                        "DWAI·ON Workspace", "DWAI·ON 워크스페이스",
+                        "AI workspace with evidence, sources, and an audit trace", "MEDIUM"),
                 new AppSeed("hcm", "DWP_HCM", "/hr", "hcm",
                         "APP.HCM", "HR", "인사",
                         "DWP HCM personal HR, organization, and governed workforce operations",
@@ -511,6 +566,15 @@ public class PlatformTenantProvisioningService {
             Long tenantId,
             String tenantKey,
             String lifecycleState) {
+    }
+
+    private record AgentSeed(
+            String entryKey,
+            String name,
+            String description,
+            String ownerRef,
+            String riskTier,
+            String artifactVersion) {
     }
 
     private record AppSeed(

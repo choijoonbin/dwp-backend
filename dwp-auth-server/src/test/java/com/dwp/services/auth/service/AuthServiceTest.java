@@ -7,6 +7,9 @@ import com.dwp.services.auth.dto.OidcUserInfo;
 import com.dwp.services.auth.entity.Tenant;
 import com.dwp.services.auth.entity.User;
 import com.dwp.services.auth.entity.UserAccount;
+import com.dwp.services.auth.entity.Permission;
+import com.dwp.services.auth.entity.Resource;
+import com.dwp.services.auth.entity.RolePermission;
 import com.dwp.services.auth.repository.PermissionRepository;
 import com.dwp.services.auth.repository.PrincipalResourceGrantRepository;
 import com.dwp.services.auth.repository.DirectoryGroupMemberRepository;
@@ -161,6 +164,30 @@ class AuthServiceTest {
             assertThat(permission.getPermissionCode()).isEqualTo("VIEW");
             assertThat(permission.getEffect()).isEqualTo("ALLOW");
         });
+    }
+
+    @Test
+    void denyOverridesRoleAndDirectAllowsForTheSameAuthority() {
+        RolePermission roleAllow = RolePermission.builder()
+                .tenantId(1L).roleId(2L).resourceId(3L).permissionId(4L)
+                .effect("ALLOW").build();
+        RolePermission roleDeny = RolePermission.builder()
+                .tenantId(1L).roleId(5L).resourceId(3L).permissionId(4L)
+                .effect("DENY").build();
+        when(roleMembers.findRoleIds(1L, 10L)).thenReturn(List.of(2L, 5L));
+        when(rolePermissions.findByTenantIdAndRoleIdIn(1L, List.of(2L, 5L)))
+                .thenReturn(List.of(roleAllow, roleDeny));
+        when(resources.findAllById(List.of(3L, 3L))).thenReturn(List.of(
+                Resource.builder().resourceId(3L).tenantId(1L).type("APP")
+                        .key("APP.APPROVALS").name("Approvals").enabled(true).build()));
+        when(permissions.findAllById(List.of(4L, 4L))).thenReturn(List.of(
+                Permission.builder().permissionId(4L).code("VIEW").name("View").build()));
+        when(principalGrants.findEffective(1L, 10L)).thenReturn(List.of(
+                new PrincipalResourceGrantRepository.EffectiveGrant(
+                        UUID.randomUUID().toString(), "APP", "APP.APPROVALS",
+                        "Approvals", "VIEW", "View", "ALLOW")));
+
+        assertThat(service.getPermissions(10L, 1L)).isEmpty();
     }
 
     @Test

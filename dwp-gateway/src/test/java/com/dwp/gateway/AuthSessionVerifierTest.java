@@ -245,9 +245,37 @@ class AuthSessionVerifierTest {
                 .post("/api/agent/v1/ask")
                 .build()).block();
 
-        assertThat(captured.get().url().getQuery()).isEqualTo("permissionPrefix=APP.");
+        assertThat(captured.get().url().getQuery()).isEqualTo("permissionPrefix=APP.,ACTION.");
         assertThat(identity).isNotNull();
         assertThat(identity.permissions()).containsExactly("APP.ASK:VIEW", "APP.WORK:VIEW");
+    }
+
+    @Test
+    void requestsAppAuthoritiesForDwaionConversationAndActionRoutes() {
+        AtomicReference<ClientRequest> captured = new AtomicReference<>();
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+            captured.set(request);
+            return Mono.just(ClientResponse.create(HttpStatus.OK)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .body("""
+                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            "roles":["WORKSPACE_MEMBER"],"permissions":[
+                              {"resourceKey":"APP.ASK","permissionCode":"VIEW","effect":"ALLOW"},
+                              {"resourceKey":"APP.CALENDAR","permissionCode":"CREATE","effect":"ALLOW"}
+                            ]}}
+                            """)
+                    .build());
+        });
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+
+        VerifiedIdentity identity = verifier.verify(MockServerHttpRequest
+                .post("/api/agent/v1/actions/CALENDAR.EVENT.CREATE/preview")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery()).isEqualTo("permissionPrefix=APP.,ACTION.");
+        assertThat(identity).isNotNull();
+        assertThat(identity.permissions()).containsExactly("APP.ASK:VIEW", "APP.CALENDAR:CREATE");
     }
 
     @Test

@@ -40,6 +40,9 @@ spring:
     validate-on-migrate: true
 
 dwp:
+  identity-sync:
+    auth-url: ${SERVICE_AUTH_URL:http://localhost:8001}
+    token: ${DWP_IDENTITY_SYNC_TOKEN:}
   audit:
     collector-url: ${DWP_AUDIT_COLLECTOR_URL:}
     ingest-token: ${DWP_AUDIT_INGEST_TOKEN:}
@@ -61,6 +64,12 @@ dwp:
   approval:
     service-token: ${DWP_APPROVAL_SERVICE_TOKEN:}
     external-signature-enabled: ${DWP_APPROVAL_EXTERNAL_SIGNATURE_ENABLED:false}
+    integration-relay:
+      enabled: ${DWP_APPROVAL_INTEGRATION_RELAY_ENABLED:false}
+      topic: ${DWP_APPROVAL_INTEGRATION_TOPIC:dwp.approval.events.v1}
+      batch-size: ${DWP_APPROVAL_INTEGRATION_BATCH_SIZE:50}
+      maximum-attempts: ${DWP_APPROVAL_INTEGRATION_MAXIMUM_ATTEMPTS:10}
+      poll-delay-ms: ${DWP_APPROVAL_INTEGRATION_POLL_DELAY_MS:2000}
 
 management:
   endpoints:

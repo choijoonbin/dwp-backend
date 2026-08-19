@@ -26,6 +26,7 @@ public class GatewayProductionReadinessConfiguration {
             requireSecret(environment, failures, "dwp.provider.support-validation-token");
             requireSecret(environment, failures, "dwp.approval.service-token");
             requireSecret(environment, failures, "dwp.space.service-token");
+            requireSecret(environment, failures, "dwp.notification.service-token");
             requireSecret(environment, failures, "dwp.observability.api-history.ingest-token");
             requireSecret(environment, failures, "dwp.observability.api-history.privacy-hash-secret");
             requireUrl(environment, failures, "dwp.observability.api-history.collector-url",

@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.domain.Pageable;
 
 import jakarta.persistence.LockModeType;
 
@@ -49,6 +50,23 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
             @Param("userIds") Collection<Long> userIds);
 
     List<User> findByTenantIdAndUserIdIn(Long tenantId, Collection<Long> userIds);
+
+    @Query("""
+            select user
+            from User user
+            where user.tenantId = :tenantId
+              and user.status = 'ACTIVE'
+              and (
+                    :query = ''
+                    or lower(user.displayName) like lower(concat('%', :query, '%'))
+                    or lower(coalesce(user.email, '')) like lower(concat('%', :query, '%'))
+                  )
+            order by user.displayName, user.userId
+            """)
+    List<User> searchActiveDirectoryUsers(
+            @Param("tenantId") Long tenantId,
+            @Param("query") String query,
+            Pageable pageable);
 
     @Query("""
             select user.primaryOrgUnitId as orgUnitId, count(user) as memberCount
