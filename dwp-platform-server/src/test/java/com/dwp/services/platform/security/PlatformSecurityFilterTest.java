@@ -279,6 +279,48 @@ class PlatformSecurityFilterTest {
     }
 
     @Test
+    void separatesWorkplaceUseFromWorkplaceAdministration() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+        MockHttpServletRequest runtime = request("/v1/workplace/explore");
+        runtime.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        runtime.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        runtime.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        runtime.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
+        runtime.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER, "APP.WORKPLACE:VIEW");
+        MockHttpServletResponse runtimeResponse = new MockHttpServletResponse();
+
+        filter.doFilter(runtime, runtimeResponse, new MockFilterChain());
+
+        assertThat(runtimeResponse.getStatus()).isEqualTo(200);
+
+        MockHttpServletRequest denied = new MockHttpServletRequest(
+                "PUT", "/v1/admin/workplace/policy");
+        denied.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        denied.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        denied.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        denied.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
+        denied.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER, "APP.WORKPLACE:UPDATE");
+        MockHttpServletResponse deniedResponse = new MockHttpServletResponse();
+
+        filter.doFilter(denied, deniedResponse, new MockFilterChain());
+
+        assertThat(deniedResponse.getStatus()).isEqualTo(403);
+
+        MockHttpServletRequest admin = new MockHttpServletRequest(
+                "PUT", "/v1/admin/workplace/policy");
+        admin.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        admin.addHeader(PlatformSecurityFilter.USER_HEADER, "18");
+        admin.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        admin.addHeader(PlatformSecurityFilter.ROLES_HEADER, "CALENDAR_ADMIN");
+        admin.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER, "ADMIN.WORKPLACE:MANAGE");
+        MockHttpServletResponse adminResponse = new MockHttpServletResponse();
+
+        filter.doFilter(admin, adminResponse, new MockFilterChain());
+
+        assertThat(adminResponse.getStatus()).isEqualTo(200);
+    }
+
+    @Test
     void separatesMailUseFromDelegatedMailAdministration() throws Exception {
         PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
         MockHttpServletRequest inbox = request("/v1/mail/threads");

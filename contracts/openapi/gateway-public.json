@@ -31286,6 +31286,991 @@
           }
         },
         "type": "object"
+      },
+      "platform_ApiResponseListWorkplaceBooking": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/platform_WorkplaceBooking"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseListWorkplaceFloor": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/platform_WorkplaceFloor"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseListWorkplaceResource": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/platform_WorkplaceResource"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseListWorkplaceSite": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/platform_WorkplaceSite"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseWorkplaceAdminOverview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_WorkplaceAdminOverview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseWorkplaceBooking": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_WorkplaceBooking"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseWorkplaceExploreResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_WorkplaceExploreResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseWorkplaceFloor": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_WorkplaceFloor"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseWorkplacePolicy": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_WorkplacePolicy"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseWorkplaceResource": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_WorkplaceResource"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseWorkplaceSite": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_WorkplaceSite"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_BookingRequest": {
+        "properties": {
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "purpose": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "visibleToColleagues": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "endsAt",
+          "resourceId",
+          "startsAt"
+        ],
+        "type": "object"
+      },
+      "platform_FloorRequest": {
+        "properties": {
+          "floorNumber": {
+            "format": "int32",
+            "maximum": 300,
+            "minimum": -20,
+            "type": "integer"
+          },
+          "nameEn": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "nameKo": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "planHeight": {
+            "format": "int32",
+            "maximum": 5000,
+            "minimum": 300,
+            "type": "integer"
+          },
+          "planWidth": {
+            "format": "int32",
+            "maximum": 5000,
+            "minimum": 400,
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "DRAFT",
+              "ACTIVE",
+              "CLOSED"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "nameEn",
+          "nameKo",
+          "state"
+        ],
+        "type": "object"
+      },
+      "platform_LayoutRequest": {
+        "properties": {
+          "resources": {
+            "items": {
+              "$ref": "#/components/schemas/platform_ResourcePlacement"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "resources"
+        ],
+        "type": "object"
+      },
+      "platform_ResourcePlacement": {
+        "properties": {
+          "heightPercent": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "number"
+          },
+          "positionX": {
+            "maximum": 99.99,
+            "minimum": 0,
+            "type": "number"
+          },
+          "positionY": {
+            "maximum": 99.99,
+            "minimum": 0,
+            "type": "number"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "rotationDegrees": {
+            "format": "int32",
+            "maximum": 359,
+            "minimum": -359,
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "widthPercent": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "number"
+          }
+        },
+        "required": [
+          "heightPercent",
+          "positionX",
+          "positionY",
+          "resourceId",
+          "version",
+          "widthPercent"
+        ],
+        "type": "object"
+      },
+      "platform_SiteRequest": {
+        "properties": {
+          "address": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "code": {
+            "minLength": 1,
+            "pattern": "[A-Z0-9][A-Z0-9_-]{2,79}",
+            "type": "string"
+          },
+          "nameEn": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "nameKo": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "ACTIVE",
+              "MAINTENANCE",
+              "CLOSED"
+            ],
+            "type": "string"
+          },
+          "timeZone": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "totalFloorCount": {
+            "format": "int32",
+            "maximum": 300,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "type": {
+            "enum": [
+              "HEADQUARTERS",
+              "SHARED_OFFICE",
+              "SATELLITE",
+              "CLIENT_SITE"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "nameEn",
+          "nameKo",
+          "state",
+          "timeZone",
+          "type"
+        ],
+        "type": "object"
+      },
+      "platform_WorkplaceAdminOverview": {
+        "properties": {
+          "activeSites": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "assignedResources": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "bookingsThisWeek": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "checkedInToday": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "configuredFloors": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/platform_WorkplacePolicy"
+          },
+          "reservableResources": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "utilizationPercent": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "platform_WorkplaceBooking": {
+        "properties": {
+          "bookingId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "checkedInAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "floorName": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "releasedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resourceName": {
+            "type": "string"
+          },
+          "resourceType": {
+            "enum": [
+              "ROOM",
+              "DESK",
+              "LOCKER",
+              "PARKING",
+              "FOCUS_POD",
+              "PHONE_BOOTH",
+              "EQUIPMENT"
+            ],
+            "type": "string"
+          },
+          "siteName": {
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "RESERVED",
+              "CHECKED_IN",
+              "RELEASED",
+              "CANCELLED"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "visibleToColleagues": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "platform_WorkplaceExploreResponse": {
+        "properties": {
+          "floors": {
+            "items": {
+              "$ref": "#/components/schemas/platform_WorkplaceFloor"
+            },
+            "type": "array"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "occupancy": {
+            "items": {
+              "$ref": "#/components/schemas/platform_WorkplaceOccupancy"
+            },
+            "type": "array"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/platform_WorkplacePolicy"
+          },
+          "resources": {
+            "items": {
+              "$ref": "#/components/schemas/platform_WorkplaceResource"
+            },
+            "type": "array"
+          },
+          "selectedFloor": {
+            "$ref": "#/components/schemas/platform_WorkplaceFloor"
+          },
+          "sites": {
+            "items": {
+              "$ref": "#/components/schemas/platform_WorkplaceSite"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "platform_WorkplaceFloor": {
+        "properties": {
+          "backgroundAssetPath": {
+            "type": "string"
+          },
+          "floorId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "floorNumber": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "nameKo": {
+            "type": "string"
+          },
+          "planHeight": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "planWidth": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "resourceCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "siteId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "siteName": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "DRAFT",
+              "ACTIVE",
+              "CLOSED"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "platform_WorkplaceOccupancy": {
+        "properties": {
+          "bookedByDisplayName": {
+            "type": "string"
+          },
+          "bookingId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "currentUser": {
+            "type": "boolean"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "RESERVED",
+              "CHECKED_IN",
+              "RELEASED",
+              "CANCELLED"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_WorkplacePolicy": {
+        "properties": {
+          "allowAssignedDeskLending": {
+            "type": "boolean"
+          },
+          "allowRecurring": {
+            "type": "boolean"
+          },
+          "autoReleaseMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "bookingWindowDays": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "checkInLeadMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "maximumActiveBookings": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "maximumBookingMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "maximumConsecutiveDays": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "minimumBookingMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "requireCheckIn": {
+            "type": "boolean"
+          },
+          "showColleagueNames": {
+            "type": "boolean"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "workingDayEnd": {
+            "type": "string"
+          },
+          "workingDayStart": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_WorkplaceResource": {
+        "properties": {
+          "accessible": {
+            "type": "boolean"
+          },
+          "approvalRequired": {
+            "type": "boolean"
+          },
+          "assignedDisplayName": {
+            "type": "string"
+          },
+          "assignedPersonPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "assignedUserId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "calendarResourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "capacity": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "code": {
+            "type": "string"
+          },
+          "features": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "floorId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "heightPercent": {
+            "type": "number"
+          },
+          "mode": {
+            "enum": [
+              "RESERVABLE",
+              "DROP_IN",
+              "ASSIGNED",
+              "UNAVAILABLE"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "nameKo": {
+            "type": "string"
+          },
+          "neighborhood": {
+            "type": "string"
+          },
+          "positionX": {
+            "type": "number"
+          },
+          "positionY": {
+            "type": "number"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "rotationDegrees": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "siteId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "AVAILABLE",
+              "MAINTENANCE",
+              "RETIRED"
+            ],
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "ROOM",
+              "DESK",
+              "LOCKER",
+              "PARKING",
+              "FOCUS_POD",
+              "PHONE_BOOTH",
+              "EQUIPMENT"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "widthPercent": {
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "platform_WorkplaceSite": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "configuredFloorCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "nameKo": {
+            "type": "string"
+          },
+          "resourceCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "siteId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "ACTIVE",
+              "MAINTENANCE",
+              "CLOSED"
+            ],
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "totalFloorCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "type": {
+            "enum": [
+              "HEADQUARTERS",
+              "SHARED_OFFICE",
+              "SATELLITE",
+              "CLIENT_SITE"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
       }
     }
   },
@@ -57336,6 +58321,1369 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/platform_ApiResponseEventSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/workplace/floors": {
+      "get": {
+        "operationId": "platform_getWorkplaceFloors",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "siteId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseListWorkplaceFloor"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/workplace/floors/{floorId}/background": {
+      "post": {
+        "operationId": "platform_uploadWorkplaceFloorBackground",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "floorId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "format": "binary",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "file"
+                ],
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseWorkplaceFloor"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/workplace/floors/{floorId}/layout": {
+      "put": {
+        "operationId": "platform_updateWorkplaceLayout",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "floorId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_LayoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseListWorkplaceResource"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/workplace/floors/{floorId}/resources": {
+      "get": {
+        "operationId": "platform_getWorkplaceResources",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "floorId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseListWorkplaceResource"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      },
+      "post": {
+        "operationId": "platform_createWorkplaceResource",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "floorId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_ResourceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseWorkplaceResource"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/workplace/floors/{floorId}/resources/{resourceId}": {
+      "put": {
+        "operationId": "platform_updateWorkplaceResource",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "floorId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "resourceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_ResourceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseWorkplaceResource"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/workplace/overview": {
+      "get": {
+        "operationId": "platform_getWorkplaceAdminOverview",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseWorkplaceAdminOverview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/workplace/policy": {
+      "get": {
+        "operationId": "platform_getWorkplacePolicy",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseWorkplacePolicy"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      },
+      "put": {
+        "operationId": "platform_updateWorkplacePolicy",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_PolicyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseWorkplacePolicy"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/workplace/sites": {
+      "get": {
+        "operationId": "platform_getWorkplaceSites",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseListWorkplaceSite"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      },
+      "post": {
+        "operationId": "platform_createWorkplaceSite",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_SiteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseWorkplaceSite"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/workplace/sites/{siteId}": {
+      "put": {
+        "operationId": "platform_updateWorkplaceSite",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "siteId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_SiteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseWorkplaceSite"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/workplace/sites/{siteId}/floors": {
+      "post": {
+        "operationId": "platform_createWorkplaceFloor",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "siteId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_FloorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseWorkplaceFloor"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/workplace/sites/{siteId}/floors/{floorId}": {
+      "put": {
+        "operationId": "platform_updateWorkplaceFloor",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "siteId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "floorId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_FloorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseWorkplaceFloor"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/workplace/bookings": {
+      "get": {
+        "operationId": "platform_getWorkplaceBookings",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseListWorkplaceBooking"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      },
+      "post": {
+        "operationId": "platform_createWorkplaceBooking",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Person-Public-ID",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Display-Name-B64",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_BookingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseWorkplaceBooking"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/workplace/bookings/{bookingId}/cancel": {
+      "post": {
+        "operationId": "platform_cancelWorkplaceBooking",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "bookingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_VersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseWorkplaceBooking"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/workplace/bookings/{bookingId}/check-in": {
+      "post": {
+        "operationId": "platform_checkInWorkplaceBooking",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "bookingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_VersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseWorkplaceBooking"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/workplace/bookings/{bookingId}/release": {
+      "post": {
+        "operationId": "platform_releaseWorkplaceBooking",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "bookingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_VersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseWorkplaceBooking"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/workplace/explore": {
+      "get": {
+        "operationId": "platform_exploreWorkplace",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "floorId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseWorkplaceExploreResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/workplace/floors/{floorId}/background": {
+      "get": {
+        "operationId": "platform_workplaceFloorBackground",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "floorId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
                 }
               }
             },

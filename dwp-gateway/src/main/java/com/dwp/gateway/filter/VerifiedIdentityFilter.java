@@ -3,6 +3,8 @@ package com.dwp.gateway.filter;
 import com.dwp.observability.api.ApiHistoryAttributes;
 import com.dwp.gateway.security.SessionVerifier;
 import com.dwp.gateway.security.VerifiedIdentity;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -18,6 +20,8 @@ import java.util.Base64;
 
 @Component
 public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(VerifiedIdentityFilter.class);
 
     public static final String USER_HEADER = "X-DWP-User-ID";
     public static final String TENANT_HEADER = "X-DWP-Tenant-ID";
@@ -55,6 +59,11 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
         }
 
         Mono<VerifiedIdentity> verification = sessionVerifier.verify(sanitizedRequest)
+                .doOnError(error -> LOGGER.warn(
+                        "Identity verification unavailable for {} {}: {}",
+                        sanitizedRequest.getMethod(),
+                        sanitizedRequest.getURI().getPath(),
+                        error.toString()))
                 .onErrorMap(VerificationUnavailableException::new);
 
         return verification

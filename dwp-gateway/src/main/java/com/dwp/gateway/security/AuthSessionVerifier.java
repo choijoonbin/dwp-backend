@@ -187,11 +187,17 @@ public class AuthSessionVerifier implements SessionVerifier {
         if (path.startsWith("/api/platform/v1/admin/rooms")) {
             return "ADMIN.ROOMS";
         }
+        if (path.startsWith("/api/platform/v1/admin/workplace")) {
+            return "ADMIN.WORKPLACE";
+        }
         if (path.startsWith("/api/platform/v1/calendar")) {
             return "APP.CALENDAR";
         }
         if (path.startsWith("/api/platform/v1/rooms")) {
             return "APP.ROOMS";
+        }
+        if (path.startsWith("/api/platform/v1/workplace")) {
+            return "APP.WORKPLACE";
         }
         if (path.startsWith("/api/platform/v1/admin/mail")) {
             return "ADMIN.MAIL";

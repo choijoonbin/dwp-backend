@@ -383,6 +383,41 @@ class AuthSessionVerifierTest {
     }
 
     @Test
+    void requestsSeparatedWorkplaceApplicationAndAdministrationAuthorities() {
+        AtomicReference<ClientRequest> captured = new AtomicReference<>();
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+            captured.set(request);
+            return Mono.just(ClientResponse.create(HttpStatus.OK)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .body("""
+                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            "roles":["WORKSPACE_MEMBER"],"permissions":[
+                              {"resourceKey":"APP.WORKPLACE","permissionCode":"VIEW","effect":"ALLOW"}
+                            ]}}
+                            """)
+                    .build());
+        });
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+
+        VerifiedIdentity runtime = verifier.verify(MockServerHttpRequest
+                .get("/api/platform/v1/workplace/explore")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery())
+                .isEqualTo("permissionPrefix=APP.WORKPLACE");
+        assertThat(runtime).isNotNull();
+
+        VerifiedIdentity admin = verifier.verify(MockServerHttpRequest
+                .get("/api/platform/v1/admin/workplace/overview")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery())
+                .isEqualTo("permissionPrefix=ADMIN.WORKPLACE");
+        assertThat(admin).isNotNull();
+    }
+
+    @Test
     void scopesApprovalRuntimeAndControlPlaneAuthoritiesSeparately() {
         AtomicReference<ClientRequest> captured = new AtomicReference<>();
         WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
