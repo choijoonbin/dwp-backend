@@ -312,6 +312,42 @@ class AuthSessionVerifierTest {
     }
 
     @Test
+    void scopesMailRuntimeAndAdministrationAuthoritiesSeparately() {
+        AtomicReference<ClientRequest> captured = new AtomicReference<>();
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+            captured.set(request);
+            return Mono.just(ClientResponse.create(HttpStatus.OK)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .body("""
+                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            "roles":["MAIL_ADMIN"],"permissions":[
+                              {"resourceKey":"APP.MAIL","permissionCode":"VIEW","effect":"ALLOW"},
+                              {"resourceKey":"ADMIN.MAIL","permissionCode":"MANAGE","effect":"ALLOW"}
+                            ]}}
+                            """)
+                    .build());
+        });
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+
+        VerifiedIdentity runtime = verifier.verify(MockServerHttpRequest
+                .get("/api/platform/v1/mail/home")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery())
+                .isEqualTo("permissionPrefix=APP.MAIL");
+        assertThat(runtime).isNotNull();
+
+        VerifiedIdentity admin = verifier.verify(MockServerHttpRequest
+                .put("/api/platform/v1/admin/mail/policy")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery())
+                .isEqualTo("permissionPrefix=ADMIN.MAIL");
+        assertThat(admin).isNotNull();
+    }
+
+    @Test
     void scopesApprovalRuntimeAndControlPlaneAuthoritiesSeparately() {
         AtomicReference<ClientRequest> captured = new AtomicReference<>();
         WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
@@ -449,8 +485,8 @@ class AuthSessionVerifierTest {
                         .body("""
                                 {"success":true,"data":{"userId":7,"tenantId":1,
                                 "roles":["WORKSPACE_MEMBER"],"groups":[
-                                  {"groupRef":"58fa4516-dc70-4785-ac9f-3606992c3f6b","displayName":"Finance"},
-                                  {"groupRef":"c175742b-070e-4223-a49a-b9878d280a7c","displayName":"Operations"}
+                                  {"groupRef":"58fa4516-dc70-4785-ac9f-3606992c3f6b","groupKey":"FINANCE","displayName":"Finance"},
+                                  {"groupRef":"c175742b-070e-4223-a49a-b9878d280a7c","groupKey":"OPERATIONS","displayName":"Operations"}
                                 ]}}
                                 """)
                         .build()));
@@ -464,6 +500,8 @@ class AuthSessionVerifierTest {
         assertThat(identity).isNotNull();
         assertThat(identity.groupRefs()).containsExactly(
                 "58fa4516-dc70-4785-ac9f-3606992c3f6b",
+                "FINANCE",
+                "OPERATIONS",
                 "c175742b-070e-4223-a49a-b9878d280a7c");
     }
 

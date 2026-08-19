@@ -9,7 +9,7 @@ class ResourceRoleAuthorizationTest {
     @Test
     void resolvesOnlyAcceptedResponsibilitiesAndValidResourceKeys() {
         assertThat(ResourceRoleAuthorization.resourcesFor(
-                "APP_OWNER@APP.MAIL_CALENDAR,APP_ACCESS_APPROVER@APP.HRIS,"
+                "APP_OWNER@APP.MAIL,APP_ACCESS_APPROVER@APP.HRIS,"
                         + "APP_ACCESS_APPROVER@../../escape,UNKNOWN@APP.WORK",
                 "APP_ACCESS_APPROVER"))
                 .containsExactly("APP.HRIS");
@@ -18,8 +18,8 @@ class ResourceRoleAuthorizationTest {
     @Test
     void matchesResponsibilityAndResourceWithoutTrustingHeaderCase() {
         assertThat(ResourceRoleAuthorization.has(
-                "app_access_approver@app.mail_calendar",
-                "APP_ACCESS_APPROVER", "APP.MAIL_CALENDAR"))
+                "app_access_approver@app.mail",
+                "APP_ACCESS_APPROVER", "APP.MAIL"))
                 .isTrue();
     }
 }

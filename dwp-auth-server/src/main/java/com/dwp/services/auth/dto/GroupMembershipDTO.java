@@ -4,5 +4,6 @@ import java.util.UUID;
 
 public record GroupMembershipDTO(
         UUID groupRef,
+        String groupKey,
         String displayName) {
 }

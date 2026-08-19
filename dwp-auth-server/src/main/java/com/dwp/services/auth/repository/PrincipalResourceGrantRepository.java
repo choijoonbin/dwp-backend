@@ -63,9 +63,9 @@ public class PrincipalResourceGrantRepository {
     }
 
     public void lockSource(Long tenantId, String sourceType, String sourceRef) {
-        jdbc.queryForObject(
+        jdbc.query(
                 "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
-                Long.class,
+                resultSet -> null,
                 tenantId + ":" + sourceType + ":" + sourceRef);
     }
 
@@ -143,6 +143,26 @@ public class PrincipalResourceGrantRepository {
                  WHERE tenant_id = ? AND source_type = ? AND source_ref = ?
                    AND lifecycle_state = 'ACTIVE' AND version = ?
                 """, actorId, reason, actorId, tenantId, sourceType, sourceRef, version) == 1;
+    }
+
+    public boolean reactivate(
+            Long tenantId,
+            String sourceType,
+            String sourceRef,
+            OffsetDateTime validTo,
+            String justification,
+            Long actorId,
+            long version) {
+        return jdbc.update("""
+                UPDATE com_principal_resource_grants
+                   SET lifecycle_state = 'ACTIVE', valid_from = CURRENT_TIMESTAMP,
+                       valid_to = ?, justification = ?, granted_by = ?,
+                       revoked_at = NULL, revoked_by = NULL, revocation_reason = NULL,
+                       version = version + 1, updated_at = CURRENT_TIMESTAMP, updated_by = ?
+                 WHERE tenant_id = ? AND source_type = ? AND source_ref = ?
+                   AND lifecycle_state IN ('EXPIRED', 'REVOKED') AND version = ?
+                """, validTo, justification, actorId, actorId, tenantId,
+                sourceType, sourceRef, version) == 1;
     }
 
     public List<GrantRecord> expireDue(int limit) {

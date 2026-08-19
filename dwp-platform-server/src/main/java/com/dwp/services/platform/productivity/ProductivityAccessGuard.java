@@ -11,7 +11,7 @@ public class ProductivityAccessGuard {
 
     private static final String VIEW = "ADMIN.PRODUCTIVITY_CONNECTOR:VIEW";
     private static final String MANAGE = "ADMIN.PRODUCTIVITY_CONNECTOR:MANAGE";
-    private static final String USE = "APP.MAIL_CALENDAR:VIEW";
+    private static final String USE = "APP.MAIL:VIEW";
 
     public void view(String permissions) { require(permissions, VIEW); }
 

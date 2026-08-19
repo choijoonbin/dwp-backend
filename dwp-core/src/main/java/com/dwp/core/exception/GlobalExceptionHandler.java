@@ -9,6 +9,7 @@ import org.springframework.context.MessageSource;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
+import org.springframework.validation.ObjectError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -17,7 +18,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 
@@ -47,6 +48,17 @@ public class GlobalExceptionHandler {
     private static String correlationId(HttpServletRequest request) {
         return request == null ? null : request.getHeader(HeaderConstants.X_CORRELATION_ID);
     }
+
+    private static Map<String, String> validationErrors(Iterable<ObjectError> objectErrors) {
+        Map<String, String> errors = new LinkedHashMap<>();
+        for (ObjectError error : objectErrors) {
+            String path = error instanceof FieldError fieldError
+                    ? fieldError.getField()
+                    : error.getObjectName();
+            errors.put(path, error.getDefaultMessage());
+        }
+        return errors;
+    }
     
     /**
      * 커스텀 BaseException 처리
@@ -73,12 +85,7 @@ public class GlobalExceptionHandler {
             MethodArgumentNotValidException e,
             HttpServletRequest request,
             Locale locale) {
-        Map<String, String> errors = new HashMap<>();
-        e.getBindingResult().getAllErrors().forEach((error) -> {
-            String fieldName = ((FieldError) error).getField();
-            String errorMessage = error.getDefaultMessage();
-            errors.put(fieldName, errorMessage);
-        });
+        Map<String, String> errors = validationErrors(e.getBindingResult().getAllErrors());
         
         log.warn("Validation error: {}", errors);
         return ResponseEntity
@@ -98,12 +105,7 @@ public class GlobalExceptionHandler {
             BindException e,
             HttpServletRequest request,
             Locale locale) {
-        Map<String, String> errors = new HashMap<>();
-        e.getBindingResult().getAllErrors().forEach((error) -> {
-            String fieldName = ((FieldError) error).getField();
-            String errorMessage = error.getDefaultMessage();
-            errors.put(fieldName, errorMessage);
-        });
+        Map<String, String> errors = validationErrors(e.getBindingResult().getAllErrors());
         
         log.warn("Bind error: {}", errors);
         return ResponseEntity

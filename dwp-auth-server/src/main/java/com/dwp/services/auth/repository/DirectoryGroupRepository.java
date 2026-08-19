@@ -18,6 +18,8 @@ public interface DirectoryGroupRepository
 
     Optional<DirectoryGroup> findByGroupIdAndTenantId(Long groupId, Long tenantId);
 
+    Optional<DirectoryGroup> findByTenantIdAndGroupKey(Long tenantId, String groupKey);
+
     Optional<DirectoryGroup> findByPublicIdAndTenantId(UUID publicId, Long tenantId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

@@ -354,6 +354,7 @@ dwp_people|dwp-people-server
 dwp_platform|dwp-platform-server
 dwp_provider|dwp-provider-server
 dwp_approval|dwp-approval-server
+dwp_space|dwp-space-server
 DATABASES
 
 psql_query "$PLATFORM_DB" "

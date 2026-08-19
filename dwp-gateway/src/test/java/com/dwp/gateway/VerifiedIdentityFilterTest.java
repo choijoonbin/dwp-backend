@@ -26,7 +26,7 @@ class VerifiedIdentityFilterTest {
                 List.of("EMPLOYEE", "APPROVER"),
                 List.of("ADMIN.AUDIT_VIEW:VIEW"),
                 List.of("58fa4516-dc70-4785-ac9f-3606992c3f6b"),
-                List.of("APP_ACCESS_APPROVER@APP.MAIL_CALENDAR"),
+                List.of("APP_ACCESS_APPROVER@APP.MAIL"),
                 null,
                 "김민서"));
         VerifiedIdentityFilter filter = new VerifiedIdentityFilter(verifier);
@@ -63,7 +63,7 @@ class VerifiedIdentityFilterTest {
                 .isEqualTo("58fa4516-dc70-4785-ac9f-3606992c3f6b");
         assertThat(forwarded.get().getHeaders().getFirst(
                 VerifiedIdentityFilter.RESOURCE_ROLES_HEADER))
-                .isEqualTo("APP_ACCESS_APPROVER@APP.MAIL_CALENDAR");
+                .isEqualTo("APP_ACCESS_APPROVER@APP.MAIL");
         assertThat(new String(Base64.getUrlDecoder().decode(
                 forwarded.get().getHeaders().getFirst(VerifiedIdentityFilter.DISPLAY_NAME_HEADER)),
                 StandardCharsets.UTF_8)).isEqualTo("김민서");

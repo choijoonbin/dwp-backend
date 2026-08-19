@@ -249,16 +249,16 @@ class WorkspaceServiceTest {
     @Test
     void refusesToPretendAnUnconfiguredSsoAppWasLaunched() {
         WorkspaceRepository.AppRow app = app(
-                "ref-app-mail", "APP.MAIL_CALENDAR", "CONFIGURATION_REQUIRED", null);
-        when(repository.app(1L, 7L, "ref-app-mail", false)).thenReturn(Optional.of(app));
+                "ref-app-collaboration", "APP.COLLABORATION", "CONFIGURATION_REQUIRED", null);
+        when(repository.app(1L, 7L, "ref-app-collaboration", false)).thenReturn(Optional.of(app));
 
         assertThatThrownBy(() -> service.launch(
                 1L,
                 7L,
-                "APP.APPS:VIEW,APP.MAIL_CALENDAR:VIEW",
+                "APP.APPS:VIEW,APP.COLLABORATION:VIEW",
                 "en",
                 "corr-launch",
-                "ref-app-mail"))
+                "ref-app-collaboration"))
                 .isInstanceOfSatisfying(BaseException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
     }

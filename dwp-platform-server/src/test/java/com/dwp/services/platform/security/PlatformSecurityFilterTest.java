@@ -193,6 +193,48 @@ class PlatformSecurityFilterTest {
     }
 
     @Test
+    void separatesMailUseFromDelegatedMailAdministration() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+        MockHttpServletRequest inbox = request("/v1/mail/threads");
+        inbox.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        inbox.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        inbox.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        inbox.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
+        inbox.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER, "APP.MAIL:VIEW");
+        MockHttpServletResponse inboxResponse = new MockHttpServletResponse();
+
+        filter.doFilter(inbox, inboxResponse, new MockFilterChain());
+
+        assertThat(inboxResponse.getStatus()).isEqualTo(200);
+
+        MockHttpServletRequest deniedPolicy = new MockHttpServletRequest(
+                "PUT", "/v1/admin/mail/policy");
+        deniedPolicy.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        deniedPolicy.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        deniedPolicy.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        deniedPolicy.addHeader(PlatformSecurityFilter.ROLES_HEADER, "TENANT_ADMIN");
+        deniedPolicy.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER, "ADMIN.MAIL:VIEW");
+        MockHttpServletResponse deniedPolicyResponse = new MockHttpServletResponse();
+
+        filter.doFilter(deniedPolicy, deniedPolicyResponse, new MockFilterChain());
+
+        assertThat(deniedPolicyResponse.getStatus()).isEqualTo(403);
+
+        MockHttpServletRequest allowedPolicy = new MockHttpServletRequest(
+                "PUT", "/v1/admin/mail/policy");
+        allowedPolicy.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        allowedPolicy.addHeader(PlatformSecurityFilter.USER_HEADER, "18");
+        allowedPolicy.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        allowedPolicy.addHeader(PlatformSecurityFilter.ROLES_HEADER, "MAIL_ADMIN");
+        allowedPolicy.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER, "ADMIN.MAIL:MANAGE");
+        MockHttpServletResponse allowedPolicyResponse = new MockHttpServletResponse();
+
+        filter.doFilter(allowedPolicy, allowedPolicyResponse, new MockFilterChain());
+
+        assertThat(allowedPolicyResponse.getStatus()).isEqualTo(200);
+    }
+
+    @Test
     void allowsScopedAppApproversOnlyOnTheAppAccessRequestSurface() throws Exception {
         PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
         MockHttpServletRequest allowed = request("/v1/admin/app-access-requests");
@@ -202,7 +244,7 @@ class PlatformSecurityFilterTest {
         allowed.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
         allowed.addHeader(
                 PlatformSecurityFilter.RESOURCE_ROLES_HEADER,
-                "APP_ACCESS_APPROVER@APP.MAIL_CALENDAR");
+                "APP_ACCESS_APPROVER@APP.MAIL");
         MockHttpServletResponse allowedResponse = new MockHttpServletResponse();
 
         filter.doFilter(allowed, allowedResponse, new MockFilterChain());
@@ -216,7 +258,7 @@ class PlatformSecurityFilterTest {
         denied.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
         denied.addHeader(
                 PlatformSecurityFilter.RESOURCE_ROLES_HEADER,
-                "APP_ACCESS_APPROVER@APP.MAIL_CALENDAR");
+                "APP_ACCESS_APPROVER@APP.MAIL");
         MockHttpServletResponse deniedResponse = new MockHttpServletResponse();
 
         filter.doFilter(denied, deniedResponse, new MockFilterChain());
@@ -235,7 +277,7 @@ class PlatformSecurityFilterTest {
         managerFulfillment.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
         managerFulfillment.addHeader(
                 PlatformSecurityFilter.RESOURCE_ROLES_HEADER,
-                "APP_ACCESS_MANAGER@APP.MAIL_CALENDAR");
+                "APP_ACCESS_MANAGER@APP.MAIL");
         MockHttpServletResponse managerResponse = new MockHttpServletResponse();
 
         filter.doFilter(managerFulfillment, managerResponse, new MockFilterChain());
@@ -250,7 +292,7 @@ class PlatformSecurityFilterTest {
         approverFulfillment.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
         approverFulfillment.addHeader(
                 PlatformSecurityFilter.RESOURCE_ROLES_HEADER,
-                "APP_ACCESS_APPROVER@APP.MAIL_CALENDAR");
+                "APP_ACCESS_APPROVER@APP.MAIL");
         MockHttpServletResponse approverResponse = new MockHttpServletResponse();
 
         filter.doFilter(approverFulfillment, approverResponse, new MockFilterChain());
@@ -265,7 +307,7 @@ class PlatformSecurityFilterTest {
         managerDecision.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
         managerDecision.addHeader(
                 PlatformSecurityFilter.RESOURCE_ROLES_HEADER,
-                "APP_ACCESS_MANAGER@APP.MAIL_CALENDAR");
+                "APP_ACCESS_MANAGER@APP.MAIL");
         MockHttpServletResponse managerDecisionResponse = new MockHttpServletResponse();
 
         filter.doFilter(managerDecision, managerDecisionResponse, new MockFilterChain());
@@ -438,6 +480,19 @@ class PlatformSecurityFilterTest {
         filter.doFilter(workspaceRequest, workspaceResponse, new MockFilterChain());
 
         assertThat(workspaceResponse.getStatus()).isEqualTo(200);
+
+        MockHttpServletRequest mailRequest = request("/v1/mail/threads");
+        mailRequest.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "runtime");
+        mailRequest.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        mailRequest.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        mailRequest.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
+        mailRequest.addHeader(
+                PlatformSecurityFilter.PERMISSIONS_HEADER, "APP.MAIL:VIEW");
+        MockHttpServletResponse mailResponse = new MockHttpServletResponse();
+
+        filter.doFilter(mailRequest, mailResponse, new MockFilterChain());
+
+        assertThat(mailResponse.getStatus()).isEqualTo(200);
 
         MockHttpServletRequest workspaceWriteRequest = new MockHttpServletRequest(
                 "PATCH", "/v1/workspace/work-items/1/status");

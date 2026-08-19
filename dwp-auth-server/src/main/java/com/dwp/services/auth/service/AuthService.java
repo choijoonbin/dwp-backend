@@ -281,7 +281,8 @@ public class AuthService {
         return groupRepository.findByTenantIdAndGroupIdInAndStatus(tenantId, groupIds, "ACTIVE")
                 .stream()
                 .filter(group -> group.getPublicId() != null)
-                .map(group -> new GroupMembershipDTO(group.getPublicId(), group.getDisplayName()))
+                .map(group -> new GroupMembershipDTO(
+                        group.getPublicId(), group.getGroupKey(), group.getDisplayName()))
                 .sorted(java.util.Comparator.comparing(
                         GroupMembershipDTO::displayName,
                         String.CASE_INSENSITIVE_ORDER))

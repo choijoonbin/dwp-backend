@@ -137,6 +137,11 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
             writeError(response, ErrorCode.FORBIDDEN, "Calendar permission is required.");
             return;
         }
+        boolean mailPath = path.startsWith("/v1/mail");
+        if (mailPath && !hasMailAuthority(request)) {
+            writeError(response, ErrorCode.FORBIDDEN, "Mail permission is required.");
+            return;
+        }
         boolean communicationsAdminPath = path.startsWith("/v1/admin/announcements");
         boolean delegatedCommunicationsAccess = communicationsAdminPath
                 && hasCommunicationsAuthority(request);
@@ -149,6 +154,13 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
                     "Calendar administration permission is required.");
             return;
         }
+        boolean mailAdminPath = path.startsWith("/v1/admin/mail");
+        boolean delegatedMailAccess = mailAdminPath && hasMailAdminAuthority(request);
+        if (mailAdminPath && !delegatedMailAccess) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "Mail administration permission is required.");
+            return;
+        }
         boolean appAccessRequestPath = path.startsWith("/v1/admin/app-access-requests");
         boolean scopedAppAccess = appAccessRequestPath && hasScopedAppAccess(request);
         if (appAccessRequestPath && !scopedAppAccess) {
@@ -158,7 +170,7 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
         }
         if (!supportAccess && !auditAdminPath && !savedViewCustodyPath
                 && !scopedAppAccess && !delegatedCommunicationsAccess && !delegatedServicesAccess
-                && !delegatedCalendarAccess
+                && !delegatedCalendarAccess && !delegatedMailAccess
                 && path.startsWith("/v1/admin/")
                 && !hasRole(request.getHeader(ROLES_HEADER), ADMIN_ROLES)) {
             writeError(response, ErrorCode.FORBIDDEN, "Tenant administrator permission is required.");
@@ -262,6 +274,30 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
                 request.getHeader(PERMISSIONS_HEADER), "ADMIN.CALENDAR", requiredPermission);
     }
 
+    private boolean hasMailAuthority(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        String requiredPermission = switch (request.getMethod()) {
+            case "GET", "HEAD" -> "VIEW";
+            case "POST" -> path.endsWith("/replies") || path.endsWith("/messages")
+                    ? "CREATE" : "UPDATE";
+            case "PUT", "PATCH", "DELETE" -> "UPDATE";
+            default -> "VIEW";
+        };
+        return hasAuthority(
+                request.getHeader(PERMISSIONS_HEADER), "APP.MAIL", requiredPermission);
+    }
+
+    private boolean hasMailAdminAuthority(HttpServletRequest request) {
+        String requiredPermission = switch (request.getMethod()) {
+            case "GET", "HEAD" -> "VIEW";
+            case "POST" -> "CREATE";
+            case "PUT", "PATCH", "DELETE" -> "MANAGE";
+            default -> "MANAGE";
+        };
+        return hasAuthority(
+                request.getHeader(PERMISSIONS_HEADER), "ADMIN.MAIL", requiredPermission);
+    }
+
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
     }
@@ -308,7 +344,8 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
                 && (path.startsWith("/v1/catalog/")
                 || path.startsWith("/v1/reference-data/")
                 || path.equals("/v1/workspace/work-items")
-                || path.equals("/v1/workspace/productivity/items"));
+                || path.equals("/v1/workspace/productivity/items")
+                || path.equals("/v1/mail/threads"));
     }
 
     private Long positiveLong(String value) {

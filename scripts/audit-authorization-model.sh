@@ -74,7 +74,7 @@ assert_zero "tenant administrator operational privilege leakage" "
        OR (resource.key IN ('ADMIN.SERVICE_CATALOG', 'ADMIN.SERVICE_OPERATIONS')
            AND permission.code <> 'VIEW')
        OR resource.key IN (
-           'APP.MAIL_CALENDAR', 'APP.COLLABORATION', 'APP.KNOWLEDGE',
+           'APP.MAIL', 'APP.COLLABORATION', 'APP.KNOWLEDGE',
            'APP.BUSINESS_ERP', 'APP.LEGACY_OPERATIONS'))
 "
 
@@ -85,7 +85,7 @@ assert_zero "workspace baseline optional app leakage" "
     JOIN com_resources resource ON resource.resource_id = role_permission.resource_id
    WHERE role.code = 'WORKSPACE_MEMBER'
      AND resource.key IN (
-       'APP.MAIL_CALENDAR', 'APP.COLLABORATION', 'APP.KNOWLEDGE',
+       'APP.MAIL', 'APP.COLLABORATION', 'APP.KNOWLEDGE',
        'APP.BUSINESS_ERP', 'APP.LEGACY_OPERATIONS')
 "
 
@@ -164,7 +164,7 @@ assert_zero "SKAX all-employees group membership drift" "
 assert_zero "SKAX access package matrix gaps" "
   WITH expected(group_key, resource_key) AS (
       VALUES
-        ('SKAX_ALL_EMPLOYEES', 'APP.MAIL_CALENDAR'),
+        ('SKAX_ALL_EMPLOYEES', 'APP.MAIL'),
         ('SKAX_ALL_EMPLOYEES', 'APP.COLLABORATION'),
         ('SKAX_ALL_EMPLOYEES', 'APP.KNOWLEDGE'),
         ('SKAX_ERP_USERS', 'APP.BUSINESS_ERP'),
@@ -268,7 +268,7 @@ assert_zero "SKAX external apps missing an access duty" "
   WITH required(resource_key, responsibility_code) AS (
       SELECT resource_key, responsibility_code
         FROM (VALUES
-          ('APP.MAIL_CALENDAR'), ('APP.COLLABORATION'), ('APP.KNOWLEDGE'),
+          ('APP.MAIL'), ('APP.COLLABORATION'), ('APP.KNOWLEDGE'),
           ('APP.BUSINESS_ERP'), ('APP.LEGACY_OPERATIONS')
         ) app(resource_key)
         CROSS JOIN (VALUES
@@ -296,7 +296,7 @@ assert_zero "SKAX external app duty group assignment gaps" "
   WITH expected(resource_key, group_key, responsibility_code) AS (
       SELECT resource_key, group_key, responsibility_code
         FROM (VALUES
-          ('APP.MAIL_CALENDAR'), ('APP.COLLABORATION'), ('APP.KNOWLEDGE'),
+          ('APP.MAIL'), ('APP.COLLABORATION'), ('APP.KNOWLEDGE'),
           ('APP.BUSINESS_ERP'), ('APP.LEGACY_OPERATIONS')
         ) app(resource_key)
         CROSS JOIN (VALUES

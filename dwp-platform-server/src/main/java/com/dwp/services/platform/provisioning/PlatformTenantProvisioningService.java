@@ -347,11 +347,11 @@ public class PlatformTenantProvisioningService {
                     "DWP Workplace", "PRODUCTIVITY", "NATIVE", "/calendar/home",
                     "calendar", "APP.CALENDAR", "HEALTHY", 38));
             apps.add(new WorkspaceAppSeed(
-                    "ref-app-mail", "메일 및 일정", "Mail & calendar",
-                    "메시지, 일정 및 회의 후속 조치를 연결합니다.",
-                    "Connect messages, calendars, and meeting follow-ups.",
-                    "Workplace Platform", "PRODUCTIVITY", "SSO", null,
-                    "mail", "APP.MAIL_CALENDAR", "CONFIGURATION_REQUIRED", 40));
+                    "ref-app-mail", "메일", "Mail",
+                    "중요 메일을 선별하고 회신, 일정, 업무와 협업 후속 조치를 연결합니다.",
+                    "Triage important mail and connect replies, schedules, work, and collaborative follow-ups.",
+                    "DWP Workplace", "PRODUCTIVITY", "NATIVE", "/mail/home",
+                    "mail", "APP.MAIL", "HEALTHY", 40));
             apps.add(new WorkspaceAppSeed(
                     "ref-app-collaboration", "협업", "Collaboration",
                     "채팅, 채널 및 회의를 연결합니다.",
@@ -399,6 +399,14 @@ public class PlatformTenantProvisioningService {
                     "DWP Decision Hub", "BUSINESS", "NATIVE", "/approvals/home",
                     "approvals", "APP.APPROVALS", "HEALTHY", 39));
         }
+        if (entitlements.contains("core.spaces")) {
+            apps.add(new WorkspaceAppSeed(
+                    "dwp-spaces", "Space", "Spaces",
+                    "목적별 협업 공간에서 구성원, 콘텐츠, 앱과 AI 컨텍스트를 안전하게 연결합니다.",
+                    "Connect people, content, apps, and governed AI context in collaboration spaces.",
+                    "DWP Collaboration Platform", "PRODUCTIVITY", "NATIVE", "/spaces/home",
+                    "spaces", "APP.SPACES", "HEALTHY", 35));
+        }
         if (entitlements.contains("core.people")) {
             apps.add(new WorkspaceAppSeed(
                     "ref-app-people", "인사", "HR",
@@ -428,6 +436,10 @@ public class PlatformTenantProvisioningService {
                         "approvals", "DWP_APPROVALS", "/approvals/home", "approvals",
                         "APP.APPROVALS", "Approvals", "전자결재",
                         "Requests, governed decisions, delegation, and approval operations", "MEDIUM"),
+                new AppSeed(
+                        "spaces", "DWP_SPACES", "/spaces/home", "spaces",
+                        "APP.SPACES", "Spaces", "Space",
+                        "Purpose-built collaboration with governed content and membership", "MEDIUM"),
                 new AppSeed("apps", "DWP_APPS", "/apps", "apps", "APP.APPS",
                         "Apps", "앱", "Available workplace applications", "LOW"),
                 new AppSeed("ask", "DWP_ASK", "/ask", "ask", "APP.ASK",

@@ -135,6 +135,21 @@ spring:
                   args:
                     name: approvalServer
                     fallbackUri: forward:/_gateway/fallback
+            - id: space-server
+              uri: ${SERVICE_SPACE_URL:http://localhost:8006}
+              predicates:
+                - Path=/api/spaces/**
+              filters:
+                - StripPrefix=2
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 100
+                    redis-rate-limiter.burstCapacity: 200
+                    key-resolver: "#{@enterpriseKeyResolver}"
+                - name: CircuitBreaker
+                  args:
+                    name: spaceServer
+                    fallbackUri: forward:/_gateway/fallback
           globalcors:
             add-to-simple-url-handler-mapping: true
             cors-configurations:
@@ -213,3 +228,5 @@ dwp:
     support-validation-timeout: ${DWP_PROVIDER_SUPPORT_VALIDATION_TIMEOUT:2s}
   approval:
     service-token: ${DWP_APPROVAL_SERVICE_TOKEN:}
+  space:
+    service-token: ${DWP_SPACE_SERVICE_TOKEN:}

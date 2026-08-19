@@ -151,13 +151,13 @@ class AuthServiceTest {
     void combinesAuthOwnedDirectEntitlementsWithRolePermissions() {
         when(principalGrants.findEffective(1L, 10L)).thenReturn(List.of(
                 new PrincipalResourceGrantRepository.EffectiveGrant(
-                        UUID.randomUUID().toString(), "APP", "APP.MAIL_CALENDAR",
+                        UUID.randomUUID().toString(), "APP", "APP.MAIL",
                         "Mail and calendar", "VIEW", "View", "ALLOW")));
 
         var result = service.getPermissions(10L, 1L);
 
         assertThat(result).singleElement().satisfies(permission -> {
-            assertThat(permission.getResourceKey()).isEqualTo("APP.MAIL_CALENDAR");
+            assertThat(permission.getResourceKey()).isEqualTo("APP.MAIL");
             assertThat(permission.getPermissionCode()).isEqualTo("VIEW");
             assertThat(permission.getEffect()).isEqualTo("ALLOW");
         });

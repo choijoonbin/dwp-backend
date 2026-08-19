@@ -187,6 +187,12 @@ public class AuthSessionVerifier implements SessionVerifier {
         if (path.startsWith("/api/platform/v1/calendar")) {
             return "APP.CALENDAR";
         }
+        if (path.startsWith("/api/platform/v1/admin/mail")) {
+            return "ADMIN.MAIL";
+        }
+        if (path.startsWith("/api/platform/v1/mail")) {
+            return "APP.MAIL";
+        }
         if (path.startsWith("/api/approvals/v1/admin/")) {
             return "ADMIN.APPROVAL_";
         }
@@ -195,6 +201,15 @@ public class AuthSessionVerifier implements SessionVerifier {
         }
         if (path.startsWith("/api/approvals/v1/")) {
             return "APP.APPROVALS,ACTION.APPROVAL_";
+        }
+        if (path.startsWith("/api/spaces/v1/admin/")) {
+            return "ADMIN.SPACE_";
+        }
+        if (path.equals("/api/spaces/v1/home")) {
+            return "APP.SPACES,ACTION.SPACE_,ADMIN.SPACE_";
+        }
+        if (path.startsWith("/api/spaces/v1/")) {
+            return "APP.SPACES,ACTION.SPACE_";
         }
         if (path.startsWith("/api/platform/v1/services")) {
             return "APP.EMPLOYEE_SERVICES";
@@ -222,7 +237,7 @@ public class AuthSessionVerifier implements SessionVerifier {
         if (groups == null) return List.of();
         return groups.stream()
                 .filter(Objects::nonNull)
-                .map(GroupData::groupRef)
+                .flatMap(group -> java.util.stream.Stream.of(group.groupRef(), group.groupKey()))
                 .filter(Objects::nonNull)
                 .map(String::trim)
                 .filter(value -> !value.isBlank())
@@ -294,7 +309,7 @@ public class AuthSessionVerifier implements SessionVerifier {
             List<ResourceRoleData> resourceRoles) {
     }
 
-    private record GroupData(String groupRef, String displayName) {
+    private record GroupData(String groupRef, String groupKey, String displayName) {
     }
 
     private record PermissionData(

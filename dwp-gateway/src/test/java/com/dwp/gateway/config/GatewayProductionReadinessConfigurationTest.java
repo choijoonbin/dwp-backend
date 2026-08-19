@@ -39,6 +39,7 @@ class GatewayProductionReadinessConfigurationTest {
                 .withProperty("dwp.provider.service-token", secret("provider"))
                 .withProperty("dwp.provider.support-validation-token", secret("support"))
                 .withProperty("dwp.approval.service-token", secret("approval"))
+                .withProperty("dwp.space.service-token", secret("space"))
                 .withProperty("dwp.observability.api-history.enabled", "true")
                 .withProperty("dwp.observability.api-history.ingest-token", secret("history"))
                 .withProperty("dwp.observability.api-history.privacy-hash-secret", secret("privacy"))

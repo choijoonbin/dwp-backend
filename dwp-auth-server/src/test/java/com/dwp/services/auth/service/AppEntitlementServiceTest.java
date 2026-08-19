@@ -46,10 +46,10 @@ class AppEntitlementServiceTest {
                 User.builder().tenantId(1L).userId(12L).status("ACTIVE").build()));
         when(users.findByUserIdAndTenantId(7L, 1L)).thenReturn(Optional.of(
                 User.builder().tenantId(1L).userId(7L).status("ACTIVE").build()));
-        when(resources.findByTenantIdAndTypeAndKey(1L, "APP", "APP.MAIL_CALENDAR"))
+        when(resources.findByTenantIdAndTypeAndKey(1L, "APP", "APP.MAIL"))
                 .thenReturn(Optional.of(Resource.builder()
                         .resourceId(21L).tenantId(1L).type("APP")
-                        .key("APP.MAIL_CALENDAR").name("Mail and calendar")
+                        .key("APP.MAIL").name("Mail")
                         .enabled(true).build()));
         when(permissions.findByCode("VIEW")).thenReturn(Optional.of(
                 Permission.builder().permissionId(3L).code("VIEW").name("View").build()));
@@ -93,7 +93,7 @@ class AppEntitlementServiceTest {
     @Test
     void rejectsReuseOfAnEvidenceKeyForAnotherSubject() {
         var existing = new PrincipalResourceGrantRepository.GrantRecord(
-                UUID.randomUUID(), 1L, "USER", "99", "APP.MAIL_CALENDAR", "VIEW",
+                UUID.randomUUID(), 1L, "USER", "99", "APP.MAIL", "VIEW",
                 "APP_ACCESS_REQUEST", "request-1", "ACTIVE", OffsetDateTime.now(),
                 null, "Original approved execution", 0L);
         when(grants.findBySource(1L, "APP_ACCESS_REQUEST", "request-1"))
@@ -108,14 +108,14 @@ class AppEntitlementServiceTest {
 
     private AppEntitlementDtos.SyncRequest request(String action, String justification) {
         return new AppEntitlementDtos.SyncRequest(
-                "USER", "7", "APP.MAIL_CALENDAR", "VIEW", action,
+                "USER", "7", "APP.MAIL", "VIEW", action,
                 null, 12L, justification);
     }
 
     private PrincipalResourceGrantRepository.GrantRecord record(
             UUID grantId, String state, long version) {
         return new PrincipalResourceGrantRepository.GrantRecord(
-                grantId, 1L, "USER", "7", "APP.MAIL_CALENDAR", "VIEW",
+                grantId, 1L, "USER", "7", "APP.MAIL", "VIEW",
                 "APP_ACCESS_REQUEST", "request-1", state, OffsetDateTime.now(),
                 null, "Approved access execution", version);
     }

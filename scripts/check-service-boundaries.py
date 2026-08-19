@@ -17,6 +17,7 @@ SERVICE_PACKAGES = {
     "dwp-people-server": "com.dwp.services.people",
     "dwp-provider-server": "com.dwp.services.provider",
     "dwp-approval-server": "com.dwp.services.approval",
+    "dwp-space-server": "com.dwp.services.space",
     "dwp-gateway": "com.dwp.gateway",
 }
 

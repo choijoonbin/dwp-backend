@@ -202,6 +202,35 @@
       ]
     },
     {
+      "id": "space-auth-entitlement-sync",
+      "classification": "identity-entitlement-sync",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-space-server",
+      "targetServices": [
+        "dwp-auth-server"
+      ],
+      "path": "dwp-space-server/src/main/java/com/dwp/services/space/integration/AuthSpaceEntitlementClient.java",
+      "purpose": "Project Space membership desired state into central identity grants through an idempotent internal contract.",
+      "auth": "Uses the purpose-specific identity-sync token only.",
+      "retryMode": "outbox-owned",
+      "failureMode": "fail-contained",
+      "requiredMarkers": [
+        "${dwp.services.auth-url:http://localhost:8001}",
+        "/internal/identity/v1/",
+        "principal-validations",
+        "X-DWP-Identity-Sync-Token",
+        "@CircuitBreaker",
+        "@Bulkhead",
+        "@Retry",
+        "OutboundHttpHeaders.propagateObservability"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Service-Token",
+        "X-DWP-Provisioning-Token"
+      ]
+    },
+    {
       "id": "platform-microsoft-graph-connector",
       "classification": "external-productivity-connector",
       "interfaceType": "external-connector",

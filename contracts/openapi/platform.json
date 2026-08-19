@@ -1,6 +1,121 @@
 {
   "components": {
     "schemas": {
+      "AccountSummary": {
+        "properties": {
+          "accountId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "accountKind": {
+            "type": "string"
+          },
+          "connectionState": {
+            "type": "string"
+          },
+          "defaultAccount": {
+            "type": "boolean"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "emailAddress": {
+            "type": "string"
+          },
+          "providerType": {
+            "enum": [
+              "DWP_SANDBOX",
+              "MICROSOFT_GRAPH",
+              "GOOGLE_GMAIL",
+              "NAVER_WORKS",
+              "JMAP",
+              "IMAP_SMTP"
+            ],
+            "type": "string"
+          },
+          "synchronizationState": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ActionProposal": {
+        "properties": {
+          "actionContractVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "confidence": {
+            "type": "number"
+          },
+          "evidence": {
+            "items": {
+              "additionalProperties": {},
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "proposalId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "proposedPayload": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "requiredPermissionCode": {
+            "type": "string"
+          },
+          "requiredResourceKey": {
+            "type": "string"
+          },
+          "riskLevel": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PROPOSED",
+              "ACCEPTED",
+              "DISMISSED",
+              "EXPIRED",
+              "EXECUTED"
+            ],
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "targetRoute": {
+            "type": "string"
+          },
+          "threadId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "DRAFT_REPLY",
+              "CREATE_CALENDAR_EVENT",
+              "CREATE_LEAVE_REQUEST",
+              "CREATE_TASK",
+              "ESCALATE_NOTIFICATION"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "ActivityEvent": {
         "properties": {
           "actor": {
@@ -196,42 +311,54 @@
       },
       "AdminOverview": {
         "properties": {
-          "activeResources": {
-            "format": "int64",
+          "activeConnections": {
+            "format": "int32",
             "type": "integer"
           },
-          "bookingsThisWeek": {
-            "format": "int64",
-            "type": "integer"
+          "connections": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectionSummary"
+            },
+            "type": "array"
           },
-          "conflictedUsers": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "eventsThisWeek": {
-            "format": "int64",
+          "degradedConnections": {
+            "format": "int32",
             "type": "integer"
           },
           "generatedAt": {
             "format": "date-time",
             "type": "string"
           },
-          "pendingBookings": {
-            "format": "int64",
+          "openSharedThreads": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "pendingAiProposals": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "personalAccounts": {
+            "format": "int32",
             "type": "integer"
           },
           "policy": {
-            "$ref": "#/components/schemas/Policy"
+            "$ref": "#/components/schemas/TenantPolicy"
           },
-          "resources": {
+          "providerCatalog": {
             "items": {
-              "$ref": "#/components/schemas/ResourceSummary"
+              "$ref": "#/components/schemas/ProviderDescriptor"
             },
             "type": "array"
           },
-          "resourcesInMaintenance": {
-            "format": "int64",
+          "sharedAccounts": {
+            "format": "int32",
             "type": "integer"
+          },
+          "sharedInboxes": {
+            "items": {
+              "$ref": "#/components/schemas/SharedInboxSummary"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -590,6 +717,33 @@
             "type": "string"
           },
           "userAgentHash": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseActionProposal": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ActionProposal"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
             "type": "string"
           }
         },
@@ -1223,6 +1377,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/Connection"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseConnectionSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ConnectionSummary"
           },
           "errorCode": {
             "type": "string"
@@ -3355,6 +3536,33 @@
         },
         "type": "object"
       },
+      "ApiResponseSharedInboxSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SharedInboxSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseSyncRun": {
         "properties": {
           "correlationId": {
@@ -3389,6 +3597,87 @@
           },
           "data": {
             "$ref": "#/components/schemas/TenantBrandingResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseTenantPolicy": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TenantPolicy"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseThreadDetail": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ThreadDetail"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseThreadPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ThreadPage"
           },
           "errorCode": {
             "type": "string"
@@ -3725,6 +4014,30 @@
         },
         "type": "object"
       },
+      "AssignRequest": {
+        "properties": {
+          "assignedName": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "assignedUserId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "assignedName",
+          "assignedUserId",
+          "version"
+        ],
+        "type": "object"
+      },
       "AssuranceFinding": {
         "properties": {
           "disposedAt": {
@@ -3890,30 +4203,6 @@
           "name",
           "type"
         ],
-        "type": "object"
-      },
-      "AttentionItem": {
-        "properties": {
-          "actionPath": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "eventId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "key": {
-            "type": "string"
-          },
-          "severity": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          }
-        },
         "type": "object"
       },
       "AudienceContext": {
@@ -5165,6 +5454,29 @@
         },
         "type": "object"
       },
+      "CommentRequest": {
+        "properties": {
+          "body": {
+            "maxLength": 4000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "mentionedUserIds": {
+            "items": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "maxItems": 100,
+            "minItems": 0,
+            "type": "array"
+          }
+        },
+        "required": [
+          "body",
+          "mentionedUserIds"
+        ],
+        "type": "object"
+      },
       "CommunicationItem": {
         "properties": {
           "acknowledgementDueAt": {
@@ -5271,6 +5583,50 @@
         },
         "type": "object"
       },
+      "ComposeRequest": {
+        "properties": {
+          "body": {
+            "maxLength": 100000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "deliveryMode": {
+            "enum": [
+              "SEND",
+              "DRAFT"
+            ],
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "subject": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "toEmail": {
+            "format": "email",
+            "maxLength": 255,
+            "minLength": 0,
+            "type": "string"
+          },
+          "toName": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "body",
+          "deliveryMode",
+          "idempotencyKey",
+          "subject",
+          "toEmail"
+        ],
+        "type": "object"
+      },
       "ConfigurationCheck": {
         "properties": {
           "blockingCodes": {
@@ -5375,6 +5731,110 @@
             "type": "array"
           }
         },
+        "type": "object"
+      },
+      "ConnectionSummary": {
+        "properties": {
+          "authenticationMode": {
+            "type": "string"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "connectionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "connectionKey": {
+            "type": "string"
+          },
+          "credentialConfigured": {
+            "type": "boolean"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "lastErrorCode": {
+            "type": "string"
+          },
+          "lastSynchronizedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "mailDomain": {
+            "type": "string"
+          },
+          "providerType": {
+            "enum": [
+              "DWP_SANDBOX",
+              "MICROSOFT_GRAPH",
+              "GOOGLE_GMAIL",
+              "NAVER_WORKS",
+              "JMAP",
+              "IMAP_SMTP"
+            ],
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "ACTIVE",
+              "CONFIGURATION_REQUIRED",
+              "SYNCING",
+              "DEGRADED",
+              "SUSPENDED"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ConnectionUpdateRequest": {
+        "properties": {
+          "credentialRef": {
+            "maxLength": 500,
+            "minLength": 0,
+            "pattern": "^$|^(vault|aws-sm|gcp-sm|azure-kv|secret)://[A-Za-z0-9._/@:-]{1,470}$",
+            "type": "string"
+          },
+          "displayName": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "mailDomain": {
+            "maxLength": 255,
+            "minLength": 0,
+            "pattern": "^$|^[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "ACTIVE",
+              "CONFIGURATION_REQUIRED",
+              "SYNCING",
+              "DEGRADED",
+              "SUSPENDED"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "displayName",
+          "state",
+          "version"
+        ],
         "type": "object"
       },
       "Connector": {
@@ -6014,35 +6474,6 @@
         ],
         "type": "object"
       },
-      "DayLoad": {
-        "properties": {
-          "conflictCount": {
-            "format": "int32",
-            "type": "integer"
-          },
-          "date": {
-            "format": "date",
-            "type": "string"
-          },
-          "eventCount": {
-            "format": "int32",
-            "type": "integer"
-          },
-          "focusMinutes": {
-            "format": "int32",
-            "type": "integer"
-          },
-          "loadPercent": {
-            "format": "int32",
-            "type": "integer"
-          },
-          "meetingMinutes": {
-            "format": "int32",
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
       "DecideExceptionRequest": {
         "properties": {
           "decision": {
@@ -6254,6 +6685,56 @@
         "required": [
           "decision",
           "reason",
+          "version"
+        ],
+        "type": "object"
+      },
+      "DraftUpdateRequest": {
+        "properties": {
+          "body": {
+            "maxLength": 100000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "deliveryMode": {
+            "enum": [
+              "SEND",
+              "DRAFT"
+            ],
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "subject": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "toEmail": {
+            "format": "email",
+            "maxLength": 255,
+            "minLength": 0,
+            "type": "string"
+          },
+          "toName": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "body",
+          "deliveryMode",
+          "idempotencyKey",
+          "subject",
+          "toEmail",
           "version"
         ],
         "type": "object"
@@ -7292,31 +7773,27 @@
       },
       "HomeMetrics": {
         "properties": {
-          "availableRoomCount": {
+          "activeProposals": {
             "format": "int32",
             "type": "integer"
           },
-          "awaitingResponseCount": {
+          "assigned": {
             "format": "int32",
             "type": "integer"
           },
-          "conflictCount": {
+          "needsReply": {
             "format": "int32",
             "type": "integer"
           },
-          "eventCount": {
+          "snoozed": {
             "format": "int32",
             "type": "integer"
           },
-          "focusMinutes": {
+          "unread": {
             "format": "int32",
             "type": "integer"
           },
-          "focusTargetMinutes": {
-            "format": "int32",
-            "type": "integer"
-          },
-          "meetingMinutes": {
+          "urgent": {
             "format": "int32",
             "type": "integer"
           }
@@ -7386,15 +7863,17 @@
       },
       "HomeResponse": {
         "properties": {
-          "attention": {
+          "accounts": {
             "items": {
-              "$ref": "#/components/schemas/AttentionItem"
+              "$ref": "#/components/schemas/AccountSummary"
             },
             "type": "array"
           },
-          "date": {
-            "format": "date",
-            "type": "string"
+          "focusQueue": {
+            "items": {
+              "$ref": "#/components/schemas/ThreadSummary"
+            },
+            "type": "array"
           },
           "generatedAt": {
             "format": "date-time",
@@ -7403,21 +7882,15 @@
           "metrics": {
             "$ref": "#/components/schemas/HomeMetrics"
           },
-          "nextEvent": {
-            "$ref": "#/components/schemas/EventSummary"
-          },
-          "timeZone": {
-            "type": "string"
-          },
-          "today": {
+          "proposals": {
             "items": {
-              "$ref": "#/components/schemas/EventSummary"
+              "$ref": "#/components/schemas/ActionProposal"
             },
             "type": "array"
           },
-          "weekLoad": {
+          "sharedInboxes": {
             "items": {
-              "$ref": "#/components/schemas/DayLoad"
+              "$ref": "#/components/schemas/SharedInboxPulse"
             },
             "type": "array"
           }
@@ -7547,6 +8020,36 @@
           "verifiedAt": {
             "format": "date-time",
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "InternalComment": {
+        "properties": {
+          "authorName": {
+            "type": "string"
+          },
+          "authorUserId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "body": {
+            "type": "string"
+          },
+          "commentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "mentionedUserIds": {
+            "items": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -7743,6 +8246,48 @@
           "version": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Message": {
+        "properties": {
+          "attachments": {
+            "items": {
+              "additionalProperties": {},
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "body": {
+            "type": "string"
+          },
+          "bodyFormat": {
+            "type": "string"
+          },
+          "direction": {
+            "type": "string"
+          },
+          "messageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "recipients": {
+            "items": {
+              "additionalProperties": {},
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "senderEmail": {
+            "type": "string"
+          },
+          "senderName": {
+            "type": "string"
+          },
+          "sentAt": {
+            "format": "date-time",
+            "type": "string"
           }
         },
         "type": "object"
@@ -8132,6 +8677,17 @@
           "totalPages": {
             "format": "int32",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Participant": {
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -8694,6 +9250,64 @@
           },
           "title": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ProposalDecisionRequest": {
+        "properties": {
+          "decision": {
+            "enum": [
+              "ACCEPT",
+              "DISMISS"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "decision",
+          "version"
+        ],
+        "type": "object"
+      },
+      "ProviderDescriptor": {
+        "properties": {
+          "authenticationMode": {
+            "type": "string"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "protocol": {
+            "type": "string"
+          },
+          "providerType": {
+            "enum": [
+              "DWP_SANDBOX",
+              "MICROSOFT_GRAPH",
+              "GOOGLE_GMAIL",
+              "NAVER_WORKS",
+              "JMAP",
+              "IMAP_SMTP"
+            ],
+            "type": "string"
+          },
+          "pushSupported": {
+            "type": "boolean"
+          },
+          "tenantWideSupported": {
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -9270,6 +9884,24 @@
         },
         "required": [
           "entitlementKeys"
+        ],
+        "type": "object"
+      },
+      "ReplyRequest": {
+        "properties": {
+          "body": {
+            "maxLength": 100000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "body",
+          "idempotencyKey"
         ],
         "type": "object"
       },
@@ -10214,6 +10846,130 @@
         },
         "type": "object"
       },
+      "SharedInboxPulse": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "openCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "overdueCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "serviceTargetMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "sharedInboxId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "unassignedCount": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SharedInboxSummary": {
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "inboxKey": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "openCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "overdueCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "serviceTargetMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "sharedInboxId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SharedInboxUpdateRequest": {
+        "properties": {
+          "displayName": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "lifecycleState": {
+            "pattern": "ACTIVE|ARCHIVED",
+            "type": "string"
+          },
+          "purpose": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "serviceTargetMinutes": {
+            "format": "int32",
+            "maximum": 10080,
+            "minimum": 15,
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "displayName",
+          "lifecycleState",
+          "version"
+        ],
+        "type": "object"
+      },
+      "SnoozeRequest": {
+        "properties": {
+          "until": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "until",
+          "version"
+        ],
+        "type": "object"
+      },
       "Subject": {
         "properties": {
           "connectorId": {
@@ -10394,6 +11150,268 @@
           "version": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "TenantPolicy": {
+        "properties": {
+          "aiAssistanceEnabled": {
+            "type": "boolean"
+          },
+          "aiAutoExecuteEnabled": {
+            "type": "boolean"
+          },
+          "aiCrossAppActionsEnabled": {
+            "type": "boolean"
+          },
+          "allowSharedInboxes": {
+            "type": "boolean"
+          },
+          "blockRemoteImages": {
+            "type": "boolean"
+          },
+          "externalSenderBanner": {
+            "type": "boolean"
+          },
+          "maximumAttachmentMb": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "retentionDays": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "TenantPolicyRequest": {
+        "properties": {
+          "aiAssistanceEnabled": {
+            "type": "boolean"
+          },
+          "aiCrossAppActionsEnabled": {
+            "type": "boolean"
+          },
+          "allowSharedInboxes": {
+            "type": "boolean"
+          },
+          "blockRemoteImages": {
+            "type": "boolean"
+          },
+          "externalSenderBanner": {
+            "type": "boolean"
+          },
+          "maximumAttachmentMb": {
+            "format": "int32",
+            "maximum": 150,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "retentionDays": {
+            "format": "int32",
+            "maximum": 3650,
+            "minimum": 30,
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "type": "object"
+      },
+      "ThreadActionRequest": {
+        "properties": {
+          "action": {
+            "enum": [
+              "MARK_READ",
+              "MARK_UNREAD",
+              "STAR",
+              "UNSTAR",
+              "ARCHIVE",
+              "RESTORE",
+              "COMPLETE",
+              "REOPEN"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action",
+          "version"
+        ],
+        "type": "object"
+      },
+      "ThreadDetail": {
+        "properties": {
+          "internalComments": {
+            "items": {
+              "$ref": "#/components/schemas/InternalComment"
+            },
+            "type": "array"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            },
+            "type": "array"
+          },
+          "proposals": {
+            "items": {
+              "$ref": "#/components/schemas/ActionProposal"
+            },
+            "type": "array"
+          },
+          "thread": {
+            "$ref": "#/components/schemas/ThreadSummary"
+          }
+        },
+        "type": "object"
+      },
+      "ThreadPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ThreadSummary"
+            },
+            "type": "array"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "pageSize": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ThreadSummary": {
+        "properties": {
+          "accountId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "accountName": {
+            "type": "string"
+          },
+          "assignedName": {
+            "type": "string"
+          },
+          "assignedUserId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "attachments": {
+            "type": "boolean"
+          },
+          "classification": {
+            "enum": [
+              "PUBLIC",
+              "INTERNAL",
+              "CONFIDENTIAL",
+              "RESTRICTED"
+            ],
+            "type": "string"
+          },
+          "externalSender": {
+            "type": "boolean"
+          },
+          "folderType": {
+            "type": "string"
+          },
+          "importance": {
+            "enum": [
+              "LOW",
+              "NORMAL",
+              "HIGH",
+              "URGENT"
+            ],
+            "type": "string"
+          },
+          "latestMessageAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "messageCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "participants": {
+            "items": {
+              "$ref": "#/components/schemas/Participant"
+            },
+            "type": "array"
+          },
+          "preview": {
+            "type": "string"
+          },
+          "sharedInboxId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "sharedInboxName": {
+            "type": "string"
+          },
+          "snoozedUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "starred": {
+            "type": "boolean"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "threadId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "triageLane": {
+            "enum": [
+              "PRIORITY",
+              "NEEDS_REPLY",
+              "ASSIGNED",
+              "UPDATES",
+              "NEWSLETTERS"
+            ],
+            "type": "string"
+          },
+          "unread": {
+            "type": "boolean"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "workflowState": {
+            "enum": [
+              "OPEN",
+              "DONE",
+              "SNOOZED",
+              "ARCHIVED",
+              "DRAFT"
+            ],
+            "type": "string"
           }
         },
         "type": "object"
@@ -12029,7 +13047,7 @@
     },
     "/v1/admin/api-history/overview": {
       "get": {
-        "operationId": "overview_5",
+        "operationId": "overview_6",
         "parameters": [
           {
             "in": "header",
@@ -13688,7 +14706,7 @@
     },
     "/v1/admin/audit-control/overview": {
       "get": {
-        "operationId": "overview_4",
+        "operationId": "overview_5",
         "parameters": [
           {
             "in": "header",
@@ -13779,7 +14797,7 @@
         ]
       },
       "put": {
-        "operationId": "updatePolicy_1",
+        "operationId": "updatePolicy_2",
         "parameters": [
           {
             "in": "header",
@@ -14517,7 +15535,7 @@
     },
     "/v1/admin/calendar/overview": {
       "get": {
-        "operationId": "overview_3",
+        "operationId": "overview_4",
         "parameters": [
           {
             "in": "header",
@@ -14585,7 +15603,7 @@
         ]
       },
       "put": {
-        "operationId": "updatePolicy",
+        "operationId": "updatePolicy_1",
         "parameters": [
           {
             "in": "header",
@@ -14784,7 +15802,7 @@
     },
     "/v1/admin/catalog": {
       "get": {
-        "operationId": "overview_2",
+        "operationId": "overview_3",
         "parameters": [
           {
             "in": "header",
@@ -16062,7 +17080,7 @@
     },
     "/v1/admin/integrations/productivity/overview": {
       "get": {
-        "operationId": "overview_1",
+        "operationId": "overview_2",
         "parameters": [
           {
             "in": "header",
@@ -16843,6 +17861,229 @@
         },
         "tags": [
           "admin-localization-controller"
+        ]
+      }
+    },
+    "/v1/admin/mail/connections/{connectionId}": {
+      "put": {
+        "operationId": "updateConnection",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "connectionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectionUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseConnectionSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-mail-controller"
+        ]
+      }
+    },
+    "/v1/admin/mail/overview": {
+      "get": {
+        "operationId": "overview_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAdminOverview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-mail-controller"
+        ]
+      }
+    },
+    "/v1/admin/mail/policy": {
+      "put": {
+        "operationId": "updatePolicy",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantPolicyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTenantPolicy"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-mail-controller"
+        ]
+      }
+    },
+    "/v1/admin/mail/shared-inboxes/{sharedInboxId}": {
+      "put": {
+        "operationId": "updateSharedInbox",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sharedInboxId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SharedInboxUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSharedInboxSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-mail-controller"
         ]
       }
     },
@@ -20533,7 +21774,7 @@
     },
     "/v1/calendar/home": {
       "get": {
-        "operationId": "home",
+        "operationId": "home_1",
         "parameters": [
           {
             "in": "header",
@@ -21751,6 +22992,743 @@
         },
         "tags": [
           "home-overview-controller"
+        ]
+      }
+    },
+    "/v1/mail/home": {
+      "get": {
+        "operationId": "home",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseHomeResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "mail-controller"
+        ]
+      }
+    },
+    "/v1/mail/messages": {
+      "post": {
+        "operationId": "compose",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComposeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseThreadDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "mail-controller"
+        ]
+      }
+    },
+    "/v1/mail/proposals/{proposalId}/decision": {
+      "post": {
+        "operationId": "decideProposal",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Permissions",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "proposalId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposalDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseActionProposal"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "mail-controller"
+        ]
+      }
+    },
+    "/v1/mail/threads": {
+      "get": {
+        "operationId": "threads",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lane",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "folder",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sharedOnly",
+            "required": false,
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseThreadPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "mail-controller"
+        ]
+      }
+    },
+    "/v1/mail/threads/{threadId}": {
+      "get": {
+        "operationId": "thread",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "threadId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseThreadDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "mail-controller"
+        ]
+      }
+    },
+    "/v1/mail/threads/{threadId}/actions": {
+      "post": {
+        "operationId": "action",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "threadId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ThreadActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseThreadDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "mail-controller"
+        ]
+      }
+    },
+    "/v1/mail/threads/{threadId}/assignment": {
+      "post": {
+        "operationId": "assign",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "threadId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseThreadDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "mail-controller"
+        ]
+      }
+    },
+    "/v1/mail/threads/{threadId}/comments": {
+      "post": {
+        "operationId": "comment",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Display-Name-B64",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "threadId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseThreadDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "mail-controller"
+        ]
+      }
+    },
+    "/v1/mail/threads/{threadId}/draft": {
+      "put": {
+        "operationId": "updateDraft_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "threadId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseThreadDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "mail-controller"
+        ]
+      }
+    },
+    "/v1/mail/threads/{threadId}/replies": {
+      "post": {
+        "operationId": "reply",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "threadId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseThreadDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "mail-controller"
+        ]
+      }
+    },
+    "/v1/mail/threads/{threadId}/snooze": {
+      "post": {
+        "operationId": "snooze",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "threadId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SnoozeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseThreadDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "mail-controller"
         ]
       }
     },

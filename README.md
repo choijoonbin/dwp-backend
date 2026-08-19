@@ -17,10 +17,11 @@
 | `dwp-people-server`      | 8003 | HRIS 연계용 Workforce Projection, 발령 이력과 People Audit 기반    |
 | `dwp-provider-server`    | 8004 | Provider 조직, 테넌트, 구독, 권한과 프로비저닝 Control Plane      |
 | `dwp-approval-server`    | 8005 | 전자결재 기안, 검토, 위임, 정책과 감사 가능한 결정 처리          |
+| `dwp-space-server`       | 8006 | 구성원 Space, 소유자 운영, 템플릿·콘텐츠·수명주기 거버넌스       |
 | `dwp-gateway`            | 8080 | 단일 API 진입점, Session 재검증, 내부 Identity Relay, CSRF와 CORS |
 
 인증 서버는 `dwp_auth`, Platform Server는 `dwp_platform`, People Server는
-`dwp_people`, Provider Server는 `dwp_provider`, Approval Server는 `dwp_approval`
+`dwp_people`, Provider Server는 `dwp_provider`, Approval Server는 `dwp_approval`, Space Server는 `dwp_space`
 Database를 각각 소유합니다.
 Redis는 Auth의 만료형 OIDC state, nonce와 PKCE verifier를 저장합니다.
 `dwp_people`은 외부 HRIS를 대체하지 않고

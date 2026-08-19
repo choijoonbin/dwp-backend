@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -106,5 +107,34 @@ class PlatformContractTest {
                 "correlation-1"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("SHA-256");
+    }
+
+    @Test
+    void mailConnectorAcceptsOnlyOpaqueSecretReferencesAndBoundedSynchronization() {
+        assertThatThrownBy(() -> new MailConnectorPort.ConnectionContext(
+                context,
+                UUID.randomUUID(),
+                URI.create("https://raw-secret.example/token"),
+                "sk.com"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("secret-store scheme");
+
+        MailConnectorPort.ConnectionContext connection =
+                new MailConnectorPort.ConnectionContext(
+                        context,
+                        UUID.randomUUID(),
+                        URI.create("vault://tenant/mail/microsoft"),
+                        "sk.com");
+
+        assertThatThrownBy(() -> new MailConnectorPort.SyncRequest(
+                connection, "account-1", null, 501))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("limit");
+
+        assertThatThrownBy(() -> new MailConnectorPort.SendRequest(
+                connection, "account-1", null, List.of("person@sk.com"),
+                "Subject", "Message", null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("idempotencyKey");
     }
 }

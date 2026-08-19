@@ -79,6 +79,13 @@ SERVICES = {
         8005,
         "/actuator/health",
     ),
+    "space": Service(
+        "space",
+        BACKEND_ROOT,
+        ("./gradlew", "--no-daemon", ":dwp-space-server:bootRun"),
+        8006,
+        "/actuator/health",
+    ),
     "agent": Service(
         "agent",
         AGENT_ROOT,
@@ -115,20 +122,21 @@ SERVICES = {
 }
 
 PROFILES = {
-    "full": {"auth", "platform", "people", "provider", "approval", "agent", "gateway", "frontend"},
-    "core": {"auth", "platform", "people", "provider", "approval", "gateway", "frontend"},
-    "backend": {"auth", "platform", "people", "provider", "approval", "agent", "gateway"},
-    "contracts": {"auth", "platform", "people", "provider", "approval", "gateway"},
+    "full": {"auth", "platform", "people", "provider", "approval", "space", "agent", "gateway", "frontend"},
+    "core": {"auth", "platform", "people", "provider", "approval", "space", "gateway", "frontend"},
+    "backend": {"auth", "platform", "people", "provider", "approval", "space", "agent", "gateway"},
+    "contracts": {"auth", "platform", "people", "provider", "approval", "space", "gateway"},
     "agent": {"agent"},
     "gateway": {"gateway"},
     "approval": {"approval"},
+    "space": {"space"},
     "web": {"frontend"},
 }
 
-START_ORDER = ("auth", "platform", "people", "provider", "approval", "agent", "gateway", "frontend")
+START_ORDER = ("auth", "platform", "people", "provider", "approval", "space", "agent", "gateway", "frontend")
 START_PHASES = (
     ("platform",),
-    ("auth", "people", "provider", "approval", "agent"),
+    ("auth", "people", "provider", "approval", "space", "agent"),
     ("gateway",),
     ("frontend",),
 )
@@ -189,6 +197,7 @@ def local_environment() -> dict[str, str]:
         "SERVICE_PEOPLE_URL": "http://localhost:8003",
         "SERVICE_PROVIDER_URL": "http://localhost:8004",
         "SERVICE_APPROVAL_URL": "http://localhost:8005",
+        "SERVICE_SPACE_URL": "http://localhost:8006",
         "DWP_AGENT_SERVICE_TOKEN": "dwp-local-agent-service-token",
         "DWP_AGENT_DATABASE_URL": (
             "postgresql://dwp_user:dwp_password@localhost:5432/dwp_agent"
@@ -220,6 +229,10 @@ def local_environment() -> dict[str, str]:
             "classpath:db/migration,classpath:db/local-seed"
         ),
         "DWP_APPROVAL_EXTERNAL_SIGNATURE_ENABLED": "false",
+        "DWP_SPACE_SERVICE_TOKEN": "dwp-local-space-service-token",
+        "DWP_SPACE_FLYWAY_LOCATIONS": (
+            "classpath:db/migration,classpath:db/local-seed"
+        ),
         "DWP_PROVIDER_SUPPORT_VALIDATION_TOKEN": (
             "dwp-local-provider-support-validation-token"
         ),
@@ -297,7 +310,7 @@ def service_environment(service_name: str) -> dict[str, str]:
         environment.pop("DWP_PROVIDER_SUPPORT_COOKIE_SECURE", None)
     if service_name not in {"auth", "platform", "people", "provider"}:
         environment.pop("DWP_PROVIDER_PROVISIONING_TOKEN", None)
-    if service_name not in {"auth", "platform", "people"}:
+    if service_name not in {"auth", "platform", "people", "space"}:
         environment.pop("DWP_IDENTITY_SYNC_TOKEN", None)
     if service_name != "people":
         environment.pop("DWP_IDENTITY_SYNC_ENABLED", None)
@@ -412,6 +425,7 @@ def start_infrastructure() -> None:
             ensure_database("dwp_people")
             ensure_database("dwp_provider")
             ensure_database("dwp_approval")
+            ensure_database("dwp_space")
             ensure_database("dwp_agent")
             print("postgres   ready at localhost:5432")
             print("redis      ready at localhost:6379")
