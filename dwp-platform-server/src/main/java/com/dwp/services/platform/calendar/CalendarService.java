@@ -26,7 +26,6 @@ import java.util.Set;
 import java.util.UUID;
 
 import static com.dwp.services.platform.calendar.CalendarTypes.*;
-
 @Service
 public class CalendarService {
 
@@ -299,101 +298,6 @@ public class CalendarService {
     }
 
     @Transactional(readOnly = true)
-    public CalendarDtos.RoomAvailabilityResponse roomAvailability(
-            Long tenantId,
-            OffsetDateTime from,
-            OffsetDateTime to,
-            String locale) {
-        validateRange(from, to);
-        if (Duration.between(from, to).compareTo(Duration.ofDays(31)) > 0) {
-            throw invalid("Room availability searches are limited to 31 days.");
-        }
-        List<CalendarDtos.ResourceSummary> rooms = repository
-                .resources(tenantId, from, to, korean(locale), false).stream()
-                .filter(value -> value.type() == ResourceType.ROOM)
-                .map(this::resource)
-                .toList();
-        Set<UUID> roomIds = rooms.stream()
-                .map(CalendarDtos.ResourceSummary::resourceId)
-                .collect(java.util.stream.Collectors.toUnmodifiableSet());
-        List<CalendarDtos.ResourceOccupancy> occupancy = repository
-                .resourceOccupancy(tenantId, from, to).stream()
-                .filter(value -> roomIds.contains(value.resourceId()))
-                .map(value -> new CalendarDtos.ResourceOccupancy(
-                        value.resourceId(), value.startsAt(), value.endsAt(), value.bookingStatus()))
-                .toList();
-        return new CalendarDtos.RoomAvailabilityResponse(
-                rooms, occupancy, OffsetDateTime.now());
-    }
-
-    @Transactional(readOnly = true)
-    public List<CalendarDtos.EventSummary> roomBookings(
-            Long tenantId,
-            Long userId,
-            UUID personPublicId,
-            OffsetDateTime from,
-            OffsetDateTime to,
-            String locale) {
-        return events(tenantId, userId, personPublicId, from, to, locale).stream()
-                .filter(event -> event.resource() != null
-                        && event.resource().type() == ResourceType.ROOM)
-                .toList();
-    }
-
-    @Transactional
-    public CalendarDtos.EventSummary createRoomBooking(
-            Long tenantId,
-            Long userId,
-            UUID personPublicId,
-            String organizerName,
-            String locale,
-            String correlationId,
-            CalendarDtos.CreateEventRequest request) {
-        requireRoomResource(tenantId, request.resourceId(), locale);
-        return create(tenantId, userId, personPublicId, organizerName, locale, correlationId, request);
-    }
-
-    @Transactional
-    public CalendarDtos.EventSummary updateRoomBooking(
-            Long tenantId,
-            Long userId,
-            UUID personPublicId,
-            UUID eventId,
-            String locale,
-            String correlationId,
-            CalendarDtos.UpdateEventRequest request) {
-        requireRoomBooking(tenantId, userId, personPublicId, eventId, locale);
-        requireRoomResource(tenantId, request.resourceId(), locale);
-        return update(tenantId, userId, personPublicId, eventId, locale, correlationId, request);
-    }
-
-    @Transactional
-    public void cancelRoomBooking(
-            Long tenantId,
-            Long userId,
-            UUID personPublicId,
-            UUID eventId,
-            String locale,
-            String correlationId,
-            CalendarDtos.VersionRequest request) {
-        requireRoomBooking(tenantId, userId, personPublicId, eventId, locale);
-        cancel(tenantId, userId, personPublicId, eventId, locale, correlationId, request);
-    }
-
-    @Transactional
-    public CalendarDtos.EventSummary respondRoomBooking(
-            Long tenantId,
-            Long userId,
-            UUID personPublicId,
-            UUID eventId,
-            String locale,
-            String correlationId,
-            CalendarDtos.RespondRequest request) {
-        requireRoomBooking(tenantId, userId, personPublicId, eventId, locale);
-        return respond(tenantId, userId, personPublicId, eventId, locale, correlationId, request);
-    }
-
-    @Transactional(readOnly = true)
     public CalendarDtos.AvailabilityResponse availability(
             Long tenantId,
             Long currentUserId,
@@ -490,37 +394,6 @@ public class CalendarService {
     }
 
     @Transactional(readOnly = true)
-    public CalendarDtos.AdminOverview roomsAdminOverview(Long tenantId, String locale) {
-        ZoneId zone = ZoneId.of("Asia/Seoul");
-        LocalDate week = LocalDate.now(zone).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
-        OffsetDateTime from = week.atStartOfDay(zone).toOffsetDateTime();
-        OffsetDateTime to = from.plusDays(7);
-        List<CalendarDtos.ResourceSummary> rooms = repository
-                .resources(tenantId, from, to, korean(locale), true).stream()
-                .filter(value -> value.type() == ResourceType.ROOM)
-                .map(this::resource)
-                .toList();
-        Set<UUID> roomIds = rooms.stream()
-                .map(CalendarDtos.ResourceSummary::resourceId)
-                .collect(java.util.stream.Collectors.toUnmodifiableSet());
-        List<CalendarDtos.BookingSummary> pending = pendingRoomBookings(tenantId, locale);
-        long bookingsThisWeek = repository.resourceOccupancy(tenantId, from, to).stream()
-                .filter(value -> roomIds.contains(value.resourceId()))
-                .count();
-        CalendarRepository.AdminStats sharedStats = repository.adminStats(tenantId, from, to);
-        return new CalendarDtos.AdminOverview(
-                rooms.stream().filter(value -> value.state() == ResourceState.AVAILABLE).count(),
-                rooms.stream().filter(value -> value.state() == ResourceState.MAINTENANCE).count(),
-                bookingsThisWeek,
-                pending.size(),
-                sharedStats.eventsThisWeek(),
-                sharedStats.conflictedUsers(),
-                policy(repository.policy(tenantId)),
-                rooms,
-                OffsetDateTime.now());
-    }
-
-    @Transactional(readOnly = true)
     public CalendarDtos.Policy policy(Long tenantId) {
         return policy(repository.policy(tenantId));
     }
@@ -528,20 +401,6 @@ public class CalendarService {
     @Transactional(readOnly = true)
     public List<CalendarDtos.BookingSummary> pendingBookings(Long tenantId, String locale) {
         return repository.pendingBookings(tenantId, korean(locale)).stream()
-                .map(this::booking)
-                .toList();
-    }
-
-    @Transactional(readOnly = true)
-    public List<CalendarDtos.BookingSummary> pendingRoomBookings(Long tenantId, String locale) {
-        Set<UUID> roomIds = repository
-                .resources(tenantId, OffsetDateTime.now(), OffsetDateTime.now().plusMinutes(1),
-                        korean(locale), true).stream()
-                .filter(value -> value.type() == ResourceType.ROOM)
-                .map(CalendarRepository.ResourceRow::resourceId)
-                .collect(java.util.stream.Collectors.toUnmodifiableSet());
-        return repository.pendingBookings(tenantId, korean(locale)).stream()
-                .filter(value -> roomIds.contains(value.resourceId()))
                 .map(this::booking)
                 .toList();
     }
@@ -569,21 +428,6 @@ public class CalendarService {
                         "status", status,
                         "note", request.note() == null ? "" : request.note()));
         return booking(saved);
-    }
-
-    @Transactional
-    public CalendarDtos.BookingSummary decideRoomBooking(
-            Long tenantId,
-            Long actorId,
-            UUID bookingId,
-            String locale,
-            String correlationId,
-            CalendarDtos.BookingDecisionRequest request) {
-        CalendarRepository.BookingRow booking = repository.booking(
-                        tenantId, bookingId, korean(locale))
-                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        requireRoomResource(tenantId, booking.resourceId(), locale);
-        return decideBooking(tenantId, actorId, bookingId, locale, correlationId, request);
     }
 
     @Transactional
@@ -630,20 +474,6 @@ public class CalendarService {
                         "code", saved.code(),
                         "state", saved.state().name()));
         return resource(saved);
-    }
-
-    @Transactional
-    public CalendarDtos.ResourceSummary saveRoomResource(
-            Long tenantId,
-            Long actorId,
-            UUID resourceId,
-            String locale,
-            String correlationId,
-            CalendarDtos.ResourceRequest request) {
-        if (request.type() != ResourceType.ROOM) {
-            throw invalid("Rooms administration accepts room resources only.");
-        }
-        return saveResource(tenantId, actorId, resourceId, locale, correlationId, request);
     }
 
     private List<CalendarDtos.EventSummary> summaries(
@@ -850,38 +680,6 @@ public class CalendarService {
             }
         }
         return resource;
-    }
-
-    private CalendarRepository.ResourceRow requireRoomResource(
-            Long tenantId,
-            UUID resourceId,
-            String locale) {
-        if (resourceId == null) {
-            throw invalid("A meeting room is required.");
-        }
-        CalendarRepository.ResourceRow resource = repository.resource(
-                        tenantId, resourceId, korean(locale))
-                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND,
-                        "The meeting room was not found."));
-        if (resource.type() != ResourceType.ROOM) {
-            throw invalid("The selected resource is not a meeting room.");
-        }
-        return resource;
-    }
-
-    private CalendarRepository.EventRow requireRoomBooking(
-            Long tenantId,
-            Long userId,
-            UUID personPublicId,
-            UUID eventId,
-            String locale) {
-        CalendarRepository.EventRow event = repository.event(
-                        tenantId, userId, personPublicId, eventId, korean(locale))
-                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        if (event.resource() == null || event.resource().type() != ResourceType.ROOM) {
-            throw new BaseException(ErrorCode.NOT_FOUND, "The room booking was not found.");
-        }
-        return event;
     }
 
     private CalendarRepository.PolicyRow validateEvent(

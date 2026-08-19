@@ -164,42 +164,6 @@ class CalendarServiceTest {
     }
 
     @Test
-    void roomAvailabilityReturnsOnlyRoomOccupancyWithoutEventDetails() {
-        UUID roomId = UUID.randomUUID();
-        UUID equipmentId = UUID.randomUUID();
-        OffsetDateTime from = OffsetDateTime.parse("2026-08-19T08:00:00+09:00");
-        OffsetDateTime to = OffsetDateTime.parse("2026-08-19T20:00:00+09:00");
-        when(repository.resources(1L, from, to, true, false)).thenReturn(List.of(
-                new CalendarRepository.ResourceRow(
-                        roomId, "ROOM-01", "포커스 01", "포커스 01", "Focus 01",
-                        CalendarTypes.ResourceType.ROOM, "판교", "3F", 8,
-                        List.of("VIDEO"), "Asia/Seoul", false,
-                        CalendarTypes.ResourceState.AVAILABLE, false, 1L),
-                new CalendarRepository.ResourceRow(
-                        equipmentId, "DEVICE-01", "카메라", "카메라", "Camera",
-                        CalendarTypes.ResourceType.EQUIPMENT, "판교", "3F", 1,
-                        List.of(), "Asia/Seoul", false,
-                        CalendarTypes.ResourceState.AVAILABLE, true, 1L)));
-        when(repository.resourceOccupancy(1L, from, to)).thenReturn(List.of(
-                new CalendarRepository.ResourceOccupancyRow(
-                        roomId, from.plusHours(1), from.plusHours(2), "CONFIRMED"),
-                new CalendarRepository.ResourceOccupancyRow(
-                        equipmentId, from.plusHours(3), from.plusHours(4), "CONFIRMED")));
-
-        CalendarDtos.RoomAvailabilityResponse result = service.roomAvailability(
-                1L, from, to, "ko-KR");
-
-        assertThat(result.rooms()).singleElement()
-                .extracting(CalendarDtos.ResourceSummary::resourceId)
-                .isEqualTo(roomId);
-        assertThat(result.occupancy()).singleElement()
-                .satisfies(slot -> {
-                    assertThat(slot.resourceId()).isEqualTo(roomId);
-                    assertThat(slot.bookingStatus()).isEqualTo("CONFIRMED");
-                });
-    }
-
-    @Test
     void organizerAuthorizationUsesStablePeopleIdentityAfterIamIdChanges() {
         UUID personId = UUID.randomUUID();
         UUID eventId = UUID.randomUUID();

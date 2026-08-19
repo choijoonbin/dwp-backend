@@ -18,9 +18,9 @@ import java.util.UUID;
 @RequestMapping("/v1/admin/rooms")
 public class AdminRoomsController {
 
-    private final CalendarService service;
+    private final RoomService service;
 
-    public AdminRoomsController(CalendarService service) {
+    public AdminRoomsController(RoomService service) {
         this.service = service;
     }
 
@@ -28,7 +28,7 @@ public class AdminRoomsController {
     public ApiResponse<CalendarDtos.AdminOverview> getRoomsAdminOverview(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader(value = "Accept-Language", required = false) String locale) {
-        return ApiResponse.success(service.roomsAdminOverview(tenantId, locale));
+        return ApiResponse.success(service.adminOverview(tenantId, locale));
     }
 
     @GetMapping("/policy")
@@ -50,7 +50,7 @@ public class AdminRoomsController {
     public ApiResponse<List<CalendarDtos.BookingSummary>> getPendingRoomBookings(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader(value = "Accept-Language", required = false) String locale) {
-        return ApiResponse.success(service.pendingRoomBookings(tenantId, locale));
+        return ApiResponse.success(service.pendingBookings(tenantId, locale));
     }
 
     @PostMapping("/bookings/{bookingId}/decision")
@@ -61,7 +61,7 @@ public class AdminRoomsController {
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @PathVariable UUID bookingId,
             @Valid @RequestBody CalendarDtos.BookingDecisionRequest request) {
-        return ApiResponse.success(service.decideRoomBooking(
+        return ApiResponse.success(service.decideBooking(
                 tenantId, userId, bookingId, locale, correlationId, request));
     }
 
@@ -72,7 +72,7 @@ public class AdminRoomsController {
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @Valid @RequestBody CalendarDtos.ResourceRequest request) {
-        return ApiResponse.success(service.saveRoomResource(
+        return ApiResponse.success(service.saveResource(
                 tenantId, userId, null, locale, correlationId, request));
     }
 
@@ -84,7 +84,7 @@ public class AdminRoomsController {
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @PathVariable UUID resourceId,
             @Valid @RequestBody CalendarDtos.ResourceRequest request) {
-        return ApiResponse.success(service.saveRoomResource(
+        return ApiResponse.success(service.saveResource(
                 tenantId, userId, resourceId, locale, correlationId, request));
     }
 }

@@ -23,9 +23,9 @@ import java.util.UUID;
 @RequestMapping("/v1/rooms")
 public class RoomsController {
 
-    private final CalendarService service;
+    private final RoomService service;
 
-    public RoomsController(CalendarService service) {
+    public RoomsController(RoomService service) {
         this.service = service;
     }
 
