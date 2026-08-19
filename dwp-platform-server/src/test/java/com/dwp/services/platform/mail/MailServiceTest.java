@@ -19,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -31,12 +32,14 @@ class MailServiceTest {
     private MailCommandRepository commands;
     @Mock
     private MailProviderCatalog providerCatalog;
+    @Mock
+    private MailDeliveryCompletionService deliveryCompletion;
 
     private MailService service;
 
     @BeforeEach
     void setUp() {
-        service = new MailService(queries, commands, providerCatalog);
+        service = new MailService(queries, commands, providerCatalog, deliveryCompletion);
     }
 
     @Test
@@ -101,6 +104,97 @@ class MailServiceTest {
                         ConnectionState.ACTIVE, 0L)))
                 .isInstanceOf(BaseException.class)
                 .hasMessageContaining("secret-store reference");
+    }
+
+    @Test
+    void externalConnectionCannotActivateBeforeItsRuntimeAdapterIsDeployed() {
+        UUID connectionId = UUID.randomUUID();
+        when(queries.connection(1L, connectionId)).thenReturn(Optional.of(
+                new MailDtos.ConnectionSummary(
+                        connectionId, "microsoft-graph", "Microsoft 365",
+                        ProviderType.MICROSOFT_GRAPH, "OAUTH2", "sk.com",
+                        ConnectionState.CONFIGURATION_REQUIRED,
+                        List.of("READ", "SEND"), true,
+                        null, null, 0L)));
+        when(providerCatalog.isRuntimeAvailable(ProviderType.MICROSOFT_GRAPH))
+                .thenReturn(false);
+
+        assertThatThrownBy(() -> service.updateConnection(
+                1L, 10L, connectionId, "corr-runtime",
+                new MailDtos.ConnectionUpdateRequest(
+                        "Microsoft 365", "sk.com", null,
+                        ConnectionState.ACTIVE, 0L)))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("runtime adapter");
+    }
+
+    @Test
+    void repeatedComposeReturnsTheOriginalThreadWithoutDuplicateDeliveryOrEvidence() {
+        UUID threadId = UUID.randomUUID();
+        UUID idempotencyKey = UUID.randomUUID();
+        MailDtos.ComposeRequest request = new MailDtos.ComposeRequest(
+                "recipient@sk.com", "수신자", "중복 방지", "동일 요청입니다.",
+                DeliveryMode.SEND, idempotencyKey);
+        MailDtos.ThreadSummary existing = thread(threadId, false, 0L);
+        when(queries.accounts(1L, 7L)).thenReturn(List.of(account()));
+        when(commands.compose(1L, 7L, request))
+                .thenReturn(new MailCommandRepository.ComposeResult(threadId, false));
+        when(queries.thread(1L, 7L, threadId)).thenReturn(Optional.of(existing));
+        when(queries.messages(1L, threadId)).thenReturn(List.of());
+        when(queries.comments(1L, threadId)).thenReturn(List.of());
+        when(queries.proposals(1L, 7L, threadId, 20)).thenReturn(List.of());
+
+        MailDtos.ThreadDetail result = service.compose(
+                1L, 7L, "corr-replay", request);
+
+        assertThat(result.thread().threadId()).isEqualTo(threadId);
+        verify(commands, never()).enqueueDelivery(
+                eq(1L), eq(7L), eq(threadId), eq(idempotencyKey), eq("corr-replay"));
+        verify(commands, never()).audit(
+                eq(1L), eq(7L), eq("mail.message.queued"),
+                eq("MAIL_THREAD"), eq(threadId.toString()),
+                eq("corr-replay"), anyMap(), anyMap());
+    }
+
+    @Test
+    void repeatedReplyReturnsTheOriginalThreadWithoutAnotherMessage() {
+        UUID threadId = UUID.randomUUID();
+        UUID idempotencyKey = UUID.randomUUID();
+        MailDtos.ThreadSummary existing = thread(threadId, false, 1L);
+        when(queries.thread(1L, 7L, threadId)).thenReturn(Optional.of(existing));
+        when(commands.deliveryThread(1L, 7L, idempotencyKey)).thenReturn(threadId);
+        when(queries.messages(1L, threadId)).thenReturn(List.of());
+        when(queries.comments(1L, threadId)).thenReturn(List.of());
+        when(queries.proposals(1L, 7L, threadId, 20)).thenReturn(List.of());
+
+        MailDtos.ThreadDetail result = service.reply(
+                1L, 7L, threadId, "corr-reply-replay",
+                new MailDtos.ReplyRequest("재전송된 요청", idempotencyKey));
+
+        assertThat(result.thread().threadId()).isEqualTo(threadId);
+        verify(commands, never()).insertReply(
+                eq(1L), eq(7L), eq(threadId), eq("재전송된 요청"), eq(idempotencyKey));
+    }
+
+    @Test
+    void repeatedDraftSendReturnsTheSentThreadWithoutAnotherMutation() {
+        UUID threadId = UUID.randomUUID();
+        UUID idempotencyKey = UUID.randomUUID();
+        MailDtos.ThreadSummary existing = thread(threadId, false, 2L);
+        MailDtos.DraftUpdateRequest request = new MailDtos.DraftUpdateRequest(
+                "recipient@sk.com", "수신자", "전송 완료", "이미 전송했습니다.",
+                DeliveryMode.SEND, idempotencyKey, 1L);
+        when(queries.thread(1L, 7L, threadId)).thenReturn(Optional.of(existing));
+        when(commands.deliveryThread(1L, 7L, idempotencyKey)).thenReturn(threadId);
+        when(queries.messages(1L, threadId)).thenReturn(List.of());
+        when(queries.comments(1L, threadId)).thenReturn(List.of());
+        when(queries.proposals(1L, 7L, threadId, 20)).thenReturn(List.of());
+
+        MailDtos.ThreadDetail result = service.updateDraft(
+                1L, 7L, threadId, "corr-draft-replay", request);
+
+        assertThat(result.thread().threadId()).isEqualTo(threadId);
+        verify(commands, never()).updateDraft(1L, 7L, threadId, request);
     }
 
     @Test
@@ -192,6 +286,12 @@ class MailServiceTest {
     private MailDtos.TenantPolicy policy() {
         return new MailDtos.TenantPolicy(
                 true, true, true, true, true, false, 365, 25, 0L);
+    }
+
+    private MailDtos.AccountSummary account() {
+        return new MailDtos.AccountSummary(
+                UUID.randomUUID(), "member@sk.com", "구성원", "PERSONAL",
+                ProviderType.DWP_SANDBOX, "ACTIVE", "READY", true);
     }
 
     private MailDtos.SharedInboxSummary sharedInbox(

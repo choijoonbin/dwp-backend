@@ -70,7 +70,10 @@ public final class MailDtos {
             String bodyFormat,
             String body,
             List<Map<String, Object>> attachments,
-            OffsetDateTime sentAt) {
+            OffsetDateTime sentAt,
+            DeliveryState deliveryState,
+            OffsetDateTime acceptedAt,
+            String lastDeliveryError) {
     }
 
     public record InternalComment(
@@ -105,7 +108,15 @@ public final class MailDtos {
             ThreadSummary thread,
             List<Message> messages,
             List<InternalComment> internalComments,
-            List<ActionProposal> proposals) {
+            List<ActionProposal> proposals,
+            List<SharedInboxMember> sharedInboxMembers) {
+    }
+
+    public record SharedInboxMember(
+            Long userId,
+            String displayName,
+            String emailAddress,
+            String memberRole) {
     }
 
     public record HomeMetrics(
@@ -200,7 +211,9 @@ public final class MailDtos {
             String authenticationMode,
             List<String> capabilities,
             boolean pushSupported,
-            boolean tenantWideSupported) {
+            boolean tenantWideSupported,
+            AdapterRuntimeState runtimeState,
+            String adapterVersion) {
     }
 
     public record ConnectionSummary(
@@ -279,6 +292,8 @@ public final class MailDtos {
             int degradedConnections,
             int openSharedThreads,
             int pendingAiProposals,
+            int queuedDeliveries,
+            int failedDeliveries,
             TenantPolicy policy,
             List<ConnectionSummary> connections,
             List<SharedInboxSummary> sharedInboxes,

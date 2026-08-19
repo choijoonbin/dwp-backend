@@ -24,14 +24,17 @@ public class MailService {
     private final MailQueryRepository queries;
     private final MailCommandRepository commands;
     private final MailProviderCatalog providerCatalog;
+    private final MailDeliveryCompletionService deliveryCompletion;
 
     public MailService(
             MailQueryRepository queries,
             MailCommandRepository commands,
-            MailProviderCatalog providerCatalog) {
+            MailProviderCatalog providerCatalog,
+            MailDeliveryCompletionService deliveryCompletion) {
         this.queries = queries;
         this.commands = commands;
         this.providerCatalog = providerCatalog;
+        this.deliveryCompletion = deliveryCompletion;
     }
 
     @Transactional(readOnly = true)
@@ -195,9 +198,21 @@ public class MailService {
             String correlationId,
             MailDtos.ReplyRequest request) {
         MailDtos.ThreadSummary before = visibleThread(tenantId, userId, threadId);
+        UUID deliveryThreadId = commands.deliveryThread(
+                tenantId, userId, request.idempotencyKey());
+        if (deliveryThreadId != null) {
+            if (!deliveryThreadId.equals(threadId)) {
+                throw new BaseException(
+                        ErrorCode.INVALID_INPUT_VALUE,
+                        "The idempotency key belongs to another mail thread.");
+            }
+            return detail(tenantId, userId, before);
+        }
         boolean inserted = commands.insertReply(
                 tenantId, userId, threadId, request.body(), request.idempotencyKey());
         if (!inserted) return detail(tenantId, userId, before);
+        commands.enqueueDelivery(
+                tenantId, userId, threadId, request.idempotencyKey(), correlationId);
         MailDtos.ThreadSummary after = visibleThread(tenantId, userId, threadId);
         commands.audit(
                 tenantId, userId, "mail.reply.sent", "MAIL_THREAD",
@@ -216,17 +231,48 @@ public class MailService {
     }
 
     @Transactional
+    public MailDtos.ThreadDetail retryDelivery(
+            Long tenantId,
+            Long userId,
+            UUID threadId,
+            UUID messageId,
+            String correlationId) {
+        MailDtos.ThreadSummary thread = visibleThread(tenantId, userId, threadId);
+        boolean messageVisible = queries.messages(tenantId, threadId).stream()
+                .anyMatch(message -> message.messageId().equals(messageId)
+                        && message.deliveryState() == DeliveryState.FAILED);
+        if (!messageVisible) {
+            throw new BaseException(ErrorCode.INVALID_STATE,
+                    "Only a failed visible message can be retried.");
+        }
+        if (!deliveryCompletion.retry(
+                tenantId, userId, threadId, messageId, correlationId)) {
+            conflict();
+        }
+        return detail(tenantId, userId, thread);
+    }
+
+    @Transactional
     public MailDtos.ThreadDetail compose(
             Long tenantId,
             Long userId,
             String correlationId,
             MailDtos.ComposeRequest request) {
         requireMailbox(queries.accounts(tenantId, userId));
-        UUID threadId = commands.compose(tenantId, userId, request);
-        if (threadId == null) {
+        MailCommandRepository.ComposeResult result = commands.compose(tenantId, userId, request);
+        if (result == null) {
             throw new BaseException(
                     ErrorCode.INVALID_STATE,
                     "No active default mail account is available.");
+        }
+        UUID threadId = result.threadId();
+        if (!result.created()) {
+            MailDtos.ThreadSummary existing = visibleThread(tenantId, userId, threadId);
+            return detail(tenantId, userId, existing);
+        }
+        if (request.deliveryMode() == DeliveryMode.SEND) {
+            commands.enqueueDelivery(
+                    tenantId, userId, threadId, request.idempotencyKey(), correlationId);
         }
         MailDtos.ThreadSummary thread = visibleThread(tenantId, userId, threadId);
         String event = request.deliveryMode() == DeliveryMode.DRAFT
@@ -255,12 +301,37 @@ public class MailService {
             String correlationId,
             MailDtos.DraftUpdateRequest request) {
         MailDtos.ThreadSummary before = visibleThread(tenantId, userId, threadId);
+        if (request.deliveryMode() == DeliveryMode.SEND) {
+            UUID deliveryThreadId = commands.deliveryThread(
+                    tenantId, userId, request.idempotencyKey());
+            if (deliveryThreadId != null) {
+                if (!deliveryThreadId.equals(threadId)) {
+                    throw new BaseException(
+                            ErrorCode.INVALID_INPUT_VALUE,
+                            "The idempotency key belongs to another mail thread.");
+                }
+                return detail(tenantId, userId, before);
+            }
+        }
         if (!"DRAFTS".equals(before.folderType())
                 || before.workflowState() != WorkflowState.DRAFT
                 || before.sharedInboxId() != null) {
             throw new BaseException(ErrorCode.INVALID_STATE, "Only a personal draft can be edited.");
         }
-        if (commands.updateDraft(tenantId, userId, threadId, request) == 0) conflict();
+        if (commands.updateDraft(tenantId, userId, threadId, request) == 0) {
+            UUID deliveryThreadId = request.deliveryMode() == DeliveryMode.SEND
+                    ? commands.deliveryThread(tenantId, userId, request.idempotencyKey())
+                    : null;
+            if (threadId.equals(deliveryThreadId)) {
+                MailDtos.ThreadSummary existing = visibleThread(tenantId, userId, threadId);
+                return detail(tenantId, userId, existing);
+            }
+            conflict();
+        }
+        if (request.deliveryMode() == DeliveryMode.SEND) {
+            commands.enqueueDelivery(
+                    tenantId, userId, threadId, request.idempotencyKey(), correlationId);
+        }
         MailDtos.ThreadSummary after = visibleThread(tenantId, userId, threadId);
         String event = request.deliveryMode() == DeliveryMode.DRAFT
                 ? "mail.draft.saved" : "mail.message.queued";
@@ -348,6 +419,7 @@ public class MailService {
                 counts.personalAccounts(), counts.sharedAccounts(),
                 counts.activeConnections(), counts.degradedConnections(),
                 counts.openSharedThreads(), counts.pendingAiProposals(),
+                counts.queuedDeliveries(), counts.failedDeliveries(),
                 queries.policy(tenantId), queries.connections(tenantId),
                 queries.sharedInboxes(tenantId), providerCatalog.all(), OffsetDateTime.now());
     }
@@ -385,6 +457,12 @@ public class MailService {
             throw new BaseException(
                     ErrorCode.INVALID_INPUT_VALUE,
                     "An external secret-store reference is required before activation.");
+        }
+        if (request.state() == ConnectionState.ACTIVE
+                && !providerCatalog.isRuntimeAvailable(before.providerType())) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "The provider contract exists, but its runtime adapter is not deployed.");
         }
         if (commands.updateConnection(tenantId, userId, connectionId, request) == 0) {
             conflict();
@@ -425,7 +503,10 @@ public class MailService {
                 thread,
                 queries.messages(tenantId, thread.threadId()),
                 queries.comments(tenantId, thread.threadId()),
-                queries.proposals(tenantId, userId, thread.threadId(), 20));
+                queries.proposals(tenantId, userId, thread.threadId(), 20),
+                thread.sharedInboxId() == null
+                        ? List.of()
+                        : queries.sharedInboxMembers(tenantId, thread.sharedInboxId()));
     }
 
     private Map<String, Object> sharedInboxState(MailDtos.SharedInboxSummary value) {

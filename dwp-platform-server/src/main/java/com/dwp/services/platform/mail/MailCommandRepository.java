@@ -13,6 +13,9 @@ import static com.dwp.services.platform.mail.MailTypes.*;
 @Repository
 class MailCommandRepository {
 
+    record ComposeResult(UUID threadId, boolean created) {
+    }
+
     private final JdbcTemplate jdbc;
     private final MailJsonCodec json;
 
@@ -127,13 +130,18 @@ class MailCommandRepository {
         return true;
     }
 
-    UUID compose(
+    ComposeResult compose(
             Long tenantId,
             Long userId,
             MailDtos.ComposeRequest request) {
         String folderType = request.deliveryMode() == DeliveryMode.DRAFT ? "DRAFTS" : "SENT";
         String workflowState = request.deliveryMode() == DeliveryMode.DRAFT ? "DRAFT" : "OPEN";
         String providerRef = "dwp:compose:" + request.idempotencyKey();
+        UUID existingThreadId = composedThread(
+                tenantId, userId, request.idempotencyKey(), providerRef);
+        if (existingThreadId != null) {
+            return new ComposeResult(existingThreadId, false);
+        }
         List<UUID> threadIds = jdbc.query("""
                 INSERT INTO mail_threads (
                     thread_id, tenant_id, account_id, folder_id, provider_thread_ref,
@@ -154,17 +162,23 @@ class MailCommandRepository {
                    AND folder.lifecycle_state = 'ACTIVE'
                  WHERE account.tenant_id = ? AND account.owner_user_id = ?
                    AND account.is_default = TRUE AND account.connection_state = 'ACTIVE'
-                ON CONFLICT (account_id, provider_thread_ref) DO UPDATE SET
-                    provider_thread_ref = EXCLUDED.provider_thread_ref
+                ON CONFLICT (account_id, provider_thread_ref) DO NOTHING
                 RETURNING thread_id
                 """, (result, ignored) -> result.getObject("thread_id", UUID.class),
                 UUID.randomUUID(), providerRef, request.subject().trim(),
                 preview(request.body()), recipientName(request), request.toEmail().trim(),
                 workflowState, request.toEmail().trim(), userId, userId,
                 folderType, tenantId, userId);
-        if (threadIds.isEmpty()) return null;
+        if (threadIds.isEmpty()) {
+            UUID concurrentThreadId = composedThread(
+                    tenantId, userId, request.idempotencyKey(), providerRef);
+            if (concurrentThreadId == null) {
+                throw new IllegalStateException("Composed thread projection is missing.");
+            }
+            return new ComposeResult(concurrentThreadId, false);
+        }
         UUID threadId = threadIds.get(0);
-        jdbc.update("""
+        int messageInserted = jdbc.update("""
                 INSERT INTO mail_messages (
                     message_id, tenant_id, thread_id, provider_message_ref,
                     sender_email, sender_name, recipients, message_direction,
@@ -180,7 +194,46 @@ class MailCommandRepository {
                 """, UUID.randomUUID(), providerRef + ":message",
                 request.deliveryMode() == DeliveryMode.DRAFT ? "DRAFT" : "OUTBOUND",
                 request.body().trim(), userId, tenantId, threadId);
-        return threadId;
+        if (messageInserted != 1) {
+            throw new IllegalStateException("Composed message projection is missing.");
+        }
+        return new ComposeResult(threadId, true);
+    }
+
+    private UUID composedThread(
+            Long tenantId,
+            Long userId,
+            UUID idempotencyKey,
+            String providerRef) {
+        UUID deliveredThreadId = deliveryThread(tenantId, userId, idempotencyKey);
+        if (deliveredThreadId != null) {
+            return deliveredThreadId;
+        }
+        List<UUID> threadIds = jdbc.query("""
+                SELECT thread.thread_id
+                  FROM mail_threads thread
+                  JOIN mail_accounts account ON account.account_id = thread.account_id
+                 WHERE thread.tenant_id = ? AND thread.provider_thread_ref = ?
+                   AND account.owner_user_id = ?
+                 ORDER BY thread.created_at DESC
+                 LIMIT 1
+                """, (result, ignored) -> result.getObject("thread_id", UUID.class),
+                tenantId, providerRef, userId);
+        return threadIds.isEmpty() ? null : threadIds.get(0);
+    }
+
+    UUID deliveryThread(Long tenantId, Long userId, UUID idempotencyKey) {
+        List<UUID> threadIds = jdbc.query("""
+                SELECT delivery.thread_id
+                  FROM mail_delivery_outbox delivery
+                  JOIN mail_threads thread ON thread.thread_id = delivery.thread_id
+                  JOIN mail_accounts account ON account.account_id = thread.account_id
+                 WHERE delivery.tenant_id = ? AND delivery.idempotency_key = ?
+                   AND account.owner_user_id = ?
+                 LIMIT 1
+                """, (result, ignored) -> result.getObject("thread_id", UUID.class),
+                tenantId, idempotencyKey, userId);
+        return threadIds.isEmpty() ? null : threadIds.get(0);
     }
 
     int updateDraft(
@@ -255,6 +308,38 @@ class MailCommandRepository {
                    AND proposal_status = 'PROPOSED' AND version = ?
                    AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
                 """, status, userId, userId, tenantId, proposalId, version);
+    }
+
+    void enqueueDelivery(
+            Long tenantId,
+            Long userId,
+            UUID threadId,
+            UUID idempotencyKey,
+            String correlationId) {
+        int inserted = jdbc.update("""
+                INSERT INTO mail_delivery_outbox (
+                    delivery_id, tenant_id, thread_id, message_id,
+                    idempotency_key, correlation_id, created_by)
+                SELECT ?, message.tenant_id, message.thread_id, message.message_id,
+                       ?, NULLIF(?, ''), ?
+                  FROM mail_messages message
+                 WHERE message.tenant_id = ? AND message.thread_id = ?
+                   AND message.message_direction = 'OUTBOUND'
+                 ORDER BY message.sent_at DESC, message.message_id DESC
+                 LIMIT 1
+                ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
+                """, UUID.randomUUID(), idempotencyKey, value(correlationId), userId,
+                tenantId, threadId);
+        if (inserted == 0) {
+            Integer existing = jdbc.queryForObject("""
+                    SELECT COUNT(*)
+                      FROM mail_delivery_outbox
+                     WHERE tenant_id = ? AND idempotency_key = ? AND thread_id = ?
+                    """, Integer.class, tenantId, idempotencyKey, threadId);
+            if (existing == null || existing == 0) {
+                throw new IllegalStateException("Outbound message projection is missing.");
+            }
+        }
     }
 
     int updatePolicy(

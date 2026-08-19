@@ -4,13 +4,20 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 
+import static com.dwp.services.platform.mail.MailTypes.AdapterRuntimeState;
 import static com.dwp.services.platform.mail.MailTypes.ProviderType;
 
 @Component
 public class MailProviderCatalog {
 
-    private static final List<MailDtos.ProviderDescriptor> PROVIDERS = List.of(
-            provider(
+    private final MailConnectorRegistry connectorRegistry;
+
+    public MailProviderCatalog(MailConnectorRegistry connectorRegistry) {
+        this.connectorRegistry = connectorRegistry;
+    }
+
+    private final List<MailDtos.ProviderDescriptor> providers = List.of(
+            descriptor(
                     ProviderType.MICROSOFT_GRAPH,
                     "Microsoft 365",
                     "Microsoft Graph",
@@ -18,7 +25,7 @@ public class MailProviderCatalog {
                     List.of("READ", "SEND", "THREADS", "DELTA_SYNC", "PUSH", "CALENDAR_CONTEXT"),
                     true,
                     true),
-            provider(
+            descriptor(
                     ProviderType.GOOGLE_GMAIL,
                     "Google Workspace",
                     "Gmail API",
@@ -26,7 +33,7 @@ public class MailProviderCatalog {
                     List.of("READ", "SEND", "THREADS", "HISTORY_SYNC", "PUSH", "LABELS"),
                     true,
                     true),
-            provider(
+            descriptor(
                     ProviderType.NAVER_WORKS,
                     "NAVER WORKS",
                     "NAVER WORKS Mail API",
@@ -34,7 +41,7 @@ public class MailProviderCatalog {
                     List.of("READ", "SEND", "THREADS", "FOLDERS"),
                     false,
                     true),
-            provider(
+            descriptor(
                     ProviderType.JMAP,
                     "JMAP",
                     "RFC 8620 / RFC 8621",
@@ -42,7 +49,7 @@ public class MailProviderCatalog {
                     List.of("READ", "SEND", "THREADS", "PUSH"),
                     true,
                     false),
-            provider(
+            descriptor(
                     ProviderType.IMAP_SMTP,
                     "IMAP / SMTP",
                     "IMAP4rev2 / SMTP Submission",
@@ -50,7 +57,7 @@ public class MailProviderCatalog {
                     List.of("READ", "SEND", "FOLDERS", "IDLE"),
                     true,
                     false),
-            provider(
+            descriptor(
                     ProviderType.DWP_SANDBOX,
                     "DWP Sandbox",
                     "DWP native development adapter",
@@ -60,10 +67,28 @@ public class MailProviderCatalog {
                     true));
 
     public List<MailDtos.ProviderDescriptor> all() {
-        return PROVIDERS;
+        return providers.stream().map(this::withRuntimeState).toList();
     }
 
-    private static MailDtos.ProviderDescriptor provider(
+    public boolean isRuntimeAvailable(ProviderType providerType) {
+        return connectorRegistry.isAvailable(providerType);
+    }
+
+    private MailDtos.ProviderDescriptor withRuntimeState(MailDtos.ProviderDescriptor descriptor) {
+        return connectorRegistry.connector(descriptor.providerType())
+                .map(connector -> new MailDtos.ProviderDescriptor(
+                        descriptor.providerType(), descriptor.name(), descriptor.protocol(),
+                        descriptor.authenticationMode(), descriptor.capabilities(),
+                        descriptor.pushSupported(), descriptor.tenantWideSupported(),
+                        AdapterRuntimeState.AVAILABLE, connector.manifest().adapterVersion()))
+                .orElseGet(() -> new MailDtos.ProviderDescriptor(
+                        descriptor.providerType(), descriptor.name(), descriptor.protocol(),
+                        descriptor.authenticationMode(), descriptor.capabilities(),
+                        descriptor.pushSupported(), descriptor.tenantWideSupported(),
+                        AdapterRuntimeState.DEPLOYMENT_REQUIRED, null));
+    }
+
+    private static MailDtos.ProviderDescriptor descriptor(
             ProviderType type,
             String name,
             String protocol,
@@ -78,6 +103,8 @@ public class MailProviderCatalog {
                 authenticationMode,
                 List.copyOf(capabilities),
                 pushSupported,
-                tenantWideSupported);
+                tenantWideSupported,
+                AdapterRuntimeState.DEPLOYMENT_REQUIRED,
+                null);
     }
 }

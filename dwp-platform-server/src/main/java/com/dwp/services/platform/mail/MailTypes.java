@@ -68,6 +68,21 @@ public final class MailTypes {
         DRAFT
     }
 
+    public enum DeliveryState {
+        RECEIVED,
+        DRAFT,
+        QUEUED,
+        SENDING,
+        RETRYING,
+        SENT,
+        FAILED
+    }
+
+    public enum AdapterRuntimeState {
+        AVAILABLE,
+        DEPLOYMENT_REQUIRED
+    }
+
     public enum ProposalType {
         DRAFT_REPLY,
         CREATE_CALENDAR_EVENT,

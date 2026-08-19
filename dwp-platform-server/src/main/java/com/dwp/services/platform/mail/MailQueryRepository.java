@@ -87,9 +87,18 @@ class MailQueryRepository {
                    AND (? = '' OR thread.triage_lane = ?)
                    AND ((? = '' AND thread.workflow_state <> 'ARCHIVED')
                         OR (? <> '' AND thread.workflow_state = ?))
-                   AND (? = '' OR folder.folder_type = ?)
+                   AND (? = '' OR EXISTS (
+                       SELECT 1
+                         FROM mail_thread_folders membership
+                         JOIN mail_folders member_folder
+                           ON member_folder.folder_id = membership.folder_id
+                        WHERE membership.tenant_id = thread.tenant_id
+                          AND membership.thread_id = thread.thread_id
+                          AND member_folder.folder_type = ?
+                   ))
                    AND (? = FALSE OR thread.shared_inbox_id IS NOT NULL)
-                   AND (? = '' OR LOWER(thread.subject) LIKE ? OR LOWER(thread.preview) LIKE ?)
+                   AND (? = '' OR LOWER(thread.subject) LIKE ? OR LOWER(thread.preview) LIKE ?
+                        OR LOWER(thread.participants::text) LIKE ?)
                  ORDER BY
                        CASE thread.importance
                            WHEN 'URGENT' THEN 0 WHEN 'HIGH' THEN 1
@@ -102,7 +111,7 @@ class MailQueryRepository {
                 state, state, state,
                 folder, folder,
                 sharedOnly,
-                search, pattern(search), pattern(search),
+                search, pattern(search), pattern(search), pattern(search),
                 pageSize, page * pageSize);
     }
 
@@ -124,16 +133,25 @@ class MailQueryRepository {
                    AND (? = '' OR thread.triage_lane = ?)
                    AND ((? = '' AND thread.workflow_state <> 'ARCHIVED')
                         OR (? <> '' AND thread.workflow_state = ?))
-                   AND (? = '' OR folder.folder_type = ?)
+                   AND (? = '' OR EXISTS (
+                       SELECT 1
+                         FROM mail_thread_folders membership
+                         JOIN mail_folders member_folder
+                           ON member_folder.folder_id = membership.folder_id
+                        WHERE membership.tenant_id = thread.tenant_id
+                          AND membership.thread_id = thread.thread_id
+                          AND member_folder.folder_type = ?
+                   ))
                    AND (? = FALSE OR thread.shared_inbox_id IS NOT NULL)
-                   AND (? = '' OR LOWER(thread.subject) LIKE ? OR LOWER(thread.preview) LIKE ?)
+                   AND (? = '' OR LOWER(thread.subject) LIKE ? OR LOWER(thread.preview) LIKE ?
+                        OR LOWER(thread.participants::text) LIKE ?)
                 """, Long.class,
                 tenantId, userId, userId,
                 lane, lane,
                 state, state, state,
                 folder, folder,
                 sharedOnly,
-                search, pattern(search), pattern(search));
+                search, pattern(search), pattern(search), pattern(search));
         return value == null ? 0 : value;
     }
 
@@ -146,12 +164,26 @@ class MailQueryRepository {
 
     List<MailDtos.Message> messages(Long tenantId, UUID threadId) {
         return jdbc.query("""
-                SELECT message_id, sender_email, sender_name, recipients::text,
-                       message_direction, body_format, body_content,
-                       attachments::text, sent_at
-                  FROM mail_messages
-                 WHERE tenant_id = ? AND thread_id = ?
-                 ORDER BY sent_at, message_id
+                SELECT message.message_id, message.sender_email, message.sender_name,
+                       message.recipients::text, message.message_direction,
+                       message.body_format, message.body_content,
+                       message.attachments::text, message.sent_at,
+                       CASE
+                           WHEN message.message_direction = 'INBOUND' THEN 'RECEIVED'
+                           WHEN message.message_direction = 'DRAFT' THEN 'DRAFT'
+                           WHEN delivery.delivery_status = 'QUEUED' THEN 'QUEUED'
+                           WHEN delivery.delivery_status = 'LEASED' THEN 'SENDING'
+                           WHEN delivery.delivery_status = 'RETRY_WAIT' THEN 'RETRYING'
+                           WHEN delivery.delivery_status = 'FAILED' THEN 'FAILED'
+                           ELSE 'SENT'
+                       END AS delivery_state,
+                       delivery.accepted_at, delivery.last_error_code
+                  FROM mail_messages message
+                  LEFT JOIN mail_delivery_outbox delivery
+                    ON delivery.message_id = message.message_id
+                   AND delivery.tenant_id = message.tenant_id
+                 WHERE message.tenant_id = ? AND message.thread_id = ?
+                 ORDER BY message.sent_at, message.message_id
                 """, (result, ignored) -> new MailDtos.Message(
                 result.getObject("message_id", UUID.class),
                 result.getString("sender_email"),
@@ -161,7 +193,10 @@ class MailQueryRepository {
                 result.getString("body_format"),
                 result.getString("body_content"),
                 json.mapList(result.getString("attachments")),
-                result.getObject("sent_at", OffsetDateTime.class)), tenantId, threadId);
+                result.getObject("sent_at", OffsetDateTime.class),
+                DeliveryState.valueOf(result.getString("delivery_state")),
+                result.getObject("accepted_at", OffsetDateTime.class),
+                result.getString("last_error_code")), tenantId, threadId);
     }
 
     List<MailDtos.InternalComment> comments(Long tenantId, UUID threadId) {
@@ -188,6 +223,29 @@ class MailQueryRepository {
                    AND lifecycle_state = 'ACTIVE'
                 """, Long.class, tenantId, sharedInboxId, userId);
         return count != null && count > 0;
+    }
+
+    List<MailDtos.SharedInboxMember> sharedInboxMembers(
+            Long tenantId, UUID sharedInboxId) {
+        return jdbc.query("""
+                SELECT membership.user_id, account.display_name,
+                       account.email_address, membership.member_role
+                  FROM mail_shared_inbox_members membership
+                  JOIN mail_accounts account
+                    ON account.tenant_id = membership.tenant_id
+                   AND account.owner_user_id = membership.user_id
+                   AND account.account_kind = 'PERSONAL'
+                   AND account.is_default = TRUE
+                 WHERE membership.tenant_id = ?
+                   AND membership.shared_inbox_id = ?
+                   AND membership.lifecycle_state = 'ACTIVE'
+                   AND account.connection_state = 'ACTIVE'
+                 ORDER BY CASE membership.member_role WHEN 'MANAGER' THEN 0 ELSE 1 END,
+                          account.display_name, membership.user_id
+                """, (result, ignored) -> new MailDtos.SharedInboxMember(
+                result.getLong("user_id"), result.getString("display_name"),
+                result.getString("email_address"), result.getString("member_role")),
+                tenantId, sharedInboxId);
     }
 
     List<MailDtos.ActionProposal> proposals(
@@ -417,6 +475,15 @@ class MailQueryRepository {
                           FROM mail_action_proposals
                          WHERE tenant_id = ? AND proposal_status = 'PROPOSED'
                            AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+                        """, tenantId),
+                count("""
+                        SELECT COUNT(*) FROM mail_delivery_outbox
+                         WHERE tenant_id = ?
+                           AND delivery_status IN ('QUEUED', 'LEASED', 'RETRY_WAIT')
+                        """, tenantId),
+                count("""
+                        SELECT COUNT(*) FROM mail_delivery_outbox
+                         WHERE tenant_id = ? AND delivery_status = 'FAILED'
                         """, tenantId));
     }
 
@@ -520,6 +587,8 @@ class MailQueryRepository {
             int activeConnections,
             int degradedConnections,
             int openSharedThreads,
-            int pendingAiProposals) {
+            int pendingAiProposals,
+            int queuedDeliveries,
+            int failedDeliveries) {
     }
 }

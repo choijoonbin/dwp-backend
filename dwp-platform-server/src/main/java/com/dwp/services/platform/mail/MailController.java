@@ -133,6 +133,17 @@ public class MailController {
                 tenantId, userId, threadId, correlationId, request));
     }
 
+    @PostMapping("/threads/{threadId}/messages/{messageId}/retry")
+    public ApiResponse<MailDtos.ThreadDetail> retryDelivery(
+            @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
+            @RequestHeader("X-DWP-User-ID") Long userId,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @PathVariable UUID threadId,
+            @PathVariable UUID messageId) {
+        return ApiResponse.success(service.retryDelivery(
+                tenantId, userId, threadId, messageId, correlationId));
+    }
+
     @PostMapping("/proposals/{proposalId}/decision")
     public ApiResponse<MailDtos.ActionProposal> decideProposal(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,

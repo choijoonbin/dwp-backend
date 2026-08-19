@@ -101,6 +101,14 @@ dwp:
       microsoft-graph:
         authorize-base-url: ${DWP_MS_GRAPH_AUTHORIZE_BASE_URL:https://login.microsoftonline.com}
         api-base-url: ${DWP_MS_GRAPH_API_BASE_URL:https://graph.microsoft.com}
+    mail:
+      delivery:
+        enabled: ${DWP_MAIL_DELIVERY_ENABLED:true}
+        batch-size: ${DWP_MAIL_DELIVERY_BATCH_SIZE:25}
+        lease-seconds: ${DWP_MAIL_DELIVERY_LEASE_SECONDS:30}
+        maximum-attempts: ${DWP_MAIL_DELIVERY_MAXIMUM_ATTEMPTS:5}
+        poll-delay-ms: ${DWP_MAIL_DELIVERY_POLL_DELAY_MS:1000}
+        worker-id: ${DWP_MAIL_DELIVERY_WORKER_ID:${HOSTNAME:local}}
 
 management:
   endpoints:

@@ -325,6 +325,10 @@
             "format": "int32",
             "type": "integer"
           },
+          "failedDeliveries": {
+            "format": "int32",
+            "type": "integer"
+          },
           "generatedAt": {
             "format": "date-time",
             "type": "string"
@@ -349,6 +353,10 @@
               "$ref": "#/components/schemas/ProviderDescriptor"
             },
             "type": "array"
+          },
+          "queuedDeliveries": {
+            "format": "int32",
+            "type": "integer"
           },
           "sharedAccounts": {
             "format": "int32",
@@ -8252,6 +8260,10 @@
       },
       "Message": {
         "properties": {
+          "acceptedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
           "attachments": {
             "items": {
               "additionalProperties": {},
@@ -8265,7 +8277,22 @@
           "bodyFormat": {
             "type": "string"
           },
+          "deliveryState": {
+            "enum": [
+              "RECEIVED",
+              "DRAFT",
+              "QUEUED",
+              "SENDING",
+              "RETRYING",
+              "SENT",
+              "FAILED"
+            ],
+            "type": "string"
+          },
           "direction": {
+            "type": "string"
+          },
+          "lastDeliveryError": {
             "type": "string"
           },
           "messageId": {
@@ -9277,6 +9304,9 @@
       },
       "ProviderDescriptor": {
         "properties": {
+          "adapterVersion": {
+            "type": "string"
+          },
           "authenticationMode": {
             "type": "string"
           },
@@ -9305,6 +9335,13 @@
           },
           "pushSupported": {
             "type": "boolean"
+          },
+          "runtimeState": {
+            "enum": [
+              "AVAILABLE",
+              "DEPLOYMENT_REQUIRED"
+            ],
+            "type": "string"
           },
           "tenantWideSupported": {
             "type": "boolean"
@@ -10846,6 +10883,24 @@
         },
         "type": "object"
       },
+      "SharedInboxMember": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "emailAddress": {
+            "type": "string"
+          },
+          "memberRole": {
+            "type": "string"
+          },
+          "userId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "SharedInboxPulse": {
         "properties": {
           "address": {
@@ -11273,6 +11328,12 @@
           "proposals": {
             "items": {
               "$ref": "#/components/schemas/ActionProposal"
+            },
+            "type": "array"
+          },
+          "sharedInboxMembers": {
+            "items": {
+              "$ref": "#/components/schemas/SharedInboxMember"
             },
             "type": "array"
           },
@@ -23581,6 +23642,72 @@
           },
           "required": true
         },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseThreadDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "mail-controller"
+        ]
+      }
+    },
+    "/v1/mail/threads/{threadId}/messages/{messageId}/retry": {
+      "post": {
+        "operationId": "retryDelivery",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "threadId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "messageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
