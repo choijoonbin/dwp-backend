@@ -23,60 +23,13 @@ import java.util.UUID;
 @Repository
 public class ApprovalQueryRepository {
 
-    private static final String TASK_SELECT = """
-            SELECT task.task_id, task.request_id, request.request_number,
-                   request.title, request.summary,
-                   workflow.name_ko AS workflow_name_ko,
-                   workflow.name_en AS workflow_name_en,
-                   step.step_key, step.step_name, step.sequence_number AS step_sequence,
-                   request.requester_user_id, request.requester_name,
-                   request.requester_org_name, task.assignee_user_id,
-                   task.candidate_role, task.status, request.priority,
-                   request.data_classification, task.risk_score,
-                   request.submitted_at, task.due_at, task.version
-              FROM apr_tasks task
-              JOIN apr_requests request
-                ON request.tenant_id = task.tenant_id
-               AND request.request_id = task.request_id
-              JOIN apr_workflow_versions workflow_version
-                ON workflow_version.tenant_id = request.tenant_id
-               AND workflow_version.workflow_version_id = request.workflow_version_id
-              JOIN apr_workflow_definitions workflow
-                ON workflow.tenant_id = workflow_version.tenant_id
-               AND workflow.workflow_id = workflow_version.workflow_id
-              JOIN apr_steps step
-                ON step.tenant_id = task.tenant_id
-               AND step.step_id = task.step_id
-            """;
+    private static final String TASK_SELECT = ApprovalQuerySql01.QUERY_SELECT_APR_TASKS;
 
-    private static final String DIRECT_TASK_ACCESS = """
-            (task.assignee_user_id = :userId
-             OR (task.assignee_user_id IS NULL AND task.candidate_role IN (:roles)))
-            """;
+    private static final String DIRECT_TASK_ACCESS = ApprovalQuerySql01.QUERY_SQL_STATEMENT;
 
-    private static final String DELEGATED_TASK_ACCESS = """
-            EXISTS (
-                SELECT 1
-                  FROM apr_delegations delegation
-                 WHERE delegation.tenant_id = task.tenant_id
-                   AND delegation.delegate_user_id = :userId
-                   AND delegation.lifecycle_state = 'ACTIVE'
-                   AND CURRENT_TIMESTAMP BETWEEN delegation.starts_at AND delegation.ends_at
-                   AND (delegation.scope_type = 'ALL'
-                        OR delegation.workflow_key = workflow.workflow_key)
-                   AND (
-                        task.assignee_user_id = delegation.delegator_user_id
-                        OR (task.assignee_user_id IS NULL
-                            AND jsonb_exists(
-                                delegation.delegated_role_codes,
-                                task.candidate_role))
-                   )
-            )
-            """;
+    private static final String DELEGATED_TASK_ACCESS = ApprovalQuerySql01.QUERY_SQL_APR_DELEGATIONS;
 
-    private static final String COMPLETED_BY_ACTOR_ACCESS = """
-            task.decision_actor_user_id = :userId
-            """;
+    private static final String COMPLETED_BY_ACTOR_ACCESS = ApprovalQuerySql01.JSONB_EXISTS_SQL_STATEMENT;
 
     private final NamedParameterJdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
@@ -101,11 +54,7 @@ public class ApprovalQueryRepository {
             }
             return;
         }
-        jdbc.update("""
-                INSERT INTO apr_tenants (tenant_id)
-                VALUES (:tenantId)
-                ON CONFLICT (tenant_id) DO NOTHING
-                """, new MapSqlParameterSource("tenantId", tenantId));
+        jdbc.update(ApprovalQuerySql01.ENSURE_TENANT_INSERT_APR_TENANTS, new MapSqlParameterSource("tenantId", tenantId));
         jdbc.queryForObject(
                 "SELECT seed_approval_form_catalog(:tenantId)",
                 new MapSqlParameterSource("tenantId", tenantId),
@@ -126,52 +75,7 @@ public class ApprovalQueryRepository {
 
     public ApprovalDtos.ApprovalMetrics metrics(ApprovalRequestContext.Actor actor) {
         MapSqlParameterSource params = actorParams(actor);
-        return jdbc.queryForObject("""
-                WITH visible_tasks AS (
-                    SELECT task.*
-                      FROM apr_tasks task
-                      JOIN apr_requests request
-                        ON request.tenant_id = task.tenant_id
-                       AND request.request_id = task.request_id
-                      JOIN apr_workflow_versions workflow_version
-                        ON workflow_version.tenant_id = request.tenant_id
-                       AND workflow_version.workflow_version_id = request.workflow_version_id
-                      JOIN apr_workflow_definitions workflow
-                        ON workflow.tenant_id = workflow_version.tenant_id
-                       AND workflow.workflow_id = workflow_version.workflow_id
-                     WHERE task.tenant_id = :tenantId
-                       AND (
-                """ + DIRECT_TASK_ACCESS + " OR " + DELEGATED_TASK_ACCESS + """
-                       )
-                ), task_metrics AS (
-                    SELECT COUNT(*) FILTER (WHERE status IN ('PENDING', 'CLAIMED'))::INTEGER AS pending,
-                           COUNT(*) FILTER (
-                               WHERE status IN ('PENDING', 'CLAIMED')
-                                 AND due_at >= CURRENT_DATE
-                                 AND due_at < CURRENT_DATE + INTERVAL '1 day')::INTEGER AS due_today,
-                           COUNT(*) FILTER (
-                               WHERE status IN ('PENDING', 'CLAIMED')
-                                 AND due_at < CURRENT_TIMESTAMP)::INTEGER AS overdue,
-                           COUNT(*) FILTER (WHERE status = 'INFO_REQUESTED')::INTEGER AS needs_information
-                      FROM visible_tasks
-                ), request_metrics AS (
-                    SELECT COUNT(*) FILTER (
-                               WHERE status IN ('SUBMITTED', 'IN_REVIEW', 'NEEDS_INFO'))::INTEGER AS in_flight,
-                           COALESCE(AVG(EXTRACT(EPOCH FROM (completed_at - submitted_at)) / 3600.0)
-                               FILTER (WHERE completed_at IS NOT NULL), 0)::DOUBLE PRECISION AS average_cycle,
-                           COALESCE(100.0 * COUNT(*) FILTER (
-                               WHERE completed_at IS NOT NULL AND (due_at IS NULL OR completed_at <= due_at))
-                               / NULLIF(COUNT(*) FILTER (WHERE completed_at IS NOT NULL), 0), 100.0)
-                               ::DOUBLE PRECISION AS sla_compliance
-                      FROM apr_requests
-                     WHERE tenant_id = :tenantId
-                       AND requester_user_id = :userId
-                )
-                SELECT task_metrics.pending, task_metrics.due_today, task_metrics.overdue,
-                       task_metrics.needs_information, request_metrics.in_flight,
-                       request_metrics.average_cycle, request_metrics.sla_compliance
-                  FROM task_metrics CROSS JOIN request_metrics
-                """, params, (result, rowNumber) -> new ApprovalDtos.ApprovalMetrics(
+        return jdbc.queryForObject(ApprovalQuerySql01.METRICS_WITH_APR_TASKS + DIRECT_TASK_ACCESS + " OR " + DELEGATED_TASK_ACCESS + ApprovalQuerySql01.AS_SQL_VISIBLE_TASKS, params, (result, rowNumber) -> new ApprovalDtos.ApprovalMetrics(
                 result.getInt("pending"),
                 result.getInt("due_today"),
                 result.getInt("overdue"),
@@ -182,14 +86,7 @@ public class ApprovalQueryRepository {
     }
 
     public boolean isBlockingPolicyActive(long tenantId, String policyKey) {
-        Integer count = jdbc.queryForObject("""
-                SELECT COUNT(*)::INTEGER
-                  FROM apr_policy_rules
-                 WHERE tenant_id = :tenantId
-                   AND policy_key = :policyKey
-                   AND lifecycle_state = 'ACTIVE'
-                   AND enforcement_mode = 'BLOCK'
-                """, new MapSqlParameterSource()
+        Integer count = jdbc.queryForObject(ApprovalQuerySql01.IS_BLOCKING_POLICY_ACTIVE_SELECT_APR_POLICY_RULES, new MapSqlParameterSource()
                 .addValue("tenantId", tenantId)
                 .addValue("policyKey", policyKey), Integer.class);
         return count != null && count > 0;
@@ -214,17 +111,7 @@ public class ApprovalQueryRepository {
                 ? "task.completed_at DESC NULLS LAST, task.created_at DESC"
                 : "CASE WHEN task.due_at < CURRENT_TIMESTAMP THEN 0 ELSE 1 END, "
                         + "task.risk_score DESC, task.due_at, task.created_at DESC";
-        String taskQuery = TASK_SELECT + """
-                     WHERE task.tenant_id = :tenantId
-                       AND (
-                    """ + accessClause + """
-                       )
-                       AND (
-                    """ + statusClause + """
-                       )
-                     ORDER BY %s
-                     LIMIT :limit
-                    """.formatted(orderClause);
+        String taskQuery = TASK_SELECT + ApprovalQuerySql01.TASKS_SQL_STATEMENT + accessClause + ApprovalQuerySql01.TASKS_SQL_STATEMENT_2 + statusClause + ApprovalQuerySql01.TASKS_SQL_STATEMENT_3.formatted(orderClause);
         return jdbc.query(
                 taskQuery,
                 actorParams(actor).addValue("limit", Math.max(1, Math.min(limit, 200))),
@@ -235,14 +122,8 @@ public class ApprovalQueryRepository {
             ApprovalRequestContext.Actor actor,
             UUID taskId) {
         List<TaskAccess> matches = jdbc.query(
-                TASK_SELECT + """
-                     WHERE task.tenant_id = :tenantId
-                       AND task.task_id = :taskId
-                       AND (
-                    """ + DIRECT_TASK_ACCESS + " OR " + DELEGATED_TASK_ACCESS
-                        + " OR " + COMPLETED_BY_ACTOR_ACCESS + """
-                       )
-                    """,
+                TASK_SELECT + ApprovalQuerySql01.TASK_DETAIL_SQL_STATEMENT + DIRECT_TASK_ACCESS + " OR " + DELEGATED_TASK_ACCESS
+                        + " OR " + COMPLETED_BY_ACTOR_ACCESS + ApprovalQuerySql01.TASK_DETAIL_SQL_STATEMENT_2,
                 actorParams(actor).addValue("taskId", taskId),
                 (result, rowNumber) -> new TaskAccess(
                         taskSummary(result),
@@ -260,46 +141,13 @@ public class ApprovalQueryRepository {
     }
 
     private Long delegationSource(ApprovalRequestContext.Actor actor, UUID taskId) {
-        return jdbc.query("""
-                SELECT delegation.delegator_user_id
-                  FROM apr_tasks task
-                  JOIN apr_requests request
-                    ON request.tenant_id = task.tenant_id
-                   AND request.request_id = task.request_id
-                  JOIN apr_workflow_versions workflow_version
-                    ON workflow_version.tenant_id = request.tenant_id
-                   AND workflow_version.workflow_version_id = request.workflow_version_id
-                  JOIN apr_workflow_definitions workflow
-                    ON workflow.tenant_id = workflow_version.tenant_id
-                   AND workflow.workflow_id = workflow_version.workflow_id
-                  JOIN apr_delegations delegation
-                    ON delegation.tenant_id = task.tenant_id
-                   AND delegation.delegate_user_id = :userId
-                   AND delegation.lifecycle_state = 'ACTIVE'
-                   AND CURRENT_TIMESTAMP BETWEEN delegation.starts_at AND delegation.ends_at
-                   AND (delegation.scope_type = 'ALL'
-                        OR delegation.workflow_key = workflow.workflow_key)
-                   AND (
-                        task.assignee_user_id = delegation.delegator_user_id
-                        OR (task.assignee_user_id IS NULL
-                            AND jsonb_exists(
-                                delegation.delegated_role_codes,
-                                task.candidate_role))
-                   )
-                 WHERE task.tenant_id = :tenantId AND task.task_id = :taskId
-                 ORDER BY delegation.starts_at DESC, delegation.created_at DESC
-                 LIMIT 1
-                """, actorParams(actor).addValue("taskId", taskId),
+        return jdbc.query(ApprovalQuerySql01.DELEGATION_SOURCE_SELECT_APR_TASKS, actorParams(actor).addValue("taskId", taskId),
                 result -> result.next() ? result.getLong(1) : null);
     }
 
     public Map<String, Object> requestPayload(long tenantId, UUID requestId) {
         List<String> payloads = jdbc.query(
-                """
-                SELECT payload::text
-                  FROM apr_request_payloads
-                 WHERE tenant_id = :tenantId AND request_id = :requestId
-                """,
+                ApprovalQuerySql01.REQUEST_PAYLOAD_SELECT_APR_REQUEST_PAYLOADS,
                 new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
                         .addValue("requestId", requestId),
@@ -309,15 +157,7 @@ public class ApprovalQueryRepository {
 
     public Map<String, Object> requestFormSchema(long tenantId, UUID requestId) {
         List<String> schemas = jdbc.query(
-                """
-                SELECT form_version.schema_payload::text
-                  FROM apr_requests request
-                  JOIN apr_form_versions form_version
-                    ON form_version.tenant_id = request.tenant_id
-                   AND form_version.form_version_id = request.form_version_id
-                 WHERE request.tenant_id = :tenantId
-                   AND request.request_id = :requestId
-                """,
+                ApprovalQuerySql01.REQUEST_FORM_SCHEMA_SELECT_APR_REQUESTS,
                 new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
                         .addValue("requestId", requestId),
@@ -326,18 +166,7 @@ public class ApprovalQueryRepository {
     }
 
     public List<ApprovalDtos.TimelineEvent> timeline(long tenantId, UUID requestId) {
-        return jdbc.query("""
-                SELECT event_id, event_type, actor_type, actor_id, outcome,
-                       event_data ->> 'actorDisplayName' AS actor_display_name,
-                       event_data ->> 'stepName' AS step_name,
-                       CASE WHEN event_data ->> 'stepSequence' ~ '^[0-9]+$'
-                            THEN (event_data ->> 'stepSequence')::INTEGER END AS step_sequence,
-                       COALESCE((event_data ->> 'delegated')::BOOLEAN, FALSE) AS delegated,
-                       message, occurred_at
-                  FROM apr_request_events
-                 WHERE tenant_id = :tenantId AND request_id = :requestId
-                 ORDER BY occurred_at DESC, event_id
-                """,
+        return jdbc.query(ApprovalQuerySql01.TIMELINE_SELECT_APR_REQUEST_EVENTS,
                 new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
                         .addValue("requestId", requestId),
@@ -366,54 +195,7 @@ public class ApprovalQueryRepository {
             case "NEEDS_INFO" -> "request.status = 'NEEDS_INFO'";
             default -> "request.status IN ('SUBMITTED', 'IN_REVIEW', 'NEEDS_INFO')";
         };
-        return jdbc.query("""
-                SELECT request.request_id, request.request_number, request.title,
-                       request.summary, workflow.name_ko AS workflow_name_ko,
-                       workflow.name_en AS workflow_name_en, request.status,
-                       current_step.step_key AS current_step_key,
-                       current_step.step_name AS current_step_name,
-                       current_step.sequence_number AS current_step_sequence,
-                       COALESCE(step_count.total_steps, 0)::INTEGER AS total_steps,
-                       request.priority, request.data_classification,
-                       (SELECT event.message
-                          FROM apr_request_events event
-                         WHERE event.tenant_id = request.tenant_id
-                           AND event.request_id = request.request_id
-                           AND event.event_type = 'INFORMATION_REQUESTED'
-                         ORDER BY event.occurred_at DESC, event.event_id
-                         LIMIT 1) AS latest_information_request,
-                       request.submitted_at, request.due_at, request.completed_at,
-                       request.version
-                  FROM apr_requests request
-                  JOIN apr_workflow_versions workflow_version
-                    ON workflow_version.tenant_id = request.tenant_id
-                   AND workflow_version.workflow_version_id = request.workflow_version_id
-                  JOIN apr_workflow_definitions workflow
-                    ON workflow.tenant_id = workflow_version.tenant_id
-                   AND workflow.workflow_id = workflow_version.workflow_id
-                  LEFT JOIN LATERAL (
-                      SELECT step.step_key, step.step_name, step.sequence_number
-                        FROM apr_steps step
-                       WHERE step.tenant_id = request.tenant_id
-                         AND step.request_id = request.request_id
-                         AND step.status IN ('PENDING', 'IN_PROGRESS')
-                       ORDER BY step.sequence_number
-                       LIMIT 1
-                  ) current_step ON TRUE
-                  LEFT JOIN LATERAL (
-                      SELECT COUNT(*)::INTEGER AS total_steps
-                        FROM apr_steps step
-                       WHERE step.tenant_id = request.tenant_id
-                         AND step.request_id = request.request_id
-                  ) step_count ON TRUE
-                 WHERE request.tenant_id = :tenantId
-                   AND request.requester_user_id = :userId
-                   AND (
-                """ + statusClause + """
-                   )
-                 ORDER BY request.updated_at DESC, request.request_id
-                 LIMIT :limit
-                """,
+        return jdbc.query(ApprovalQuerySql01.REQUESTS_SELECT_APR_REQUEST_EVENTS + statusClause + ApprovalQuerySql01.COUNT_SQL_STATEMENT,
                 actorParams(actor).addValue("limit", Math.max(1, Math.min(limit, 200))),
                 (result, rowNumber) -> requestSummary(result));
     }
@@ -421,50 +203,7 @@ public class ApprovalQueryRepository {
     public ApprovalDtos.RequestSummary request(
             ApprovalRequestContext.Actor actor,
             UUID requestId) {
-        List<ApprovalDtos.RequestSummary> matches = jdbc.query("""
-                SELECT request.request_id, request.request_number, request.title,
-                       request.summary, workflow.name_ko AS workflow_name_ko,
-                       workflow.name_en AS workflow_name_en, request.status,
-                       current_step.step_key AS current_step_key,
-                       current_step.step_name AS current_step_name,
-                       current_step.sequence_number AS current_step_sequence,
-                       COALESCE(step_count.total_steps, 0)::INTEGER AS total_steps,
-                       request.priority, request.data_classification,
-                       (SELECT event.message
-                          FROM apr_request_events event
-                         WHERE event.tenant_id = request.tenant_id
-                           AND event.request_id = request.request_id
-                           AND event.event_type = 'INFORMATION_REQUESTED'
-                         ORDER BY event.occurred_at DESC, event.event_id
-                         LIMIT 1) AS latest_information_request,
-                       request.submitted_at, request.due_at, request.completed_at,
-                       request.version
-                  FROM apr_requests request
-                  JOIN apr_workflow_versions workflow_version
-                    ON workflow_version.tenant_id = request.tenant_id
-                   AND workflow_version.workflow_version_id = request.workflow_version_id
-                  JOIN apr_workflow_definitions workflow
-                    ON workflow.tenant_id = workflow_version.tenant_id
-                   AND workflow.workflow_id = workflow_version.workflow_id
-                  LEFT JOIN LATERAL (
-                      SELECT step.step_key, step.step_name, step.sequence_number
-                        FROM apr_steps step
-                       WHERE step.tenant_id = request.tenant_id
-                         AND step.request_id = request.request_id
-                         AND step.status IN ('PENDING', 'IN_PROGRESS')
-                       ORDER BY step.sequence_number
-                       LIMIT 1
-                  ) current_step ON TRUE
-                  LEFT JOIN LATERAL (
-                      SELECT COUNT(*)::INTEGER AS total_steps
-                        FROM apr_steps step
-                       WHERE step.tenant_id = request.tenant_id
-                         AND step.request_id = request.request_id
-                  ) step_count ON TRUE
-                 WHERE request.tenant_id = :tenantId
-                   AND request.request_id = :requestId
-                   AND request.requester_user_id = :userId
-                """, actorParams(actor).addValue("requestId", requestId),
+        List<ApprovalDtos.RequestSummary> matches = jdbc.query(ApprovalQuerySql01.REQUEST_SELECT_APR_REQUEST_EVENTS, actorParams(actor).addValue("requestId", requestId),
                 (result, rowNumber) -> requestSummary(result));
         if (matches.isEmpty()) throw new BaseException(ErrorCode.NOT_FOUND);
         return matches.get(0);
@@ -474,20 +213,7 @@ public class ApprovalQueryRepository {
             ApprovalRequestContext.Actor actor,
             UUID requestId) {
         ApprovalDtos.RequestSummary request = request(actor, requestId);
-        RequestAssetIds assets = jdbc.queryForObject("""
-                SELECT workflow_version.workflow_id, form_version.form_id,
-                       form_version.schema_payload::text AS form_schema
-                  FROM apr_requests approval_request
-                  JOIN apr_workflow_versions workflow_version
-                    ON workflow_version.tenant_id = approval_request.tenant_id
-                   AND workflow_version.workflow_version_id = approval_request.workflow_version_id
-                  JOIN apr_form_versions form_version
-                    ON form_version.tenant_id = approval_request.tenant_id
-                   AND form_version.form_version_id = approval_request.form_version_id
-                 WHERE approval_request.tenant_id = :tenantId
-                   AND approval_request.request_id = :requestId
-                   AND approval_request.requester_user_id = :userId
-                """, actorParams(actor).addValue("requestId", requestId),
+        RequestAssetIds assets = jdbc.queryForObject(ApprovalQuerySql01.REQUEST_DETAIL_SELECT_APR_REQUESTS, actorParams(actor).addValue("requestId", requestId),
                 (result, rowNumber) -> new RequestAssetIds(
                         result.getObject("workflow_id", UUID.class),
                         result.getObject("form_id", UUID.class),
@@ -503,57 +229,12 @@ public class ApprovalQueryRepository {
     }
 
     public List<ApprovalDtos.StageMetric> flow(ApprovalRequestContext.Actor actor) {
-        Map<String, Integer> counts = jdbc.query("""
-                WITH visible_requests AS (
-                    SELECT request.request_id, request.status
-                      FROM apr_requests request
-                     WHERE request.tenant_id = :tenantId
-                       AND request.requester_user_id = :userId
-                    UNION
-                    SELECT request.request_id, request.status
-                      FROM apr_tasks task
-                      JOIN apr_requests request
-                        ON request.tenant_id = task.tenant_id
-                       AND request.request_id = task.request_id
-                      JOIN apr_workflow_versions workflow_version
-                        ON workflow_version.tenant_id = request.tenant_id
-                       AND workflow_version.workflow_version_id = request.workflow_version_id
-                      JOIN apr_workflow_definitions workflow
-                        ON workflow.tenant_id = workflow_version.tenant_id
-                       AND workflow.workflow_id = workflow_version.workflow_id
-                     WHERE task.tenant_id = :tenantId
-                       AND (
-                """ + DIRECT_TASK_ACCESS + " OR " + DELEGATED_TASK_ACCESS + """
-                       )
-                )
-                SELECT status, COUNT(*)::INTEGER AS count
-                  FROM visible_requests
-                 WHERE status NOT IN ('DRAFT', 'WITHDRAWN', 'CANCELLED')
-                 GROUP BY status
-                """, actorParams(actor), result -> {
+        Map<String, Integer> counts = jdbc.query(ApprovalQuerySql01.FLOW_WITH_APR_REQUESTS + DIRECT_TASK_ACCESS + " OR " + DELEGATED_TASK_ACCESS + ApprovalQuerySql01.AS_SQL_VISIBLE_REQUESTS, actorParams(actor), result -> {
             Map<String, Integer> values = new java.util.LinkedHashMap<>();
             while (result.next()) values.put(result.getString("status"), result.getInt("count"));
             return values;
         });
-        int atRisk = jdbc.queryForObject("""
-                SELECT COUNT(*)::INTEGER
-                  FROM apr_tasks task
-                  JOIN apr_requests request
-                    ON request.tenant_id = task.tenant_id
-                   AND request.request_id = task.request_id
-                  JOIN apr_workflow_versions workflow_version
-                    ON workflow_version.tenant_id = request.tenant_id
-                   AND workflow_version.workflow_version_id = request.workflow_version_id
-                  JOIN apr_workflow_definitions workflow
-                    ON workflow.tenant_id = workflow_version.tenant_id
-                   AND workflow.workflow_id = workflow_version.workflow_id
-                 WHERE task.tenant_id = :tenantId
-                   AND task.status IN ('PENDING', 'CLAIMED')
-                   AND task.due_at < CURRENT_TIMESTAMP
-                   AND (
-                """ + DIRECT_TASK_ACCESS + " OR " + DELEGATED_TASK_ACCESS + """
-                   )
-                """, actorParams(actor), Integer.class);
+        int atRisk = jdbc.queryForObject(ApprovalQuerySql01.IN_SELECT_APR_TASKS + DIRECT_TASK_ACCESS + " OR " + DELEGATED_TASK_ACCESS + ApprovalQuerySql01.IN_SQL_STATEMENT, actorParams(actor), Integer.class);
         List<ApprovalDtos.StageMetric> stages = new ArrayList<>();
         for (String stage : List.of("SUBMITTED", "IN_REVIEW", "NEEDS_INFO", "APPROVED")) {
             int count = counts.getOrDefault(stage, 0);
@@ -564,41 +245,7 @@ public class ApprovalQueryRepository {
     }
 
     public ApprovalDtos.AdminPulse adminPulse(long tenantId) {
-        return jdbc.queryForObject("""
-                SELECT
-                    (SELECT COUNT(*) FROM apr_workflow_definitions
-                      WHERE tenant_id = :tenantId AND lifecycle_state = 'PUBLISHED')::INTEGER
-                        AS published_workflows,
-                    (SELECT COUNT(*) FROM apr_workflow_definitions
-                      WHERE tenant_id = :tenantId AND lifecycle_state = 'DRAFT')::INTEGER
-                        AS draft_workflows,
-                    (SELECT COUNT(*) FROM apr_requests
-                      WHERE tenant_id = :tenantId
-                        AND status IN ('SUBMITTED', 'IN_REVIEW', 'NEEDS_INFO'))::INTEGER
-                        AS active_requests,
-                    (SELECT COUNT(*) FROM apr_tasks
-                      WHERE tenant_id = :tenantId
-                        AND status IN ('PENDING', 'CLAIMED')
-                        AND due_at < CURRENT_TIMESTAMP)::INTEGER AS overdue_tasks,
-                    (SELECT COUNT(*) FROM apr_integration_outbox
-                      WHERE tenant_id = :tenantId AND status IN ('FAILED', 'DEAD'))::INTEGER
-                        AS failed_integrations,
-                    (SELECT COUNT(*) FROM apr_delegations
-                      WHERE tenant_id = :tenantId AND lifecycle_state = 'ACTIVE'
-                        AND CURRENT_TIMESTAMP BETWEEN starts_at AND ends_at
-                        AND (delegate_person_public_id IS NULL
-                             OR delegate_display_name IS NULL))::INTEGER AS identity_gaps,
-                    ((SELECT COUNT(*) FROM apr_workflow_versions
-                       WHERE tenant_id = :tenantId AND lifecycle_state = 'PUBLISHED'
-                         AND created_by = published_by)
-                     + (SELECT COUNT(*) FROM apr_form_versions
-                         WHERE tenant_id = :tenantId AND lifecycle_state = 'PUBLISHED'
-                           AND created_by = published_by))::INTEGER AS sod_violations,
-                    (SELECT COUNT(*) FROM apr_tasks
-                      WHERE tenant_id = :tenantId
-                        AND status IN ('APPROVED', 'REJECTED')
-                        AND decision_actor_user_id IS NULL)::INTEGER AS evidence_gaps
-                """, new MapSqlParameterSource("tenantId", tenantId),
+        return jdbc.queryForObject(ApprovalQuerySql01.ADMIN_PULSE_SELECT_APR_WORKFLOW_DEFINITIONS, new MapSqlParameterSource("tenantId", tenantId),
                 (result, rowNumber) -> new ApprovalDtos.AdminPulse(
                         result.getInt("published_workflows"),
                         result.getInt("draft_workflows"),
@@ -618,18 +265,7 @@ public class ApprovalQueryRepository {
     }
 
     public List<ApprovalDtos.WorkflowSummary> workflows(long tenantId, boolean publishedOnly) {
-        return jdbc.query("""
-                SELECT workflow_id, workflow_key, name_ko, name_en,
-                       description_ko, description_en, category,
-                       data_classification, lifecycle_state, current_version,
-                       sla_minutes, allow_self_approval, owner_group_ref,
-                       version, updated_at
-                  FROM apr_workflow_definitions
-                 WHERE tenant_id = :tenantId
-                   AND (:publishedOnly = FALSE OR lifecycle_state = 'PUBLISHED')
-                 ORDER BY CASE lifecycle_state WHEN 'PUBLISHED' THEN 0 WHEN 'DRAFT' THEN 1 ELSE 2 END,
-                          category, name_en
-                """,
+        return jdbc.query(ApprovalQuerySql01.WORKFLOWS_SELECT_APR_WORKFLOW_DEFINITIONS,
                 new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
                         .addValue("publishedOnly", publishedOnly),
@@ -652,24 +288,7 @@ public class ApprovalQueryRepository {
     }
 
     public ApprovalDtos.WorkflowDetail workflow(long tenantId, UUID workflowId) {
-        List<ApprovalDtos.WorkflowDetail> matches = jdbc.query("""
-                SELECT definition.workflow_id, definition.workflow_key,
-                       definition.name_ko, definition.name_en,
-                       definition.description_ko, definition.description_en,
-                       definition.category, definition.data_classification,
-                       definition.lifecycle_state, definition.current_version,
-                       definition.sla_minutes, definition.allow_self_approval,
-                       definition.owner_group_ref, definition.version,
-                       definition.updated_at, version.definition::text,
-                       version.definition_sha256
-                  FROM apr_workflow_definitions definition
-                  JOIN apr_workflow_versions version
-                    ON version.tenant_id = definition.tenant_id
-                   AND version.workflow_id = definition.workflow_id
-                   AND version.version_number = definition.current_version
-                 WHERE definition.tenant_id = :tenantId
-                   AND definition.workflow_id = :workflowId
-                """, new MapSqlParameterSource()
+        List<ApprovalDtos.WorkflowDetail> matches = jdbc.query(ApprovalQuerySql01.WORKFLOW_SELECT_APR_WORKFLOW_DEFINITIONS, new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
                         .addValue("workflowId", workflowId),
                 (result, rowNumber) -> new ApprovalDtos.WorkflowDetail(
@@ -700,20 +319,7 @@ public class ApprovalQueryRepository {
         if (!"PUBLISHED".equals(workflow.workflow().lifecycleState())) {
             throw new BaseException(ErrorCode.NOT_FOUND);
         }
-        List<UUID> formIds = jdbc.query("""
-                SELECT form.form_id
-                  FROM apr_form_workflow_bindings binding
-                  JOIN apr_forms form
-                    ON form.tenant_id = binding.tenant_id
-                   AND form.form_id = binding.form_id
-                 WHERE binding.tenant_id = :tenantId
-                   AND binding.workflow_id = :workflowId
-                   AND binding.lifecycle_state = 'ACTIVE'
-                   AND form.lifecycle_state = 'PUBLISHED'
-                 ORDER BY CASE binding.binding_type WHEN 'DEFAULT' THEN 0 ELSE 1 END,
-                          binding.priority, form.name_en
-                 LIMIT 1
-                """, new MapSqlParameterSource()
+        List<UUID> formIds = jdbc.query(ApprovalQuerySql01.PUBLISHED_TEMPLATE_SELECT_APR_FORM_WORKFLOW_BINDINGS, new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
                         .addValue("workflowId", workflowId),
                 (result, rowNumber) -> result.getObject("form_id", UUID.class));
@@ -723,25 +329,7 @@ public class ApprovalQueryRepository {
     }
 
     public ApprovalDtos.RequestTemplate publishedTemplateByForm(long tenantId, UUID formId) {
-        List<UUID> workflowIds = jdbc.query("""
-                SELECT binding.workflow_id
-                  FROM apr_form_workflow_bindings binding
-                  JOIN apr_forms form
-                    ON form.tenant_id = binding.tenant_id
-                   AND form.form_id = binding.form_id
-                  JOIN apr_workflow_definitions workflow
-                    ON workflow.tenant_id = binding.tenant_id
-                   AND workflow.workflow_id = binding.workflow_id
-                 WHERE binding.tenant_id = :tenantId
-                   AND binding.form_id = :formId
-                   AND binding.binding_type = 'DEFAULT'
-                   AND binding.lifecycle_state = 'ACTIVE'
-                   AND form.lifecycle_state = 'PUBLISHED'
-                   AND workflow.lifecycle_state = 'PUBLISHED'
-                   AND (binding.effective_from IS NULL OR binding.effective_from <= CURRENT_TIMESTAMP)
-                   AND (binding.effective_to IS NULL OR binding.effective_to > CURRENT_TIMESTAMP)
-                 LIMIT 1
-                """, new MapSqlParameterSource()
+        List<UUID> workflowIds = jdbc.query(ApprovalQuerySql01.PUBLISHED_TEMPLATE_BY_FORM_SELECT_APR_FORM_WORKFLOW_BINDINGS, new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
                         .addValue("formId", formId),
                 (result, rowNumber) -> result.getObject("workflow_id", UUID.class));
@@ -752,21 +340,7 @@ public class ApprovalQueryRepository {
     }
 
     public List<ApprovalDtos.FormCategorySummary> formCategories(long tenantId) {
-        return jdbc.query("""
-                SELECT category.category_id, category.category_key,
-                       category.parent_category_id, category.name_ko, category.name_en,
-                       category.description_ko, category.description_en, category.icon_key,
-                       category.sort_order, category.lifecycle_state, category.version,
-                       COUNT(form.form_id)::INTEGER AS form_count
-                  FROM apr_form_categories category
-                  LEFT JOIN apr_forms form
-                    ON form.tenant_id = category.tenant_id
-                   AND form.category_id = category.category_id
-                   AND form.lifecycle_state <> 'RETIRED'
-                 WHERE category.tenant_id = :tenantId
-                 GROUP BY category.category_id
-                 ORDER BY category.sort_order, category.name_en
-                """, new MapSqlParameterSource("tenantId", tenantId),
+        return jdbc.query(ApprovalQuerySql01.FORM_CATEGORIES_SELECT_APR_FORM_CATEGORIES, new MapSqlParameterSource("tenantId", tenantId),
                 (result, rowNumber) -> new ApprovalDtos.FormCategorySummary(
                         result.getObject("category_id", UUID.class),
                         result.getString("category_key"),
@@ -791,106 +365,14 @@ public class ApprovalQueryRepository {
     }
 
     private List<ApprovalDtos.FormSummary> forms(long tenantId, boolean publishedOnly) {
-        return jdbc.query("""
-                SELECT form.form_id, form.form_key,
-                       category.category_id, category.category_key,
-                       category.name_ko AS category_name_ko,
-                       category.name_en AS category_name_en,
-                       form.name_ko, form.name_en, form.description_ko, form.description_en,
-                       form.owner_group_ref, form.form_kind,
-                       form.lifecycle_state, form.current_version,
-                       jsonb_array_length(version.schema_payload -> 'fields') AS field_count,
-                       COALESCE(route_count.value, 0)::INTEGER AS route_count,
-                       COALESCE(usage_count.value, 0)::BIGINT AS usage_count,
-                       form.version, form.updated_at
-                  FROM apr_forms form
-                  JOIN apr_form_versions version
-                    ON version.tenant_id = form.tenant_id
-                   AND version.form_id = form.form_id
-                   AND version.version_number = form.current_version
-                  JOIN apr_form_categories category
-                    ON category.tenant_id = form.tenant_id
-                   AND category.category_id = form.category_id
-                  LEFT JOIN LATERAL (
-                      SELECT COUNT(*) AS value
-                        FROM apr_form_workflow_bindings binding
-                       WHERE binding.tenant_id = form.tenant_id
-                         AND binding.form_id = form.form_id
-                         AND binding.lifecycle_state = 'ACTIVE'
-                  ) route_count ON TRUE
-                  LEFT JOIN LATERAL (
-                      SELECT COUNT(*) AS value
-                        FROM apr_requests request
-                        JOIN apr_form_versions used_version
-                          ON used_version.tenant_id = request.tenant_id
-                         AND used_version.form_version_id = request.form_version_id
-                       WHERE request.tenant_id = form.tenant_id
-                         AND used_version.form_id = form.form_id
-                  ) usage_count ON TRUE
-                 WHERE form.tenant_id = :tenantId
-                   AND (:publishedOnly = FALSE OR (
-                       form.lifecycle_state = 'PUBLISHED'
-                       AND category.lifecycle_state = 'ACTIVE'
-                       AND EXISTS (
-                           SELECT 1 FROM apr_form_workflow_bindings active_binding
-                           JOIN apr_workflow_definitions active_workflow
-                             ON active_workflow.tenant_id = active_binding.tenant_id
-                            AND active_workflow.workflow_id = active_binding.workflow_id
-                          WHERE active_binding.tenant_id = form.tenant_id
-                            AND active_binding.form_id = form.form_id
-                            AND active_binding.binding_type = 'DEFAULT'
-                            AND active_binding.lifecycle_state = 'ACTIVE'
-                            AND active_workflow.lifecycle_state = 'PUBLISHED')))
-                 ORDER BY category.sort_order,
-                          CASE form.lifecycle_state WHEN 'PUBLISHED' THEN 0 WHEN 'DRAFT' THEN 1 ELSE 2 END,
-                          form.name_en
-                """, new MapSqlParameterSource()
+        return jdbc.query(ApprovalQuerySql01.FORMS_SELECT_APR_FORMS, new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
                         .addValue("publishedOnly", publishedOnly),
                 (result, rowNumber) -> formSummary(result));
     }
 
     public ApprovalDtos.FormDetail form(long tenantId, UUID formId) {
-        List<ApprovalDtos.FormDetail> matches = jdbc.query("""
-                SELECT form.form_id, form.form_key,
-                       category.category_id, category.category_key,
-                       category.name_ko AS category_name_ko,
-                       category.name_en AS category_name_en,
-                       form.name_ko, form.name_en, form.description_ko, form.description_en,
-                       form.owner_group_ref, form.form_kind,
-                       form.lifecycle_state, form.current_version,
-                       jsonb_array_length(version.schema_payload -> 'fields') AS field_count,
-                       COALESCE(route_count.value, 0)::INTEGER AS route_count,
-                       COALESCE(usage_count.value, 0)::BIGINT AS usage_count,
-                       form.version, form.updated_at,
-                       version.schema_payload::text, version.schema_sha256
-                  FROM apr_forms form
-                  JOIN apr_form_versions version
-                    ON version.tenant_id = form.tenant_id
-                   AND version.form_id = form.form_id
-                   AND version.version_number = form.current_version
-                  JOIN apr_form_categories category
-                    ON category.tenant_id = form.tenant_id
-                   AND category.category_id = form.category_id
-                  LEFT JOIN LATERAL (
-                      SELECT COUNT(*) AS value
-                        FROM apr_form_workflow_bindings binding
-                       WHERE binding.tenant_id = form.tenant_id
-                         AND binding.form_id = form.form_id
-                         AND binding.lifecycle_state = 'ACTIVE'
-                  ) route_count ON TRUE
-                  LEFT JOIN LATERAL (
-                      SELECT COUNT(*) AS value
-                        FROM apr_requests request
-                        JOIN apr_form_versions used_version
-                          ON used_version.tenant_id = request.tenant_id
-                         AND used_version.form_version_id = request.form_version_id
-                       WHERE request.tenant_id = form.tenant_id
-                         AND used_version.form_id = form.form_id
-                  ) usage_count ON TRUE
-                 WHERE form.tenant_id = :tenantId
-                   AND form.form_id = :formId
-                """, new MapSqlParameterSource()
+        List<ApprovalDtos.FormDetail> matches = jdbc.query(ApprovalQuerySql02.FORM_SELECT_APR_FORMS, new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
                         .addValue("formId", formId),
                 (result, rowNumber) -> new ApprovalDtos.FormDetail(
@@ -903,21 +385,7 @@ public class ApprovalQueryRepository {
     }
 
     private List<ApprovalDtos.FormRouteSummary> formRoutes(long tenantId, UUID formId) {
-        return jdbc.query("""
-                SELECT binding.binding_id, workflow.workflow_id, workflow.workflow_key,
-                       workflow.name_ko, workflow.name_en, workflow.lifecycle_state,
-                       workflow.current_version, workflow.sla_minutes,
-                       binding.binding_type, binding.priority
-                  FROM apr_form_workflow_bindings binding
-                  JOIN apr_workflow_definitions workflow
-                    ON workflow.tenant_id = binding.tenant_id
-                   AND workflow.workflow_id = binding.workflow_id
-                 WHERE binding.tenant_id = :tenantId
-                   AND binding.form_id = :formId
-                   AND binding.lifecycle_state = 'ACTIVE'
-                 ORDER BY CASE binding.binding_type WHEN 'DEFAULT' THEN 0 ELSE 1 END,
-                          binding.priority, workflow.name_en
-                """, new MapSqlParameterSource()
+        return jdbc.query(ApprovalQuerySql02.FORM_ROUTES_SELECT_APR_FORM_WORKFLOW_BINDINGS, new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
                         .addValue("formId", formId),
                 (result, rowNumber) -> new ApprovalDtos.FormRouteSummary(
@@ -934,19 +402,7 @@ public class ApprovalQueryRepository {
     }
 
     public List<ApprovalDtos.PolicySummary> policies(long tenantId) {
-        return jdbc.query("""
-                SELECT policy_id, policy_key, name_ko, name_en, policy_type,
-                       enforcement_mode, severity, lifecycle_state,
-                       rule_payload::text, version,
-                       pending_enforcement_mode, pending_severity,
-                       pending_lifecycle_state, pending_rule_payload::text,
-                       pending_change_reason, pending_by, pending_at
-                  FROM apr_policy_rules
-                 WHERE tenant_id = :tenantId
-                 ORDER BY CASE severity WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1
-                                        WHEN 'MEDIUM' THEN 2 ELSE 3 END,
-                          policy_key
-                """, new MapSqlParameterSource("tenantId", tenantId),
+        return jdbc.query(ApprovalQuerySql02.POLICIES_SELECT_APR_POLICY_RULES, new MapSqlParameterSource("tenantId", tenantId),
                 (result, rowNumber) -> new ApprovalDtos.PolicySummary(
                         result.getObject("policy_id", UUID.class),
                         result.getString("policy_key"),
@@ -971,16 +427,7 @@ public class ApprovalQueryRepository {
     public List<ApprovalDtos.PolicyVersionSummary> policyVersions(
             long tenantId,
             UUID policyId) {
-        return jdbc.query("""
-                SELECT policy_version_id, version_number, enforcement_mode,
-                       severity, lifecycle_state, rule_payload::text,
-                       change_reason, submitted_by, submitted_at,
-                       published_by, published_at, review_comment
-                  FROM apr_policy_rule_versions
-                 WHERE tenant_id = :tenantId AND policy_id = :policyId
-                 ORDER BY version_number DESC
-                 LIMIT 100
-                """, new MapSqlParameterSource()
+        return jdbc.query(ApprovalQuerySql02.POLICY_VERSIONS_SELECT_APR_POLICY_RULE_VERSIONS, new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
                         .addValue("policyId", policyId),
                 (result, rowNumber) -> new ApprovalDtos.PolicyVersionSummary(
@@ -999,16 +446,7 @@ public class ApprovalQueryRepository {
     }
 
     public List<ApprovalDtos.SignatureProviderSummary> signatureProviders(long tenantId) {
-        return jdbc.query("""
-                SELECT provider_id, provider_key, display_name, provider_type,
-                       lifecycle_state, capability_metadata::text,
-                       credential_reference IS NOT NULL AS credential_configured,
-                       last_health_checked_at, version
-                  FROM apr_signature_providers
-                 WHERE tenant_id = :tenantId
-                 ORDER BY CASE provider_type WHEN 'INTERNAL_ATTESTATION' THEN 0 ELSE 1 END,
-                          display_name
-                """, new MapSqlParameterSource("tenantId", tenantId),
+        return jdbc.query(ApprovalQuerySql02.SIGNATURE_PROVIDERS_SELECT_APR_SIGNATURE_PROVIDERS, new MapSqlParameterSource("tenantId", tenantId),
                 (result, rowNumber) -> new ApprovalDtos.SignatureProviderSummary(
                         result.getObject("provider_id", UUID.class),
                         result.getString("provider_key"),
@@ -1022,19 +460,7 @@ public class ApprovalQueryRepository {
     }
 
     public List<ApprovalDtos.DelegationSummary> delegations(ApprovalRequestContext.Actor actor) {
-        return jdbc.query("""
-                SELECT delegation_id, delegator_user_id, delegate_user_id,
-                       delegate_person_public_id, delegate_display_name, delegate_email,
-                       scope_type, workflow_key, starts_at, ends_at,
-                       lifecycle_state, reason, version,
-                       CASE WHEN delegator_user_id = :userId THEN 'OUTGOING' ELSE 'INCOMING' END
-                           AS direction
-                  FROM apr_delegations
-                 WHERE tenant_id = :tenantId
-                   AND (delegator_user_id = :userId OR delegate_user_id = :userId)
-                 ORDER BY CASE lifecycle_state WHEN 'ACTIVE' THEN 0 ELSE 1 END,
-                          starts_at DESC
-                """, actorParams(actor),
+        return jdbc.query(ApprovalQuerySql02.DELEGATIONS_SELECT_APR_DELEGATIONS, actorParams(actor),
                 (result, rowNumber) -> new ApprovalDtos.DelegationSummary(
                         result.getObject("delegation_id", UUID.class),
                         result.getLong("delegator_user_id"),
@@ -1053,40 +479,19 @@ public class ApprovalQueryRepository {
     }
 
     public int failedIntegrationCount(long tenantId) {
-        Integer count = jdbc.queryForObject("""
-                SELECT COUNT(*)::INTEGER FROM apr_integration_outbox
-                 WHERE tenant_id = :tenantId AND status IN ('FAILED', 'DEAD')
-                """, new MapSqlParameterSource("tenantId", tenantId), Integer.class);
+        Integer count = jdbc.queryForObject(ApprovalQuerySql02.FAILED_INTEGRATION_COUNT_SELECT_APR_INTEGRATION_OUTBOX, new MapSqlParameterSource("tenantId", tenantId), Integer.class);
         return count == null ? 0 : count;
     }
 
     public int pendingIntegrationCount(long tenantId) {
-        Integer count = jdbc.queryForObject("""
-                SELECT COUNT(*)::INTEGER FROM apr_integration_outbox
-                 WHERE tenant_id = :tenantId AND status IN ('PENDING', 'SENDING')
-                """, new MapSqlParameterSource("tenantId", tenantId), Integer.class);
+        Integer count = jdbc.queryForObject(ApprovalQuerySql02.PENDING_INTEGRATION_COUNT_SELECT_APR_INTEGRATION_OUTBOX, new MapSqlParameterSource("tenantId", tenantId), Integer.class);
         return count == null ? 0 : count;
     }
 
     public List<ApprovalDtos.IntegrationDeliverySummary> integrationDeliveries(
             long tenantId,
             int limit) {
-        return jdbc.query("""
-                SELECT outbox_id, event_id, request_id, event_type, status,
-                       attempt_count, manual_retry_count, available_at,
-                       published_at, last_error, created_at, last_retried_at
-                  FROM apr_integration_outbox
-                 WHERE tenant_id = :tenantId
-                 ORDER BY CASE status
-                              WHEN 'DEAD' THEN 0
-                              WHEN 'FAILED' THEN 1
-                              WHEN 'SENDING' THEN 2
-                              WHEN 'PENDING' THEN 3
-                              ELSE 4
-                          END,
-                          updated_at DESC, outbox_id
-                 LIMIT :limit
-                """, new MapSqlParameterSource()
+        return jdbc.query(ApprovalQuerySql02.INTEGRATION_DELIVERIES_SELECT_APR_INTEGRATION_OUTBOX, new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
                         .addValue("limit", Math.max(1, Math.min(limit, 100))),
                 (result, rowNumber) -> new ApprovalDtos.IntegrationDeliverySummary(
@@ -1105,34 +510,19 @@ public class ApprovalQueryRepository {
     }
 
     public int activeDelegationCount(long tenantId) {
-        Integer count = jdbc.queryForObject("""
-                SELECT COUNT(*)::INTEGER FROM apr_delegations
-                 WHERE tenant_id = :tenantId AND lifecycle_state = 'ACTIVE'
-                   AND CURRENT_TIMESTAMP BETWEEN starts_at AND ends_at
-                """, new MapSqlParameterSource("tenantId", tenantId), Integer.class);
+        Integer count = jdbc.queryForObject(ApprovalQuerySql02.ACTIVE_DELEGATION_COUNT_SELECT_APR_DELEGATIONS, new MapSqlParameterSource("tenantId", tenantId), Integer.class);
         return count == null ? 0 : count;
     }
 
     public List<ApprovalDtos.TaskSummary> breachedTasks(long tenantId, int limit) {
-        return jdbc.query(TASK_SELECT + """
-                 WHERE task.tenant_id = :tenantId
-                   AND task.status IN ('PENDING', 'CLAIMED')
-                   AND task.due_at < CURRENT_TIMESTAMP
-                 ORDER BY task.due_at, task.risk_score DESC
-                 LIMIT :limit
-                """, new MapSqlParameterSource()
+        return jdbc.query(TASK_SELECT + ApprovalQuerySql02.BREACHED_TASKS_SQL_STATEMENT, new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
                         .addValue("limit", Math.max(1, Math.min(limit, 100))),
                 (result, rowNumber) -> taskSummary(result));
     }
 
     private int overdueCount(long tenantId) {
-        Integer count = jdbc.queryForObject("""
-                SELECT COUNT(*)::INTEGER FROM apr_tasks
-                 WHERE tenant_id = :tenantId
-                   AND status IN ('PENDING', 'CLAIMED')
-                   AND due_at < CURRENT_TIMESTAMP
-                """, new MapSqlParameterSource("tenantId", tenantId), Integer.class);
+        Integer count = jdbc.queryForObject(ApprovalQuerySql02.OVERDUE_COUNT_SELECT_APR_TASKS, new MapSqlParameterSource("tenantId", tenantId), Integer.class);
         return count == null ? 0 : count;
     }
 

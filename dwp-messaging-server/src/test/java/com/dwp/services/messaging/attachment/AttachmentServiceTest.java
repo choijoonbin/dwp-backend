@@ -21,6 +21,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -103,8 +104,66 @@ class AttachmentServiceTest {
                 conversationId, attachmentId, "a".repeat(64), content, "corr");
 
         assertThat(result.status()).isEqualTo("REJECTED");
-        verify(storage).store(pending.objectKey(), content);
+        var ordered = inOrder(repository, storage, scanner);
+        ordered.verify(repository).beginScan(
+                anyLong(), any(), anyLong(), any(), anyString(), anyString(),
+                anyLong(), anyLong());
+        ordered.verify(storage).store(pending.objectKey(), content);
+        ordered.verify(scanner).scan(any(), any());
         verify(storage).delete(pending.objectKey());
+    }
+
+    @Test
+    void aConsumedUploadTokenNeverOverwritesTheWinningObject() {
+        UUID conversationId = UUID.randomUUID();
+        UUID attachmentId = UUID.randomUUID();
+        byte[] content = "unsafe-content".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        MessagingRequestContext.set(subject(100));
+        AttachmentRepository.AttachmentRow pending = row(
+                attachmentId, conversationId, 100, "QUARANTINED", 4, null, null);
+        when(repository.activeMember(1, conversationId, 100)).thenReturn(true);
+        when(repository.findOwned(1, conversationId, 100, attachmentId))
+                .thenReturn(Optional.of(pending));
+        when(repository.beginScan(
+                anyLong(), any(), anyLong(), any(), anyString(), anyString(),
+                anyLong(), anyLong())).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service().upload(
+                conversationId, attachmentId, "a".repeat(64), content, null))
+                .isInstanceOfSatisfying(BaseException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.RESOURCE_CONFLICT));
+
+        verify(storage, never()).store(anyString(), any());
+        verify(storage, never()).delete(anyString());
+        verify(scanner, never()).scan(any(), any());
+    }
+
+    @Test
+    void scannerFailureRemovesQuarantinedBytes() {
+        UUID conversationId = UUID.randomUUID();
+        UUID attachmentId = UUID.randomUUID();
+        byte[] content = "unsafe-content".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        MessagingRequestContext.set(subject(100));
+        AttachmentRepository.AttachmentRow pending = row(
+                attachmentId, conversationId, 100, "QUARANTINED", 4, null, null);
+        AttachmentRepository.AttachmentRow scanning = row(
+                attachmentId, conversationId, 100, "SCANNING", 5,
+                AttachmentSecurity.contentHash(content), null);
+        when(repository.activeMember(1, conversationId, 100)).thenReturn(true);
+        when(repository.findOwned(1, conversationId, 100, attachmentId))
+                .thenReturn(Optional.of(pending));
+        when(repository.beginScan(
+                anyLong(), any(), anyLong(), any(), anyString(), anyString(),
+                anyLong(), anyLong())).thenReturn(Optional.of(scanning));
+        when(scanner.scan(any(), any())).thenThrow(new IllegalStateException("scanner unavailable"));
+
+        assertThatThrownBy(() -> service().upload(
+                conversationId, attachmentId, "a".repeat(64), content, null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("scanner unavailable");
+
+        verify(storage).delete(scanning.objectKey());
     }
 
     @Test
@@ -127,11 +186,31 @@ class AttachmentServiceTest {
                 any(), any(), anyLong(), anyLong(), anyString(), any());
     }
 
+    @Test
+    void uploaderCanDiscardAnUnattachedCleanFile() {
+        UUID conversationId = UUID.randomUUID();
+        UUID attachmentId = UUID.randomUUID();
+        MessagingRequestContext.set(subject(100));
+        AttachmentRepository.AttachmentRow clean = row(
+                attachmentId, conversationId, 100, "CLEAN", 7, "c".repeat(64), null);
+        when(repository.activeMember(1, conversationId, 100)).thenReturn(true);
+        when(repository.expireOwnedUnattached(1, conversationId, 100, attachmentId))
+                .thenReturn(Optional.of(clean));
+
+        service().discard(conversationId, attachmentId, "corr");
+
+        verify(storage).delete(clean.objectKey());
+        verify(repository).deleteExpired(attachmentId);
+        verify(repository).audit(
+                1, 100, "messaging.attachment.discarded", attachmentId, "corr");
+    }
+
     private AttachmentService service() {
         return new AttachmentService(repository, storage, scanner,
                 new AttachmentProperties(
                         "local", Path.of("build/test-attachments"), "local",
                         Duration.ofMinutes(10), Duration.ofMinutes(1),
+                        100, 2,
                         "localhost", 3310, Duration.ofSeconds(1)));
     }
 

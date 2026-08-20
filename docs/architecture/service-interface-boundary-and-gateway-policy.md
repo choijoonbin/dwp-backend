@@ -1,7 +1,7 @@
 # Service Interface Boundary and Gateway Policy
 
 Status: Accepted
-Last reviewed: 2026-08-14
+Last reviewed: 2026-08-20
 
 ## Decision
 
@@ -28,6 +28,7 @@ The policy is:
 | Provider provisioning -> Auth/Platform/People `/internal/provider/v1/**` | Allowed by policy | Tenant lifecycle orchestration across service-owned stores | `X-DWP-Provisioning-Token`, `OutboundHttpHeaders.propagateObservability` |
 | Provider code catalog -> Platform `/internal/provider/v1/code-catalog/**` | Allowed by policy | Product code-contract catalog read model owned by Platform | `X-DWP-Provisioning-Token`, `OutboundHttpHeaders.propagateObservability` |
 | Platform -> Auth `/internal/identity/v1/**` | Allowed by policy | Runtime app entitlement and saved-view subject validation | `X-DWP-Identity-Sync-Token`, `OutboundHttpHeaders.propagateObservability` |
+| Approval -> Auth `/internal/identity/v1/tenants/{tenantId}/users**` | Allowed by policy | Active delegate validation and bounded directory search before approval delegation changes | `X-DWP-Identity-Sync-Token`, read-only GET, Resilience4j bulkhead/circuit breaker/idempotent retry, `OutboundHttpHeaders.propagateObservability` |
 | People -> Auth `/internal/identity/v1/workforce-events` | Allowed by policy | Workforce identity projection into central identity | `X-DWP-Identity-Sync-Token`, `OutboundHttpHeaders.propagateObservability` |
 | Provider data-governance JDBC metadata scan | Allowed by policy | Provider control plane metadata inventory and lineage view | `connection.setReadOnly(true)`, metadata DB credentials, catalog SQL only |
 | Microsoft Graph and Workday adapters | Not a DWP app-to-app exception | External enterprise connectors | Trusted host or tenant-configured host allowlist |

@@ -179,6 +179,12 @@ final class WorkplaceDelegatedAdminRoutePolicy {
                 "/v1/admin/workplace/governance/floor-plan-revisions/{revisionId}",
                 DelegatedPermission.FLOOR_PLAN_MANAGE,
                 target("revisionId", SiteTargetType.FLOOR_PLAN_REVISION));
+        for (HttpMethod method : List.of(HttpMethod.GET, HttpMethod.POST)) {
+            target(rules, method,
+                    "/v1/admin/workplace/governance/floor-plan-revisions/{revisionId}/background",
+                    DelegatedPermission.FLOOR_PLAN_MANAGE,
+                    target("revisionId", SiteTargetType.FLOOR_PLAN_REVISION));
+        }
         for (String transition : List.of("review", "publish", "restore")) {
             target(rules, HttpMethod.POST,
                     "/v1/admin/workplace/governance/floor-plan-revisions/{revisionId}/"

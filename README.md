@@ -1,8 +1,8 @@
-# DWP Backend Starter
+# DWP Backend
 
-새 DWP 프로젝트를 시작하기 위한 공통 백엔드 기반입니다. 인증, 테넌트, RBAC,
-요청 추적과 Platform Control Plane을 포함하며 기존 업무 도메인 API와 데이터는
-포함하지 않습니다.
+DWP의 공통 보안·운영 기반과 독립 업무 서비스를 함께 관리하는 백엔드 Workspace입니다.
+인증, 테넌트, RBAC, 요청 추적, Platform Control Plane에 더해 현재 제품 기준선의
+People, Approval, Space, Messaging, Notification 도메인을 포함합니다.
 
 ## Modules
 
@@ -18,11 +18,14 @@
 | `dwp-provider-server`    | 8004 | Provider 조직, 테넌트, 구독, 권한과 프로비저닝 Control Plane      |
 | `dwp-approval-server`    | 8005 | 전자결재 기안, 검토, 위임, 정책과 감사 가능한 결정 처리          |
 | `dwp-space-server`       | 8006 | 구성원 Space, 소유자 운영, 템플릿·콘텐츠·수명주기 거버넌스       |
+| `dwp-messaging-server`   | 8007 | Tenant 대화, Thread, 첨부, 회의 연계와 메시징 운영 정책          |
+| `dwp-notification-server`| 8008 | 사용자 Inbox, 설정, 실시간 동기화와 알림 전달 운영 기반          |
 | `dwp-gateway`            | 8080 | 단일 API 진입점, Session 재검증, 내부 Identity Relay, CSRF와 CORS |
 
 인증 서버는 `dwp_auth`, Platform Server는 `dwp_platform`, People Server는
-`dwp_people`, Provider Server는 `dwp_provider`, Approval Server는 `dwp_approval`, Space Server는 `dwp_space`
-Database를 각각 소유합니다.
+`dwp_people`, Provider Server는 `dwp_provider`, Approval Server는 `dwp_approval`,
+Space Server는 `dwp_space`, Messaging Server는 `dwp_messaging`, Notification Server는
+`dwp_notification` Database를 각각 소유합니다.
 Redis는 Auth의 만료형 OIDC state, nonce와 PKCE verifier를 저장합니다.
 `dwp_people`은 외부 HRIS를 대체하지 않고
 사람·근로관계·유효일 발령·조직·프로필의 DWP 운영 Projection만 보관합니다.
@@ -79,13 +82,13 @@ IntelliJ에서 각 Java 서비스를 실행·디버깅하거나 Run Configuratio
 ./dev up full
 ```
 
-`full` 프로필은 PostgreSQL 18, Redis 7.4, Auth, Platform, People, Provider, Approval,
+`full` 프로필은 PostgreSQL 18, Redis 7.4, Kafka·미디어 개발 의존성, 모든 Backend 서비스,
 Agent, Gateway, Frontend를 기동합니다.
 업무 기능을 추가하기 전 공통 웹 셸만 확인하려면 `core`, 프론트만 실행하려면
 `web` 프로필을 사용할 수 있습니다. 이미 외부 Auth·Frontend가 실행 중이라면
 `agent gateway` 프로필로 내부 실행 경로만 재기동할 수 있습니다.
-`contracts` 프로필은 별도 Frontend·Agent 저장소 없이 네 개의 데이터 소유 서비스를
-기동하며, Flyway와 시스템 코드 계약 감사용으로 사용합니다.
+`contracts` 프로필은 별도 Frontend·Agent 저장소 없이 모든 Backend 데이터 소유 서비스와
+Gateway를 기동하며, Flyway와 시스템 코드·공개 API 계약 감사용으로 사용합니다.
 
 ```bash
 ./dev doctor

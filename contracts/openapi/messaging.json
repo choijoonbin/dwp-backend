@@ -1,6 +1,31 @@
 {
   "components": {
     "schemas": {
+      "AddConversationMemberRequest": {
+        "properties": {
+          "conversationVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "role": {
+            "enum": [
+              "VIEWER",
+              "MEMBER",
+              "MODERATOR",
+              "OWNER"
+            ],
+            "type": "string"
+          },
+          "userId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "type": "object"
+      },
       "AdminMetrics": {
         "properties": {
           "activeConversations": {
@@ -74,6 +99,87 @@
         },
         "type": "object"
       },
+      "ApiResponseAttachmentSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AttachmentSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseCapabilityResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CapabilityResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseConversationCreationResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ConversationCreationResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseConversationDetail": {
         "properties": {
           "correlationId": {
@@ -81,6 +187,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/ConversationDetail"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseConversationMembersResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ConversationMembersResponse"
           },
           "errorCode": {
             "type": "string"
@@ -128,6 +261,114 @@
         },
         "type": "object"
       },
+      "ApiResponseConversationSettings": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ConversationSettings"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseConversationSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ConversationSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseCurrentMeetingResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CurrentMeetingResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseDownloadGrant": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DownloadGrant"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseHomeResponse": {
         "properties": {
           "correlationId": {
@@ -135,6 +376,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/HomeResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseJoinTokenResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/JoinTokenResponse"
           },
           "errorCode": {
             "type": "string"
@@ -185,13 +453,13 @@
         },
         "type": "object"
       },
-      "ApiResponseCollaborationSearch": {
+      "ApiResponseMembershipMutationResponse": {
         "properties": {
           "correlationId": {
             "type": "string"
           },
           "data": {
-            "$ref": "#/components/schemas/CollaborationSearchResponse"
+            "$ref": "#/components/schemas/MembershipMutationResponse"
           },
           "errorCode": {
             "type": "string"
@@ -212,13 +480,175 @@
         },
         "type": "object"
       },
-      "ApiResponseConversationCreation": {
+      "ApiResponseMessagePage": {
         "properties": {
           "correlationId": {
             "type": "string"
           },
           "data": {
-            "$ref": "#/components/schemas/ConversationCreationResponse"
+            "$ref": "#/components/schemas/MessagePage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseMessageSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/MessageSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseReadCursorResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ReadCursorResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseSavedItemPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SavedItemPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseSavedItemSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SavedItemSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseSearchResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SearchResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseSessionResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SessionResponse"
           },
           "errorCode": {
             "type": "string"
@@ -266,122 +696,155 @@
         },
         "type": "object"
       },
-      "CollaborationConversationSummary": {
+      "ApiResponseThreadResponse": {
         "properties": {
-          "conversationId": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ThreadResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseUploadSession": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/UploadSession"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseVoid": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {},
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AttachmentSummary": {
+        "properties": {
+          "attachmentId": {
             "format": "uuid",
+            "type": "string"
+          },
+          "contentType": {
             "type": "string"
           },
           "createdAt": {
             "format": "date-time",
             "type": "string"
           },
-          "lifecycleState": {
-            "enum": [
-              "ACTIVE",
-              "ARCHIVED"
-            ],
+          "filename": {
             "type": "string"
           },
-          "members": {
-            "items": {
-              "$ref": "#/components/schemas/CollaborationMemberSummary"
-            },
-            "type": "array"
-          },
-          "name": {
+          "rejectionReason": {
             "type": "string"
           },
-          "topic": {
+          "sizeBytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "status": {
             "type": "string"
           },
-          "type": {
-            "enum": [
-              "GROUP",
-              "CHANNEL"
-            ],
-            "type": "string"
-          },
-          "visibility": {
-            "const": "PRIVATE",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "CollaborationMemberSummary": {
-        "properties": {
-          "displayName": {
-            "type": "string"
-          },
-          "emailAddress": {
-            "format": "email",
-            "type": "string"
-          },
-          "personPublicId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "role": {
-            "enum": [
-              "OWNER",
-              "MEMBER"
-            ],
-            "type": "string"
-          },
-          "userId": {
+          "version": {
             "format": "int64",
             "type": "integer"
           }
         },
         "type": "object"
       },
-      "CollaborationSearchGroups": {
+      "CapabilityResponse": {
         "properties": {
-          "conversations": {
-            "items": {
-              "$ref": "#/components/schemas/ConversationSearchResult"
-            },
-            "type": "array"
+          "audio": {
+            "type": "boolean"
           },
-          "messages": {
-            "items": {
-              "$ref": "#/components/schemas/MessageSearchResult"
-            },
-            "type": "array"
+          "available": {
+            "type": "boolean"
           },
-          "people": {
-            "items": {
-              "$ref": "#/components/schemas/PersonSearchResult"
-            },
-            "type": "array"
+          "participantList": {
+            "type": "boolean"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "screenShare": {
+            "type": "boolean"
+          },
+          "tokenTtlSeconds": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "unavailableReason": {
+            "type": "string"
+          },
+          "video": {
+            "type": "boolean"
           }
         },
         "type": "object"
       },
-      "CollaborationSearchResponse": {
+      "ConversationCreationResponse": {
         "properties": {
-          "backend": {
-            "const": "SQL_FALLBACK",
-            "type": "string"
+          "conversation": {
+            "$ref": "#/components/schemas/ConversationSummary"
           },
-          "limit": {
-            "format": "int32",
-            "maximum": 50,
-            "minimum": 1,
-            "type": "integer"
-          },
-          "query": {
-            "maxLength": 100,
-            "minLength": 2,
-            "type": "string"
-          },
-          "results": {
-            "$ref": "#/components/schemas/CollaborationSearchGroups"
-          },
-          "total": {
-            "format": "int32",
-            "type": "integer"
+          "idempotentReplay": {
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -409,13 +872,24 @@
         },
         "type": "object"
       },
-      "ConversationCreationResponse": {
+      "ConversationMembersResponse": {
         "properties": {
-          "conversation": {
-            "$ref": "#/components/schemas/CollaborationConversationSummary"
+          "conversationId": {
+            "format": "uuid",
+            "type": "string"
           },
-          "idempotentReplay": {
-            "type": "boolean"
+          "conversationType": {
+            "type": "string"
+          },
+          "conversationVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/ManagedMemberSummary"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -456,14 +930,57 @@
             "type": "string"
           },
           "resultType": {
-            "const": "CONVERSATION",
             "type": "string"
           },
           "snippet": {
-            "maxLength": 220,
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "ConversationSettings": {
+        "properties": {
+          "conversationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "favorite": {
+            "type": "boolean"
+          },
+          "notificationLevel": {
+            "type": "string"
+          },
+          "pinned": {
+            "type": "boolean"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ConversationSettingsRequest": {
+        "properties": {
+          "favorite": {
+            "type": "boolean"
+          },
+          "notificationLevel": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "pinned": {
+            "type": "boolean"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "notificationLevel"
+        ],
         "type": "object"
       },
       "ConversationSummary": {
@@ -527,6 +1044,85 @@
         },
         "type": "object"
       },
+      "CreateConversationRequest": {
+        "properties": {
+          "idempotencyKey": {
+            "maxLength": 120,
+            "minLength": 8,
+            "type": "string"
+          },
+          "memberUserIds": {
+            "items": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "maxItems": 500,
+            "minItems": 0,
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 220,
+            "minLength": 0,
+            "type": "string"
+          },
+          "topic": {
+            "maxLength": 1200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "GROUP",
+              "CHANNEL"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey",
+          "memberUserIds",
+          "name",
+          "type"
+        ],
+        "type": "object"
+      },
+      "CreateUploadRequest": {
+        "properties": {
+          "contentType": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "filename": {
+            "maxLength": 255,
+            "minLength": 0,
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "sizeBytes": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "contentType",
+          "filename",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "CurrentMeetingResponse": {
+        "properties": {
+          "session": {
+            "$ref": "#/components/schemas/SessionResponse"
+          }
+        },
+        "type": "object"
+      },
       "DirectConversationRequest": {
         "properties": {
           "targetUserId": {
@@ -538,6 +1134,32 @@
         "required": [
           "targetUserId"
         ],
+        "type": "object"
+      },
+      "DownloadGrant": {
+        "properties": {
+          "attachmentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "downloadUrl": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
         "type": "object"
       },
       "HomeMetrics": {
@@ -563,46 +1185,6 @@
             "type": "integer"
           }
         },
-        "type": "object"
-      },
-      "CreateConversationRequest": {
-        "properties": {
-          "idempotencyKey": {
-            "maxLength": 120,
-            "minLength": 8,
-            "type": "string"
-          },
-          "memberUserIds": {
-            "items": {
-              "format": "int64",
-              "minimum": 1,
-              "type": "integer"
-            },
-            "maxItems": 500,
-            "type": "array"
-          },
-          "name": {
-            "maxLength": 220,
-            "type": "string"
-          },
-          "topic": {
-            "maxLength": 1200,
-            "type": "string"
-          },
-          "type": {
-            "enum": [
-              "GROUP",
-              "CHANNEL"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "type",
-          "memberUserIds",
-          "idempotencyKey"
-        ],
         "type": "object"
       },
       "HomeResponse": {
@@ -635,7 +1217,38 @@
         },
         "type": "object"
       },
-      "MemberSummary": {
+      "JoinTokenResponse": {
+        "properties": {
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "participantToken": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "serverUrl": {
+            "type": "string"
+          },
+          "sessionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "LeaveConversationRequest": {
+        "properties": {
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ManagedMemberSummary": {
         "properties": {
           "displayName": {
             "type": "string"
@@ -643,23 +1256,18 @@
           "emailAddress": {
             "type": "string"
           },
-          "favorite": {
-            "type": "boolean"
+          "historyStartSequence": {
+            "format": "int64",
+            "type": "integer"
           },
           "jobTitle": {
-            "type": "string"
-          },
-          "lastReadAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "memberRole": {
             "type": "string"
           },
           "membershipSource": {
             "type": "string"
           },
-          "notificationLevel": {
+          "membershipStartedAt": {
+            "format": "date-time",
             "type": "string"
           },
           "organizationName": {
@@ -669,10 +1277,33 @@
             "format": "uuid",
             "type": "string"
           },
-          "pinned": {
-            "type": "boolean"
+          "role": {
+            "type": "string"
           },
-          "presenceState": {
+          "userId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "MemberSummary": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "emailAddress": {
+            "type": "string"
+          },
+          "personPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "role": {
             "type": "string"
           },
           "userId": {
@@ -682,8 +1313,72 @@
         },
         "type": "object"
       },
+      "MembershipMutationResponse": {
+        "properties": {
+          "idempotentReplay": {
+            "type": "boolean"
+          },
+          "membership": {
+            "$ref": "#/components/schemas/ConversationMembersResponse"
+          }
+        },
+        "type": "object"
+      },
+      "MessagePage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MessageSummary"
+            },
+            "type": "array"
+          },
+          "nextBeforeSequence": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "MessageSearchResult": {
+        "properties": {
+          "conversationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "conversationName": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "messageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resultType": {
+            "type": "string"
+          },
+          "senderName": {
+            "type": "string"
+          },
+          "snippet": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "MessageSummary": {
         "properties": {
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/AttachmentSummary"
+            },
+            "type": "array"
+          },
           "body": {
             "type": "string"
           },
@@ -719,9 +1414,16 @@
             },
             "type": "array"
           },
+          "replyCount": {
+            "format": "int32",
+            "type": "integer"
+          },
           "replyToMessageId": {
             "format": "uuid",
             "type": "string"
+          },
+          "rootPreview": {
+            "$ref": "#/components/schemas/ThreadRootPreview"
           },
           "senderName": {
             "type": "string"
@@ -734,6 +1436,10 @@
             "format": "int64",
             "type": "integer"
           },
+          "sequence": {
+            "format": "int64",
+            "type": "integer"
+          },
           "version": {
             "format": "int64",
             "type": "integer"
@@ -741,33 +1447,33 @@
         },
         "type": "object"
       },
-      "MessageSearchResult": {
+      "PersonSearchResult": {
         "properties": {
-          "conversationId": {
+          "displayName": {
+            "type": "string"
+          },
+          "emailAddress": {
+            "type": "string"
+          },
+          "jobTitle": {
+            "type": "string"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "personPublicId": {
             "format": "uuid",
             "type": "string"
           },
-          "conversationName": {
-            "type": "string"
-          },
-          "createdAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "messageId": {
-            "format": "uuid",
+          "presenceState": {
             "type": "string"
           },
           "resultType": {
-            "const": "MESSAGE",
             "type": "string"
           },
-          "senderName": {
-            "type": "string"
-          },
-          "snippet": {
-            "maxLength": 220,
-            "type": "string"
+          "userId": {
+            "format": "int64",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -791,39 +1497,6 @@
             "type": "string"
           },
           "presenceState": {
-            "type": "string"
-          },
-          "userId": {
-            "format": "int64",
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
-      "PersonSearchResult": {
-        "properties": {
-          "displayName": {
-            "type": "string"
-          },
-          "emailAddress": {
-            "format": "email",
-            "type": "string"
-          },
-          "jobTitle": {
-            "type": "string"
-          },
-          "organizationName": {
-            "type": "string"
-          },
-          "personPublicId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "presenceState": {
-            "type": "string"
-          },
-          "resultType": {
-            "const": "PERSON",
             "type": "string"
           },
           "userId": {
@@ -873,6 +1546,31 @@
         ],
         "type": "object"
       },
+      "ReadCursorResponse": {
+        "properties": {
+          "conversationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "lastReadAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastReadMessageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "lastReadSequence": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "RealtimeStatus": {
         "properties": {
           "detail": {
@@ -890,8 +1588,103 @@
         },
         "type": "object"
       },
+      "SavedItemPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SavedItemSummary"
+            },
+            "type": "array"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "pageSize": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SavedItemSummary": {
+        "properties": {
+          "conversationName": {
+            "type": "string"
+          },
+          "conversationType": {
+            "type": "string"
+          },
+          "message": {
+            "$ref": "#/components/schemas/MessageSummary"
+          },
+          "savedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SearchGroups": {
+        "properties": {
+          "conversations": {
+            "items": {
+              "$ref": "#/components/schemas/ConversationSearchResult"
+            },
+            "type": "array"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/MessageSearchResult"
+            },
+            "type": "array"
+          },
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/PersonSearchResult"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "SearchResponse": {
+        "properties": {
+          "backend": {
+            "type": "string"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "query": {
+            "type": "string"
+          },
+          "results": {
+            "$ref": "#/components/schemas/SearchGroups"
+          },
+          "total": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "SendMessageRequest": {
         "properties": {
+          "attachmentIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 0,
+            "type": "array"
+          },
           "body": {
             "maxLength": 20000,
             "minLength": 0,
@@ -910,6 +1703,57 @@
           "body",
           "idempotencyKey"
         ],
+        "type": "object"
+      },
+      "SessionResponse": {
+        "properties": {
+          "conversationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "endedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "endedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "sessionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "startedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SseEmitter": {
+        "properties": {
+          "timeout": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
         "type": "object"
       },
       "TenantPolicy": {
@@ -980,6 +1824,112 @@
             "format": "int64",
             "minimum": 0,
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ThreadResponse": {
+        "properties": {
+          "replies": {
+            "items": {
+              "$ref": "#/components/schemas/MessageSummary"
+            },
+            "type": "array"
+          },
+          "root": {
+            "$ref": "#/components/schemas/MessageSummary"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ThreadRootPreview": {
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "deletedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "messageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "senderName": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "TypingRequest": {
+        "properties": {
+          "started": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "started"
+        ],
+        "type": "object"
+      },
+      "UpdateConversationMemberRoleRequest": {
+        "properties": {
+          "role": {
+            "enum": [
+              "VIEWER",
+              "MEMBER",
+              "MODERATOR",
+              "OWNER"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "type": "object"
+      },
+      "UpdateMessageRequest": {
+        "properties": {
+          "body": {
+            "maxLength": 20000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "body"
+        ],
+        "type": "object"
+      },
+      "UploadSession": {
+        "properties": {
+          "attachment": {
+            "$ref": "#/components/schemas/AttachmentSummary"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "uploadUrl": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -1128,20 +2078,11 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseConversationCreation"
+                  "$ref": "#/components/schemas/ApiResponseConversationCreationResponse"
                 }
               }
             },
-            "description": "Created or idempotently replayed"
-          },
-          "400": {
-            "description": "Invalid type, name, member, or idempotency input"
-          },
-          "403": {
-            "description": "Messaging write permission or active requester is missing"
-          },
-          "409": {
-            "description": "Idempotency key was reused with a different request fingerprint"
+            "description": "OK"
           }
         },
         "tags": [
@@ -1180,7 +2121,782 @@
         ]
       }
     },
+    "/v1/conversations/{conversationId}/attachments/uploads": {
+      "post": {
+        "operationId": "createUpload",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUploadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseUploadSession"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "attachment-controller"
+        ]
+      }
+    },
+    "/v1/conversations/{conversationId}/attachments/{attachmentId}": {
+      "delete": {
+        "operationId": "discard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "attachmentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "attachment-controller"
+        ]
+      },
+      "get": {
+        "operationId": "metadata",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "attachmentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAttachmentSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "attachment-controller"
+        ]
+      }
+    },
+    "/v1/conversations/{conversationId}/attachments/{attachmentId}/content": {
+      "get": {
+        "operationId": "download",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "attachmentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "downloadToken",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "byte",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "attachment-controller"
+        ]
+      },
+      "put": {
+        "operationId": "upload",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "attachmentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "format": "byte",
+                "type": "string"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAttachmentSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "attachment-controller"
+        ]
+      }
+    },
+    "/v1/conversations/{conversationId}/attachments/{attachmentId}/download-grants": {
+      "post": {
+        "operationId": "downloadGrant",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "attachmentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDownloadGrant"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "attachment-controller"
+        ]
+      }
+    },
+    "/v1/conversations/{conversationId}/leave": {
+      "post": {
+        "operationId": "leave",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeaveConversationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseMembershipMutationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "collaboration-controller"
+        ]
+      }
+    },
+    "/v1/conversations/{conversationId}/meetings/capabilities": {
+      "get": {
+        "operationId": "capabilities",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCapabilityResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "meeting-controller"
+        ]
+      }
+    },
+    "/v1/conversations/{conversationId}/meetings/current": {
+      "get": {
+        "operationId": "current",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCurrentMeetingResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "meeting-controller"
+        ]
+      }
+    },
+    "/v1/conversations/{conversationId}/meetings/end": {
+      "post": {
+        "operationId": "end",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSessionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "meeting-controller"
+        ]
+      }
+    },
+    "/v1/conversations/{conversationId}/meetings/start": {
+      "post": {
+        "operationId": "start",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSessionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "meeting-controller"
+        ]
+      }
+    },
+    "/v1/conversations/{conversationId}/meetings/token": {
+      "post": {
+        "operationId": "token",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseJoinTokenResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "meeting-controller"
+        ]
+      }
+    },
+    "/v1/conversations/{conversationId}/members": {
+      "get": {
+        "operationId": "members",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseConversationMembersResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "collaboration-controller"
+        ]
+      },
+      "post": {
+        "operationId": "addMember",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddConversationMemberRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseMembershipMutationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "collaboration-controller"
+        ]
+      }
+    },
+    "/v1/conversations/{conversationId}/members/{userId}": {
+      "delete": {
+        "operationId": "removeMember",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseMembershipMutationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "collaboration-controller"
+        ]
+      }
+    },
+    "/v1/conversations/{conversationId}/members/{userId}/role": {
+      "put": {
+        "operationId": "updateMemberRole",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "userId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateConversationMemberRoleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseMembershipMutationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "collaboration-controller"
+        ]
+      }
+    },
     "/v1/conversations/{conversationId}/messages": {
+      "get": {
+        "operationId": "messages",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "beforeSequence",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseMessagePage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-controller"
+        ]
+      },
       "post": {
         "operationId": "sendMessage",
         "parameters": [
@@ -1217,7 +2933,120 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseConversationDetail"
+                  "$ref": "#/components/schemas/ApiResponseMessageSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-controller"
+        ]
+      }
+    },
+    "/v1/conversations/{conversationId}/messages/{messageId}": {
+      "delete": {
+        "operationId": "deleteMessage",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "messageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseMessageSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-controller"
+        ]
+      },
+      "put": {
+        "operationId": "updateMessage",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "messageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMessageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseMessageSummary"
                 }
               }
             },
@@ -1267,7 +3096,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseConversationDetail"
+                  "$ref": "#/components/schemas/ApiResponseMessageSummary"
                 }
               }
             },
@@ -1315,7 +3144,135 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseConversationDetail"
+                  "$ref": "#/components/schemas/ApiResponseMessageSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-controller"
+        ]
+      }
+    },
+    "/v1/conversations/{conversationId}/messages/{messageId}/saved": {
+      "delete": {
+        "operationId": "unsaveMessage",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "messageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-controller"
+        ]
+      },
+      "post": {
+        "operationId": "saveMessage",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "messageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSavedItemSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-controller"
+        ]
+      }
+    },
+    "/v1/conversations/{conversationId}/messages/{rootMessageId}/replies": {
+      "get": {
+        "operationId": "thread",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "rootMessageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseThreadResponse"
                 }
               }
             },
@@ -1356,7 +3313,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseConversationDetail"
+                  "$ref": "#/components/schemas/ApiResponseReadCursorResponse"
                 }
               }
             },
@@ -1368,40 +3325,17 @@
         ]
       }
     },
-    "/v1/search": {
+    "/v1/conversations/{conversationId}/settings": {
       "get": {
-        "operationId": "search",
+        "operationId": "conversationSettings",
         "parameters": [
           {
-            "in": "query",
-            "name": "q",
+            "in": "path",
+            "name": "conversationId",
             "required": true,
             "schema": {
-              "maxLength": 100,
-              "minLength": 2,
+              "format": "uuid",
               "type": "string"
-            }
-          },
-          {
-            "description": "Comma-separated subset of CONVERSATION,MESSAGE,PERSON",
-            "in": "query",
-            "name": "types",
-            "required": false,
-            "schema": {
-              "default": "",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 20,
-              "format": "int32",
-              "maximum": 50,
-              "minimum": 1,
-              "type": "integer"
             }
           }
         ],
@@ -1410,21 +3344,88 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseCollaborationSearch"
+                  "$ref": "#/components/schemas/ApiResponseConversationSettings"
                 }
               }
             },
-            "description": "ACL-filtered grouped SQL fallback results"
-          },
-          "400": {
-            "description": "Invalid query, type filter, or limit"
-          },
-          "403": {
-            "description": "Messaging view permission is missing"
+            "description": "OK"
           }
         },
         "tags": [
-          "collaboration-controller"
+          "messaging-controller"
+        ]
+      },
+      "put": {
+        "operationId": "updateConversationSettings",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConversationSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseConversationSettings"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-controller"
+        ]
+      }
+    },
+    "/v1/conversations/{conversationId}/typing": {
+      "post": {
+        "operationId": "typing",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TypingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "messaging-realtime-controller"
         ]
       }
     },
@@ -1456,7 +3457,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseConversationDetail"
+                  "$ref": "#/components/schemas/ApiResponseConversationSummary"
                 }
               }
             },
@@ -1526,6 +3527,135 @@
         },
         "tags": [
           "messaging-controller"
+        ]
+      }
+    },
+    "/v1/saved-items": {
+      "get": {
+        "operationId": "savedItems",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSavedItemPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-controller"
+        ]
+      }
+    },
+    "/v1/search": {
+      "get": {
+        "operationId": "search",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "types",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSearchResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "collaboration-controller"
+        ]
+      }
+    },
+    "/v1/stream": {
+      "get": {
+        "operationId": "stream",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Last-Event-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/SseEmitter"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-realtime-controller"
         ]
       }
     }

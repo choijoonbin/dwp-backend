@@ -121,8 +121,8 @@ public class AdminWorkplaceController {
                 tenantId, actorId, floorId, version, locale, correlationId, file));
     }
 
-    @PutMapping(
-            path = "/governance/floor-plan-revisions/{revisionId}",
+    @PostMapping(
+            path = "/governance/floor-plan-revisions/{revisionId}/background",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<WorkplaceSpatialGovernanceDtos.FloorPlanRevision>
             uploadGovernedFloorPlanRevisionBackground(
@@ -137,9 +137,7 @@ public class AdminWorkplaceController {
                 tenantId, actorId, revisionId, version, changeSummary, correlationId, file));
     }
 
-    @GetMapping(
-            path = "/governance/floor-plan-revisions/{revisionId}/snapshot",
-            params = "media=background")
+    @GetMapping(path = "/governance/floor-plan-revisions/{revisionId}/background")
     public ResponseEntity<Resource> governedFloorPlanRevisionBackground(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @PathVariable UUID revisionId) {

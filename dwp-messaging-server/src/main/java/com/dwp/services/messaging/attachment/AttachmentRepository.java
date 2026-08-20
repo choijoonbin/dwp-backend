@@ -157,6 +157,51 @@ public class AttachmentRepository {
                 """, tenantId, conversationId, userId);
     }
 
+    public Optional<AttachmentRow> expireOwnedUnattached(
+            long tenantId, UUID conversationId, long userId, UUID attachmentId) {
+        return rows("""
+                UPDATE msg_attachments
+                   SET status = 'EXPIRED', version = version + 1, updated_at = CURRENT_TIMESTAMP
+                 WHERE tenant_id = ? AND conversation_id = ? AND uploader_user_id = ?
+                   AND attachment_id = ? AND message_id IS NULL
+                   AND status IN ('QUARANTINED', 'CLEAN', 'REJECTED')
+                RETURNING *
+                """, tenantId, conversationId, userId, attachmentId).stream().findFirst();
+    }
+
+    public void expireDueOrphans() {
+        jdbc.update("""
+                UPDATE msg_attachments
+                   SET status = 'EXPIRED', version = version + 1, updated_at = CURRENT_TIMESTAMP
+                 WHERE message_id IS NULL AND upload_expires_at <= CURRENT_TIMESTAMP
+                   AND status IN ('QUARANTINED', 'CLEAN', 'REJECTED')
+                """);
+    }
+
+    public List<AttachmentRow> expiredOrphans(int limit) {
+        return rows("""
+                SELECT * FROM msg_attachments
+                 WHERE message_id IS NULL AND status = 'EXPIRED'
+                 ORDER BY upload_expires_at, attachment_id
+                 LIMIT ?
+                """, Math.max(1, Math.min(limit, 500)));
+    }
+
+    public int deleteExpired(UUID attachmentId) {
+        return jdbc.update("""
+                DELETE FROM msg_attachments
+                 WHERE attachment_id = ? AND message_id IS NULL AND status = 'EXPIRED'
+                """, attachmentId);
+    }
+
+    public void purgeDownloadGrants() {
+        jdbc.update("""
+                DELETE FROM msg_attachment_download_grants
+                 WHERE expires_at <= CURRENT_TIMESTAMP
+                    OR consumed_at <= CURRENT_TIMESTAMP - INTERVAL '1 day'
+                """);
+    }
+
     public void requireAttachable(
             long tenantId, UUID conversationId, long userId, List<UUID> attachmentIds) {
         if (attachmentIds.isEmpty()) return;

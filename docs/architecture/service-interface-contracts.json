@@ -175,6 +175,34 @@
       ]
     },
     {
+      "id": "approval-auth-subject-directory",
+      "classification": "approval-identity-subject-validation",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-approval-server",
+      "targetServices": [
+        "dwp-auth-server"
+      ],
+      "path": "dwp-approval-server/src/main/java/com/dwp/services/approval/integration/AuthApprovalIdentityDirectory.java",
+      "purpose": "Validate and search active approval delegates against central identity through an internal read-only contract.",
+      "auth": "Uses purpose-specific identity-sync token only.",
+      "retryMode": "idempotent-only",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "${dwp.identity-sync.auth-url:http://localhost:8001}",
+        "/internal/identity/v1/",
+        "X-DWP-Identity-Sync-Token",
+        "@CircuitBreaker",
+        "@Bulkhead",
+        "@Retry",
+        "OutboundHttpHeaders.propagateObservability"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Service-Token",
+        "X-DWP-Provisioning-Token"
+      ]
+    },
+    {
       "id": "people-auth-workforce-identity-sync",
       "classification": "workforce-identity-sync",
       "interfaceType": "internal-http",

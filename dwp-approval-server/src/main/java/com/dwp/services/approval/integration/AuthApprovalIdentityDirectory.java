@@ -3,6 +3,9 @@ package com.dwp.services.approval.integration;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.core.http.OutboundHttpHeaders;
+import io.github.resilience4j.bulkhead.annotation.Bulkhead;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.retry.annotation.Retry;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
@@ -30,12 +33,15 @@ public class AuthApprovalIdentityDirectory implements ApprovalIdentityDirectory 
     }
 
     @Override
+    @Bulkhead(name = "authApprovalIdentityDirectory", type = Bulkhead.Type.SEMAPHORE)
+    @CircuitBreaker(name = "authApprovalIdentityDirectory")
+    @Retry(name = "idempotentInternal")
     public Subject require(long tenantId, long userId) {
         configured();
         try {
             Subject subject = auth.get()
                     .uri("/internal/identity/v1/tenants/{tenantId}/users/{userId}", tenantId, userId)
-                    .headers(OutboundHttpHeaders::propagateObservability)
+                    .headers(headers -> OutboundHttpHeaders.propagateObservability(headers))
                     .header(TOKEN_HEADER, token)
                     .retrieve()
                     .body(Subject.class);
@@ -55,6 +61,9 @@ public class AuthApprovalIdentityDirectory implements ApprovalIdentityDirectory 
     }
 
     @Override
+    @Bulkhead(name = "authApprovalIdentityDirectory", type = Bulkhead.Type.SEMAPHORE)
+    @CircuitBreaker(name = "authApprovalIdentityDirectory")
+    @Retry(name = "idempotentInternal")
     public List<Subject> search(long tenantId, String query, int limit) {
         configured();
         try {
@@ -64,7 +73,7 @@ public class AuthApprovalIdentityDirectory implements ApprovalIdentityDirectory 
                             .queryParam("query", query == null ? "" : query.strip())
                             .queryParam("limit", Math.max(1, Math.min(limit, 30)))
                             .build(tenantId))
-                    .headers(OutboundHttpHeaders::propagateObservability)
+                    .headers(headers -> OutboundHttpHeaders.propagateObservability(headers))
                     .header(TOKEN_HEADER, token)
                     .retrieve()
                     .body(Subject[].class);

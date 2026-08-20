@@ -42,7 +42,9 @@ public class AttachmentService {
         repository.expirePending(subject.tenantId(), conversationId, subject.userId());
         AttachmentSecurity.ValidatedMetadata metadata = AttachmentSecurity.validate(
                 request.filename(), request.contentType(), request.sizeBytes(),
-                repository.maximumAttachmentMb(subject.tenantId()));
+                Math.min(
+                        repository.maximumAttachmentMb(subject.tenantId()),
+                        properties.maximumTransferMb()));
         UUID attachmentId = UUID.randomUUID();
         String uploadToken = AttachmentSecurity.newToken();
         OffsetDateTime expiresAt = OffsetDateTime.now().plus(properties.uploadTtl());
@@ -84,30 +86,32 @@ public class AttachmentService {
                     ErrorCode.INVALID_INPUT_VALUE,
                     "The upload token or content length does not match the upload session.");
         }
-        storage.store(pending.objectKey(), content);
         AttachmentRepository.AttachmentRow scanning = repository.beginScan(
                         subject.tenantId(), conversationId, subject.userId(), attachmentId,
                         AttachmentSecurity.hash(token), AttachmentSecurity.contentHash(content),
                         content.length, pending.version())
-                .orElseGet(() -> {
-                    storage.delete(pending.objectKey());
-                    throw new BaseException(
-                            ErrorCode.RESOURCE_CONFLICT,
-                            "The upload session expired or was already consumed.");
-                });
-        AttachmentScanner.ScanResult result = scanner.scan(
-                new AttachmentScanner.ScanRequest(
-                        scanning.normalizedFilename(), scanning.extension(),
-                        scanning.declaredContentType()),
-                content);
-        AttachmentRepository.AttachmentRow completed = repository.completeScan(
-                subject.tenantId(), attachmentId, scanning.version(), result);
-        if (!result.clean()) storage.delete(completed.objectKey());
-        repository.audit(
-                subject.tenantId(), subject.userId(),
-                result.clean() ? "messaging.attachment.scan-clean" : "messaging.attachment.scan-rejected",
-                attachmentId, correlationId);
-        return completed.summary();
+                .orElseThrow(() -> new BaseException(
+                        ErrorCode.RESOURCE_CONFLICT,
+                        "The upload session expired or was already consumed."));
+        try {
+            storage.store(scanning.objectKey(), content);
+            AttachmentScanner.ScanResult result = scanner.scan(
+                    new AttachmentScanner.ScanRequest(
+                            scanning.normalizedFilename(), scanning.extension(),
+                            scanning.declaredContentType()),
+                    content);
+            AttachmentRepository.AttachmentRow completed = repository.completeScan(
+                    subject.tenantId(), attachmentId, scanning.version(), result);
+            if (!result.clean()) storage.delete(completed.objectKey());
+            repository.audit(
+                    subject.tenantId(), subject.userId(),
+                    result.clean() ? "messaging.attachment.scan-clean" : "messaging.attachment.scan-rejected",
+                    attachmentId, correlationId);
+            return completed.summary();
+        } catch (RuntimeException exception) {
+            deleteAfterFailedUpload(scanning.objectKey(), exception);
+            throw exception;
+        }
     }
 
     @Transactional(readOnly = true)
@@ -122,6 +126,19 @@ public class AttachmentService {
             throw notFound();
         }
         return row.summary();
+    }
+
+    public void discard(UUID conversationId, UUID attachmentId, String correlationId) {
+        MessagingRequestContext.Subject subject = MessagingRequestContext.get();
+        requireMember(subject, conversationId);
+        AttachmentRepository.AttachmentRow expired = repository.expireOwnedUnattached(
+                        subject.tenantId(), conversationId, subject.userId(), attachmentId)
+                .orElseThrow(this::notFound);
+        storage.delete(expired.objectKey());
+        repository.deleteExpired(attachmentId);
+        repository.audit(
+                subject.tenantId(), subject.userId(), "messaging.attachment.discarded",
+                attachmentId, correlationId);
     }
 
     @Transactional
@@ -219,6 +236,14 @@ public class AttachmentService {
         return java.security.MessageDigest.isEqual(
                 left.getBytes(java.nio.charset.StandardCharsets.US_ASCII),
                 right.getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+    }
+
+    private void deleteAfterFailedUpload(String objectKey, RuntimeException original) {
+        try {
+            storage.delete(objectKey);
+        } catch (RuntimeException cleanupFailure) {
+            original.addSuppressed(cleanupFailure);
+        }
     }
 
     private String contentPath(UUID conversationId, UUID attachmentId) {

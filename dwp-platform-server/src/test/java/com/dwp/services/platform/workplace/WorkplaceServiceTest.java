@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.ArgumentCaptor;
+import org.springframework.mock.web.MockMultipartFile;
 
 import java.math.BigDecimal;
 import java.time.LocalTime;
@@ -314,6 +316,67 @@ class WorkplaceServiceTest {
 
         verify(mediaStorage, never()).store(any(), any(), any(), any());
         verify(catalog, never()).updatePlacement(any(), any(), any(), any());
+    }
+
+    @Test
+    void governedDraftBackgroundIsValidatedStoredAndAttachedToTheObservedRevision() {
+        UUID floorId = UUID.randomUUID();
+        UUID revisionId = UUID.randomUUID();
+        String storageKey = "1/workplace/floor-plan-revisions/" + revisionId + "/plan.png";
+        var revision = floorPlanRevision(revisionId, floorId, null, null, 3L);
+        when(spatialGovernance.floorPlanRevisionSnapshot(1L, revisionId))
+                .thenReturn(new WorkplaceSpatialGovernanceDtos.FloorPlanRevisionSnapshot(
+                        revision, List.of()));
+        byte[] content = new byte[]{1, 2, 3};
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "plan.png", "image/png", content);
+        when(floorPlanValidator.validate(file)).thenReturn(
+                new WorkplaceFloorPlanValidator.ValidatedFloorPlan(
+                        content, "image/png", "png", content.length,
+                        "a".repeat(64), 1200, 760));
+        when(mediaStorage.store(
+                1L, "workplace/floor-plan-revisions/" + revisionId, "png", content))
+                .thenReturn(storageKey);
+        when(spatialGovernance.updateFloorPlanRevisionMedia(
+                eq(1L), eq(9L), eq(revisionId), eq("corr"), any()))
+                .thenReturn(floorPlanRevision(
+                        revisionId, floorId, storageKey,
+                        "/api/platform/v1/admin/workplace/governance/floor-plan-revisions/"
+                                + revisionId + "/background",
+                        4L));
+
+        var result = service.uploadDraftFloorBackground(
+                1L, 9L, revisionId, 3L, "Updated evacuation plan", "corr", file);
+
+        assertThat(result.version()).isEqualTo(4L);
+        verify(mediaCleanup).registerStaged(1L, storageKey);
+        ArgumentCaptor<WorkplaceSpatialGovernanceDtos.FloorPlanSnapshotRequest> request =
+                ArgumentCaptor.forClass(
+                        WorkplaceSpatialGovernanceDtos.FloorPlanSnapshotRequest.class);
+        verify(spatialGovernance).updateFloorPlanRevisionMedia(
+                eq(1L), eq(9L), eq(revisionId), eq("corr"), request.capture());
+        assertThat(request.getValue().backgroundAssetPath())
+                .isEqualTo("/api/platform/v1/admin/workplace/governance/floor-plan-revisions/"
+                        + revisionId + "/background");
+        assertThat(request.getValue().backgroundAssetKey()).isEqualTo(storageKey);
+        assertThat(request.getValue().version()).isEqualTo(3L);
+    }
+
+    private WorkplaceSpatialGovernanceDtos.FloorPlanRevision floorPlanRevision(
+            UUID revisionId,
+            UUID floorId,
+            String backgroundAssetKey,
+            String backgroundAssetPath,
+            long version) {
+        return new WorkplaceSpatialGovernanceDtos.FloorPlanRevision(
+                revisionId, floorId, 2, null, null,
+                WorkplaceSpatialGovernanceDtos.RevisionState.DRAFT,
+                1200, 760, backgroundAssetPath, backgroundAssetKey,
+                backgroundAssetKey == null ? null : "image/png",
+                backgroundAssetKey == null ? null : 3L,
+                backgroundAssetKey == null ? null : "a".repeat(64),
+                "Layout", "b".repeat(64), 0,
+                null, null, null, null, version);
     }
 
     private WorkplaceCatalogRepository.SiteRow site(UUID siteId) {

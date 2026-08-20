@@ -2,25 +2,16 @@ package com.dwp.services.platform.workplace;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
-import com.dwp.services.platform.calendar.CalendarDtos;
 import com.dwp.services.platform.calendar.CalendarService;
-import com.dwp.services.platform.calendar.CalendarTypes;
 import com.dwp.services.platform.media.TenantMediaStorage;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.core.io.Resource;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.math.BigDecimal;
-import java.time.DayOfWeek;
-import java.time.DateTimeException;
 import java.time.Duration;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
-import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -37,14 +28,11 @@ public class WorkplaceService {
 
     private final WorkplaceCatalogRepository catalog;
     private final WorkplaceBookingRepository bookings;
-    private final CalendarService calendarService;
-    private final TenantMediaStorage mediaStorage;
-    private final WorkplaceFloorPlanValidator floorPlanValidator;
-    private final WorkplaceMediaCleanupRepository mediaCleanup;
     private final WorkplaceSpatialGovernanceService spatialGovernance;
-    private final WorkplaceReleaseWindowRepository releaseWindows;
     private final WorkplaceDomainEvents domainEvents;
     private final WorkplaceRuntimeGovernance runtimeGovernance;
+    private final WorkplaceCatalogAdminService catalogAdmin;
+    private final WorkplaceBookingPolicyService bookingPolicy;
 
     public WorkplaceService(
             WorkplaceCatalogRepository catalog,
@@ -59,14 +47,14 @@ public class WorkplaceService {
             WorkplaceRuntimeGovernance runtimeGovernance) {
         this.catalog = catalog;
         this.bookings = bookings;
-        this.calendarService = calendarService;
-        this.mediaStorage = mediaStorage;
-        this.floorPlanValidator = floorPlanValidator;
-        this.mediaCleanup = mediaCleanup;
         this.spatialGovernance = spatialGovernance;
-        this.releaseWindows = releaseWindows;
         this.domainEvents = domainEvents;
         this.runtimeGovernance = runtimeGovernance;
+        this.catalogAdmin = new WorkplaceCatalogAdminService(
+                catalog, bookings, calendarService, mediaStorage, floorPlanValidator,
+                mediaCleanup, spatialGovernance, runtimeGovernance);
+        this.bookingPolicy = new WorkplaceBookingPolicyService(
+                bookings, releaseWindows, runtimeGovernance);
     }
 
     @Transactional(readOnly = true)
@@ -306,21 +294,17 @@ public class WorkplaceService {
 
     @Transactional(readOnly = true)
     public List<WorkplaceDtos.Site> sites(Long tenantId, String locale) {
-        return catalog.sites(tenantId, korean(locale)).stream().map(this::site).toList();
+        return catalogAdmin.sites(tenantId, locale);
     }
 
     @Transactional(readOnly = true)
     public List<WorkplaceDtos.Floor> floors(Long tenantId, UUID siteId, String locale) {
-        requireSite(tenantId, siteId, locale);
-        return catalog.floors(tenantId, siteId, korean(locale)).stream().map(this::floor).toList();
+        return catalogAdmin.floors(tenantId, siteId, locale);
     }
 
     @Transactional(readOnly = true)
     public List<WorkplaceDtos.Resource> resources(Long tenantId, UUID floorId, String locale) {
-        WorkplaceCatalogRepository.FloorRow floor = requireFloor(tenantId, floorId, locale);
-        return catalog.resources(tenantId, floorId, korean(locale)).stream()
-                .map(value -> resource(value, floor.siteId()))
-                .toList();
+        return catalogAdmin.resources(tenantId, floorId, locale);
     }
 
     @Transactional
@@ -331,22 +315,8 @@ public class WorkplaceService {
             String locale,
             String correlationId,
             WorkplaceDtos.SiteRequest request) {
-        requireWriteMode(siteId, request.version(), "site");
-        if (siteId != null) {
-            requireSite(tenantId, siteId, locale);
-        }
-        validateTimeZone(request.timeZone());
-        try {
-            WorkplaceCatalogRepository.SiteRow saved = catalog.saveSite(
-                    tenantId, actorId, siteId, request, korean(locale));
-            if (saved == null) throw stale();
-            bookings.audit(tenantId, actorId,
-                    siteId == null ? "workplace.site.created" : "workplace.site.updated",
-                    "SITE", saved.siteId(), correlationId, Map.of("code", saved.code()));
-            return site(saved);
-        } catch (DataIntegrityViolationException exception) {
-            throw conflict("The site code or floor hierarchy already exists.");
-        }
+        return catalogAdmin.saveSite(
+                tenantId, actorId, siteId, locale, correlationId, request);
     }
 
     @Transactional
@@ -358,27 +328,8 @@ public class WorkplaceService {
             String locale,
             String correlationId,
             WorkplaceDtos.FloorRequest request) {
-        requireWriteMode(floorId, request.version(), "floor");
-        requireSite(tenantId, siteId, locale);
-        if (floorId != null) {
-            WorkplaceCatalogRepository.FloorRow current =
-                    requireFloor(tenantId, floorId, locale);
-            if (!current.siteId().equals(siteId)) {
-                throw invalid("The floor does not belong to the selected site.");
-            }
-        }
-        try {
-            WorkplaceCatalogRepository.FloorRow saved = catalog.saveFloor(
-                    tenantId, actorId, siteId, floorId, request, korean(locale));
-            if (saved == null) throw stale();
-            bookings.audit(tenantId, actorId,
-                    floorId == null ? "workplace.floor.created" : "workplace.floor.updated",
-                    "FLOOR", saved.floorId(), correlationId,
-                    Map.of("siteId", siteId, "floorNumber", saved.floorNumber()));
-            return floor(saved);
-        } catch (DataIntegrityViolationException exception) {
-            throw conflict("This floor already exists at the selected site.");
-        }
+        return catalogAdmin.saveFloor(
+                tenantId, actorId, siteId, floorId, locale, correlationId, request);
     }
 
     @Transactional
@@ -390,10 +341,8 @@ public class WorkplaceService {
             String locale,
             String correlationId,
             MultipartFile file) {
-        throw conflict(
-                "Direct floor-plan background updates are retired. "
-                        + "Create or update a governed draft revision, submit it for review, "
-                        + "and publish the approved revision.");
+        return catalogAdmin.uploadFloorBackground(
+                tenantId, actorId, floorId, version, locale, correlationId, file);
     }
 
     @Transactional
@@ -405,68 +354,13 @@ public class WorkplaceService {
             String changeSummary,
             String correlationId,
             MultipartFile file) {
-        WorkplaceSpatialGovernanceDtos.FloorPlanRevisionSnapshot snapshot =
-                spatialGovernance.floorPlanRevisionSnapshot(tenantId, revisionId);
-        WorkplaceSpatialGovernanceDtos.FloorPlanRevision revision = snapshot.revision();
-        if (revision.state() != WorkplaceSpatialGovernanceDtos.RevisionState.DRAFT) {
-            throw conflict("Only a governed draft revision can receive a background image.");
-        }
-        if (version == null || version != revision.version()) {
-            throw conflict("The floor-plan draft changed. Refresh and retry.");
-        }
-        String normalizedSummary = changeSummary == null ? "" : changeSummary.trim();
-        if (normalizedSummary.isEmpty() || normalizedSummary.length() > 500) {
-            throw invalid("A background change summary of up to 500 characters is required.");
-        }
-
-        WorkplaceFloorPlanValidator.ValidatedFloorPlan plan = floorPlanValidator.validate(file);
-        String storageKey = mediaStorage.store(
-                tenantId,
-                "workplace/floor-plan-revisions/" + revisionId,
-                plan.extension(),
-                plan.content());
-        try {
-            mediaCleanup.registerStaged(tenantId, storageKey);
-        } catch (RuntimeException exception) {
-            mediaStorage.delete(tenantId, storageKey);
-            throw exception;
-        }
-
-        String path = "/api/platform/v1/admin/workplace/governance/floor-plan-revisions/"
-                + revisionId + "/snapshot?media=background";
-        WorkplaceSpatialGovernanceDtos.FloorPlanSnapshotRequest request =
-                new WorkplaceSpatialGovernanceDtos.FloorPlanSnapshotRequest(
-                        revision.planWidth(),
-                        revision.planHeight(),
-                        path,
-                        storageKey,
-                        plan.contentType(),
-                        plan.sizeBytes(),
-                        plan.sha256(),
-                        normalizedSummary,
-                        snapshot.placements().stream()
-                                .map(this::placementRequest)
-                                .toList(),
-                        version);
-        return spatialGovernance.updateFloorPlanRevision(
-                tenantId, actorId, revisionId, correlationId, request);
+        return catalogAdmin.uploadDraftFloorBackground(
+                tenantId, actorId, revisionId, version, changeSummary, correlationId, file);
     }
 
     @Transactional(readOnly = true)
     public FloorBackground floorPlanRevisionBackground(Long tenantId, UUID revisionId) {
-        WorkplaceSpatialGovernanceDtos.FloorPlanRevision revision =
-                spatialGovernance.floorPlanRevisionSnapshot(tenantId, revisionId).revision();
-        if (revision.backgroundAssetKey() == null
-                || revision.backgroundContentType() == null
-                || revision.backgroundSizeBytes() == null
-                || revision.backgroundSha256() == null) {
-            throw new BaseException(ErrorCode.NOT_FOUND);
-        }
-        return new FloorBackground(
-                mediaStorage.load(tenantId, revision.backgroundAssetKey()),
-                revision.backgroundContentType(),
-                revision.backgroundSizeBytes(),
-                revision.backgroundSha256());
+        return catalogAdmin.floorPlanRevisionBackground(tenantId, revisionId);
     }
 
     @Transactional(readOnly = true)
@@ -475,18 +369,7 @@ public class WorkplaceService {
             Long userId,
             String verifiedGroupRefs,
             UUID floorId) {
-        WorkplaceCatalogRepository.FloorRow floor = catalog.floor(tenantId, floorId, false)
-                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        runtimeGovernance.requireViewAccess(
-                tenantId, userId, verifiedGroupRefs, floor.siteId());
-        if (floor.backgroundAssetKey() == null || floor.backgroundContentType() == null
-                || floor.backgroundSizeBytes() == null || floor.backgroundSha256() == null) {
-            throw new BaseException(ErrorCode.NOT_FOUND);
-        }
-        return new FloorBackground(
-                mediaStorage.load(tenantId, floor.backgroundAssetKey()),
-                floor.backgroundContentType(), floor.backgroundSizeBytes(),
-                floor.backgroundSha256());
+        return catalogAdmin.floorBackground(tenantId, userId, verifiedGroupRefs, floorId);
     }
 
     @Transactional
@@ -498,36 +381,8 @@ public class WorkplaceService {
             String locale,
             String correlationId,
             WorkplaceDtos.ResourceRequest request) {
-        requireWriteMode(resourceId, request.version(), "resource");
-        validateResource(request);
-        WorkplaceCatalogRepository.FloorRow floor = requireFloor(tenantId, floorId, locale);
-        WorkplaceCatalogRepository.SiteRow site = requireSite(
-                tenantId, floor.siteId(), locale);
-        WorkplaceCatalogRepository.ResourceRow existing = resourceId == null ? null
-                : catalog.resource(tenantId, resourceId, korean(locale))
-                    .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        if (existing != null && !existing.floorId().equals(floorId)) {
-            throw invalid("The resource does not belong to the selected floor.");
-        }
-        if (existing != null && existing.calendarResourceId() != null
-                && request.type() != ResourceType.ROOM) {
-            throw invalid("A calendar-linked room cannot be converted to another resource type.");
-        }
-        UUID calendarResourceId = saveCalendarRoom(
-                tenantId, actorId, locale, correlationId, request, site, floor, existing);
-        try {
-            WorkplaceCatalogRepository.ResourceRow saved = catalog.saveResource(
-                    tenantId, actorId, floorId, resourceId, calendarResourceId,
-                    request, korean(locale));
-            if (saved == null) throw stale();
-            bookings.audit(tenantId, actorId,
-                    resourceId == null ? "workplace.resource.created" : "workplace.resource.updated",
-                    "RESOURCE", saved.resourceId(), correlationId,
-                    Map.of("code", saved.code(), "type", saved.type().name()));
-            return resource(saved, floor.siteId());
-        } catch (DataIntegrityViolationException exception) {
-            throw conflict("The resource code or placement is invalid or already in use.");
-        }
+        return catalogAdmin.saveResource(
+                tenantId, actorId, floorId, resourceId, locale, correlationId, request);
     }
 
     @Transactional
@@ -538,14 +393,13 @@ public class WorkplaceService {
             String locale,
             String correlationId,
             WorkplaceDtos.LayoutRequest request) {
-        throw conflict(
-                "Direct floor-plan layout updates are retired. "
-                        + "All placements must be changed through a governed draft revision.");
+        return catalogAdmin.updateLayout(
+                tenantId, actorId, floorId, locale, correlationId, request);
     }
 
     @Transactional(readOnly = true)
     public WorkplaceDtos.Policy policy(Long tenantId) {
-        return policy(catalog.policy(tenantId));
+        return catalogAdmin.policy(tenantId);
     }
 
     @Transactional
@@ -554,71 +408,12 @@ public class WorkplaceService {
             Long actorId,
             String correlationId,
             WorkplaceDtos.PolicyRequest request) {
-        if (!request.workingDayEnd().isAfter(request.workingDayStart())) {
-            throw invalid("Working hours must end after they start.");
-        }
-        if (request.maximumBookingMinutes() < request.minimumBookingMinutes()) {
-            throw invalid("The maximum booking duration must be at least the minimum duration.");
-        }
-        if (request.maximumConsecutiveDays() > request.bookingWindowDays()) {
-            throw invalid("Consecutive booking days cannot exceed the advance booking window.");
-        }
-        WorkplaceCatalogRepository.PolicyRow saved = catalog.updatePolicy(tenantId, actorId, request);
-        if (saved == null) throw stale();
-        bookings.audit(tenantId, actorId, "workplace.policy.updated", "POLICY",
-                null, correlationId, Map.of("version", saved.version()));
-        return policy(saved);
+        return catalogAdmin.updatePolicy(tenantId, actorId, correlationId, request);
     }
 
     @Transactional(readOnly = true)
     public WorkplaceDtos.AdminOverview adminOverview(Long tenantId) {
-        WorkplaceCatalogRepository.PolicyRow policy = catalog.policy(tenantId);
-        ZoneId zone = catalog.sites(tenantId, false).stream()
-                .filter(value -> value.state() == SiteState.ACTIVE)
-                .sorted(java.util.Comparator.comparingInt(value ->
-                        value.type() == SiteType.HEADQUARTERS ? 0 : 1))
-                .map(WorkplaceCatalogRepository.SiteRow::timeZone)
-                .map(ZoneId::of)
-                .findFirst()
-                .orElse(ZoneId.of("UTC"));
-        LocalDate monday = LocalDate.now(zone)
-                .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
-        OffsetDateTime from = monday.atStartOfDay(zone).toOffsetDateTime();
-        OffsetDateTime to = from.plusDays(7);
-        OffsetDateTime dayStart = LocalDate.now(zone).atStartOfDay(zone).toOffsetDateTime();
-        WorkplaceCatalogRepository.AdminStats stats = catalog.adminStats(
-                tenantId, from, to, dayStart, dayStart.plusDays(1));
-        long availableMinutes = stats.utilizationResources()
-                * 5L * Duration.between(policy.workingDayStart(), policy.workingDayEnd()).toMinutes();
-        int utilization = availableMinutes == 0 ? 0 : (int) Math.min(100,
-                Math.round(bookings.occupiedMinutes(tenantId, from, to) * 100.0 / availableMinutes));
-        return new WorkplaceDtos.AdminOverview(
-                stats.activeSites(), stats.configuredFloors(), stats.reservableResources(),
-                stats.assignedResources(), stats.bookingsThisWeek(), stats.checkedInToday(),
-                utilization, policy(policy), OffsetDateTime.now());
-    }
-
-    private UUID saveCalendarRoom(
-            Long tenantId,
-            Long actorId,
-            String locale,
-            String correlationId,
-            WorkplaceDtos.ResourceRequest request,
-            WorkplaceCatalogRepository.SiteRow site,
-            WorkplaceCatalogRepository.FloorRow floor,
-            WorkplaceCatalogRepository.ResourceRow existing) {
-        if (request.type() != ResourceType.ROOM) {
-            return existing == null ? null : existing.calendarResourceId();
-        }
-        Long calendarVersion = existing == null ? null : existing.calendarVersion();
-        CalendarDtos.ResourceRequest calendarRequest = new CalendarDtos.ResourceRequest(
-                request.code(), request.nameKo(), request.nameEn(), CalendarTypes.ResourceType.ROOM,
-                site.nameKo(), floor.nameEn(), request.capacity(), request.features(), site.timeZone(),
-                request.approvalRequired(), CalendarTypes.ResourceState.valueOf(request.state().name()),
-                calendarVersion);
-        return calendarService.saveWorkplaceManagedResource(
-                tenantId, actorId, existing == null ? null : existing.calendarResourceId(),
-                locale, correlationId, calendarRequest).resourceId();
+        return catalogAdmin.adminOverview(tenantId);
     }
 
     UUID validateBookable(
@@ -631,118 +426,16 @@ public class WorkplaceService {
             WorkplaceCatalogRepository.SiteRow site,
             WorkplaceCatalogRepository.FloorRow floor,
             WorkplaceCatalogRepository.PolicyRow policy) {
-        bookings.lockResourceBookingScope(tenantId, resource.resourceId());
-        runtimeGovernance.requireBookAccess(
-                tenantId, userId, verifiedGroupRefs, site.siteId());
-        if (site.state() != SiteState.ACTIVE || floor.state() != FloorState.ACTIVE) {
-            throw invalid("This Workplace location is not open for booking.");
-        }
-        if (resource.type() == ResourceType.ROOM) {
-            throw invalid("Meeting rooms must be reserved with the calendar-aware room flow.");
-        }
-        if (resource.state() != ResourceState.AVAILABLE
-                || resource.mode() == BookingMode.UNAVAILABLE) {
-            throw invalid("This Workplace resource is not available for booking.");
-        }
-        OffsetDateTime now = OffsetDateTime.now();
-        if (request.startsAt() == null || request.endsAt() == null
-                || !request.endsAt().isAfter(request.startsAt())
-                || request.startsAt().isBefore(now.minusMinutes(1))) {
-            throw invalid("A valid future booking period is required.");
-        }
-        boolean assignedToCurrentUser = userId.equals(resource.assignedUserId())
-                || (personPublicId != null && personPublicId.equals(resource.assignedPersonPublicId()));
-        if (resource.mode() == BookingMode.ASSIGNED && !assignedToCurrentUser) {
-            if (!policy.allowAssignedDeskLending()) {
-                throw new BaseException(
-                        ErrorCode.FORBIDDEN,
-                        "This assigned workspace was not released for the complete booking period.");
-            }
-            UUID releaseWindowId = releaseWindows.coveringWindowForBooking(
-                            tenantId, resource.resourceId(), request.startsAt(), request.endsAt())
-                    .orElseThrow(() -> new BaseException(
-                            ErrorCode.FORBIDDEN,
-                            "This assigned workspace was not released for the complete booking period."));
-            validateBookingPolicyPeriod(request, site, resource.mode(), policy, now);
-            return releaseWindowId;
-        }
-        validateBookingPolicyPeriod(request, site, resource.mode(), policy, now);
-        return null;
-    }
-
-    private void validateBookingPolicyPeriod(
-            WorkplaceDtos.BookingRequest request,
-            WorkplaceCatalogRepository.SiteRow site,
-            BookingMode bookingMode,
-            WorkplaceCatalogRepository.PolicyRow policy,
-            OffsetDateTime now) {
-        if (request.startsAt().isAfter(now.plusDays(policy.bookingWindowDays()))) {
-            throw invalid("The booking is outside the configured advance window.");
-        }
-        long minutes = Duration.between(request.startsAt(), request.endsAt()).toMinutes();
-        if (minutes < policy.minimumBookingMinutes() || minutes > policy.maximumBookingMinutes()) {
-            throw invalid("The reservation duration is outside the Workplace policy.");
-        }
-        ZoneId zone = ZoneId.of(site.timeZone());
-        LocalDateTime localStart = request.startsAt().atZoneSameInstant(zone).toLocalDateTime();
-        LocalDateTime localEnd = request.endsAt().atZoneSameInstant(zone).toLocalDateTime();
-        if (!localStart.toLocalDate().equals(localEnd.toLocalDate())
-                || localStart.toLocalTime().isBefore(policy.workingDayStart())
-                || localEnd.toLocalTime().isAfter(policy.workingDayEnd())) {
-            throw invalid("The reservation must fit within one configured working day.");
-        }
-        if (bookingMode == BookingMode.DROP_IN
-                && request.startsAt().isAfter(now.plusMinutes(15))) {
-            throw invalid("Drop-in resources can only be claimed on arrival.");
-        }
+        return bookingPolicy.validateBookable(
+                tenantId, resource, userId, personPublicId, verifiedGroupRefs,
+                request, site, floor, policy);
     }
 
     WorkplaceCatalogRepository.PolicyRow resolveBookingPolicy(
             Long tenantId,
             UUID resourceId,
             WorkplaceCatalogRepository.PolicyRow base) {
-        return effectivePolicy(
-                tenantId,
-                WorkplaceSpatialGovernanceDtos.PolicyScopeType.RESOURCE,
-                resourceId,
-                base);
-    }
-
-    private void validateResource(WorkplaceDtos.ResourceRequest request) {
-        validateBounds(request.positionX(), request.positionY(),
-                request.widthPercent(), request.heightPercent());
-        boolean hasAssignee = request.assignedUserId() != null
-                || request.assignedPersonPublicId() != null;
-        if (request.mode() == BookingMode.ASSIGNED && !hasAssignee) {
-            throw invalid("Assigned resources require an assignee.");
-        }
-        if (request.type() != ResourceType.ROOM && request.approvalRequired()) {
-            throw invalid("Approval workflow currently applies to meeting rooms only.");
-        }
-    }
-
-    private void validatePlacement(WorkplaceDtos.ResourcePlacement request) {
-        validateBounds(request.positionX(), request.positionY(),
-                request.widthPercent(), request.heightPercent());
-    }
-
-    private void validateBounds(BigDecimal x, BigDecimal y, BigDecimal width, BigDecimal height) {
-        if (x.add(width).compareTo(BigDecimal.valueOf(100)) > 0
-                || y.add(height).compareTo(BigDecimal.valueOf(100)) > 0) {
-            throw invalid("The resource must remain inside the floor plan.");
-        }
-    }
-
-    private WorkplaceCatalogRepository.SiteRow requireSite(
-            Long tenantId, UUID siteId, String locale) {
-        return catalog.site(tenantId, siteId, korean(locale))
-                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-    }
-
-    private WorkplaceCatalogRepository.FloorRow requireFloor(
-            Long tenantId, UUID floorId, String locale) {
-        return catalog.floor(tenantId, floorId, korean(locale))
-                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        return bookingPolicy.resolveBookingPolicy(tenantId, resourceId, base);
     }
 
     private WorkplaceBookingRepository.BookingRow requireBookingRow(
@@ -821,19 +514,6 @@ public class WorkplaceService {
                 value.floorId(), value.siteId(), value.siteName(), value.floorNumber(),
                 value.name(), value.nameKo(), value.nameEn(), value.planWidth(), value.planHeight(),
                 value.backgroundAssetPath(), value.state(), value.resourceCount(), value.version());
-    }
-
-    private WorkplaceDtos.Resource resource(
-            WorkplaceCatalogRepository.ResourceRow value, UUID siteId) {
-        return new WorkplaceDtos.Resource(
-                value.resourceId(), value.floorId(), siteId, value.calendarResourceId(),
-                value.code(), value.name(), value.nameKo(), value.nameEn(), value.type(),
-                value.mode(), value.state(), value.neighborhood(), value.capacity(), value.features(),
-                value.accessible(), value.approvalRequired(), value.positionX(), value.positionY(),
-                value.widthPercent(), value.heightPercent(), value.rotationDegrees(),
-                false,
-                value.assignedUserId(), value.assignedPersonPublicId(),
-                value.assignedDisplayName(), value.version());
     }
 
     private WorkplaceDtos.Resource publicResource(
@@ -951,23 +631,6 @@ public class WorkplaceService {
                         value.version()));
     }
 
-    private void validateTimeZone(String value) {
-        try {
-            ZoneId.of(value == null ? "" : value.trim());
-        } catch (DateTimeException exception) {
-            throw invalid("A valid IANA time zone is required.");
-        }
-    }
-
-    private void requireWriteMode(UUID resourceId, Long version, String resourceName) {
-        if (resourceId == null && version != null) {
-            throw invalid("A new Workplace " + resourceName + " cannot include a version.");
-        }
-        if (resourceId != null && version == null) {
-            throw invalid("Updating a Workplace " + resourceName + " requires its version.");
-        }
-    }
-
     private WorkplaceDtos.Policy policy(WorkplaceCatalogRepository.PolicyRow value) {
         return new WorkplaceDtos.Policy(
                 value.bookingWindowDays(), value.maximumActiveBookings(),
@@ -992,25 +655,6 @@ public class WorkplaceService {
 
     private BaseException conflict(String message) {
         return new BaseException(ErrorCode.RESOURCE_CONFLICT, message);
-    }
-
-    private BaseException stale() {
-        return conflict("The Workplace resource changed. Refresh and try again.");
-    }
-
-    private WorkplaceSpatialGovernanceDtos.FloorPlanPlacementRequest placementRequest(
-            WorkplaceSpatialGovernanceDtos.FloorPlanPlacement placement) {
-        return new WorkplaceSpatialGovernanceDtos.FloorPlanPlacementRequest(
-                placement.resourceId(),
-                placement.resourceVersion(),
-                placement.zoneId(),
-                placement.sectionId(),
-                placement.positionX(),
-                placement.positionY(),
-                placement.widthPercent(),
-                placement.heightPercent(),
-                placement.rotationDegrees(),
-                placement.metadata());
     }
 
     public record FloorBackground(

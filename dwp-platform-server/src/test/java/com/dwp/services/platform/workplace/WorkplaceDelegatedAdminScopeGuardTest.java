@@ -65,6 +65,24 @@ class WorkplaceDelegatedAdminScopeGuardTest {
     }
 
     @Test
+    void governedDraftBackgroundUsesTheFloorPlanDelegationBoundary() {
+        UUID siteId = UUID.randomUUID();
+        UUID revisionId = UUID.randomUUID();
+        MockHttpServletRequest request = request(
+                "POST",
+                "/v1/admin/workplace/governance/floor-plan-revisions/"
+                        + revisionId + "/background",
+                "WORKPLACE_DELEGATE");
+        when(repository.candidateGrants(1L, 7L, Set.of()))
+                .thenReturn(List.of(grant(siteId,
+                        Set.of(DelegatedPermission.FLOOR_PLAN_MANAGE), null, null)));
+        when(repository.resolveSite(1L, SiteTargetType.FLOOR_PLAN_REVISION, revisionId))
+                .thenReturn(java.util.Optional.of(siteId));
+
+        assertThatCode(() -> guard.authorize(request)).doesNotThrowAnyException();
+    }
+
+    @Test
     void crossSiteTargetIsDeniedWithoutDisclosingExistence() {
         UUID delegatedSiteId = UUID.randomUUID();
         UUID targetSiteId = UUID.randomUUID();

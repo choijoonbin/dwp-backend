@@ -70,6 +70,19 @@ def fetch_contract(service: ServiceContract) -> dict[str, Any]:
     return document
 
 
+def load_snapshot(service: ServiceContract) -> dict[str, Any]:
+    target = CONTRACT_ROOT / f"{service.name}.json"
+    try:
+        document = json.loads(target.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RuntimeError(
+            f"Unable to read approved {service.name} OpenAPI snapshot at {target}: {error}"
+        ) from error
+    if not str(document.get("openapi", "")).startswith("3.") or not document.get("paths"):
+        raise RuntimeError(f"{service.name} approved OpenAPI snapshot is invalid")
+    return document
+
+
 def component_names(service: str, document: dict[str, Any]) -> dict[tuple[str, str], str]:
     return {
         (category, name): f"{service}_{name}"
@@ -156,9 +169,22 @@ def main() -> int:
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument("--write", action="store_true", help="replace checked-in contract snapshots")
     mode.add_argument("--check", action="store_true", help="fail when runtime contracts drift")
+    parser.add_argument(
+        "--service",
+        action="append",
+        choices=[service.name for service in SERVICES],
+        help=(
+            "fetch only this service from runtime and compose the Gateway contract with "
+            "approved snapshots for the others; repeat to select multiple services"
+        ),
+    )
     args = parser.parse_args()
 
-    documents = {service.name: fetch_contract(service) for service in SERVICES}
+    selected = set(args.service or (service.name for service in SERVICES))
+    documents = {
+        service.name: fetch_contract(service) if service.name in selected else load_snapshot(service)
+        for service in SERVICES
+    }
     outputs = {f"{name}.json": document for name, document in documents.items()}
     outputs["gateway-public.json"] = gateway_contract(documents)
     CONTRACT_ROOT.mkdir(parents=True, exist_ok=True)

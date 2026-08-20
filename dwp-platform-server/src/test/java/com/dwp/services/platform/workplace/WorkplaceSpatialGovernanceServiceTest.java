@@ -155,6 +155,30 @@ class WorkplaceSpatialGovernanceServiceTest {
     }
 
     @Test
+    void jsonSnapshotUpdateCannotReplaceServerManagedBackgroundMedia() {
+        UUID floorId = UUID.randomUUID();
+        UUID revisionId = UUID.randomUUID();
+        when(repository.floorPlanRevision(1L, revisionId))
+                .thenReturn(Optional.of(revision(
+                        revisionId, floorId, RevisionState.DRAFT, 0, 0)));
+        FloorPlanSnapshotRequest request = new FloorPlanSnapshotRequest(
+                1200, 760,
+                "/api/platform/v1/admin/workplace/governance/floor-plan-revisions/"
+                        + revisionId + "/background",
+                "1/workplace/floor-plan-revisions/" + revisionId + "/plan.png",
+                "image/png", 128L, "a".repeat(64), "Replace media", List.of(), 0L);
+
+        assertThatThrownBy(() -> service.updateFloorPlanRevision(
+                1L, 7L, revisionId, "corr", request))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE))
+                .hasMessageContaining("server-managed");
+
+        verify(repository, never()).lockFloor(anyLong(), any());
+        verify(repository, never()).updateDraft(anyLong(), anyLong(), any(), any(), anyString());
+    }
+
+    @Test
     void revisionSnapshotReturnsThePersistedDraftInventoryForSafeResume() {
         UUID floorId = UUID.randomUUID();
         UUID revisionId = UUID.randomUUID();

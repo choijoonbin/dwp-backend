@@ -12,6 +12,7 @@ import org.springframework.jdbc.core.ResultSetExtractor;
 import org.springframework.jdbc.core.RowMapper;
 
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -19,6 +20,8 @@ import java.util.UUID;
 import static com.dwp.services.platform.workplace.WorkplaceSpatialGovernanceDtos.PolicyOverrideRequest;
 import static com.dwp.services.platform.workplace.WorkplaceSpatialGovernanceDtos.PolicyScopeType;
 import static com.dwp.services.platform.workplace.WorkplaceSpatialGovernanceDtos.RuleState;
+import static com.dwp.services.platform.workplace.WorkplaceSpatialGovernanceDtos.RevisionState;
+import static com.dwp.services.platform.workplace.WorkplaceSpatialGovernanceRepository.FloorPlanRevisionRow;
 import static com.dwp.services.platform.workplace.WorkplaceSpatialGovernanceRepository.PlacementRow;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -86,6 +89,32 @@ class WorkplaceSpatialGovernanceRepositoryTest {
         assertThat(sql.getValue())
                 .contains("version = version + 1")
                 .contains("resource_id = ? AND version = ?");
+    }
+
+    @Test
+    void publishingProjectsAViewerAuthorizedBackgroundPath() {
+        UUID floorId = UUID.randomUUID();
+        UUID revisionId = UUID.randomUUID();
+        FloorPlanRevisionRow revision = new FloorPlanRevisionRow(
+                revisionId, floorId, 3, null, null, RevisionState.PUBLISHED,
+                1200, 760,
+                "/api/platform/v1/admin/workplace/governance/floor-plan-revisions/"
+                        + revisionId + "/background",
+                "1/workplace/floor-plan-revisions/" + revisionId + "/plan.png",
+                "image/png", 128L, "a".repeat(64), "Approved plan",
+                "b".repeat(64), 1, OffsetDateTime.now(), 7L,
+                OffsetDateTime.now(), 7L, 4);
+        when(jdbc.update(anyString(), any(Object[].class))).thenReturn(1);
+        WorkplaceSpatialGovernanceRepository repository =
+                new WorkplaceSpatialGovernanceRepository(jdbc, new ObjectMapper());
+
+        assertThat(repository.projectPublishedFloor(
+                1L, 7L, floorId, revisionId, revision, 8)).isTrue();
+
+        ArgumentCaptor<Object[]> parameters = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbc).update(anyString(), parameters.capture());
+        assertThat(parameters.getValue()[3])
+                .isEqualTo("/api/platform/v1/workplace/floors/" + floorId + "/background");
     }
 
     @Test

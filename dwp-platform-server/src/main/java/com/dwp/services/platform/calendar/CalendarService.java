@@ -33,13 +33,15 @@ public class CalendarService {
     private static final int MAX_OCCURRENCES = 4000;
     private static final Duration MAX_QUERY_SPAN = Duration.ofDays(370);
     private final CalendarRepository repository;
-    private final WorkplaceRoomAccessPort roomAccess;
+    private final CalendarOccurrenceProjector occurrenceProjector;
+    private final CalendarRoomAccessGuard roomAccessGuard;
 
     public CalendarService(
             CalendarRepository repository,
             WorkplaceRoomAccessPort roomAccess) {
         this.repository = repository;
-        this.roomAccess = roomAccess;
+        this.occurrenceProjector = new CalendarOccurrenceProjector(repository);
+        this.roomAccessGuard = new CalendarRoomAccessGuard(roomAccess);
     }
 
     @Transactional(readOnly = true)
@@ -75,9 +77,10 @@ public class CalendarService {
             String locale) {
         validateRange(from, to);
         repository.linkIdentity(tenantId, userId, personPublicId);
-        return filterViewableEvents(
+        return roomAccessGuard.filterViewableEvents(
                 tenantId, userId, verifiedGroupRefs,
-                summaries(tenantId, userId, personPublicId, from, to, locale));
+                occurrenceProjector.summaries(
+                        tenantId, userId, personPublicId, from, to, locale));
     }
 
     @Transactional(readOnly = true)
@@ -108,9 +111,10 @@ public class CalendarService {
         OffsetDateTime weekEnd = weekStart.plusDays(7);
         OffsetDateTime horizonEnd = now.plusDays(30).toOffsetDateTime();
         if (horizonEnd.isBefore(weekEnd)) horizonEnd = weekEnd;
-        List<CalendarDtos.EventSummary> horizonEvents = filterViewableEvents(
+        List<CalendarDtos.EventSummary> horizonEvents = roomAccessGuard.filterViewableEvents(
                 tenantId, userId, verifiedGroupRefs,
-                summaries(tenantId, userId, personPublicId, weekStart, horizonEnd, locale));
+                occurrenceProjector.summaries(
+                        tenantId, userId, personPublicId, weekStart, horizonEnd, locale));
         List<CalendarDtos.EventSummary> weekEvents = horizonEvents.stream()
                 .filter(event -> event.startsAt().isBefore(weekEnd)
                         && event.endsAt().isAfter(weekStart))
@@ -131,7 +135,7 @@ public class CalendarService {
         int responses = (int) weekEvents.stream()
                 .filter(event -> event.myResponse() == ResponseStatus.NEEDS_ACTION)
                 .count();
-        int availableRooms = (int) filterViewableResources(
+        int availableRooms = (int) roomAccessGuard.filterViewableResources(
                 tenantId, userId, verifiedGroupRefs, repository.resources(
                         tenantId, now.toOffsetDateTime(), now.plusHours(1).toOffsetDateTime(),
                         korean(locale), false)).stream()
@@ -159,7 +163,7 @@ public class CalendarService {
         }
         return new CalendarDtos.HomeResponse(
                 today, zone.getId(), next, todayEvents, metrics, List.copyOf(load),
-                attention(weekEvents, policy, locale), OffsetDateTime.now());
+                occurrenceProjector.attention(weekEvents, policy, locale), OffsetDateTime.now());
     }
 
     @Transactional
@@ -200,8 +204,10 @@ public class CalendarService {
                             idempotency.eventId(), korean(locale))
                     .orElseThrow(() -> conflict(
                             "The calendar idempotency state is unavailable."));
-            requireBookAccess(tenantId, userId, verifiedGroupRefs, existing.resource());
-            return summary(tenantId, userId, personPublicId, existing, false, locale);
+            roomAccessGuard.requireBook(
+                    tenantId, userId, verifiedGroupRefs, existing.resource());
+            return occurrenceProjector.summary(
+                    tenantId, userId, personPublicId, existing, false, locale);
         }
         CalendarRepository.PolicyRow policy = validateEvent(
                 tenantId, request.startsAt(), request.endsAt(), request.timeZone(),
@@ -211,7 +217,7 @@ public class CalendarService {
                 tenantId, request.resourceId(), request.startsAt(), request.endsAt(), null,
                 request.timeZone(), request.recurrence(), request.recurrenceInterval(),
                 request.recurrenceUntil(), policy, locale);
-        requireBookAccess(tenantId, userId, verifiedGroupRefs, resource);
+        roomAccessGuard.requireBook(tenantId, userId, verifiedGroupRefs, resource);
         UUID calendarId = repository.ensurePersonalCalendar(tenantId, userId, personPublicId);
         UUID eventId = repository.insertEvent(
                 tenantId, userId, personPublicId, organizerName,
@@ -230,7 +236,8 @@ public class CalendarService {
         CalendarRepository.EventRow created = repository.event(
                         tenantId, userId, personPublicId, eventId, korean(locale))
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        return summary(tenantId, userId, personPublicId, created, false, locale);
+        return occurrenceProjector.summary(
+                tenantId, userId, personPublicId, created, false, locale);
     }
 
     @Transactional
@@ -260,10 +267,10 @@ public class CalendarService {
         CalendarRepository.EventRow before = repository.event(
                         tenantId, userId, personPublicId, eventId, korean(locale))
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        if (!isOrganizer(before, userId, personPublicId)) {
+        if (!occurrenceProjector.isOrganizer(before, userId, personPublicId)) {
             throw new BaseException(ErrorCode.FORBIDDEN, "Only the organizer can update this event.");
         }
-        requireBookAccess(tenantId, userId, verifiedGroupRefs, before.resource());
+        roomAccessGuard.requireBook(tenantId, userId, verifiedGroupRefs, before.resource());
         CalendarRepository.PolicyRow policy = validateEvent(
                 tenantId, request.startsAt(), request.endsAt(), request.timeZone(),
                 request.type(), request.description(), request.recurrence(),
@@ -275,7 +282,7 @@ public class CalendarService {
         if (before.resource() == null
                 || resource == null
                 || !before.resource().resourceId().equals(resource.resourceId())) {
-            requireBookAccess(tenantId, userId, verifiedGroupRefs, resource);
+            roomAccessGuard.requireBook(tenantId, userId, verifiedGroupRefs, resource);
         }
         if (repository.updateEvent(tenantId, userId, personPublicId, eventId, request) == 0) {
             throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
@@ -311,7 +318,8 @@ public class CalendarService {
         CalendarRepository.EventRow updated = repository.event(
                         tenantId, userId, personPublicId, eventId, korean(locale))
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        return summary(tenantId, userId, personPublicId, updated, false, locale);
+        return occurrenceProjector.summary(
+                tenantId, userId, personPublicId, updated, false, locale);
     }
 
     @Transactional
@@ -341,10 +349,10 @@ public class CalendarService {
         CalendarRepository.EventRow before = repository.event(
                         tenantId, userId, personPublicId, eventId, korean(locale))
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        if (!isOrganizer(before, userId, personPublicId)) {
+        if (!occurrenceProjector.isOrganizer(before, userId, personPublicId)) {
             throw new BaseException(ErrorCode.FORBIDDEN, "Only the organizer can cancel this event.");
         }
-        requireBookAccess(tenantId, userId, verifiedGroupRefs, before.resource());
+        roomAccessGuard.requireBook(tenantId, userId, verifiedGroupRefs, before.resource());
         if (repository.cancelEvent(
                 tenantId, userId, personPublicId, eventId, request.version()) == 0) {
             throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
@@ -385,7 +393,7 @@ public class CalendarService {
         CalendarRepository.EventRow before = repository.event(
                         tenantId, userId, personPublicId, eventId, korean(locale))
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        requireViewAccess(tenantId, userId, verifiedGroupRefs, before.resource());
+        roomAccessGuard.requireView(tenantId, userId, verifiedGroupRefs, before.resource());
         if (repository.respond(tenantId, userId, personPublicId, eventId, request.response()) == 0) {
             throw new BaseException(ErrorCode.NOT_FOUND, "The attendee record was not found.");
         }
@@ -395,7 +403,8 @@ public class CalendarService {
         CalendarRepository.EventRow updated = repository.event(
                         tenantId, userId, personPublicId, eventId, korean(locale))
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        return summary(tenantId, userId, personPublicId, updated, false, locale);
+        return occurrenceProjector.summary(
+                tenantId, userId, personPublicId, updated, false, locale);
     }
 
     @Transactional(readOnly = true)
@@ -419,7 +428,7 @@ public class CalendarService {
             OffsetDateTime to,
             String locale) {
         validateRange(from, to);
-        return filterViewableResources(
+        return roomAccessGuard.filterViewableResources(
                 tenantId, userId, verifiedGroupRefs,
                 repository.resources(tenantId, from, to, korean(locale), false)).stream()
                 .map(this::resource)
@@ -636,177 +645,6 @@ public class CalendarService {
         return resource(saved);
     }
 
-    private List<CalendarDtos.EventSummary> summaries(
-            Long tenantId,
-            Long userId,
-            UUID personPublicId,
-            OffsetDateTime from,
-            OffsetDateTime to,
-            String locale) {
-        List<Occurrence> occurrences = occurrences(
-                repository.visibleEvents(
-                        tenantId, userId, personPublicId, from, to, korean(locale)), from, to);
-        Map<OccurrenceKey, Boolean> conflicts = conflictMap(occurrences);
-        return occurrences.stream()
-                .map(occurrence -> summary(
-                        tenantId, userId, personPublicId, occurrence.row(),
-                        conflicts.getOrDefault(occurrence.key(), false), locale,
-                        occurrence.startsAt(), occurrence.endsAt()))
-                .sorted(Comparator.comparing(CalendarDtos.EventSummary::startsAt)
-                        .thenComparing(CalendarDtos.EventSummary::title))
-                .toList();
-    }
-
-    private List<Occurrence> occurrences(
-            List<CalendarRepository.EventRow> rows,
-            OffsetDateTime from,
-            OffsetDateTime to) {
-        List<Occurrence> result = new ArrayList<>();
-        for (CalendarRepository.EventRow row : rows) {
-            OffsetDateTime startsAt = row.startsAt();
-            OffsetDateTime endsAt = row.endsAt();
-            if (row.recurrence() == RecurrencePattern.NONE) {
-                if (startsAt.isBefore(to) && endsAt.isAfter(from)) {
-                    result.add(new Occurrence(row, startsAt, endsAt));
-                }
-                continue;
-            }
-            int guard = 0;
-            while (!endsAt.isAfter(from) && guard++ < MAX_OCCURRENCES) {
-                OffsetDateTime next = increment(
-                        startsAt, row.recurrence(), row.recurrenceInterval(), row.timeZone());
-                endsAt = next.plus(Duration.between(startsAt, endsAt));
-                startsAt = next;
-            }
-            while (startsAt.isBefore(to) && guard++ < MAX_OCCURRENCES) {
-                if (row.recurrenceUntil() != null
-                        && startsAt.toLocalDate().isAfter(row.recurrenceUntil())) break;
-                if (endsAt.isAfter(from)) result.add(new Occurrence(row, startsAt, endsAt));
-                OffsetDateTime next = increment(
-                        startsAt, row.recurrence(), row.recurrenceInterval(), row.timeZone());
-                endsAt = next.plus(Duration.between(startsAt, endsAt));
-                startsAt = next;
-            }
-        }
-        return result;
-    }
-
-    private OffsetDateTime increment(
-            OffsetDateTime value, RecurrencePattern pattern, int interval, String timeZone) {
-        ZonedDateTime local = value.atZoneSameInstant(zone(timeZone));
-        return switch (pattern) {
-            case DAILY -> local.plusDays(interval).toOffsetDateTime();
-            case WEEKLY -> local.plusWeeks(interval).toOffsetDateTime();
-            case MONTHLY -> local.plusMonths(interval).toOffsetDateTime();
-            case NONE -> value;
-        };
-    }
-
-    private Map<OccurrenceKey, Boolean> conflictMap(List<Occurrence> values) {
-        Map<OccurrenceKey, Boolean> conflicts = new HashMap<>();
-        for (int left = 0; left < values.size(); left++) {
-            for (int right = left + 1; right < values.size(); right++) {
-                Occurrence first = values.get(left);
-                Occurrence second = values.get(right);
-                if (first.row().eventId().equals(second.row().eventId())) continue;
-                if (first.startsAt().isBefore(second.endsAt())
-                        && first.endsAt().isAfter(second.startsAt())) {
-                    conflicts.put(first.key(), true);
-                    conflicts.put(second.key(), true);
-                }
-            }
-        }
-        return conflicts;
-    }
-
-    private CalendarDtos.EventSummary summary(
-            Long tenantId,
-            Long userId,
-            UUID personPublicId,
-            CalendarRepository.EventRow row,
-            boolean conflict,
-            String locale) {
-        return summary(
-                tenantId, userId, personPublicId, row, conflict, locale,
-                row.startsAt(), row.endsAt());
-    }
-
-    private CalendarDtos.EventSummary summary(
-            Long tenantId,
-            Long userId,
-            UUID personPublicId,
-            CalendarRepository.EventRow row,
-            boolean conflict,
-            String locale,
-            OffsetDateTime startsAt,
-            OffsetDateTime endsAt) {
-        String organizer = isOrganizer(row, userId, personPublicId)
-                ? (korean(locale) ? "나" : "You") : row.organizerName();
-        return new CalendarDtos.EventSummary(
-                row.eventId(), row.calendarId(), row.calendarName(), row.calendarColor(),
-                row.organizerPersonPublicId() == null ? row.organizerUserId() : null,
-                row.organizerPersonPublicId(), organizer, row.organizerEmail(), row.title(),
-                row.description(), row.type(), startsAt, endsAt, row.timeZone(), row.allDay(),
-                row.location(), row.conferenceUrl(), row.status(), row.visibility(),
-                row.recurrence(), row.recurrenceInterval(), row.recurrenceUntil(),
-                row.responseRequired(), row.myResponse(),
-                repository.attendees(tenantId, row.eventId()).stream()
-                        .map(attendee -> new CalendarDtos.Attendee(
-                                attendee.personPublicId() == null ? attendee.userId() : null,
-                                attendee.personPublicId(), attendee.email(), attendee.name(),
-                                attendee.type(), attendee.response()))
-                        .toList(),
-                row.resource() == null ? null : resource(row.resource()), conflict, row.version());
-    }
-
-    private boolean isOrganizer(
-            CalendarRepository.EventRow row, Long userId, UUID personPublicId) {
-        if (row.organizerPersonPublicId() != null) {
-            return row.organizerPersonPublicId().equals(personPublicId);
-        }
-        return row.organizerUserId().equals(userId);
-    }
-
-    private List<CalendarDtos.AttentionItem> attention(
-            List<CalendarDtos.EventSummary> events,
-            CalendarRepository.PolicyRow policy,
-            String locale) {
-        boolean ko = korean(locale);
-        Map<String, CalendarDtos.AttentionItem> items = new LinkedHashMap<>();
-        events.stream().filter(CalendarDtos.EventSummary::conflict).findFirst().ifPresent(event ->
-                items.put("conflict", new CalendarDtos.AttentionItem(
-                        "conflict", "HIGH", ko ? "겹치는 일정이 있습니다" : "Schedules overlap",
-                        ko ? "시간을 조정하거나 참석 우선순위를 확인하세요."
-                                : "Adjust the time or confirm which commitment takes priority.",
-                        event.eventId(), "/calendar/schedule")));
-        events.stream().filter(event -> event.myResponse() == ResponseStatus.NEEDS_ACTION)
-                .findFirst().ifPresent(event -> items.put("response", new CalendarDtos.AttentionItem(
-                        "response", "MEDIUM", ko ? "참석 응답이 필요합니다" : "A response is due",
-                        ko ? event.title() + " 초대에 응답해 주세요."
-                                : "Respond to the invitation for " + event.title() + ".",
-                        event.eventId(), "/calendar/schedule")));
-        int focus = minutes(events, EventType.FOCUS);
-        if (focus < policy.weeklyFocusTargetMinutes()) {
-            int gap = policy.weeklyFocusTargetMinutes() - focus;
-            items.put("focus", new CalendarDtos.AttentionItem(
-                    "focus", "LOW", ko ? "집중시간이 목표보다 부족합니다" : "Focus time is below target",
-                    ko ? "이번 주에 " + gap + "분의 집중시간을 더 확보해 보세요."
-                            : "Protect " + gap + " more minutes this week.",
-                    null, "/calendar/schedule?create=focus"));
-        }
-        if (policy.enforceMeetingAgenda()) {
-            events.stream()
-                    .filter(event -> event.type() == EventType.MEETING
-                            && (event.description() == null || event.description().isBlank()))
-                    .findFirst().ifPresent(event -> items.put("agenda", new CalendarDtos.AttentionItem(
-                            "agenda", "MEDIUM", ko ? "회의 안건이 비어 있습니다" : "A meeting needs an agenda",
-                            ko ? event.title() + "에 목적과 준비사항을 추가하세요."
-                                    : "Add purpose and preparation notes to " + event.title() + ".",
-                            event.eventId(), "/calendar/schedule")));
-        }
-        return items.values().stream().limit(4).toList();
-    }
-
     private CalendarRepository.ResourceRow validateResource(
             Long tenantId,
             UUID resourceId,
@@ -909,7 +747,8 @@ public class CalendarService {
                 && guard++ < MAX_OCCURRENCES) {
             result.add(new BookingWindow(current, current.plus(duration)));
             if (recurrence == RecurrencePattern.NONE) break;
-            current = increment(current, recurrence, recurrenceInterval, timeZone);
+            current = occurrenceProjector.increment(
+                    current, recurrence, recurrenceInterval, timeZone);
         }
         if (result.size() >= MAX_OCCURRENCES
                 || result.stream().anyMatch(value -> value.startsAt().isAfter(
@@ -989,89 +828,12 @@ public class CalendarService {
         return locale != null && locale.toLowerCase(Locale.ROOT).startsWith("ko");
     }
 
-    private void requireBookAccess(
-            Long tenantId,
-            Long userId,
-            String verifiedGroupRefs,
-            CalendarRepository.ResourceRow resource) {
-        if (resource != null) {
-            roomAccess.requireBook(
-                    tenantId, userId, verifiedGroupRefs, resource.resourceId());
-        }
-    }
-
-    private void requireViewAccess(
-            Long tenantId,
-            Long userId,
-            String verifiedGroupRefs,
-            CalendarRepository.ResourceRow resource) {
-        if (!canViewResource(tenantId, userId, verifiedGroupRefs, resource)) {
-            throw new BaseException(
-                    ErrorCode.FORBIDDEN,
-                    "This Workplace location is not available to the current member.");
-        }
-    }
-
-    private boolean canViewResource(
-            Long tenantId,
-            Long userId,
-            String verifiedGroupRefs,
-            CalendarRepository.ResourceRow resource) {
-        return resource == null || roomAccess.canView(
-                tenantId, userId, verifiedGroupRefs, resource.resourceId());
-    }
-
-    private List<CalendarDtos.EventSummary> filterViewableEvents(
-            Long tenantId,
-            Long userId,
-            String verifiedGroupRefs,
-            List<CalendarDtos.EventSummary> events) {
-        Set<UUID> resourceIds = events.stream()
-                .map(CalendarDtos.EventSummary::resource)
-                .filter(Objects::nonNull)
-                .map(CalendarDtos.ResourceSummary::resourceId)
-                .collect(java.util.stream.Collectors.toSet());
-        Set<UUID> viewable = roomAccess.viewableResourceIds(
-                tenantId, userId, verifiedGroupRefs, resourceIds);
-        return events.stream()
-                .filter(event -> event.resource() == null
-                        || viewable.contains(event.resource().resourceId()))
-                .toList();
-    }
-
-    private List<CalendarRepository.ResourceRow> filterViewableResources(
-            Long tenantId,
-            Long userId,
-            String verifiedGroupRefs,
-            List<CalendarRepository.ResourceRow> resources) {
-        Set<UUID> resourceIds = resources.stream()
-                .map(CalendarRepository.ResourceRow::resourceId)
-                .collect(java.util.stream.Collectors.toSet());
-        Set<UUID> viewable = roomAccess.viewableResourceIds(
-                tenantId, userId, verifiedGroupRefs, resourceIds);
-        return resources.stream()
-                .filter(resource -> viewable.contains(resource.resourceId()))
-                .toList();
-    }
-
     private BaseException invalid(String message) {
         return new BaseException(ErrorCode.INVALID_INPUT_VALUE, message);
     }
 
     private BaseException conflict(String message) {
         return new BaseException(ErrorCode.RESOURCE_CONFLICT, message);
-    }
-
-    private record Occurrence(
-            CalendarRepository.EventRow row,
-            OffsetDateTime startsAt,
-            OffsetDateTime endsAt) {
-        OccurrenceKey key() {
-            return new OccurrenceKey(row.eventId(), startsAt);
-        }
-    }
-
-    private record OccurrenceKey(UUID eventId, OffsetDateTime startsAt) {
     }
 
     private record BookingWindow(OffsetDateTime startsAt, OffsetDateTime endsAt) {
