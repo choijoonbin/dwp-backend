@@ -50,7 +50,8 @@ least-privilege roles:
 - `DWAION_AGENT_PUBLISHER` reviews and publishes revisions but cannot author them.
 - `DWAION_GOVERNANCE_MANAGER` operates source, action, safety, and retention policy
   without conversation-content or audit-export access.
-- `DWAION_EVALUATOR` owns encrypted evaluation sets and quality runs.
+- `DWAION_EVALUATOR` owns encrypted evaluation sets, quality runs, run-to-run regression
+  review, and metrics-only evidence export. Export remains a separate permission from view.
 - `DWAION_AUDITOR` reads retention and append-only governance evidence without
   mutation authority.
 
@@ -135,7 +136,7 @@ invariants; an IdP connector cannot bypass separation-of-duties checks.
 | Independent Platform request decision, fulfilment, retry, revocation, and requester/approver/fulfiller separation | Implemented | [`V59__complete_app_access_fulfilment_lifecycle.sql`](../../dwp-platform-server/src/main/resources/db/migration/V59__complete_app_access_fulfilment_lifecycle.sql), [`WorkspaceService`](../../dwp-platform-server/src/main/java/com/dwp/services/platform/workspace/WorkspaceService.java) |
 | Product-aware tenant resource and built-in permission templates | Implemented | [`V49__harden_tenant_authorization_and_seed_skax_groups.sql`](../../dwp-auth-server/src/main/resources/db/migration/V49__harden_tenant_authorization_and_seed_skax_groups.sql), [`AuthTenantProvisioningService`](../../dwp-auth-server/src/main/java/com/dwp/services/auth/provisioning/AuthTenantProvisioningService.java) |
 | SKAX functional groups, access packages, app responsibilities, and drift diagnostics | Implemented | Auth V49 and [`audit-authorization-model.sh`](../../scripts/audit-authorization-model.sh) |
-| Independent DWAI·ON operations delegation, SoD, granular resources, and SKAX verification group | Implemented | [`V74__authorize_dwaion_operations.sql`](../../dwp-auth-server/src/main/resources/db/migration/V74__authorize_dwaion_operations.sql), [`V75__harden_dwaion_privileged_assignment.sql`](../../dwp-auth-server/src/main/resources/db/migration/V75__harden_dwaion_privileged_assignment.sql), and [`V76__separate_dwaion_governance_permissions.sql`](../../dwp-auth-server/src/main/resources/db/migration/V76__separate_dwaion_governance_permissions.sql); Gateway resolves the operation-specific `ADMIN.DWAION_*` resource and does not infer it from tenant roles. |
+| Independent DWAI·ON operations delegation, SoD, granular resources, and SKAX verification group | Implemented | [`V74__authorize_dwaion_operations.sql`](../../dwp-auth-server/src/main/resources/db/migration/V74__authorize_dwaion_operations.sql), [`V75__harden_dwaion_privileged_assignment.sql`](../../dwp-auth-server/src/main/resources/db/migration/V75__harden_dwaion_privileged_assignment.sql), [`V76__separate_dwaion_governance_permissions.sql`](../../dwp-auth-server/src/main/resources/db/migration/V76__separate_dwaion_governance_permissions.sql), and [`V77__authorize_dwaion_evaluation_evidence_export.sql`](../../dwp-auth-server/src/main/resources/db/migration/V77__authorize_dwaion_evaluation_evidence_export.sql); Gateway resolves the operation-specific `ADMIN.DWAION_*` resource and does not infer it from tenant roles. |
 | External IdP and control-plane role issuance | External Gate | Provider selection, assurance policy, credential, and sandbox evidence are tracked as frontend release decision `D-01`; no synthetic success path is enabled. |
 | External Entra/Okta entitlement mapping and drift reconciliation | External Gate | DWP Auth runtime entitlement is implemented; external IAM credentials, mapping, sandbox evidence, and reconciliation SLA remain frontend release decision `D-16`. |
 
