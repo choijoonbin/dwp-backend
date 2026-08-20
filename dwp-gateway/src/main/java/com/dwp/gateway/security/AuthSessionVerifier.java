@@ -202,6 +202,9 @@ public class AuthSessionVerifier implements SessionVerifier {
         if (path.startsWith("/api/platform/v1/admin/mail")) {
             return "ADMIN.MAIL";
         }
+        if (path.startsWith("/api/platform/v1/admin/dwaion/agents")) {
+            return "ADMIN.DWAION_AGENTS";
+        }
         if (path.startsWith("/api/platform/v1/mail")) {
             return "APP.MAIL";
         }
@@ -240,6 +243,13 @@ public class AuthSessionVerifier implements SessionVerifier {
         }
         if (path.startsWith("/api/platform/v1/services")) {
             return "APP.EMPLOYEE_SERVICES";
+        }
+        if (path.startsWith("/api/agent/v1/admin/evaluations/")
+                && path.endsWith("/runs")) {
+            return "ADMIN.DWAION_EVALUATION,APP.,ACTION.";
+        }
+        if (path.startsWith("/api/agent/v1/admin/")) {
+            return "ADMIN.DWAION_";
         }
         if (path.startsWith("/api/agent/v1/")) {
             return "APP.,ACTION.";

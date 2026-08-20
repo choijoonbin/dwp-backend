@@ -279,6 +279,64 @@ class AuthSessionVerifierTest {
     }
 
     @Test
+    void scopesDwaionOperationsRoutesToDedicatedAdministrationAuthority() {
+        AtomicReference<ClientRequest> captured = new AtomicReference<>();
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+            captured.set(request);
+            return Mono.just(ClientResponse.create(HttpStatus.OK)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .body("""
+                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            "roles":["DWAION_ADMIN"],"permissions":[
+                              {"resourceKey":"ADMIN.DWAION_OPERATIONS","permissionCode":"VIEW","effect":"ALLOW"}
+                            ]}}
+                            """)
+                    .build());
+        });
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+
+        VerifiedIdentity identity = verifier.verify(MockServerHttpRequest
+                .get("/api/agent/v1/admin/overview")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery()).isEqualTo("permissionPrefix=ADMIN.DWAION_");
+        assertThat(identity).isNotNull();
+        assertThat(identity.permissions()).containsExactly("ADMIN.DWAION_OPERATIONS:VIEW");
+    }
+
+    @Test
+    void includesSourceApplicationAuthoritiesForDwaionEvaluationRuns() {
+        AtomicReference<ClientRequest> captured = new AtomicReference<>();
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+            captured.set(request);
+            return Mono.just(ClientResponse.create(HttpStatus.OK)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .body("""
+                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            "roles":["DWAION_EVALUATOR"],"permissions":[
+                              {"resourceKey":"ADMIN.DWAION_EVALUATION","permissionCode":"EXECUTE","effect":"ALLOW"},
+                              {"resourceKey":"APP.ASK","permissionCode":"VIEW","effect":"ALLOW"},
+                              {"resourceKey":"APP.CALENDAR","permissionCode":"VIEW","effect":"ALLOW"}
+                            ]}}
+                            """)
+                    .build());
+        });
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+
+        VerifiedIdentity identity = verifier.verify(MockServerHttpRequest
+                .post("/api/agent/v1/admin/evaluations/e2a6b1f0-4274-4a01-ae88-962a873af89d/runs")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery())
+                .isEqualTo("permissionPrefix=ADMIN.DWAION_EVALUATION,APP.,ACTION.");
+        assertThat(identity).isNotNull();
+        assertThat(identity.permissions()).containsExactly(
+                "ADMIN.DWAION_EVALUATION:EXECUTE", "APP.ASK:VIEW", "APP.CALENDAR:VIEW");
+    }
+
+    @Test
     void scopesReaderAndPublisherRoutesToTheirCommunicationsResources() {
         AtomicReference<ClientRequest> captured = new AtomicReference<>();
         WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {

@@ -13,6 +13,40 @@ class PlatformSecurityFilterTest {
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @Test
+    void separatesDwaionAgentEditingFromPublishing() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+        MockHttpServletRequest deniedPublish = new MockHttpServletRequest(
+                "POST", "/v1/admin/dwaion/agents/DWP_ASSISTANT/revisions/2/activate");
+        deniedPublish.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        deniedPublish.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        deniedPublish.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        deniedPublish.addHeader(PlatformSecurityFilter.ROLES_HEADER, "DWAION_ADMIN");
+        deniedPublish.addHeader(
+                PlatformSecurityFilter.PERMISSIONS_HEADER,
+                "ADMIN.DWAION_AGENTS:UPDATE");
+        MockHttpServletResponse deniedResponse = new MockHttpServletResponse();
+
+        filter.doFilter(deniedPublish, deniedResponse, new MockFilterChain());
+
+        assertThat(deniedResponse.getStatus()).isEqualTo(403);
+
+        MockHttpServletRequest allowedPublish = new MockHttpServletRequest(
+                "POST", "/v1/admin/dwaion/agents/DWP_ASSISTANT/revisions/2/activate");
+        allowedPublish.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        allowedPublish.addHeader(PlatformSecurityFilter.USER_HEADER, "18");
+        allowedPublish.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        allowedPublish.addHeader(PlatformSecurityFilter.ROLES_HEADER, "DWAION_ADMIN");
+        allowedPublish.addHeader(
+                PlatformSecurityFilter.PERMISSIONS_HEADER,
+                "ADMIN.DWAION_AGENTS:APPROVE");
+        MockHttpServletResponse allowedResponse = new MockHttpServletResponse();
+
+        filter.doFilter(allowedPublish, allowedResponse, new MockFilterChain());
+
+        assertThat(allowedResponse.getStatus()).isEqualTo(200);
+    }
+
+    @Test
     void rejectsDirectRequestsWithoutGatewayServiceIdentity() throws Exception {
         PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
         MockHttpServletRequest request = request("/v1/admin/reference-sets");

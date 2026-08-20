@@ -186,6 +186,14 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
                     "Mail administration permission is required.");
             return;
         }
+        boolean dwaionAgentAdminPath = path.startsWith("/v1/admin/dwaion/agents");
+        boolean delegatedDwaionAgentAccess = dwaionAgentAdminPath
+                && hasDwaionAgentAdminAuthority(request);
+        if (dwaionAgentAdminPath && !delegatedDwaionAgentAccess) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "DWAI-ON agent publishing permission is required.");
+            return;
+        }
         boolean appAccessRequestPath = path.startsWith("/v1/admin/app-access-requests");
         boolean scopedAppAccess = appAccessRequestPath && hasScopedAppAccess(request);
         if (appAccessRequestPath && !scopedAppAccess) {
@@ -197,6 +205,7 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
                 && !scopedAppAccess && !delegatedCommunicationsAccess && !delegatedServicesAccess
                 && !delegatedCalendarAccess && !delegatedRoomsAccess
                 && !delegatedWorkplaceAccess && !delegatedMailAccess
+                && !delegatedDwaionAgentAccess
                 && path.startsWith("/v1/admin/")
                 && !hasRole(request.getHeader(ROLES_HEADER), ADMIN_ROLES)) {
             writeError(response, ErrorCode.FORBIDDEN, "Tenant administrator permission is required.");
@@ -384,6 +393,22 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
         };
         return hasAuthority(
                 request.getHeader(PERMISSIONS_HEADER), "ADMIN.MAIL", requiredPermission);
+    }
+
+    private boolean hasDwaionAgentAdminAuthority(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        String requiredPermission = switch (request.getMethod()) {
+            case "GET", "HEAD" -> "VIEW";
+            case "PATCH" -> "UPDATE";
+            case "POST" -> path.endsWith("/activate")
+                    ? "APPROVE"
+                    : path.endsWith("/retire") ? "MANAGE" : "CREATE";
+            default -> "MANAGE";
+        };
+        return hasAuthority(
+                request.getHeader(PERMISSIONS_HEADER),
+                "ADMIN.DWAION_AGENTS",
+                requiredPermission);
     }
 
     private boolean isBlank(String value) {

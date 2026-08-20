@@ -2,7 +2,7 @@
 
 Status: Accepted
 
-Last verified: 2026-08-14
+Last verified: 2026-08-20
 
 Scope: tenant role delegation, application-scoped administrative responsibility,
 runtime entitlement, and separation-of-duties enforcement owned by
@@ -27,7 +27,7 @@ The authorization model separates six concerns:
 | Class | Roles | Direct tenant-admin assignment |
 | --- | --- | --- |
 | `BASELINE` | `WORKSPACE_MEMBER` | Required for every managed workforce identity |
-| `DELEGATED` | `IDENTITY_ADMIN`, `APP_CATALOG_ADMIN`, `HR_ADMIN`, `PEOPLE_ADMIN`, `AUDITOR`, `COMMUNICATIONS_*`, `SERVICE_*` | Allowed when an active direct policy exists |
+| `DELEGATED` | `IDENTITY_ADMIN`, `APP_CATALOG_ADMIN`, `HR_ADMIN`, `PEOPLE_ADMIN`, `AUDITOR`, `COMMUNICATIONS_*`, `SERVICE_*`, `DWAION_ADMIN`, `DWAION_AGENT_*`, `DWAION_GOVERNANCE_MANAGER`, `DWAION_EVALUATOR`, `DWAION_AUDITOR` | Allowed only through the active assignment mode declared for that target role |
 | `GOVERNED` | `TENANT_ADMIN`, `AUDIT_ADMIN` | Approval workflow only; never exposed by the direct API |
 | `CONTROL_PLANE` | `ADMIN`, `PLATFORM_ADMIN`, `PROVIDER_*` | Provisioning/control-plane workflow only |
 
@@ -38,6 +38,31 @@ policy in `sys_role_assignment_policies`: `WORKSPACE_MEMBER`, `IDENTITY_ADMIN`,
 `SERVICE_CATALOG_MANAGER`, and `SERVICE_AGENT`. The API returns only those
 options. Hiding options in the UI is not an authorization control; the service
 rejects any submitted role outside that set.
+
+DWAI·ON administration is deliberately separate from tenant administration.
+`TENANT_ADMIN`, `ADMIN`, and `PLATFORM_ADMIN` may sponsor the privileged roles
+only through an active `APPROVAL` policy; none of those grantor roles inherits AI
+operations access. The legacy composite `DWAION_ADMIN` role remains available for
+approved full-product operators, while routine work is split into the following
+least-privilege roles:
+
+- `DWAION_AGENT_EDITOR` authors draft agent revisions but cannot publish them.
+- `DWAION_AGENT_PUBLISHER` reviews and publishes revisions but cannot author them.
+- `DWAION_GOVERNANCE_MANAGER` operates source, action, safety, and retention policy
+  without conversation-content or audit-export access.
+- `DWAION_EVALUATOR` owns encrypted evaluation sets and quality runs.
+- `DWAION_AUDITOR` reads retention and append-only governance evidence without
+  mutation authority.
+
+Maker-checker and audit independence are enforced by role conflicts:
+`DWAION_AGENT_EDITOR` conflicts with `DWAION_AGENT_PUBLISHER`,
+`DWAION_GOVERNANCE_MANAGER` conflicts with `DWAION_AUDITOR`, and
+`DWAION_EVALUATOR` conflicts with `DWAION_AUDITOR`. Product authority is divided
+across `ADMIN.DWAION_OPERATIONS`, `ADMIN.DWAION_AGENTS`,
+`ADMIN.DWAION_SOURCES`, `ADMIN.DWAION_ACTIONS`, `ADMIN.DWAION_SAFETY`,
+`ADMIN.DWAION_EVALUATION`, `ADMIN.DWAION_RETENTION`, and
+`ADMIN.DWAION_AUDIT`. The retired aggregate `ADMIN.DWAION` resource is disabled
+and no longer authorizes a route by itself.
 
 ## Application Responsibility Boundary
 
@@ -110,6 +135,7 @@ invariants; an IdP connector cannot bypass separation-of-duties checks.
 | Independent Platform request decision, fulfilment, retry, revocation, and requester/approver/fulfiller separation | Implemented | [`V59__complete_app_access_fulfilment_lifecycle.sql`](../../dwp-platform-server/src/main/resources/db/migration/V59__complete_app_access_fulfilment_lifecycle.sql), [`WorkspaceService`](../../dwp-platform-server/src/main/java/com/dwp/services/platform/workspace/WorkspaceService.java) |
 | Product-aware tenant resource and built-in permission templates | Implemented | [`V49__harden_tenant_authorization_and_seed_skax_groups.sql`](../../dwp-auth-server/src/main/resources/db/migration/V49__harden_tenant_authorization_and_seed_skax_groups.sql), [`AuthTenantProvisioningService`](../../dwp-auth-server/src/main/java/com/dwp/services/auth/provisioning/AuthTenantProvisioningService.java) |
 | SKAX functional groups, access packages, app responsibilities, and drift diagnostics | Implemented | Auth V49 and [`audit-authorization-model.sh`](../../scripts/audit-authorization-model.sh) |
+| Independent DWAI·ON operations delegation, SoD, granular resources, and SKAX verification group | Implemented | [`V74__authorize_dwaion_operations.sql`](../../dwp-auth-server/src/main/resources/db/migration/V74__authorize_dwaion_operations.sql), [`V75__harden_dwaion_privileged_assignment.sql`](../../dwp-auth-server/src/main/resources/db/migration/V75__harden_dwaion_privileged_assignment.sql), and [`V76__separate_dwaion_governance_permissions.sql`](../../dwp-auth-server/src/main/resources/db/migration/V76__separate_dwaion_governance_permissions.sql); Gateway resolves the operation-specific `ADMIN.DWAION_*` resource and does not infer it from tenant roles. |
 | External IdP and control-plane role issuance | External Gate | Provider selection, assurance policy, credential, and sandbox evidence are tracked as frontend release decision `D-01`; no synthetic success path is enabled. |
 | External Entra/Okta entitlement mapping and drift reconciliation | External Gate | DWP Auth runtime entitlement is implemented; external IAM credentials, mapping, sandbox evidence, and reconciliation SLA remain frontend release decision `D-16`. |
 
