@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
+import shlex
 import shutil
 import signal
 import socket
@@ -23,12 +25,26 @@ BACKEND_ROOT = Path(__file__).resolve().parents[1]
 WORKSPACE_ROOT = BACKEND_ROOT.parent
 FRONTEND_ROOT = WORKSPACE_ROOT / "dwp-frontend"
 AGENT_ROOT = WORKSPACE_ROOT / "dwp_agent"
+AGENT_LOCAL_ENV_FILE = AGENT_ROOT / ".env.local"
 RUNTIME_ROOT = BACKEND_ROOT / ".dev-runtime"
 LOG_ROOT = RUNTIME_ROOT / "logs"
 STATE_FILE = RUNTIME_ROOT / "processes.json"
 MIN_AGENT_PYTHON = (3, 11)
 MIN_FRONTEND_NODE = (24, 18, 0)
 MAX_FRONTEND_NODE_MAJOR = 25
+ENVIRONMENT_NAME = re.compile(r"^[A-Z][A-Z0-9_]*$")
+AGENT_MODEL_ENVIRONMENT = frozenset(
+    {
+        "DWP_MODEL_PROVIDER",
+        "DWP_OPENAI_MODEL",
+        "DWP_OPENAI_BASE_URL",
+        "DWP_OPENAI_TIMEOUT_SECONDS",
+        "DWP_OPENAI_MAX_OUTPUT_TOKENS",
+        "AZURE_OPENAI_ENDPOINT",
+        "AZURE_OPENAI_API_KEY",
+        "OPENAI_API_KEY",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -263,6 +279,53 @@ def port_open(port: int) -> bool:
         return False
 
 
+def load_agent_local_environment(path: Path | None = None) -> dict[str, str]:
+    path = path or AGENT_LOCAL_ENV_FILE
+    if not path.exists():
+        return {}
+    if not path.is_file():
+        raise RuntimeError(f"Agent local environment is not a file: {path}")
+    if path.stat().st_mode & 0o077:
+        raise RuntimeError(
+            f"Agent local environment must only be readable by its owner: {path}"
+        )
+
+    values: dict[str, str] = {}
+    for line_number, raw_line in enumerate(
+        path.read_text(encoding="utf-8").splitlines(),
+        start=1,
+    ):
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line.removeprefix("export ").lstrip()
+        name, separator, raw_value = line.partition("=")
+        name = name.strip()
+        if (
+            separator != "="
+            or not ENVIRONMENT_NAME.fullmatch(name)
+            or name not in AGENT_MODEL_ENVIRONMENT
+            or name in values
+        ):
+            raise RuntimeError(
+                f"Invalid Agent local environment entry at {path}:{line_number}"
+            )
+        try:
+            parsed_value = shlex.split(raw_value, comments=True, posix=True)
+        except ValueError as error:
+            raise RuntimeError(
+                f"Invalid Agent local environment value at {path}:{line_number}"
+            ) from error
+        if len(parsed_value) > 1:
+            raise RuntimeError(
+                f"Agent local environment values with spaces must be quoted: "
+                f"{path}:{line_number}"
+            )
+        values[name] = parsed_value[0] if parsed_value else ""
+    return values
+
+
 def local_environment() -> dict[str, str]:
     environment = os.environ.copy()
     defaults = {
@@ -390,6 +453,13 @@ def local_environment() -> dict[str, str]:
 
 def service_environment(service_name: str) -> dict[str, str]:
     environment = local_environment()
+    if service_name == "agent":
+        for key, value in load_agent_local_environment().items():
+            if key not in os.environ:
+                environment[key] = value
+    else:
+        for key in AGENT_MODEL_ENVIRONMENT:
+            environment.pop(key, None)
     if service_name not in {"agent", "gateway"}:
         environment.pop("DWP_AGENT_SERVICE_TOKEN", None)
     if service_name == "agent":

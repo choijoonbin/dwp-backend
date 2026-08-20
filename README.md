@@ -90,6 +90,10 @@ Agent, Gateway, Frontend를 기동합니다.
 `contracts` 프로필은 별도 Frontend·Agent 저장소 없이 모든 Backend 데이터 소유 서비스와
 Gateway를 기동하며, Flyway와 시스템 코드·공개 API 계약 감사용으로 사용합니다.
 
+Agent의 로컬 모델 자격 증명은 `dwp_agent/.env.local`에 저장하고 파일 권한을 `600`으로
+설정합니다. Supervisor는 허용된 OpenAI/Azure OpenAI 변수만 Agent에 전달하고 다른
+Backend 서비스의 환경에서는 제거합니다. 같은 변수가 셸에 명시돼 있으면 셸 값이 우선합니다.
+
 ```bash
 ./dev doctor
 ./dev up core
