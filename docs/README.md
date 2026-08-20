@@ -16,6 +16,7 @@
 | [HR Domain Operations](architecture/hr-domain-operations.md)                                                   | Architecture Decision Record | Accepted, Local Baseline 구현·고객 Connector Gate 명시 | Auth V50, People V38·V39, HR API·권한·회귀 테스트                          |
 | [Service Interface Boundary and Gateway Policy](architecture/service-interface-boundary-and-gateway-policy.md) | Architecture Decision Record | Accepted, Gateway/API/Internal 예외 중앙 정책          | `scripts/check-service-boundaries.py`, Frontend `check-api-boundaries.mjs` |
 | [Notification Platform Backend Boundary](architecture/notification-platform-boundary.md)                       | Architecture Decision Record | In-app foundation pilot 구현, 외부 채널·운영 Gate 대기 | Notification Service, Migration, Security·Realtime·Integration Test        |
+| [Cryptographic Key and Secret Management](architecture/cryptographic-key-and-secret-management-policy.md)      | Architecture Decision Record | Accepted policy, `R3-02-KMS` 구현·외부 KMS Gate 대기   | Agent Keyring, S3 SSE-KMS, Production Readiness와 Release Evidence         |
 
 ## Maintenance Rules
 

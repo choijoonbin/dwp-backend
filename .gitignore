@@ -41,7 +41,7 @@ out/
 ### macOS ###
 .DS_Store
 
-### Application ###
+### Application and local-only cryptographic material ###
 application-local.yml
 *.log
 
