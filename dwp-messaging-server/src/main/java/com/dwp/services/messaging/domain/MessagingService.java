@@ -21,13 +21,15 @@ import java.util.UUID;
 public class MessagingService {
 
     private static final Set<String> SCOPES = Set.of("ALL", "FAVORITES", "SPACES", "DIRECT", "CHANNELS");
-    private static final Set<String> NOTIFICATION_LEVELS = Set.of("DEFAULT", "MENTIONS", "MUTE");
+    private static final Set<String> NOTIFICATION_LEVELS =
+            Set.of("DEFAULT", "ALL", "MENTIONS", "MUTE");
 
     private final MessagingQueryRepository queries;
     private final MessagingCommandRepository commands;
     private final MessagingMessageQueryRepository messageQueries;
     private final MessagingInteractionCommandRepository interactions;
     private final MessagingEventRecorder events;
+    private final MessagingNotificationEvents notificationEvents;
     private final AttachmentService attachments;
 
     @Autowired
@@ -37,12 +39,14 @@ public class MessagingService {
             MessagingMessageQueryRepository messageQueries,
             MessagingInteractionCommandRepository interactions,
             MessagingEventRecorder events,
+            MessagingNotificationEvents notificationEvents,
             AttachmentService attachments) {
         this.queries = queries;
         this.commands = commands;
         this.messageQueries = messageQueries;
         this.interactions = interactions;
         this.events = events;
+        this.notificationEvents = notificationEvents;
         this.attachments = attachments;
     }
 
@@ -52,7 +56,14 @@ public class MessagingService {
             MessagingMessageQueryRepository messageQueries,
             MessagingInteractionCommandRepository interactions,
             MessagingEventRecorder events) {
-        this(queries, commands, messageQueries, interactions, events, null);
+        this(
+                queries,
+                commands,
+                messageQueries,
+                interactions,
+                events,
+                MessagingNotificationEvents.disabled(),
+                null);
     }
 
     @Transactional(readOnly = true)
@@ -158,7 +169,8 @@ public class MessagingService {
         if (replay.isPresent()) {
             return message(subject, conversationId, replay.orElseThrow().messageId());
         }
-        validateReplyParent(subject, conversationId, request.replyToMessageId());
+        MessagingMessageAccess replyParent = validateReplyParent(
+                subject, conversationId, request.replyToMessageId());
         if (!attachmentIds.isEmpty()) {
             if (attachments == null) throw new BaseException(
                     ErrorCode.INTERNAL_SERVER_ERROR, "Attachment support is unavailable.");
@@ -186,6 +198,13 @@ public class MessagingService {
             events.conversationEvent(
                     subject, "messaging.message.created", conversationId, result.messageId(),
                     messagePayload(0, result.sequence(), request.replyToMessageId()));
+            notificationEvents.messageCreated(
+                    subject,
+                    conversation,
+                    result,
+                    request,
+                    replyParent == null ? null : replyParent.senderUserId(),
+                    correlationId);
         }
         return message(subject, conversationId, result.messageId());
     }
@@ -384,7 +403,7 @@ public class MessagingService {
         String notificationLevel = request.notificationLevel().trim().toUpperCase(Locale.ROOT);
         if (!NOTIFICATION_LEVELS.contains(notificationLevel)) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
-                    "Notification level must be DEFAULT, MENTIONS, or MUTE.");
+                    "Notification level must be DEFAULT, ALL, MENTIONS, or MUTE.");
         }
         MessagingDtos.ConversationSettingsRequest normalized =
                 new MessagingDtos.ConversationSettingsRequest(
@@ -469,17 +488,18 @@ public class MessagingService {
                         || "MODERATOR".equals(member.memberRole())));
     }
 
-    private void validateReplyParent(
+    private MessagingMessageAccess validateReplyParent(
             MessagingRequestContext.Subject subject,
             UUID conversationId,
             UUID replyToMessageId) {
-        if (replyToMessageId == null) return;
+        if (replyToMessageId == null) return null;
         MessagingMessageAccess parent = visibleMessage(subject, conversationId, replyToMessageId);
         if (!parent.isRoot()) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
                     "A thread reply must reference the thread root message.");
         }
         requireNotDeleted(parent);
+        return parent;
     }
 
     private MessagingMessageAccess visibleMessage(

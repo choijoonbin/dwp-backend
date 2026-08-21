@@ -128,9 +128,12 @@ public class NotificationSecurityFilter extends OncePerRequestFilter {
             if (path.endsWith("/approve") || path.endsWith("/publish")) {
                 return has(permissions, resource, "APPROVE");
             }
+            if (path.endsWith("/preview")) {
+                return has(permissions, resource, "VIEW", "MANAGE", "APPROVE");
+            }
             return readOnly
                     ? has(permissions, resource, "VIEW", "MANAGE", "APPROVE")
-                    : has(permissions, resource, "MANAGE", "APPROVE");
+                    : has(permissions, resource, "MANAGE");
         }
         return has(permissions, "APP.NOTIFICATIONS", "VIEW");
     }

@@ -216,6 +216,51 @@ dwp-platform-server/src/main/java/com/dwp/services/platform/servicecenter/Servic
 dwp-platform-server/src/main/java/com/dwp/services/platform/servicecenter/ServiceCenterTypes.java|DataClassification
 dwp-platform-server/src/main/java/com/dwp/services/platform/servicecenter/ServiceCenterTypes.java|RequestPriority
 dwp-platform-server/src/main/java/com/dwp/services/platform/servicecenter/ServiceCenterTypes.java|RequestStatus
+dwp-approval-server/src/main/java/com/dwp/services/approval/api/ApprovalController.java|TaskView
+dwp-messaging-server/src/main/java/com/dwp/services/messaging/collaboration/CollaborationDtos.java|ConversationType
+dwp-messaging-server/src/main/java/com/dwp/services/messaging/collaboration/CollaborationDtos.java|MemberRole
+dwp-messaging-server/src/main/java/com/dwp/services/messaging/collaboration/CollaborationDtos.java|SearchType
+dwp-notification-server/src/main/java/com/dwp/services/notification/common/NotificationErrorCode.java|NotificationErrorCode
+dwp-notification-server/src/main/java/com/dwp/services/notification/domain/NotificationModels.java|InboxView
+dwp-notification-server/src/main/java/com/dwp/services/notification/integration/ApprovalNotificationEventException.java|Classification
+dwp-platform-contracts/src/main/java/com/dwp/platform/contract/MailConnectorPort.java|Capability
+dwp-platform-contracts/src/main/java/com/dwp/platform/contract/MailConnectorPort.java|ProviderFamily
+dwp-platform-contracts/src/main/java/com/dwp/platform/contract/MailConnectorPort.java|ReadinessState
+dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|AdapterRuntimeState
+dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|Classification
+dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|ConnectionState
+dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|DeliveryMode
+dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|DeliveryState
+dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|Importance
+dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|ProposalDecision
+dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|ProposalStatus
+dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|ProposalType
+dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|ProviderType
+dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|ThreadAction
+dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|TriageLane
+dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|WorkflowState
+dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceDelegatedAdminRoutePolicy.java|ScopeMode
+dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceDelegatedAdminScopeRepository.java|SiteTargetType
+dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceSpatialGovernanceDtos.java|AccessEffect
+dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceSpatialGovernanceDtos.java|AccessPermission
+dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceSpatialGovernanceDtos.java|AccessSubjectType
+dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceSpatialGovernanceDtos.java|CampusState
+dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceSpatialGovernanceDtos.java|DelegateType
+dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceSpatialGovernanceDtos.java|DelegatedPermission
+dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceSpatialGovernanceDtos.java|DelegatedScopeType
+dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceSpatialGovernanceDtos.java|DelegationState
+dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceSpatialGovernanceDtos.java|PolicyScopeType
+dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceSpatialGovernanceDtos.java|RevisionState
+dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceSpatialGovernanceDtos.java|RuleState
+dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceSpatialGovernanceDtos.java|SpatialState
+dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceSpatialGovernanceDtos.java|ZoneType
+dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceTypes.java|BookingMode
+dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceTypes.java|BookingStatus
+dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceTypes.java|FloorState
+dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceTypes.java|ResourceState
+dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceTypes.java|ResourceType
+dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceTypes.java|SiteState
+dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceTypes.java|SiteType
 ENUMS
   LC_ALL=C sort -o "$actual" "$actual"
   LC_ALL=C sort -o "$expected" "$expected"
@@ -355,6 +400,7 @@ dwp_platform|dwp-platform-server
 dwp_provider|dwp-provider-server
 dwp_approval|dwp-approval-server
 dwp_space|dwp-space-server
+dwp_notification|dwp-notification-server
 DATABASES
 
 psql_query "$PLATFORM_DB" "
@@ -639,13 +685,13 @@ assert_registry_codes 'personal density contract' \
 assert_registry_codes 'system code runtime visibility contract' \
   'PLATFORM.SYS_CODE_SETS.RUNTIME_VISIBILITY' 'ADMIN_ONLY,RUNTIME'
 assert_registry_codes 'home widget contract' \
-  'PLATFORM.HOME_WIDGET' 'activity,announcements,daily-brief,focus,schedule'
+  'PLATFORM.HOME_WIDGET' 'activity,command-rail,daily-brief,focus,schedule'
 assert_registry_codes 'personal home surface contract' \
   'PLATFORM.HOME_SURFACE' 'approval-home,hcm-home,workspace-home'
 assert_registry_codes 'personal home presentation contract' \
   'PLATFORM.HOME_PRESENTATION' 'balanced,expressive,focused'
 assert_registry_codes 'personal home widget size contract' \
-  'PLATFORM.HOME_WIDGET_SIZE' 'compact,full,large,medium'
+  'PLATFORM.HOME_WIDGET_SIZE' 'compact,fifth,full,large,medium,quarter'
 assert_registry_codes 'HCM home widget contract' \
   'PLATFORM.HCM_HOME_WIDGET' 'attention,operations,people-signals,profile,quick-actions,team'
 assert_registry_codes 'approval home widget contract' \

@@ -37,6 +37,8 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      properties:
+        max.block.ms: ${DWP_NOTIFICATION_KAFKA_MAX_BLOCK_MS:5000}
     listener:
       ack-mode: record
       missing-topics-fatal: false
@@ -67,7 +69,39 @@ dwp:
       redis-enabled: ${DWP_NOTIFICATION_REDIS_ENABLED:true}
       channel-prefix: ${DWP_NOTIFICATION_REDIS_CHANNEL_PREFIX:dwp.notification.signal.v1}
       shard-count: ${DWP_NOTIFICATION_REDIS_SHARD_COUNT:32}
+    admission:
+      window: ${DWP_NOTIFICATION_ADMISSION_WINDOW:PT1H}
+    retention:
+      enabled: ${DWP_NOTIFICATION_RETENTION_ENABLED:true}
+      default-ttl: ${DWP_NOTIFICATION_DEFAULT_RETENTION_TTL:P0D}
+      admission-receipt-ttl: ${DWP_NOTIFICATION_ADMISSION_RECEIPT_TTL:P7D}
+      batch-size: ${DWP_NOTIFICATION_RETENTION_BATCH_SIZE:100}
+      fixed-delay: ${DWP_NOTIFICATION_RETENTION_FIXED_DELAY:5m}
+      initial-delay: ${DWP_NOTIFICATION_RETENTION_INITIAL_DELAY:1m}
+    outbox:
+      enabled: ${DWP_NOTIFICATION_OUTBOX_RELAY_ENABLED:true}
+      provision-topic: ${DWP_NOTIFICATION_OUTBOX_PROVISION_TOPIC:false}
+      topic: ${DWP_NOTIFICATION_OUTBOX_TOPIC:dwp.notification.outbox.v1}
+      partitions: ${DWP_NOTIFICATION_OUTBOX_PARTITIONS:6}
+      replication-factor: ${DWP_NOTIFICATION_OUTBOX_REPLICATION_FACTOR:1}
+      topic-retention-ms: ${DWP_NOTIFICATION_OUTBOX_TOPIC_RETENTION_MS:604800000}
+      instance-id: ${DWP_NOTIFICATION_INSTANCE_ID:${HOSTNAME:local}}
+      lease-duration: ${DWP_NOTIFICATION_OUTBOX_LEASE_DURATION:PT30S}
+      send-timeout: ${DWP_NOTIFICATION_OUTBOX_SEND_TIMEOUT:PT5S}
+      published-retention: ${DWP_NOTIFICATION_OUTBOX_PUBLISHED_RETENTION:P7D}
+      maximum-attempts: ${DWP_NOTIFICATION_OUTBOX_MAXIMUM_ATTEMPTS:12}
+      batch-size: ${DWP_NOTIFICATION_OUTBOX_BATCH_SIZE:50}
+      fixed-delay: ${DWP_NOTIFICATION_OUTBOX_FIXED_DELAY:1s}
+      initial-delay: ${DWP_NOTIFICATION_OUTBOX_INITIAL_DELAY:5s}
     allowed-producers: ${DWP_NOTIFICATION_ALLOWED_PRODUCERS:dwp-approval-server,dwp-people-server,dwp-platform-server,dwp-space-server,dwp-messaging-server}
+    domain-events:
+      enabled: ${DWP_NOTIFICATION_DOMAIN_EVENTS_ENABLED:false}
+      topic: ${DWP_DOMAIN_EVENT_TOPIC:dwp.domain-events.v1}
+      group-id: ${DWP_NOTIFICATION_DOMAIN_EVENT_GROUP_ID:dwp-notification-domain-events-v1}
+      dead-letter-topic: ${DWP_NOTIFICATION_DOMAIN_EVENT_DLT:dwp.domain-events.v1.DLT}
+      retry-interval: ${DWP_NOTIFICATION_DOMAIN_EVENT_RETRY_INTERVAL:1s}
+      maximum-attempts: ${DWP_NOTIFICATION_DOMAIN_EVENT_MAX_ATTEMPTS:4}
+      producer-sources: ${DWP_NOTIFICATION_DOMAIN_EVENT_SOURCES:urn:dwp:messaging=dwp-messaging-server}
     approval-pilot:
       enabled: ${DWP_NOTIFICATION_APPROVAL_PILOT_ENABLED:false}
       topic: ${DWP_NOTIFICATION_APPROVAL_PILOT_TOPIC:dwp.approval.events.v1}
@@ -98,3 +132,9 @@ spring:
       on-profile: local
   flyway:
     locations: classpath:db/migration,classpath:db/local-seed
+dwp:
+  notification:
+    domain-events:
+      enabled: true
+    outbox:
+      provision-topic: true

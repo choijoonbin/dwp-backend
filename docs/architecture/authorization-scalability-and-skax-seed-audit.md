@@ -2,7 +2,7 @@
 
 Status: Implemented and verified
 
-Last verified: 2026-08-14
+Last verified: 2026-08-20
 
 ## Verdict
 
@@ -18,10 +18,11 @@ request APIs accepted broad tenant roles, and SKAX had no effective group-based
 access packages. Auth V49 and the related Platform and Frontend changes close
 those gaps.
 
-The current conservative assessment is **B+**. The internal model and local
+The current conservative assessment is **B**. The internal model and local
 SKAX reference tenant are complete enough for product development and customer
 demonstration. An **A** requires customer-selected IdP assurance plus real
-Entra/Okta assignment mapping, sandbox evidence, and drift reconciliation.
+Entra/Okta assignment mapping, sandbox evidence, drift reconciliation, and
+production operation evidence for time-bound privileged activation.
 
 ## Authorization Planes
 
@@ -106,23 +107,25 @@ The following checks passed on 2026-08-14:
   enabled app resource sets, and 14 owners.
 - Entitlement removal: four sets retired and zero live responsibilities on retired sets.
 - Entitlement re-enable: all 14 sets active and owned again.
-- SKAX authorization audit: all fourteen checks passed with zero integrity findings.
-- Central code-contract audit: 408 contracts, 1,548 active values, and 493
-  bindings passed, including all three authorization-template checks.
-- SKAX seeded memberships: 177 all-employees, 3 ERP users, 5 legacy operations
-  users, and one independent member in each functional or application-duty group.
+- SKAX authorization audit: all checks passed with zero integrity findings, zero
+  standing privileged group grants, and seven active time-bound eligibility records.
+- Central code-contract audit: 588 contracts, 2,261 active values, and 690
+  bindings passed.
+- SKAX authorization groups: 17 active groups, 178 all-employees, 3 ERP users,
+  and independent members in functional or application-duty groups.
 - Gateway login and `/api/auth/me` for member, tenant admin, access manager, and approver personas.
 - Tenant admin app request API and direct UI route: HTTP 403 and `/403`.
 - Scoped manager and approver request queue: HTTP 200 with five exact app scopes each.
-- Frontend authorization, responsive, accessibility, and visual regression suite:
-  321 passed, 11 intentionally skipped, and zero failures across desktop and mobile.
+- Frontend architecture, authorization, route, i18n, lint, type, production build,
+  bundle-budget, desktop, and mobile verification passed with no release blocker.
 
 ## External Gates
 
-The remaining work is not an internal authorization shortcut:
-
-- `D-01`: customer IdP selection, authentication assurance, credentials, and SSO sandbox evidence.
-- `D-16`: Entra/Okta entitlement adapters, customer mapping, drift reconciliation, and operational SLA.
+The remaining customer decisions are tracked only as
+[`D-01`](../delivery/customer-policy-and-release-gate-register.md) and
+[`D-16`](../delivery/customer-policy-and-release-gate-register.md) in the
+[Customer Policy and Release Gate Register](../delivery/customer-policy-and-release-gate-register.md).
+This document does not maintain a second status or closure checklist for them.
 
 Until those gates are supplied, DWP reports connector configuration as required
 and does not claim that an external directory assignment succeeded.

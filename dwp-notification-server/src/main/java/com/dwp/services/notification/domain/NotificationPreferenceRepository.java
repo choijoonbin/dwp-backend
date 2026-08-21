@@ -1,12 +1,17 @@
 package com.dwp.services.notification.domain;
 
+import com.dwp.audit.AuditEvent;
+import com.dwp.core.audit.AuditOutboxRecorder;
 import com.dwp.services.notification.api.NotificationVersionCodec;
 import com.dwp.services.notification.common.NotificationErrorCode;
 import com.dwp.services.notification.common.NotificationException;
 import com.dwp.services.notification.domain.NotificationIdempotencyRepository.Request;
+import com.dwp.services.notification.domain.NotificationEffectivePolicyRepository.EffectivePolicy;
+import com.dwp.services.notification.domain.NotificationEffectivePolicyRepository.EffectivePolicyChannel;
 import com.dwp.services.notification.domain.NotificationModels.DeliveryProfile;
 import com.dwp.services.notification.domain.NotificationModels.DeliveryProfileUpdate;
 import com.dwp.services.notification.domain.NotificationModels.Digest;
+import com.dwp.services.notification.domain.NotificationModels.Presentation;
 import com.dwp.services.notification.domain.NotificationModels.QuietHours;
 import com.dwp.services.notification.domain.NotificationModels.SubscriptionRule;
 import com.dwp.services.notification.domain.NotificationModels.SubscriptionRuleUpdate;
@@ -37,26 +42,35 @@ public class NotificationPreferenceRepository {
     private final NamedParameterJdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
     private final NotificationIdempotencyRepository idempotencyRepository;
+    private final NotificationEffectivePolicyRepository policyRepository;
+    private final AuditOutboxRecorder audit;
 
     public NotificationPreferenceRepository(
             NamedParameterJdbcTemplate jdbc,
             ObjectMapper objectMapper,
-            NotificationIdempotencyRepository idempotencyRepository) {
+            NotificationIdempotencyRepository idempotencyRepository,
+            NotificationEffectivePolicyRepository policyRepository,
+            AuditOutboxRecorder audit) {
         this.jdbc = jdbc;
         this.objectMapper = objectMapper;
         this.idempotencyRepository = idempotencyRepository;
+        this.policyRepository = policyRepository;
+        this.audit = audit;
     }
 
     public DeliveryProfile profile(NotificationRequestContext.Actor actor) {
         List<DeliveryProfile> rows = jdbc.query("""
                 SELECT timezone, quiet_schedule::text AS quiet_schedule,
                        default_channels::text AS default_channels,
+                       experience_preferences::text AS experience_preferences,
                        digest_frequency, digest_local_time, digest_day_of_week,
                        version, updated_at
                   FROM ntf_user_delivery_profiles
                  WHERE tenant_id = :tenantId AND user_id = :userId
                 """, actorParams(actor), (resultSet, rowNumber) -> {
             Map<String, Object> quiet = jsonMap(resultSet.getString("quiet_schedule"));
+            Map<String, Object> presentation = jsonMap(
+                    resultSet.getString("experience_preferences"));
             Object digestDay = resultSet.getObject("digest_day_of_week");
             return new DeliveryProfile(
                     channelMap(jsonList(resultSet.getString("default_channels"))),
@@ -71,6 +85,9 @@ public class NotificationPreferenceRepository {
                             apiDigestMode(resultSet.getString("digest_frequency")),
                             resultSet.getTime("digest_local_time").toLocalTime().toString(),
                             digestDay == null ? null : ((Number) digestDay).intValue()),
+                    new Presentation(
+                            stringValue(presentation.get("bannerMode"), "SMART"),
+                            stringValue(presentation.get("previewMode"), "FULL")),
                     NotificationVersionCodec.external(resultSet.getLong("version")),
                     instant(resultSet.getTimestamp("updated_at")));
         });
@@ -86,6 +103,7 @@ public class NotificationPreferenceRepository {
         DeliveryProfile replay = idempotencyRepository.replay(receipt, DeliveryProfile.class);
         if (replay != null) return replay;
         validateProfile(request);
+        enforceManagedGlobalChannels(actor, request);
 
         MapSqlParameterSource params = actorParams(actor)
                 .addValue("timezone", request.quietHours().timeZone().trim())
@@ -96,6 +114,9 @@ public class NotificationPreferenceRepository {
                         "days", request.quietHours().days(),
                         "allowUrgentBypass", request.quietHours().allowUrgentBypass())))
                 .addValue("defaultChannels", json(enabledChannels(request.channels())))
+                .addValue("experiencePreferences", json(Map.of(
+                        "bannerMode", request.presentation().bannerMode(),
+                        "previewMode", request.presentation().previewMode())))
                 .addValue("digestFrequency", databaseDigestMode(request.digest().mode()))
                 .addValue("digestLocalTime", Time.valueOf(
                         LocalTime.parse(request.digest().deliveryTime())))
@@ -108,10 +129,12 @@ public class NotificationPreferenceRepository {
                 jdbc.update("""
                         INSERT INTO ntf_user_delivery_profiles (
                             tenant_id, user_id, timezone, quiet_schedule, default_channels,
-                            digest_frequency, digest_local_time, digest_day_of_week)
+                            experience_preferences, digest_frequency,
+                            digest_local_time, digest_day_of_week)
                         VALUES (
                             :tenantId, :userId, :timezone, CAST(:quietSchedule AS jsonb),
-                            CAST(:defaultChannels AS jsonb), :digestFrequency,
+                            CAST(:defaultChannels AS jsonb), CAST(:experiencePreferences AS jsonb),
+                            :digestFrequency,
                             :digestLocalTime, :digestDayOfWeek)
                         """, params);
             } else {
@@ -120,6 +143,7 @@ public class NotificationPreferenceRepository {
                            SET timezone = :timezone,
                                quiet_schedule = CAST(:quietSchedule AS jsonb),
                                default_channels = CAST(:defaultChannels AS jsonb),
+                               experience_preferences = CAST(:experiencePreferences AS jsonb),
                                digest_frequency = :digestFrequency,
                                digest_local_time = :digestLocalTime,
                                digest_day_of_week = :digestDayOfWeek,
@@ -139,6 +163,17 @@ public class NotificationPreferenceRepository {
                 "notification.preference.profile.updated",
                 "profile:" + actor.userId() + ":" + (expectedVersion + 1));
         DeliveryProfile result = profile(actor);
+        record(
+                actor,
+                "notification.preference.profile.updated",
+                "NOTIFICATION_DELIVERY_PROFILE",
+                actor.userId().toString(),
+                Map.of(
+                        "enabledChannels", enabledChannels(request.channels()),
+                        "quietHoursEnabled", request.quietHours().enabled(),
+                        "digestMode", request.digest().mode(),
+                        "bannerMode", request.presentation().bannerMode(),
+                        "previewMode", request.presentation().previewMode()));
         idempotencyRepository.complete(actor, receipt, result);
         return result;
     }
@@ -186,6 +221,7 @@ public class NotificationPreferenceRepository {
         String typeKey = request.typeKey().trim();
         requireKnownType(actor, appKey, typeKey);
         validateChannels(request.channels());
+        enforceManagedPolicy(actor, appKey, typeKey, request);
         long expectedVersion = request.expectedVersion() == null
                 ? 0
                 : NotificationVersionCodec.nonNegative(
@@ -245,6 +281,16 @@ public class NotificationPreferenceRepository {
                 "notification.preference.rule.updated",
                 "rule:" + ruleId + ":" + (expectedVersion + 1));
         SubscriptionRule result = rule(actor, ruleId);
+        record(
+                actor,
+                "notification.preference.rule.updated",
+                "NOTIFICATION_SUBSCRIPTION_RULE",
+                ruleId.toString(),
+                Map.of(
+                        "appKey", appKey,
+                        "typeKey", typeKey,
+                        "deliveryMode", request.mode(),
+                        "overriddenChannels", request.channels().keySet().stream().sorted().toList()));
         idempotencyRepository.complete(actor, receipt, result);
         return result;
     }
@@ -274,7 +320,38 @@ public class NotificationPreferenceRepository {
                 actor,
                 "notification.preference.rule.deleted",
                 "rule-delete:" + ruleId + ":" + expectedVersion);
+        record(
+                actor,
+                "notification.preference.rule.deleted",
+                "NOTIFICATION_SUBSCRIPTION_RULE",
+                ruleId.toString(),
+                Map.of("expectedVersion", expectedVersion));
         idempotencyRepository.complete(actor, receipt, Map.of("deleted", true));
+    }
+
+    private void record(
+            NotificationRequestContext.Actor actor,
+            String action,
+            String targetType,
+            String targetId,
+            Map<String, Object> afterState) {
+        audit.record(AuditEvent.builder()
+                .tenantId(actor.tenantId())
+                .category("ADMIN_CHANGE")
+                .action(action)
+                .outcome("SUCCESS")
+                .severity("INFO")
+                .riskScore(10)
+                .actorType("USER")
+                .actorId(actor.userId().toString())
+                .actorRoles(List.copyOf(actor.roles()))
+                .sourceService("dwp-notification-server")
+                .sourceModule("notification-preferences")
+                .targetType(targetType)
+                .targetId(targetId)
+                .afterState(afterState)
+                .retentionClass("STANDARD")
+                .build());
     }
 
     private SubscriptionRule rule(NotificationRequestContext.Actor actor, UUID ruleId) {
@@ -331,6 +408,55 @@ public class NotificationPreferenceRepository {
         }
     }
 
+    private void enforceManagedPolicy(
+            NotificationRequestContext.Actor actor,
+            String appKey,
+            String typeKey,
+            SubscriptionRuleUpdate request) {
+        EffectivePolicy policy = NotificationEffectivePolicyRepository.selectPolicy(
+                policyRepository.findForTenant(actor.tenantId()), appKey, typeKey);
+        if (policy == null) return;
+        EffectivePolicyChannel inApp = policy.channels().get("IN_APP");
+        if (inApp != null
+                && (policy.mandatory() || !inApp.userOverridable())
+                && !NotificationEffectivePolicyRepository.policyMode(policy, inApp)
+                        .equals(request.mode())) {
+            throw managedPolicy();
+        }
+        for (Map.Entry<String, Boolean> override : request.channels().entrySet()) {
+            EffectivePolicyChannel managedChannel = policy.channels().get(override.getKey());
+            if (managedChannel != null
+                    && !managedChannel.userOverridable()
+                    && managedChannel.enabled() != override.getValue()) {
+                throw managedPolicy();
+            }
+        }
+    }
+
+    private void enforceManagedGlobalChannels(
+            NotificationRequestContext.Actor actor,
+            DeliveryProfileUpdate request) {
+        EffectivePolicy policy = NotificationEffectivePolicyRepository.selectPolicy(
+                policyRepository.findForTenant(actor.tenantId()), "\u0000", "\u0000");
+        if (policy == null) return;
+        for (Map.Entry<String, Boolean> preference : request.channels().entrySet()) {
+            EffectivePolicyChannel managedChannel = policy.channels().get(preference.getKey());
+            boolean mandatoryInApp = policy.mandatory()
+                    && "IN_APP".equals(preference.getKey());
+            if (managedChannel != null
+                    && (mandatoryInApp || !managedChannel.userOverridable())
+                    && managedChannel.enabled() != preference.getValue()) {
+                throw managedPolicy();
+            }
+        }
+    }
+
+    private NotificationException managedPolicy() {
+        return new NotificationException(
+                NotificationErrorCode.FORBIDDEN,
+                "This notification preference is managed by organization policy.");
+    }
+
     private DeliveryProfile defaultProfile() {
         return new DeliveryProfile(
                 channelMap(List.of("IN_APP")),
@@ -342,6 +468,7 @@ public class NotificationPreferenceRepository {
                         List.of(1, 2, 3, 4, 5, 6, 7),
                         true),
                 new Digest("OFF", "09:00", null),
+                new Presentation("SMART", "FULL"),
                 "0",
                 Instant.EPOCH);
     }

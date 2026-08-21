@@ -3,6 +3,9 @@ package com.dwp.services.notification.domain;
 import com.dwp.services.notification.api.NotificationVersionCodec;
 import com.dwp.services.notification.domain.NotificationModels.AdminTrendPoint;
 import com.dwp.services.notification.domain.NotificationModels.DeliveryLane;
+import com.dwp.services.notification.domain.NotificationModels.PolicyChannelRule;
+import com.dwp.services.notification.domain.NotificationModels.TenantPolicy;
+import com.dwp.services.notification.domain.NotificationModels.TenantPolicyChangeRequest;
 import com.dwp.services.notification.domain.NotificationModels.TypeContract;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -15,6 +18,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -230,6 +234,299 @@ public class NotificationAdminRepository {
         });
     }
 
+    public List<TenantPolicy> effectivePolicies(long tenantId) {
+        return policies("""
+                SELECT DISTINCT ON (policy.scope_type, policy.scope_key)
+                       policy.policy_id, policy.tenant_id, policy.scope_type, policy.scope_key,
+                       policy.state, policy.mandatory, policy.quiet_hours_bypass,
+                       policy.digest_mode, policy.change_reason, policy.created_by,
+                       policy.approved_by, policy.approved_at, policy.version, policy.created_at
+                  FROM ntf_routing_policies policy
+                 WHERE policy.state = 'PUBLISHED'
+                   AND (policy.tenant_id IS NULL OR policy.tenant_id = :tenantId)
+                   AND (policy.effective_from IS NULL
+                        OR policy.effective_from <= CURRENT_TIMESTAMP)
+                   AND (policy.effective_to IS NULL
+                        OR policy.effective_to > CURRENT_TIMESTAMP)
+                 ORDER BY policy.scope_type, policy.scope_key,
+                          (policy.tenant_id IS NOT NULL) DESC, policy.version DESC
+                """, tenantId, null);
+    }
+
+    public List<TenantPolicy> policyDrafts(long tenantId) {
+        return policies("""
+                SELECT policy.policy_id, policy.tenant_id, policy.scope_type, policy.scope_key,
+                       policy.state, policy.mandatory, policy.quiet_hours_bypass,
+                       policy.digest_mode, policy.change_reason, policy.created_by,
+                       policy.approved_by, policy.approved_at, policy.version, policy.created_at
+                  FROM ntf_routing_policies policy
+                 WHERE policy.tenant_id = :tenantId AND policy.state = 'DRAFT'
+                 ORDER BY policy.created_at DESC, policy.policy_id
+                """, tenantId, null);
+    }
+
+    public Optional<TenantPolicy> policy(long tenantId, UUID policyId) {
+        return policies("""
+                SELECT policy.policy_id, policy.tenant_id, policy.scope_type, policy.scope_key,
+                       policy.state, policy.mandatory, policy.quiet_hours_bypass,
+                       policy.digest_mode, policy.change_reason, policy.created_by,
+                       policy.approved_by, policy.approved_at, policy.version, policy.created_at
+                  FROM ntf_routing_policies policy
+                 WHERE policy.tenant_id = :tenantId AND policy.policy_id = :policyId
+                """, tenantId, policyId).stream().findFirst();
+    }
+
+    public Optional<TenantPolicy> effectivePolicy(
+            long tenantId, String scopeType, String scopeKey) {
+        return policies("""
+                SELECT policy.policy_id, policy.tenant_id, policy.scope_type, policy.scope_key,
+                       policy.state, policy.mandatory, policy.quiet_hours_bypass,
+                       policy.digest_mode, policy.change_reason, policy.created_by,
+                       policy.approved_by, policy.approved_at, policy.version, policy.created_at
+                  FROM ntf_routing_policies policy
+                 WHERE policy.state = 'PUBLISHED'
+                   AND (policy.tenant_id IS NULL OR policy.tenant_id = :tenantId)
+                   AND policy.scope_type = :scopeType AND policy.scope_key = :scopeKey
+                 ORDER BY (policy.tenant_id IS NOT NULL) DESC, policy.version DESC
+                 LIMIT 1
+                """, tenantId, null, scopeType, scopeKey).stream().findFirst();
+    }
+
+    public boolean policyScopeExists(long tenantId, String scopeType, String scopeKey) {
+        Long count = jdbc.queryForObject("""
+                SELECT COUNT(*)
+                  FROM ntf_notification_types type
+                 WHERE (type.tenant_id IS NULL OR type.tenant_id = :tenantId)
+                   AND type.lifecycle_state = 'ACTIVE'
+                   AND ((:scopeType = 'APP' AND type.owner_app_key = :scopeKey)
+                     OR (:scopeType = 'TYPE' AND type.type_key = :scopeKey))
+                """, policyParams(tenantId, scopeType, scopeKey), Long.class);
+        return count != null && count > 0;
+    }
+
+    public long affectedTypeCount(long tenantId, String scopeType, String scopeKey) {
+        Long count = jdbc.queryForObject("""
+                SELECT COUNT(*)
+                  FROM ntf_notification_types type
+                 WHERE (type.tenant_id IS NULL OR type.tenant_id = :tenantId)
+                   AND type.lifecycle_state = 'ACTIVE'
+                   AND ((:scopeType = 'APP' AND type.owner_app_key = :scopeKey)
+                     OR (:scopeType = 'TYPE' AND type.type_key = :scopeKey))
+                """, policyParams(tenantId, scopeType, scopeKey), Long.class);
+        return count == null ? 0 : count;
+    }
+
+    public long observedRecipients30Days(long tenantId, String scopeType, String scopeKey) {
+        Long count = jdbc.queryForObject("""
+                SELECT COUNT(DISTINCT user_notification.user_id)
+                  FROM ntf_user_notifications user_notification
+                  JOIN ntf_notifications notification
+                    ON notification.tenant_id = user_notification.tenant_id
+                   AND notification.notification_id = user_notification.notification_id
+                  JOIN ntf_notification_type_versions type_version
+                    ON type_version.type_version_id = notification.type_version_id
+                  JOIN ntf_notification_types type ON type.type_id = type_version.type_id
+                 WHERE user_notification.tenant_id = :tenantId
+                   AND user_notification.created_at >= CURRENT_TIMESTAMP - INTERVAL '30 days'
+                   AND ((:scopeType = 'APP' AND type.owner_app_key = :scopeKey)
+                     OR (:scopeType = 'TYPE' AND type.type_key = :scopeKey))
+                """, policyParams(tenantId, scopeType, scopeKey), Long.class);
+        return count == null ? 0 : count;
+    }
+
+    public long latestTenantPolicyVersion(long tenantId, String scopeType, String scopeKey) {
+        Long version = jdbc.queryForObject("""
+                SELECT COALESCE(MAX(version), 0)
+                  FROM ntf_routing_policies
+                 WHERE tenant_id = :tenantId
+                   AND scope_type = :scopeType AND scope_key = :scopeKey
+                """, policyParams(tenantId, scopeType, scopeKey), Long.class);
+        return version == null ? 0 : version;
+    }
+
+    public TenantPolicy createPolicyDraft(
+            long tenantId,
+            long actorUserId,
+            TenantPolicyChangeRequest request,
+            long version,
+            UUID supersedesPolicyId) {
+        UUID policyId = UUID.randomUUID();
+        MapSqlParameterSource params = policyParams(
+                tenantId, request.scopeType(), request.scopeKey())
+                .addValue("policyId", policyId)
+                .addValue("version", version)
+                .addValue("mandatory", request.mandatory())
+                .addValue("quietHoursBypass", request.quietHoursBypass())
+                .addValue("digestMode", request.digestMode())
+                .addValue("createdBy", actorUserId)
+                .addValue("changeReason", request.changeReason().trim())
+                .addValue("supersedesPolicyId", supersedesPolicyId);
+        jdbc.update("""
+                    INSERT INTO ntf_routing_policies (
+                        policy_id, tenant_id, scope_type, scope_key, version, state,
+                        mandatory, quiet_hours_bypass, digest_mode, created_by,
+                        change_reason, supersedes_policy_id)
+                    VALUES (
+                        :policyId, :tenantId, :scopeType, :scopeKey, :version, 'DRAFT',
+                        :mandatory, :quietHoursBypass, :digestMode, :createdBy,
+                        :changeReason, :supersedesPolicyId)
+                    """, params);
+        for (PolicyChannelRule channel : request.channels()) {
+            jdbc.update("""
+                        INSERT INTO ntf_policy_channel_rules (
+                            policy_channel_rule_id, tenant_id, policy_id, channel,
+                            enabled, default_mode, user_overridable, max_per_window)
+                        VALUES (
+                            :ruleId, :tenantId, :policyId, :channel,
+                            :enabled, :defaultMode, :userOverridable, :maxPerWindow)
+                        """, new MapSqlParameterSource()
+                        .addValue("ruleId", UUID.randomUUID())
+                        .addValue("tenantId", tenantId)
+                        .addValue("policyId", policyId)
+                        .addValue("channel", channel.channel())
+                        .addValue("enabled", channel.enabled())
+                        .addValue("defaultMode", channel.defaultMode())
+                    .addValue("userOverridable", channel.userOverridable())
+                    .addValue("maxPerWindow", channel.maxPerWindow()));
+        }
+        appendPolicyOutbox(
+                tenantId, policyId, "notification.policy.draft-created",
+                "notification-policy-draft:" + policyId);
+        return policy(tenantId, policyId).orElseThrow();
+    }
+
+    public boolean publishPolicy(
+            long tenantId,
+            long approverUserId,
+            UUID policyId,
+            long expectedVersion,
+            String approvalReason) {
+        int updated = jdbc.update("""
+                UPDATE ntf_routing_policies policy
+                   SET state = 'PUBLISHED', approved_by = :approvedBy,
+                       approved_at = CURRENT_TIMESTAMP,
+                       change_reason = policy.change_reason || E'\nApproval: ' || :approvalReason
+                 WHERE policy.tenant_id = :tenantId
+                   AND policy.policy_id = :policyId
+                   AND policy.state = 'DRAFT'
+                   AND policy.version = :expectedVersion
+                   AND policy.created_by <> :approvedBy
+                   AND NOT EXISTS (
+                       SELECT 1 FROM ntf_routing_policies newer
+                        WHERE newer.tenant_id = policy.tenant_id
+                          AND newer.scope_type = policy.scope_type
+                          AND newer.scope_key = policy.scope_key
+                          AND newer.state = 'PUBLISHED'
+                          AND newer.version >= policy.version)
+                """, new MapSqlParameterSource()
+                .addValue("tenantId", tenantId)
+                .addValue("policyId", policyId)
+                .addValue("expectedVersion", expectedVersion)
+                .addValue("approvedBy", approverUserId)
+                .addValue("approvalReason", approvalReason.trim()));
+        if (updated == 1) {
+            appendPolicyOutbox(
+                    tenantId, policyId, "notification.policy.published",
+                    "notification-policy-published:" + policyId);
+        }
+        return updated == 1;
+    }
+
+    private List<TenantPolicy> policies(String sql, long tenantId, UUID policyId) {
+        return policies(sql, tenantId, policyId, null, null);
+    }
+
+    private List<TenantPolicy> policies(
+            String sql,
+            long tenantId,
+            UUID policyId,
+            String scopeType,
+            String scopeKey) {
+        MapSqlParameterSource params = new MapSqlParameterSource("tenantId", tenantId)
+                .addValue("policyId", policyId)
+                .addValue("scopeType", scopeType)
+                .addValue("scopeKey", scopeKey);
+        List<PolicyRow> rows = jdbc.query(sql, params, (resultSet, rowNumber) -> new PolicyRow(
+                resultSet.getObject("policy_id", UUID.class),
+                (Long) resultSet.getObject("tenant_id"),
+                resultSet.getString("scope_type"),
+                resultSet.getString("scope_key"),
+                resultSet.getString("state"),
+                resultSet.getBoolean("mandatory"),
+                resultSet.getBoolean("quiet_hours_bypass"),
+                resultSet.getString("digest_mode"),
+                resultSet.getString("change_reason"),
+                (Long) resultSet.getObject("created_by"),
+                (Long) resultSet.getObject("approved_by"),
+                nullableInstant(resultSet.getTimestamp("approved_at")),
+                resultSet.getLong("version"),
+                instant(resultSet.getTimestamp("created_at"))));
+        return rows.stream().map(row -> new TenantPolicy(
+                row.policyId(),
+                row.scopeType(),
+                row.scopeKey(),
+                "APP".equals(row.scopeType())
+                        ? NotificationQueryRepository.appName(row.scopeKey())
+                        : row.scopeKey(),
+                row.tenantId() == null ? "PROVIDER_POLICY" : "TENANT_POLICY",
+                row.state(),
+                row.mandatory(),
+                row.quietHoursBypass(),
+                row.digestMode(),
+                policyChannels(row.policyId()),
+                row.changeReason(),
+                row.createdBy(),
+                row.approvedBy(),
+                row.approvedAt(),
+                NotificationVersionCodec.external(row.version()),
+                row.createdAt())).toList();
+    }
+
+    private List<PolicyChannelRule> policyChannels(UUID policyId) {
+        return jdbc.query("""
+                SELECT channel, enabled, default_mode, user_overridable, max_per_window
+                  FROM ntf_policy_channel_rules
+                 WHERE policy_id = :policyId
+                 ORDER BY CASE channel
+                     WHEN 'IN_APP' THEN 1 WHEN 'EMAIL' THEN 2 WHEN 'WEB_PUSH' THEN 3
+                     WHEN 'MOBILE_PUSH' THEN 4 WHEN 'TEAMS' THEN 5 ELSE 6 END
+                """, new MapSqlParameterSource("policyId", policyId),
+                (resultSet, rowNumber) -> new PolicyChannelRule(
+                        resultSet.getString("channel"),
+                        resultSet.getBoolean("enabled"),
+                        resultSet.getString("default_mode"),
+                        resultSet.getBoolean("user_overridable"),
+                        (Integer) resultSet.getObject("max_per_window")));
+    }
+
+    private MapSqlParameterSource policyParams(
+            long tenantId, String scopeType, String scopeKey) {
+        return new MapSqlParameterSource()
+                .addValue("tenantId", tenantId)
+                .addValue("scopeType", scopeType)
+                .addValue("scopeKey", scopeKey);
+    }
+
+    private void appendPolicyOutbox(
+            long tenantId, UUID policyId, String eventType, String eventKey) {
+        jdbc.update("""
+                INSERT INTO ntf_outbox_events (
+                    outbox_id, tenant_id, aggregate_type, aggregate_id,
+                    event_type, event_key, payload, occurred_at)
+                VALUES (
+                    :outboxId, :tenantId, 'NOTIFICATION_POLICY', :aggregateId,
+                    :eventType, :eventKey,
+                    jsonb_build_object('policyId', CAST(:aggregateId AS text)),
+                    CURRENT_TIMESTAMP)
+                ON CONFLICT (tenant_id, event_key) DO NOTHING
+                """, new MapSqlParameterSource()
+                .addValue("outboxId", UUID.randomUUID())
+                .addValue("tenantId", tenantId)
+                .addValue("aggregateId", policyId.toString())
+                .addValue("eventType", eventType)
+                .addValue("eventKey", eventKey));
+    }
+
     public List<DeliveryLane> deliveryLanes(long tenantId) {
         return jdbc.query("""
                 SELECT lane.qos_lane,
@@ -328,6 +625,10 @@ public class NotificationAdminRepository {
         return value == null ? Instant.EPOCH : value.toInstant();
     }
 
+    private Instant nullableInstant(Timestamp value) {
+        return value == null ? null : value.toInstant();
+    }
+
     public record AdminSnapshot(
             long activeContracts,
             long notifications24Hours,
@@ -340,5 +641,22 @@ public class NotificationAdminRepository {
             long retryQueue,
             long deadLetterQueue,
             long unknownOutcomes) {
+    }
+
+    private record PolicyRow(
+            UUID policyId,
+            Long tenantId,
+            String scopeType,
+            String scopeKey,
+            String state,
+            boolean mandatory,
+            boolean quietHoursBypass,
+            String digestMode,
+            String changeReason,
+            Long createdBy,
+            Long approvedBy,
+            Instant approvedAt,
+            long version,
+            Instant createdAt) {
     }
 }

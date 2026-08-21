@@ -1,16 +1,28 @@
 package com.dwp.services.notification.domain;
 
+import com.dwp.audit.AuditEvent;
+import com.dwp.core.audit.AuditOutboxRecorder;
 import com.dwp.services.notification.domain.NotificationAdminRepository.AdminSnapshot;
 import com.dwp.services.notification.domain.NotificationAdminRepository.DeliveryQueueSnapshot;
 import com.dwp.services.notification.domain.NotificationModels.AdminMetric;
 import com.dwp.services.notification.domain.NotificationModels.AdminOverview;
 import com.dwp.services.notification.domain.NotificationModels.DeliveryOperations;
 import com.dwp.services.notification.domain.NotificationModels.OperationalFinding;
+import com.dwp.services.notification.domain.NotificationModels.PolicyChannelRule;
+import com.dwp.services.notification.domain.NotificationModels.PolicyPublishRequest;
 import com.dwp.services.notification.domain.NotificationModels.ProviderHealth;
+import com.dwp.services.notification.domain.NotificationModels.TenantPolicy;
+import com.dwp.services.notification.domain.NotificationModels.TenantPolicyChangeRequest;
+import com.dwp.services.notification.domain.NotificationModels.TenantPolicyPage;
+import com.dwp.services.notification.domain.NotificationModels.TenantPolicyPreview;
 import com.dwp.services.notification.domain.NotificationModels.TypeContract;
 import com.dwp.services.notification.domain.NotificationModels.TypeContractPage;
+import com.dwp.services.notification.common.NotificationErrorCode;
+import com.dwp.services.notification.common.NotificationException;
+import com.dwp.services.notification.domain.NotificationIdempotencyRepository.Request;
 import com.dwp.services.notification.security.NotificationDatabaseScope;
 import com.dwp.services.notification.security.NotificationRequestContext;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,9 +30,15 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
+
+import static com.dwp.services.notification.api.NotificationVersionCodec.nonNegative;
+import static com.dwp.services.notification.api.NotificationVersionCodec.positive;
 
 @Service
 public class NotificationAdminService {
@@ -30,12 +48,18 @@ public class NotificationAdminService {
 
     private final NotificationDatabaseScope databaseScope;
     private final NotificationAdminRepository repository;
+    private final NotificationIdempotencyRepository idempotencyRepository;
+    private final AuditOutboxRecorder audit;
 
     public NotificationAdminService(
             NotificationDatabaseScope databaseScope,
-            NotificationAdminRepository repository) {
+            NotificationAdminRepository repository,
+            NotificationIdempotencyRepository idempotencyRepository,
+            AuditOutboxRecorder audit) {
         this.databaseScope = databaseScope;
         this.repository = repository;
+        this.idempotencyRepository = idempotencyRepository;
+        this.audit = audit;
     }
 
     @Transactional(readOnly = true)
@@ -155,6 +179,215 @@ public class NotificationAdminService {
                 queue.deadLetterQueue(),
                 queue.unknownOutcomes(),
                 List.copyOf(findings));
+    }
+
+    @Transactional(readOnly = true)
+    public TenantPolicyPage policies(NotificationRequestContext.Actor actor) {
+        databaseScope.applyWorker(actor.tenantId());
+        return new TenantPolicyPage(
+                repository.effectivePolicies(actor.tenantId()),
+                repository.policyDrafts(actor.tenantId()),
+                Instant.now());
+    }
+
+    @Transactional(readOnly = true)
+    public TenantPolicyPreview previewPolicy(
+            NotificationRequestContext.Actor actor,
+            TenantPolicyChangeRequest request) {
+        databaseScope.applyWorker(actor.tenantId());
+        validatePolicy(actor.tenantId(), request);
+        long currentVersion = repository.latestTenantPolicyVersion(
+                actor.tenantId(), request.scopeType(), request.scopeKey());
+        requireExpectedVersion(request.expectedVersion(), currentVersion);
+        TenantPolicy current = repository.effectivePolicy(
+                actor.tenantId(), request.scopeType(), request.scopeKey()).orElse(null);
+        TenantPolicy proposed = new TenantPolicy(
+                new UUID(0, 0),
+                request.scopeType(),
+                request.scopeKey(),
+                scopeLabel(request.scopeType(), request.scopeKey()),
+                "TENANT_POLICY",
+                "PREVIEW",
+                request.mandatory(),
+                request.quietHoursBypass(),
+                request.digestMode(),
+                request.channels(),
+                request.changeReason().trim(),
+                actor.userId(),
+                null,
+                null,
+                Long.toString(currentVersion + 1),
+                Instant.now());
+        return new TenantPolicyPreview(
+                current,
+                proposed,
+                repository.affectedTypeCount(
+                        actor.tenantId(), request.scopeType(), request.scopeKey()),
+                repository.observedRecipients30Days(
+                        actor.tenantId(), request.scopeType(), request.scopeKey()),
+                riskFlags(request));
+    }
+
+    @Transactional
+    public TenantPolicy createPolicyDraft(
+            NotificationRequestContext.Actor actor,
+            TenantPolicyChangeRequest request,
+            String idempotencyKey) {
+        databaseScope.applyWorker(actor.tenantId());
+        validatePolicy(actor.tenantId(), request);
+        Request receipt = idempotencyRepository.begin(
+                actor, idempotencyKey, "TENANT_NOTIFICATION_POLICY_DRAFT", request);
+        TenantPolicy replay = idempotencyRepository.replay(receipt, TenantPolicy.class);
+        if (replay != null) return replay;
+        long currentVersion = repository.latestTenantPolicyVersion(
+                actor.tenantId(), request.scopeType(), request.scopeKey());
+        requireExpectedVersion(request.expectedVersion(), currentVersion);
+        UUID supersedes = repository.effectivePolicy(
+                actor.tenantId(), request.scopeType(), request.scopeKey())
+                .map(TenantPolicy::policyId)
+                .orElse(null);
+        try {
+            TenantPolicy result = repository.createPolicyDraft(
+                    actor.tenantId(), actor.userId(), request, currentVersion + 1, supersedes);
+            recordPolicy(
+                    actor,
+                    "notification.policy.draft.created",
+                    result,
+                    request.changeReason());
+            idempotencyRepository.complete(actor, receipt, result);
+            return result;
+        } catch (DuplicateKeyException exception) {
+            throw new NotificationException(NotificationErrorCode.NOTIFICATION_STALE_VERSION);
+        }
+    }
+
+    @Transactional
+    public TenantPolicy publishPolicy(
+            NotificationRequestContext.Actor actor,
+            UUID policyId,
+            PolicyPublishRequest request,
+            String idempotencyKey) {
+        databaseScope.applyWorker(actor.tenantId());
+        Request receipt = idempotencyRepository.begin(
+                actor,
+                idempotencyKey,
+                "TENANT_NOTIFICATION_POLICY_PUBLISH",
+                Map.of("policyId", policyId, "request", request));
+        TenantPolicy replay = idempotencyRepository.replay(receipt, TenantPolicy.class);
+        if (replay != null) return replay;
+        TenantPolicy draft = repository.policy(actor.tenantId(), policyId)
+                .orElseThrow(() -> new NotificationException(
+                        NotificationErrorCode.NOTIFICATION_NOT_FOUND));
+        if (!"DRAFT".equals(draft.state())) {
+            throw new NotificationException(NotificationErrorCode.NOTIFICATION_STALE_VERSION);
+        }
+        if (draft.createdBy() != null && draft.createdBy().equals(actor.userId())) {
+            throw new NotificationException(
+                    NotificationErrorCode.FORBIDDEN,
+                    "A notification policy author cannot approve the same version.");
+        }
+        long expectedVersion = positive(request.expectedVersion(), "expectedVersion");
+        if (!repository.publishPolicy(
+                actor.tenantId(), actor.userId(), policyId,
+                expectedVersion, request.approvalReason())) {
+            throw new NotificationException(NotificationErrorCode.NOTIFICATION_STALE_VERSION);
+        }
+        TenantPolicy result = repository.policy(actor.tenantId(), policyId).orElseThrow();
+        recordPolicy(
+                actor,
+                "notification.policy.published",
+                result,
+                request.approvalReason());
+        idempotencyRepository.complete(actor, receipt, result);
+        return result;
+    }
+
+    private void recordPolicy(
+            NotificationRequestContext.Actor actor,
+            String action,
+            TenantPolicy policy,
+            String reason) {
+        audit.record(AuditEvent.builder()
+                .tenantId(actor.tenantId())
+                .category("ADMIN_CHANGE")
+                .action(action)
+                .outcome("SUCCESS")
+                .severity("MEDIUM")
+                .riskScore(40)
+                .actorType("USER")
+                .actorId(actor.userId().toString())
+                .actorRoles(List.copyOf(actor.roles()))
+                .sourceService("dwp-notification-server")
+                .sourceModule("notification-policy-governance")
+                .targetType("NOTIFICATION_POLICY")
+                .targetId(policy.policyId().toString())
+                .targetDisplayName(policy.scopeType() + ":" + policy.scopeKey())
+                .reason(reason)
+                .policyId(policy.policyId().toString())
+                .policyDecision("notification.policy.published".equals(action)
+                        ? "ALLOW"
+                        : "NOT_APPLICABLE")
+                .afterState(Map.of(
+                        "scopeType", policy.scopeType(),
+                        "scopeKey", policy.scopeKey(),
+                        "state", policy.state(),
+                        "version", policy.version(),
+                        "mandatory", policy.mandatory(),
+                        "quietHoursBypass", policy.quietHoursBypass()))
+                .retentionClass("EXTENDED")
+                .build());
+    }
+
+    private void validatePolicy(long tenantId, TenantPolicyChangeRequest request) {
+        if (!repository.policyScopeExists(tenantId, request.scopeType(), request.scopeKey())) {
+            throw new IllegalArgumentException("The notification policy scope is not active.");
+        }
+        Set<String> channels = new HashSet<>();
+        for (PolicyChannelRule channel : request.channels()) {
+            if (!channels.add(channel.channel())) {
+                throw new IllegalArgumentException("Notification policy channels must be unique.");
+            }
+            if (!"IN_APP".equals(channel.channel()) && channel.enabled()) {
+                throw new NotificationException(
+                        NotificationErrorCode.NOTIFICATION_CAPABILITY_DISABLED,
+                        "External delivery must be certified before it can be enabled.");
+            }
+        }
+        PolicyChannelRule inApp = request.channels().stream()
+                .filter(channel -> "IN_APP".equals(channel.channel()))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "An in-app notification policy is required."));
+        if (request.mandatory()
+                && (!inApp.enabled()
+                || "MUTED".equals(inApp.defaultMode())
+                || inApp.userOverridable())) {
+            throw new IllegalArgumentException(
+                    "Mandatory notifications must use a managed, enabled in-app route.");
+        }
+    }
+
+    private void requireExpectedVersion(String value, long currentVersion) {
+        if (nonNegative(value, "expectedVersion") != currentVersion) {
+            throw new NotificationException(NotificationErrorCode.NOTIFICATION_STALE_VERSION);
+        }
+    }
+
+    private List<String> riskFlags(TenantPolicyChangeRequest request) {
+        List<String> flags = new ArrayList<>();
+        if (request.mandatory()) flags.add("MANDATORY_DELIVERY");
+        if (request.quietHoursBypass()) flags.add("QUIET_HOURS_BYPASS");
+        if (request.channels().stream().anyMatch(channel -> !channel.userOverridable())) {
+            flags.add("USER_OVERRIDE_RESTRICTED");
+        }
+        if (request.channels().stream().anyMatch(channel -> "MUTED".equals(channel.defaultMode()))) {
+            flags.add("DEFAULT_MUTED");
+        }
+        return List.copyOf(flags);
+    }
+
+    private String scopeLabel(String scopeType, String scopeKey) {
+        return "APP".equals(scopeType) ? NotificationQueryRepository.appName(scopeKey) : scopeKey;
     }
 
     private List<OperationalFinding> findings(AdminSnapshot snapshot, Instant detectedAt) {

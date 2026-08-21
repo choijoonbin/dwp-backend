@@ -31,6 +31,8 @@ import com.dwp.services.notification.domain.NotificationQueryRepository.CounterS
 import com.dwp.services.notification.domain.NotificationQueryRepository.InboxFilters;
 import com.dwp.services.notification.domain.NotificationQueryRepository.InboxRow;
 import com.dwp.services.notification.domain.NotificationQueryRepository.ViewCounts;
+import com.dwp.services.notification.domain.NotificationEffectivePolicyRepository.EffectivePolicy;
+import com.dwp.services.notification.domain.NotificationEffectivePolicyRepository.EffectivePolicyChannel;
 import com.dwp.services.notification.realtime.NotificationChangePublisher;
 import com.dwp.services.notification.security.NotificationDatabaseScope;
 import com.dwp.services.notification.security.NotificationRequestContext;
@@ -53,6 +55,7 @@ public class NotificationService {
     private final NotificationQueryRepository queryRepository;
     private final NotificationCommandRepository commandRepository;
     private final NotificationPreferenceRepository preferenceRepository;
+    private final NotificationEffectivePolicyRepository policyRepository;
     private final NotificationIdempotencyRepository idempotencyRepository;
     private final NotificationCursorCodec cursorCodec;
     private final NotificationChangePublisher changePublisher;
@@ -62,6 +65,7 @@ public class NotificationService {
             NotificationQueryRepository queryRepository,
             NotificationCommandRepository commandRepository,
             NotificationPreferenceRepository preferenceRepository,
+            NotificationEffectivePolicyRepository policyRepository,
             NotificationIdempotencyRepository idempotencyRepository,
             NotificationCursorCodec cursorCodec,
             NotificationChangePublisher changePublisher) {
@@ -69,6 +73,7 @@ public class NotificationService {
         this.queryRepository = queryRepository;
         this.commandRepository = commandRepository;
         this.preferenceRepository = preferenceRepository;
+        this.policyRepository = policyRepository;
         this.idempotencyRepository = idempotencyRepository;
         this.cursorCodec = cursorCodec;
         this.changePublisher = changePublisher;
@@ -270,20 +275,20 @@ public class NotificationService {
         databaseScope.applyUser(actor);
         DeliveryProfile profile = preferenceRepository.profile(actor);
         List<SubscriptionRule> rules = preferenceRepository.rules(actor);
+        List<EffectivePolicy> policies = policyRepository.findForTenant(actor.tenantId());
+        boolean profilePersisted = !"0".equals(profile.version());
         Map<String, SubscriptionRule> ruleIndex = rules.stream().collect(Collectors.toMap(
                 rule -> rule.appKey() + "\u0000" + rule.typeKey(),
                 rule -> rule,
                 (left, right) -> right,
                 LinkedHashMap::new));
         Map<String, ManagedValue<Boolean>> globalChannels = new LinkedHashMap<>();
+        EffectivePolicy globalPolicy = NotificationEffectivePolicyRepository.selectPolicy(
+                policies, "\u0000", "\u0000");
         NotificationQueryRepository.channels().forEach(channel -> globalChannels.put(
                 channel,
-                new ManagedValue<>(
-                        Boolean.TRUE.equals(profile.channels().get(channel)),
-                        "USER",
-                        false,
-                        true,
-                        "User preference")));
+                channelSetting(
+                        channel, null, profile.channels(), profilePersisted, globalPolicy)));
         Map<String, List<CatalogType>> byApp = queryRepository.catalogTypes(actor).stream()
                 .collect(Collectors.groupingBy(
                         CatalogType::appKey,
@@ -298,7 +303,10 @@ public class NotificationService {
                                 .map(type -> typeSetting(
                                         type,
                                         ruleIndex.get(ruleKey(type)),
-                                        profile.channels()))
+                                        profile.channels(),
+                                        profilePersisted,
+                                        NotificationEffectivePolicyRepository.selectPolicy(
+                                                policies, type.appKey(), type.typeKey())))
                                 .toList()))
                 .toList();
         return new EffectiveSettings(
@@ -383,34 +391,104 @@ public class NotificationService {
     private NotificationTypeSetting typeSetting(
             CatalogType type,
             SubscriptionRule rule,
-            Map<String, Boolean> profileChannels) {
+            Map<String, Boolean> profileChannels,
+            boolean profilePersisted,
+            EffectivePolicy policy) {
         Map<String, ManagedValue<Boolean>> channels = new LinkedHashMap<>();
-        NotificationQueryRepository.channels().forEach(channel -> {
-            boolean explicit = rule != null && rule.channels().containsKey(channel);
-            channels.put(
-                    channel,
-                    new ManagedValue<>(
-                            explicit
-                                    ? Boolean.TRUE.equals(rule.channels().get(channel))
-                                    : Boolean.TRUE.equals(profileChannels.get(channel)),
-                            explicit ? "USER" : "SYSTEM_DEFAULT",
-                            false,
-                            true,
-                            explicit ? "User subscription rule" : "Global delivery profile"));
-        });
+        NotificationQueryRepository.channels().forEach(channel -> channels.put(
+                channel,
+                channelSetting(channel, rule, profileChannels, profilePersisted, policy)));
+        ManagedValue<String> mode = modeSetting(rule, policy);
         return new NotificationTypeSetting(
                 type.typeKey(),
                 type.displayName(),
                 type.description(),
-                new ManagedValue<>(
-                        rule == null ? "IMMEDIATE" : rule.mode(),
-                        rule == null ? "SYSTEM_DEFAULT" : "USER",
-                        false,
-                        true,
-                        rule == null ? "Default notification policy" : "User subscription rule"),
+                mode,
                 Map.copyOf(channels),
+                policy != null && policy.mandatory(),
+                policy != null && policy.quietHoursBypass(),
                 rule == null ? null : rule.ruleId(),
                 rule == null ? null : rule.version());
+    }
+
+    private ManagedValue<String> modeSetting(
+            SubscriptionRule rule,
+            EffectivePolicy policy) {
+        EffectivePolicyChannel inApp = policy == null ? null : policy.channels().get("IN_APP");
+        boolean managed = inApp != null
+                && (!inApp.userOverridable() || policy.mandatory());
+        if (rule != null && !managed) {
+            return new ManagedValue<>(
+                    rule.mode(), "USER", false, true, "User subscription rule");
+        }
+        if (inApp != null) {
+            return new ManagedValue<>(
+                    NotificationEffectivePolicyRepository.policyMode(policy, inApp),
+                    policy.source(),
+                    managed,
+                    !managed,
+                    policyOwner(policy));
+        }
+        return new ManagedValue<>(
+                "IMMEDIATE", "SYSTEM_DEFAULT", false, true, "DWP default");
+    }
+
+    private ManagedValue<Boolean> channelSetting(
+            String channel,
+            SubscriptionRule rule,
+            Map<String, Boolean> profileChannels,
+            boolean profilePersisted,
+            EffectivePolicy policy) {
+        EffectivePolicyChannel policyChannel = policy == null
+                ? null
+                : policy.channels().get(channel);
+        boolean managed = policyChannel != null
+                && (!policyChannel.userOverridable()
+                || (policy.mandatory() && "IN_APP".equals(channel)));
+        if (managed) {
+            return new ManagedValue<>(
+                    policyChannel.enabled(),
+                    policy.source(),
+                    true,
+                    false,
+                    policyOwner(policy));
+        }
+        if (rule != null && rule.channels().containsKey(channel)) {
+            return new ManagedValue<>(
+                    Boolean.TRUE.equals(rule.channels().get(channel)),
+                    "USER",
+                    false,
+                    true,
+                    "User subscription rule");
+        }
+        if (profilePersisted) {
+            return new ManagedValue<>(
+                    Boolean.TRUE.equals(profileChannels.get(channel)),
+                    "USER",
+                    false,
+                    true,
+                    "User delivery profile");
+        }
+        if (policyChannel != null) {
+            return new ManagedValue<>(
+                    policyChannel.enabled(),
+                    policy.source(),
+                    false,
+                    true,
+                    policyOwner(policy));
+        }
+        return new ManagedValue<>(
+                Boolean.TRUE.equals(profileChannels.get(channel)),
+                "SYSTEM_DEFAULT",
+                false,
+                true,
+                "DWP default");
+    }
+
+    private String policyOwner(EffectivePolicy policy) {
+        return policy.tenantId() == null
+                ? "DWP provider policy"
+                : "Organization notification policy";
     }
 
     private String ruleKey(CatalogType type) {

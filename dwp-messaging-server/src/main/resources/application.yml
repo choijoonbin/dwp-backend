@@ -18,6 +18,14 @@ springdoc:
 spring:
   application:
     name: dwp-messaging-server
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      acks: all
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        compression.type: zstd
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${MESSAGING_DB_NAME:dwp_messaging}
     username: ${DB_USERNAME:dwp_user}
@@ -37,6 +45,13 @@ spring:
     validate-on-migrate: true
 
 dwp:
+  events:
+    transport: ${DWP_MESSAGING_EVENT_TRANSPORT:kafka}
+    transport-enabled: ${DWP_MESSAGING_EVENT_TRANSPORT_ENABLED:true}
+    topic: ${DWP_DOMAIN_EVENT_TOPIC:dwp.domain-events.v1}
+    service-instance: ${DWP_SERVICE_INSTANCE:${HOSTNAME:local}}
+    batch-size: ${DWP_MESSAGING_EVENT_BATCH_SIZE:100}
+    poll-interval: ${DWP_MESSAGING_EVENT_POLL_INTERVAL:PT1S}
   audit:
     collector-url: ${DWP_AUDIT_COLLECTOR_URL:}
     ingest-token: ${DWP_AUDIT_INGEST_TOKEN:}

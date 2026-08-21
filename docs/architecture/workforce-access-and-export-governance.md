@@ -81,15 +81,15 @@ cannot exist without an artifact reference, hash, size, expiry, and completion t
 
 The internal policy, API, queue, retry, cancellation, expiry, audit, and UI contracts are
 implemented. Runtime execution defaults to disabled through
-`DWP_WORKFORCE_EXPORT_EXECUTION_ENABLED=false`, with blockers `D-09,D-12`.
+`DWP_WORKFORCE_EXPORT_EXECUTION_ENABLED=false`, with blockers
+[`D-09`](../delivery/customer-policy-and-release-gate-register.md) and
+[`D-12`](../delivery/customer-policy-and-release-gate-register.md).
 `DisabledWorkforceExportArtifactWriter` fails closed so a deployment cannot fabricate a
 successful download.
 
-Production activation requires both release decisions:
-
-- `D-09`: approved masking, watermark, recipient, and privacy policy.
-- `D-12`: KMS-backed object storage writer, signed delivery mechanism, malware/DLP checks,
-  deletion verification, and operational ownership.
+Production activation requires both decisions to meet the current closure evidence in the
+[Customer Policy and Release Gate Register](../delivery/customer-policy-and-release-gate-register.md).
+That register is the only active source for their status and customer-specific exit criteria.
 
 Removing blocker strings without supplying the approved writer and evidence is not a valid
 activation procedure.

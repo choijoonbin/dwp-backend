@@ -95,6 +95,82 @@ class NotificationMigrationInvariantTest {
                 .contains("'DONE'");
     }
 
+    @Test
+    void governsTenantPolicyVersionsWithOneOpenDraftAndIndependentApprovalEvidence()
+            throws IOException {
+        String migration = resource(
+                "db/migration/V9__govern_tenant_notification_policy_changes.sql");
+
+        assertThat(migration)
+                .contains("created_by BIGINT")
+                .contains("approved_by BIGINT")
+                .contains("approved_at TIMESTAMPTZ")
+                .contains("change_reason VARCHAR(500)")
+                .contains("supersedes_policy_id")
+                .contains("CREATE UNIQUE INDEX uq_ntf_policy_open_draft")
+                .contains("WHERE state = 'DRAFT' AND tenant_id IS NOT NULL");
+    }
+
+    @Test
+    void registersTheExplicitMessagingChannelSubscriptionContract() throws IOException {
+        String migration = resource(
+                "db/migration/V10__register_messaging_channel_message_contract.sql");
+
+        assertThat(migration)
+                .contains("MESSAGING.CHANNEL_MESSAGE")
+                .contains("messaging.message.sent.v1")
+                .contains("\"interruptionLevel\":\"PASSIVE\"")
+                .contains("messaging-channel-ko-v1")
+                .contains("messaging-channel-en-v1");
+    }
+
+    @Test
+    void provisionsTheDurableAuditOutboxForTheRestrictedRuntimeIdentity()
+            throws IOException {
+        String migration = resource(
+                "db/migration/V11__add_notification_audit_outbox.sql");
+
+        assertThat(migration)
+                .contains("CREATE TABLE sys_audit_outbox")
+                .contains("event_id UUID NOT NULL UNIQUE")
+                .contains("idx_ntf_audit_outbox_delivery")
+                .contains("notificationRuntimeRole")
+                .contains("GRANT SELECT, INSERT, UPDATE, DELETE")
+                .contains("GRANT INSERT ON sys_audit_outbox TO dwp_notification_api")
+                .contains("TO dwp_notification_worker")
+                .contains("PENDING", "SENDING", "FAILED", "PUBLISHED", "DEAD");
+    }
+
+    @Test
+    void addsValidatedUserOwnedNotificationPresentationPreferences() throws IOException {
+        String migration = resource(
+                "db/migration/V12__add_user_notification_experience_preferences.sql");
+
+        assertThat(migration)
+                .contains("experience_preferences JSONB NOT NULL")
+                .contains("HIGH_PRIORITY_ONLY")
+                .contains("TITLE_ONLY")
+                .contains("jsonb_typeof(experience_preferences) = 'object'")
+                .contains("Extensible user-owned presentation controls");
+    }
+
+    @Test
+    void governsTenantTemplateOverridesAsImmutableMakerCheckerRevisions() throws IOException {
+        String migration = resource(
+                "db/migration/V13__govern_tenant_notification_template_overrides.sql");
+
+        assertThat(migration)
+                .contains("CREATE TABLE ntf_tenant_template_revisions")
+                .contains("created_by BIGINT NOT NULL")
+                .contains("approved_by BIGINT")
+                .contains("approved_by <> created_by")
+                .contains("CREATE UNIQUE INDEX uq_ntf_tenant_template_open_draft")
+                .contains("WHERE state = 'DRAFT'")
+                .contains("FORCE ROW LEVEL SECURITY")
+                .contains("template_override_revision_id")
+                .contains("Published or retired notification template revisions are immutable");
+    }
+
     private String resource(String path) throws IOException {
         try (InputStream input = getClass().getClassLoader().getResourceAsStream(path)) {
             if (input == null) throw new IOException("Missing test resource: " + path);

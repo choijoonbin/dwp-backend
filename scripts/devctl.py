@@ -390,6 +390,8 @@ def local_environment() -> dict[str, str]:
             "classpath:db/migration,classpath:db/local-seed"
         ),
         "DWP_MESSAGING_SERVICE_TOKEN": "dwp-local-messaging-service-token",
+        "DWP_MESSAGING_EVENT_TRANSPORT": "kafka",
+        "DWP_MESSAGING_EVENT_TRANSPORT_ENABLED": "true",
         "DWP_MESSAGING_MEETING_PROVIDER": "livekit",
         "DWP_MESSAGING_MEETING_TOKEN_TTL": "PT5M",
         "LIVEKIT_API_URL": "http://localhost:7880",
@@ -408,6 +410,7 @@ def local_environment() -> dict[str, str]:
             "dwp-messaging-server=dwp-local-messaging-notification-token"
         ),
         "DWP_NOTIFICATION_APPROVAL_PILOT_ENABLED": "true",
+        "DWP_NOTIFICATION_DOMAIN_EVENTS_ENABLED": "true",
         "DWP_NOTIFICATION_FLYWAY_LOCATIONS": (
             "classpath:db/migration,classpath:db/local-seed"
         ),
@@ -503,6 +506,8 @@ def service_environment(service_name: str) -> dict[str, str]:
     if service_name not in {"gateway", "messaging"}:
         environment.pop("DWP_MESSAGING_SERVICE_TOKEN", None)
     if service_name != "messaging":
+        environment.pop("DWP_MESSAGING_EVENT_TRANSPORT", None)
+        environment.pop("DWP_MESSAGING_EVENT_TRANSPORT_ENABLED", None)
         environment.pop("DWP_MESSAGING_MEETING_PROVIDER", None)
         environment.pop("DWP_MESSAGING_MEETING_TOKEN_TTL", None)
         environment.pop("LIVEKIT_API_URL", None)
@@ -516,6 +521,7 @@ def service_environment(service_name: str) -> dict[str, str]:
         environment.pop("DWP_NOTIFICATION_CURSOR_SECRET", None)
         environment.pop("DWP_NOTIFICATION_PRODUCER_TOKENS", None)
         environment.pop("DWP_NOTIFICATION_APPROVAL_PILOT_ENABLED", None)
+        environment.pop("DWP_NOTIFICATION_DOMAIN_EVENTS_ENABLED", None)
         environment.pop("NOTIFICATION_DB_USERNAME", None)
         environment.pop("NOTIFICATION_DB_PASSWORD", None)
         environment.pop("NOTIFICATION_MIGRATION_DB_USERNAME", None)

@@ -1,8 +1,8 @@
 # Notification Platform Backend Boundary
 
-Status: `foundation-pilot-implemented`; production release gates remain open
+Status: `in-app-pilot-and-tenant-governance-implemented`; production release gates remain open
 
-Last reviewed: 2026-08-19
+Last reviewed: 2026-08-21
 
 Canonical product and solution decision:
 [`R1 DWP Notification Platform 및 Omnichannel Delivery ADR`](../../../dwp-frontend/docs/03-architecture/R1%20DWP%20Notification%20Platform%20및%20Omnichannel%20Delivery%20ADR.md)
@@ -15,7 +15,15 @@ Feature acceptance package:
 The repository now has an independent `dwp-notification-server`, a dedicated
 `dwp_notification` database, direct-recipient inbox and preference APIs, tenant administration
 queries, Redis live hints and a durable SSE catch-up endpoint. The frontend header, notification
-center and account preference surface use these APIs rather than static notification rows.
+center and canonical `/notifications/settings` surface use these APIs rather than static rows.
+Messaging emits approved facts through its transactional outbox. The notification service
+materializes only registered contracts, enforces effective policy, time-bounded suppressions and
+per-user/type admission limits, then records durable audit and delivery-outbox evidence.
+
+Tenant policy and template changes use immutable drafts with separate author and approver duties.
+Notification operators can preview, activate and revoke bounded tenant/app/type/channel
+suppressions without receiving policy or template publication rights. Audit evidence is projected
+to the central audit control plane rather than a private notification audit menu.
 
 This is an implemented **in-app foundation pilot**, not a claim that external omnichannel delivery
 is production-ready. Email, Web/Mobile Push, Teams, Slack, large audience fan-out, provider
@@ -106,12 +114,14 @@ and bulk lanes. Bulk traffic cannot consume the reserved critical worker capacit
 5. [x] Implement keyset inbox, counter·change version, REST mutation and SSE catch-up.
 6. [x] Implement tenant policy and user preference composition for the enabled in-app capability.
 7. [x] Implement the in-app delivery path before external channels.
-8. [ ] Add a narrow cross-tenant scheduler DB role, fair due scheduler, critical·interactive·bulk
-   dispatch lanes and tenant-scoped workers.
+8. [ ] The tenant-keyset outbox relay, leases, bounded retries, dead state and tenant-scoped
+   maintenance workers are implemented. A narrow cross-tenant due-job scheduler, fair scheduling
+   and independently scalable critical·interactive·bulk dispatch workers remain production work.
 9. [ ] Add the People internal target-population snapshot contract, then enable resumable
    organization·role fan-out behind a feature flag.
-10. [ ] Add email and push adapters, verified-contact resolution, callback receipts, suppression and
-    `UNKNOWN` reconciliation behind disabled-by-default configuration.
+10. [ ] Tenant operational suppression and in-app admission receipts are implemented. Email and
+    push adapters, verified-contact resolution, signed callback receipts, destination
+    bounce/complaint suppression and `UNKNOWN` reconciliation remain disabled-by-default work.
 11. [x] Onboard the approval pilot producer types through schema review.
 12. [ ] Run production contract, tenant isolation, QoS, load, retry, callback, DLQ, replay and
     disaster-recovery gates.
@@ -152,6 +162,23 @@ staleness, tenant fairness and region/cell placement violations.
 Traces preserve `traceparent`, source event ID, correlation ID, intent ID, notification ID and
 delivery job ID. User-visible title, body, template variables, endpoint tokens and provider secrets
 must not appear in logs, metrics or trace attributes.
+
+## Role and Setting Boundaries
+
+| Persona | Implemented authority | Explicitly excluded |
+| --- | --- | --- |
+| User | Own inbox state, presentation privacy, channel profile, quiet hours, digest and app/type overrides | Other users, managed mandatory policy |
+| Policy author | Effective policy read, impact preview and immutable draft | Self-approval, delivery commands |
+| Policy approver | Independent policy publish | Authoring the same revision |
+| Template editor | Locale preview and immutable template draft | Publishing own revision |
+| Template approver | Independent template publish | Editing the same revision |
+| Notification operator | Tenant operations, suppression preview/create/revoke | Policy/template publish, user content |
+| Central auditor | Correlated `notification.*` evidence through the central audit API | Delivery mutation |
+| Provider operator | Target boundary is redacted fleet health, global capability and quota safety | Tenant header switching and user content |
+
+Provider fleet APIs, external adapter configuration and production kill-switch commands remain
+release-gated. They must be implemented in the Provider Control Plane, not added to the tenant
+notification routes or granted implicitly to `TENANT_ADMIN`.
 
 ## Release Gate
 

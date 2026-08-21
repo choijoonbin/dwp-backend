@@ -70,6 +70,16 @@ class MessagingMigrationInvariantTest {
                 .contains("FROM_JOIN visibility boundary");
     }
 
+    @Test
+    void offersAnExplicitAllMessagesConversationOverride() throws IOException {
+        String migration = resource(
+                "db/migration/V13__add_explicit_all_message_notification_level.sql");
+
+        assertThat(migration)
+                .contains("DROP CONSTRAINT ck_msg_member_notification")
+                .contains("'DEFAULT', 'ALL', 'MENTIONS', 'MUTE'");
+    }
+
     private String resource(String path) throws IOException {
         try (InputStream input = getClass().getClassLoader().getResourceAsStream(path)) {
             if (input == null) throw new IOException("Missing test resource: " + path);

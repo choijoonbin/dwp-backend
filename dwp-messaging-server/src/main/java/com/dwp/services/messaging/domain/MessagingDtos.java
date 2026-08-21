@@ -197,14 +197,18 @@ public final class MessagingDtos {
             @NotBlank @Size(max = 20_000) String body,
             @NotNull UUID idempotencyKey,
             UUID replyToMessageId,
-            @Size(max = 10) List<@NotNull UUID> attachmentIds) {
+            @Size(max = 10) List<@NotNull UUID> attachmentIds,
+            @Size(max = 50) List<@NotNull @Min(1) Long> mentionedUserIds) {
 
         public SendMessageRequest(String body, UUID idempotencyKey, UUID replyToMessageId) {
-            this(body, idempotencyKey, replyToMessageId, List.of());
+            this(body, idempotencyKey, replyToMessageId, List.of(), List.of());
         }
 
         public SendMessageRequest {
             attachmentIds = attachmentIds == null ? List.of() : List.copyOf(attachmentIds);
+            mentionedUserIds = mentionedUserIds == null
+                    ? List.of()
+                    : mentionedUserIds.stream().distinct().toList();
         }
     }
 

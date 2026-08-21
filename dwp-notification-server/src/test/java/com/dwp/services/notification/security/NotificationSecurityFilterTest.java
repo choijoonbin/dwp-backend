@@ -88,6 +88,33 @@ class NotificationSecurityFilterTest {
                 "PUT", "/v1/admin/templates/id", "ADMIN.NOTIFICATION_TEMPLATE:MANAGE"))
                 .getStatus()).isEqualTo(200);
         assertThat(execute(request(
+                "POST", "/v1/admin/templates/preview", "ADMIN.NOTIFICATION_TEMPLATE:VIEW"))
+                .getStatus()).isEqualTo(200);
+        assertThat(execute(request(
+                "POST", "/v1/admin/templates/drafts", "ADMIN.NOTIFICATION_TEMPLATE:APPROVE"))
+                .getStatus()).isEqualTo(403);
+        assertThat(execute(request(
+                "POST", "/v1/admin/templates/drafts", "ADMIN.NOTIFICATION_TEMPLATE:MANAGE"))
+                .getStatus()).isEqualTo(200);
+        assertThat(execute(request(
+                "POST", "/v1/admin/templates/id/publish", "ADMIN.NOTIFICATION_TEMPLATE:MANAGE"))
+                .getStatus()).isEqualTo(403);
+        assertThat(execute(request(
+                "POST", "/v1/admin/templates/id/publish", "ADMIN.NOTIFICATION_TEMPLATE:APPROVE"))
+                .getStatus()).isEqualTo(200);
+        assertThat(execute(request(
+                "POST", "/v1/admin/policies/preview", "ADMIN.NOTIFICATION_POLICY:VIEW"))
+                .getStatus()).isEqualTo(200);
+        assertThat(execute(request(
+                "POST", "/v1/admin/policies/preview", "ADMIN.NOTIFICATION_POLICY:MANAGE"))
+                .getStatus()).isEqualTo(200);
+        assertThat(execute(request(
+                "POST", "/v1/admin/policies/drafts", "ADMIN.NOTIFICATION_POLICY:APPROVE"))
+                .getStatus()).isEqualTo(403);
+        assertThat(execute(request(
+                "POST", "/v1/admin/policies/drafts", "ADMIN.NOTIFICATION_POLICY:MANAGE"))
+                .getStatus()).isEqualTo(200);
+        assertThat(execute(request(
                 "POST", "/v1/admin/policies/id/publish", "ADMIN.NOTIFICATION_POLICY:MANAGE"))
                 .getStatus()).isEqualTo(403);
         assertThat(execute(request(
@@ -96,6 +123,24 @@ class NotificationSecurityFilterTest {
         assertThat(execute(request(
                 "GET", "/v1/admin/operations", "ADMIN.NOTIFICATION_AUDIT:VIEW"))
                 .getStatus()).isEqualTo(403);
+        assertThat(execute(request(
+                "GET", "/v1/admin/suppressions", "ADMIN.NOTIFICATION_OPERATIONS:VIEW"))
+                .getStatus()).isEqualTo(200);
+        assertThat(execute(request(
+                "POST", "/v1/admin/suppressions/preview", "ADMIN.NOTIFICATION_OPERATIONS:VIEW"))
+                .getStatus()).isEqualTo(200);
+        assertThat(execute(request(
+                "POST", "/v1/admin/suppressions", "ADMIN.NOTIFICATION_OPERATIONS:VIEW"))
+                .getStatus()).isEqualTo(403);
+        assertThat(execute(request(
+                "POST", "/v1/admin/suppressions", "ADMIN.NOTIFICATION_OPERATIONS:MANAGE"))
+                .getStatus()).isEqualTo(200);
+        assertThat(execute(request(
+                "POST", "/v1/admin/suppressions/id/revoke", "ADMIN.NOTIFICATION_OPERATIONS:VIEW"))
+                .getStatus()).isEqualTo(403);
+        assertThat(execute(request(
+                "POST", "/v1/admin/suppressions/id/revoke", "ADMIN.NOTIFICATION_OPERATIONS:MANAGE"))
+                .getStatus()).isEqualTo(200);
         assertThat(execute(request(
                 "GET", "/v1/admin/audit", "ADMIN.NOTIFICATION_AUDIT:VIEW"))
                 .getStatus()).isEqualTo(200);

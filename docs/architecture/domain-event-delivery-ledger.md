@@ -72,11 +72,13 @@ The internal ledger, envelope, strict registry, relay, consumer factory, dedupe,
 retry, dead-letter, and replay persistence contracts are implemented. Product services do
 not yet emit synthetic events merely to claim integration coverage.
 
-Decision `D-07` is resolved for the transport foundation: Kafka, aggregate-stable partitioning,
-AsyncAPI schema ownership, idempotent producer settings, and outbox acknowledgement semantics.
-Each real producer and consumer still requires a versioned schema registration, retention and
-data-classification review, replay/DLQ owner, and failure drill. Until a service completes that
-onboarding, `dwp.events.transport-enabled` remains `false` for that service.
+The transport foundation is implemented: Kafka, aggregate-stable partitioning, AsyncAPI schema
+ownership, idempotent producer settings, and outbox acknowledgement semantics. This does not
+close the customer and service onboarding decision. Its current status and closure evidence are
+tracked only as [`D-07`](../delivery/customer-policy-and-release-gate-register.md) in the
+[Customer Policy and Release Gate Register](../delivery/customer-policy-and-release-gate-register.md).
+Until a service satisfies that registered decision, `dwp.events.transport-enabled` remains
+`false` for that service.
 
 The local broker and versioned topic can be provisioned with
 `docker compose --profile events up -d kafka kafka-init`. Topic auto-creation stays disabled so

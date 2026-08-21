@@ -17,6 +17,7 @@
 | [Service Interface Boundary and Gateway Policy](architecture/service-interface-boundary-and-gateway-policy.md) | Architecture Decision Record | Accepted, Gateway/API/Internal 예외 중앙 정책          | `scripts/check-service-boundaries.py`, Frontend `check-api-boundaries.mjs` |
 | [Notification Platform Backend Boundary](architecture/notification-platform-boundary.md)                       | Architecture Decision Record | In-app foundation pilot 구현, 외부 채널·운영 Gate 대기 | Notification Service, Migration, Security·Realtime·Integration Test        |
 | [Cryptographic Key and Secret Management](architecture/cryptographic-key-and-secret-management-policy.md)      | Architecture Decision Record | Accepted policy, `R3-02-KMS` 구현·외부 KMS Gate 대기   | Agent Keyring, S3 SSE-KMS, Production Readiness와 Release Evidence         |
+| [Customer Policy and Release Gate Register](delivery/customer-policy-and-release-gate-register.md)             | Delivery policy register     | Active SSOT, 고객·환경별 Gate와 미종결 TODO 통합 관리  | Auth·Agent Gate 계약, 외부 고객 결정과 승인 Evidence                       |
 
 ## Maintenance Rules
 
@@ -28,3 +29,6 @@
   `Planned`, 구현이 일부인 항목은 `Partial` 또는 `Gap`으로 표시합니다.
 - 운영 비밀값, 실제 고객 데이터, 사용자별 IDE 상태 파일은 문서에 포함하지 않습니다.
   소스에 공개된 로컬 개발 기본값만 실행 가이드에 기록할 수 있습니다.
+- 고객·외부 환경 결정과 미종결 TODO는
+  [Customer Policy and Release Gate Register](delivery/customer-policy-and-release-gate-register.md)에만
+  정의합니다. 다른 문서는 해당 ID와 링크만 유지합니다.

@@ -36,7 +36,7 @@ class AuditControlServiceTest {
             "dwp-platform-server");
 
     @Test
-    void defaultServiceRegistryAcceptsApprovalAuditEvents() {
+    void defaultServiceRegistryAcceptsNotificationAuditEvents() {
         AuditControlService defaultRegistry = new AuditControlService(
                 repository,
                 new AuditRiskEngine(),
@@ -47,12 +47,12 @@ class AuditControlServiceTest {
         AuditEvent event = AuditEvent.builder()
                 .tenantId(1L)
                 .category("SYSTEM_EVENT")
-                .action("approval.request.submitted")
-                .sourceService("dwp-approval-server")
-                .targetType("APPROVAL_REQUEST")
+                .action("notification.preference.profile.updated")
+                .sourceService("dwp-notification-server")
+                .targetType("NOTIFICATION_DELIVERY_PROFILE")
                 .targetId(UUID.randomUUID().toString())
                 .build();
-        int accepted = defaultRegistry.ingest("dwp-approval-server", List.of(event));
+        int accepted = defaultRegistry.ingest("dwp-notification-server", List.of(event));
 
         assertThat(accepted).isZero();
     }

@@ -27,12 +27,15 @@ public class NotificationMaterializationRepository {
 
     private final NamedParameterJdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
+    private final NotificationDeliveryAdmissionService admissionService;
 
     public NotificationMaterializationRepository(
             NamedParameterJdbcTemplate jdbc,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            NotificationDeliveryAdmissionService admissionService) {
         this.jdbc = jdbc;
         this.objectMapper = objectMapper;
+        this.admissionService = admissionService;
     }
 
     public TemplateContract contract(
@@ -46,20 +49,48 @@ public class NotificationMaterializationRepository {
                        COALESCE(type_version.tenant_id, 0) AS type_scope_tenant_id,
                        template.template_version_id,
                        COALESCE(template.tenant_id, 0) AS template_scope_tenant_id,
+                       tenant_template.template_revision_id AS template_override_revision_id,
                        type.type_key,
                        type.owner_app_key,
                        type_version.priority,
                        type_version.urgency,
                        template.locale,
-                       template.title_template,
-                       template.preview_template,
-                       template.body_template,
-                       template.action_payload::text AS action_payload
+                       COALESCE(tenant_template.title_template, template.title_template)
+                           AS title_template,
+                       COALESCE(tenant_template.preview_template, template.preview_template)
+                           AS preview_template,
+                       COALESCE(tenant_template.body_template, template.body_template)
+                           AS body_template,
+                       CASE
+                           WHEN tenant_template.template_revision_id IS NULL
+                               THEN template.action_payload
+                           ELSE jsonb_set(
+                               template.action_payload,
+                               '{label}',
+                               to_jsonb(tenant_template.action_label),
+                               TRUE)
+                       END::text AS action_payload
                   FROM ntf_notification_types type
                   JOIN ntf_notification_type_versions type_version
                     ON type_version.type_id = type.type_id
                   JOIN ntf_template_versions template
                     ON template.type_version_id = type_version.type_version_id
+                  LEFT JOIN LATERAL (
+                      SELECT tenant_revision.template_revision_id,
+                             tenant_revision.title_template,
+                             tenant_revision.preview_template,
+                             tenant_revision.body_template,
+                             tenant_revision.action_label,
+                             tenant_revision.revision
+                        FROM ntf_tenant_template_revisions tenant_revision
+                       WHERE tenant_revision.tenant_id = :tenantId
+                         AND tenant_revision.type_version_id = type_version.type_version_id
+                         AND tenant_revision.channel = template.channel
+                         AND tenant_revision.locale = template.locale
+                         AND tenant_revision.state = 'PUBLISHED'
+                       ORDER BY tenant_revision.revision DESC
+                       LIMIT 1
+                  ) tenant_template ON TRUE
                  WHERE type.type_key = :typeKey
                    AND type.lifecycle_state = 'ACTIVE'
                    AND type_version.lifecycle_state = 'ACTIVE'
@@ -72,7 +103,9 @@ public class NotificationMaterializationRepository {
                    AND (type.tenant_id IS NULL OR type.tenant_id = :tenantId)
                  ORDER BY (type.tenant_id IS NOT NULL) DESC,
                           (template.locale = :locale) DESC,
+                          (tenant_template.template_revision_id IS NOT NULL) DESC,
                           type_version.version DESC,
+                          tenant_template.revision DESC NULLS LAST,
                           template.version DESC
                  LIMIT 1
                 """, new MapSqlParameterSource()
@@ -86,6 +119,7 @@ public class NotificationMaterializationRepository {
                         resultSet.getLong("type_scope_tenant_id"),
                         resultSet.getObject("template_version_id", UUID.class),
                         resultSet.getLong("template_scope_tenant_id"),
+                        resultSet.getObject("template_override_revision_id", UUID.class),
                         resultSet.getString("type_key"),
                         resultSet.getString("owner_app_key"),
                         resultSet.getString("priority"),
@@ -176,6 +210,8 @@ public class NotificationMaterializationRepository {
                     request.reasonCode())) {
                 continue;
             }
+            if (!admissionService.admittedRecipient(
+                    tenantId, recipientUserId, request, contract, Instant.now())) continue;
             long changeVersion = materializeRecipient(
                     tenantId,
                     recipientUserId,
@@ -255,7 +291,7 @@ public class NotificationMaterializationRepository {
                        AND rule.type_key = :typeKey
                      LIMIT 1
                 ), user_profile AS (
-                    SELECT default_channels ? 'IN_APP' AS channel_enabled
+                    SELECT jsonb_exists(default_channels, 'IN_APP') AS channel_enabled
                       FROM ntf_user_delivery_profiles
                      WHERE tenant_id = :tenantId AND user_id = :userId
                 )
@@ -470,12 +506,14 @@ public class NotificationMaterializationRepository {
                     tenant_id, user_id, notification_id, reason_code,
                     effective_priority, action_required, due_at, locale,
                     in_app_template_version_id, template_scope_tenant_id,
+                    template_override_revision_id,
                     safe_title, safe_preview,
                     search_text, inbox_state, last_activity_at, change_version)
                 VALUES (
                     :tenantId, :userId, :notificationId, :reasonCode,
                     :priority, :actionRequired, :dueAt, :locale,
-                    :templateVersionId, :templateScopeTenantId, :safeTitle, :safePreview,
+                    :templateVersionId, :templateScopeTenantId, :templateOverrideRevisionId,
+                    :safeTitle, :safePreview,
                     :searchText, 'ACTIVE', :occurredAt, :changeVersion)
                 ON CONFLICT (tenant_id, user_id, notification_id)
                 DO UPDATE SET
@@ -485,6 +523,7 @@ public class NotificationMaterializationRepository {
                     due_at = EXCLUDED.due_at,
                     locale = EXCLUDED.locale,
                     in_app_template_version_id = EXCLUDED.in_app_template_version_id,
+                    template_override_revision_id = EXCLUDED.template_override_revision_id,
                     safe_title = EXCLUDED.safe_title,
                     safe_preview = EXCLUDED.safe_preview,
                     search_text = EXCLUDED.search_text,
@@ -505,6 +544,7 @@ public class NotificationMaterializationRepository {
                 .addValue("locale", contract.locale())
                 .addValue("templateVersionId", contract.templateVersionId())
                 .addValue("templateScopeTenantId", contract.templateScopeTenantId())
+                .addValue("templateOverrideRevisionId", contract.templateOverrideRevisionId())
                 .addValue("safeTitle", content.title())
                 .addValue("safePreview", content.preview())
                 .addValue("searchText", content.title() + " " + content.preview())
@@ -600,6 +640,7 @@ public class NotificationMaterializationRepository {
             long typeScopeTenantId,
             UUID templateVersionId,
             long templateScopeTenantId,
+            UUID templateOverrideRevisionId,
             String typeKey,
             String ownerAppKey,
             String priority,

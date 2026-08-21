@@ -30,6 +30,9 @@ dependencies {
     implementation 'org.flywaydb:flyway-database-postgresql'
     runtimeOnly 'org.postgresql:postgresql'
 
+    implementation project(':dwp-core')
+    implementation project(':dwp-audit')
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
 

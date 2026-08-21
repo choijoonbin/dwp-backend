@@ -180,10 +180,16 @@ public final class NotificationModels {
             @Min(1) @Max(7) Integer dayOfWeek) {
     }
 
+    public record Presentation(
+            @NotBlank @Pattern(regexp = "SMART|HIGH_PRIORITY_ONLY|OFF") String bannerMode,
+            @NotBlank @Pattern(regexp = "FULL|TITLE_ONLY|HIDDEN") String previewMode) {
+    }
+
     public record DeliveryProfile(
             @NotNull Map<@Pattern(regexp = "IN_APP|EMAIL|WEB_PUSH|MOBILE_PUSH|TEAMS|SLACK") String, Boolean> channels,
             @NotNull @Valid QuietHours quietHours,
             @NotNull @Valid Digest digest,
+            @NotNull @Valid Presentation presentation,
             String version,
             Instant updatedAt) {
     }
@@ -192,6 +198,7 @@ public final class NotificationModels {
             @NotNull Map<@Pattern(regexp = "IN_APP|EMAIL|WEB_PUSH|MOBILE_PUSH|TEAMS|SLACK") String, Boolean> channels,
             @NotNull @Valid QuietHours quietHours,
             @NotNull @Valid Digest digest,
+            @NotNull @Valid Presentation presentation,
             @NotBlank
             @JsonDeserialize(using = DecimalVersionStringDeserializer.class)
             String version,
@@ -239,6 +246,8 @@ public final class NotificationModels {
             String description,
             ManagedValue<String> mode,
             Map<String, ManagedValue<Boolean>> channels,
+            boolean mandatory,
+            boolean quietHoursBypass,
             UUID ruleId,
             String ruleVersion) {
     }
@@ -358,6 +367,69 @@ public final class NotificationModels {
             long deadLetterQueue,
             long unknownOutcomes,
             List<OperationalFinding> findings) {
+    }
+
+    public record PolicyChannelRule(
+            @NotBlank
+            @Pattern(regexp = "IN_APP|EMAIL|WEB_PUSH|MOBILE_PUSH|TEAMS|SLACK")
+            String channel,
+            boolean enabled,
+            @NotBlank @Pattern(regexp = "IMMEDIATE|DIGEST|MUTED") String defaultMode,
+            boolean userOverridable,
+            @Min(1) @Max(10000) Integer maxPerWindow) {
+    }
+
+    public record TenantPolicyChangeRequest(
+            @NotBlank @Pattern(regexp = "APP|TYPE") String scopeType,
+            @NotBlank @Size(max = 200) String scopeKey,
+            boolean mandatory,
+            boolean quietHoursBypass,
+            @NotBlank @Pattern(regexp = "IMMEDIATE|DAILY|WEEKLY") String digestMode,
+            @NotEmpty @Size(max = 6) List<@NotNull @Valid PolicyChannelRule> channels,
+            @NotBlank @Size(min = 10, max = 500) String changeReason,
+            @NotBlank
+            @JsonDeserialize(using = DecimalVersionStringDeserializer.class)
+            String expectedVersion) {
+    }
+
+    public record TenantPolicy(
+            UUID policyId,
+            String scopeType,
+            String scopeKey,
+            String scopeLabel,
+            String source,
+            String state,
+            boolean mandatory,
+            boolean quietHoursBypass,
+            String digestMode,
+            List<PolicyChannelRule> channels,
+            String changeReason,
+            Long createdBy,
+            Long approvedBy,
+            Instant approvedAt,
+            String version,
+            Instant createdAt) {
+    }
+
+    public record TenantPolicyPage(
+            List<TenantPolicy> effectivePolicies,
+            List<TenantPolicy> drafts,
+            Instant generatedAt) {
+    }
+
+    public record TenantPolicyPreview(
+            TenantPolicy currentPolicy,
+            TenantPolicy proposedPolicy,
+            long affectedTypeCount,
+            long observedRecipients30Days,
+            List<String> riskFlags) {
+    }
+
+    public record PolicyPublishRequest(
+            @NotBlank
+            @JsonDeserialize(using = DecimalVersionStringDeserializer.class)
+            String expectedVersion,
+            @NotBlank @Size(min = 10, max = 500) String approvalReason) {
     }
 
     public record DirectMaterializationRequest(

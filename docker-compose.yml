@@ -110,6 +110,10 @@ services:
         --partitions 12 --replication-factor 1 --config cleanup.policy=delete
         --config min.insync.replicas=1 &&
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092
+        --create --if-not-exists --topic dwp.domain-events.v1.DLT
+        --partitions 12 --replication-factor 1 --config cleanup.policy=delete
+        --config min.insync.replicas=1 &&
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092
         --create --if-not-exists --topic dwp.notification-delivery-critical.v1
         --partitions 6 --replication-factor 1 --config cleanup.policy=delete
         --config min.insync.replicas=1 &&

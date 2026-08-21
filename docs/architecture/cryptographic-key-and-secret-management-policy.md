@@ -164,32 +164,12 @@ same immutable-retention policy as other security evidence.
 | Production readiness | Production secret and unsafe-default checks exist | `dev` and `qa` provider/profile policy and common key probes are absent. |
 | Restricted fields and exports | Fail-closed or disabled behind delivery gates | Envelope encryption, object storage and migration workers remain planned. |
 
-## 9. `R3-02-KMS` implementation TODO
+## 9. Implementation tracking
 
-The following work is intentionally tracked and must not be reported as complete until its evidence
-exists:
-
-1. Define a small `KeyProvider` port for encrypt data key, decrypt data key, sign or MAC where
-   applicable, health probe and key metadata. Do not expose raw master keys.
-2. Preserve the current `scripts/devctl.py` plaintext local defaults and implement `local-inline` and
-   `local-file` adapters for Backend and Agent. Allow values from the supervisor, ignored
-   `application-local.yml` and `.env.local` only when the effective environment is `local`; support
-   `.dev-runtime/keys/` for file material and versioned read compatibility.
-3. Implement the selected managed KMS/HSM and Secret Manager adapters after the deployment provider
-   is approved. Use workload identity and least-privilege key policy.
-4. Add typed configuration and startup guards for `local`, `dev`, `qa` and `prod`; permit explicit
-   local plaintext configuration but reject profile mismatch, plaintext keys and local fallback
-   outside `local`.
-5. Migrate Agent payload, Productivity connector and future restricted-field encryption to the common
-   contract while preserving versioned decryption and AAD compatibility.
-6. Persist only encryption metadata and wrapped data keys. Add resumable rewrap or re-encryption jobs,
-   rotation status and dependency checks before retirement.
-7. Add unit, integration and fault-injection tests for wrong tenant or context, missing and retired
-   versions, denial, timeout, throttling, rotation, rollback, regional recovery and key deletion guard.
-8. Add secret scanning, configuration lint and image/package inspection to CI so key-like material and
-   local runtime directories cannot enter source control or build artifacts.
-9. Produce `qa` and `prod` evidence for access separation, rotation, compromise recovery, audit export,
-   RTO/RPO and fail-closed behavior before closing `R3-02`.
+`R3-02-KMS`의 미종결 작업, 고객별 선택안과 종료 증거는
+[Customer Policy and Release Gate Register](../delivery/customer-policy-and-release-gate-register.md)의
+`G-01`, `G-11`, `G-12`, `G-13`에서만 관리한다. 이 ADR은 Key Provider 경계와 금지 규칙을
+정의하며 별도 TODO 상태를 유지하지 않는다.
 
 ## 10. References
 

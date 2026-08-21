@@ -5,6 +5,7 @@ import com.dwp.services.notification.domain.NotificationMaterializationRepositor
 import com.dwp.services.notification.domain.NotificationMaterializationRepository.TemplateContract;
 import com.dwp.services.notification.domain.NotificationModels.DirectMaterializationRequest;
 import com.dwp.services.notification.domain.NotificationModels.MaterializationResult;
+import com.dwp.services.notification.operations.NotificationRetentionService;
 import com.dwp.services.notification.realtime.NotificationChangePublisher;
 import com.dwp.services.notification.security.NotificationDatabaseScope;
 import com.dwp.services.notification.security.NotificationRequestContext;
@@ -33,16 +34,19 @@ public class DirectNotificationMaterializer {
 
     private final NotificationDatabaseScope databaseScope;
     private final NotificationMaterializationRepository repository;
+    private final NotificationRetentionService retentionService;
     private final NotificationChangePublisher changePublisher;
     private final ObjectMapper objectMapper;
 
     public DirectNotificationMaterializer(
             NotificationDatabaseScope databaseScope,
             NotificationMaterializationRepository repository,
+            NotificationRetentionService retentionService,
             NotificationChangePublisher changePublisher,
             ObjectMapper objectMapper) {
         this.databaseScope = databaseScope;
         this.repository = repository;
+        this.retentionService = retentionService;
         this.changePublisher = changePublisher;
         this.objectMapper = objectMapper;
     }
@@ -76,8 +80,9 @@ public class DirectNotificationMaterializer {
                 sanitizedRequest.sourceEventType(),
                 sanitizedRequest.sourceSchemaVersion(),
                 sanitizedRequest.locale());
-        RenderedContent content = render(contract, variables);
         String payloadHash = payloadHash(sanitizedRequest);
+        java.time.Instant admittedAt = java.time.Instant.now();
+        RenderedContent content = render(contract, variables);
         PersistenceResult result = repository.materialize(
                 actor.tenantId(),
                 sanitizedRequest,
@@ -85,6 +90,10 @@ public class DirectNotificationMaterializer {
                 content,
                 payloadHash,
                 correlationId);
+        if (!result.result().duplicate()) {
+            retentionService.applyDefaultExpiry(
+                    actor.tenantId(), result.result().notificationId(), admittedAt);
+        }
         changePublisher.publishAfterCommit(result.signals());
         return result.result();
     }
