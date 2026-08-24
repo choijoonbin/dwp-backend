@@ -3,6 +3,7 @@ package com.dwp.services.platform.servicecenter;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.audit.PlatformAuditService;
+import com.dwp.services.platform.security.PlatformRoutePredicateEvaluator;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -25,23 +26,17 @@ public class ServiceCenterService {
 
     private static final Set<RequestStatus> USER_CANCELLABLE =
             Set.of(RequestStatus.DRAFT, RequestStatus.SUBMITTED, RequestStatus.TRIAGED);
-    private static final Map<RequestStatus, Set<RequestStatus>> OPERATOR_TRANSITIONS = Map.of(
-            RequestStatus.SUBMITTED, Set.of(RequestStatus.TRIAGED, RequestStatus.IN_PROGRESS,
-                    RequestStatus.CANCELLED),
-            RequestStatus.TRIAGED, Set.of(RequestStatus.IN_PROGRESS,
-                    RequestStatus.AWAITING_REQUESTER, RequestStatus.CANCELLED),
-            RequestStatus.IN_PROGRESS, Set.of(RequestStatus.AWAITING_REQUESTER,
-                    RequestStatus.RESOLVED, RequestStatus.CANCELLED),
-            RequestStatus.AWAITING_REQUESTER, Set.of(RequestStatus.IN_PROGRESS,
-                    RequestStatus.RESOLVED, RequestStatus.CANCELLED),
-            RequestStatus.RESOLVED, Set.of(RequestStatus.IN_PROGRESS, RequestStatus.CLOSED));
-
     private final ServiceCenterRepository repository;
     private final PlatformAuditService audit;
+    private final PlatformRoutePredicateEvaluator predicateEvaluator;
 
-    public ServiceCenterService(ServiceCenterRepository repository, PlatformAuditService audit) {
+    public ServiceCenterService(
+            ServiceCenterRepository repository,
+            PlatformAuditService audit,
+            PlatformRoutePredicateEvaluator predicateEvaluator) {
         this.repository = repository;
         this.audit = audit;
+        this.predicateEvaluator = predicateEvaluator;
     }
 
     @Transactional(readOnly = true)
@@ -70,6 +65,7 @@ public class ServiceCenterService {
 
     @Transactional(readOnly = true)
     public ServiceCenterDtos.RequestDetail myRequest(Long tenantId, Long userId, UUID requestId) {
+        predicateEvaluator.requireOwnServiceRequest(tenantId, userId, requestId, null);
         ServiceCenterRepository.RequestRecord request = requireRequest(tenantId, requestId);
         if (!request.requesterUserId().equals(userId)) throw forbidden();
         return detail(tenantId, request);
@@ -114,6 +110,8 @@ public class ServiceCenterService {
             String correlationId,
             UUID requestId,
             ServiceCenterDtos.UpdateDraftRequest request) {
+        predicateEvaluator.requireOwnServiceRequest(
+                tenantId, userId, requestId, request.version());
         ServiceCenterRepository.RequestRecord current = requireRequest(tenantId, requestId);
         if (!current.requesterUserId().equals(userId)) throw forbidden();
         if (current.status() != RequestStatus.DRAFT) throw conflict("Only a draft can be edited.");
@@ -158,6 +156,8 @@ public class ServiceCenterService {
             String correlationId,
             UUID requestId,
             ServiceCenterDtos.VersionRequest request) {
+        predicateEvaluator.requireOwnServiceRequest(
+                tenantId, userId, requestId, request.version());
         ServiceCenterRepository.RequestRecord current = requireRequest(tenantId, requestId);
         if (!current.requesterUserId().equals(userId)) throw forbidden();
         if (current.status() != RequestStatus.DRAFT) throw conflict("Only a draft can be submitted.");
@@ -185,6 +185,8 @@ public class ServiceCenterService {
             String correlationId,
             UUID requestId,
             ServiceCenterDtos.VersionRequest request) {
+        predicateEvaluator.requireOwnServiceRequest(
+                tenantId, userId, requestId, request.version());
         ServiceCenterRepository.RequestRecord current = requireRequest(tenantId, requestId);
         if (!current.requesterUserId().equals(userId)) throw forbidden();
         if (!USER_CANCELLABLE.contains(current.status())) {
@@ -232,6 +234,8 @@ public class ServiceCenterService {
                     Map.of("lifecycleState", request.lifecycleState().name()));
         } else {
             if (request.version() == null) throw invalid("A version is required for an update.");
+            predicateEvaluator.requireCatalogObjectVersion(
+                    tenantId, request.serviceKey(), request.version());
             if (repository.updateDefinition(tenantId, actorId, record) != 1) {
                 throw conflict("The service definition changed. Refresh and retry.");
             }
@@ -265,11 +269,9 @@ public class ServiceCenterService {
             String correlationId,
             UUID requestId,
             ServiceCenterDtos.TransitionRequest request) {
+        predicateEvaluator.requireAssignedServiceRequestTransition(
+                tenantId, actorId, requestId, request.targetStatus(), request.version());
         ServiceCenterRepository.RequestRecord current = requireOperationalRequest(tenantId, requestId);
-        if (!OPERATOR_TRANSITIONS.getOrDefault(current.status(), Set.of())
-                .contains(request.targetStatus())) {
-            throw conflict("The requested service status transition is not allowed.");
-        }
         if (repository.changeStatus(
                 tenantId, actorId, requestId, request.targetStatus(), trimToNull(request.assignedTo()),
                 null, null, request.version()) != 1) {

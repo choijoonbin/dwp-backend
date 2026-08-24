@@ -316,6 +316,33 @@
         },
         "type": "object"
       },
+      "ApiResponseFeatureRolloutInternalEvaluation": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FeatureRolloutInternalEvaluation"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseJsonNode": {
         "properties": {
           "correlationId": {
@@ -2449,6 +2476,49 @@
             "type": "integer"
           }
         },
+        "type": "object"
+      },
+      "FeatureRolloutInternalEvaluation": {
+        "properties": {
+          "cohort": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "evaluatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "flagKey": {
+            "type": "string"
+          },
+          "opaqueRevision": {
+            "type": "string"
+          },
+          "reasonCode": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "FeatureRolloutInternalEvaluationRequest": {
+        "properties": {
+          "authTenantId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "flagKey": {
+            "maxLength": 160,
+            "minLength": 0,
+            "pattern": "^(access|ux)\\.product-surfaces\\.[a-z0-9.-]+\\.v1$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "authTenantId",
+          "flagKey"
+        ],
         "type": "object"
       },
       "Finding": {
@@ -4809,6 +4879,36 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/internal/provider/v1/feature-rollouts/evaluate": {
+      "post": {
+        "operationId": "evaluateProductSurfaceFeatureRolloutInternal",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeatureRolloutInternalEvaluationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseFeatureRolloutInternalEvaluation"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "feature-rollout-internal-evaluation-controller"
+        ]
+      }
+    },
     "/v1/admin/audit-events": {
       "get": {
         "operationId": "auditEvents",

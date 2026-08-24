@@ -54,6 +54,8 @@ class SupportSessionContextFilterTest {
                 SupportSessionContextFilter.SUPPORT_SESSION_HEADER)).isEqualTo("session-1");
         assertThat(forwarded.get().getHeaders().getFirst(
                 SupportSessionContextFilter.ACTOR_TENANT_HEADER)).isEqualTo("3");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                SupportSessionContextFilter.SUPPORT_REVISION_HEADER)).isEqualTo("support-v0");
         assertThat(forwarded.get().getHeaders().getFirst("Cookie"))
                 .contains("DWP_SESSION=browser-session")
                 .doesNotContain("DWP_SUPPORT_SESSION");
@@ -96,5 +98,42 @@ class SupportSessionContextFilterTest {
                 SupportSessionContextFilter.SUPPORT_SESSION_HEADER)).isFalse();
         assertThat(forwarded.get().getHeaders().containsKey(
                 SupportSessionContextFilter.SUPPORT_SCOPES_HEADER)).isFalse();
+    }
+
+    @Test
+    void resolvesSupportModeBeforeAProductSurfaceEvaluation() {
+        AtomicReference<String> verifiedPath = new AtomicReference<>();
+        SupportSessionContextFilter filter = new SupportSessionContextFilter((request, token) -> {
+            verifiedPath.set(request.getURI().getPath());
+            return Mono.just(new VerifiedSupportAccess(
+                    "session-2",
+                    "provider-tenant-1",
+                    "42",
+                    "acme",
+                    "Acme",
+                    List.of("WORKFORCE_READ"),
+                    "STANDARD",
+                    Instant.now().plusSeconds(600),
+                    9));
+        });
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
+                .post("/api/auth/product-surface-access/evaluate")
+                .header(VerifiedIdentityFilter.USER_HEADER, "17")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "3")
+                .cookie(new HttpCookie(SupportSessionContextFilter.SUPPORT_COOKIE, "support-secret"))
+                .build());
+        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                new AtomicReference<>();
+
+        filter.filter(exchange, filteredExchange -> {
+            forwarded.set(filteredExchange.getRequest());
+            return Mono.empty();
+        }).block();
+
+        assertThat(verifiedPath).hasValue("/api/auth/product-surface-access/evaluate");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                SupportSessionContextFilter.SUPPORT_SESSION_HEADER)).isEqualTo("session-2");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                SupportSessionContextFilter.SUPPORT_REVISION_HEADER)).isEqualTo("support-v9");
     }
 }

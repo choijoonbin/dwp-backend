@@ -10,8 +10,11 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -47,6 +50,21 @@ public class AuthSession extends BaseEntity {
 
     @Column(name = "issued_at", nullable = false)
     private Instant issuedAt;
+
+    @Builder.Default
+    @Column(name = "authentication_method", nullable = false, length = 32)
+    private String authenticationMethod = "LEGACY";
+
+    @Column(name = "authenticated_at")
+    private Instant authenticatedAt;
+
+    @Column(name = "assurance_acr", length = 200)
+    private String assuranceAcr;
+
+    @Builder.Default
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "assurance_amr", nullable = false, columnDefinition = "jsonb")
+    private List<String> assuranceAmr = List.of();
 
     @Column(name = "last_seen_at", nullable = false)
     private Instant lastSeenAt;

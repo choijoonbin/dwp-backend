@@ -3,6 +3,8 @@ package com.dwp.gateway.filter;
 import com.dwp.gateway.security.ProviderSupportSessionVerifier.SupportValidationUnavailableException;
 import com.dwp.gateway.security.SupportSessionVerifier;
 import com.dwp.gateway.security.VerifiedSupportAccess;
+import com.dwp.gateway.productsurface.GeneratedProductRouteCatalog;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -24,11 +26,13 @@ public class SupportSessionContextFilter implements GlobalFilter, Ordered {
     public static final String SUPPORT_COOKIE = "DWP_SUPPORT_SESSION";
     public static final String SUPPORT_SESSION_HEADER = "X-DWP-Support-Session-ID";
     public static final String SUPPORT_SCOPES_HEADER = "X-DWP-Support-Scopes";
+    public static final String SUPPORT_REVISION_HEADER = "X-DWP-Support-Revision";
     public static final String PROVIDER_TENANT_HEADER = "X-DWP-Provider-Tenant-ID";
     public static final String ACTOR_TENANT_HEADER = "X-DWP-Actor-Tenant-ID";
     private static final List<String> INTERNAL_HEADERS = List.of(
             SUPPORT_SESSION_HEADER,
             SUPPORT_SCOPES_HEADER,
+            SUPPORT_REVISION_HEADER,
             PROVIDER_TENANT_HEADER,
             ACTOR_TENANT_HEADER,
             "X-DWP-Support-Validation-Token",
@@ -36,9 +40,20 @@ public class SupportSessionContextFilter implements GlobalFilter, Ordered {
             "X-DWP-Support-Resource-Path");
 
     private final SupportSessionVerifier verifier;
+    private final GeneratedProductRouteCatalog routeCatalog;
 
+    @Autowired
+    public SupportSessionContextFilter(
+            SupportSessionVerifier verifier,
+            GeneratedProductRouteCatalog routeCatalog) {
+        this.verifier = verifier;
+        this.routeCatalog = routeCatalog;
+    }
+
+    /** Test-only compatibility constructor for legacy non-PRODUCT filter fixtures. */
     public SupportSessionContextFilter(SupportSessionVerifier verifier) {
         this.verifier = verifier;
+        this.routeCatalog = null;
     }
 
     @Override
@@ -71,7 +86,15 @@ public class SupportSessionContextFilter implements GlobalFilter, Ordered {
     private boolean requiresSupportResolution(ServerHttpRequest request) {
         if (request.getMethod() == HttpMethod.OPTIONS) return false;
         String path = request.getURI().getPath();
-        return path.startsWith("/api/platform/") || path.startsWith("/api/people/");
+        if (routeCatalog != null && routeCatalog.match(
+                request.getMethod() == null ? null : request.getMethod().name(), path,
+                request.getURI().getRawQuery()).status()
+                != GeneratedProductRouteCatalog.MatchStatus.UNGOVERNED) return true;
+        return path.startsWith("/api/platform/")
+                || path.startsWith("/api/people/")
+                || path.equals("/api/auth/product-surface-contexts")
+                || path.equals("/api/auth/product-surface-access/evaluate")
+                || path.equals("/api/auth/governed-route-access/evaluate");
     }
 
     private ServerWebExchange withSupportContext(
@@ -84,6 +107,7 @@ public class SupportSessionContextFilter implements GlobalFilter, Ordered {
                     headers.set(VerifiedIdentityFilter.TENANT_HEADER, access.authTenantId());
                     headers.set(SUPPORT_SESSION_HEADER, access.supportSessionId());
                     headers.set(SUPPORT_SCOPES_HEADER, String.join(",", access.scopes()));
+                    headers.set(SUPPORT_REVISION_HEADER, "support-v" + access.version());
                     headers.set(PROVIDER_TENANT_HEADER, access.providerTenantId());
                     if (actorTenant != null) headers.set(ACTOR_TENANT_HEADER, actorTenant);
                 })

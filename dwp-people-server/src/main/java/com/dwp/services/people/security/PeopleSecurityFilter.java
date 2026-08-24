@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 public class PeopleSecurityFilter extends OncePerRequestFilter {
 
     static final String SERVICE_TOKEN_HEADER = "X-DWP-Service-Token";
+    static final String SERVICE_IDENTITY_HEADER = "X-DWP-Service-Identity";
     static final String USER_HEADER = "X-DWP-User-ID";
     static final String TENANT_HEADER = "X-DWP-Tenant-ID";
     static final String ROLES_HEADER = "X-DWP-Roles";
@@ -36,6 +37,9 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
     static final String SUPPORT_SCOPES_HEADER = "X-DWP-Support-Scopes";
     static final String ACTOR_TENANT_HEADER = "X-DWP-Actor-Tenant-ID";
     static final String PERSON_PUBLIC_ID_HEADER = "X-DWP-Person-Public-ID";
+    private static final String GATEWAY_SERVICE_IDENTITY = "dwp-gateway";
+    private static final String PRODUCT_SURFACE_ELIGIBILITY_PATH =
+            "/internal/people/v1/product-surface-eligibility/evaluate";
     private static final Set<String> ADMIN_ROLES =
             Set.of("ADMIN", "TENANT_ADMIN", "PLATFORM_ADMIN", "HR_ADMIN", "PEOPLE_ADMIN");
     private static final Set<String> WORKFORCE_ROLES =
@@ -75,6 +79,13 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
         if (!constantTimeEquals(serviceToken, request.getHeader(SERVICE_TOKEN_HEADER))) {
             writeError(response, ErrorCode.UNAUTHORIZED,
                     "Trusted people service identity is required.");
+            return;
+        }
+        if (PRODUCT_SURFACE_ELIGIBILITY_PATH.equals(request.getRequestURI())
+                && !GATEWAY_SERVICE_IDENTITY.equals(
+                        request.getHeader(SERVICE_IDENTITY_HEADER))) {
+            writeError(response, ErrorCode.UNAUTHORIZED,
+                    "Trusted gateway service identity is required.");
             return;
         }
 

@@ -101,6 +101,10 @@ dwp:
     provisioning-token: ${DWP_PROVIDER_PROVISIONING_TOKEN:}
     support-validation-token: ${DWP_PROVIDER_SUPPORT_VALIDATION_TOKEN:}
     support-cookie-secure: ${DWP_PROVIDER_SUPPORT_COOKIE_SECURE:true}
+    product-surface-rollout:
+      relay-enabled: ${DWP_PRODUCT_SURFACE_ROLLOUT_RELAY_ENABLED:false}
+      publisher-enabled: ${DWP_PRODUCT_SURFACE_ROLLOUT_PUBLISHER_ENABLED:false}
+      topic: ${DWP_PRODUCT_SURFACE_ROLLOUT_TOPIC:dwp.feature-rollout.decision.changed.v1}
   services:
     auth-url: ${SERVICE_AUTH_URL:http://localhost:8001}
     platform-url: ${SERVICE_PLATFORM_URL:http://localhost:8002}

@@ -3,6 +3,7 @@ package com.dwp.services.platform.announcement;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.audit.PlatformAuditService;
+import com.dwp.services.platform.security.PlatformRoutePredicateEvaluator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -12,7 +13,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -32,12 +32,14 @@ class AnnouncementServiceTest {
     private PlatformAuditService auditService;
     @Mock
     private JdbcTemplate jdbc;
+    @Mock
+    private PlatformRoutePredicateEvaluator predicateEvaluator;
 
     private AnnouncementService service;
 
     @BeforeEach
     void setUp() {
-        service = new AnnouncementService(repository, jdbc, auditService);
+        service = new AnnouncementService(repository, jdbc, auditService, predicateEvaluator);
     }
 
     @Test
@@ -180,8 +182,8 @@ class AnnouncementServiceTest {
                 .lifecycleState(AnnouncementLifecycle.PUBLISHED)
                 .version(3L)
                 .build();
-        when(repository.findByAnnouncementIdAndTenantId(91L, 7L))
-                .thenReturn(Optional.of(published));
+        when(predicateEvaluator.requireAnnouncementObjectVersion(7L, 91L, 3L))
+                .thenReturn(published);
 
         AnnouncementDtos.AnnouncementDefinition definition =
                 new AnnouncementDtos.AnnouncementDefinition(

@@ -3,10 +3,9 @@ package com.dwp.services.platform.communication;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.announcement.Announcement;
-import com.dwp.services.platform.announcement.AnnouncementAudienceType;
 import com.dwp.services.platform.announcement.AnnouncementContentType;
-import com.dwp.services.platform.announcement.AnnouncementLifecycle;
 import com.dwp.services.platform.announcement.AnnouncementRepository;
+import com.dwp.services.platform.security.PlatformRoutePredicateEvaluator;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -33,10 +32,15 @@ public class CommunicationService {
 
     private final AnnouncementRepository repository;
     private final JdbcTemplate jdbc;
+    private final PlatformRoutePredicateEvaluator predicateEvaluator;
 
-    public CommunicationService(AnnouncementRepository repository, JdbcTemplate jdbc) {
+    public CommunicationService(
+            AnnouncementRepository repository,
+            JdbcTemplate jdbc,
+            PlatformRoutePredicateEvaluator predicateEvaluator) {
         this.repository = repository;
         this.jdbc = jdbc;
+        this.predicateEvaluator = predicateEvaluator;
     }
 
     @Transactional(readOnly = true)
@@ -100,7 +104,8 @@ public class CommunicationService {
             String rolesHeader,
             String acceptLanguage,
             Long communicationId) {
-        Announcement announcement = requireVisible(tenantId, rolesHeader, communicationId);
+        Announcement announcement = requireVisibleDetail(
+                tenantId, rolesHeader, communicationId);
         ReaderStateRow state = readerStates(tenantId, userId)
                 .getOrDefault(communicationId, ReaderStateRow.EMPTY);
         LocalizationRow localization = localizations(
@@ -119,7 +124,8 @@ public class CommunicationService {
             String rolesHeader,
             Long communicationId,
             String eventType) {
-        Announcement announcement = requireVisible(tenantId, rolesHeader, communicationId);
+        Announcement announcement = requireReaderAction(
+                tenantId, rolesHeader, communicationId);
         String normalized = eventType == null ? "" : eventType.trim().toUpperCase(Locale.ROOT);
         if ("ACTION".equals(normalized) && announcement.getActionUrl() == null) {
             throw invalid("This communication has no action to record.");
@@ -183,7 +189,8 @@ public class CommunicationService {
             String rolesHeader,
             Long communicationId,
             CommunicationDtos.ReaderPreferenceRequest request) {
-        Announcement announcement = requireVisible(tenantId, rolesHeader, communicationId);
+        Announcement announcement = requireReaderAction(
+                tenantId, rolesHeader, communicationId);
         if (Boolean.TRUE.equals(request.dismissed()) && !Boolean.TRUE.equals(announcement.getDismissible())) {
             throw invalid("This communication cannot be dismissed.");
         }
@@ -212,7 +219,8 @@ public class CommunicationService {
             Long userId,
             String rolesHeader,
             Long communicationId) {
-        Announcement announcement = requireVisible(tenantId, rolesHeader, communicationId);
+        Announcement announcement = requireReaderAction(
+                tenantId, rolesHeader, communicationId);
         if (!Boolean.TRUE.equals(announcement.getAcknowledgementRequired())) {
             throw invalid("This communication does not require acknowledgement.");
         }
@@ -236,7 +244,8 @@ public class CommunicationService {
             String rolesHeader,
             Long communicationId,
             CommunicationDtos.ReactionRequest request) {
-        Announcement announcement = requireVisible(tenantId, rolesHeader, communicationId);
+        Announcement announcement = requireReaderAction(
+                tenantId, rolesHeader, communicationId);
         if (request.reaction() == null) {
             jdbc.update("""
                     DELETE FROM sys_announcement_reactions
@@ -265,22 +274,20 @@ public class CommunicationService {
                 PageRequest.of(0, MAX_VISIBLE_ITEMS));
     }
 
-    private Announcement requireVisible(Long tenantId, String rolesHeader, Long communicationId) {
-        Announcement announcement = repository
-                .findByAnnouncementIdAndTenantId(communicationId, tenantId)
-                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        List<String> roles = parseRoles(rolesHeader);
-        boolean inWindow = (announcement.getStartsAt() == null || !announcement.getStartsAt().isAfter(now))
-                && (announcement.getEndsAt() == null || announcement.getEndsAt().isAfter(now));
-        boolean inAudience = announcement.getAudienceType() == AnnouncementAudienceType.ALL
-                || roles.contains(announcement.getAudienceValue());
-        if (announcement.getLifecycleState() != AnnouncementLifecycle.PUBLISHED
-                || !inWindow
-                || !inAudience) {
-            throw new BaseException(ErrorCode.FORBIDDEN);
-        }
-        return announcement;
+    private Announcement requireVisibleDetail(
+            Long tenantId,
+            String rolesHeader,
+            Long communicationId) {
+        return predicateEvaluator.requireVisibleCommunication(
+                tenantId, rolesHeader, communicationId);
+    }
+
+    private Announcement requireReaderAction(
+            Long tenantId,
+            String rolesHeader,
+            Long communicationId) {
+        return predicateEvaluator.requireCommunicationReaderAction(
+                tenantId, rolesHeader, communicationId);
     }
 
     private Map<Long, ReaderStateRow> readerStates(Long tenantId, Long userId) {

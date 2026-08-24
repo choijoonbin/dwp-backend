@@ -72,6 +72,17 @@ public class ServiceCenterRepository {
                 .stream().findFirst();
     }
 
+    public Optional<DefinitionAuthorizationEvidence> definitionAuthorizationEvidence(
+            Long tenantId, String serviceKey) {
+        return jdbc.query("""
+                SELECT service_key, version
+                  FROM svc_definitions
+                 WHERE tenant_id = ? AND service_key = ?
+                """, (result, ignored) -> new DefinitionAuthorizationEvidence(
+                result.getString("service_key"), result.getLong("version")),
+                tenantId, serviceKey).stream().findFirst();
+    }
+
     void insertDefinition(Long tenantId, Long actorId, DefinitionRecord value) {
         jdbc.update("""
                 INSERT INTO svc_definitions (
@@ -178,6 +189,20 @@ public class ServiceCenterRepository {
                  WHERE tenant_id = ? AND service_request_id = ?
                 """, (result, ignored) -> request(result), tenantId, requestId)
                 .stream().findFirst();
+    }
+
+    public Optional<RequestAuthorizationEvidence> requestAuthorizationEvidence(
+            Long tenantId, UUID requestId) {
+        return jdbc.query("""
+                SELECT service_request_id, requester_user_id, assigned_to, status, version
+                  FROM svc_requests
+                 WHERE tenant_id = ? AND service_request_id = ?
+                """, (result, ignored) -> new RequestAuthorizationEvidence(
+                result.getObject("service_request_id", UUID.class),
+                result.getLong("requester_user_id"),
+                result.getString("assigned_to"),
+                RequestStatus.valueOf(result.getString("status")),
+                result.getLong("version")), tenantId, requestId).stream().findFirst();
     }
 
     Optional<RequestRecord> findOperationalRequest(Long tenantId, UUID requestId) {
@@ -387,6 +412,17 @@ public class ServiceCenterRepository {
             OffsetDateTime submittedAt,
             OffsetDateTime slaDueAt,
             OffsetDateTime updatedAt,
+            long version) {
+    }
+
+    public record DefinitionAuthorizationEvidence(String serviceKey, long version) {
+    }
+
+    public record RequestAuthorizationEvidence(
+            UUID requestId,
+            Long requesterUserId,
+            String assignedTo,
+            RequestStatus status,
             long version) {
     }
 }

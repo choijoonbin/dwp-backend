@@ -24,9 +24,48 @@ tasks.register('checkSourceSize', Exec) {
     commandLine 'python3', 'scripts/check-source-size.py'
 }
 
+tasks.register('productAuthorizationRegistryGenerate', Exec) {
+    group = 'build setup'
+    description = 'Generates deterministic CORE-006 authorization registry artifacts.'
+    workingDir rootDir
+    commandLine 'python3', 'scripts/generate-product-authorization-contracts.py'
+}
+
+tasks.register('productAuthorizationRegistryCheck', Exec) {
+    group = 'verification'
+    description = 'Verifies checked-in CORE-006 authorization registry artifacts.'
+    workingDir rootDir
+    commandLine 'python3', 'scripts/generate-product-authorization-contracts.py', '--check'
+}
+
+tasks.register('approvalProjectionSchemaCheck', Exec) {
+    group = 'verification'
+    description = 'Verifies v2 Approval-gate field-mask schema hashes against raw OpenAPI components.'
+    dependsOn tasks.named('productAuthorizationRegistryCheck')
+    workingDir rootDir
+    commandLine 'python3', 'scripts/check-approval-projection-schemas.py'
+}
+
+tasks.register('pilotFixturesGenerate', Exec) {
+    group = 'build setup'
+    description = 'Generates deterministic CORE-006 pilot authorization fixtures.'
+    workingDir rootDir
+    commandLine 'python3', 'scripts/generate-product-authorization-fixtures.py', '--write'
+}
+
+tasks.register('pilotFixturesCheck', Exec) {
+    group = 'verification'
+    description = 'Verifies checked-in CORE-006 pilot authorization fixtures.'
+    workingDir rootDir
+    commandLine 'python3', 'scripts/generate-product-authorization-fixtures.py', '--check'
+}
+
 tasks.named('check') {
     dependsOn tasks.named('checkServiceBoundaries')
     dependsOn tasks.named('checkSourceSize')
+    dependsOn tasks.named('productAuthorizationRegistryCheck')
+    dependsOn tasks.named('approvalProjectionSchemaCheck')
+    dependsOn tasks.named('pilotFixturesCheck')
 }
 
 subprojects {
@@ -63,5 +102,28 @@ subprojects {
     
     tasks.named('test') {
         useJUnitPlatform()
+    }
+
+    if (name in [
+            'dwp-auth-server',
+            'dwp-gateway',
+            'dwp-platform-server',
+            'dwp-provider-server',
+            'dwp-approval-server',
+            'dwp-people-server']) {
+        tasks.named('processTestResources') {
+            from(rootProject.file(
+                    'contracts/product-authorization/pilot-fixtures.v1.generated.json')) {
+                into 'product-authorization'
+            }
+            from(rootProject.file(
+                    'contracts/product-authorization/'
+                            + 'pilot-test-registry-overrides.v1.generated.json')) {
+                into 'product-authorization'
+            }
+        }
+        tasks.named('test') {
+            dependsOn rootProject.tasks.named('pilotFixturesCheck')
+        }
     }
 }

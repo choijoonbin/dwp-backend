@@ -11,13 +11,15 @@ final class ApprovalCommandSql01 {
             workflow_version_id, form_version_id, title, summary,
             requester_user_id, requester_person_public_id,
             requester_name,
-            status, priority, data_classification, created_by, updated_by)
+            status, priority, data_classification,
+            management_resource_set_key, created_by, updated_by)
         VALUES (
             :requestId, :tenantId, :requestNumber,
             :workflowVersionId, :formVersionId, :title, :summary,
             :userId, :personPublicId,
             :requesterName,
-            'DRAFT', :priority, :classification, :userId, :userId)
+            'DRAFT', :priority, :classification,
+            :managementScope, :userId, :userId)
         """;
 
     static final String APR_REQUESTS_INSERT_APR_REQUEST_PAYLOADS = """
@@ -42,6 +44,7 @@ final class ApprovalCommandSql01 {
          WHERE tenant_id = :tenantId
            AND request_id = :requestId
            AND requester_user_id = :userId
+           AND management_resource_set_key = :managementScope
            AND status = 'DRAFT'
            AND version = :expectedVersion
         """;
@@ -231,9 +234,17 @@ final class ApprovalCommandSql01 {
         """;
 
     static final String CREATE_DELEGATION_SELECT_APR_WORKFLOW_DEFINITIONS = """
-        SELECT COUNT(*)::INTEGER
+        SELECT workflow_id, workflow_key
+          FROM apr_workflow_definitions
+         WHERE tenant_id = :tenantId AND workflow_id = :workflowId
+           AND lifecycle_state = 'PUBLISHED'
+        """;
+
+    static final String CREATE_LEGACY_DELEGATION_SELECT_APR_WORKFLOW_DEFINITIONS = """
+        SELECT workflow_id, workflow_key
           FROM apr_workflow_definitions
          WHERE tenant_id = :tenantId AND workflow_key = :workflowKey
+           AND management_resource_set_key = 'RS_APPROVALS'
            AND lifecycle_state = 'PUBLISHED'
         """;
 
@@ -244,7 +255,7 @@ final class ApprovalCommandSql01 {
            AND delegate_user_id = :delegateUserId
            AND lifecycle_state = 'ACTIVE'
            AND scope_type = :scopeType
-           AND COALESCE(workflow_key, '') = COALESCE(:workflowKey, '')
+           AND workflow_id IS NOT DISTINCT FROM :workflowId
            AND starts_at < :endsAt AND ends_at > :startsAt
         """;
 
@@ -253,13 +264,13 @@ final class ApprovalCommandSql01 {
             delegation_id, tenant_id, delegator_user_id, delegate_user_id,
             delegate_person_public_id, delegate_display_name, delegate_email,
             delegated_role_codes,
-            scope_type, workflow_key, starts_at, ends_at,
+            scope_type, workflow_id, workflow_key, starts_at, ends_at,
             lifecycle_state, reason, created_by, updated_by)
         VALUES (
             :id, :tenantId, :userId, :delegateUserId,
             :delegatePersonPublicId, :delegateDisplayName, :delegateEmail,
             CAST(:delegatedRoles AS jsonb),
-            :scopeType, :workflowKey, :startsAt, :endsAt,
+            :scopeType, :workflowId, :workflowKey, :startsAt, :endsAt,
             'ACTIVE', :reason, :userId, :userId)
         """;
 
@@ -276,11 +287,13 @@ final class ApprovalCommandSql01 {
         INSERT INTO apr_form_categories (
             category_id, tenant_id, category_key, parent_category_id,
             name_ko, name_en, description_ko, description_en,
-            icon_key, sort_order, lifecycle_state, created_by, updated_by)
+            icon_key, sort_order, lifecycle_state,
+            management_resource_set_key, created_by, updated_by)
         VALUES (
             :categoryId, :tenantId, :categoryKey, :parentCategoryId,
             :nameKo, :nameEn, :descriptionKo, :descriptionEn,
-            :iconKey, :sortOrder, 'ACTIVE', :userId, :userId)
+            :iconKey, :sortOrder, 'ACTIVE',
+            :managementScope, :userId, :userId)
         """;
 
     static final String UPDATE_FORM_CATEGORY_UPDATE_APR_FORM_CATEGORIES = """
@@ -293,6 +306,7 @@ final class ApprovalCommandSql01 {
                version = version + 1, updated_at = CURRENT_TIMESTAMP,
                updated_by = :userId
          WHERE tenant_id = :tenantId AND category_id = :categoryId
+           AND management_resource_set_key = :managementScope
            AND version = :expectedVersion
         """;
 
@@ -301,11 +315,12 @@ final class ApprovalCommandSql01 {
             form_id, tenant_id, form_key, category_id,
             name_ko, name_en, description_ko, description_en,
             owner_group_ref, form_kind, lifecycle_state,
-            current_version, created_by, updated_by)
+            current_version, management_resource_set_key, created_by, updated_by)
         VALUES (
             :formId, :tenantId, :formKey, :categoryId,
             :nameKo, :nameEn, :descriptionKo, :descriptionEn,
-            :ownerGroupRef, 'REQUEST', 'DRAFT', 1, :userId, :userId)
+            :ownerGroupRef, 'REQUEST', 'DRAFT', 1,
+            :managementScope, :userId, :userId)
         """;
 
     static final String APR_FORMS_INSERT_APR_FORM_VERSIONS = """
@@ -332,6 +347,30 @@ final class ApprovalCommandSql01 {
         SELECT COUNT(*)::INTEGER
           FROM apr_workflow_definitions
          WHERE tenant_id = :tenantId AND workflow_key = :workflowKey
+           AND management_resource_set_key = :managementScope
+        """;
+
+    static final String ENSURE_WORKFLOW_CATEGORY_INSERT_APR_FORM_CATEGORIES = """
+        INSERT INTO apr_form_categories (
+            category_id, tenant_id, category_key, parent_category_id,
+            name_ko, name_en, description_ko, description_en,
+            icon_key, sort_order, lifecycle_state,
+            management_resource_set_key, created_by, updated_by)
+        SELECT gen_random_uuid(), root.tenant_id, root.category_key, NULL,
+               root.name_ko, root.name_en, root.description_ko, root.description_en,
+               root.icon_key, root.sort_order, root.lifecycle_state,
+               :managementScope, :userId, :userId
+          FROM apr_form_categories root
+         WHERE root.tenant_id = :tenantId
+           AND root.management_resource_set_key = 'RS_APPROVALS'
+           AND root.category_key = :category
+           AND NOT EXISTS (
+               SELECT 1
+                 FROM apr_form_categories scoped
+                WHERE scoped.tenant_id = :tenantId
+                  AND scoped.management_resource_set_key = :managementScope
+                  AND scoped.category_key = :category)
+        ON CONFLICT (tenant_id, management_resource_set_key, category_key) DO NOTHING
         """;
 
     static final String COUNT_INSERT_APR_WORKFLOW_DEFINITIONS = """
@@ -339,12 +378,12 @@ final class ApprovalCommandSql01 {
             workflow_id, tenant_id, workflow_key, name_ko, name_en,
             description_ko, description_en, category, data_classification,
             lifecycle_state, current_version, sla_minutes, allow_self_approval,
-            owner_group_ref, created_by, updated_by)
+            owner_group_ref, management_resource_set_key, created_by, updated_by)
         VALUES (
             :workflowId, :tenantId, :workflowKey, :nameKo, :nameEn,
             :descriptionKo, :descriptionEn, :category, :classification,
             'DRAFT', 1, :slaMinutes, FALSE,
-            :ownerGroupRef, :userId, :userId)
+            :ownerGroupRef, :managementScope, :userId, :userId)
         """;
 
     static final String APR_WORKFLOW_DEFINITIONS_INSERT_APR_WORKFLOW_VERSIONS = """
@@ -362,14 +401,16 @@ final class ApprovalCommandSql01 {
         INSERT INTO apr_forms (
             form_id, tenant_id, form_key, category_id, name_ko, name_en,
             description_ko, description_en, owner_group_ref,
-            lifecycle_state, current_version, created_by, updated_by)
+            lifecycle_state, current_version, management_resource_set_key,
+            created_by, updated_by)
         VALUES (
             :formId, :tenantId, :formKey,
             (SELECT category_id FROM apr_form_categories
-              WHERE tenant_id = :tenantId AND category_key = :category),
+              WHERE tenant_id = :tenantId AND category_key = :category
+                AND management_resource_set_key = :managementScope),
             :formNameKo, :formNameEn,
             :descriptionKo, :descriptionEn, :ownerGroupRef,
-            'DRAFT', 1, :userId, :userId)
+            'DRAFT', 1, :managementScope, :userId, :userId)
         """;
 
     static final String APR_FORMS_INSERT_APR_FORM_VERSIONS_2 = """
@@ -401,6 +442,7 @@ final class ApprovalCommandSql01 {
                version = version + 1, updated_at = CURRENT_TIMESTAMP,
                updated_by = :userId
          WHERE tenant_id = :tenantId AND workflow_id = :workflowId
+           AND management_resource_set_key = :managementScope
            AND lifecycle_state = 'DRAFT' AND version = :expectedVersion
         """;
 
@@ -413,7 +455,8 @@ final class ApprovalCommandSql01 {
            AND lifecycle_state = 'DRAFT'
            AND version_number = (
                SELECT current_version FROM apr_workflow_definitions
-                WHERE tenant_id = :tenantId AND workflow_id = :workflowId)
+                WHERE tenant_id = :tenantId AND workflow_id = :workflowId
+                  AND management_resource_set_key = :managementScope)
         """;
 
     static final String UPDATE_FORM_DRAFT_UPDATE_APR_FORMS = """
@@ -425,6 +468,7 @@ final class ApprovalCommandSql01 {
                version = version + 1, updated_at = CURRENT_TIMESTAMP,
                updated_by = :userId
          WHERE tenant_id = :tenantId AND form_id = :formId
+           AND management_resource_set_key = :managementScope
            AND lifecycle_state = 'DRAFT' AND version = :expectedVersion
         """;
 
@@ -436,7 +480,8 @@ final class ApprovalCommandSql01 {
            AND lifecycle_state = 'DRAFT'
            AND version_number = (
                SELECT current_version FROM apr_forms
-                WHERE tenant_id = :tenantId AND form_id = :formId)
+                WHERE tenant_id = :tenantId AND form_id = :formId
+                  AND management_resource_set_key = :managementScope)
         """;
 
     static final String PUBLISH_FORM_UPDATE_APR_FORMS = """
@@ -444,6 +489,7 @@ final class ApprovalCommandSql01 {
            SET lifecycle_state = 'PUBLISHED', version = version + 1,
                updated_at = CURRENT_TIMESTAMP, updated_by = :userId
          WHERE form.tenant_id = :tenantId AND form.form_id = :formId
+           AND form.management_resource_set_key = :managementScope
            AND form.lifecycle_state = 'DRAFT'
            AND form.version = :expectedVersion
            AND COALESCE(form.updated_by, form.created_by, -1) <> :userId
@@ -457,7 +503,8 @@ final class ApprovalCommandSql01 {
                   AND binding.form_id = form.form_id
                   AND binding.binding_type = 'DEFAULT'
                   AND binding.lifecycle_state = 'ACTIVE'
-                  AND workflow.lifecycle_state = 'PUBLISHED')
+                  AND workflow.lifecycle_state = 'PUBLISHED'
+                  AND workflow.management_resource_set_key = :managementScope)
         """;
 
     static final String EXISTS_UPDATE_APR_FORM_VERSIONS = """
@@ -468,13 +515,15 @@ final class ApprovalCommandSql01 {
            AND lifecycle_state = 'DRAFT'
            AND version_number = (
                SELECT current_version FROM apr_forms
-                WHERE tenant_id = :tenantId AND form_id = :formId)
+                WHERE tenant_id = :tenantId AND form_id = :formId
+                  AND management_resource_set_key = :managementScope)
         """;
 
     static final String UPDATE_POLICY_SELECT_APR_POLICY_RULES = """
         SELECT policy_key
-          FROM apr_policy_rules
+         FROM apr_policy_rules
          WHERE tenant_id = :tenantId AND policy_id = :policyId
+           AND management_resource_set_key = :managementScope
         """;
 
     static final String UPDATE_POLICY_UPDATE_APR_POLICY_RULES = """
@@ -489,6 +538,7 @@ final class ApprovalCommandSql01 {
                version = version + 1, updated_at = CURRENT_TIMESTAMP,
                updated_by = :userId
          WHERE tenant_id = :tenantId AND policy_id = :policyId
+           AND management_resource_set_key = :managementScope
            AND version = :expectedVersion
         """;
 
@@ -498,8 +548,9 @@ final class ApprovalCommandSql01 {
                    pending_enforcement_mode, pending_severity,
                    pending_lifecycle_state, pending_rule_payload,
                    pending_change_reason, pending_by, pending_at
-              FROM apr_policy_rules
+             FROM apr_policy_rules
              WHERE tenant_id = :tenantId AND policy_id = :policyId
+               AND management_resource_set_key = :managementScope
                AND version = :expectedVersion
                AND pending_by IS NOT NULL
                AND pending_by <> :userId
@@ -558,8 +609,26 @@ final class ApprovalCommandSql01 {
                manual_retry_count = manual_retry_count + 1,
                last_retried_at = CURRENT_TIMESTAMP,
                last_retried_by = :userId,
+               version = version + 1,
                updated_at = CURRENT_TIMESTAMP
          WHERE tenant_id = :tenantId AND outbox_id = :outboxId
+           AND management_resource_set_key = :managementScope
+           AND version = :expectedVersion
+           AND status IN ('FAILED', 'DEAD')
+        """;
+
+    static final String LEGACY_RETRY_INTEGRATION_DELIVERY_UPDATE_APR_INTEGRATION_OUTBOX = """
+        UPDATE apr_integration_outbox
+           SET status = 'PENDING', attempt_count = 0,
+               available_at = CURRENT_TIMESTAMP,
+               locked_by = NULL, locked_until = NULL,
+               manual_retry_count = manual_retry_count + 1,
+               last_retried_at = CURRENT_TIMESTAMP,
+               last_retried_by = :userId,
+               version = version + 1,
+               updated_at = CURRENT_TIMESTAMP
+         WHERE tenant_id = :tenantId AND outbox_id = :outboxId
+           AND management_resource_set_key = :managementScope
            AND status IN ('FAILED', 'DEAD')
         """;
 
@@ -567,5 +636,6 @@ final class ApprovalCommandSql01 {
         SELECT enforcement_mode, lifecycle_state, rule_payload::text
           FROM apr_policy_rules
          WHERE tenant_id = :tenantId AND policy_key = :policyKey
+           AND management_resource_set_key = :managementScope
         """;
 }

@@ -21,6 +21,23 @@ final class ApprovalCommandPayloadSupport {
         this.objectMapper = objectMapper;
     }
 
+    String json(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalArgumentException("Approval payload could not be serialized.", exception);
+        }
+    }
+
+    Map<String, Object> object(String value, String invalidMessage) {
+        try {
+            return objectMapper.readValue(
+                    value, new TypeReference<Map<String, Object>>() { });
+        } catch (JsonProcessingException exception) {
+            throw new BaseException(ErrorCode.INVALID_STATE, invalidMessage);
+        }
+    }
+
     void validateWorkflowInput(
             String category,
             String classification,

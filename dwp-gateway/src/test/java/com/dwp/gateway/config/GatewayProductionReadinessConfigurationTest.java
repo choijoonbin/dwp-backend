@@ -28,12 +28,33 @@ class GatewayProductionReadinessConfigurationTest {
                 .run(null);
     }
 
+    @Test
+    void rejectsAProductionGatewayWithoutImmediateRolloutInvalidation() {
+        MockEnvironment environment = validProduction()
+                .withProperty(
+                        "dwp.gateway.product-surface-rollout.invalidation-enabled", "false");
+
+        var runner = new GatewayProductionReadinessConfiguration()
+                .gatewayProductionReadinessGuard(environment);
+
+        assertThatIllegalStateException().isThrownBy(() -> runner.run(null))
+                .withMessageContaining(
+                        "dwp.gateway.product-surface-rollout.invalidation-enabled");
+    }
+
     private MockEnvironment validProduction() {
         MockEnvironment environment = new MockEnvironment()
                 .withProperty("DWP_ENVIRONMENT", "production")
                 .withProperty("spring.data.redis.password", secret("redis"))
                 .withProperty("spring.data.redis.ssl.enabled", "true")
+                .withProperty("spring.kafka.bootstrap-servers", "kafka:9092")
+                .withProperty(
+                        "dwp.gateway.product-surface-rollout.invalidation-enabled", "true")
+                .withProperty(
+                        "dwp.gateway.product-surface-rollout.invalidation-topic",
+                        "dwp.feature-rollout.decision.changed.v1")
                 .withProperty("dwp.agent.service-token", secret("agent"))
+                .withProperty("dwp.auth.product-surface-token", secret("product-surface"))
                 .withProperty("dwp.platform.service-token", secret("platform"))
                 .withProperty("dwp.people.service-token", secret("people"))
                 .withProperty("dwp.provider.service-token", secret("provider"))

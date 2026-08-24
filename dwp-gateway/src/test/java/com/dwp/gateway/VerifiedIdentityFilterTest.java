@@ -150,4 +150,34 @@ class VerifiedIdentityFilterTest {
         assertThat(forwarded.get().getHeaders().containsKey(
                 VerifiedIdentityFilter.RESOURCE_ROLES_HEADER)).isFalse();
     }
+
+    @Test
+    void verifiesTheGatewayOwnedAuthContractsAndStepUpIssuer() {
+        for (String path : List.of(
+                "/api/auth/product-surface-contexts",
+                "/api/auth/product-surface-access/evaluate",
+                "/api/auth/governed-route-access/evaluate",
+                "/api/auth/product-surface-step-up-challenges")) {
+            VerifiedIdentityFilter filter = new VerifiedIdentityFilter(ignored ->
+                    Mono.just(new VerifiedIdentity("7", "1", List.of("WORKSPACE_MEMBER"))));
+            MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
+                    .method(path.endsWith("contexts")
+                                    ? org.springframework.http.HttpMethod.GET
+                                    : org.springframework.http.HttpMethod.POST,
+                            path)
+                    .build());
+            AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                    new AtomicReference<>();
+
+            filter.filter(exchange, filteredExchange -> {
+                forwarded.set(filteredExchange.getRequest());
+                return Mono.empty();
+            }).block();
+
+            assertThat(forwarded.get().getHeaders().getFirst(VerifiedIdentityFilter.USER_HEADER))
+                    .isEqualTo("7");
+            assertThat(forwarded.get().getHeaders().getFirst(VerifiedIdentityFilter.TENANT_HEADER))
+                    .isEqualTo("1");
+        }
+    }
 }

@@ -1,5 +1,6 @@
 package com.dwp.services.approval.security;
 
+import com.dwp.core.security.ScopedAuthorityToken;
 import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -22,6 +23,8 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Set;
 import java.util.UUID;
+import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.stream.Collectors;
 
 @Component
@@ -35,23 +38,73 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
     static final String PERMISSIONS_HEADER = "X-DWP-Permissions";
     static final String PERSON_PUBLIC_ID_HEADER = "X-DWP-Person-Public-ID";
     static final String DISPLAY_NAME_HEADER = "X-DWP-Display-Name-B64";
+    static final String RESOURCE_ROLES_HEADER = "X-DWP-Resource-Roles";
+    static final String ROUTE_CONTRACT_HEADER = "X-DWP-Route-Contract-Key";
+    static final String CURRENT_DECISION_REVISION_HEADER = "X-DWP-Current-Decision-Revision";
+    static final String CURRENT_DECISION_REVALIDATE_AT_HEADER =
+            "X-DWP-Current-Revalidate-At";
+    static final String CURRENT_CONTEXT_HEADER = "X-DWP-Context-Key";
+    static final String CURRENT_SCOPE_HEADER = "X-DWP-Context-Scope-Key";
+    static final String EXPECTED_DECISION_REVISION_HEADER =
+            "X-DWP-Expected-Decision-Revision";
+    static final String RESPONSE_DECISION_REVISION_HEADER = "X-DWP-Decision-Revision";
+    static final String ROLLOUT_COHORT_HEADER = "X-DWP-Rollout-Cohort";
+    static final String ROLLOUT_REVISION_HEADER = "X-DWP-Rollout-Revision";
+    static final String ROLLOUT_STATE_HEADER = "X-DWP-Rollout-State";
+    private static final Set<String> ROLLOUT_STATES = Set.of("000", "100", "110", "111");
+    private static final Set<String> ROLLOUT_COHORTS = Set.of(
+            "baseline", "holdout", "full", "eligible-10", "eligible-25",
+            "eligible-50", "eligible-90");
 
     private final String serviceToken;
     private final String runtimeServiceToken;
     private final ObjectMapper objectMapper;
+    private final boolean productAuthorizationV2Enabled;
+    private final ApprovalPilotPepRegistry pilotPepRegistry;
+    private final ApprovalManagementScopeResolver managementScopeResolver;
+    private final ApprovalManagementScopeProvisioner managementScopeProvisioner;
 
     @Autowired
     public ApprovalSecurityFilter(
             @Value("${dwp.approval.service-token:}") String serviceToken,
             @Value("${dwp.approval.runtime-service-token:}") String runtimeServiceToken,
-            ObjectMapper objectMapper) {
+            @Value("${dwp.approval.product-authorization-v2-enabled:false}")
+            boolean productAuthorizationV2Enabled,
+            ObjectMapper objectMapper,
+            ApprovalPilotPepRegistry pilotPepRegistry,
+            ApprovalManagementScopeResolver managementScopeResolver,
+            ApprovalManagementScopeProvisioner managementScopeProvisioner) {
         this.serviceToken = serviceToken == null ? "" : serviceToken.trim();
         this.runtimeServiceToken = runtimeServiceToken == null ? "" : runtimeServiceToken.trim();
         this.objectMapper = objectMapper;
+        this.productAuthorizationV2Enabled = productAuthorizationV2Enabled;
+        this.pilotPepRegistry = pilotPepRegistry;
+        this.managementScopeResolver = managementScopeResolver;
+        this.managementScopeProvisioner = managementScopeProvisioner;
     }
 
     ApprovalSecurityFilter(String serviceToken, ObjectMapper objectMapper) {
-        this(serviceToken, "", objectMapper);
+        this(serviceToken, "", false, objectMapper, new ApprovalPilotPepRegistry(objectMapper),
+                new ApprovalManagementScopeResolver(), null);
+    }
+
+    ApprovalSecurityFilter(
+            String serviceToken,
+            String runtimeServiceToken,
+            ObjectMapper objectMapper) {
+        this(serviceToken, runtimeServiceToken, false,
+                objectMapper, new ApprovalPilotPepRegistry(objectMapper),
+                new ApprovalManagementScopeResolver(), null);
+    }
+
+    ApprovalSecurityFilter(
+            String serviceToken,
+            String runtimeServiceToken,
+            boolean productAuthorizationV2Enabled,
+            ObjectMapper objectMapper) {
+        this(serviceToken, runtimeServiceToken, productAuthorizationV2Enabled,
+                objectMapper, new ApprovalPilotPepRegistry(objectMapper),
+                new ApprovalManagementScopeResolver(), null);
     }
 
     @Override
@@ -67,6 +120,7 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
             HttpServletRequest request,
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
+        clearContexts();
         if (serviceToken.isBlank()) {
             writeError(response, ErrorCode.EXTERNAL_SERVICE_ERROR,
                     "Approval service identity is not configured.");
@@ -83,6 +137,26 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
             return;
         }
 
+        // Runtime reads have a separate least-privilege allowlist and no tenant rollout
+        // authority. The static flag is a readiness latch, never an enforcement selector.
+        boolean exactEnforcement = false;
+        if (gatewayIdentity) {
+            String rolloutState = exactHeader(request, ROLLOUT_STATE_HEADER);
+            String rolloutRevision = exactHeader(request, ROLLOUT_REVISION_HEADER);
+            String rolloutCohort = exactHeader(request, ROLLOUT_COHORT_HEADER);
+            if (!validRolloutEvidence(rolloutState, rolloutRevision, rolloutCohort)) {
+                writeError(response, ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                        "Trusted Approval rollout evidence is missing or invalid.");
+                return;
+            }
+            exactEnforcement = rolloutState.charAt(1) == '1';
+            if (exactEnforcement && !productAuthorizationV2Enabled) {
+                writeError(response, ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                        "Approval product authorization v2 is not ready for enforcement.");
+                return;
+            }
+        }
+
         Long userId = positiveLong(request.getHeader(USER_HEADER));
         Long tenantId = positiveLong(request.getHeader(TENANT_HEADER));
         Set<String> roles = parse(request.getHeader(ROLES_HEADER));
@@ -94,19 +168,150 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
                     "Verified user and tenant identity are required.");
             return;
         }
-        if (!authorized(request, roles, permissions)) {
+        ApprovalPilotPepRegistry.Decision pilotDecision = null;
+        String currentDecisionRevision = null;
+        OffsetDateTime currentDecisionValidUntil = null;
+        String currentContextKey = null;
+        String currentScopeKey = null;
+        String selectedManagementSet = null;
+        String trustedRouteKey = null;
+        String trustedRolloutState = null;
+        if (exactEnforcement) {
+            String trustedRoute = exactHeader(request, ROUTE_CONTRACT_HEADER);
+            String trustedContext = exactHeader(request, CURRENT_CONTEXT_HEADER);
+            String trustedScope = exactHeader(request, CURRENT_SCOPE_HEADER);
+            if (!trustedText(trustedRoute) || !trustedText(trustedContext)
+                    || !trustedText(trustedScope)) {
+                writeError(response, ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                        "Trusted Approval route, context, and scope evidence is missing or invalid.");
+                return;
+            }
+            trustedRouteKey = trustedRoute;
+            currentContextKey = trustedContext;
+            currentScopeKey = trustedScope;
+            trustedRolloutState = exactHeader(request, ROLLOUT_STATE_HEADER);
+            pilotDecision = pilotPepRegistry.authorize(new ApprovalPilotPepRegistry.RequestEvidence(
+                    request.getMethod(), request.getRequestURI(), permissions,
+                    request.getHeader(RESOURCE_ROLES_HEADER), roles,
+                    trustedRoute, request.getQueryString()));
+            if (pilotDecision.allowed()
+                    && trustedRoute.startsWith("route.approvals.admin.")) {
+                selectedManagementSet = managementScopeResolver.resolve(
+                        tenantId, userId, trustedScope, pilotDecision.authorities(),
+                        request.getHeader(RESOURCE_ROLES_HEADER));
+                if (selectedManagementSet == null) {
+                    writeError(response, ErrorCode.FORBIDDEN,
+                            "The selected Approval scope is not bound to the route authority.");
+                    return;
+                }
+            }
+            currentDecisionRevision = exactHeader(
+                    request, CURRENT_DECISION_REVISION_HEADER);
+            currentDecisionValidUntil = validUntil(
+                    exactHeader(request, CURRENT_DECISION_REVALIDATE_AT_HEADER));
+            if (!validCurrentDecision(currentDecisionRevision, currentDecisionValidUntil)) {
+                writeError(response, ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                        "Trusted current Approval authority evidence is missing or expired.");
+                return;
+            }
+            boolean stateChanging = pilotDecision.allowed()
+                    && pilotDecision.authorities().stream().anyMatch(
+                    authority -> "ACTION".equals(authority.routeKind()));
+            if (stateChanging) {
+                String expected = exactHeader(
+                        request, EXPECTED_DECISION_REVISION_HEADER);
+                if (expected == null || expected.length() > 200
+                        || !currentDecisionRevision.equals(expected)) {
+                    writeError(response, ErrorCode.DECISION_REVISION_CONFLICT,
+                            "Approval authority changed after the client decision.");
+                    return;
+                }
+            }
+        }
+        if (exactEnforcement ? !pilotDecision.allowed()
+                : !authorized(request, roles, permissions)) {
             writeError(response, ErrorCode.FORBIDDEN,
                     "The approval permission required for this operation is missing.");
             return;
         }
+        if (selectedManagementSet != null && managementScopeProvisioner != null) {
+            try {
+                managementScopeProvisioner.ensure(tenantId, selectedManagementSet);
+            } catch (RuntimeException exception) {
+                writeError(response, ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                        "Approval management scope baseline is unavailable.");
+                return;
+            }
+        }
 
-        ApprovalRequestContext.set(
-                userId, tenantId, personPublicId, displayName, roles, permissions);
         try {
+            ApprovalRequestContext.set(
+                    userId, tenantId, personPublicId, displayName, roles, permissions);
+            if (selectedManagementSet != null) {
+                ApprovalManagementScopeContext.set(currentScopeKey, selectedManagementSet);
+            }
+            if (pilotDecision != null) {
+                ApprovalPilotAuthorizationContext.set(pilotDecision.authorities());
+                request.setAttribute(
+                        ApprovalPilotPepRegistry.class.getName() + ".authorities",
+                        pilotDecision.authorities());
+            }
+            if (currentDecisionRevision != null) {
+                ApprovalDecisionRevisionContext.set(
+                        currentDecisionRevision, currentDecisionValidUntil,
+                        currentContextKey, currentScopeKey, trustedRouteKey,
+                        trustedRolloutState);
+                response.setHeader(RESPONSE_DECISION_REVISION_HEADER, currentDecisionRevision);
+            }
             filterChain.doFilter(request, response);
         } finally {
-            ApprovalRequestContext.clear();
+            clearContexts();
         }
+    }
+
+    private void clearContexts() {
+        ApprovalManagementScopeContext.clear();
+        ApprovalDecisionRevisionContext.clear();
+        ApprovalPilotAuthorizationContext.clear();
+        ApprovalRequestContext.clear();
+    }
+
+    private boolean validCurrentDecision(String revision, OffsetDateTime validUntil) {
+        return revision != null
+                && revision.matches("psr-[a-f0-9]{64}")
+                && validUntil != null
+                && validUntil.isAfter(OffsetDateTime.now());
+    }
+
+    private boolean trustedText(String value) {
+        return value != null && !value.isBlank() && value.length() <= 200
+                && value.indexOf(',') < 0 && value.indexOf('\r') < 0
+                && value.indexOf('\n') < 0;
+    }
+
+    private String exactHeader(HttpServletRequest request, String name) {
+        java.util.Enumeration<String> values = request.getHeaders(name);
+        if (values == null || !values.hasMoreElements()) return null;
+        String value = values.nextElement();
+        if (values.hasMoreElements() || !trustedText(value)) return null;
+        return value.trim();
+    }
+
+    private OffsetDateTime validUntil(String value) {
+        try {
+            return value == null ? null : OffsetDateTime.parse(value);
+        } catch (DateTimeParseException exception) {
+            return null;
+        }
+    }
+
+    private boolean validRolloutEvidence(String state, String revision, String cohort) {
+        return state != null
+                && cohort != null
+                && ROLLOUT_STATES.contains(state)
+                && ROLLOUT_COHORTS.contains(cohort)
+                && revision != null
+                && revision.matches("rollout-[a-f0-9]{64}");
     }
 
     private boolean authorized(
@@ -115,9 +320,15 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
             Set<String> permissions) {
         String path = request.getRequestURI();
         String method = request.getMethod();
+        Set<String> resourceRoles = parse(request.getHeader(RESOURCE_ROLES_HEADER));
         if (permissions.isEmpty()) return false;
         if (path.equals("/v1/admin/overview")) {
-            return has(permissions, "ADMIN.APPROVAL_OPERATIONS", "VIEW");
+            return scoped(permissions, resourceRoles,
+                    "approvals.operations.read", "ADMIN.APPROVAL_OPERATIONS:VIEW")
+                    || scoped(permissions, resourceRoles,
+                            "approvals.audit.operations.read",
+                            "ADMIN.APPROVAL_OPERATIONS:VIEW")
+                    || has(permissions, "ADMIN.APPROVAL_OPERATIONS", "VIEW");
         }
         if (path.startsWith("/v1/admin/workflows")) {
             String action = readOnly(method)
@@ -127,7 +338,14 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
                             : "POST".equals(method) && path.equals("/v1/admin/workflows")
                                     ? "CREATE"
                                     : "UPDATE";
-            return has(permissions, "ADMIN.APPROVAL_DESIGN", action, "MANAGE");
+            String contract = readOnly(method) ? "approvals.design.read"
+                    : path.endsWith("/publish") ? "approvals.design.publish"
+                    : "POST".equals(method) && path.equals("/v1/admin/workflows")
+                            ? "approvals.design.create" : "approvals.design.update";
+            String exact = path.endsWith("/publish") ? "PUBLISH" : action;
+            return scoped(permissions, resourceRoles, contract,
+                    "ADMIN.APPROVAL_DESIGN:" + exact)
+                    || has(permissions, "ADMIN.APPROVAL_DESIGN", action, "MANAGE");
         }
         if (path.startsWith("/v1/admin/forms") || path.startsWith("/v1/admin/form-categories")) {
             String action = readOnly(method)
@@ -137,19 +355,46 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
                             : "POST".equals(method)
                                     ? "CREATE"
                                     : "UPDATE";
-            return has(permissions, "ADMIN.APPROVAL_DESIGN", action, "MANAGE");
+            String contract = readOnly(method) ? "approvals.design.read"
+                    : path.endsWith("/publish") ? "approvals.design.publish"
+                    : "POST".equals(method)
+                            ? "approvals.design.create" : "approvals.design.update";
+            String exact = path.endsWith("/publish") ? "PUBLISH" : action;
+            return scoped(permissions, resourceRoles, contract,
+                    "ADMIN.APPROVAL_DESIGN:" + exact)
+                    || has(permissions, "ADMIN.APPROVAL_DESIGN", action, "MANAGE");
         }
         if (path.startsWith("/v1/admin/policies")) {
             String action = readOnly(method)
                     ? "VIEW"
                     : path.endsWith("/publish") ? "APPROVE" : "UPDATE";
-            return has(permissions, "ADMIN.APPROVAL_POLICY", action, "MANAGE");
+            String contract = readOnly(method) ? "approvals.policy.read"
+                    : path.endsWith("/publish")
+                            ? "approvals.policy.publish" : "approvals.policy.update";
+            String exact = path.endsWith("/publish") ? "PUBLISH" : action;
+            return scoped(permissions, resourceRoles, contract,
+                    "ADMIN.APPROVAL_POLICY:" + exact)
+                    || has(permissions, "ADMIN.APPROVAL_POLICY", action, "MANAGE");
         }
         if (path.startsWith("/v1/admin/operations")) {
-            return has(permissions, "ADMIN.APPROVAL_OPERATIONS", readOnly(method) ? "VIEW" : "MANAGE");
+            if (readOnly(method)) {
+                return scoped(permissions, resourceRoles,
+                        "approvals.operations.read", "ADMIN.APPROVAL_OPERATIONS:VIEW")
+                        || scoped(permissions, resourceRoles,
+                                "approvals.audit.operations.read",
+                                "ADMIN.APPROVAL_OPERATIONS:VIEW")
+                        || has(permissions, "ADMIN.APPROVAL_OPERATIONS", "VIEW");
+            }
+            return scoped(permissions, resourceRoles,
+                    "approvals.operations.execute", "ADMIN.APPROVAL_OPERATIONS:EXECUTE")
+                    || has(permissions, "ADMIN.APPROVAL_OPERATIONS", "MANAGE");
         }
         if (path.startsWith("/v1/admin/signatures")) {
-            return has(permissions, "ADMIN.APPROVAL_SIGNATURE", readOnly(method) ? "VIEW" : "MANAGE");
+            return readOnly(method)
+                    ? scoped(permissions, resourceRoles,
+                            "approvals.signature.read", "ADMIN.APPROVAL_SIGNATURE:VIEW")
+                            || has(permissions, "ADMIN.APPROVAL_SIGNATURE", "VIEW")
+                    : has(permissions, "ADMIN.APPROVAL_SIGNATURE", "MANAGE");
         }
         if (path.startsWith("/v1/admin/")) return false;
         if (!has(permissions, "APP.APPROVALS", "VIEW")) return false;
@@ -191,6 +436,23 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
 
     private boolean has(Set<String> permissions, String resource, String... actions) {
         return Arrays.stream(actions).anyMatch(action -> permissions.contains(resource + ":" + action));
+    }
+
+    private boolean scoped(
+            Set<String> permissions,
+            Set<String> resourceRoles,
+            String capabilityContractKey,
+            String resolvedCapabilityCode) {
+        if (!permissions.contains(resolvedCapabilityCode)) return false;
+        Set<String> sets = ScopedAuthorityToken.matchingResourceSetKeys(
+                resourceRoles, capabilityContractKey, resolvedCapabilityCode);
+        if (sets.isEmpty()) return false;
+        if ("approvals.audit.operations.read".equals(capabilityContractKey)) return true;
+        Set<String> canonicalRoles = resourceRoles.stream()
+                .map(value -> value.toUpperCase(java.util.Locale.ROOT))
+                .collect(Collectors.toUnmodifiableSet());
+        return sets.stream().anyMatch(set ->
+                canonicalRoles.contains("APP_CONFIG_ADMIN@" + set));
     }
 
     private boolean readOnly(String method) {

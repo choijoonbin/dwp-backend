@@ -60,6 +60,110 @@
       ]
     },
     {
+      "id": "gateway-product-surface-authority-evaluator",
+      "classification": "gateway-product-surface-authority-evaluation",
+      "interfaceType": "gateway-verifier",
+      "sourceService": "dwp-gateway",
+      "targetServices": [
+        "dwp-auth-server"
+      ],
+      "path": "dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceAuthorityClient.java",
+      "purpose": "Resolve product-surface authority at the edge through the Auth-owned internal evaluation contract.",
+      "auth": "Uses a purpose-specific product-surface evaluation token, exact dwp-gateway service identity, and the verified actor and tenant context.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "${SERVICE_AUTH_URL:http://localhost:8001}",
+        "/internal/auth/v1/product-surface-authority/evaluate",
+        "X-DWP-Product-Surface-Token",
+        "X-DWP-Service-Identity",
+        ".timeout(timeout)",
+        "TRACE_PARENT_HEADER",
+        "TRACE_STATE_HEADER"
+      ],
+      "forbiddenMarkers": [
+        "/api/"
+      ]
+    },
+    {
+      "id": "gateway-governed-route-authority-evaluator",
+      "classification": "gateway-governed-route-authority-evaluation",
+      "interfaceType": "gateway-verifier",
+      "sourceService": "dwp-gateway",
+      "targetServices": [
+        "dwp-auth-server"
+      ],
+      "path": "dwp-gateway/src/main/java/com/dwp/gateway/productsurface/GovernedRouteAuthorityClient.java",
+      "purpose": "Resolve non-product governed-route authority at the edge through the Auth-owned internal evaluation contract.",
+      "auth": "Uses a purpose-specific product-surface evaluation token, exact dwp-gateway service identity, and the verified actor and tenant context.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "${SERVICE_AUTH_URL:http://localhost:8001}",
+        "/internal/auth/v1/governed-route-authority/evaluate",
+        "X-DWP-Product-Surface-Token",
+        "X-DWP-Service-Identity",
+        ".timeout(timeout)",
+        "TRACE_PARENT_HEADER",
+        "TRACE_STATE_HEADER"
+      ],
+      "forbiddenMarkers": [
+        "/api/"
+      ]
+    },
+    {
+      "id": "gateway-product-surface-eligibility-evaluator",
+      "classification": "gateway-product-surface-eligibility-evaluation",
+      "interfaceType": "gateway-verifier",
+      "sourceService": "dwp-gateway",
+      "targetServices": [
+        "dwp-people-server"
+      ],
+      "path": "dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceEligibilityClient.java",
+      "purpose": "Resolve People-owned relationship and target-population eligibility for a candidate product surface.",
+      "auth": "Uses the Gateway service token, exact dwp-gateway service identity, and the verified actor and tenant context.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "${SERVICE_PEOPLE_URL:http://localhost:8003}",
+        "/internal/people/v1/product-surface-eligibility/evaluate",
+        "X-DWP-Service-Token",
+        "X-DWP-Service-Identity",
+        ".timeout(timeout)",
+        "TRACE_PARENT_HEADER",
+        "TRACE_STATE_HEADER"
+      ],
+      "forbiddenMarkers": [
+        "/api/"
+      ]
+    },
+    {
+      "id": "gateway-product-surface-rollout-evaluator",
+      "classification": "gateway-product-surface-rollout-evaluation",
+      "interfaceType": "gateway-verifier",
+      "sourceService": "dwp-gateway",
+      "targetServices": [
+        "dwp-provider-server"
+      ],
+      "path": "dwp-gateway/src/main/java/com/dwp/gateway/productsurface/FeatureRolloutEvaluationClient.java",
+      "purpose": "Resolve tenant product-surface rollout flags and server-owned cohorts through the Provider internal evaluator.",
+      "auth": "Uses the Gateway service token and exact dwp-gateway service identity; operator authority is not forwarded.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "${SERVICE_PROVIDER_URL:http://localhost:8004}",
+        "/internal/provider/v1/feature-rollouts/evaluate",
+        "X-DWP-Service-Token",
+        "X-DWP-Service-Identity",
+        ".timeout(timeout)",
+        "TRACE_PARENT_HEADER",
+        "TRACE_STATE_HEADER"
+      ],
+      "forbiddenMarkers": [
+        "/api/"
+      ]
+    },
+    {
       "id": "provider-downstream-provisioning",
       "classification": "provider-tenant-provisioning",
       "interfaceType": "internal-http",
@@ -203,6 +307,34 @@
       ]
     },
     {
+      "id": "approval-auth-recovery-auditor-resolver",
+      "classification": "approval-recovery-auditor-resolution",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-approval-server",
+      "targetServices": [
+        "dwp-auth-server"
+      ],
+      "path": "dwp-approval-server/src/main/java/com/dwp/services/approval/integration/AuthApprovalRecoveryAuditorResolver.java",
+      "purpose": "Resolve an independent effective approval auditor for durable asynchronous recovery work assignment.",
+      "auth": "Uses a purpose-specific recovery token plus exact dwp-approval-server service identity.",
+      "retryMode": "idempotent-only",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "${dwp.approval.recovery-auditor-assignment.auth-url:http://localhost:8001}",
+        "/internal/auth/v1/approval-recovery-auditor/resolve",
+        "X-DWP-Approval-Recovery-Token",
+        "X-DWP-Service-Identity",
+        "@CircuitBreaker",
+        "@Bulkhead",
+        "@Retry",
+        "OutboundHttpHeaders.propagateObservability"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Service-Token"
+      ]
+    },
+    {
       "id": "people-auth-workforce-identity-sync",
       "classification": "workforce-identity-sync",
       "interfaceType": "internal-http",
@@ -334,6 +466,7 @@
       "failureMode": "fail-closed",
       "requiredMarkers": [
         "dwp.auth.oidc.allowed-hosts",
+        "dwp.auth.oidc.allowed-callback-hosts",
         "dwp.auth.oidc.allow-unlisted-hosts:false",
         "requireAllowed",
         ".timeout(Duration.ofSeconds(15))",

@@ -32,33 +32,6 @@
         },
         "type": "object"
       },
-      "ApiResponseAdminPulse": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "$ref": "#/components/schemas/AdminPulse"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "ApiResponseFormDetail": {
         "properties": {
           "correlationId": {
@@ -263,36 +236,6 @@
         },
         "type": "object"
       },
-      "ApiResponseListPolicyVersionSummary": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/PolicyVersionSummary"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "ApiResponseListRequestSummary": {
         "properties": {
           "correlationId": {
@@ -301,36 +244,6 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/RequestSummary"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ApiResponseListSignatureProviderSummary": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/SignatureProviderSummary"
             },
             "type": "array"
           },
@@ -393,33 +306,6 @@
               "$ref": "#/components/schemas/WorkflowSummary"
             },
             "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ApiResponseOperationsResponse": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "$ref": "#/components/schemas/OperationsResponse"
           },
           "errorCode": {
             "type": "string"
@@ -575,6 +461,567 @@
         },
         "type": "object"
       },
+      "ApprovalAuditorIntegrationDeliveryV1": {
+        "additionalProperties": false,
+        "properties": {
+          "attemptCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "availableAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "manualRetryCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalAuditorOperationSignalV1": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "key": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalAuditorOperationsResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ApprovalAuditorOperationsV1"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalAuditorOperationsV1": {
+        "additionalProperties": false,
+        "properties": {
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "integrationDeliveries": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalAuditorIntegrationDeliveryV1"
+            },
+            "type": "array"
+          },
+          "signals": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalAuditorOperationSignalV1"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalAuthorityUnavailableError": {
+        "additionalProperties": false,
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "errorCode": {
+            "enum": [
+              "AUTHORITY_RESOLUTION_UNAVAILABLE"
+            ],
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalFormPublishResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FormDetail"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalFullFormCategoryListResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/FormCategorySummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalFullFormDetailResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FormDetail"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalFullFormListResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/FormSummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalFullManagementSignatureV1": {
+        "additionalProperties": false,
+        "properties": {
+          "credentialConfigured": {
+            "type": "boolean"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "lastHealthCheckedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "providerId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "providerKey": {
+            "type": "string"
+          },
+          "providerType": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalFullOperationsResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/OperationsResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalFullOverviewResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AdminPulse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalFullPolicyListResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PolicySummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalFullPolicyVersionListResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyVersionSummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalFullSignatureListResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalFullManagementSignatureV1"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalFullWorkflowDetailResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/WorkflowDetail"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalFullWorkflowListResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/WorkflowSummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalGovernedConflictError": {
+        "additionalProperties": false,
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "errorCode": {
+            "enum": [
+              "STEP_UP_CHALLENGE_MISMATCH",
+              "STEP_UP_CHALLENGE_REPLAY",
+              "DECISION_REVISION_CONFLICT",
+              "OBJECT_VERSION_CONFLICT",
+              "E1009"
+            ],
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalGovernedForbiddenError": {
+        "additionalProperties": false,
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "errorCode": {
+            "enum": [
+              "STEP_UP_REQUIRED",
+              "SOD_CONFLICT",
+              "E2001"
+            ],
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalGovernedValidationError": {
+        "additionalProperties": false,
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "errorCode": {
+            "enum": [
+              "E1001",
+              "E4000",
+              "E4002"
+            ],
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApprovalMetrics": {
         "properties": {
           "averageCycleHours": {
@@ -604,6 +1051,775 @@
           "slaCompliancePercent": {
             "format": "double",
             "type": "number"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalOversightAdminPulseV1": {
+        "additionalProperties": false,
+        "properties": {
+          "activeRequests": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "assurance": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalOversightAssuranceSignalV1"
+            },
+            "type": "array"
+          },
+          "draftWorkflows": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "failedIntegrations": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "overdueTasks": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "publishedWorkflows": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalOversightAssuranceSignalV1": {
+        "additionalProperties": false,
+        "properties": {
+          "exceptions": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "key": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalOversightFormCategoryListResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalOversightFormCategoryV1"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalOversightFormCategoryV1": {
+        "additionalProperties": false,
+        "properties": {
+          "categoryId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "categoryKey": {
+            "type": "string"
+          },
+          "formCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "iconKey": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "nameKo": {
+            "type": "string"
+          },
+          "parentCategoryId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "sortOrder": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalOversightFormDetailResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ApprovalOversightFormV1"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalOversightFormListResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalOversightFormV1"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalOversightFormV1": {
+        "additionalProperties": false,
+        "properties": {
+          "categoryId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "categoryKey": {
+            "type": "string"
+          },
+          "categoryNameEn": {
+            "type": "string"
+          },
+          "categoryNameKo": {
+            "type": "string"
+          },
+          "currentVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "fieldCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "formId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "formKey": {
+            "type": "string"
+          },
+          "formKind": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "nameKo": {
+            "type": "string"
+          },
+          "routeCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "usageCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalOversightIntegrationDeliveryV1": {
+        "additionalProperties": false,
+        "properties": {
+          "attemptCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "availableAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "lastRetriedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "manualRetryCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "outboxId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalOversightOperationSignalV1": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "key": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "titleEn": {
+            "type": "string"
+          },
+          "titleKo": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalOversightOperationsResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ApprovalOversightOperationsV1"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalOversightOperationsV1": {
+        "additionalProperties": false,
+        "properties": {
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "integrationDeliveries": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalOversightIntegrationDeliveryV1"
+            },
+            "type": "array"
+          },
+          "signals": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalOversightOperationSignalV1"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalOversightOverviewResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ApprovalOversightAdminPulseV1"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalOversightPolicyListResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalOversightPolicyV1"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalOversightPolicyV1": {
+        "additionalProperties": false,
+        "properties": {
+          "enforcementMode": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "nameKo": {
+            "type": "string"
+          },
+          "pendingAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "pendingEnforcementMode": {
+            "type": "string"
+          },
+          "pendingLifecycleState": {
+            "type": "string"
+          },
+          "pendingReview": {
+            "type": "boolean"
+          },
+          "pendingSeverity": {
+            "type": "string"
+          },
+          "policyId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "policyKey": {
+            "type": "string"
+          },
+          "policyType": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalOversightPolicyVersionListResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalOversightPolicyVersionV1"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalOversightPolicyVersionV1": {
+        "additionalProperties": false,
+        "properties": {
+          "enforcementMode": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "policyVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "versionNumber": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalOversightSignatureListResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalOversightSignatureV1"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalOversightSignatureV1": {
+        "additionalProperties": false,
+        "properties": {
+          "credentialConfigured": {
+            "type": "boolean"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "lastHealthCheckedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "providerId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "providerKey": {
+            "type": "string"
+          },
+          "providerType": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalOversightWorkflowDetailResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ApprovalOversightWorkflowV1"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalOversightWorkflowListResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ApprovalOversightWorkflowV1"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalOversightWorkflowV1": {
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "currentVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "dataClassification": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "nameKo": {
+            "type": "string"
+          },
+          "slaMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "workflowId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "workflowKey": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalPolicyPublishResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PolicySummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalRecoveryExecuteResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/OperationsResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApprovalWorkflowPublishResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/WorkflowSummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
           }
         },
         "type": "object"
@@ -646,7 +1862,14 @@
             "format": "date-time",
             "type": "string"
           },
+          "workflowId": {
+            "description": "Immutable published workflow identity for WORKFLOW scope",
+            "format": "uuid",
+            "type": "string"
+          },
           "workflowKey": {
+            "deprecated": true,
+            "description": "Deprecated root-only compatibility key; use workflowId",
             "type": "string"
           }
         },
@@ -998,7 +2221,14 @@
             "format": "int64",
             "type": "integer"
           },
+          "workflowId": {
+            "description": "Immutable workflow identity for WORKFLOW scope",
+            "format": "uuid",
+            "type": "string"
+          },
           "workflowKey": {
+            "deprecated": true,
+            "description": "Deprecated display-only workflow key; authorize by workflowId",
             "type": "string"
           }
         },
@@ -1344,6 +2574,10 @@
           },
           "status": {
             "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -1664,42 +2898,6 @@
           },
           "workflow": {
             "$ref": "#/components/schemas/WorkflowSummary"
-          }
-        },
-        "type": "object"
-      },
-      "SignatureProviderSummary": {
-        "properties": {
-          "capabilities": {
-            "additionalProperties": {},
-            "type": "object"
-          },
-          "credentialConfigured": {
-            "type": "boolean"
-          },
-          "displayName": {
-            "type": "string"
-          },
-          "lastHealthCheckedAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "lifecycleState": {
-            "type": "string"
-          },
-          "providerId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "providerKey": {
-            "type": "string"
-          },
-          "providerType": {
-            "type": "string"
-          },
-          "version": {
-            "format": "int64",
-            "type": "integer"
           }
         },
         "type": "object"
@@ -2264,11 +3462,18 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListFormCategorySummary"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ApprovalFullFormCategoryListResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ApprovalOversightFormCategoryListResponse"
+                    }
+                  ]
                 }
               }
             },
-            "description": "OK"
+            "description": "Server-selected full or oversight projection"
           }
         },
         "tags": [
@@ -2371,11 +3576,18 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListFormSummary"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ApprovalFullFormListResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ApprovalOversightFormListResponse"
+                    }
+                  ]
                 }
               }
             },
-            "description": "OK"
+            "description": "Server-selected full or oversight projection"
           }
         },
         "tags": [
@@ -2440,11 +3652,18 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseFormDetail"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ApprovalFullFormDetailResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ApprovalOversightFormDetailResponse"
+                    }
+                  ]
                 }
               }
             },
-            "description": "OK"
+            "description": "Server-selected full or oversight projection"
           }
         },
         "tags": [
@@ -2515,6 +3734,54 @@
             }
           },
           {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          },
+          {
             "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
@@ -2538,11 +3805,51 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseFormDetail"
+                  "$ref": "#/components/schemas/ApprovalFormPublishResponse"
                 }
               }
             },
-            "description": "OK"
+            "description": "Form published"
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalGovernedForbiddenError"
+                }
+              }
+            },
+            "description": "Step-up or SoD denied"
+          },
+          "409": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalGovernedConflictError"
+                }
+              }
+            },
+            "description": "Challenge, revision, replay, or object conflict"
+          },
+          "422": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalGovernedValidationError"
+                }
+              }
+            },
+            "description": "Command validation failed"
+          },
+          "503": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalAuthorityUnavailableError"
+                }
+              }
+            },
+            "description": "Authority evidence unavailable"
           }
         },
         "tags": [
@@ -2558,11 +3865,21 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOperationsResponse"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ApprovalFullOperationsResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ApprovalAuditorOperationsResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ApprovalOversightOperationsResponse"
+                    }
+                  ]
                 }
               }
             },
-            "description": "OK"
+            "description": "Server-selected full, auditor, or oversight projection"
           }
         },
         "tags": [
@@ -2584,6 +3901,71 @@
             }
           },
           {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          },
+          {
             "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
@@ -2597,11 +3979,51 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOperationsResponse"
+                  "$ref": "#/components/schemas/ApprovalRecoveryExecuteResponse"
                 }
               }
             },
-            "description": "OK"
+            "description": "Recovery command executed"
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalGovernedForbiddenError"
+                }
+              }
+            },
+            "description": "Step-up or SoD denied"
+          },
+          "409": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalGovernedConflictError"
+                }
+              }
+            },
+            "description": "Challenge, revision, replay, or object conflict"
+          },
+          "422": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalGovernedValidationError"
+                }
+              }
+            },
+            "description": "Command validation failed"
+          },
+          "503": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalAuthorityUnavailableError"
+                }
+              }
+            },
+            "description": "Authority evidence unavailable"
           }
         },
         "tags": [
@@ -2617,11 +4039,18 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseAdminPulse"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ApprovalFullOverviewResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ApprovalOversightOverviewResponse"
+                    }
+                  ]
                 }
               }
             },
-            "description": "OK"
+            "description": "Server-selected full or oversight projection"
           }
         },
         "tags": [
@@ -2637,11 +4066,18 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListPolicySummary"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ApprovalFullPolicyListResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ApprovalOversightPolicyListResponse"
+                    }
+                  ]
                 }
               }
             },
-            "description": "OK"
+            "description": "Server-selected full or oversight projection"
           }
         },
         "tags": [
@@ -2712,6 +4148,54 @@
             }
           },
           {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          },
+          {
             "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
@@ -2735,11 +4219,51 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListPolicySummary"
+                  "$ref": "#/components/schemas/ApprovalPolicyPublishResponse"
                 }
               }
             },
-            "description": "OK"
+            "description": "Policy published"
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalGovernedForbiddenError"
+                }
+              }
+            },
+            "description": "Step-up or SoD denied"
+          },
+          "409": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalGovernedConflictError"
+                }
+              }
+            },
+            "description": "Challenge, revision, replay, or object conflict"
+          },
+          "422": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalGovernedValidationError"
+                }
+              }
+            },
+            "description": "Command validation failed"
+          },
+          "503": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalAuthorityUnavailableError"
+                }
+              }
+            },
+            "description": "Authority evidence unavailable"
           }
         },
         "tags": [
@@ -2766,11 +4290,18 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListPolicyVersionSummary"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ApprovalFullPolicyVersionListResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ApprovalOversightPolicyVersionListResponse"
+                    }
+                  ]
                 }
               }
             },
-            "description": "OK"
+            "description": "Server-selected full or oversight projection"
           }
         },
         "tags": [
@@ -2786,11 +4317,18 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListSignatureProviderSummary"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ApprovalFullSignatureListResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ApprovalOversightSignatureListResponse"
+                    }
+                  ]
                 }
               }
             },
-            "description": "OK"
+            "description": "Credential-safe full or oversight projection"
           }
         },
         "tags": [
@@ -2806,11 +4344,18 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListWorkflowSummary"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ApprovalFullWorkflowListResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ApprovalOversightWorkflowListResponse"
+                    }
+                  ]
                 }
               }
             },
-            "description": "OK"
+            "description": "Server-selected full or oversight projection"
           }
         },
         "tags": [
@@ -2875,11 +4420,18 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseWorkflowDetail"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ApprovalFullWorkflowDetailResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ApprovalOversightWorkflowDetailResponse"
+                    }
+                  ]
                 }
               }
             },
-            "description": "OK"
+            "description": "Server-selected full or oversight projection"
           }
         },
         "tags": [
@@ -2950,6 +4502,54 @@
             }
           },
           {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          },
+          {
             "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
@@ -2973,11 +4573,51 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListWorkflowSummary"
+                  "$ref": "#/components/schemas/ApprovalWorkflowPublishResponse"
                 }
               }
             },
-            "description": "OK"
+            "description": "Workflow published"
+          },
+          "403": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalGovernedForbiddenError"
+                }
+              }
+            },
+            "description": "Step-up or SoD denied"
+          },
+          "409": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalGovernedConflictError"
+                }
+              }
+            },
+            "description": "Challenge, revision, replay, or object conflict"
+          },
+          "422": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalGovernedValidationError"
+                }
+              }
+            },
+            "description": "Command validation failed"
+          },
+          "503": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalAuthorityUnavailableError"
+                }
+              }
+            },
+            "description": "Authority evidence unavailable"
           }
         },
         "tags": [

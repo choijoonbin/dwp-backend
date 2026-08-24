@@ -31,7 +31,8 @@ public class CsrfProtectionFilter implements GlobalFilter, Ordered {
         if (method == null
                 || SAFE_METHODS.contains(method)
                 || !path.startsWith("/api/")
-                || path.startsWith("/api/auth/")) {
+                || (path.startsWith("/api/auth/")
+                    && !isProductSurfaceEvaluation(path))) {
             return chain.filter(exchange);
         }
 
@@ -43,6 +44,12 @@ public class CsrfProtectionFilter implements GlobalFilter, Ordered {
         }
 
         return chain.filter(exchange);
+    }
+
+    private boolean isProductSurfaceEvaluation(String path) {
+        return path.equals("/api/auth/product-surface-access/evaluate")
+                || path.equals("/api/auth/governed-route-access/evaluate")
+                || path.equals("/api/auth/product-surface-step-up-challenges");
     }
 
     private boolean constantTimeEquals(String expected, String actual) {

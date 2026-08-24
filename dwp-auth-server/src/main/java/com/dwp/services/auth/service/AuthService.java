@@ -4,6 +4,7 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.core.identity.EmailAddressNormalizer;
 import com.dwp.services.auth.dto.AuthPolicyResponse;
+import com.dwp.services.auth.dto.AppGovernanceDtos;
 import com.dwp.services.auth.dto.LoginRequest;
 import com.dwp.services.auth.dto.LoginResponse;
 import com.dwp.services.auth.dto.MeResponse;
@@ -31,15 +32,18 @@ import com.dwp.services.auth.repository.UserAccountRepository;
 import com.dwp.services.auth.repository.UserRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.IllformedLocaleException;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -65,6 +69,7 @@ public class AuthService {
     private final IdentityAccountService identityAccountService;
     private final LoginAttemptService loginAttemptService;
     private final AppGovernanceService appGovernanceService;
+    private final ScopedAdminDutyEvidenceService scopedDutyEvidenceService;
     private final PasswordEncoder passwordEncoder;
 
     public AuthService(
@@ -84,6 +89,7 @@ public class AuthService {
             IdentityAccountService identityAccountService,
             LoginAttemptService loginAttemptService,
             AppGovernanceService appGovernanceService,
+            ScopedAdminDutyEvidenceService scopedDutyEvidenceService,
             PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.userAccountRepository = userAccountRepository;
@@ -101,6 +107,7 @@ public class AuthService {
         this.identityAccountService = identityAccountService;
         this.loginAttemptService = loginAttemptService;
         this.appGovernanceService = appGovernanceService;
+        this.scopedDutyEvidenceService = scopedDutyEvidenceService;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -161,6 +168,30 @@ public class AuthService {
     }
 
     @Transactional
+    public AuthenticatedSession completeOidcStepUp(
+            Long tenantId,
+            String providerKey,
+            OidcUserInfo userInfo,
+            Jwt currentJwt,
+            UUID expectedSessionFamilyId,
+            HttpServletRequest servletRequest) {
+        Long actorId = Long.parseLong(currentJwt.getSubject());
+        UserAccount account = userAccountRepository
+                .findByTenantIdAndProviderTypeAndIssuerUriAndPrincipal(
+                        tenantId, "OIDC", userInfo.issuer(), userInfo.subject())
+                .filter(value -> actorId.equals(value.getUserId()))
+                .filter(this::accountActive)
+                .orElseThrow(() -> new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS));
+        User user = activeUser(account.getUserId(), tenantId);
+        if (user == null) throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+        List<String> roles = getRoleCodes(user.getUserId(), tenantId);
+        AuthSessionService.IssuedSession session = authSessionService.elevate(
+                currentJwt, actorId, tenantId, roles, expectedSessionFamilyId,
+                oidcStepUpAssurance(userInfo), servletRequest);
+        return authenticatedSession(user, tenantId, session);
+    }
+
+    @Transactional
     public AuthenticatedSession loginWithOidc(
             Long tenantId,
             String providerKey,
@@ -202,7 +233,7 @@ public class AuthService {
             throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS);
         }
         loginAttemptService.success(account, subject, servletRequest);
-        return createAuthenticatedSession(user, tenantId, servletRequest);
+        return createAuthenticatedSession(user, tenantId, userInfo, servletRequest);
     }
 
     @Transactional(readOnly = true)
@@ -266,9 +297,19 @@ public class AuthService {
                 .roles(getRoleCodes(user.getUserId(), tenant.getTenantId()))
                 .groups(getGroupMemberships(user.getUserId(), tenant.getTenantId()))
                 .permissions(permissions)
-                .resourceRoles(appGovernanceService.resourceRoles(
-                        tenant.getTenantId(), user.getUserId()))
+                .resourceRoles(resourceRoles(tenant.getTenantId(), user.getUserId()))
                 .build();
+    }
+
+    private List<AppGovernanceDtos.ResourceRole> resourceRoles(Long tenantId, Long userId) {
+        return java.util.stream.Stream.concat(
+                        appGovernanceService.resourceRoles(tenantId, userId).stream(),
+                        scopedDutyEvidenceService.resourceRoles(tenantId, userId).stream())
+                .distinct()
+                .sorted(Comparator.comparing(AppGovernanceDtos.ResourceRole::responsibilityCode)
+                        .thenComparing(AppGovernanceDtos.ResourceRole::resourceSetKey)
+                        .thenComparing(AppGovernanceDtos.ResourceRole::resourceKey))
+                .toList();
     }
 
     private List<GroupMembershipDTO> getGroupMemberships(Long userId, Long tenantId) {
@@ -333,6 +374,8 @@ public class AuthService {
         principalGrants.stream()
                 .map(this::toPermission)
                 .forEach(permission -> collectPermission(permission, allowed, denied));
+        scopedDutyEvidenceService.capabilityPermissions(tenantId, userId)
+                .forEach(permission -> collectPermission(permission, allowed, denied));
         denied.forEach(allowed::remove);
         return List.copyOf(allowed.values());
     }
@@ -396,6 +439,35 @@ public class AuthService {
         AuthSessionService.IssuedSession session = authSessionService.create(
                 user.getUserId(), tenantId, roles, servletRequest);
 
+        return authenticatedSession(user, tenantId, session);
+    }
+
+    private AuthenticatedSession createAuthenticatedSession(
+            User user,
+            Long tenantId,
+            OidcUserInfo userInfo,
+            HttpServletRequest servletRequest) {
+        List<String> roles = getRoleCodes(user.getUserId(), tenantId);
+        AuthSessionService.IssuedSession session = authSessionService.create(
+                user.getUserId(), tenantId, roles, oidcAssurance(userInfo), servletRequest);
+        return authenticatedSession(user, tenantId, session);
+    }
+
+    private AuthSessionService.AssuranceEvidence oidcAssurance(OidcUserInfo userInfo) {
+        return new AuthSessionService.AssuranceEvidence(
+                "OIDC", userInfo.authenticatedAt(), userInfo.acr(), userInfo.amr());
+    }
+
+    private AuthSessionService.AssuranceEvidence oidcStepUpAssurance(OidcUserInfo userInfo) {
+        return new AuthSessionService.AssuranceEvidence(
+                OidcStepUpAmrPolicy.AUTHENTICATION_METHOD,
+                userInfo.authenticatedAt(), userInfo.acr(), userInfo.amr());
+    }
+
+    private AuthenticatedSession authenticatedSession(
+            User user,
+            Long tenantId,
+            AuthSessionService.IssuedSession session) {
         LoginResponse response = LoginResponse.builder()
                 .expiresIn(session.expiresIn())
                 .userId(String.valueOf(user.getUserId()))

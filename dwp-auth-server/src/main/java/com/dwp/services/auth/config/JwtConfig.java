@@ -1,11 +1,15 @@
 package com.dwp.services.auth.config;
 
+import com.dwp.core.exception.BaseException;
 import com.dwp.services.auth.security.AuthSessionJwtValidator;
 import com.dwp.services.auth.security.AuthSessionActivityFilter;
+import com.dwp.services.auth.security.AuthenticatedUserResolver;
 import com.dwp.services.auth.security.CookieBearerTokenResolver;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authorization.AuthorizationDecision;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
@@ -15,6 +19,7 @@ import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.RequestAuthorizationContext;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
@@ -23,6 +28,7 @@ import org.springframework.core.annotation.Order;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.util.function.Supplier;
 
 @Configuration
 public class JwtConfig {
@@ -102,6 +108,10 @@ public class JwtConfig {
                                 "/actuator/health/**",
                                 "/error")
                         .permitAll()
+                        .requestMatchers(
+                                "/auth/admin/access/reviews",
+                                "/auth/admin/access/reviews/**")
+                        .access(JwtConfig::tenantAdminDecision)
                         .anyRequest()
                         .authenticated())
                 .exceptionHandling(exceptions -> exceptions
@@ -116,5 +126,16 @@ public class JwtConfig {
                         authSessionActivityFilter,
                         BearerTokenAuthenticationFilter.class);
         return http.build();
+    }
+
+    static AuthorizationDecision tenantAdminDecision(
+            Supplier<Authentication> authentication,
+            RequestAuthorizationContext ignored) {
+        try {
+            return new AuthorizationDecision(
+                    AuthenticatedUserResolver.hasTenantAdminRole(authentication.get()));
+        } catch (BaseException exception) {
+            return new AuthorizationDecision(false);
+        }
     }
 }

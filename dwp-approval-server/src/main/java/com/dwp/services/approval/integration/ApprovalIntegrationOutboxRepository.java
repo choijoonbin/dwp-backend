@@ -55,6 +55,16 @@ public class ApprovalIntegrationOutboxRepository {
                 UPDATE apr_integration_outbox
                    SET status = 'PUBLISHED', published_at = CURRENT_TIMESTAMP,
                        locked_by = NULL, locked_until = NULL, last_error = NULL,
+                       recovery_auditor_assignment_state = CASE
+                           WHEN recovery_auditor_assignment_state IN (
+                               'PENDING', 'ASSIGNING', 'RETRY', 'EXHAUSTED')
+                               THEN 'NOT_REQUIRED'
+                           ELSE recovery_auditor_assignment_state
+                       END,
+                       recovery_auditor_assignment_locked_by = NULL,
+                       recovery_auditor_assignment_locked_until = NULL,
+                       recovery_auditor_assignment_exhausted_at = NULL,
+                       recovery_auditor_assignment_next_probe_at = NULL,
                        updated_at = CURRENT_TIMESTAMP
                  WHERE outbox_id = ? AND status = 'SENDING' AND locked_by = ?
                 """, outboxId, workerId);

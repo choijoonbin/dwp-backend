@@ -3,6 +3,7 @@ package com.dwp.services.platform.announcement;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.audit.PlatformAuditService;
+import com.dwp.services.platform.security.PlatformRoutePredicateEvaluator;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -29,14 +30,17 @@ public class AnnouncementService {
     private final AnnouncementRepository repository;
     private final JdbcTemplate jdbc;
     private final PlatformAuditService auditService;
+    private final PlatformRoutePredicateEvaluator predicateEvaluator;
 
     public AnnouncementService(
             AnnouncementRepository repository,
             JdbcTemplate jdbc,
-            PlatformAuditService auditService) {
+            PlatformAuditService auditService,
+            PlatformRoutePredicateEvaluator predicateEvaluator) {
         this.repository = repository;
         this.jdbc = jdbc;
         this.auditService = auditService;
+        this.predicateEvaluator = predicateEvaluator;
     }
 
     @Transactional(readOnly = true)
@@ -146,8 +150,8 @@ public class AnnouncementService {
             String correlationId,
             Long announcementId,
             AnnouncementDtos.UpdateAnnouncementRequest request) {
-        Announcement announcement = require(tenantId, announcementId);
-        requireVersion(announcement, request.version());
+        Announcement announcement = predicateEvaluator.requireAnnouncementObjectVersion(
+                tenantId, announcementId, request.version());
         if (announcement.getLifecycleState() != AnnouncementLifecycle.DRAFT) {
             throw conflict(
                     "Published and archived announcements are immutable. Duplicate the content to create a new draft revision.");
@@ -174,8 +178,8 @@ public class AnnouncementService {
             String correlationId,
             Long announcementId,
             Long version) {
-        Announcement announcement = require(tenantId, announcementId);
-        requireVersion(announcement, version);
+        Announcement announcement = predicateEvaluator.requireAnnouncementObjectVersion(
+                tenantId, announcementId, version);
         if (announcement.getLifecycleState() == AnnouncementLifecycle.ARCHIVED) {
             throw conflict("Archived announcements cannot be published.");
         }
@@ -206,8 +210,8 @@ public class AnnouncementService {
             String correlationId,
             Long announcementId,
             Long version) {
-        Announcement announcement = require(tenantId, announcementId);
-        requireVersion(announcement, version);
+        Announcement announcement = predicateEvaluator.requireAnnouncementObjectVersion(
+                tenantId, announcementId, version);
         if (announcement.getLifecycleState() == AnnouncementLifecycle.ARCHIVED) {
             return response(announcement);
         }
@@ -477,13 +481,6 @@ public class AnnouncementService {
                 .filter(value -> ROLE_PATTERN.matcher(value).matches())
                 .distinct()
                 .toList();
-    }
-
-    private void requireVersion(Announcement announcement, Long requestedVersion) {
-        long current = announcement.getVersion() == null ? 0L : announcement.getVersion();
-        if (requestedVersion == null || current != requestedVersion) {
-            throw conflict("The announcement was changed by another administrator.");
-        }
     }
 
     private String trimToNull(String value) {

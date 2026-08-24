@@ -3801,6 +3801,142 @@
         ],
         "type": "object"
       },
+      "ProductSurfaceEligibilityCandidateScope": {
+        "properties": {
+          "key": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "kind": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "ProductSurfaceEligibilityEvaluateRequest": {
+        "properties": {
+          "activeAccessMode": {
+            "enum": [
+              "NORMAL",
+              "ELEVATED",
+              "PROVIDER_SUPPORT"
+            ],
+            "type": "string"
+          },
+          "actorId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "candidateScopes": {
+            "items": {
+              "$ref": "#/components/schemas/ProductSurfaceEligibilityCandidateScope"
+            },
+            "type": "array"
+          },
+          "contextScopeKey": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "evaluatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "productKey": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string"
+          },
+          "surfaceKey": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "tenantId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "activeAccessMode",
+          "actorId",
+          "evaluatedAt",
+          "productKey",
+          "surfaceKey",
+          "tenantId"
+        ],
+        "type": "object"
+      },
+      "ProductSurfaceEligibilityResult": {
+        "properties": {
+          "decision": {
+            "enum": [
+              "ALLOWED",
+              "SURFACE_DENIED",
+              "SCOPE_INVALID",
+              "AUTHORITY_UNAVAILABLE"
+            ],
+            "type": "string"
+          },
+          "evidenceRef": {
+            "type": "string"
+          },
+          "productRelationshipRevision": {
+            "type": "string"
+          },
+          "reasonCode": {
+            "type": "string"
+          },
+          "revalidateAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "$ref": "#/components/schemas/ProductSurfaceEligibleScope"
+            },
+            "type": "array"
+          },
+          "targetPopulationRevision": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision"
+        ],
+        "type": "object"
+      },
+      "ProductSurfaceEligibleScope": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "key": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "readOnly": {
+            "type": "boolean"
+          },
+          "validUntil": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ProvisionTenantRequest": {
         "properties": {
           "dataRegion": {
@@ -4944,6 +5080,36 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/internal/people/v1/product-surface-eligibility/evaluate": {
+      "post": {
+        "operationId": "evaluateProductSurfaceEligibilityInternal",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductSurfaceEligibilityEvaluateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductSurfaceEligibilityResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "product-surface-eligibility-controller"
+        ]
+      }
+    },
     "/internal/provider/v1/tenants": {
       "post": {
         "operationId": "provision",

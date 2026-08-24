@@ -16,6 +16,7 @@ class PublicOpenApiConfigurationTest {
         Operation operation = new Operation()
                 .addParametersItem(header("X-DWP-Tenant-ID"))
                 .addParametersItem(header("X-DWP-Person-Public-ID"))
+                .addParametersItem(header("X-DWP-Rollout-Cohort"))
                 .addParametersItem(header("Accept-Language"))
                 .addParametersItem(new Parameter().in("query").name("from"));
         OpenAPI openApi = new OpenAPI().paths(new Paths().addPathItem(

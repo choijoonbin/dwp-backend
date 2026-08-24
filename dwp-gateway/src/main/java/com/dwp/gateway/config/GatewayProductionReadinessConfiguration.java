@@ -13,6 +13,9 @@ import java.util.Locale;
 @Configuration
 public class GatewayProductionReadinessConfiguration {
 
+    private static final String PRODUCT_SURFACE_ROLLOUT_TOPIC =
+            "dwp.feature-rollout.decision.changed.v1";
+
     @Bean
     ApplicationRunner gatewayProductionReadinessGuard(Environment environment) {
         return ignored -> {
@@ -20,6 +23,7 @@ public class GatewayProductionReadinessConfiguration {
             List<String> failures = new ArrayList<>();
             requireSecret(environment, failures, "spring.data.redis.password");
             requireSecret(environment, failures, "dwp.agent.service-token");
+            requireSecret(environment, failures, "dwp.auth.product-surface-token");
             requireSecret(environment, failures, "dwp.platform.service-token");
             requireSecret(environment, failures, "dwp.people.service-token");
             requireSecret(environment, failures, "dwp.provider.service-token");
@@ -41,6 +45,16 @@ public class GatewayProductionReadinessConfiguration {
             if (!environment.getProperty("spring.data.redis.ssl.enabled", Boolean.class, false)) {
                 failures.add("spring.data.redis.ssl.enabled must be true");
             }
+            if (!environment.getProperty(
+                    "dwp.gateway.product-surface-rollout.invalidation-enabled",
+                    Boolean.class,
+                    false)) {
+                failures.add("dwp.gateway.product-surface-rollout.invalidation-enabled must be true");
+            }
+            requireExact(environment, failures,
+                    "dwp.gateway.product-surface-rollout.invalidation-topic",
+                    PRODUCT_SURFACE_ROLLOUT_TOPIC);
+            requireProductionKafka(environment, failures);
             if (environment.getProperty("otel.sdk.disabled", Boolean.class, true)) {
                 failures.add("otel.sdk.disabled must be false");
             }
@@ -96,6 +110,23 @@ public class GatewayProductionReadinessConfiguration {
         if (!value.startsWith("https://") || value.contains("localhost")
                 || value.contains("127.0.0.1") || value.equals("https://*")) {
             failures.add(property + " must declare an explicit production HTTPS origin");
+        }
+    }
+
+    private void requireExact(
+            Environment environment,
+            List<String> failures,
+            String property,
+            String expected) {
+        if (!expected.equals(environment.getProperty(property, "").trim())) {
+            failures.add(property + " must be " + expected);
+        }
+    }
+
+    private void requireProductionKafka(Environment environment, List<String> failures) {
+        String brokers = environment.getProperty("spring.kafka.bootstrap-servers", "").trim();
+        if (brokers.isBlank() || brokers.equals("localhost:9092")) {
+            failures.add("spring.kafka.bootstrap-servers must use an explicit production broker");
         }
     }
 }

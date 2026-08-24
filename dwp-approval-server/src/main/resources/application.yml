@@ -64,6 +64,19 @@ dwp:
   approval:
     service-token: ${DWP_APPROVAL_SERVICE_TOKEN:}
     runtime-service-token: ${DWP_APPROVAL_RUNTIME_SERVICE_TOKEN:}
+    product-authorization-v2-enabled: ${DWP_APPROVAL_PRODUCT_AUTHORIZATION_V2_ENABLED:false}
+    # Forward-only gate. Enable only after every Approval pod advertises the
+    # management-scope-v1 compatibility fence; never use old-binary rollback.
+    management-scope-writes-enabled: ${DWP_APPROVAL_MANAGEMENT_SCOPE_WRITES_ENABLED:false}
+    management-scope-cluster-fence-confirmed: ${DWP_APPROVAL_MANAGEMENT_SCOPE_CLUSTER_FENCE_CONFIRMED:false}
+    step-up:
+      public-key-pem: ${DWP_APPROVAL_STEP_UP_PUBLIC_KEY_PEM:}
+      issuer: ${DWP_APPROVAL_STEP_UP_ISSUER:}
+      audience: ${DWP_APPROVAL_STEP_UP_AUDIENCE:dwp-approval-server}
+      key-id: ${DWP_APPROVAL_STEP_UP_KEY_ID:}
+      required-acr: ${DWP_APPROVAL_STEP_UP_REQUIRED_ACR:urn:dwp:acr:mfa}
+      maximum-authentication-age-seconds: ${DWP_APPROVAL_STEP_UP_MAX_AUTH_AGE_SECONDS:600}
+      maximum-challenge-ttl-seconds: ${DWP_APPROVAL_STEP_UP_MAX_TTL_SECONDS:900}
     external-signature-enabled: ${DWP_APPROVAL_EXTERNAL_SIGNATURE_ENABLED:false}
     integration-relay:
       enabled: ${DWP_APPROVAL_INTEGRATION_RELAY_ENABLED:false}
@@ -71,6 +84,16 @@ dwp:
       batch-size: ${DWP_APPROVAL_INTEGRATION_BATCH_SIZE:50}
       maximum-attempts: ${DWP_APPROVAL_INTEGRATION_MAXIMUM_ATTEMPTS:10}
       poll-delay-ms: ${DWP_APPROVAL_INTEGRATION_POLL_DELAY_MS:2000}
+    recovery-auditor-assignment:
+      enabled: ${DWP_APPROVAL_RECOVERY_AUDITOR_ASSIGNMENT_ENABLED:false}
+      auth-url: ${SERVICE_AUTH_URL:http://localhost:8001}
+      token: ${DWP_APPROVAL_RECOVERY_AUDITOR_TOKEN:}
+      batch-size: ${DWP_APPROVAL_RECOVERY_AUDITOR_BATCH_SIZE:50}
+      lease-seconds: ${DWP_APPROVAL_RECOVERY_AUDITOR_LEASE_SECONDS:30}
+      maximum-attempts: ${DWP_APPROVAL_RECOVERY_AUDITOR_MAXIMUM_ATTEMPTS:10}
+      probe-cooldown-seconds: ${DWP_APPROVAL_RECOVERY_AUDITOR_PROBE_COOLDOWN_SECONDS:86400}
+      maximum-probe-cooldown-seconds: ${DWP_APPROVAL_RECOVERY_AUDITOR_MAX_PROBE_COOLDOWN_SECONDS:604800}
+      poll-delay-ms: ${DWP_APPROVAL_RECOVERY_AUDITOR_POLL_DELAY_MS:2000}
 
 management:
   endpoints:

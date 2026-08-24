@@ -95,6 +95,7 @@ class PlatformSecurityFilterTest {
         PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
         MockHttpServletRequest editorCreate = new MockHttpServletRequest(
                 "POST", "/v1/admin/announcements");
+        legacyProduct(editorCreate);
         editorCreate.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
         editorCreate.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
         editorCreate.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
@@ -102,6 +103,9 @@ class PlatformSecurityFilterTest {
         editorCreate.addHeader(
                 PlatformSecurityFilter.PERMISSIONS_HEADER,
                 "ADMIN.COMMUNICATIONS:CREATE");
+        editorCreate.addHeader(
+                PlatformSecurityFilter.RESOURCE_ROLES_HEADER,
+                "APP_CONFIG_ADMIN@RS_COMMUNICATIONS");
         MockHttpServletResponse editorCreateResponse = new MockHttpServletResponse();
 
         filter.doFilter(editorCreate, editorCreateResponse, new MockFilterChain());
@@ -110,6 +114,7 @@ class PlatformSecurityFilterTest {
 
         MockHttpServletRequest editorPublish = new MockHttpServletRequest(
                 "POST", "/v1/admin/announcements/91/publish");
+        legacyProduct(editorPublish);
         editorPublish.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
         editorPublish.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
         editorPublish.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
@@ -125,6 +130,7 @@ class PlatformSecurityFilterTest {
 
         MockHttpServletRequest publisherPublish = new MockHttpServletRequest(
                 "POST", "/v1/admin/announcements/91/publish");
+        legacyProduct(publisherPublish);
         publisherPublish.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
         publisherPublish.addHeader(PlatformSecurityFilter.USER_HEADER, "18");
         publisherPublish.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
@@ -133,6 +139,9 @@ class PlatformSecurityFilterTest {
         publisherPublish.addHeader(
                 PlatformSecurityFilter.PERMISSIONS_HEADER,
                 "ADMIN.COMMUNICATIONS:APPROVE");
+        publisherPublish.addHeader(
+                PlatformSecurityFilter.RESOURCE_ROLES_HEADER,
+                "APP_CONFIG_ADMIN@RS_COMMUNICATIONS");
         MockHttpServletResponse publisherPublishResponse = new MockHttpServletResponse();
 
         filter.doFilter(publisherPublish, publisherPublishResponse, new MockFilterChain());
@@ -144,6 +153,7 @@ class PlatformSecurityFilterTest {
     void requiresTheCommunicationsApplicationEntitlementForTheReaderApi() throws Exception {
         PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
         MockHttpServletRequest denied = request("/v1/communications");
+        legacyProduct(denied);
         denied.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
         denied.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
         denied.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
@@ -155,6 +165,7 @@ class PlatformSecurityFilterTest {
         assertThat(deniedResponse.getStatus()).isEqualTo(403);
 
         MockHttpServletRequest allowed = request("/v1/communications");
+        legacyProduct(allowed);
         allowed.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
         allowed.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
         allowed.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
@@ -830,6 +841,7 @@ class PlatformSecurityFilterTest {
     void requiresEmployeeServicesEntitlementForTheServiceCenter() throws Exception {
         PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
         MockHttpServletRequest denied = request("/v1/services/catalog");
+        legacyProduct(denied);
         denied.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
         denied.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
         denied.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
@@ -841,6 +853,7 @@ class PlatformSecurityFilterTest {
         assertThat(deniedResponse.getStatus()).isEqualTo(403);
 
         MockHttpServletRequest allowed = request("/v1/services/catalog");
+        legacyProduct(allowed);
         allowed.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
         allowed.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
         allowed.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
@@ -860,6 +873,7 @@ class PlatformSecurityFilterTest {
         PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
         MockHttpServletRequest catalogWrite = new MockHttpServletRequest(
                 "PUT", "/v1/admin/services/catalog/technology.account-help");
+        legacyProduct(catalogWrite);
         catalogWrite.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
         catalogWrite.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
         catalogWrite.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
@@ -867,6 +881,9 @@ class PlatformSecurityFilterTest {
         catalogWrite.addHeader(
                 PlatformSecurityFilter.PERMISSIONS_HEADER,
                 "ADMIN.SERVICE_CATALOG:UPDATE");
+        catalogWrite.addHeader(
+                PlatformSecurityFilter.RESOURCE_ROLES_HEADER,
+                "APP_CONFIG_ADMIN@RS_SERVICES");
         MockHttpServletResponse catalogResponse = new MockHttpServletResponse();
 
         filter.doFilter(catalogWrite, catalogResponse, new MockFilterChain());
@@ -875,6 +892,7 @@ class PlatformSecurityFilterTest {
 
         MockHttpServletRequest catalogOnOperations = new MockHttpServletRequest(
                 "POST", "/v1/admin/services/requests/abc/transition");
+        legacyProduct(catalogOnOperations);
         catalogOnOperations.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
         catalogOnOperations.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
         catalogOnOperations.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
@@ -892,13 +910,17 @@ class PlatformSecurityFilterTest {
 
         MockHttpServletRequest agentTransition = new MockHttpServletRequest(
                 "POST", "/v1/admin/services/requests/abc/transition");
+        legacyProduct(agentTransition);
         agentTransition.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
         agentTransition.addHeader(PlatformSecurityFilter.USER_HEADER, "18");
         agentTransition.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
         agentTransition.addHeader(PlatformSecurityFilter.ROLES_HEADER, "SERVICE_AGENT");
         agentTransition.addHeader(
                 PlatformSecurityFilter.PERMISSIONS_HEADER,
-                "ADMIN.SERVICE_OPERATIONS:MANAGE");
+                "ADMIN.SERVICE_OPERATIONS:UPDATE");
+        agentTransition.addHeader(
+                PlatformSecurityFilter.RESOURCE_ROLES_HEADER,
+                "APP_CONFIG_ADMIN@RS_SERVICES");
         MockHttpServletResponse agentResponse = new MockHttpServletResponse();
 
         filter.doFilter(agentTransition, agentResponse, new MockFilterChain());
@@ -908,5 +930,12 @@ class PlatformSecurityFilterTest {
 
     private MockHttpServletRequest request(String path) {
         return new MockHttpServletRequest("GET", path);
+    }
+
+    private void legacyProduct(MockHttpServletRequest request) {
+        request.addHeader(PlatformSecurityFilter.ROLLOUT_STATE_HEADER, "000");
+        request.addHeader(PlatformSecurityFilter.ROLLOUT_REVISION_HEADER,
+                "rollout-" + "0123456789abcdef".repeat(4));
+        request.addHeader(PlatformSecurityFilter.ROLLOUT_COHORT_HEADER, "baseline");
     }
 }

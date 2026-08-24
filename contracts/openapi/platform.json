@@ -10967,6 +10967,135 @@
         },
         "type": "object"
       },
+      "ProductSurfaceTelemetryEventRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "attemptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "deviceClass": {
+            "enum": [
+              "DESKTOP",
+              "TABLET",
+              "MOBILE"
+            ],
+            "type": "string"
+          },
+          "elapsedBucket": {
+            "enum": [
+              "LT_1S",
+              "S1_TO_5",
+              "S5_TO_15",
+              "S15_TO_30",
+              "S30_TO_60",
+              "M1_TO_5",
+              "GTE_5M"
+            ],
+            "type": "string"
+          },
+          "eventName": {
+            "maxLength": 48,
+            "minLength": 0,
+            "type": "string"
+          },
+          "fromSurfaceKey": {
+            "pattern": "[a-z][a-z0-9-]{0,47}\\.(work|management)",
+            "type": "string"
+          },
+          "policyKind": {
+            "enum": [
+              "READ_ONLY",
+              "UPSTREAM_LOCK",
+              "SEGREGATION_OF_DUTIES",
+              "STEP_UP",
+              "SUPPORT",
+              "EXPIRY"
+            ],
+            "type": "string"
+          },
+          "productKey": {
+            "minLength": 1,
+            "pattern": "[a-z][a-z0-9-]{0,47}",
+            "type": "string"
+          },
+          "readOnly": {
+            "type": "boolean"
+          },
+          "reasonCode": {
+            "enum": [
+              "APP_DENIED",
+              "SURFACE_DENIED",
+              "ROUTE_DENIED",
+              "SCOPE_SELECTION_REQUIRED",
+              "SCOPE_INVALID",
+              "EXPIRED",
+              "ACTIVATION_REQUIRED",
+              "STEP_UP_REQUIRED",
+              "SOD_CONFLICT",
+              "SUPPORT_SCOPE_DENIED",
+              "AUTHORITY_UNAVAILABLE",
+              "NETWORK_ERROR",
+              "CANCELLED",
+              "VALIDATION_ERROR"
+            ],
+            "type": "string"
+          },
+          "routeId": {
+            "pattern": "[a-z][a-z0-9._-]{0,127}",
+            "type": "string"
+          },
+          "schemaVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "scopeKind": {
+            "enum": [
+              "SELF",
+              "ORG_UNIT",
+              "LEGAL_ENTITY",
+              "DOMAIN",
+              "RESOURCE",
+              "RESOURCE_SET",
+              "TARGET_POPULATION",
+              "SUPPORT_SESSION"
+            ],
+            "type": "string"
+          },
+          "surfaceKey": {
+            "pattern": "[a-z][a-z0-9-]{0,47}\\.(work|management)",
+            "type": "string"
+          },
+          "targetSurfaceKey": {
+            "pattern": "[a-z][a-z0-9-]{0,47}\\.(work|management)",
+            "type": "string"
+          },
+          "taskKind": {
+            "enum": [
+              "WORK",
+              "OPERATIONS",
+              "CONFIGURATION",
+              "ADMINISTRATION",
+              "GOVERNANCE",
+              "DESIGN",
+              "INTEGRATION",
+              "REPORTING",
+              "REVIEW"
+            ],
+            "type": "string"
+          },
+          "toSurfaceKey": {
+            "pattern": "[a-z][a-z0-9-]{0,47}\\.(work|management)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventName",
+          "productKey",
+          "schemaVersion"
+        ],
+        "type": "object"
+      },
       "ProductivityItem": {
         "properties": {
           "cancelled": {
@@ -14374,6 +14503,13 @@
             "type": "string"
           },
           "type": {
+            "enum": [
+              "APPROVAL",
+              "TASK",
+              "SERVICE",
+              "REQUIRED",
+              "REVIEW"
+            ],
             "type": "string"
           },
           "updatedAt": {
@@ -15864,6 +16000,15 @@
       "post": {
         "operationId": "ingest_1",
         "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
           {
             "in": "header",
             "name": "X-DWP-Observability-Service",
@@ -26549,6 +26694,33 @@
         },
         "tags": [
           "runtime-navigation-controller"
+        ]
+      }
+    },
+    "/v1/observability/product-surface-events": {
+      "post": {
+        "operationId": "ingestProductSurfaceTelemetry",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductSurfaceTelemetryEventRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Privacy-filtered UX event accepted"
+          },
+          "422": {
+            "description": "Unknown event, field, or dimension"
+          }
+        },
+        "tags": [
+          "product-surface-telemetry-controller"
         ]
       }
     },

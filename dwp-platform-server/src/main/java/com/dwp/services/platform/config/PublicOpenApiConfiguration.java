@@ -18,7 +18,8 @@ class PublicOpenApiConfiguration {
             "x-dwp-user-id",
             "x-dwp-person-public-id",
             "x-dwp-display-name-b64",
-            "x-dwp-permissions");
+            "x-dwp-permissions",
+            "x-dwp-rollout-cohort");
 
     @Bean
     OpenApiCustomizer hideGatewayTrustedIdentityHeaders() {

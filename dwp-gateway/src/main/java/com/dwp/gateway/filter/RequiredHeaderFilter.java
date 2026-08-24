@@ -11,11 +11,17 @@ import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
+import java.util.Set;
 
 @Component
 public class RequiredHeaderFilter implements GlobalFilter, Ordered {
 
     private static final String TENANT_HEADER = "X-Tenant-ID";
+    private static final Set<String> TENANT_HEADER_OPTIONAL_EXACT_PATHS = Set.of(
+            "/api/auth/product-surface-contexts",
+            "/api/auth/product-surface-access/evaluate",
+            "/api/auth/governed-route-access/evaluate",
+            "/api/auth/product-surface-step-up-challenges");
     private static final List<String> TENANT_HEADER_OPTIONAL_PATHS = List.of(
             "/api/auth/login",
             "/api/auth/csrf",
@@ -47,7 +53,8 @@ public class RequiredHeaderFilter implements GlobalFilter, Ordered {
     }
 
     private boolean isTenantHeaderOptional(String path) {
-        return TENANT_HEADER_OPTIONAL_PATHS.stream().anyMatch(path::startsWith);
+        return TENANT_HEADER_OPTIONAL_EXACT_PATHS.contains(path)
+                || TENANT_HEADER_OPTIONAL_PATHS.stream().anyMatch(path::startsWith);
     }
 
     @Override
