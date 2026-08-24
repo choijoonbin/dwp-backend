@@ -306,6 +306,35 @@ class AuthSessionVerifierTest {
     }
 
     @Test
+    void forwardsOperationalGateAuthoritiesForIndependentApproval() {
+        AtomicReference<ClientRequest> captured = new AtomicReference<>();
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+            captured.set(request);
+            return Mono.just(ClientResponse.create(HttpStatus.OK)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .body("""
+                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            "roles":["DWAION_AUDITOR"],"permissions":[
+                              {"resourceKey":"ADMIN.DWAION_GATES","permissionCode":"VIEW","effect":"ALLOW"},
+                              {"resourceKey":"ADMIN.DWAION_GATES","permissionCode":"APPROVE","effect":"ALLOW"}
+                            ]}}
+                            """)
+                    .build());
+        });
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+
+        VerifiedIdentity identity = verifier.verify(MockServerHttpRequest
+                .post("/api/agent/v1/admin/gates/MODEL_CREDENTIALS/decision")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery()).isEqualTo("permissionPrefix=ADMIN.DWAION_");
+        assertThat(identity).isNotNull();
+        assertThat(identity.permissions()).containsExactly(
+                "ADMIN.DWAION_GATES:APPROVE", "ADMIN.DWAION_GATES:VIEW");
+    }
+
+    @Test
     void includesSourceApplicationAuthoritiesForDwaionEvaluationRuns() {
         AtomicReference<ClientRequest> captured = new AtomicReference<>();
         WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {

@@ -118,11 +118,12 @@ Production으로 복제하거나 자동 승격하지 않는다.
 | 영역 | 증거 |
 | --- | --- |
 | Auth Resource·Role Permission | `dwp-auth-server` migration `V78__authorize_dwaion_operational_delivery_gates.sql` |
-| Gate·증빙 저장과 감사 | Agent migrations `V9__manage_tenant_operational_delivery_gates.sql`, `V10__scope_operational_gate_evidence_to_configuration.sql` |
+| Gate·증빙 저장과 감사 | Agent migrations `V9__manage_tenant_operational_delivery_gates.sql`, `V10__scope_operational_gate_evidence_to_configuration.sql`, `V11__make_operational_gate_validation_synchronous.sql` |
 | 계약·카탈로그·상태 전이 | Agent `operational_gate_contracts.py`, `operational_gate_catalog.py`, `operational_gate_store.py` |
-| 권한별 API | Agent `operational_gate_api.py` |
-| 관리자 UX | Frontend `dwaion-admin-gates.tsx`, `dwaion-gate-dialogs.tsx` |
-| 정책 회귀 | Agent `test_operational_gate_policy.py`, `test_operational_gate_api.py` |
+| 권한별 API | Agent `operational_gate_api.py`, RFC 9457 Problem Details |
+| 계약 Drift 방지 | Agent `contracts/openapi/agent-public.json`, Frontend `libs/api-contracts/src/agent-public.ts` |
+| 관리자 UX | Frontend `dwaion-admin-gates.tsx`, `dwaion-gate-dialogs.tsx`, `dwaion-gate-review.tsx` |
+| 정책 회귀 | Agent `test_operational_gate_policy.py`, `test_operational_gate_api.py`, `test_operational_gate_postgres.py` |
 
 ## 8. 구현 Queue
 
