@@ -142,8 +142,10 @@ class ServiceCenterServiceTest {
         List<ServiceCenterDtos.RequestSummary> result = service.operationsQueue(7L, null);
 
         assertThat(result).singleElement()
-                .extracting(ServiceCenterDtos.RequestSummary::status)
-                .isEqualTo(SUBMITTED);
+                .satisfies(summary -> {
+                    assertThat(summary.status()).isEqualTo(SUBMITTED);
+                    assertThat(summary.dataClassification()).isEqualTo(INTERNAL);
+                });
         verify(repository, never()).listRequests(7L, null, null);
     }
 

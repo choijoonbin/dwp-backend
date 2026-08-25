@@ -85,6 +85,40 @@ class NotificationDomainEventTranslatorTest {
     }
 
     @Test
+    void translatesTargetLifecycleHintsWithoutNotificationRecipients() throws Exception {
+        ObjectNode data = objectMapper.createObjectNode();
+        data.putArray("notificationTargetChanges")
+                .addObject()
+                .put("ownerAppKey", "messaging")
+                .put("targetReference", "/messages/direct?conversation=42&message=7")
+                .put("state", "DELETED")
+                .put("reason", "SOURCE_DELETED");
+        DomainEventEnvelope envelope = DomainEventEnvelope.create(
+                "urn:dwp:messaging",
+                "messaging.message.deleted.v1",
+                1,
+                1L,
+                "MESSAGING_MESSAGE",
+                "7",
+                2,
+                "corr-delete-7",
+                null,
+                null,
+                data);
+
+        NotificationDomainEventTranslator.TranslationBatch batch =
+                translator.translateBatch(objectMapper.writeValueAsString(envelope));
+
+        assertThat(batch.notifications()).isEmpty();
+        assertThat(batch.targetChanges()).singleElement().satisfies(translation -> {
+            assertThat(translation.actor().sourceService()).isEqualTo("dwp-messaging-server");
+            assertThat(translation.change().ownerAppKey()).isEqualTo("messaging");
+            assertThat(translation.change().state()).isEqualTo("DELETED");
+            assertThat(translation.change().reason()).isEqualTo("SOURCE_DELETED");
+        });
+    }
+
+    @Test
     void rejectsProjectionHintsFromUnonboardedProducers() throws Exception {
         ObjectNode data = objectMapper.createObjectNode();
         ObjectNode intent = data.putArray("notificationIntents").addObject()

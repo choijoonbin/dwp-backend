@@ -7,6 +7,7 @@ import com.dwp.services.messaging.security.MessagingRequestContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;
 import java.util.Set;
@@ -28,6 +29,17 @@ class MessagingNotificationEventsTest {
             new DomainEventContractRegistry(),
             objectMapper,
             queries);
+
+    @Test
+    void marksTheDependencyConstructorForRuntimeInjection() throws NoSuchMethodException {
+        var constructor = MessagingNotificationEvents.class.getDeclaredConstructor(
+                DomainEventRecorder.class,
+                DomainEventContractRegistry.class,
+                ObjectMapper.class,
+                MessagingQueryRepository.class);
+
+        assertThat(constructor.isAnnotationPresent(Autowired.class)).isTrue();
+    }
 
     @Test
     void emitsOneDirectIntentForActiveNonMutedRecipients() {
@@ -102,6 +114,32 @@ class MessagingNotificationEventsTest {
                 "corr-6");
 
         verifyNoInteractions(recorder);
+    }
+
+    @Test
+    void emitsARecipientTargetLifecycleChangeWhenTheSourceMessageIsDeleted() {
+        UUID conversationId = UUID.randomUUID();
+        UUID messageId = UUID.randomUUID();
+
+        events.messageDeleted(
+                subject(10L),
+                conversation(conversationId, "DIRECT", "INTERNAL"),
+                messageId,
+                3,
+                "corr-delete");
+
+        ArgumentCaptor<DomainEventEnvelope> captured =
+                ArgumentCaptor.forClass(DomainEventEnvelope.class);
+        verify(recorder).record(captured.capture());
+        DomainEventEnvelope envelope = captured.getValue();
+        assertThat(envelope.type()).isEqualTo(MessagingNotificationEvents.MESSAGE_DELETED);
+        assertThat(envelope.aggregateType()).isEqualTo("MESSAGING_MESSAGE");
+        assertThat(envelope.aggregateSequence()).isEqualTo(3);
+        assertThat(envelope.data().path("notificationTargetChanges").get(0).toString())
+                .contains("\"ownerAppKey\":\"messaging\"")
+                .contains("\"state\":\"DELETED\"")
+                .contains("\"reason\":\"SOURCE_DELETED\"")
+                .contains(messageId.toString());
     }
 
     @Test

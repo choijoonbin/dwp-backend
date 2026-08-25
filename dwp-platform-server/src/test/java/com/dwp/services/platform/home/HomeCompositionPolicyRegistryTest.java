@@ -22,7 +22,8 @@ class HomeCompositionPolicyRegistryTest {
                         List.of(new HomeExperienceDtos.GovernedHomeZone(
                                 "announcements", "CANVAS", false, "large", null, 30))));
 
-        assertThat(result.schemaVersion()).isEqualTo(2);
+        assertThat(result.schemaVersion()).isEqualTo(3);
+        assertThat(result.experienceVariant()).isEqualTo("CLASSIC");
         assertThat(result.governedZones())
                 .extracting(HomeExperienceDtos.GovernedHomeZone::zoneKey)
                 .containsExactly("announcements");
@@ -57,6 +58,24 @@ class HomeCompositionPolicyRegistryTest {
         assertThat(result.governedZones())
                 .extracting(HomeExperienceDtos.GovernedHomeZone::zoneKey)
                 .containsExactly("announcements");
+    }
+
+    @Test
+    void requiresTheV3VariantAndCombinesItWithTheServiceKillSwitch() {
+        HomeExperienceDtos.HomeCompositionPolicy flow = registry.normalize(
+                new HomeExperienceDtos.HomeCompositionPolicy(
+                        3, "FLOW_V1", true, List.of()));
+
+        assertThat(flow.experienceVariant()).isEqualTo("FLOW_V1");
+        assertThat(registry.effectiveVariant(flow, false)).isEqualTo("CLASSIC");
+        assertThat(registry.effectiveVariant(flow, true)).isEqualTo("FLOW_V1");
+
+        assertThatThrownBy(() -> registry.normalize(
+                new HomeExperienceDtos.HomeCompositionPolicy(
+                        3, "UNREGISTERED", true, List.of())))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(
+                                ErrorCode.INVALID_INPUT_VALUE));
     }
 
     private void assertInvalid(HomeExperienceDtos.GovernedHomeZone zone) {

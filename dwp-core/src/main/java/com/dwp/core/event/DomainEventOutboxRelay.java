@@ -7,7 +7,9 @@ import org.springframework.context.SmartLifecycle;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -114,9 +116,7 @@ public class DomainEventOutboxRelay implements SmartLifecycle {
             publisher.publish(claimed.stream()
                     .map(DomainEventOutboxRepository.ClaimedEvent::event)
                     .toList());
-            repository.markPublished(claimed.stream()
-                    .map(DomainEventOutboxRepository.ClaimedEvent::outboxId)
-                    .toList());
+            markPublished(claimed);
         } catch (RuntimeException batchFailure) {
             publishIndividually(claimed, batchFailure);
         }
@@ -125,21 +125,45 @@ public class DomainEventOutboxRelay implements SmartLifecycle {
     private void publishIndividually(
             List<DomainEventOutboxRepository.ClaimedEvent> claimed,
             RuntimeException batchFailure) {
-        List<UUID> published = new ArrayList<>();
+        List<DomainEventOutboxRepository.ClaimedEvent> published = new ArrayList<>();
         for (DomainEventOutboxRepository.ClaimedEvent item : claimed) {
             try {
                 publisher.publish(List.of(item.event()));
-                published.add(item.outboxId());
+                published.add(item);
             } catch (RuntimeException eventFailure) {
-                repository.markFailed(
-                        item.outboxId(), item.attempts(), maximumAttempts,
-                        eventFailure.getMessage());
+                boolean marked = repository.markFailed(
+                        item.workerId(), item.leaseToken(), item.outboxId(),
+                        item.attempts(), maximumAttempts, eventFailure.getMessage());
+                if (!marked) {
+                    log.warn(
+                            "Ignored stale domain-event failure outcome for outbox {}",
+                            item.outboxId());
+                }
             }
         }
-        repository.markPublished(published);
+        markPublished(published);
         log.warn(
                 "Domain-event batch publish failed; isolated {} event outcomes",
                 claimed.size(), batchFailure);
+    }
+
+    private void markPublished(List<DomainEventOutboxRepository.ClaimedEvent> published) {
+        Map<LeaseOwner, List<UUID>> byLease = new LinkedHashMap<>();
+        for (DomainEventOutboxRepository.ClaimedEvent item : published) {
+            byLease.computeIfAbsent(
+                            new LeaseOwner(item.workerId(), item.leaseToken()),
+                            ignored -> new ArrayList<>())
+                    .add(item.outboxId());
+        }
+        byLease.forEach((lease, ids) -> {
+            int changed = repository.markPublished(
+                    lease.workerId(), lease.leaseToken(), ids);
+            if (changed != ids.size()) {
+                log.warn(
+                        "Ignored {} stale domain-event publish outcomes after lease loss",
+                        ids.size() - changed);
+            }
+        });
     }
 
     private void pollSafely() {
@@ -158,5 +182,8 @@ public class DomainEventOutboxRelay implements SmartLifecycle {
 
     public static String workerId(String serviceName, String serviceInstance) {
         return serviceName + ':' + serviceInstance + ':' + UUID.randomUUID();
+    }
+
+    private record LeaseOwner(String workerId, String leaseToken) {
     }
 }

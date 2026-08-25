@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -52,6 +53,7 @@ public class DomainEventOutboxRepository {
     }
 
     public List<ClaimedEvent> claim(String workerId, int batchSize, int leaseSeconds) {
+        String leaseToken = UUID.randomUUID().toString();
         return jdbc.query("""
                 WITH candidates AS (
                     SELECT candidate.outbox_id
@@ -77,39 +79,57 @@ public class DomainEventOutboxRepository {
                    SET status = 'SENDING',
                        attempt_count = outbox.attempt_count + 1,
                        locked_by = :workerId,
+                       lock_token = :leaseToken,
                        locked_until = CURRENT_TIMESTAMP + make_interval(secs => :leaseSeconds),
                        updated_at = CURRENT_TIMESTAMP
                   FROM candidates
                  WHERE outbox.outbox_id = candidates.outbox_id
-                RETURNING outbox.outbox_id, outbox.payload::text, outbox.attempt_count
+                RETURNING outbox.outbox_id, outbox.payload::text, outbox.attempt_count,
+                          outbox.locked_by, outbox.lock_token
                 """, new MapSqlParameterSource()
                         .addValue("workerId", workerId)
+                        .addValue("leaseToken", leaseToken)
                         .addValue("batchSize", batchSize)
                         .addValue("leaseSeconds", leaseSeconds),
                 (result, ignored) -> new ClaimedEvent(
                         result.getObject("outbox_id", UUID.class),
                         DomainEventJson.deserialize(objectMapper, result.getString("payload")),
-                        result.getInt("attempt_count")));
+                        result.getInt("attempt_count"),
+                        result.getString("locked_by"),
+                        result.getString("lock_token")));
     }
 
-    public void markPublished(List<UUID> outboxIds) {
-        if (outboxIds.isEmpty()) return;
-        jdbc.update("""
+    public int markPublished(
+            String workerId,
+            String leaseToken,
+            List<UUID> outboxIds) {
+        if (outboxIds.isEmpty()) return 0;
+        return jdbc.update("""
                 UPDATE sys_domain_event_outbox
                    SET status = 'PUBLISHED', published_at = CURRENT_TIMESTAMP,
-                       locked_by = NULL, locked_until = NULL, last_error = NULL,
+                       locked_by = NULL, lock_token = NULL, locked_until = NULL,
+                       last_error = NULL,
                        updated_at = CURRENT_TIMESTAMP
                  WHERE outbox_id IN (:ids)
-                """, new MapSqlParameterSource("ids", outboxIds));
+                   AND status = 'SENDING'
+                   AND locked_by = :workerId
+                   AND lock_token = :leaseToken
+                   AND locked_until >= CURRENT_TIMESTAMP
+                """, new MapSqlParameterSource()
+                        .addValue("ids", outboxIds)
+                        .addValue("workerId", workerId)
+                        .addValue("leaseToken", leaseToken));
     }
 
-    public void markFailed(
+    public boolean markFailed(
+            String workerId,
+            String leaseToken,
             UUID outboxId,
             int attempts,
             int maximumAttempts,
             String error) {
         int delaySeconds = Math.min(300, Math.max(2, 1 << Math.min(8, attempts)));
-        jdbc.update("""
+        int changed = jdbc.update("""
                 UPDATE sys_domain_event_outbox
                    SET status = CASE
                            WHEN :attempts >= :maximumAttempts THEN 'DEAD'
@@ -121,15 +141,22 @@ public class DomainEventOutboxRepository {
                            WHEN :attempts >= :maximumAttempts THEN CURRENT_TIMESTAMP
                            ELSE NULL
                        END,
-                       locked_by = NULL, locked_until = NULL,
+                       locked_by = NULL, lock_token = NULL, locked_until = NULL,
                        last_error = :error, updated_at = CURRENT_TIMESTAMP
                  WHERE outbox_id = :outboxId
+                   AND status = 'SENDING'
+                   AND locked_by = :workerId
+                   AND lock_token = :leaseToken
+                   AND locked_until >= CURRENT_TIMESTAMP
                 """, new MapSqlParameterSource()
+                        .addValue("workerId", workerId)
+                        .addValue("leaseToken", leaseToken)
                         .addValue("attempts", attempts)
                         .addValue("maximumAttempts", maximumAttempts)
                         .addValue("delaySeconds", delaySeconds)
                         .addValue("error", truncate(error, 1000))
                         .addValue("outboxId", outboxId));
+        return changed == 1;
     }
 
     public boolean replayDead(
@@ -140,7 +167,7 @@ public class DomainEventOutboxRepository {
                 UPDATE sys_domain_event_outbox
                    SET status = 'PENDING', attempt_count = 0,
                        available_at = CURRENT_TIMESTAMP,
-                       locked_by = NULL, locked_until = NULL,
+                       locked_by = NULL, lock_token = NULL, locked_until = NULL,
                        dead_lettered_at = NULL, last_error = NULL,
                        replay_count = replay_count + 1,
                        updated_at = CURRENT_TIMESTAMP
@@ -156,11 +183,12 @@ public class DomainEventOutboxRepository {
     public int releaseExpiredLeases(Instant now) {
         return jdbc.update("""
                 UPDATE sys_domain_event_outbox
-                   SET status = 'FAILED', locked_by = NULL, locked_until = NULL,
+                   SET status = 'FAILED', locked_by = NULL, lock_token = NULL,
+                       locked_until = NULL,
                        available_at = :now, last_error = 'Publisher lease expired',
                        updated_at = CURRENT_TIMESTAMP
                  WHERE status = 'SENDING' AND locked_until < :now
-                """, new MapSqlParameterSource("now", now));
+                """, new MapSqlParameterSource("now", Timestamp.from(now)));
     }
 
     private void auditReplay(
@@ -212,6 +240,11 @@ public class DomainEventOutboxRepository {
         return value.length() <= maximumLength ? value : value.substring(0, maximumLength);
     }
 
-    public record ClaimedEvent(UUID outboxId, DomainEventEnvelope event, int attempts) {
+    public record ClaimedEvent(
+            UUID outboxId,
+            DomainEventEnvelope event,
+            int attempts,
+            String workerId,
+            String leaseToken) {
     }
 }

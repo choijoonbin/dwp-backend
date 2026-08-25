@@ -33,10 +33,11 @@ public class HomeOverviewController {
             @RequestHeader(value = "X-DWP-Person-Public-ID", required = false) UUID personPublicId,
             @RequestHeader(value = "X-DWP-Permissions", required = false) String permissions,
             @RequestHeader(value = "X-DWP-Roles", required = false) String roles,
+            @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestParam(defaultValue = "Asia/Seoul") String timeZone) {
         return ApiResponse.success(service.overview(
-                tenantId, userId, personPublicId, permissions, roles, locale, timeZone));
+                tenantId, userId, personPublicId, permissions, roles, locale, timeZone, groupRefs));
     }
 
     @PostMapping("/recommendations/{recommendationKey}/feedback")

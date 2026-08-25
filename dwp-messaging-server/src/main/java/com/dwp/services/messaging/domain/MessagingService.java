@@ -250,7 +250,8 @@ public class MessagingService {
             long version,
             String correlationId) {
         MessagingRequestContext.Subject subject = MessagingRequestContext.get();
-        visibleConversation(subject.tenantId(), subject.userId(), conversationId);
+        MessagingDtos.ConversationSummary conversation =
+                visibleConversation(subject.tenantId(), subject.userId(), conversationId);
         MessagingMessageAccess access = visibleMessage(subject, conversationId, messageId);
         if (!access.isAuthor(subject.userId()) && !access.canModerate()) {
             throw new BaseException(ErrorCode.FORBIDDEN,
@@ -273,6 +274,8 @@ public class MessagingService {
         events.conversationEvent(
                 subject, "messaging.message.deleted", conversationId, messageId,
                 Map.of("version", version + 1));
+        notificationEvents.messageDeleted(
+                subject, conversation, messageId, version + 1, correlationId);
         return message(subject, conversationId, messageId);
     }
 

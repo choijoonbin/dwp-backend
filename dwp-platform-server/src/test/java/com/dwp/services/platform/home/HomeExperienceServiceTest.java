@@ -5,6 +5,7 @@ import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.audit.PlatformAuditService;
 import com.dwp.services.platform.experience.ExperienceRevisionStore;
 import com.dwp.services.platform.media.TenantMediaStorage;
+import com.dwp.services.platform.home.personalization.HomeViewCompatibilityBridge;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
 import java.util.Map;
@@ -24,6 +26,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class HomeExperienceServiceTest {
@@ -38,6 +41,8 @@ class HomeExperienceServiceTest {
     private PlatformAuditService auditService;
     @Mock
     private ExperienceRevisionStore revisionStore;
+    @Mock
+    private HomeViewCompatibilityBridge compatibilityBridge;
 
     private HomeExperienceService service;
 
@@ -51,7 +56,9 @@ class HomeExperienceServiceTest {
                 revisionStore,
                 new ObjectMapper(),
                 new HomeLaunchpadPolicy(),
-                new HomeCompositionPolicyRegistry());
+                new HomeCompositionPolicyRegistry(),
+                compatibilityBridge);
+        lenient().when(compatibilityBridge.readCutoverReady(any())).thenReturn(true);
     }
 
     @Test
@@ -90,6 +97,73 @@ class HomeExperienceServiceTest {
         assertThat(result.compositionPolicy().governedZones())
                 .extracting(HomeExperienceDtos.GovernedHomeZone::zoneKey)
                 .containsExactly("announcements");
+    }
+
+    @Test
+    void returnsViewsOnlyWhenFlowV2AndTheReadSwitchAreAllEnabled() throws Exception {
+        HomeExperience experience = experience(7L, 2L, null);
+        experience.setCompositionPolicy(new ObjectMapper().readTree("""
+                {
+                  "schemaVersion":3,
+                  "experienceVariant":"FLOW_V1",
+                  "personalCustomizationEnabled":true,
+                  "governedZones":[]
+                }
+                """));
+        when(repository.findById(7L)).thenReturn(Optional.of(experience));
+        ReflectionTestUtils.setField(service, "homeFlowEnabled", true);
+        ReflectionTestUtils.setField(service, "advancedPersonalizationEnabled", true);
+        ReflectionTestUtils.setField(service, "composerEnabled", true);
+        ReflectionTestUtils.setField(service, "viewsReadEnabled", true);
+        ReflectionTestUtils.setField(service, "viewsDualWriteEnabled", true);
+        ReflectionTestUtils.setField(service, "viewsShadowCompareEnabled", true);
+
+        HomeExperienceDtos.HomeExperienceResponse enabled = service.get(7L);
+
+        assertThat(enabled.effectiveExperienceVariant()).isEqualTo("FLOW_V1");
+        assertThat(enabled.advancedPersonalizationEnabled()).isTrue();
+        assertThat(enabled.composerEnabled()).isTrue();
+        assertThat(enabled.homePreferenceStore()).isEqualTo("VIEWS");
+        assertThat(service.flowPersonalizationEnabled(7L)).isTrue();
+
+        ReflectionTestUtils.setField(service, "viewsDualWriteEnabled", false);
+        assertThat(service.flowPersonalizationEnabled(7L)).isFalse();
+        ReflectionTestUtils.setField(service, "viewsDualWriteEnabled", true);
+
+        ReflectionTestUtils.setField(service, "homeFlowEnabled", false);
+        HomeExperienceDtos.HomeExperienceResponse killed = service.get(7L);
+        assertThat(killed.effectiveExperienceVariant()).isEqualTo("CLASSIC");
+        assertThat(killed.homePreferenceStore()).isEqualTo("LEGACY");
+        assertThat(service.flowPersonalizationEnabled(7L)).isFalse();
+    }
+
+    @Test
+    void tenantCustomizationPolicyRemainsPartOfViewsAndComposerCapabilityGates()
+            throws Exception {
+        HomeExperience experience = experience(7L, 2L, null);
+        experience.setCompositionPolicy(new ObjectMapper().readTree("""
+                {
+                  "schemaVersion":3,
+                  "experienceVariant":"FLOW_V1",
+                  "personalCustomizationEnabled":false,
+                  "governedZones":[]
+                }
+                """));
+        when(repository.findById(7L)).thenReturn(Optional.of(experience));
+        ReflectionTestUtils.setField(service, "homeFlowEnabled", true);
+        ReflectionTestUtils.setField(service, "advancedPersonalizationEnabled", true);
+        ReflectionTestUtils.setField(service, "composerEnabled", true);
+        ReflectionTestUtils.setField(service, "viewsReadEnabled", true);
+        ReflectionTestUtils.setField(service, "viewsDualWriteEnabled", true);
+        ReflectionTestUtils.setField(service, "viewsShadowCompareEnabled", true);
+
+        HomeExperienceDtos.HomeExperienceResponse result = service.get(7L);
+
+        assertThat(result.effectiveExperienceVariant()).isEqualTo("FLOW_V1");
+        assertThat(result.advancedPersonalizationEnabled()).isFalse();
+        assertThat(result.composerEnabled()).isFalse();
+        assertThat(result.homePreferenceStore()).isEqualTo("LEGACY");
+        assertThat(service.flowPersonalizationEnabled(7L)).isFalse();
     }
 
     @Test

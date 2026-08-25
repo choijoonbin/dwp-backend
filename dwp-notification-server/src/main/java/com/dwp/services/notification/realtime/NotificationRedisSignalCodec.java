@@ -13,7 +13,7 @@ import java.util.Set;
 public final class NotificationRedisSignalCodec {
 
     private static final Set<String> ALLOWED_KEYS = Set.of(
-            "tenantId", "userId", "changeVersion", "counterVersion", "changedIds");
+            "tenantId", "userId", "changeVersion", "counterVersion", "changedIds", "arrivalIds");
     private static final int MAXIMUM_BYTES = 8 * 1024;
 
     private final ObjectMapper objectMapper;

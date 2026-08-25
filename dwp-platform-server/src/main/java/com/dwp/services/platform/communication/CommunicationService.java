@@ -10,6 +10,7 @@ import com.dwp.services.platform.announcement.AnnouncementRepository;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
@@ -33,13 +34,18 @@ public class CommunicationService {
 
     private final AnnouncementRepository repository;
     private final JdbcTemplate jdbc;
+    private final CommunicationActionQuery actionQuery;
 
-    public CommunicationService(AnnouncementRepository repository, JdbcTemplate jdbc) {
+    public CommunicationService(
+            AnnouncementRepository repository,
+            JdbcTemplate jdbc,
+            CommunicationActionQuery actionQuery) {
         this.repository = repository;
         this.jdbc = jdbc;
+        this.actionQuery = actionQuery;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public CommunicationDtos.FeedResponse feed(
             Long tenantId,
             Long userId,
@@ -49,29 +55,33 @@ public class CommunicationService {
             String query,
             String type,
             int size) {
-        List<Announcement> visible = active(tenantId, rolesHeader);
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        List<String> roles = parseRoles(rolesHeader);
+        List<Announcement> visible = active(tenantId, roles, now);
+        CommunicationActionQuery.ActionSnapshot actionSnapshot = actionQuery.snapshot(
+                tenantId, userId, roles, now, size);
+        List<Announcement> actionableAnnouncements = actionSnapshot.actionableIds().isEmpty()
+                ? List.of()
+                : repository.findByTenantIdAndAnnouncementIdIn(
+                        tenantId, actionSnapshot.actionableIds());
+        Map<Long, Announcement> hydrationSource = new LinkedHashMap<>();
+        visible.forEach(item -> hydrationSource.put(item.getAnnouncementId(), item));
+        actionableAnnouncements.forEach(item -> hydrationSource.put(item.getAnnouncementId(), item));
+        List<Announcement> hydrated = List.copyOf(hydrationSource.values());
         Map<Long, ReaderStateRow> states = readerStates(tenantId, userId);
         Map<Long, LocalizationRow> localizations = localizations(
-                tenantId, visible, preferredLocale(acceptLanguage));
+                tenantId, hydrated, preferredLocale(acceptLanguage));
         Map<Long, CommunicationDtos.ReactionSummary> reactions = reactionSummaries(
-                tenantId, userId, visible);
+                tenantId, userId, hydrated);
+        Map<Long, CommunicationDtos.CommunicationItem> responses = new LinkedHashMap<>();
+        hydrated.forEach(item -> responses.put(item.getAnnouncementId(), response(
+                item,
+                states.getOrDefault(item.getAnnouncementId(), ReaderStateRow.EMPTY),
+                localizations.get(item.getAnnouncementId()),
+                reactions.getOrDefault(item.getAnnouncementId(), emptyReactionSummary()))));
         List<CommunicationDtos.CommunicationItem> all = visible.stream()
-                .map(item -> response(
-                        item,
-                        states.getOrDefault(item.getAnnouncementId(), ReaderStateRow.EMPTY),
-                        localizations.get(item.getAnnouncementId()),
-                        reactions.getOrDefault(
-                                item.getAnnouncementId(), emptyReactionSummary())))
+                .map(item -> responses.get(item.getAnnouncementId()))
                 .toList();
-
-        List<CommunicationDtos.CommunicationItem> activeForSummary = all.stream()
-                .filter(item -> !item.readerState().dismissed())
-                .toList();
-        CommunicationDtos.FeedSummary summary = new CommunicationDtos.FeedSummary(
-                activeForSummary.size(),
-                activeForSummary.stream().filter(item -> item.readerState().unread()).count(),
-                activeForSummary.stream().filter(this::requiresAction).count(),
-                all.stream().filter(item -> item.readerState().saved()).count());
 
         Predicate<CommunicationDtos.CommunicationItem> scopeFilter = scopeFilter(scope);
         String normalizedQuery = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
@@ -89,8 +99,16 @@ public class CommunicationService {
                 .filter(item -> featured == null || !item.communicationId().equals(featured.communicationId()))
                 .limit(Math.max(1, Math.min(size, 48)))
                 .toList();
+        List<CommunicationDtos.CommunicationItem> actionableItems = actionSnapshot.actionableIds().stream()
+                .map(responses::get)
+                .filter(java.util.Objects::nonNull)
+                .toList();
         return new CommunicationDtos.FeedResponse(
-                featured, items, summary, OffsetDateTime.now(ZoneOffset.UTC));
+                featured,
+                items,
+                actionableItems,
+                actionSnapshot.summary(),
+                OffsetDateTime.now(ZoneOffset.UTC));
     }
 
     @Transactional(readOnly = true)
@@ -256,11 +274,13 @@ public class CommunicationService {
                 .getOrDefault(communicationId, emptyReactionSummary());
     }
 
-    private List<Announcement> active(Long tenantId, String rolesHeader) {
-        List<String> roles = parseRoles(rolesHeader);
+    private List<Announcement> active(
+            Long tenantId,
+            List<String> roles,
+            OffsetDateTime now) {
         return repository.findActive(
                 tenantId,
-                OffsetDateTime.now(ZoneOffset.UTC),
+                now,
                 roles.isEmpty() ? List.of("__NO_ROLE__") : roles,
                 PageRequest.of(0, MAX_VISIBLE_ITEMS));
     }
@@ -306,18 +326,29 @@ public class CommunicationService {
             String locale) {
         if (announcements.isEmpty()) return Map.of();
         String language = locale.contains("-") ? locale.substring(0, locale.indexOf('-')) : locale;
+        List<Long> announcementIds = announcements.stream()
+                .map(Announcement::getAnnouncementId)
+                .toList();
+        String placeholders = String.join(",", announcementIds.stream().map(ignored -> "?").toList());
+        List<Object> parameters = new ArrayList<>();
+        parameters.add(tenantId);
+        parameters.add(locale);
+        parameters.add(language);
+        parameters.addAll(announcementIds);
+        parameters.add(locale);
         List<LocalizationRow> rows = jdbc.query("""
                 SELECT announcement_id, locale, title, summary, body, action_label
                   FROM adm_announcement_localizations
                  WHERE tenant_id = ? AND locale IN (?, ?)
+                   AND announcement_id IN (%s)
                  ORDER BY CASE WHEN locale = ? THEN 0 ELSE 1 END
-                """, (result, ignored) -> new LocalizationRow(
+                """.formatted(placeholders), (result, ignored) -> new LocalizationRow(
                 result.getLong("announcement_id"),
                 result.getString("locale"),
                 result.getString("title"),
                 result.getString("summary"),
                 result.getString("body"),
-                result.getString("action_label")), tenantId, locale, language, locale);
+                result.getString("action_label")), parameters.toArray());
         Map<Long, LocalizationRow> result = new LinkedHashMap<>();
         rows.forEach(row -> result.putIfAbsent(row.announcementId(), row));
         return result;

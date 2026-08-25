@@ -60,6 +60,11 @@ class NotificationAdminServiceTest {
         assertThat(preview.affectedTypeCount()).isEqualTo(3L);
         assertThat(preview.observedRecipients30Days()).isEqualTo(120L);
         assertThat(preview.proposedPolicy().version()).isEqualTo("1");
+        assertThat(preview.runtimeChannels()).singleElement().satisfies(channel -> {
+            assertThat(channel.channel()).isEqualTo("IN_APP");
+            assertThat(channel.managed()).isTrue();
+            assertThat(channel.defaultDeliveryAdmitted()).isTrue();
+        });
         assertThat(preview.riskFlags()).containsExactly(
                 "MANDATORY_DELIVERY", "QUIET_HOURS_BYPASS", "USER_OVERRIDE_RESTRICTED");
     }

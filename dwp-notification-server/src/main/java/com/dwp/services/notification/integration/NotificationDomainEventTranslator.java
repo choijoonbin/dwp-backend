@@ -2,6 +2,7 @@ package com.dwp.services.notification.integration;
 
 import com.dwp.core.event.DomainEventEnvelope;
 import com.dwp.services.notification.domain.NotificationModels.DirectMaterializationRequest;
+import com.dwp.services.notification.domain.NotificationTargetLifecycleService.TargetChange;
 import com.dwp.services.notification.security.NotificationRequestContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -28,6 +29,7 @@ public class NotificationDomainEventTranslator {
     private static final int MAXIMUM_INTENTS = 20;
     private static final int MAXIMUM_RECIPIENTS = 100;
     private static final int MAXIMUM_VARIABLES = 50;
+    private static final int MAXIMUM_TARGET_CHANGES = 100;
     private static final Pattern TYPE_KEY = Pattern.compile("[A-Z][A-Z0-9_.-]{2,159}");
     private static final Pattern VARIABLE_KEY =
             Pattern.compile("[A-Za-z][A-Za-z0-9_.-]{0,79}");
@@ -44,11 +46,26 @@ public class NotificationDomainEventTranslator {
     }
 
     public List<Translation> translate(String value) {
+        return translateBatch(value).notifications();
+    }
+
+    public TranslationBatch translateBatch(String value) {
         DomainEventEnvelope event = envelope(value);
         JsonNode intents = event.data().get("notificationIntents");
-        if (intents == null || intents.isNull()) return List.of();
-        if (!intents.isArray() || intents.isEmpty() || intents.size() > MAXIMUM_INTENTS) {
+        JsonNode targetChanges = event.data().get("notificationTargetChanges");
+        boolean hasIntents = intents != null && !intents.isNull();
+        boolean hasTargetChanges = targetChanges != null && !targetChanges.isNull();
+        if (!hasIntents && !hasTargetChanges) {
+            return new TranslationBatch(List.of(), List.of());
+        }
+        if (hasIntents
+                && (!intents.isArray() || intents.isEmpty() || intents.size() > MAXIMUM_INTENTS)) {
             throw contract("notificationIntents must contain between 1 and 20 entries.");
+        }
+        if (hasTargetChanges && (!targetChanges.isArray()
+                || targetChanges.isEmpty()
+                || targetChanges.size() > MAXIMUM_TARGET_CHANGES)) {
+            throw contract("notificationTargetChanges must contain between 1 and 100 entries.");
         }
         validateEnvelope(event);
         String producer = producerSources.get(event.source());
@@ -60,31 +77,51 @@ public class NotificationDomainEventTranslator {
                 event.tenantId(), null, Set.of(), Set.of(), true, producer);
         List<Translation> translations = new ArrayList<>();
         Set<String> typeKeys = new LinkedHashSet<>();
-        for (JsonNode intent : intents) {
-            if (!intent.isObject()) throw contract("Each notification intent must be an object.");
-            String typeKey = text(intent, "typeKey", 160, true);
-            if (!TYPE_KEY.matcher(typeKey).matches() || !typeKeys.add(typeKey)) {
-                throw contract("Notification type keys must be valid and unique per event.");
+        if (hasIntents) {
+            for (JsonNode intent : intents) {
+                if (!intent.isObject()) {
+                    throw contract("Each notification intent must be an object.");
+                }
+                String typeKey = text(intent, "typeKey", 160, true);
+                if (!TYPE_KEY.matcher(typeKey).matches() || !typeKeys.add(typeKey)) {
+                    throw contract("Notification type keys must be valid and unique per event.");
+                }
+                DirectMaterializationRequest request = new DirectMaterializationRequest(
+                        event.id(),
+                        event.type(),
+                        event.schemaVersion(),
+                        typeKey,
+                        recipients(intent.get("recipientUserIds")),
+                        text(intent, "threadKey", 200, false),
+                        defaultText(intent, "locale", "ko-KR", 35),
+                        defaultText(intent, "reasonCode", "DIRECT", 200),
+                        text(intent, "actorReference", 300, false),
+                        text(intent, "subjectReference", 300, false),
+                        text(intent, "targetReference", 300, false),
+                        event.time(),
+                        instant(intent, "dueAt"),
+                        booleanValue(intent, "actionRequired"),
+                        variables(intent.get("variables")));
+                translations.add(new Translation(actor, request, event.correlationId()));
             }
-            DirectMaterializationRequest request = new DirectMaterializationRequest(
-                    event.id(),
-                    event.type(),
-                    event.schemaVersion(),
-                    typeKey,
-                    recipients(intent.get("recipientUserIds")),
-                    text(intent, "threadKey", 200, false),
-                    defaultText(intent, "locale", "ko-KR", 35),
-                    defaultText(intent, "reasonCode", "DIRECT", 200),
-                    text(intent, "actorReference", 300, false),
-                    text(intent, "subjectReference", 300, false),
-                    text(intent, "targetReference", 300, false),
-                    event.time(),
-                    instant(intent, "dueAt"),
-                    booleanValue(intent, "actionRequired"),
-                    variables(intent.get("variables")));
-            translations.add(new Translation(actor, request, event.correlationId()));
         }
-        return List.copyOf(translations);
+        List<TargetChangeTranslation> changes = new ArrayList<>();
+        if (hasTargetChanges) {
+            for (JsonNode change : targetChanges) {
+                if (!change.isObject()) {
+                    throw contract("Each notification target change must be an object.");
+                }
+                changes.add(new TargetChangeTranslation(
+                        actor,
+                        new TargetChange(
+                                text(change, "ownerAppKey", 80, true),
+                                text(change, "targetReference", 300, true),
+                                text(change, "state", 20, true),
+                                text(change, "reason", 500, true)),
+                        event.correlationId()));
+            }
+        }
+        return new TranslationBatch(List.copyOf(translations), List.copyOf(changes));
     }
 
     private DomainEventEnvelope envelope(String value) {
@@ -243,5 +280,16 @@ public class NotificationDomainEventTranslator {
             NotificationRequestContext.Actor actor,
             DirectMaterializationRequest request,
             String correlationId) {
+    }
+
+    public record TargetChangeTranslation(
+            NotificationRequestContext.Actor actor,
+            TargetChange change,
+            String correlationId) {
+    }
+
+    public record TranslationBatch(
+            List<Translation> notifications,
+            List<TargetChangeTranslation> targetChanges) {
     }
 }

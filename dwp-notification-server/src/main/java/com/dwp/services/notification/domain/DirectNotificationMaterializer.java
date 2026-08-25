@@ -34,6 +34,7 @@ public class DirectNotificationMaterializer {
 
     private final NotificationDatabaseScope databaseScope;
     private final NotificationMaterializationRepository repository;
+    private final NotificationProducerOwnershipPolicy ownershipPolicy;
     private final NotificationRetentionService retentionService;
     private final NotificationChangePublisher changePublisher;
     private final ObjectMapper objectMapper;
@@ -41,11 +42,13 @@ public class DirectNotificationMaterializer {
     public DirectNotificationMaterializer(
             NotificationDatabaseScope databaseScope,
             NotificationMaterializationRepository repository,
+            NotificationProducerOwnershipPolicy ownershipPolicy,
             NotificationRetentionService retentionService,
             NotificationChangePublisher changePublisher,
             ObjectMapper objectMapper) {
         this.databaseScope = databaseScope;
         this.repository = repository;
+        this.ownershipPolicy = ownershipPolicy;
         this.retentionService = retentionService;
         this.changePublisher = changePublisher;
         this.objectMapper = objectMapper;
@@ -80,6 +83,7 @@ public class DirectNotificationMaterializer {
                 sanitizedRequest.sourceEventType(),
                 sanitizedRequest.sourceSchemaVersion(),
                 sanitizedRequest.locale());
+        ownershipPolicy.requireOwnership(actor, contract);
         String payloadHash = payloadHash(sanitizedRequest);
         java.time.Instant admittedAt = java.time.Instant.now();
         RenderedContent content = render(contract, variables);

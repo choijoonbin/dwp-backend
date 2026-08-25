@@ -10,10 +10,11 @@ public record VerifiedIdentity(
         List<String> groupRefs,
         List<String> resourceRoles,
         String personPublicId,
-        String displayName) {
+        String displayName,
+        boolean legacyRoleFallbackAllowed) {
 
     public VerifiedIdentity(String userId, String tenantId, List<String> roles) {
-        this(userId, tenantId, roles, List.of(), List.of(), List.of(), null, null);
+        this(userId, tenantId, roles, List.of(), List.of(), List.of(), null, null, false);
     }
 
     public VerifiedIdentity(
@@ -21,7 +22,7 @@ public record VerifiedIdentity(
             String tenantId,
             List<String> roles,
             List<String> permissions) {
-        this(userId, tenantId, roles, permissions, List.of(), List.of(), null, null);
+        this(userId, tenantId, roles, permissions, List.of(), List.of(), null, null, false);
     }
 
     public VerifiedIdentity(
@@ -31,7 +32,21 @@ public record VerifiedIdentity(
             List<String> permissions,
             List<String> groupRefs,
             List<String> resourceRoles) {
-        this(userId, tenantId, roles, permissions, groupRefs, resourceRoles, null, null);
+        this(userId, tenantId, roles, permissions, groupRefs, resourceRoles, null, null, false);
+    }
+
+    public VerifiedIdentity(
+            String userId,
+            String tenantId,
+            List<String> roles,
+            List<String> permissions,
+            List<String> groupRefs,
+            List<String> resourceRoles,
+            String personPublicId,
+            String displayName) {
+        this(
+                userId, tenantId, roles, permissions, groupRefs, resourceRoles,
+                personPublicId, displayName, false);
     }
 
     public VerifiedIdentity {

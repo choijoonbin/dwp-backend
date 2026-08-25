@@ -15,6 +15,7 @@ import com.dwp.services.notification.domain.NotificationModels.SubscriptionRule;
 import com.dwp.services.notification.domain.NotificationModels.SubscriptionRuleUpdate;
 import com.dwp.services.notification.domain.NotificationModels.Summary;
 import com.dwp.services.notification.domain.NotificationModels.SyncResponse;
+import com.dwp.services.notification.domain.NotificationModels.TargetResolution;
 import com.dwp.services.notification.domain.NotificationModels.VersionRequest;
 import com.dwp.services.notification.domain.NotificationService;
 import com.dwp.services.notification.realtime.NotificationStreamService;
@@ -94,6 +95,11 @@ public class NotificationController {
         return ApiResponse.success(service.detail(actor(), notificationId));
     }
 
+    @GetMapping("/inbox/{notificationId}/target")
+    public ApiResponse<TargetResolution> target(@PathVariable UUID notificationId) {
+        return ApiResponse.success(service.resolveTarget(actor(), notificationId));
+    }
+
     @GetMapping("/sync")
     public ApiResponse<SyncResponse> sync(
             @RequestParam(required = false) String after,
@@ -108,8 +114,10 @@ public class NotificationController {
         NotificationRequestContext.Actor actor = actor();
         String cursor = after == null || after.isBlank() ? lastEventId : after;
         service.validateSyncCursor(actor, cursor);
-        SyncResponse catchUp = service.sync(actor, cursor, 100);
-        return streamService.open(actor, catchUp);
+        return streamService.open(
+                actor,
+                cursor,
+                (pageAfter, limit) -> service.sync(actor, pageAfter, limit));
     }
 
     @PostMapping("/inbox/{notificationId}/read")
@@ -184,6 +192,13 @@ public class NotificationController {
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @Valid @RequestBody BulkActionRequest request) {
         return ApiResponse.success(service.bulkMutate(actor(), request, idempotencyKey));
+    }
+
+    @PostMapping("/inbox/bulk-actions/{undoToken}/undo")
+    public ApiResponse<BulkResult> undoBulkAction(
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @PathVariable UUID undoToken) {
+        return ApiResponse.success(service.undoBulk(actor(), undoToken, idempotencyKey));
     }
 
     @GetMapping("/me/delivery-profile")

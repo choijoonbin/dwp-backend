@@ -13,6 +13,8 @@ spring:
     hikari:
       maximum-pool-size: ${DWP_NOTIFICATION_DB_POOL_SIZE:20}
       auto-commit: false
+  jpa:
+    open-in-view: false
   flyway:
     enabled: true
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${NOTIFICATION_DB_NAME:dwp_notification}
@@ -58,9 +60,12 @@ springdoc:
 
 dwp:
   notification:
+    bulk-undo-window: ${DWP_NOTIFICATION_BULK_UNDO_WINDOW:PT10M}
     service-token: ${DWP_NOTIFICATION_SERVICE_TOKEN:}
     gateway-source: ${DWP_NOTIFICATION_GATEWAY_SOURCE:dwp-gateway}
     producer-tokens: ${DWP_NOTIFICATION_PRODUCER_TOKENS:}
+    producer-app-bindings: >-
+      ${DWP_NOTIFICATION_PRODUCER_APP_BINDINGS:dwp-approval-server=approvals,dwp-people-server=hcm|people,dwp-platform-server=platform,dwp-space-server=space,dwp-messaging-server=messaging}
     cursor-secret: ${DWP_NOTIFICATION_CURSOR_SECRET:}
     cursor-ttl: ${DWP_NOTIFICATION_CURSOR_TTL:24h}
     sse-timeout: ${DWP_NOTIFICATION_SSE_TIMEOUT:30m}
@@ -78,6 +83,11 @@ dwp:
       batch-size: ${DWP_NOTIFICATION_RETENTION_BATCH_SIZE:100}
       fixed-delay: ${DWP_NOTIFICATION_RETENTION_FIXED_DELAY:5m}
       initial-delay: ${DWP_NOTIFICATION_RETENTION_INITIAL_DELAY:1m}
+    reconciliation:
+      enabled: ${DWP_NOTIFICATION_RECONCILIATION_ENABLED:true}
+      batch-size: ${DWP_NOTIFICATION_RECONCILIATION_BATCH_SIZE:100}
+      fixed-delay: ${DWP_NOTIFICATION_RECONCILIATION_FIXED_DELAY:5m}
+      initial-delay: ${DWP_NOTIFICATION_RECONCILIATION_INITIAL_DELAY:2m}
     outbox:
       enabled: ${DWP_NOTIFICATION_OUTBOX_RELAY_ENABLED:true}
       provision-topic: ${DWP_NOTIFICATION_OUTBOX_PROVISION_TOPIC:false}

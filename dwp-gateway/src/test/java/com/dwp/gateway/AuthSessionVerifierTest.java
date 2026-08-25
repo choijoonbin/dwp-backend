@@ -192,7 +192,7 @@ class AuthSessionVerifierTest {
     }
 
     @Test
-    void requestsOnlyHomeWorkAuthoritiesForTheIntegratedOverview() {
+    void requestsEverySourceAuthorityForTheIntegratedHomeOverview() {
         AtomicReference<ClientRequest> captured = new AtomicReference<>();
         WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
             captured.set(request);
@@ -202,7 +202,9 @@ class AuthSessionVerifierTest {
                             {"success":true,"data":{"userId":7,"tenantId":1,
                             "roles":["WORKSPACE_MEMBER"],"permissions":[
                               {"resourceKey":"APP.WORK","permissionCode":"VIEW","effect":"ALLOW"},
-                              {"resourceKey":"APP.ACTIVITY","permissionCode":"VIEW","effect":"ALLOW"}
+                              {"resourceKey":"APP.ACTIVITY","permissionCode":"VIEW","effect":"ALLOW"},
+                              {"resourceKey":"APP.CALENDAR","permissionCode":"VIEW","effect":"ALLOW"},
+                              {"resourceKey":"APP.COMMUNICATIONS","permissionCode":"VIEW","effect":"ALLOW"}
                             ]}}
                             """)
                     .build());
@@ -215,11 +217,70 @@ class AuthSessionVerifierTest {
                 .build()).block();
 
         assertThat(captured.get().url().getQuery())
-                .isEqualTo("permissionPrefix=APP.WORK,APP.ACTIVITY");
+                .isEqualTo("permissionPrefix=APP.WORK,APP.ACTIVITY,APP.CALENDAR,APP.COMMUNICATIONS");
         assertThat(identity).isNotNull();
         assertThat(identity.permissions()).containsExactly(
                 "APP.ACTIVITY:VIEW",
+                "APP.CALENDAR:VIEW",
+                "APP.COMMUNICATIONS:VIEW",
                 "APP.WORK:VIEW");
+    }
+
+    @Test
+    void projectsOnlyHomeTemplateAuthoritiesForTemplateManagementRoutes() {
+        AtomicReference<ClientRequest> captured = new AtomicReference<>();
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+            captured.set(request);
+            return Mono.just(ClientResponse.create(HttpStatus.OK)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .body("""
+                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            "roles":["HOME_ADMIN"],"permissions":[
+                              {"resourceKey":"ADMIN.HOME_TEMPLATE","permissionCode":"VIEW","effect":"ALLOW"},
+                              {"resourceKey":"ADMIN.HOME_TEMPLATE","permissionCode":"MANAGE","effect":"ALLOW"}
+                            ]}}
+                            """)
+                    .build());
+        });
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+
+        VerifiedIdentity identity = verifier.verify(MockServerHttpRequest
+                .post("/api/platform/v1/home-templates")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery())
+                .isEqualTo("permissionPrefix=ADMIN.HOME_TEMPLATE");
+        assertThat(identity).isNotNull();
+        assertThat(identity.permissions()).containsExactly(
+                "ADMIN.HOME_TEMPLATE:MANAGE", "ADMIN.HOME_TEMPLATE:VIEW");
+    }
+
+    @Test
+    void carriesTheAuthVerifiedLegacyFallbackSignalForPeopleHrRoutes() {
+        AtomicReference<ClientRequest> captured = new AtomicReference<>();
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+            captured.set(request);
+            return Mono.just(ClientResponse.create(HttpStatus.OK)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .body("""
+                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            "roles":["WORKSPACE_MEMBER"],"permissions":[],
+                            "legacyRoleFallbackAllowed":true}}
+                            """)
+                    .build());
+        });
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+
+        VerifiedIdentity identity = verifier.verify(MockServerHttpRequest
+                .get("/api/people/v1/hr/home")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery())
+                .isEqualTo("permissionPrefix=APP.HCM,APP.HRIS,DATA.HR_");
+        assertThat(identity).isNotNull();
+        assertThat(identity.legacyRoleFallbackAllowed()).isTrue();
     }
 
     @Test

@@ -36,6 +36,7 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
     static final String SUPPORT_SCOPES_HEADER = "X-DWP-Support-Scopes";
     static final String ACTOR_TENANT_HEADER = "X-DWP-Actor-Tenant-ID";
     static final String PERSON_PUBLIC_ID_HEADER = "X-DWP-Person-Public-ID";
+    static final String LEGACY_ROLE_FALLBACK_HEADER = "X-DWP-Legacy-Role-Fallback-Allowed";
     private static final Set<String> ADMIN_ROLES =
             Set.of("ADMIN", "TENANT_ADMIN", "PLATFORM_ADMIN", "HR_ADMIN", "PEOPLE_ADMIN");
     private static final Set<String> WORKFORCE_ROLES =
@@ -82,6 +83,8 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
         Long tenantId = positiveLong(request.getHeader(TENANT_HEADER));
         Set<String> roles = parseRoles(request.getHeader(ROLES_HEADER));
         Set<String> permissions = parseRoles(request.getHeader(PERMISSIONS_HEADER));
+        boolean legacyRoleFallbackAllowed = Boolean.parseBoolean(
+                request.getHeader(LEGACY_ROLE_FALLBACK_HEADER));
         UUID personPublicId = uuid(request.getHeader(PERSON_PUBLIC_ID_HEADER));
         if (actorId == null || tenantId == null) {
             writeError(response, ErrorCode.UNAUTHORIZED,
@@ -100,7 +103,7 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
                 permissions,
                 "ADMIN.WORKFORCE_ACCESS",
                 isReadOnly(request) ? Set.of("VIEW", "MANAGE") : Set.of("MANAGE"));
-        boolean legacyAdminRole = permissions.isEmpty()
+        boolean legacyAdminRole = legacyRoleFallbackAllowed && permissions.isEmpty()
                 && roles.stream().anyMatch(ADMIN_ROLES::contains);
         if (!supportAccess && request.getRequestURI().startsWith("/v1/admin/")
                 && !legacyAdminRole
@@ -113,7 +116,7 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
                 permissions,
                 "DATA.WORKFORCE",
                 isReadOnly(request) ? Set.of("VIEW", "MANAGE") : Set.of("MANAGE"));
-        boolean legacyWorkforceRole = permissions.isEmpty()
+        boolean legacyWorkforceRole = legacyRoleFallbackAllowed && permissions.isEmpty()
                 && roles.stream().anyMatch(WORKFORCE_ROLES::contains);
         if (!supportAccess && request.getRequestURI().startsWith("/v1/workforce/")
                 && !legacyWorkforceRole
@@ -129,7 +132,7 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
                 permissions,
                 "APP.HRIS",
                 Set.of("VIEW", "MANAGE"));
-        boolean legacyHcmRole = permissions.isEmpty()
+        boolean legacyHcmRole = legacyRoleFallbackAllowed && permissions.isEmpty()
                 && (roles.contains("WORKSPACE_MEMBER")
                     || roles.stream().anyMatch(WORKFORCE_ROLES::contains));
         if (request.getRequestURI().startsWith("/v1/hr/")

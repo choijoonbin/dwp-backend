@@ -22,6 +22,7 @@ public class WorkspaceRepository {
     public List<WorkRow> workItems(Long tenantId, Long actorId, boolean korean) {
         return jdbc.query("""
                 SELECT work_item_id, work_key, title_ko, title_en, summary_ko, summary_en,
+                       data_classification,
                        work_type, priority, lifecycle_state, owner_name, due_at,
                        source_system, source_reference, source_route,
                        reason_ko, reason_en, recommended_next_ko, recommended_next_en,
@@ -44,6 +45,7 @@ public class WorkspaceRepository {
             boolean korean) {
         return jdbc.query("""
                 SELECT work_item_id, work_key, title_ko, title_en, summary_ko, summary_en,
+                       data_classification,
                        work_type, priority, lifecycle_state, owner_name, due_at,
                        source_system, source_reference, source_route,
                        reason_ko, reason_en, recommended_next_ko, recommended_next_en,
@@ -198,6 +200,7 @@ public class WorkspaceRepository {
                 result.getString("work_key"),
                 localized(result, "title", korean),
                 localized(result, "summary", korean),
+                result.getString("data_classification"),
                 result.getString("work_type"),
                 result.getString("priority"),
                 result.getString("lifecycle_state"),
@@ -259,6 +262,7 @@ public class WorkspaceRepository {
             String id,
             String title,
             String summary,
+            String dataClassification,
             String type,
             String priority,
             String status,

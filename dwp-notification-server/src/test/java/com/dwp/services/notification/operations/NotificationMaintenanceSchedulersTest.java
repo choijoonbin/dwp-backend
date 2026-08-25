@@ -49,4 +49,26 @@ class NotificationMaintenanceSchedulersTest {
         verify(relay).relayTenant(org.mockito.ArgumentMatchers.eq(11L), any(Instant.class));
         verify(relay).relayTenant(org.mockito.ArgumentMatchers.eq(12L), any(Instant.class));
     }
+
+    @Test
+    void reconciliationProcessesEveryTenantAndIsolatesAnIndividualFailure() {
+        NotificationMaintenanceTenantRepository tenants =
+                mock(NotificationMaintenanceTenantRepository.class);
+        NotificationCounterReconciliationService reconciliation =
+                mock(NotificationCounterReconciliationService.class);
+        when(tenants.activeTenantIdsAfter(Long.MIN_VALUE, 500)).thenReturn(List.of(11L, 12L));
+        when(reconciliation.reconcileTenant(anyLong(), any(Instant.class)))
+                .thenReturn(new NotificationCounterReconciliationService.ReconciliationResult(
+                        0, 0, false));
+        when(reconciliation.reconcileTenant(
+                org.mockito.ArgumentMatchers.eq(11L), any(Instant.class)))
+                .thenThrow(new IllegalStateException("tenant unavailable"));
+
+        new NotificationCounterReconciliationScheduler(tenants, reconciliation).run();
+
+        verify(reconciliation).reconcileTenant(
+                org.mockito.ArgumentMatchers.eq(11L), any(Instant.class));
+        verify(reconciliation).reconcileTenant(
+                org.mockito.ArgumentMatchers.eq(12L), any(Instant.class));
+    }
 }

@@ -28,7 +28,8 @@ class VerifiedIdentityFilterTest {
                 List.of("58fa4516-dc70-4785-ac9f-3606992c3f6b"),
                 List.of("APP_ACCESS_APPROVER@APP.MAIL"),
                 null,
-                "김민서"));
+                "김민서",
+                true));
         VerifiedIdentityFilter filter = new VerifiedIdentityFilter(verifier);
         MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
                 .get("/api/agent/v1/plans/preview")
@@ -40,6 +41,7 @@ class VerifiedIdentityFilterTest {
                 .header(VerifiedIdentityFilter.RESOURCE_ROLES_HEADER,
                         "APP_OWNER@APP.SPOOFED")
                 .header(VerifiedIdentityFilter.DISPLAY_NAME_HEADER, "c3Bvb2ZlZA")
+                .header(VerifiedIdentityFilter.LEGACY_ROLE_FALLBACK_HEADER, "false")
                 .build());
         AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
                 new AtomicReference<>();
@@ -67,6 +69,8 @@ class VerifiedIdentityFilterTest {
         assertThat(new String(Base64.getUrlDecoder().decode(
                 forwarded.get().getHeaders().getFirst(VerifiedIdentityFilter.DISPLAY_NAME_HEADER)),
                 StandardCharsets.UTF_8)).isEqualTo("김민서");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                VerifiedIdentityFilter.LEGACY_ROLE_FALLBACK_HEADER)).isEqualTo("true");
     }
 
     @Test

@@ -54,7 +54,9 @@ public class ApprovalService {
         List<ApprovalDtos.RequestSummary> requests = canUseRequests
                 ? queries.requests(actor, "SUBMITTED", 5)
                 : List.of();
-        ApprovalDtos.AdminPulse pulse = actor.canAdminister()
+        boolean canViewOperations = actor.hasPermission(
+                "ADMIN.APPROVAL_OPERATIONS", "VIEW", "MANAGE");
+        ApprovalDtos.AdminPulse pulse = canViewOperations
                 ? queries.adminPulse(actor.tenantId())
                 : null;
         return new ApprovalDtos.HomeResponse(
@@ -64,7 +66,7 @@ public class ApprovalService {
                 requests,
                 canUseTasks || canUseRequests ? queries.flow(actor) : List.of(),
                 insights(metrics, pulse),
-                actor.canAdminister(),
+                canViewOperations,
                 pulse);
     }
 

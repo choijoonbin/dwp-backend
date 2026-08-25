@@ -111,7 +111,8 @@ public class AuthSessionVerifier implements SessionVerifier {
                                         groupRefs(data.groups()),
                                         resourceRoles(data.resourceRoles()),
                                         data.personPublicId(),
-                                        data.displayName()))
+                                        data.displayName(),
+                                        Boolean.TRUE.equals(data.legacyRoleFallbackAllowed())))
                                 .filter(identity -> !tenantAssertionPresent
                                         || requestedTenant.equals(identity.tenantId()));
                     }
@@ -164,7 +165,11 @@ public class AuthSessionVerifier implements SessionVerifier {
             return "APP.HCM,APP.HRIS,DATA.HR_";
         }
         if (path.equals("/api/platform/v1/home/overview")) {
-            return "APP.WORK,APP.ACTIVITY";
+            return "APP.WORK,APP.ACTIVITY,APP.CALENDAR,APP.COMMUNICATIONS";
+        }
+        if (path.equals("/api/platform/v1/home-templates")
+                || path.startsWith("/api/platform/v1/home-templates/")) {
+            return "ADMIN.HOME_TEMPLATE";
         }
         if (path.startsWith("/api/platform/v1/workspace")) {
             return "APP.";
@@ -343,7 +348,8 @@ public class AuthSessionVerifier implements SessionVerifier {
             List<String> roles,
             List<PermissionData> permissions,
             List<GroupData> groups,
-            List<ResourceRoleData> resourceRoles) {
+            List<ResourceRoleData> resourceRoles,
+            Boolean legacyRoleFallbackAllowed) {
     }
 
     private record GroupData(String groupRef, String groupKey, String displayName) {

@@ -28,7 +28,19 @@ class NotificationChangePublisherTest {
                 new ChangeSignal(1, 9, 5, first)));
 
         assertThat(result).containsExactly(new NotificationRealtimeEnvelope(
-                1, 9, "6", "6", List.of(first, second)));
+                1, 9, "6", "6", List.of(first, second), List.of(first, second)));
+    }
+
+    @Test
+    void triageSignalsRefreshChangedIdsWithoutCreatingArrivalCandidates() {
+        UUID notificationId = UUID.fromString("40000000-0000-0000-0000-000000000001");
+
+        List<NotificationRealtimeEnvelope> result = NotificationChangePublisher.coalesce(
+                List.of(new ChangeSignal(1, 9, 7, notificationId)),
+                NotificationChangeCause.USER_TRIAGE);
+
+        assertThat(result).containsExactly(new NotificationRealtimeEnvelope(
+                1, 9, "7", "7", List.of(notificationId), List.of()));
     }
 
     @Test

@@ -137,6 +137,25 @@ public class NotificationRetentionRepository {
         return receipts + windows;
     }
 
+    public int cleanupBulkUndoReceipts(
+            long tenantId,
+            Instant now,
+            int batchSize) {
+        return jdbc.update("""
+                DELETE FROM ntf_bulk_undo_receipts
+                 WHERE undo_token IN (
+                     SELECT undo_token
+                       FROM ntf_bulk_undo_receipts
+                      WHERE tenant_id = :tenantId
+                        AND (expires_at <= :now OR state = 'COMPLETED')
+                      ORDER BY expires_at, undo_token
+                      LIMIT :batchSize
+                 )
+                """, tenant(tenantId)
+                .addValue("now", Timestamp.from(now))
+                .addValue("batchSize", batchSize));
+    }
+
     private List<UUID> deleteProjections(
             long tenantId,
             long userId,

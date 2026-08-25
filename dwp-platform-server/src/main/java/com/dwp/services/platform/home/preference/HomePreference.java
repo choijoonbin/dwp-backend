@@ -52,4 +52,8 @@ public class HomePreference extends BaseEntity {
     @Version
     @Column(name = "version", nullable = false)
     private Long version;
+
+    @Builder.Default
+    @Column(name = "is_customized", nullable = false)
+    private boolean customized = true;
 }

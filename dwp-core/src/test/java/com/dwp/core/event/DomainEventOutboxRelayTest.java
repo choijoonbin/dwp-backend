@@ -26,9 +26,16 @@ class DomainEventOutboxRelayTest {
         DomainEventEnvelope poison = event("dwp.people.poison", 1);
         DomainEventEnvelope last = event("dwp.people.last", 1);
         when(repository.claim("worker", 10, 30)).thenReturn(List.of(
-                new DomainEventOutboxRepository.ClaimedEvent(firstId, first, 1),
-                new DomainEventOutboxRepository.ClaimedEvent(poisonId, poison, 2),
-                new DomainEventOutboxRepository.ClaimedEvent(lastId, last, 1)));
+                claimed(firstId, first, 1),
+                claimed(poisonId, poison, 2),
+                claimed(lastId, last, 1)));
+        when(repository.markFailed(
+                "worker", "lease-a", poisonId, 2, 5,
+                "broker rejected poison event"))
+                .thenReturn(true);
+        when(repository.markPublished(
+                "worker", "lease-a", List.of(firstId, lastId)))
+                .thenReturn(2);
         AtomicInteger calls = new AtomicInteger();
         DomainEventPublisher publisher = events -> {
             calls.incrementAndGet();
@@ -42,9 +49,48 @@ class DomainEventOutboxRelayTest {
         relay.pollOnce();
 
         verify(repository).releaseExpiredLeases(org.mockito.ArgumentMatchers.any(Instant.class));
-        verify(repository).markFailed(poisonId, 2, 5, "broker rejected poison event");
-        verify(repository).markPublished(List.of(firstId, lastId));
+        verify(repository).markFailed(
+                "worker", "lease-a", poisonId, 2, 5,
+                "broker rejected poison event");
+        verify(repository).markPublished(
+                "worker", "lease-a", List.of(firstId, lastId));
         org.assertj.core.api.Assertions.assertThat(calls).hasValue(4);
+    }
+
+    @Test
+    void staleBatchCompletionDoesNotConvertLeaseLossIntoFailure() {
+        DomainEventOutboxRepository repository = mock(DomainEventOutboxRepository.class);
+        UUID eventId = UUID.randomUUID();
+        DomainEventEnvelope event = event("dwp.people.updated", 1);
+        when(repository.claim("worker-a", 10, 30)).thenReturn(List.of(
+                new DomainEventOutboxRepository.ClaimedEvent(
+                        eventId, event, 1, "worker-a", "expired-lease")));
+        when(repository.markPublished(
+                "worker-a", "expired-lease", List.of(eventId)))
+                .thenReturn(0);
+        DomainEventOutboxRelay relay = new DomainEventOutboxRelay(
+                repository, events -> { }, true, "worker-a", 10, 30, 5,
+                Duration.ofSeconds(2));
+
+        relay.pollOnce();
+
+        verify(repository).markPublished(
+                "worker-a", "expired-lease", List.of(eventId));
+        verify(repository, org.mockito.Mockito.never()).markFailed(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyInt(),
+                org.mockito.ArgumentMatchers.anyString());
+    }
+
+    private DomainEventOutboxRepository.ClaimedEvent claimed(
+            UUID outboxId,
+            DomainEventEnvelope event,
+            int attempts) {
+        return new DomainEventOutboxRepository.ClaimedEvent(
+                outboxId, event, attempts, "worker", "lease-a");
     }
 
     private DomainEventEnvelope event(String type, long sequence) {

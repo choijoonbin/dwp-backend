@@ -25,6 +25,8 @@ import com.dwp.services.notification.domain.NotificationModels.SubscriptionRule;
 import com.dwp.services.notification.domain.NotificationModels.SubscriptionRuleUpdate;
 import com.dwp.services.notification.domain.NotificationModels.Summary;
 import com.dwp.services.notification.domain.NotificationModels.SyncResponse;
+import com.dwp.services.notification.domain.NotificationModels.TargetResolution;
+import com.dwp.services.notification.domain.NotificationBulkUndoRepository.UndoReceipt;
 import com.dwp.services.notification.domain.NotificationQueryRepository.ChangedProjection;
 import com.dwp.services.notification.domain.NotificationQueryRepository.CatalogType;
 import com.dwp.services.notification.domain.NotificationQueryRepository.CounterSnapshot;
@@ -33,18 +35,22 @@ import com.dwp.services.notification.domain.NotificationQueryRepository.InboxRow
 import com.dwp.services.notification.domain.NotificationQueryRepository.ViewCounts;
 import com.dwp.services.notification.domain.NotificationEffectivePolicyRepository.EffectivePolicy;
 import com.dwp.services.notification.domain.NotificationEffectivePolicyRepository.EffectivePolicyChannel;
+import com.dwp.services.notification.realtime.NotificationChangeCause;
 import com.dwp.services.notification.realtime.NotificationChangePublisher;
 import com.dwp.services.notification.security.NotificationDatabaseScope;
 import com.dwp.services.notification.security.NotificationRequestContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Value;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -57,8 +63,10 @@ public class NotificationService {
     private final NotificationPreferenceRepository preferenceRepository;
     private final NotificationEffectivePolicyRepository policyRepository;
     private final NotificationIdempotencyRepository idempotencyRepository;
+    private final NotificationBulkUndoRepository bulkUndoRepository;
     private final NotificationCursorCodec cursorCodec;
     private final NotificationChangePublisher changePublisher;
+    private final Duration bulkUndoWindow;
 
     public NotificationService(
             NotificationDatabaseScope databaseScope,
@@ -67,16 +75,25 @@ public class NotificationService {
             NotificationPreferenceRepository preferenceRepository,
             NotificationEffectivePolicyRepository policyRepository,
             NotificationIdempotencyRepository idempotencyRepository,
+            NotificationBulkUndoRepository bulkUndoRepository,
             NotificationCursorCodec cursorCodec,
-            NotificationChangePublisher changePublisher) {
+            NotificationChangePublisher changePublisher,
+            @Value("${dwp.notification.bulk-undo-window:PT10M}") Duration bulkUndoWindow) {
+        if (bulkUndoWindow.compareTo(Duration.ofMinutes(1)) < 0
+                || bulkUndoWindow.compareTo(Duration.ofMinutes(30)) > 0) {
+            throw new IllegalArgumentException(
+                    "Notification bulk undo window must be between one and thirty minutes.");
+        }
         this.databaseScope = databaseScope;
         this.queryRepository = queryRepository;
         this.commandRepository = commandRepository;
         this.preferenceRepository = preferenceRepository;
         this.policyRepository = policyRepository;
         this.idempotencyRepository = idempotencyRepository;
+        this.bulkUndoRepository = bulkUndoRepository;
         this.cursorCodec = cursorCodec;
         this.changePublisher = changePublisher;
+        this.bulkUndoWindow = bulkUndoWindow;
     }
 
     @Transactional(readOnly = true)
@@ -154,6 +171,14 @@ public class NotificationService {
     }
 
     @Transactional(readOnly = true)
+    public TargetResolution resolveTarget(
+            NotificationRequestContext.Actor actor,
+            UUID notificationId) {
+        databaseScope.applyUser(actor);
+        return queryRepository.resolveTarget(actor, notificationId);
+    }
+
+    @Transactional(readOnly = true)
     public SyncResponse sync(
             NotificationRequestContext.Actor actor,
             String afterToken,
@@ -179,6 +204,7 @@ public class NotificationService {
                 summary.counterVersion(),
                 changed.stream().map(ChangedProjection::notificationId).toList(),
                 List.of(),
+                hasMore,
                 summary);
     }
 
@@ -208,7 +234,7 @@ public class NotificationService {
                     actor.tenantId(),
                     actor.userId(),
                     outcome.changeVersion(),
-                    notificationId)));
+                    notificationId)), NotificationChangeCause.USER_TRIAGE);
         }
         return new ActionResult(
                 queryRepository.detail(actor, notificationId).item(),
@@ -243,9 +269,61 @@ public class NotificationService {
                         mutation.changeVersion(),
                         mutation.result().notificationId()))
                 .toList();
-        if (!changedSignals.isEmpty()) changePublisher.publishAfterCommit(changedSignals);
-        BulkResult result = new BulkResult(results, summary.changeVersion(), summary);
+        if (!changedSignals.isEmpty()) {
+            changePublisher.publishAfterCommit(changedSignals, NotificationChangeCause.USER_TRIAGE);
+        }
+        List<NotificationUndoSnapshot> snapshots = mutations.stream()
+                .map(BulkMutationResult::undoSnapshot)
+                .filter(Objects::nonNull)
+                .toList();
+        UndoReceipt undo = bulkUndoRepository.create(
+                actor, request.action(), snapshots, Instant.now(), bulkUndoWindow);
+        BulkResult result = new BulkResult(
+                results,
+                summary.changeVersion(),
+                summary,
+                undo == null ? null : undo.undoToken(),
+                undo == null ? null : undo.expiresAt());
         idempotencyRepository.complete(actor, receipt, result);
+        return result;
+    }
+
+    @Transactional
+    public BulkResult undoBulk(
+            NotificationRequestContext.Actor actor,
+            UUID undoToken,
+            String idempotencyKey) {
+        databaseScope.applyUser(actor);
+        NotificationIdempotencyRepository.Request request = idempotencyRepository.begin(
+                actor,
+                idempotencyKey,
+                "NOTIFICATION_BULK_UNDO",
+                Map.of("undoToken", undoToken));
+        BulkResult replay = idempotencyRepository.replay(request, BulkResult.class);
+        if (replay != null) return replay;
+        Instant now = Instant.now();
+        UndoReceipt receipt = bulkUndoRepository.lockPending(actor, undoToken, now);
+        List<BulkMutationResult> mutations = receipt.snapshots().stream()
+                .map(snapshot -> undoItem(actor, undoToken, snapshot, idempotencyKey, now))
+                .toList();
+        List<BulkItemResult> results = mutations.stream().map(BulkMutationResult::result).toList();
+        bulkUndoRepository.completeIfEmpty(actor, undoToken, now);
+        Summary summary = summaryInScope(actor);
+        List<ChangeSignal> changedSignals = mutations.stream()
+                .filter(mutation -> mutation.changeVersion() != null)
+                .map(mutation -> new ChangeSignal(
+                        actor.tenantId(),
+                        actor.userId(),
+                        mutation.changeVersion(),
+                        mutation.result().notificationId()))
+                .toList();
+        if (!changedSignals.isEmpty()) {
+            changePublisher.publishAfterCommit(
+                    changedSignals, NotificationChangeCause.USER_TRIAGE);
+        }
+        BulkResult result = new BulkResult(
+                results, summary.changeVersion(), summary, null, null);
+        idempotencyRepository.complete(actor, request, result);
         return result;
     }
 
@@ -359,7 +437,9 @@ public class NotificationService {
             String idempotencyKey,
             UUID notificationId) {
         try {
-            long expectedVersion = queryRepository.currentVersion(actor, notificationId);
+            InboxItem before = queryRepository.detail(actor, notificationId).item();
+            long expectedVersion = NotificationVersionCodec.nonNegative(
+                    before.version(), "notificationVersion");
             MutationOutcome outcome = commandRepository.mutate(
                     actor,
                     notificationId,
@@ -374,7 +454,8 @@ public class NotificationService {
                             outcome.changed() ? "APPLIED" : "ALREADY_APPLIED",
                             item,
                             null),
-                    outcome.changed() ? outcome.changeVersion() : null);
+                    outcome.changed() ? outcome.changeVersion() : null,
+                    outcome.changed() ? undoSnapshot(before, item) : null);
         } catch (NotificationException exception) {
             String outcome = switch (exception.errorCode()) {
                 case NOTIFICATION_NOT_FOUND -> "NOT_FOUND";
@@ -384,8 +465,55 @@ public class NotificationService {
             };
             return new BulkMutationResult(
                     new BulkItemResult(notificationId, outcome, null, exception.getMessage()),
+                    null,
                     null);
         }
+    }
+
+    private BulkMutationResult undoItem(
+            NotificationRequestContext.Actor actor,
+            UUID undoToken,
+            NotificationUndoSnapshot snapshot,
+            String idempotencyKey,
+            Instant now) {
+        try {
+            MutationOutcome outcome = commandRepository.restoreSnapshot(
+                    actor,
+                    snapshot,
+                    bulkItemIdempotencyKey(idempotencyKey, snapshot.notificationId()));
+            InboxItem item = queryRepository.detail(actor, snapshot.notificationId()).item();
+            bulkUndoRepository.markUndone(actor, undoToken, snapshot.notificationId(), now);
+            return new BulkMutationResult(
+                    new BulkItemResult(
+                            snapshot.notificationId(),
+                            outcome.changed() ? "APPLIED" : "ALREADY_APPLIED",
+                            item,
+                            null),
+                    outcome.changed() ? outcome.changeVersion() : null,
+                    null);
+        } catch (NotificationException exception) {
+            String outcome = switch (exception.errorCode()) {
+                case NOTIFICATION_NOT_FOUND -> "NOT_FOUND";
+                case FORBIDDEN -> "FORBIDDEN";
+                default -> "CONFLICT";
+            };
+            return new BulkMutationResult(
+                    new BulkItemResult(
+                            snapshot.notificationId(), outcome, null, exception.getMessage()),
+                    null,
+                    null);
+        }
+    }
+
+    private NotificationUndoSnapshot undoSnapshot(InboxItem before, InboxItem after) {
+        return new NotificationUndoSnapshot(
+                before.notificationId(),
+                before.completedAt() == null ? "ACTIVE" : "DONE",
+                before.readAt(),
+                before.savedAt(),
+                before.completedAt(),
+                before.snoozedUntil(),
+                NotificationVersionCodec.positive(after.version(), "notificationVersion"));
     }
 
     private NotificationTypeSetting typeSetting(
@@ -522,7 +650,10 @@ public class NotificationService {
         }
     }
 
-    private record BulkMutationResult(BulkItemResult result, Long changeVersion) {
+    private record BulkMutationResult(
+            BulkItemResult result,
+            Long changeVersion,
+            NotificationUndoSnapshot undoSnapshot) {
     }
 
     private String bulkItemIdempotencyKey(String idempotencyKey, UUID notificationId) {

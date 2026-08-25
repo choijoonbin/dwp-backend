@@ -32,6 +32,8 @@ public class HomeOverviewService {
 
     private static final Logger log = LoggerFactory.getLogger(HomeOverviewService.class);
     private static final String RULE_VERSION = "home-rules-2026.08";
+    private static final String CALENDAR_VIEW = "APP.CALENDAR:VIEW";
+    private static final String COMMUNICATIONS_VIEW = "APP.COMMUNICATIONS:VIEW";
     private static final Set<String> OPERATOR_ROLES = Set.of(
             "ADMIN", "TENANT_ADMIN", "PLATFORM_ADMIN", "PROVIDER_ADMIN");
     private static final Map<String, String> RECOMMENDATION_SOURCES = Map.of(
@@ -71,6 +73,19 @@ public class HomeOverviewService {
             String roles,
             String locale,
             String timeZone) {
+        return overview(
+                tenantId, userId, personPublicId, permissions, roles, locale, timeZone, null);
+    }
+
+    public HomeOverviewDtos.HomeOverviewResponse overview(
+            Long tenantId,
+            Long userId,
+            UUID personPublicId,
+            String permissions,
+            String roles,
+            String locale,
+            String timeZone,
+            String verifiedGroupRefs) {
         HomeOverviewDtos.AudienceContext audience = audience(roles);
         Timer.Sample sample = Timer.start(meterRegistry);
         try {
@@ -80,15 +95,19 @@ public class HomeOverviewService {
                     WorkspaceDtos.WorkQueue::generatedAt,
                     tenantId,
                     userId);
-            HomeOverviewDtos.Section<CalendarDtos.HomeResponse> calendar = section(
+            HomeOverviewDtos.Section<CalendarDtos.HomeResponse> calendar = permissionScopedSection(
                     "DWP_CALENDAR",
+                    permissions,
+                    CALENDAR_VIEW,
                     () -> calendarService.home(
-                            tenantId, userId, personPublicId, timeZone, locale),
+                            tenantId, userId, personPublicId, timeZone, locale, verifiedGroupRefs),
                     CalendarDtos.HomeResponse::generatedAt,
                     tenantId,
                     userId);
-            HomeOverviewDtos.Section<CommunicationDtos.FeedResponse> communications = section(
+            HomeOverviewDtos.Section<CommunicationDtos.FeedResponse> communications = permissionScopedSection(
                     "DWP_COMMUNICATIONS",
+                    permissions,
+                    COMMUNICATIONS_VIEW,
                     () -> communicationService.feed(
                             tenantId, userId, roles, locale, "for-you", null, null, 8),
                     CommunicationDtos.FeedResponse::generatedAt,
@@ -198,6 +217,25 @@ public class HomeOverviewService {
                     "status", HomeOverviewDtos.SectionStatus.UNAVAILABLE.name()).increment();
             return unavailable(source, HomeOverviewDtos.SectionStatus.UNAVAILABLE, "E1000");
         }
+    }
+
+    private <T> HomeOverviewDtos.Section<T> permissionScopedSection(
+            String source,
+            String permissions,
+            String requiredAuthority,
+            Supplier<T> supplier,
+            Function<T, OffsetDateTime> generatedAt,
+            Long tenantId,
+            Long userId) {
+        if (!values(permissions).contains(requiredAuthority)) {
+            log.info("Home section {} denied for tenant {} and user {}", source, tenantId, userId);
+            meterRegistry.counter(
+                    "dwp.home.section.degraded",
+                    "source", source,
+                    "status", HomeOverviewDtos.SectionStatus.FORBIDDEN.name()).increment();
+            return unavailable(source, HomeOverviewDtos.SectionStatus.FORBIDDEN, "E2003");
+        }
+        return section(source, supplier, generatedAt, tenantId, userId);
     }
 
     private <T> HomeOverviewDtos.Section<T> unavailable(

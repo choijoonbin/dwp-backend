@@ -28,14 +28,17 @@ public class NotificationMaterializationRepository {
     private final NamedParameterJdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
     private final NotificationDeliveryAdmissionService admissionService;
+    private final NotificationRuntimeAdmissionRepository runtimeAdmissionRepository;
 
     public NotificationMaterializationRepository(
             NamedParameterJdbcTemplate jdbc,
             ObjectMapper objectMapper,
-            NotificationDeliveryAdmissionService admissionService) {
+            NotificationDeliveryAdmissionService admissionService,
+            NotificationRuntimeAdmissionRepository runtimeAdmissionRepository) {
         this.jdbc = jdbc;
         this.objectMapper = objectMapper;
         this.admissionService = admissionService;
+        this.runtimeAdmissionRepository = runtimeAdmissionRepository;
     }
 
     public TemplateContract contract(
@@ -202,12 +205,11 @@ public class NotificationMaterializationRepository {
         List<ChangeSignal> signals = new ArrayList<>();
         long highestChangeVersion = 0;
         for (Long recipientUserId : new LinkedHashSet<>(request.recipientUserIds())) {
-            if (!inAppDeliveryEnabled(
+            if (!runtimeAdmissionRepository.inAppDeliveryEnabled(
                     tenantId,
                     recipientUserId,
                     contract.ownerAppKey(),
-                    contract.typeKey(),
-                    request.reasonCode())) {
+                    contract.typeKey())) {
                 continue;
             }
             if (!admissionService.admittedRecipient(
@@ -228,6 +230,7 @@ public class NotificationMaterializationRepository {
                 tenantId,
                 notificationId,
                 request.sourceEventId(),
+                intent.intentId(),
                 signals,
                 occurredAt);
         return new PersistenceResult(
@@ -238,96 +241,6 @@ public class NotificationMaterializationRepository {
                         false,
                         NotificationVersionCodec.external(highestChangeVersion)),
                 List.copyOf(signals));
-    }
-
-    boolean inAppDeliveryEnabled(
-            long tenantId,
-            long userId,
-            String appKey,
-            String typeKey,
-            String reasonCode) {
-        Boolean enabled = jdbc.queryForObject("""
-                WITH effective_policy AS (
-                    SELECT policy.mandatory,
-                           channel.enabled,
-                           channel.user_overridable,
-                           channel.default_mode
-                      FROM ntf_routing_policies policy
-                      JOIN ntf_policy_channel_rules channel
-                        ON channel.policy_id = policy.policy_id
-                       AND channel.channel = 'IN_APP'
-                     WHERE policy.state = 'PUBLISHED'
-                       AND (policy.tenant_id IS NULL OR policy.tenant_id = :tenantId)
-                       AND (policy.effective_from IS NULL
-                            OR policy.effective_from <= CURRENT_TIMESTAMP)
-                       AND (policy.effective_to IS NULL
-                            OR policy.effective_to > CURRENT_TIMESTAMP)
-                       AND (
-                            (policy.scope_type = 'TYPE' AND policy.scope_key = :typeKey)
-                         OR (policy.scope_type = 'APP' AND policy.scope_key = :appKey)
-                         OR policy.scope_type IN ('TENANT', 'PROVIDER')
-                       )
-                     ORDER BY CASE policy.scope_type
-                                  WHEN 'TYPE' THEN 4
-                                  WHEN 'APP' THEN 3
-                                  WHEN 'TENANT' THEN 2
-                                  ELSE 1
-                              END DESC,
-                              (policy.tenant_id IS NOT NULL) DESC,
-                              policy.version DESC
-                     LIMIT 1
-                ), user_rule AS (
-                    SELECT rule.delivery_mode,
-                           channel.enabled AS channel_enabled
-                      FROM ntf_user_subscription_rules rule
-                      LEFT JOIN ntf_user_subscription_rule_channels channel
-                        ON channel.tenant_id = rule.tenant_id
-                       AND channel.user_id = rule.user_id
-                       AND channel.rule_id = rule.rule_id
-                       AND channel.channel = 'IN_APP'
-                     WHERE rule.tenant_id = :tenantId
-                       AND rule.user_id = :userId
-                       AND rule.app_key = :appKey
-                       AND rule.type_key = :typeKey
-                     LIMIT 1
-                ), user_profile AS (
-                    SELECT jsonb_exists(default_channels, 'IN_APP') AS channel_enabled
-                      FROM ntf_user_delivery_profiles
-                     WHERE tenant_id = :tenantId AND user_id = :userId
-                )
-                SELECT CASE
-                    WHEN :mandatoryReason THEN TRUE
-                    WHEN COALESCE((SELECT mandatory FROM effective_policy), FALSE)
-                        THEN COALESCE((SELECT enabled FROM effective_policy), TRUE)
-                         AND COALESCE((SELECT default_mode FROM effective_policy), 'IMMEDIATE')
-                             <> 'MUTED'
-                    WHEN EXISTS (SELECT 1 FROM effective_policy)
-                         AND NOT COALESCE(
-                             (SELECT user_overridable FROM effective_policy), TRUE)
-                        THEN COALESCE((SELECT enabled FROM effective_policy), TRUE)
-                         AND COALESCE((SELECT default_mode FROM effective_policy), 'IMMEDIATE')
-                             <> 'MUTED'
-                    WHEN EXISTS (SELECT 1 FROM user_rule)
-                        THEN COALESCE((SELECT delivery_mode FROM user_rule), 'IMMEDIATE')
-                                 <> 'MUTED'
-                         AND COALESCE(
-                             (SELECT channel_enabled FROM user_rule),
-                             (SELECT channel_enabled FROM user_profile),
-                             (SELECT enabled FROM effective_policy),
-                             TRUE)
-                    ELSE COALESCE(
-                        (SELECT channel_enabled FROM user_profile),
-                        (SELECT enabled FROM effective_policy),
-                        TRUE)
-                END
-                """, new MapSqlParameterSource()
-                .addValue("tenantId", tenantId)
-                .addValue("userId", userId)
-                .addValue("appKey", appKey)
-                .addValue("typeKey", typeKey)
-                .addValue("mandatoryReason", "MANDATORY_POLICY".equals(reasonCode)),
-                Boolean.class);
-        return Boolean.TRUE.equals(enabled);
     }
 
     private IntentResolution createIntent(
@@ -507,14 +420,19 @@ public class NotificationMaterializationRepository {
                     effective_priority, action_required, due_at, locale,
                     in_app_template_version_id, template_scope_tenant_id,
                     template_override_revision_id,
-                    safe_title, safe_preview,
-                    search_text, inbox_state, last_activity_at, change_version)
+                    actor_ref, subject_ref, target_ref,
+                    safe_title, safe_preview, safe_body, action_payload,
+                    search_text, inbox_state, first_activity_at,
+                    last_activity_at, occurrence_count, change_version,
+                    target_state, target_state_reason)
                 VALUES (
                     :tenantId, :userId, :notificationId, :reasonCode,
                     :priority, :actionRequired, :dueAt, :locale,
                     :templateVersionId, :templateScopeTenantId, :templateOverrideRevisionId,
-                    :safeTitle, :safePreview,
-                    :searchText, 'ACTIVE', :occurredAt, :changeVersion)
+                    :actorRef, :subjectRef, :targetRef,
+                    :safeTitle, :safePreview, :safeBody, CAST(:actionPayload AS jsonb),
+                    :searchText, 'ACTIVE', :occurredAt,
+                    :occurredAt, 1, :changeVersion, 'AVAILABLE', NULL)
                 ON CONFLICT (tenant_id, user_id, notification_id)
                 DO UPDATE SET
                     reason_code = EXCLUDED.reason_code,
@@ -524,15 +442,23 @@ public class NotificationMaterializationRepository {
                     locale = EXCLUDED.locale,
                     in_app_template_version_id = EXCLUDED.in_app_template_version_id,
                     template_override_revision_id = EXCLUDED.template_override_revision_id,
+                    actor_ref = EXCLUDED.actor_ref,
+                    subject_ref = EXCLUDED.subject_ref,
+                    target_ref = EXCLUDED.target_ref,
                     safe_title = EXCLUDED.safe_title,
                     safe_preview = EXCLUDED.safe_preview,
+                    safe_body = EXCLUDED.safe_body,
+                    action_payload = EXCLUDED.action_payload,
                     search_text = EXCLUDED.search_text,
+                    target_state = 'AVAILABLE',
+                    target_state_reason = NULL,
                     inbox_state = 'ACTIVE',
                     read_at = NULL,
                     completed_at = NULL,
                     snoozed_until = NULL,
                     last_activity_at = GREATEST(
                         ntf_user_notifications.last_activity_at, EXCLUDED.last_activity_at),
+                    occurrence_count = ntf_user_notifications.occurrence_count + 1,
                     change_version = EXCLUDED.change_version,
                     version = ntf_user_notifications.version + 1,
                     updated_at = CURRENT_TIMESTAMP
@@ -545,8 +471,13 @@ public class NotificationMaterializationRepository {
                 .addValue("templateVersionId", contract.templateVersionId())
                 .addValue("templateScopeTenantId", contract.templateScopeTenantId())
                 .addValue("templateOverrideRevisionId", contract.templateOverrideRevisionId())
+                .addValue("actorRef", request.actorReference())
+                .addValue("subjectRef", request.subjectReference())
+                .addValue("targetRef", request.targetReference())
                 .addValue("safeTitle", content.title())
                 .addValue("safePreview", content.preview())
+                .addValue("safeBody", content.body())
+                .addValue("actionPayload", json(content.action()))
                 .addValue("searchText", content.title() + " " + content.preview())
                 .addValue("occurredAt", Timestamp.from(occurredAt))
                 .addValue("changeVersion", changeVersion));
@@ -576,6 +507,7 @@ public class NotificationMaterializationRepository {
             long tenantId,
             UUID notificationId,
             UUID sourceEventId,
+            UUID intentId,
             List<ChangeSignal> signals,
             Instant occurredAt) {
         jdbc.update("""
@@ -591,7 +523,8 @@ public class NotificationMaterializationRepository {
                 .addValue("outboxId", UUID.randomUUID())
                 .addValue("tenantId", tenantId)
                 .addValue("aggregateId", notificationId.toString())
-                .addValue("eventKey", "materialized:" + sourceEventId)
+                .addValue("eventKey", NotificationOutboxEventKeys.materialized(
+                        sourceEventId, intentId))
                 .addValue("payload", json(Map.of(
                         "notificationId", notificationId.toString(),
                         "recipientCount", signals.size(),

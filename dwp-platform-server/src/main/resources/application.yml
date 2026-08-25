@@ -79,6 +79,22 @@ dwp:
   platform:
     service-token: ${DWP_PLATFORM_SERVICE_TOKEN:}
     runtime-service-token: ${DWP_PLATFORM_RUNTIME_SERVICE_TOKEN:}
+    home:
+      flow-enabled: ${DWP_HOME_FLOW_ENABLED:false}
+      personalization-v2-enabled: ${DWP_HOME_PERSONALIZATION_V2_ENABLED:false}
+      composer-enabled: ${DWP_HOME_COMPOSER_ENABLED:false}
+      views-dual-write-enabled: ${DWP_HOME_VIEWS_DUAL_WRITE_ENABLED:false}
+      personalization-maintenance:
+        enabled: ${DWP_HOME_PERSONALIZATION_MAINTENANCE_ENABLED:false}
+        cron: ${DWP_HOME_PERSONALIZATION_MAINTENANCE_CRON:0 41 3 * * *}
+        receipt-retention-hours: ${DWP_HOME_RECEIPT_RETENTION_HOURS:24}
+        preview-proposal-retention-days: ${DWP_HOME_PREVIEW_PROPOSAL_RETENTION_DAYS:7}
+        finalized-proposal-retention-days: ${DWP_HOME_FINALIZED_PROPOSAL_RETENTION_DAYS:90}
+        revision-retention-days: ${DWP_HOME_REVISION_RETENTION_DAYS:365}
+        tombstone-retention-days: ${DWP_HOME_TOMBSTONE_RETENTION_DAYS:365}
+        revision-retention-per-object: ${DWP_HOME_REVISION_RETENTION_PER_OBJECT:100}
+      views-shadow-compare-enabled: ${DWP_HOME_VIEWS_SHADOW_COMPARE_ENABLED:false}
+      views-read-enabled: ${DWP_HOME_VIEWS_READ_ENABLED:false}
     api-history:
       cursor-secret: ${DWP_API_HISTORY_CURSOR_SECRET:}
       cursor-ttl: ${DWP_API_HISTORY_CURSOR_TTL:PT15M}

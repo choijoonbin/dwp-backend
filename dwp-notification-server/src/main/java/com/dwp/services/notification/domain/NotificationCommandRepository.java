@@ -39,12 +39,48 @@ public class NotificationCommandRepository {
             long expectedVersion,
             Instant snoozedUntil,
             String idempotencyKey) {
+        return mutate(
+                actor,
+                notificationId,
+                action,
+                expectedVersion,
+                idempotencyKey,
+                "NOTIFICATION_TRIAGE",
+                new TriagePayload(notificationId, action, expectedVersion, snoozedUntil),
+                (current, transitionNow) -> NotificationTriagePolicy.transition(
+                        current, action, snoozedUntil, transitionNow));
+    }
+
+    public MutationOutcome restoreSnapshot(
+            NotificationRequestContext.Actor actor,
+            NotificationUndoSnapshot snapshot,
+            String idempotencyKey) {
+        return mutate(
+                actor,
+                snapshot.notificationId(),
+                "UNDO",
+                snapshot.expectedVersion(),
+                idempotencyKey,
+                "NOTIFICATION_BULK_UNDO",
+                snapshot,
+                (current, transitionNow) -> current.restoreSnapshot(snapshot));
+    }
+
+    private MutationOutcome mutate(
+            NotificationRequestContext.Actor actor,
+            UUID notificationId,
+            String action,
+            long expectedVersion,
+            String idempotencyKey,
+            String operation,
+            Object payload,
+            StateTransition transition) {
         Instant now = Instant.now();
         Request receipt = idempotencyRepository.begin(
                 actor,
                 idempotencyKey,
-                "NOTIFICATION_TRIAGE",
-                new TriagePayload(notificationId, action, expectedVersion, snoozedUntil));
+                operation,
+                payload);
         MutationOutcome replay = idempotencyRepository.replay(receipt, MutationOutcome.class);
         if (replay != null) {
             return new MutationOutcome(
@@ -56,11 +92,11 @@ public class NotificationCommandRepository {
                     true);
         }
 
-        ProjectionState current = projectionForUpdate(actor, notificationId);
+        NotificationTriageState current = projectionForUpdate(actor, notificationId);
         if (current.version() != expectedVersion) {
             throw new NotificationException(NotificationErrorCode.NOTIFICATION_STALE_VERSION);
         }
-        ProjectionState next = transition(current, action, snoozedUntil, now);
+        NotificationTriageState next = transition.apply(current, now);
         if (next.equals(current)) {
             MutationOutcome noChange = new MutationOutcome(
                     notificationId, action, current.version(), current.changeVersion(), false, false);
@@ -115,48 +151,10 @@ public class NotificationCommandRepository {
         return outcome;
     }
 
-    private ProjectionState transition(
-            ProjectionState current,
-            String action,
-            Instant snoozedUntil,
-            Instant now) {
-        return switch (action) {
-            case "READ" -> current.readAt() == null
-                    ? current.withReadAt(now)
-                    : current;
-            case "UNREAD" -> current.readAt() != null
-                    ? current.withReadAt(null)
-                    : current;
-            case "SAVE" -> current.savedAt() == null
-                    ? current.withSavedAt(now)
-                    : current;
-            case "UNSAVE" -> current.savedAt() != null
-                    ? current.withSavedAt(null)
-                    : current;
-            case "COMPLETE" -> "DONE".equals(current.inboxState())
-                    ? current
-                    : current.complete(now);
-            case "RESTORE" -> "DONE".equals(current.inboxState())
-                    ? current.restore()
-                    : current;
-            case "SNOOZE" -> {
-                if (snoozedUntil == null
-                        || !snoozedUntil.isAfter(now)
-                        || snoozedUntil.isAfter(now.plusSeconds(366L * 24 * 60 * 60))) {
-                    throw new IllegalArgumentException("Snooze time is outside the allowed range.");
-                }
-                yield snoozedUntil.equals(current.snoozedUntil())
-                        ? current
-                        : current.snooze(snoozedUntil);
-            }
-            default -> throw new IllegalArgumentException("Unsupported notification action.");
-        };
-    }
-
-    private ProjectionState projectionForUpdate(
+    private NotificationTriageState projectionForUpdate(
             NotificationRequestContext.Actor actor,
             UUID notificationId) {
-        List<ProjectionState> rows = jdbc.query("""
+        List<NotificationTriageState> rows = jdbc.query("""
                 SELECT user_id, inbox_state, read_at, saved_at, completed_at,
                        snoozed_until, action_required, effective_priority,
                        change_version, version
@@ -166,7 +164,7 @@ public class NotificationCommandRepository {
                    AND notification_id = :notificationId
                  FOR UPDATE
                 """, actorParams(actor).addValue("notificationId", notificationId),
-                (resultSet, rowNumber) -> new ProjectionState(
+                (resultSet, rowNumber) -> new NotificationTriageState(
                         resultSet.getLong("user_id"),
                         resultSet.getString("inbox_state"),
                         instant(resultSet.getTimestamp("read_at")),
@@ -235,7 +233,7 @@ public class NotificationCommandRepository {
         if (updated != 1) throw new IllegalStateException("Notification counter update failed.");
     }
 
-    private CounterFlags flags(ProjectionState state, Instant now) {
+    private CounterFlags flags(NotificationTriageState state, Instant now) {
         boolean visibleUnread = "ACTIVE".equals(state.inboxState())
                 && state.readAt() == null
                 && (state.snoozedUntil() == null || !state.snoozedUntil().isAfter(now));
@@ -318,46 +316,9 @@ public class NotificationCommandRepository {
     private record CounterFlags(int unread, int actionable, int urgent) {
     }
 
-    private record ProjectionState(
-            long userId,
-            String inboxState,
-            Instant readAt,
-            Instant savedAt,
-            Instant completedAt,
-            Instant snoozedUntil,
-            boolean actionRequired,
-            String priority,
-            long changeVersion,
-            long version) {
-
-        ProjectionState withReadAt(Instant value) {
-            return new ProjectionState(
-                    userId, inboxState, value, savedAt, completedAt, snoozedUntil,
-                    actionRequired, priority, changeVersion, version);
-        }
-
-        ProjectionState withSavedAt(Instant value) {
-            return new ProjectionState(
-                    userId, inboxState, readAt, value, completedAt, snoozedUntil,
-                    actionRequired, priority, changeVersion, version);
-        }
-
-        ProjectionState complete(Instant value) {
-            return new ProjectionState(
-                    userId, "DONE", readAt, savedAt, value, null,
-                    actionRequired, priority, changeVersion, version);
-        }
-
-        ProjectionState restore() {
-            return new ProjectionState(
-                    userId, "ACTIVE", readAt, savedAt, null, null,
-                    actionRequired, priority, changeVersion, version);
-        }
-
-        ProjectionState snooze(Instant value) {
-            return new ProjectionState(
-                    userId, "ACTIVE", readAt, savedAt, null, value,
-                    actionRequired, priority, changeVersion, version);
-        }
+    @FunctionalInterface
+    private interface StateTransition {
+        NotificationTriageState apply(NotificationTriageState current, Instant now);
     }
+
 }

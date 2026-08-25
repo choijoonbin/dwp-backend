@@ -9,6 +9,7 @@ import com.dwp.services.notification.domain.NotificationModels.AdminOverview;
 import com.dwp.services.notification.domain.NotificationModels.DeliveryOperations;
 import com.dwp.services.notification.domain.NotificationModels.OperationalFinding;
 import com.dwp.services.notification.domain.NotificationModels.PolicyChannelRule;
+import com.dwp.services.notification.domain.NotificationModels.PolicyRuntimeChannelPreview;
 import com.dwp.services.notification.domain.NotificationModels.PolicyPublishRequest;
 import com.dwp.services.notification.domain.NotificationModels.ProviderHealth;
 import com.dwp.services.notification.domain.NotificationModels.TenantPolicy;
@@ -225,6 +226,7 @@ public class NotificationAdminService {
                         actor.tenantId(), request.scopeType(), request.scopeKey()),
                 repository.observedRecipients30Days(
                         actor.tenantId(), request.scopeType(), request.scopeKey()),
+                runtimeChannels(request),
                 riskFlags(request));
     }
 
@@ -384,6 +386,36 @@ public class NotificationAdminService {
             flags.add("DEFAULT_MUTED");
         }
         return List.copyOf(flags);
+    }
+
+    private List<PolicyRuntimeChannelPreview> runtimeChannels(
+            TenantPolicyChangeRequest request) {
+        return request.channels().stream().map(channel -> {
+            boolean managed = !channel.userOverridable()
+                    || (request.mandatory() && "IN_APP".equals(channel.channel()));
+            String effectiveMode = "DIGEST".equals(channel.defaultMode())
+                    ? ("WEEKLY".equals(request.digestMode())
+                    ? "WEEKLY_DIGEST" : "DAILY_DIGEST")
+                    : channel.defaultMode();
+            boolean admitted = "IN_APP".equals(channel.channel())
+                    ? NotificationPolicyRuntimeEvaluator.inAppDeliveryEnabled(
+                    NotificationPolicyRuntimeEvaluator.policy(
+                            true,
+                            request.mandatory(),
+                            channel.enabled(),
+                            channel.userOverridable(),
+                            channel.defaultMode()),
+                    NotificationPolicyRuntimeEvaluator.userRule(false, null, null),
+                    null)
+                    : channel.enabled() && !"MUTED".equals(channel.defaultMode());
+            return new PolicyRuntimeChannelPreview(
+                    channel.channel(),
+                    channel.enabled(),
+                    effectiveMode,
+                    managed,
+                    channel.userOverridable(),
+                    admitted);
+        }).toList();
     }
 
     private String scopeLabel(String scopeType, String scopeKey) {

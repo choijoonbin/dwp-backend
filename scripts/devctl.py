@@ -447,7 +447,14 @@ def local_environment() -> dict[str, str]:
         ),
         "DWP_ENVIRONMENT": "local",
         "DWP_OPENAPI_ENABLED": "true",
+        "DWP_HOME_FLOW_ENABLED": "true",
+        "DWP_HOME_PERSONALIZATION_V2_ENABLED": "true",
+        "DWP_HOME_COMPOSER_ENABLED": "true",
+        "DWP_HOME_VIEWS_DUAL_WRITE_ENABLED": "true",
+        "DWP_HOME_VIEWS_SHADOW_COMPARE_ENABLED": "true",
+        "DWP_HOME_VIEWS_READ_ENABLED": "true",
         "VITE_API_URL": "http://localhost:8080",
+        "VITE_HOME_PERSONALIZATION_V2_ENABLED": "true",
     }
     for key, value in defaults.items():
         environment.setdefault(key, value)

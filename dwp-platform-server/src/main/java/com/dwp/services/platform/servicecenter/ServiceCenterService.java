@@ -308,7 +308,8 @@ public class ServiceCenterService {
         return new ServiceCenterDtos.RequestSummary(
                 value.requestId(), value.requestNumber(), value.serviceKey(), value.serviceNameKo(),
                 value.serviceNameEn(),
-                value.summary(), value.status(), value.priority(), value.assignedGroup(),
+                value.summary(), value.dataClassification(), value.status(), value.priority(),
+                value.assignedGroup(),
                 value.assignedTo(), value.submittedAt(), value.slaDueAt(), value.updatedAt(),
                 value.version());
     }

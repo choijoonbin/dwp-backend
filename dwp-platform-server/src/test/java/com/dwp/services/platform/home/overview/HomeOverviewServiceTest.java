@@ -3,6 +3,8 @@ package com.dwp.services.platform.home.overview;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.audit.PlatformAuditService;
+import com.dwp.services.platform.announcement.AnnouncementContentType;
+import com.dwp.services.platform.announcement.AnnouncementSeverity;
 import com.dwp.services.platform.calendar.CalendarDtos;
 import com.dwp.services.platform.calendar.CalendarService;
 import com.dwp.services.platform.communication.CommunicationDtos;
@@ -19,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -30,9 +33,20 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 @ExtendWith(MockitoExtension.class)
 class HomeOverviewServiceTest {
+
+    private static final String ALL_HOME_PERMISSIONS = String.join(",",
+            "APP.WORK:VIEW",
+            "APP.ACTIVITY:VIEW",
+            "APP.CALENDAR:VIEW",
+            "APP.COMMUNICATIONS:VIEW");
+    private static final String CALENDAR_AND_COMMUNICATIONS_PERMISSIONS = String.join(",",
+            "APP.ACTIVITY:VIEW",
+            "APP.CALENDAR:VIEW",
+            "APP.COMMUNICATIONS:VIEW");
 
     @Mock
     private WorkspaceService workspaceService;
@@ -63,12 +77,12 @@ class HomeOverviewServiceTest {
         OffsetDateTime now = OffsetDateTime.now();
         UUID personId = UUID.randomUUID();
         when(feedbackRepository.suppressedKeys(1L, 10L)).thenReturn(Set.of());
-        when(workspaceService.workQueue(1L, 10L, "WORK:VIEW", "ko-KR"))
+        when(workspaceService.workQueue(1L, 10L, ALL_HOME_PERMISSIONS, "ko-KR"))
                 .thenReturn(new WorkspaceDtos.WorkQueue(
                         new WorkspaceDtos.WorkSummary(3, 1, 1, 1, 0), List.of(), now));
-        when(workspaceService.activity(1L, 10L, "WORK:VIEW", "ko-KR"))
+        when(workspaceService.activity(1L, 10L, ALL_HOME_PERMISSIONS, "ko-KR"))
                 .thenReturn(new WorkspaceDtos.ActivityFeed(List.of(), now));
-        when(calendarService.home(1L, 10L, personId, "Asia/Seoul", "ko-KR"))
+        when(calendarService.home(1L, 10L, personId, "Asia/Seoul", "ko-KR", null))
                 .thenReturn(new CalendarDtos.HomeResponse(
                         LocalDate.now(), "Asia/Seoul", null, List.of(),
                         new CalendarDtos.HomeMetrics(2, 90, 60, 600, 0, 1, 3),
@@ -77,10 +91,15 @@ class HomeOverviewServiceTest {
                 eq(1L), eq(10L), eq("TENANT_ADMIN"), eq("ko-KR"),
                 eq("for-you"), isNull(), isNull(), anyInt()))
                 .thenReturn(new CommunicationDtos.FeedResponse(
-                        null, List.of(), new CommunicationDtos.FeedSummary(2, 1, 1, 0), now));
+                        null,
+                        List.of(),
+                        List.of(criticalCommunication(now)),
+                        new CommunicationDtos.FeedSummary(2, 1, 1, 0, 1, 2),
+                        now));
 
         HomeOverviewDtos.HomeOverviewResponse result = service.overview(
-                1L, 10L, personId, "WORK:VIEW", "TENANT_ADMIN", "ko-KR", "Asia/Seoul");
+                1L, 10L, personId, ALL_HOME_PERMISSIONS,
+                "TENANT_ADMIN", "ko-KR", "Asia/Seoul");
 
         assertThat(result.audience().profile()).isEqualTo("OPERATOR");
         assertThat(result.work().status()).isEqualTo(HomeOverviewDtos.SectionStatus.AVAILABLE);
@@ -92,6 +111,10 @@ class HomeOverviewServiceTest {
         assertThat(result.recommendationSection().data())
                 .allMatch(recommendation -> recommendation.source().startsWith("DWP_"));
         assertThat(result.recommendations()).isEqualTo(result.recommendationSection().data());
+        assertThat(result.communications().data().summary().actionable()).isEqualTo(2);
+        assertThat(result.communications().data().actionableItems())
+                .extracting(CommunicationDtos.CommunicationItem::communicationId)
+                .containsExactly(91L);
     }
 
     @Test
@@ -103,7 +126,7 @@ class HomeOverviewServiceTest {
                 .thenThrow(new BaseException(ErrorCode.FORBIDDEN));
         when(workspaceService.activity(any(), any(), anyString(), anyString()))
                 .thenReturn(new WorkspaceDtos.ActivityFeed(List.of(), now));
-        when(calendarService.home(any(), any(), any(), anyString(), anyString()))
+        when(calendarService.home(any(), any(), any(), anyString(), anyString(), isNull()))
                 .thenReturn(new CalendarDtos.HomeResponse(
                         LocalDate.now(), "Asia/Seoul", null, List.of(),
                         new CalendarDtos.HomeMetrics(0, 0, 600, 600, 0, 0, 0),
@@ -114,7 +137,8 @@ class HomeOverviewServiceTest {
                         null, List.of(), new CommunicationDtos.FeedSummary(0, 0, 0, 0), now));
 
         HomeOverviewDtos.HomeOverviewResponse result = service.overview(
-                1L, 7L, personId, "NONE", "WORKSPACE_MEMBER", "en-US", "Asia/Seoul");
+                1L, 7L, personId, CALENDAR_AND_COMMUNICATIONS_PERMISSIONS,
+                "WORKSPACE_MEMBER", "en-US", "Asia/Seoul");
 
         assertThat(result.work().status()).isEqualTo(HomeOverviewDtos.SectionStatus.FORBIDDEN);
         assertThat(result.work().data()).isNull();
@@ -133,7 +157,7 @@ class HomeOverviewServiceTest {
                 .thenThrow(new BaseException(ErrorCode.EXTERNAL_SERVICE_ERROR));
         when(workspaceService.activity(any(), any(), anyString(), anyString()))
                 .thenReturn(new WorkspaceDtos.ActivityFeed(List.of(), now));
-        when(calendarService.home(any(), any(), any(), anyString(), anyString()))
+        when(calendarService.home(any(), any(), any(), anyString(), anyString(), isNull()))
                 .thenReturn(new CalendarDtos.HomeResponse(
                         LocalDate.now(), "Asia/Seoul", null, List.of(),
                         new CalendarDtos.HomeMetrics(1, 0, 600, 600, 0, 1, 0),
@@ -144,7 +168,8 @@ class HomeOverviewServiceTest {
                         null, List.of(), new CommunicationDtos.FeedSummary(0, 0, 0, 0), now));
 
         HomeOverviewDtos.HomeOverviewResponse result = service.overview(
-                1L, 7L, personId, "NONE", "WORKSPACE_MEMBER", "en-US", "Asia/Seoul");
+                1L, 7L, personId, CALENDAR_AND_COMMUNICATIONS_PERMISSIONS,
+                "WORKSPACE_MEMBER", "en-US", "Asia/Seoul");
 
         assertThat(result.recommendationSection().status())
                 .isEqualTo(HomeOverviewDtos.SectionStatus.AVAILABLE);
@@ -163,14 +188,15 @@ class HomeOverviewServiceTest {
                 .thenThrow(new BaseException(ErrorCode.EXTERNAL_SERVICE_ERROR));
         when(workspaceService.activity(any(), any(), anyString(), anyString()))
                 .thenReturn(new WorkspaceDtos.ActivityFeed(List.of(), now));
-        when(calendarService.home(any(), any(), any(), anyString(), anyString()))
+        when(calendarService.home(any(), any(), any(), anyString(), anyString(), isNull()))
                 .thenThrow(new BaseException(ErrorCode.EXTERNAL_SERVICE_ERROR));
         when(communicationService.feed(
                 any(), any(), anyString(), anyString(), anyString(), isNull(), isNull(), anyInt()))
                 .thenThrow(new BaseException(ErrorCode.EXTERNAL_SERVICE_ERROR));
 
         HomeOverviewDtos.HomeOverviewResponse result = service.overview(
-                1L, 7L, personId, "NONE", "WORKSPACE_MEMBER", "en-US", "Asia/Seoul");
+                1L, 7L, personId, CALENDAR_AND_COMMUNICATIONS_PERMISSIONS,
+                "WORKSPACE_MEMBER", "en-US", "Asia/Seoul");
 
         assertThat(result.recommendationSection().status())
                 .isEqualTo(HomeOverviewDtos.SectionStatus.UNAVAILABLE);
@@ -187,12 +213,6 @@ class HomeOverviewServiceTest {
                 .thenThrow(new BaseException(ErrorCode.FORBIDDEN));
         when(workspaceService.activity(any(), any(), anyString(), anyString()))
                 .thenReturn(new WorkspaceDtos.ActivityFeed(List.of(), now));
-        when(calendarService.home(any(), any(), any(), anyString(), anyString()))
-                .thenThrow(new BaseException(ErrorCode.FORBIDDEN));
-        when(communicationService.feed(
-                any(), any(), anyString(), anyString(), anyString(), isNull(), isNull(), anyInt()))
-                .thenThrow(new BaseException(ErrorCode.FORBIDDEN));
-
         HomeOverviewDtos.HomeOverviewResponse result = service.overview(
                 1L, 7L, personId, "NONE", "WORKSPACE_MEMBER", "en-US", "Asia/Seoul");
 
@@ -200,6 +220,56 @@ class HomeOverviewServiceTest {
                 .isEqualTo(HomeOverviewDtos.SectionStatus.FORBIDDEN);
         assertThat(result.recommendationSection().reason()).isEqualTo("SOURCE_FORBIDDEN");
         assertThat(result.recommendations()).isEmpty();
+        verifyNoInteractions(calendarService, communicationService);
+    }
+
+    @Test
+    void deniesUnauthorizedAggregateSourcesBeforeFetchAndDoesNotDeriveTheirRecommendations() {
+        OffsetDateTime now = OffsetDateTime.now();
+        UUID personId = UUID.randomUUID();
+        String permissions = "APP.WORK:VIEW,APP.ACTIVITY:VIEW";
+        when(feedbackRepository.suppressedKeys(1L, 7L)).thenReturn(Set.of());
+        when(workspaceService.workQueue(1L, 7L, permissions, "en-US"))
+                .thenReturn(new WorkspaceDtos.WorkQueue(
+                        new WorkspaceDtos.WorkSummary(1, 1, 0, 0, 0), List.of(), now));
+        when(workspaceService.activity(1L, 7L, permissions, "en-US"))
+                .thenReturn(new WorkspaceDtos.ActivityFeed(List.of(), now));
+
+        HomeOverviewDtos.HomeOverviewResponse result = service.overview(
+                1L, 7L, personId, permissions,
+                "WORKSPACE_MEMBER", "en-US", "Asia/Seoul");
+
+        assertThat(result.calendar().status()).isEqualTo(HomeOverviewDtos.SectionStatus.FORBIDDEN);
+        assertThat(result.calendar().data()).isNull();
+        assertThat(result.communications().status())
+                .isEqualTo(HomeOverviewDtos.SectionStatus.FORBIDDEN);
+        assertThat(result.communications().data()).isNull();
+        assertThat(result.recommendations())
+                .extracting(HomeOverviewDtos.Recommendation::key)
+                .containsExactly("work-due-soon");
+        verifyNoInteractions(calendarService, communicationService);
+    }
+
+    @Test
+    void forwardsVerifiedGroupReferencesToTheCalendarHomeScope() {
+        OffsetDateTime now = OffsetDateTime.now();
+        UUID personId = UUID.randomUUID();
+        String groupRefs = UUID.randomUUID().toString();
+        when(feedbackRepository.suppressedKeys(1L, 7L)).thenReturn(Set.of());
+        when(calendarService.home(
+                1L, 7L, personId, "Asia/Seoul", "en-US", groupRefs))
+                .thenReturn(new CalendarDtos.HomeResponse(
+                        LocalDate.now(), "Asia/Seoul", null, List.of(),
+                        new CalendarDtos.HomeMetrics(0, 0, 0, 0, 0, 0, 0),
+                        List.of(), List.of(), now));
+
+        HomeOverviewDtos.HomeOverviewResponse result = service.overview(
+                1L, 7L, personId, "APP.CALENDAR:VIEW",
+                "WORKSPACE_MEMBER", "en-US", "Asia/Seoul", groupRefs);
+
+        assertThat(result.calendar().status()).isEqualTo(HomeOverviewDtos.SectionStatus.AVAILABLE);
+        verify(calendarService).home(
+                1L, 7L, personId, "Asia/Seoul", "en-US", groupRefs);
     }
 
     @Test
@@ -235,5 +305,32 @@ class HomeOverviewServiceTest {
                 .isInstanceOf(BaseException.class)
                 .satisfies(exception -> assertThat(((BaseException) exception).getErrorCode())
                         .isEqualTo(ErrorCode.NOT_FOUND));
+    }
+
+    private CommunicationDtos.CommunicationItem criticalCommunication(OffsetDateTime publishedAt) {
+        return new CommunicationDtos.CommunicationItem(
+                91L,
+                "Urgent security update",
+                "Review this update now.",
+                "Details",
+                AnnouncementSeverity.CRITICAL,
+                AnnouncementContentType.ANNOUNCEMENT,
+                "SECURITY",
+                "Security Office",
+                null,
+                false,
+                false,
+                false,
+                null,
+                false,
+                (short) 2,
+                "en",
+                null,
+                null,
+                publishedAt,
+                null,
+                new CommunicationDtos.ReaderState(
+                        true, false, false, false, null, null, null),
+                new CommunicationDtos.ReactionSummary(Map.of(), null, 0));
     }
 }

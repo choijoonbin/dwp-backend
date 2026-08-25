@@ -87,6 +87,12 @@ public final class NotificationModels {
             List<TimelineEntry> timeline) {
     }
 
+    public record TargetResolution(
+            UUID notificationId,
+            String targetState,
+            NotificationAction action) {
+    }
+
     public record Summary(
             boolean partial,
             List<String> unavailableSources,
@@ -115,6 +121,7 @@ public final class NotificationModels {
             String counterVersion,
             List<UUID> changedIds,
             List<UUID> deletedIds,
+            boolean hasMore,
             Summary summary) {
     }
 
@@ -162,7 +169,9 @@ public final class NotificationModels {
     public record BulkResult(
             List<BulkItemResult> results,
             String changeVersion,
-            Summary summary) {
+            Summary summary,
+            UUID undoToken,
+            Instant undoExpiresAt) {
     }
 
     public record QuietHours(
@@ -422,7 +431,17 @@ public final class NotificationModels {
             TenantPolicy proposedPolicy,
             long affectedTypeCount,
             long observedRecipients30Days,
+            List<PolicyRuntimeChannelPreview> runtimeChannels,
             List<String> riskFlags) {
+    }
+
+    public record PolicyRuntimeChannelPreview(
+            String channel,
+            boolean enabled,
+            String effectiveMode,
+            boolean managed,
+            boolean userOverridable,
+            boolean defaultDeliveryAdmitted) {
     }
 
     public record PolicyPublishRequest(

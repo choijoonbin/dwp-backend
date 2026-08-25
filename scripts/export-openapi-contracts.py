@@ -140,6 +140,17 @@ def gateway_contract(documents: dict[str, dict[str, Any]]) -> dict[str, Any]:
             rewritten = rewrite_contract_value(copy.deepcopy(path_item), names)
             for method, operation in rewritten.items():
                 if method in HTTP_METHODS and isinstance(operation, dict):
+                    parameters = operation.get("parameters")
+                    if isinstance(parameters, list):
+                        operation["parameters"] = [
+                            parameter
+                            for parameter in parameters
+                            if not (
+                                isinstance(parameter, dict)
+                                and str(parameter.get("in", "")).lower() == "header"
+                                and str(parameter.get("name", "")).lower().startswith("x-dwp-")
+                            )
+                        ]
                     operation["tags"] = [service.name]
                     if operation.get("operationId"):
                         operation["operationId"] = f"{service.name}_{operation['operationId']}"

@@ -9,6 +9,7 @@ import com.dwp.services.messaging.security.MessagingRequestContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -22,6 +23,7 @@ import java.util.UUID;
 class MessagingNotificationEvents {
 
     static final String MESSAGE_SENT = "messaging.message.sent.v1";
+    static final String MESSAGE_DELETED = "messaging.message.deleted.v1";
     static final String DIRECT_MESSAGE = "MESSAGING.DIRECT_MESSAGE";
     static final String CHANNEL_MESSAGE = "MESSAGING.CHANNEL_MESSAGE";
     static final String MENTION = "MESSAGING.MENTION";
@@ -35,6 +37,7 @@ class MessagingNotificationEvents {
     private final ObjectMapper objectMapper;
     private final MessagingQueryRepository queries;
 
+    @Autowired
     MessagingNotificationEvents(
             DomainEventRecorder recorder,
             DomainEventContractRegistry contracts,
@@ -44,6 +47,7 @@ class MessagingNotificationEvents {
         this.objectMapper = objectMapper;
         this.queries = queries;
         contracts.register(MESSAGE_SENT, 1, 1);
+        contracts.register(MESSAGE_DELETED, 1, 1);
     }
 
     private MessagingNotificationEvents() {
@@ -155,6 +159,39 @@ class MessagingNotificationEvents {
                 AGGREGATE,
                 conversation.conversationId().toString(),
                 result.sequence(),
+                resolvedCorrelation,
+                null,
+                null,
+                data));
+    }
+
+    void messageDeleted(
+            MessagingRequestContext.Subject subject,
+            MessagingDtos.ConversationSummary conversation,
+            UUID messageId,
+            long version,
+            String correlationId) {
+        if (recorder == null || objectMapper == null) return;
+        ObjectNode data = objectMapper.createObjectNode()
+                .put("conversationId", conversation.conversationId().toString())
+                .put("messageId", messageId.toString());
+        data.putArray("notificationTargetChanges")
+                .addObject()
+                .put("ownerAppKey", "messaging")
+                .put("targetReference", messageRoute(conversation, messageId))
+                .put("state", "DELETED")
+                .put("reason", "SOURCE_DELETED");
+        String resolvedCorrelation = correlationId == null || correlationId.isBlank()
+                ? "messaging-delete:" + messageId
+                : correlationId.trim();
+        recorder.record(DomainEventEnvelope.create(
+                SOURCE,
+                MESSAGE_DELETED,
+                1,
+                subject.tenantId(),
+                "MESSAGING_MESSAGE",
+                messageId.toString(),
+                version,
                 resolvedCorrelation,
                 null,
                 null,

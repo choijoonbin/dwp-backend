@@ -157,6 +157,33 @@
         },
         "type": "object"
       },
+      "ApiResponseAppNotificationSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AppNotificationSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseBulkResult": {
         "properties": {
           "correlationId": {
@@ -164,6 +191,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/BulkResult"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseCapabilities": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Capabilities"
           },
           "errorCode": {
             "type": "string"
@@ -349,33 +403,6 @@
         },
         "type": "object"
       },
-      "ApiResponseMaterializationResult": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "$ref": "#/components/schemas/MaterializationResult"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "ApiResponseSubscriptionRule": {
         "properties": {
           "correlationId": {
@@ -430,6 +457,87 @@
         },
         "type": "object"
       },
+      "ApiResponseSuppression": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Suppression"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseSuppressionPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SuppressionPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseSuppressionPreview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SuppressionPreview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseSyncResponse": {
         "properties": {
           "correlationId": {
@@ -437,6 +545,195 @@
           },
           "data": {
             "$ref": "#/components/schemas/SyncResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseTargetResolution": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TargetResolution"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseTemplatePreview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TemplatePreview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseTemplateRevision": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TemplateRevision"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseTemplateWorkspace": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TemplateWorkspace"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseTenantPolicy": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TenantPolicy"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseTenantPolicyPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TenantPolicyPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseTenantPolicyPreview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TenantPolicyPreview"
           },
           "errorCode": {
             "type": "string"
@@ -509,6 +806,60 @@
         },
         "type": "object"
       },
+      "AppNotificationCounter": {
+        "properties": {
+          "actionableUnread": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "appKey": {
+            "type": "string"
+          },
+          "lastActivityAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "totalUnread": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "urgentUnread": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "AppNotificationSummary": {
+        "properties": {
+          "apps": {
+            "items": {
+              "$ref": "#/components/schemas/AppNotificationCounter"
+            },
+            "type": "array"
+          },
+          "changeVersion": {
+            "type": "string"
+          },
+          "counterVersion": {
+            "type": "string"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "unavailableSources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "BulkActionRequest": {
         "properties": {
           "action": {
@@ -567,6 +918,44 @@
           },
           "summary": {
             "$ref": "#/components/schemas/Summary"
+          },
+          "undoExpiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "undoToken": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Capabilities": {
+        "properties": {
+          "canonicalStore": {
+            "type": "string"
+          },
+          "enabledChannels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "externalDeliveryState": {
+            "type": "string"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "realtimeTransport": {
+            "type": "string"
+          },
+          "unavailableChannels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -660,6 +1049,9 @@
           "digest": {
             "$ref": "#/components/schemas/Digest"
           },
+          "presentation": {
+            "$ref": "#/components/schemas/Presentation"
+          },
           "quietHours": {
             "$ref": "#/components/schemas/QuietHours"
           },
@@ -668,14 +1060,13 @@
             "type": "string"
           },
           "version": {
-            "format": "int64",
-            "minimum": 0,
-            "type": "integer"
+            "type": "string"
           }
         },
         "required": [
           "channels",
           "digest",
+          "presentation",
           "quietHours"
         ],
         "type": "object"
@@ -691,6 +1082,9 @@
           "digest": {
             "$ref": "#/components/schemas/Digest"
           },
+          "presentation": {
+            "$ref": "#/components/schemas/Presentation"
+          },
           "quietHours": {
             "$ref": "#/components/schemas/QuietHours"
           },
@@ -699,15 +1093,16 @@
             "type": "string"
           },
           "version": {
-            "format": "int64",
-            "minimum": 0,
-            "type": "integer"
+            "minLength": 1,
+            "type": "string"
           }
         },
         "required": [
           "channels",
           "digest",
-          "quietHours"
+          "presentation",
+          "quietHours",
+          "version"
         ],
         "type": "object"
       },
@@ -760,92 +1155,6 @@
         "required": [
           "deliveryTime",
           "mode"
-        ],
-        "type": "object"
-      },
-      "DirectMaterializationRequest": {
-        "properties": {
-          "actionRequired": {
-            "type": "boolean"
-          },
-          "actorReference": {
-            "maxLength": 300,
-            "minLength": 0,
-            "type": "string"
-          },
-          "dueAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "locale": {
-            "maxLength": 35,
-            "minLength": 0,
-            "type": "string"
-          },
-          "occurredAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "reasonCode": {
-            "maxLength": 200,
-            "minLength": 0,
-            "type": "string"
-          },
-          "recipientUserIds": {
-            "items": {
-              "format": "int64",
-              "minimum": 1,
-              "type": "integer"
-            },
-            "maxItems": 100,
-            "minItems": 0,
-            "type": "array"
-          },
-          "sourceEventId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "sourceEventType": {
-            "maxLength": 200,
-            "minLength": 0,
-            "type": "string"
-          },
-          "sourceSchemaVersion": {
-            "format": "int32",
-            "minimum": 1,
-            "type": "integer"
-          },
-          "subjectReference": {
-            "maxLength": 300,
-            "minLength": 0,
-            "type": "string"
-          },
-          "targetReference": {
-            "maxLength": 300,
-            "minLength": 0,
-            "type": "string"
-          },
-          "threadKey": {
-            "maxLength": 200,
-            "minLength": 0,
-            "type": "string"
-          },
-          "typeKey": {
-            "maxLength": 160,
-            "minLength": 0,
-            "type": "string"
-          },
-          "variables": {
-            "additionalProperties": {},
-            "type": "object"
-          }
-        },
-        "required": [
-          "recipientUserIds",
-          "sourceEventId",
-          "sourceEventType",
-          "typeKey",
-          "variables"
         ],
         "type": "object"
       },
@@ -1038,30 +1347,6 @@
         },
         "type": "object"
       },
-      "MaterializationResult": {
-        "properties": {
-          "duplicate": {
-            "type": "boolean"
-          },
-          "highestChangeVersion": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "intentId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "notificationId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "recipientCount": {
-            "format": "int32",
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
       "NotificationAction": {
         "properties": {
           "actionKey": {
@@ -1147,16 +1432,21 @@
           "description": {
             "type": "string"
           },
+          "mandatory": {
+            "type": "boolean"
+          },
           "mode": {
             "$ref": "#/components/schemas/ManagedValueString"
+          },
+          "quietHoursBypass": {
+            "type": "boolean"
           },
           "ruleId": {
             "format": "uuid",
             "type": "string"
           },
           "ruleVersion": {
-            "format": "int64",
-            "type": "integer"
+            "type": "string"
           },
           "typeKey": {
             "type": "string"
@@ -1199,6 +1489,97 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "PolicyChannelRule": {
+        "properties": {
+          "channel": {
+            "minLength": 1,
+            "pattern": "IN_APP|EMAIL|WEB_PUSH|MOBILE_PUSH|TEAMS|SLACK",
+            "type": "string"
+          },
+          "defaultMode": {
+            "minLength": 1,
+            "pattern": "IMMEDIATE|DIGEST|MUTED",
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "maxPerWindow": {
+            "format": "int32",
+            "maximum": 10000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "userOverridable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "channel",
+          "defaultMode"
+        ],
+        "type": "object"
+      },
+      "PolicyPublishRequest": {
+        "properties": {
+          "approvalReason": {
+            "maxLength": 500,
+            "minLength": 10,
+            "type": "string"
+          },
+          "expectedVersion": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "approvalReason",
+          "expectedVersion"
+        ],
+        "type": "object"
+      },
+      "PolicyRuntimeChannelPreview": {
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "defaultDeliveryAdmitted": {
+            "type": "boolean"
+          },
+          "effectiveMode": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "managed": {
+            "type": "boolean"
+          },
+          "userOverridable": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "Presentation": {
+        "properties": {
+          "bannerMode": {
+            "minLength": 1,
+            "pattern": "SMART|HIGH_PRIORITY_ONLY|OFF",
+            "type": "string"
+          },
+          "previewMode": {
+            "minLength": 1,
+            "pattern": "FULL|TITLE_ONLY|HIDDEN",
+            "type": "string"
+          }
+        },
+        "required": [
+          "bannerMode",
+          "previewMode"
+        ],
         "type": "object"
       },
       "ProviderHealth": {
@@ -1279,9 +1660,8 @@
       "SnoozeRequest": {
         "properties": {
           "expectedVersion": {
-            "format": "int64",
-            "minimum": 1,
-            "type": "integer"
+            "minLength": 1,
+            "type": "string"
           },
           "snoozedUntil": {
             "format": "date-time",
@@ -1289,6 +1669,7 @@
           }
         },
         "required": [
+          "expectedVersion",
           "snoozedUntil"
         ],
         "type": "object"
@@ -1331,8 +1712,7 @@
             "type": "string"
           },
           "version": {
-            "format": "int64",
-            "type": "integer"
+            "type": "string"
           }
         },
         "type": "object"
@@ -1351,9 +1731,7 @@
             "type": "object"
           },
           "expectedVersion": {
-            "format": "int64",
-            "minimum": 0,
-            "type": "integer"
+            "type": "string"
           },
           "mode": {
             "minLength": 1,
@@ -1416,6 +1794,197 @@
         },
         "type": "object"
       },
+      "Suppression": {
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "criticalBypass": {
+            "type": "boolean"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "revokeReason": {
+            "type": "string"
+          },
+          "revokedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "revokedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "scopeKey": {
+            "type": "string"
+          },
+          "scopeType": {
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "suppressionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SuppressionCommand": {
+        "properties": {
+          "channel": {
+            "maxLength": 30,
+            "minLength": 0,
+            "type": "string"
+          },
+          "criticalBypass": {
+            "type": "boolean"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "scopeKey": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "scopeType": {
+            "maxLength": 20,
+            "minLength": 0,
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "expiresAt",
+          "reason",
+          "scopeKey",
+          "scopeType"
+        ],
+        "type": "object"
+      },
+      "SuppressionPage": {
+        "properties": {
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Suppression"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "SuppressionPreview": {
+        "properties": {
+          "affectedTypeCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "channel": {
+            "type": "string"
+          },
+          "criticalBypass": {
+            "type": "boolean"
+          },
+          "criticalBypassCandidates7Days": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "matchedTypeKeys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "observedNotifications7Days": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "overlappingSuppressionCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "riskFlags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "scopeKey": {
+            "type": "string"
+          },
+          "scopeType": {
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SuppressionRevokeCommand": {
+        "properties": {
+          "expectedVersion": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "reason"
+        ],
+        "type": "object"
+      },
       "SyncResponse": {
         "properties": {
           "changeVersion": {
@@ -1438,8 +2007,484 @@
             },
             "type": "array"
           },
+          "hasMore": {
+            "type": "boolean"
+          },
           "summary": {
             "$ref": "#/components/schemas/Summary"
+          }
+        },
+        "type": "object"
+      },
+      "TargetResolution": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/NotificationAction"
+          },
+          "notificationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "targetState": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "TemplateContent": {
+        "properties": {
+          "actionLabel": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "preview": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "TemplateDecisionRequest": {
+        "properties": {
+          "expectedVersion": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 10,
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "TemplateDraftRequest": {
+        "properties": {
+          "actionLabel": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string"
+          },
+          "body": {
+            "maxLength": 4000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "changeReason": {
+            "maxLength": 500,
+            "minLength": 10,
+            "type": "string"
+          },
+          "channel": {
+            "minLength": 1,
+            "pattern": "IN_APP|EMAIL|WEB_PUSH|MOBILE_PUSH|TEAMS|SLACK",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "locale": {
+            "maxLength": 35,
+            "minLength": 0,
+            "type": "string"
+          },
+          "preview": {
+            "maxLength": 600,
+            "minLength": 0,
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 300,
+            "minLength": 0,
+            "type": "string"
+          },
+          "typeVersionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "body",
+          "changeReason",
+          "channel",
+          "expectedVersion",
+          "locale",
+          "title",
+          "typeVersionId"
+        ],
+        "type": "object"
+      },
+      "TemplatePreview": {
+        "properties": {
+          "rendered": {
+            "$ref": "#/components/schemas/TemplateContent"
+          },
+          "variables": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "TemplatePreviewRequest": {
+        "properties": {
+          "actionLabel": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string"
+          },
+          "body": {
+            "maxLength": 4000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "channel": {
+            "minLength": 1,
+            "pattern": "IN_APP|EMAIL|WEB_PUSH|MOBILE_PUSH|TEAMS|SLACK",
+            "type": "string"
+          },
+          "locale": {
+            "maxLength": 35,
+            "minLength": 0,
+            "type": "string"
+          },
+          "preview": {
+            "maxLength": 600,
+            "minLength": 0,
+            "type": "string"
+          },
+          "sampleData": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "title": {
+            "maxLength": 300,
+            "minLength": 0,
+            "type": "string"
+          },
+          "typeVersionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "body",
+          "channel",
+          "locale",
+          "sampleData",
+          "title",
+          "typeVersionId"
+        ],
+        "type": "object"
+      },
+      "TemplateRevision": {
+        "properties": {
+          "appKey": {
+            "type": "string"
+          },
+          "approvalReason": {
+            "type": "string"
+          },
+          "approvedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "approvedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "changeReason": {
+            "type": "string"
+          },
+          "channel": {
+            "type": "string"
+          },
+          "checksum": {
+            "type": "string"
+          },
+          "content": {
+            "$ref": "#/components/schemas/TemplateContent"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "locale": {
+            "type": "string"
+          },
+          "revision": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "revisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "typeKey": {
+            "type": "string"
+          },
+          "typeVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "TemplateVariant": {
+        "properties": {
+          "allowedVariables": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "appKey": {
+            "type": "string"
+          },
+          "appName": {
+            "type": "string"
+          },
+          "channel": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "draft": {
+            "$ref": "#/components/schemas/TemplateRevision"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateRevision"
+            },
+            "type": "array"
+          },
+          "locale": {
+            "type": "string"
+          },
+          "providerDefault": {
+            "$ref": "#/components/schemas/TemplateContent"
+          },
+          "publishedOverride": {
+            "$ref": "#/components/schemas/TemplateRevision"
+          },
+          "typeKey": {
+            "type": "string"
+          },
+          "typeVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "TemplateWorkspace": {
+        "properties": {
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateVariant"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "TenantPolicy": {
+        "properties": {
+          "approvedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "approvedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "changeReason": {
+            "type": "string"
+          },
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyChannelRule"
+            },
+            "type": "array"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "digestMode": {
+            "type": "string"
+          },
+          "mandatory": {
+            "type": "boolean"
+          },
+          "policyId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "quietHoursBypass": {
+            "type": "boolean"
+          },
+          "scopeKey": {
+            "type": "string"
+          },
+          "scopeLabel": {
+            "type": "string"
+          },
+          "scopeType": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "TenantPolicyChangeRequest": {
+        "properties": {
+          "changeReason": {
+            "maxLength": 500,
+            "minLength": 10,
+            "type": "string"
+          },
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyChannelRule"
+            },
+            "maxItems": 6,
+            "minItems": 0,
+            "type": "array"
+          },
+          "digestMode": {
+            "minLength": 1,
+            "pattern": "IMMEDIATE|DAILY|WEEKLY",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "mandatory": {
+            "type": "boolean"
+          },
+          "quietHoursBypass": {
+            "type": "boolean"
+          },
+          "scopeKey": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "scopeType": {
+            "minLength": 1,
+            "pattern": "APP|TYPE",
+            "type": "string"
+          }
+        },
+        "required": [
+          "changeReason",
+          "channels",
+          "digestMode",
+          "expectedVersion",
+          "scopeKey",
+          "scopeType"
+        ],
+        "type": "object"
+      },
+      "TenantPolicyPage": {
+        "properties": {
+          "drafts": {
+            "items": {
+              "$ref": "#/components/schemas/TenantPolicy"
+            },
+            "type": "array"
+          },
+          "effectivePolicies": {
+            "items": {
+              "$ref": "#/components/schemas/TenantPolicy"
+            },
+            "type": "array"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "TenantPolicyPreview": {
+        "properties": {
+          "affectedTypeCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "currentPolicy": {
+            "$ref": "#/components/schemas/TenantPolicy"
+          },
+          "observedRecipients30Days": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "proposedPolicy": {
+            "$ref": "#/components/schemas/TenantPolicy"
+          },
+          "riskFlags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "runtimeChannels": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyRuntimeChannelPreview"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -1519,8 +2564,7 @@
             "type": "string"
           },
           "version": {
-            "format": "int64",
-            "type": "integer"
+            "type": "string"
           },
           "volume24Hours": {
             "format": "int64",
@@ -1561,11 +2605,13 @@
       "VersionRequest": {
         "properties": {
           "expectedVersion": {
-            "format": "int64",
-            "minimum": 1,
-            "type": "integer"
+            "minLength": 1,
+            "type": "string"
           }
         },
+        "required": [
+          "expectedVersion"
+        ],
         "type": "object"
       }
     }
@@ -1576,82 +2622,6 @@
   },
   "openapi": "3.1.0",
   "paths": {
-    "/internal/v1/delivery/{channel}": {
-      "post": {
-        "operationId": "externalDelivery",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "channel",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "tags": [
-          "disabled-notification-capability-controller"
-        ]
-      }
-    },
-    "/internal/v1/intents/audience": {
-      "post": {
-        "operationId": "organizationAudience",
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        },
-        "tags": [
-          "disabled-notification-capability-controller"
-        ]
-      }
-    },
-    "/internal/v1/intents/direct": {
-      "post": {
-        "operationId": "direct",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-Correlation-ID",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DirectMaterializationRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseMaterializationResult"
-                }
-              }
-            },
-            "description": "OK"
-          }
-        },
-        "tags": [
-          "notification-producer-controller"
-        ]
-      }
-    },
     "/v1/admin/operations": {
       "get": {
         "operationId": "operations",
@@ -1681,6 +2651,470 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseAdminOverview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/policies": {
+      "get": {
+        "operationId": "policies",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTenantPolicyPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/policies/drafts": {
+      "post": {
+        "operationId": "createPolicyDraft",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantPolicyChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTenantPolicy"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/policies/preview": {
+      "post": {
+        "operationId": "previewPolicy",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantPolicyChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTenantPolicyPreview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/policies/{policyId}/publish": {
+      "post": {
+        "operationId": "publishPolicy",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyPublishRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTenantPolicy"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/suppressions": {
+      "get": {
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSuppressionPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-suppression-controller"
+        ]
+      },
+      "post": {
+        "operationId": "create",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuppressionCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSuppression"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-suppression-controller"
+        ]
+      }
+    },
+    "/v1/admin/suppressions/preview": {
+      "post": {
+        "operationId": "preview",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuppressionCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSuppressionPreview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-suppression-controller"
+        ]
+      }
+    },
+    "/v1/admin/suppressions/{suppressionId}/revoke": {
+      "post": {
+        "operationId": "revoke",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "suppressionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuppressionRevokeCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSuppression"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-suppression-controller"
+        ]
+      }
+    },
+    "/v1/admin/templates": {
+      "get": {
+        "operationId": "templates",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTemplateWorkspace"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/templates/drafts": {
+      "post": {
+        "operationId": "createTemplateDraft",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateDraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTemplateRevision"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/templates/preview": {
+      "post": {
+        "operationId": "previewTemplate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplatePreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTemplatePreview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/templates/{revisionId}/publish": {
+      "post": {
+        "operationId": "publishTemplate",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTemplateRevision"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/templates/{revisionId}/retire": {
+      "post": {
+        "operationId": "retireTemplateDraft",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTemplateRevision"
                 }
               }
             },
@@ -1755,6 +3189,26 @@
         },
         "tags": [
           "notification-admin-controller"
+        ]
+      }
+    },
+    "/v1/capabilities": {
+      "get": {
+        "operationId": "capabilities",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCapabilities"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-controller"
         ]
       }
     },
@@ -1888,6 +3342,45 @@
           },
           "required": true
         },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseBulkResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-controller"
+        ]
+      }
+    },
+    "/v1/inbox/bulk-actions/{undoToken}/undo": {
+      "post": {
+        "operationId": "undoBulkAction",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "undoToken",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -2181,6 +3674,37 @@
         ]
       }
     },
+    "/v1/inbox/{notificationId}/target": {
+      "get": {
+        "operationId": "target",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notificationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTargetResolution"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-controller"
+        ]
+      }
+    },
     "/v1/inbox/{notificationId}/unread": {
       "post": {
         "operationId": "unread",
@@ -2403,9 +3927,7 @@
             "name": "expectedVersion",
             "required": false,
             "schema": {
-              "format": "int64",
-              "minimum": 1,
-              "type": "integer"
+              "type": "string"
             }
           },
           {
@@ -2413,9 +3935,7 @@
             "name": "version",
             "required": false,
             "schema": {
-              "format": "int64",
-              "minimum": 1,
-              "type": "integer"
+              "type": "string"
             }
           }
         ],
@@ -2538,6 +4058,26 @@
         },
         "tags": [
           "notification-controller"
+        ]
+      }
+    },
+    "/v1/summary/by-app": {
+      "get": {
+        "operationId": "byApp",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAppNotificationSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-app-summary-controller"
         ]
       }
     },

@@ -11,6 +11,34 @@ import static org.assertj.core.api.Assertions.assertThat;
 class NotificationMigrationInvariantTest {
 
     @Test
+    void tracksRecipientScopedTargetLifecycleAndKeepsRlsForced() throws IOException {
+        String migration = resource(
+                "db/migration/V20__track_notification_target_lifecycle.sql");
+
+        assertThat(migration)
+                .contains("ADD COLUMN target_state")
+                .contains("ADD COLUMN target_state_reason")
+                .contains("'AVAILABLE', 'DELETED', 'FORBIDDEN'")
+                .contains("ix_ntf_user_notifications_target")
+                .contains("FORCE ROW LEVEL SECURITY");
+    }
+
+    @Test
+    void bulkUndoReceiptsAreShortLivedAndUserScoped() throws IOException {
+        String migration = resource(
+                "db/migration/V19__add_notification_bulk_undo_receipts.sql");
+
+        assertThat(migration)
+                .contains("CREATE TABLE ntf_bulk_undo_receipts")
+                .contains("CREATE TABLE ntf_bulk_undo_items")
+                .contains("expires_at TIMESTAMPTZ NOT NULL")
+                .contains("expected_version BIGINT NOT NULL")
+                .contains("user_id = ntf_current_user_id()")
+                .contains("FORCE ROW LEVEL SECURITY")
+                .contains("ON DELETE CASCADE");
+    }
+
+    @Test
     void forcesRlsThroughExplicitRuntimeRolesAndSessionContext() throws IOException {
         String migration = resource("db/migration/V2__enforce_notification_row_security.sql");
 
@@ -129,6 +157,8 @@ class NotificationMigrationInvariantTest {
             throws IOException {
         String migration = resource(
                 "db/migration/V11__add_notification_audit_outbox.sql");
+        String conflictGrant = resource(
+                "db/migration/V21__allow_audit_outbox_conflict_detection.sql");
 
         assertThat(migration)
                 .contains("CREATE TABLE sys_audit_outbox")
@@ -139,6 +169,11 @@ class NotificationMigrationInvariantTest {
                 .contains("GRANT INSERT ON sys_audit_outbox TO dwp_notification_api")
                 .contains("TO dwp_notification_worker")
                 .contains("PENDING", "SENDING", "FAILED", "PUBLISHED", "DEAD");
+        assertThat(conflictGrant)
+                .contains("GRANT SELECT (event_id)")
+                .contains("ON sys_audit_outbox")
+                .contains("TO dwp_notification_api")
+                .doesNotContain("GRANT SELECT ON", "SELECT (event_id, payload)");
     }
 
     @Test
@@ -169,6 +204,35 @@ class NotificationMigrationInvariantTest {
                 .contains("FORCE ROW LEVEL SECURITY")
                 .contains("template_override_revision_id")
                 .contains("Published or retired notification template revisions are immutable");
+    }
+
+    @Test
+    void snapshotsRecipientVisibleContentOnTheUserProjection() throws IOException {
+        String migration = resource(
+                "db/migration/V17__isolate_recipient_notification_content.sql");
+
+        assertThat(migration)
+                .contains("DISABLE ROW LEVEL SECURITY")
+                .contains("ADD COLUMN safe_body TEXT")
+                .contains("ADD COLUMN action_payload JSONB")
+                .contains("ADD COLUMN first_activity_at TIMESTAMPTZ")
+                .contains("ADD COLUMN occurrence_count BIGINT")
+                .contains("FROM ntf_notifications notification")
+                .contains("Recipient-scoped rendered body")
+                .contains("FORCE ROW LEVEL SECURITY");
+    }
+
+    @Test
+    void redactsLegacyContentThatCannotBeAttributedToOneRecipient() throws IOException {
+        String migration = resource(
+                "db/migration/V18__redact_legacy_recipient_projection_content.sql");
+
+        assertThat(migration)
+                .contains("SET actor_ref = NULL")
+                .contains("safe_body = ''")
+                .contains("action_payload = '{}'::jsonb")
+                .contains("first_activity_at = last_activity_at")
+                .contains("FORCE ROW LEVEL SECURITY");
     }
 
     private String resource(String path) throws IOException {

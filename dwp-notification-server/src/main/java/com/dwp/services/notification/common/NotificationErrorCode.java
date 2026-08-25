@@ -8,6 +8,7 @@ public enum NotificationErrorCode {
     FORBIDDEN(HttpStatus.FORBIDDEN, "E2001", "The operation is not permitted."),
     SERVICE_NOT_CONFIGURED(HttpStatus.BAD_GATEWAY, "E5000", "Notification service identity is not configured."),
     NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "NOTIFICATION_NOT_FOUND", "The notification was not found."),
+    NOTIFICATION_TARGET_UNAVAILABLE(HttpStatus.GONE, "NOTIFICATION_TARGET_UNAVAILABLE", "The notification target is no longer available."),
     NOTIFICATION_STALE_VERSION(HttpStatus.CONFLICT, "NOTIFICATION_STALE_VERSION", "The notification was changed by another request."),
     NOTIFICATION_INVALID_CURSOR(HttpStatus.BAD_REQUEST, "NOTIFICATION_INVALID_CURSOR", "The cursor is invalid or expired."),
     NOTIFICATION_SYNC_RESET_REQUIRED(HttpStatus.CONFLICT, "NOTIFICATION_SYNC_RESET_REQUIRED", "A full notification refresh is required."),

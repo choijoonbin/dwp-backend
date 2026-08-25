@@ -1378,6 +1378,33 @@
         },
         "type": "object"
       },
+      "ApiResponseComposerProposalResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ComposerProposalResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseConfigurationCheck": {
         "properties": {
           "correlationId": {
@@ -1520,6 +1547,60 @@
           },
           "data": {
             "$ref": "#/components/schemas/CorrelationPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseDeleteHomeViewResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DeleteHomeViewResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseDeviceLayoutResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DeviceLayoutResponse"
           },
           "errorCode": {
             "type": "string"
@@ -1972,6 +2053,60 @@
         },
         "type": "object"
       },
+      "ApiResponseHomeTemplateResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/HomeTemplateResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseHomeViewResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/HomeViewResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseImpactAnalysis": {
         "properties": {
           "correlationId": {
@@ -2383,6 +2518,36 @@
         },
         "type": "object"
       },
+      "ApiResponseListDeviceLayoutResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/DeviceLayoutResponse"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseListEffectiveDelegatedScope": {
         "properties": {
           "correlationId": {
@@ -2481,6 +2646,126 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/HomeExperienceRevisionResponse"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListHomeTemplateResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/HomeTemplateResponse"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListHomeTemplateRevisionResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/HomeTemplateRevisionResponse"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListHomeViewResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/HomeViewResponse"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListHomeViewRevisionResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/HomeViewRevisionResponse"
             },
             "type": "array"
           },
@@ -5099,6 +5384,42 @@
         },
         "type": "object"
       },
+      "AppFolderV1": {
+        "properties": {
+          "appIds": {
+            "items": {
+              "maxLength": 100,
+              "minLength": 0,
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 2,
+            "type": "array"
+          },
+          "groupId": {
+            "maxLength": 40,
+            "minLength": 0,
+            "type": "string"
+          },
+          "id": {
+            "minLength": 1,
+            "pattern": "folder-[A-Za-z0-9_-]{1,93}",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "appIds",
+          "groupId",
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
       "AppLaunch": {
         "properties": {
           "appId": {
@@ -5115,6 +5436,78 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "AppLayoutPayloadV1": {
+        "properties": {
+          "folders": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/AppFolderV1"
+            },
+            "type": "object"
+          },
+          "groups": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          },
+          "hiddenAppIds": {
+            "items": {
+              "maxLength": 100,
+              "minLength": 0,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 0,
+            "type": "array"
+          },
+          "version": {
+            "format": "int32",
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "folders",
+          "groups",
+          "hiddenAppIds",
+          "version"
+        ],
+        "type": "object"
+      },
+      "ApplyComposerProposalRequest": {
+        "properties": {
+          "viewVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "viewVersion"
+        ],
+        "type": "object"
+      },
+      "ApplyHomeTemplateRequest": {
+        "properties": {
+          "viewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "viewVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "viewId",
+          "viewVersion"
+        ],
         "type": "object"
       },
       "AssignRequest": {
@@ -6873,6 +7266,135 @@
         ],
         "type": "object"
       },
+      "ComposerChange": {
+        "properties": {
+          "afterIndex": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "appId": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string"
+          },
+          "beforeIndex": {
+            "format": "int32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "operation": {
+            "enum": [
+              "MOVE_WIDGET",
+              "SHOW_WIDGET",
+              "HIDE_WIDGET",
+              "SET_WIDTH",
+              "SET_DENSITY",
+              "PIN_APP",
+              "UNPIN_APP"
+            ],
+            "minLength": 1,
+            "pattern": "MOVE_WIDGET|SHOW_WIDGET|HIDE_WIDGET|SET_WIDTH|SET_DENSITY|PIN_APP|UNPIN_APP",
+            "type": "string"
+          },
+          "value": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "widgetKey": {
+            "pattern": "[a-z][a-z0-9-]{0,39}",
+            "type": "string"
+          }
+        },
+        "required": [
+          "operation"
+        ],
+        "type": "object"
+      },
+      "ComposerProposalResponse": {
+        "properties": {
+          "appliedRevisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "baseViewVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "beforeLayout": {
+            "$ref": "#/components/schemas/HomeLayoutPayload"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/ComposerChange"
+            },
+            "type": "array"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "proposalId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "proposedLayout": {
+            "$ref": "#/components/schemas/HomeLayoutPayload"
+          },
+          "reasonCodes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "PREVIEWED",
+              "CANCELLED",
+              "APPLIED",
+              "UNDONE",
+              "FAILED"
+            ],
+            "type": "string"
+          },
+          "undoneRevisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "viewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "baseViewVersion",
+          "beforeLayout",
+          "changes",
+          "expiresAt",
+          "proposalId",
+          "proposedLayout",
+          "reasonCodes",
+          "state",
+          "viewId",
+          "warnings"
+        ],
+        "type": "object"
+      },
       "ConfigurationCheck": {
         "properties": {
           "blockingCodes": {
@@ -7369,6 +7891,43 @@
         ],
         "type": "object"
       },
+      "CreateComposerProposalRequest": {
+        "properties": {
+          "baseViewVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/ComposerChange"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "type": "array"
+          },
+          "reasonCodes": {
+            "items": {
+              "pattern": "[A-Z][A-Z0-9_]{1,79}",
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "type": "array"
+          },
+          "viewId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "baseViewVersion",
+          "changes",
+          "reasonCodes",
+          "viewId"
+        ],
+        "type": "object"
+      },
       "CreateDraftRequest": {
         "properties": {
           "changeSummary": {
@@ -7377,6 +7936,52 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "CreateDwaionAgentRequest": {
+        "properties": {
+          "artifactVersion": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "entryKey": {
+            "minLength": 1,
+            "pattern": "[A-Za-z][A-Za-z0-9_.-]{0,99}",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "ownerRef": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "riskTier": {
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH",
+              "CRITICAL"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactVersion",
+          "entryKey",
+          "name",
+          "ownerRef",
+          "riskTier"
+        ],
         "type": "object"
       },
       "CreateEventRequest": {
@@ -7536,6 +8141,59 @@
         },
         "required": [
           "changeSummary"
+        ],
+        "type": "object"
+      },
+      "CreateHomeTemplateRequest": {
+        "properties": {
+          "audience": {
+            "$ref": "#/components/schemas/TemplateAudience"
+          },
+          "layout": {
+            "$ref": "#/components/schemas/HomeLayoutPayload"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "templateKey": {
+            "minLength": 1,
+            "pattern": "[a-z][a-z0-9-]{0,79}",
+            "type": "string"
+          }
+        },
+        "required": [
+          "audience",
+          "layout",
+          "name",
+          "templateKey"
+        ],
+        "type": "object"
+      },
+      "CreateHomeViewRequest": {
+        "properties": {
+          "layout": {
+            "$ref": "#/components/schemas/HomeLayoutPayload"
+          },
+          "makeDefault": {
+            "type": "boolean"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "viewKey": {
+            "minLength": 1,
+            "pattern": "[a-z][a-z0-9-]{0,79}",
+            "type": "string"
+          }
+        },
+        "required": [
+          "layout",
+          "name",
+          "viewKey"
         ],
         "type": "object"
       },
@@ -7914,6 +8572,110 @@
           "permissions",
           "scopeType",
           "state"
+        ],
+        "type": "object"
+      },
+      "DeleteHomeViewResponse": {
+        "properties": {
+          "activeViewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "deletedViewId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "DeviceLayoutOverlay": {
+        "properties": {
+          "density": {
+            "enum": [
+              "comfortable",
+              "compact"
+            ],
+            "minLength": 1,
+            "pattern": "comfortable|compact",
+            "type": "string"
+          },
+          "widgetOrder": {
+            "items": {
+              "pattern": "[a-z][a-z0-9-]{0,39}",
+              "type": "string"
+            },
+            "maxItems": 30,
+            "minItems": 0,
+            "type": "array"
+          },
+          "widgetSizes": {
+            "additionalProperties": {
+              "enum": [
+                "fifth",
+                "quarter",
+                "compact",
+                "medium",
+                "large",
+                "full"
+              ],
+              "pattern": "fifth|quarter|compact|medium|large|full",
+              "type": "string"
+            },
+            "maxProperties": 30,
+            "propertyNames": {
+              "pattern": "[a-z][a-z0-9-]{0,39}",
+              "type": "string"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "density",
+          "widgetOrder",
+          "widgetSizes"
+        ],
+        "type": "object"
+      },
+      "DeviceLayoutResponse": {
+        "properties": {
+          "deviceClass": {
+            "enum": [
+              "DESKTOP",
+              "MOBILE"
+            ],
+            "type": "string"
+          },
+          "deviceLayoutId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "overlay": {
+            "$ref": "#/components/schemas/DeviceLayoutOverlay"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "viewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "viewVersion": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "deviceClass",
+          "deviceLayoutId",
+          "overlay",
+          "version",
+          "viewId",
+          "viewVersion"
         ],
         "type": "object"
       },
@@ -8757,6 +9519,13 @@
       },
       "FeedResponse": {
         "properties": {
+          "actionableItems": {
+            "description": "Reader-wide action-first detail slice; intentionally independent of scope and query filters.",
+            "items": {
+              "$ref": "#/components/schemas/CommunicationItem"
+            },
+            "type": "array"
+          },
           "featured": {
             "$ref": "#/components/schemas/CommunicationItem"
           },
@@ -8778,6 +9547,16 @@
       },
       "FeedSummary": {
         "properties": {
+          "actionable": {
+            "description": "Authoritative union count of unacknowledged required and unread CRITICAL items.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "criticalUnread": {
+            "description": "Authoritative unread CRITICAL count across the reader's active feed.",
+            "format": "int64",
+            "type": "integer"
+          },
           "required": {
             "format": "int64",
             "type": "integer"
@@ -9219,6 +9998,13 @@
       },
       "HomeCompositionPolicy": {
         "properties": {
+          "experienceVariant": {
+            "enum": [
+              "CLASSIC",
+              "FLOW_V1"
+            ],
+            "type": "string"
+          },
           "governedZones": {
             "items": {
               "$ref": "#/components/schemas/GovernedHomeZone"
@@ -9233,10 +10019,19 @@
             "type": "integer"
           }
         },
+        "required": [
+          "experienceVariant",
+          "governedZones",
+          "personalCustomizationEnabled",
+          "schemaVersion"
+        ],
         "type": "object"
       },
       "HomeExperienceResponse": {
         "properties": {
+          "advancedPersonalizationEnabled": {
+            "type": "boolean"
+          },
           "backgroundContentType": {
             "type": "string"
           },
@@ -9261,13 +10056,30 @@
             "format": "int32",
             "type": "integer"
           },
+          "composerEnabled": {
+            "type": "boolean"
+          },
           "compositionPolicy": {
             "$ref": "#/components/schemas/HomeCompositionPolicy"
           },
           "defaultLocale": {
             "type": "string"
           },
+          "effectiveExperienceVariant": {
+            "enum": [
+              "CLASSIC",
+              "FLOW_V1"
+            ],
+            "type": "string"
+          },
           "headline": {
+            "type": "string"
+          },
+          "homePreferenceStore": {
+            "enum": [
+              "LEGACY",
+              "VIEWS"
+            ],
             "type": "string"
           },
           "launchpadConfiguration": {
@@ -9299,6 +10111,17 @@
             "type": "integer"
           }
         },
+        "required": [
+          "advancedPersonalizationEnabled",
+          "backgroundPosition",
+          "composerEnabled",
+          "compositionPolicy",
+          "effectiveExperienceVariant",
+          "homePreferenceStore",
+          "launchpadConfiguration",
+          "overlayOpacity",
+          "version"
+        ],
         "type": "object"
       },
       "HomeExperienceRevisionResponse": {
@@ -9397,7 +10220,7 @@
       "HomeLayoutPayload": {
         "properties": {
           "appLayout": {
-            "$ref": "#/components/schemas/JsonNode"
+            "$ref": "#/components/schemas/AppLayoutPayloadV1"
           },
           "presentation": {
             "pattern": "balanced|expressive|focused",
@@ -9486,6 +10309,14 @@
           "customized": {
             "type": "boolean"
           },
+          "integrityStatus": {
+            "enum": [
+              "VALID",
+              "RECONCILED",
+              "RECOVERED"
+            ],
+            "type": "string"
+          },
           "layout": {
             "$ref": "#/components/schemas/HomeLayoutPayload"
           },
@@ -9503,8 +10334,23 @@
           "version": {
             "format": "int64",
             "type": "integer"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
+        "required": [
+          "customized",
+          "integrityStatus",
+          "layout",
+          "schemaVersion",
+          "surfaceKey",
+          "version",
+          "warnings"
+        ],
         "type": "object"
       },
       "HomeResponse": {
@@ -9541,6 +10387,328 @@
             "type": "array"
           }
         },
+        "type": "object"
+      },
+      "HomeTemplateResponse": {
+        "properties": {
+          "audience": {
+            "$ref": "#/components/schemas/TemplateAudience"
+          },
+          "layout": {
+            "$ref": "#/components/schemas/HomeLayoutPayload"
+          },
+          "lifecycle": {
+            "enum": [
+              "DRAFT",
+              "PUBLISHED",
+              "REVOKED"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "publishedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "schemaVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "templateId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "templateKey": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "audience",
+          "layout",
+          "lifecycle",
+          "name",
+          "schemaVersion",
+          "templateId",
+          "templateKey",
+          "version"
+        ],
+        "type": "object"
+      },
+      "HomeTemplateRevisionResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "revisionNumber": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/HomeTemplateSnapshot"
+          },
+          "source": {
+            "enum": [
+              "CREATE",
+              "UPDATE",
+              "PUBLISH",
+              "REVOKE"
+            ],
+            "type": "string"
+          },
+          "templateId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "templateRevisionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "createdAt",
+          "createdBy",
+          "revisionNumber",
+          "snapshot",
+          "source",
+          "templateId",
+          "templateRevisionId"
+        ],
+        "type": "object"
+      },
+      "HomeTemplateSnapshot": {
+        "properties": {
+          "audience": {
+            "$ref": "#/components/schemas/TemplateAudience"
+          },
+          "layout": {
+            "$ref": "#/components/schemas/HomeLayoutPayload"
+          },
+          "lifecycle": {
+            "enum": [
+              "DRAFT",
+              "PUBLISHED",
+              "REVOKED"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "publishedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "schemaVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "audience",
+          "layout",
+          "lifecycle",
+          "name",
+          "schemaVersion",
+          "version"
+        ],
+        "type": "object"
+      },
+      "HomeViewResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "customized": {
+            "type": "boolean"
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "layout": {
+            "$ref": "#/components/schemas/HomeLayoutPayload"
+          },
+          "name": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "surfaceKey": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "viewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "viewKey": {
+            "type": "string"
+          },
+          "widgetConfigurations": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/WidgetConfigurationPayload"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "customized",
+          "isDefault",
+          "layout",
+          "name",
+          "schemaVersion",
+          "surfaceKey",
+          "version",
+          "viewId",
+          "viewKey",
+          "widgetConfigurations"
+        ],
+        "type": "object"
+      },
+      "HomeViewRevisionResponse": {
+        "properties": {
+          "changeSummary": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "revisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "revisionNumber": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "schemaVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/HomeViewSnapshot"
+          },
+          "source": {
+            "enum": [
+              "USER",
+              "TEMPLATE",
+              "AI",
+              "RESTORE",
+              "UNDO"
+            ],
+            "type": "string"
+          },
+          "viewId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "createdAt",
+          "revisionId",
+          "revisionNumber",
+          "schemaVersion",
+          "snapshot",
+          "source",
+          "viewId"
+        ],
+        "type": "object"
+      },
+      "HomeViewSnapshot": {
+        "properties": {
+          "deviceLayouts": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/DeviceLayoutOverlay"
+            },
+            "type": "object"
+          },
+          "legacyLayoutOnly": {
+            "type": "boolean"
+          },
+          "snapshotVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "view": {
+            "$ref": "#/components/schemas/HomeViewSnapshotView"
+          },
+          "widgetConfigurations": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/WidgetConfigurationPayload"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "deviceLayouts",
+          "legacyLayoutOnly",
+          "snapshotVersion",
+          "view",
+          "widgetConfigurations"
+        ],
+        "type": "object"
+      },
+      "HomeViewSnapshotView": {
+        "properties": {
+          "customized": {
+            "type": "boolean"
+          },
+          "layout": {
+            "$ref": "#/components/schemas/HomeLayoutPayload"
+          },
+          "name": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "layout",
+          "schemaVersion"
+        ],
         "type": "object"
       },
       "ImpactAnalysis": {
@@ -11755,6 +12923,15 @@
           "assignedTo": {
             "type": "string"
           },
+          "dataClassification": {
+            "enum": [
+              "PUBLIC",
+              "INTERNAL",
+              "CONFIDENTIAL",
+              "RESTRICTED"
+            ],
+            "type": "string"
+          },
           "priority": {
             "enum": [
               "LOW",
@@ -13335,6 +14512,32 @@
         },
         "type": "object"
       },
+      "TemplateAudience": {
+        "properties": {
+          "type": {
+            "enum": [
+              "ALL",
+              "ROLE"
+            ],
+            "minLength": 1,
+            "pattern": "ALL|ROLE",
+            "type": "string"
+          },
+          "values": {
+            "items": {
+              "pattern": "[A-Z][A-Z0-9_]{1,79}",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 0,
+            "type": "array"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
       "TenantBrandingResponse": {
         "properties": {
           "accentColor": {
@@ -13754,6 +14957,28 @@
         ],
         "type": "object"
       },
+      "UpdateDeviceLayoutRequest": {
+        "properties": {
+          "overlay": {
+            "$ref": "#/components/schemas/DeviceLayoutOverlay"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "viewVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "overlay",
+          "viewVersion"
+        ],
+        "type": "object"
+      },
       "UpdateDraftRequest": {
         "properties": {
           "submit": {
@@ -13970,6 +15195,56 @@
         ],
         "type": "object"
       },
+      "UpdateHomeTemplateRequest": {
+        "properties": {
+          "audience": {
+            "$ref": "#/components/schemas/TemplateAudience"
+          },
+          "layout": {
+            "$ref": "#/components/schemas/HomeLayoutPayload"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "audience",
+          "layout",
+          "name",
+          "version"
+        ],
+        "type": "object"
+      },
+      "UpdateHomeViewRequest": {
+        "properties": {
+          "layout": {
+            "$ref": "#/components/schemas/HomeLayoutPayload"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "layout",
+          "name",
+          "version"
+        ],
+        "type": "object"
+      },
       "UpdateItemRequest": {
         "properties": {
           "labels": {
@@ -14165,6 +15440,23 @@
         ],
         "type": "object"
       },
+      "UpdateWidgetConfigurationRequest": {
+        "properties": {
+          "configuration": {
+            "$ref": "#/components/schemas/WidgetConfigurationPayload"
+          },
+          "viewVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "configuration",
+          "viewVersion"
+        ],
+        "type": "object"
+      },
       "UpdateWorkStatusRequest": {
         "properties": {
           "status": {
@@ -14306,6 +15598,41 @@
         ],
         "type": "object"
       },
+      "WidgetConfigurationPayload": {
+        "properties": {
+          "fieldKeys": {
+            "items": {
+              "pattern": "[A-Za-z][A-Za-z0-9]{0,39}",
+              "type": "string"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "type": "array"
+          },
+          "filterPreset": {
+            "minLength": 1,
+            "pattern": "[A-Z][A-Z0-9_]{1,39}",
+            "type": "string"
+          },
+          "itemLimit": {
+            "format": "int32",
+            "maximum": 20,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "sourceKey": {
+            "minLength": 1,
+            "pattern": "[A-Z][A-Z0-9_]{1,39}",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fieldKeys",
+          "filterPreset",
+          "sourceKey"
+        ],
+        "type": "object"
+      },
       "WidgetPreference": {
         "properties": {
           "height": {
@@ -14333,6 +15660,9 @@
       },
       "WorkItem": {
         "properties": {
+          "dataClassification": {
+            "type": "string"
+          },
           "dueAt": {
             "format": "date-time",
             "type": "string"
@@ -15820,16 +17150,7 @@
     "/internal/audit/events": {
       "post": {
         "operationId": "ingest_2",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Audit-Service",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "requestBody": {
           "content": {
             "application/json": {
@@ -15863,16 +17184,7 @@
     "/internal/observability/api-history": {
       "post": {
         "operationId": "ingest_1",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Observability-Service",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "requestBody": {
           "content": {
             "application/json": {
@@ -15925,7 +17237,7 @@
     },
     "/internal/provider/v1/code-catalog/code-sets/{codeSetKey}": {
       "get": {
-        "operationId": "get_8",
+        "operationId": "get_11",
         "parameters": [
           {
             "in": "path",
@@ -16106,7 +17418,7 @@
     },
     "/v1/admin/announcements": {
       "get": {
-        "operationId": "list_4",
+        "operationId": "list_7",
         "parameters": [],
         "responses": {
           "200": {
@@ -16125,7 +17437,7 @@
         ]
       },
       "post": {
-        "operationId": "create_8",
+        "operationId": "create_12",
         "parameters": [
           {
             "in": "header",
@@ -16165,7 +17477,7 @@
     },
     "/v1/admin/announcements/{announcementId}": {
       "put": {
-        "operationId": "update_7",
+        "operationId": "update_9",
         "parameters": [
           {
             "in": "header",
@@ -16263,7 +17575,7 @@
     },
     "/v1/admin/announcements/{announcementId}/publish": {
       "post": {
-        "operationId": "publish_2",
+        "operationId": "publish_3",
         "parameters": [
           {
             "in": "header",
@@ -16410,7 +17722,7 @@
     },
     "/v1/admin/api-history/events/{historyId}": {
       "get": {
-        "operationId": "detail_5",
+        "operationId": "detail_6",
         "parameters": [
           {
             "in": "path",
@@ -16525,22 +17837,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Roles",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Resource-Roles",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
             "name": "Accept-Language",
             "required": false,
             "schema": {
@@ -16578,14 +17874,6 @@
       "post": {
         "operationId": "decide_2",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Resource-Roles",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -16645,14 +17933,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Resource-Roles",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
             "name": "Accept-Language",
             "required": false,
             "schema": {
@@ -16706,16 +17986,8 @@
     },
     "/v1/admin/app-access-requests/{requestId}/revocation": {
       "post": {
-        "operationId": "revoke",
+        "operationId": "revoke_1",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Resource-Roles",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -17209,7 +18481,7 @@
     },
     "/v1/admin/audit-control/event-correlations/detail": {
       "get": {
-        "operationId": "detail_4",
+        "operationId": "detail_5",
         "parameters": [
           {
             "in": "query",
@@ -17968,7 +19240,7 @@
     },
     "/v1/admin/audit-events": {
       "get": {
-        "operationId": "list_8",
+        "operationId": "list_11",
         "parameters": [
           {
             "in": "query",
@@ -18605,9 +19877,359 @@
         ]
       }
     },
+    "/v1/admin/dwaion/agents": {
+      "get": {
+        "operationId": "list_6",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lifecycle",
+            "required": false,
+            "schema": {
+              "enum": [
+                "DRAFT",
+                "ACTIVE",
+                "RETIRED"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePageResultRegistryEntryResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "dwaion-agent-registry-controller"
+        ]
+      },
+      "post": {
+        "operationId": "create_11",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDwaionAgentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRegistryEntryResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "dwaion-agent-registry-controller"
+        ]
+      }
+    },
+    "/v1/admin/dwaion/agents/{entryKey}": {
+      "get": {
+        "operationId": "detail_4",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entryKey",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRegistryEntryDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "dwaion-agent-registry-controller"
+        ]
+      }
+    },
+    "/v1/admin/dwaion/agents/{entryKey}/revisions": {
+      "post": {
+        "operationId": "createRevision_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entryKey",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRegistryRevisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRegistryEntryResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "dwaion-agent-registry-controller"
+        ]
+      }
+    },
+    "/v1/admin/dwaion/agents/{entryKey}/revisions/{revision}": {
+      "patch": {
+        "operationId": "updateRevision_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entryKey",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "revision",
+            "required": true,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRegistryRevisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRegistryEntryResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "dwaion-agent-registry-controller"
+        ]
+      }
+    },
+    "/v1/admin/dwaion/agents/{entryKey}/revisions/{revision}/activate": {
+      "post": {
+        "operationId": "activateRevision_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entryKey",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "revision",
+            "required": true,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRegistryEntryResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "dwaion-agent-registry-controller"
+        ]
+      }
+    },
+    "/v1/admin/dwaion/agents/{entryKey}/revisions/{revision}/retire": {
+      "post": {
+        "operationId": "retireRevision_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "entryKey",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "revision",
+            "required": true,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRegistryEntryResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "dwaion-agent-registry-controller"
+        ]
+      }
+    },
     "/v1/admin/home-experience": {
       "get": {
-        "operationId": "get_2",
+        "operationId": "get_4",
         "parameters": [],
         "responses": {
           "200": {
@@ -18626,7 +20248,7 @@
         ]
       },
       "put": {
-        "operationId": "update_6",
+        "operationId": "update_8",
         "parameters": [
           {
             "in": "header",
@@ -18966,7 +20588,7 @@
         ]
       },
       "post": {
-        "operationId": "create_7",
+        "operationId": "create_10",
         "parameters": [
           {
             "in": "header",
@@ -19006,7 +20628,7 @@
     },
     "/v1/admin/integrations/productivity/connectors/{connectorId}": {
       "put": {
-        "operationId": "update_5",
+        "operationId": "update_7",
         "parameters": [
           {
             "in": "header",
@@ -19055,7 +20677,7 @@
     },
     "/v1/admin/integrations/productivity/connectors/{connectorId}/activate": {
       "post": {
-        "operationId": "activate_2",
+        "operationId": "activate_3",
         "parameters": [
           {
             "in": "header",
@@ -19379,7 +21001,7 @@
     },
     "/v1/admin/localization/bundles/{bundleId}/revisions": {
       "get": {
-        "operationId": "revisions",
+        "operationId": "revisions_2",
         "parameters": [
           {
             "in": "path",
@@ -19599,7 +21221,7 @@
     },
     "/v1/admin/localization/revisions/{revisionId}/publish": {
       "post": {
-        "operationId": "publish_1",
+        "operationId": "publish_2",
         "parameters": [
           {
             "in": "header",
@@ -19648,7 +21270,7 @@
     },
     "/v1/admin/localization/revisions/{revisionId}/restore": {
       "post": {
-        "operationId": "restore_1",
+        "operationId": "restore_2",
         "parameters": [
           {
             "in": "header",
@@ -19905,7 +21527,7 @@
     },
     "/v1/admin/navigation": {
       "get": {
-        "operationId": "list_3",
+        "operationId": "list_5",
         "parameters": [],
         "responses": {
           "200": {
@@ -19924,7 +21546,7 @@
         ]
       },
       "post": {
-        "operationId": "create_6",
+        "operationId": "create_9",
         "parameters": [
           {
             "in": "header",
@@ -20163,7 +21785,7 @@
     },
     "/v1/admin/navigation/studio/drafts/{revisionId}/publish": {
       "post": {
-        "operationId": "publish",
+        "operationId": "publish_1",
         "parameters": [
           {
             "in": "header",
@@ -20212,7 +21834,7 @@
     },
     "/v1/admin/navigation/studio/revisions/{revisionId}/restore": {
       "post": {
-        "operationId": "restore",
+        "operationId": "restore_1",
         "parameters": [
           {
             "in": "header",
@@ -20261,7 +21883,7 @@
     },
     "/v1/admin/navigation/{itemId}": {
       "put": {
-        "operationId": "update_4",
+        "operationId": "update_6",
         "parameters": [
           {
             "in": "header",
@@ -20310,7 +21932,7 @@
     },
     "/v1/admin/navigation/{itemId}/activate": {
       "post": {
-        "operationId": "activate_1",
+        "operationId": "activate_2",
         "parameters": [
           {
             "in": "header",
@@ -20488,7 +22110,7 @@
     },
     "/v1/admin/reference-sets": {
       "get": {
-        "operationId": "list_2",
+        "operationId": "list_4",
         "parameters": [
           {
             "in": "query",
@@ -20549,7 +22171,7 @@
         ]
       },
       "post": {
-        "operationId": "create_5",
+        "operationId": "create_8",
         "parameters": [
           {
             "in": "header",
@@ -20617,7 +22239,7 @@
         ]
       },
       "patch": {
-        "operationId": "update_8",
+        "operationId": "update_10",
         "parameters": [
           {
             "in": "header",
@@ -20665,7 +22287,7 @@
     },
     "/v1/admin/reference-sets/{setKey}/activate": {
       "post": {
-        "operationId": "activate",
+        "operationId": "activate_1",
         "parameters": [
           {
             "in": "header",
@@ -21027,7 +22649,7 @@
     },
     "/v1/admin/registry-entries": {
       "get": {
-        "operationId": "list_1",
+        "operationId": "list_3",
         "parameters": [
           {
             "in": "query",
@@ -21105,7 +22727,7 @@
         ]
       },
       "post": {
-        "operationId": "create_4",
+        "operationId": "create_7",
         "parameters": [
           {
             "in": "header",
@@ -22109,7 +23731,7 @@
     },
     "/v1/admin/tenant-branding": {
       "get": {
-        "operationId": "get_1",
+        "operationId": "get_3",
         "parameters": [],
         "responses": {
           "200": {
@@ -22128,7 +23750,7 @@
         ]
       },
       "put": {
-        "operationId": "update_3",
+        "operationId": "update_5",
         "parameters": [
           {
             "in": "header",
@@ -23177,16 +24799,7 @@
     "/v1/admin/workplace/governance/delegated-admin-scopes/effective": {
       "get": {
         "operationId": "effectiveDelegatedScopes",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Group-Refs",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -23299,6 +24912,110 @@
         },
         "tags": [
           "workplace-spatial-governance-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/governance/floor-plan-revisions/{revisionId}/background": {
+      "get": {
+        "operationId": "governedFloorPlanRevisionBackground",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-workplace-controller"
+        ]
+      },
+      "post": {
+        "operationId": "uploadGovernedFloorPlanRevisionBackground",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "changeSummary",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "format": "binary",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "file"
+                ],
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplaceFloorPlanRevision"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-workplace-controller"
         ]
       }
     },
@@ -23728,7 +25445,33 @@
     "/v1/admin/workplace/governance/policy-overrides": {
       "get": {
         "operationId": "policyOverrides",
-        "parameters": [],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "scopeType",
+            "required": false,
+            "schema": {
+              "enum": [
+                "TENANT",
+                "CAMPUS",
+                "SITE",
+                "FLOOR",
+                "ZONE",
+                "RESOURCE"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scopeId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -23753,6 +25496,31 @@
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scopeType",
+            "required": false,
+            "schema": {
+              "enum": [
+                "TENANT",
+                "CAMPUS",
+                "SITE",
+                "FLOOR",
+                "ZONE",
+                "RESOURCE"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scopeId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }
@@ -23800,6 +25568,31 @@
             "in": "path",
             "name": "overrideId",
             "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scopeType",
+            "required": false,
+            "schema": {
+              "enum": [
+                "TENANT",
+                "CAMPUS",
+                "SITE",
+                "FLOOR",
+                "ZONE",
+                "RESOURCE"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scopeId",
+            "required": false,
             "schema": {
               "format": "uuid",
               "type": "string"
@@ -23884,14 +25677,6 @@
       "get": {
         "operationId": "accessPreview",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Group-Refs",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "path",
             "name": "siteId",
@@ -24591,17 +26376,8 @@
     },
     "/v1/announcements": {
       "get": {
-        "operationId": "list_7",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Roles",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "operationId": "list_10",
+        "parameters": [],
         "responses": {
           "200": {
             "content": {
@@ -24623,14 +26399,6 @@
       "post": {
         "operationId": "recordAction",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Roles",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "path",
             "name": "announcementId",
@@ -24662,14 +26430,6 @@
       "post": {
         "operationId": "recordView",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Roles",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "path",
             "name": "announcementId",
@@ -24855,7 +26615,7 @@
         ]
       },
       "post": {
-        "operationId": "create_3",
+        "operationId": "create_6",
         "parameters": [
           {
             "in": "header",
@@ -24903,7 +26663,7 @@
     },
     "/v1/calendar/events/{eventId}": {
       "put": {
-        "operationId": "update_2",
+        "operationId": "update_4",
         "parameters": [
           {
             "in": "header",
@@ -25161,7 +26921,7 @@
     },
     "/v1/catalog/code-sets/{codeSetKey}": {
       "get": {
-        "operationId": "get_7",
+        "operationId": "get_10",
         "parameters": [
           {
             "in": "path",
@@ -25199,7 +26959,7 @@
     },
     "/v1/catalog/registry-entries": {
       "get": {
-        "operationId": "list_6",
+        "operationId": "list_9",
         "parameters": [
           {
             "in": "query",
@@ -25289,14 +27049,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Roles",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
             "name": "Accept-Language",
             "required": false,
             "schema": {
@@ -25364,14 +27116,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Roles",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
             "name": "Accept-Language",
             "required": false,
             "schema": {
@@ -25410,14 +27154,6 @@
         "operationId": "acknowledge",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Roles",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "in": "path",
             "name": "communicationId",
             "required": true,
@@ -25448,14 +27184,6 @@
       "post": {
         "operationId": "recordInteraction",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Roles",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "path",
             "name": "communicationId",
@@ -25495,14 +27223,6 @@
       "put": {
         "operationId": "updateReaction",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Roles",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "path",
             "name": "communicationId",
@@ -25545,14 +27265,6 @@
         "operationId": "updatePreference",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Roles",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "in": "path",
             "name": "communicationId",
             "required": true,
@@ -25589,9 +27301,395 @@
         ]
       }
     },
+    "/v1/home-composer/proposals": {
+      "post": {
+        "operationId": "create_5",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateComposerProposalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseComposerProposalResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Feature, tenant policy, or permission denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Owned resource or dependency not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "State, version, or idempotency conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Request body exceeds the bounded limit"
+          }
+        },
+        "tags": [
+          "home-composer-controller"
+        ]
+      }
+    },
+    "/v1/home-composer/proposals/{proposalId}": {
+      "get": {
+        "operationId": "get_9",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposalId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseComposerProposalResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Feature, tenant policy, or permission denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Owned resource or dependency not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "tags": [
+          "home-composer-controller"
+        ]
+      }
+    },
+    "/v1/home-composer/proposals/{proposalId}/apply": {
+      "post": {
+        "operationId": "apply_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "proposalId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyComposerProposalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseComposerProposalResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Feature, tenant policy, or permission denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Owned resource or dependency not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "State, version, or idempotency conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Request body exceeds the bounded limit"
+          }
+        },
+        "tags": [
+          "home-composer-controller"
+        ]
+      }
+    },
+    "/v1/home-composer/proposals/{proposalId}/undo": {
+      "post": {
+        "operationId": "undo",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "proposalId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyComposerProposalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseComposerProposalResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Feature, tenant policy, or permission denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Owned resource or dependency not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "State, version, or idempotency conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Request body exceeds the bounded limit"
+          }
+        },
+        "tags": [
+          "home-composer-controller"
+        ]
+      }
+    },
     "/v1/home-experience": {
       "get": {
-        "operationId": "get_6",
+        "operationId": "get_8",
         "parameters": [],
         "responses": {
           "200": {
@@ -25634,7 +27732,7 @@
     },
     "/v1/home-preferences": {
       "get": {
-        "operationId": "get",
+        "operationId": "get_2",
         "parameters": [],
         "responses": {
           "200": {
@@ -25653,7 +27751,7 @@
         ]
       },
       "put": {
-        "operationId": "update_1",
+        "operationId": "update_3",
         "parameters": [
           {
             "in": "header",
@@ -25693,7 +27791,7 @@
     },
     "/v1/home-preferences/reset": {
       "post": {
-        "operationId": "reset_1",
+        "operationId": "reset_2",
         "parameters": [
           {
             "in": "header",
@@ -25855,18 +27953,1895 @@
         ]
       }
     },
-    "/v1/home/overview": {
+    "/v1/home-templates": {
       "get": {
-        "operationId": "overview",
+        "operationId": "list_2",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListHomeTemplateResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Feature, tenant policy, or permission denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Owned resource or dependency not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "tags": [
+          "home-template-controller"
+        ]
+      },
+      "post": {
+        "operationId": "create_4",
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Roles",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateHomeTemplateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseHomeTemplateResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Feature, tenant policy, or permission denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Owned resource or dependency not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "State, version, or idempotency conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Request body exceeds the bounded limit"
+          }
+        },
+        "tags": [
+          "home-template-controller"
+        ]
+      }
+    },
+    "/v1/home-templates/{templateId}": {
+      "get": {
+        "operationId": "get_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "templateId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseHomeTemplateResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Feature, tenant policy, or permission denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Owned resource or dependency not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "tags": [
+          "home-template-controller"
+        ]
+      },
+      "put": {
+        "operationId": "update_2",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
             "required": false,
             "schema": {
               "type": "string"
             }
           },
+          {
+            "in": "path",
+            "name": "templateId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateHomeTemplateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseHomeTemplateResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Feature, tenant policy, or permission denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Owned resource or dependency not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "State, version, or idempotency conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Request body exceeds the bounded limit"
+          }
+        },
+        "tags": [
+          "home-template-controller"
+        ]
+      }
+    },
+    "/v1/home-templates/{templateId}/apply": {
+      "post": {
+        "operationId": "apply",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "templateId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyHomeTemplateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseHomeViewResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Feature, tenant policy, or permission denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Owned resource or dependency not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "State, version, or idempotency conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Request body exceeds the bounded limit"
+          }
+        },
+        "tags": [
+          "home-template-controller"
+        ]
+      }
+    },
+    "/v1/home-templates/{templateId}/publish": {
+      "post": {
+        "operationId": "publish",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "templateId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseHomeTemplateResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Feature, tenant policy, or permission denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Owned resource or dependency not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "State, version, or idempotency conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Request body exceeds the bounded limit"
+          }
+        },
+        "tags": [
+          "home-template-controller"
+        ]
+      }
+    },
+    "/v1/home-templates/{templateId}/revisions": {
+      "get": {
+        "operationId": "revisions_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "templateId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListHomeTemplateRevisionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Feature, tenant policy, or permission denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Owned resource or dependency not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "tags": [
+          "home-template-controller"
+        ]
+      }
+    },
+    "/v1/home-templates/{templateId}/revoke": {
+      "post": {
+        "operationId": "revoke",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "templateId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseHomeTemplateResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Feature, tenant policy, or permission denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Owned resource or dependency not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "State, version, or idempotency conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Request body exceeds the bounded limit"
+          }
+        },
+        "tags": [
+          "home-template-controller"
+        ]
+      }
+    },
+    "/v1/home-views": {
+      "get": {
+        "operationId": "list_1",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "surfaceKey",
+            "required": false,
+            "schema": {
+              "default": "workspace-home",
+              "pattern": "[a-z][a-z0-9-]{1,79}",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListHomeViewResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Feature, tenant policy, or permission denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Owned resource or dependency not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "tags": [
+          "home-view-controller"
+        ]
+      },
+      "post": {
+        "operationId": "create_3",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateHomeViewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseHomeViewResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Feature, tenant policy, or permission denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Owned resource or dependency not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "State, version, or idempotency conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Request body exceeds the bounded limit"
+          }
+        },
+        "tags": [
+          "home-view-controller"
+        ]
+      }
+    },
+    "/v1/home-views/{viewId}": {
+      "delete": {
+        "operationId": "delete_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "viewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDeleteHomeViewResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Feature, tenant policy, or permission denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Owned resource or dependency not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "tags": [
+          "home-view-controller"
+        ]
+      },
+      "get": {
+        "operationId": "get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "viewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseHomeViewResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Feature, tenant policy, or permission denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Owned resource or dependency not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "tags": [
+          "home-view-controller"
+        ]
+      },
+      "put": {
+        "operationId": "update_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "viewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateHomeViewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseHomeViewResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Feature, tenant policy, or permission denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Owned resource or dependency not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "State, version, or idempotency conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Request body exceeds the bounded limit"
+          }
+        },
+        "tags": [
+          "home-view-controller"
+        ]
+      }
+    },
+    "/v1/home-views/{viewId}/activate": {
+      "post": {
+        "operationId": "activate",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "viewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseHomeViewResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Feature, tenant policy, or permission denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Owned resource or dependency not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "State, version, or idempotency conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Request body exceeds the bounded limit"
+          }
+        },
+        "tags": [
+          "home-view-controller"
+        ]
+      }
+    },
+    "/v1/home-views/{viewId}/device-layouts": {
+      "get": {
+        "operationId": "deviceLayouts",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "viewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListDeviceLayoutResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Feature, tenant policy, or permission denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Owned resource or dependency not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "tags": [
+          "home-view-controller"
+        ]
+      }
+    },
+    "/v1/home-views/{viewId}/device-layouts/{deviceClass}": {
+      "put": {
+        "operationId": "putDeviceLayout",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "viewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "deviceClass",
+            "required": true,
+            "schema": {
+              "enum": [
+                "DESKTOP",
+                "MOBILE"
+              ],
+              "pattern": "DESKTOP|MOBILE",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDeviceLayoutRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDeviceLayoutResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Feature, tenant policy, or permission denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Owned resource or dependency not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "State, version, or idempotency conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Request body exceeds the bounded limit"
+          }
+        },
+        "tags": [
+          "home-view-controller"
+        ]
+      }
+    },
+    "/v1/home-views/{viewId}/reset": {
+      "post": {
+        "operationId": "reset_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "viewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseHomeViewResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Feature, tenant policy, or permission denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Owned resource or dependency not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "State, version, or idempotency conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Request body exceeds the bounded limit"
+          }
+        },
+        "tags": [
+          "home-view-controller"
+        ]
+      }
+    },
+    "/v1/home-views/{viewId}/revisions": {
+      "get": {
+        "operationId": "revisions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "viewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListHomeViewRevisionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Feature, tenant policy, or permission denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Owned resource or dependency not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "State, version, or idempotency conflict"
+          }
+        },
+        "tags": [
+          "home-view-controller"
+        ]
+      }
+    },
+    "/v1/home-views/{viewId}/revisions/{revisionId}/restore": {
+      "post": {
+        "operationId": "restore",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "viewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseHomeViewResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Feature, tenant policy, or permission denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Owned resource or dependency not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "State, version, or idempotency conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Request body exceeds the bounded limit"
+          }
+        },
+        "tags": [
+          "home-view-controller"
+        ]
+      }
+    },
+    "/v1/home-views/{viewId}/widgets/{widgetKey}/configuration": {
+      "put": {
+        "operationId": "configureWidget",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "viewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "widgetKey",
+            "required": true,
+            "schema": {
+              "pattern": "[a-z][a-z0-9-]{0,39}",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateWidgetConfigurationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseHomeViewResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Feature, tenant policy, or permission denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Owned resource or dependency not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "State, version, or idempotency conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Request body exceeds the bounded limit"
+          }
+        },
+        "tags": [
+          "home-view-controller"
+        ]
+      }
+    },
+    "/v1/home/overview": {
+      "get": {
+        "operationId": "overview",
+        "parameters": [
           {
             "in": "header",
             "name": "Accept-Language",
@@ -26523,7 +30498,7 @@
     },
     "/v1/navigation": {
       "get": {
-        "operationId": "list_5",
+        "operationId": "list_8",
         "parameters": [
           {
             "in": "query",
@@ -26580,7 +30555,7 @@
     },
     "/v1/personal-preferences": {
       "get": {
-        "operationId": "get_3",
+        "operationId": "get_5",
         "parameters": [],
         "responses": {
           "200": {
@@ -26808,7 +30783,7 @@
     },
     "/v1/reference-data/{setKey}": {
       "get": {
-        "operationId": "get_5",
+        "operationId": "get_7",
         "parameters": [
           {
             "in": "path",
@@ -27184,14 +31159,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Roles",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -27514,7 +31481,7 @@
     },
     "/v1/tenant-branding": {
       "get": {
-        "operationId": "get_4",
+        "operationId": "get_6",
         "parameters": [],
         "responses": {
           "200": {
@@ -27624,14 +31591,6 @@
           {
             "in": "header",
             "name": "Idempotency-Key",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Group-Refs",
             "required": false,
             "schema": {
               "type": "string"
@@ -27857,14 +31816,6 @@
             }
           },
           {
-            "in": "header",
-            "name": "X-DWP-Group-Refs",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "in": "path",
             "name": "bookingId",
             "required": true,
@@ -27905,14 +31856,6 @@
       "get": {
         "operationId": "exploreWorkplace",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Group-Refs",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -28071,14 +32014,6 @@
             "schema": {
               "type": "string"
             }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Group-Refs",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
           }
         ],
         "requestBody": {
@@ -28112,14 +32047,6 @@
       "get": {
         "operationId": "assignedResources",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Group-Refs",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "header",
             "name": "Accept-Language",
@@ -28678,22 +32605,6 @@
         "operationId": "list",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Roles",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Group-Refs",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "in": "query",
             "name": "surfaceKey",
             "required": true,
@@ -28721,22 +32632,6 @@
       "post": {
         "operationId": "create",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Roles",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Group-Refs",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -28787,22 +32682,6 @@
         "parameters": [
           {
             "in": "header",
-            "name": "X-DWP-Roles",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Group-Refs",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
             "schema": {
@@ -28838,22 +32717,6 @@
       "put": {
         "operationId": "update",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Roles",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Group-Refs",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "header",
             "name": "X-Correlation-ID",
@@ -28904,22 +32767,6 @@
         "operationId": "preference",
         "parameters": [
           {
-            "in": "header",
-            "name": "X-DWP-Roles",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Group-Refs",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
             "in": "path",
             "name": "savedViewId",
             "required": true,
@@ -28960,14 +32807,6 @@
       "post": {
         "operationId": "markUsed",
         "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Group-Refs",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
           {
             "in": "path",
             "name": "savedViewId",

@@ -22,6 +22,7 @@ public class MeResponse {
     private String tenantCode;
     private String tenantName;
     private List<String> roles;
+    private boolean legacyRoleFallbackAllowed;
 
     @Builder.Default
     private List<GroupMembershipDTO> groups = Collections.emptyList();

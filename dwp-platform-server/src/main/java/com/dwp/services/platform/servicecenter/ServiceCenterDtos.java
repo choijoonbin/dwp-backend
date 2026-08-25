@@ -97,6 +97,7 @@ public final class ServiceCenterDtos {
             String serviceNameKo,
             String serviceNameEn,
             String summary,
+            DataClassification dataClassification,
             RequestStatus status,
             RequestPriority priority,
             String assignedGroup,

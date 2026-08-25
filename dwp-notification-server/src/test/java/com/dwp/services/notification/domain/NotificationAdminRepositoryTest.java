@@ -18,6 +18,11 @@ import static org.mockito.Mockito.when;
 class NotificationAdminRepositoryTest {
 
     @Test
+    void messagingNotificationsUseTheMessengerProductName() {
+        assertThat(NotificationQueryRepository.appName("messaging")).isEqualTo("Messenger");
+    }
+
+    @Test
     @SuppressWarnings({"unchecked", "rawtypes"})
     void nullableContractFiltersAreBoundWithExplicitPostgresqlTypes() {
         NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);

@@ -102,55 +102,62 @@ VALUES (1, 900018)
 ON CONFLICT DO NOTHING;
 
 INSERT INTO ntf_notifications (
-    notification_id, tenant_id, type_version_id, type_scope_tenant_id, thread_key,
+    notification_id, tenant_id, type_version_id, type_scope_tenant_id, type_key, thread_key,
     actor_ref, subject_ref, target_ref, safe_body, action_payload,
     sanitized_template_variables, first_activity_at, last_activity_at,
     occurrence_count, version)
 VALUES
     ('20000000-0000-0000-0000-000000000001', 1,
-     '11000000-0000-0000-0000-000000000001', 0, 'local-approval-task-001',
+     '11000000-0000-0000-0000-000000000001', 0,
+     'APPROVAL.ACTION_REQUIRED', 'local-approval-task-001',
      '김민서', 'approval-request:LOCAL-APR-001', '/approvals/requests/30000000-0000-0000-0000-000000000001',
      '클라우드 운영 예산 요청의 검토 차례가 도착했습니다.',
      '{"label":"검토하기","route":"/approvals/requests/30000000-0000-0000-0000-000000000001"}'::jsonb,
      '{"requestTitle":"클라우드 운영 예산","decision":"ASSIGNED"}'::jsonb,
      CURRENT_TIMESTAMP - INTERVAL '18 minutes', CURRENT_TIMESTAMP - INTERVAL '18 minutes', 1, 1),
     ('20000000-0000-0000-0000-000000000002', 1,
-     '11000000-0000-0000-0000-000000000004', 0, 'local-approval-request-002',
+     '11000000-0000-0000-0000-000000000004', 0,
+     'APPROVAL.REQUEST_SUBMITTED', 'local-approval-request-002',
      '본인', 'approval-request:LOCAL-APR-002', '/approvals/requests/30000000-0000-0000-0000-000000000002',
      '신규 프로젝트 환경 신청이 정상적으로 제출되었습니다.',
      '{"label":"요청 보기","route":"/approvals/requests/30000000-0000-0000-0000-000000000002"}'::jsonb,
      '{"requestTitle":"신규 프로젝트 환경 신청","decision":"SUBMITTED"}'::jsonb,
      CURRENT_TIMESTAMP - INTERVAL '3 hours', CURRENT_TIMESTAMP - INTERVAL '3 hours', 1, 1),
     ('20000000-0000-0000-0000-000000000003', 1,
-     '11000000-0000-0000-0000-000000000005', 0, 'local-approval-request-003',
+     '11000000-0000-0000-0000-000000000005', 0,
+     'APPROVAL.REQUEST_APPROVED', 'local-approval-request-003',
      '워크플로우 시스템', 'approval-request:LOCAL-APR-003', '/approvals/requests/30000000-0000-0000-0000-000000000003',
      '재택근무 장비 구매 요청이 최종 승인되었습니다.',
      '{"label":"요청 보기","route":"/approvals/requests/30000000-0000-0000-0000-000000000003"}'::jsonb,
      '{"requestTitle":"재택근무 장비 구매","decision":"APPROVED"}'::jsonb,
      CURRENT_TIMESTAMP - INTERVAL '1 day', CURRENT_TIMESTAMP - INTERVAL '1 day', 1, 1),
     ('20000000-0000-0000-0000-000000000004', 1,
-     '11000000-0000-0000-0000-000000000006', 0, 'local-approval-request-004',
+     '11000000-0000-0000-0000-000000000006', 0,
+     'APPROVAL.REQUEST_REJECTED', 'local-approval-request-004',
      '워크플로우 시스템', 'approval-request:LOCAL-APR-004', '/approvals/requests/30000000-0000-0000-0000-000000000004',
      '외부 교육 참가 요청이 반려되었습니다. 결정 내용을 확인하세요.',
      '{"label":"요청 보기","route":"/approvals/requests/30000000-0000-0000-0000-000000000004"}'::jsonb,
      '{"requestTitle":"외부 교육 참가","decision":"REJECTED"}'::jsonb,
      CURRENT_TIMESTAMP - INTERVAL '2 hours', CURRENT_TIMESTAMP - INTERVAL '2 hours', 1, 1),
     ('20000000-0000-0000-0000-000000000005', 1,
-     '11000000-0000-0000-0000-000000000002', 0, 'local-hcm-leave-001',
+     '11000000-0000-0000-0000-000000000002', 0,
+     'HCM.LEAVE_APPROVED', 'local-hcm-leave-001',
      'People Operations', 'leave-request:LOCAL-HCM-001', '/hr/time-off',
      '8월 24일 연차 일정이 승인되었습니다.',
      '{"label":"휴가 보기","route":"/hr/time-off"}'::jsonb,
      '{"leavePeriod":"8월 24일"}'::jsonb,
      CURRENT_TIMESTAMP - INTERVAL '2 days', CURRENT_TIMESTAMP - INTERVAL '2 days', 1, 1),
     ('20000000-0000-0000-0000-000000000006', 1,
-     '11000000-0000-0000-0000-000000000003', 0, 'local-space-mention-001',
+     '11000000-0000-0000-0000-000000000003', 0,
+     'SPACE.MENTION', 'local-space-mention-001',
      '박현우', 'space-conversation:LOCAL-SPACE-001', '/space/LOCAL-SPACE-001',
      '프로젝트 채널에서 다음 주 배포 계획에 대한 의견을 요청했습니다.',
      '{"label":"대화 열기","route":"/space/LOCAL-SPACE-001"}'::jsonb,
      '{"spaceName":"AX 프로젝트","senderName":"박현우"}'::jsonb,
      CURRENT_TIMESTAMP - INTERVAL '45 minutes', CURRENT_TIMESTAMP - INTERVAL '45 minutes', 1, 1),
     ('20000000-0000-0000-0000-000000000007', 1,
-     '11000000-0000-0000-0000-000000000003', 0, 'local-space-mention-002',
+     '11000000-0000-0000-0000-000000000003', 0,
+     'SPACE.MENTION', 'local-space-mention-002',
      '이서연', 'space-conversation:LOCAL-SPACE-002', '/space/LOCAL-SPACE-002',
      '완료된 운영 회고 대화에서 회원님을 언급했습니다.',
      '{"label":"대화 열기","route":"/space/LOCAL-SPACE-002"}'::jsonb,
@@ -207,6 +214,26 @@ VALUES
      CURRENT_TIMESTAMP - INTERVAL '3 days', NULL, CURRENT_TIMESTAMP - INTERVAL '3 days', NULL,
      CURRENT_TIMESTAMP - INTERVAL '4 days', 7, 1)
 ON CONFLICT (tenant_id, user_id, notification_id) DO NOTHING;
+
+UPDATE ntf_user_notifications user_notification
+   SET actor_ref = notification.actor_ref,
+       subject_ref = notification.subject_ref,
+       target_ref = notification.target_ref,
+       safe_body = notification.safe_body,
+       action_payload = notification.action_payload,
+       first_activity_at = notification.first_activity_at,
+       occurrence_count = notification.occurrence_count
+  FROM ntf_notifications notification
+ WHERE notification.tenant_id = user_notification.tenant_id
+   AND notification.notification_id = user_notification.notification_id
+   AND user_notification.notification_id IN (
+       '20000000-0000-0000-0000-000000000001',
+       '20000000-0000-0000-0000-000000000002',
+       '20000000-0000-0000-0000-000000000003',
+       '20000000-0000-0000-0000-000000000004',
+       '20000000-0000-0000-0000-000000000005',
+       '20000000-0000-0000-0000-000000000006',
+       '20000000-0000-0000-0000-000000000007');
 
 UPDATE ntf_user_counters counter
    SET unread_count = projection.unread_count,

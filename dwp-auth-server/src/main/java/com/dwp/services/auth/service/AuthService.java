@@ -217,6 +217,7 @@ public class AuthService {
         Tenant tenant = tenantRepository.findById(tenantId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
 
+        PermissionResolution permissionResolution = resolvePermissions(userId, tenantId);
         List<String> permissionPrefixes = permissionPrefix == null
                 ? List.of()
                 : java.util.Arrays.stream(permissionPrefix.split(","))
@@ -227,12 +228,13 @@ public class AuthService {
                         .toList();
         List<PermissionDTO> permissions = permissionPrefixes.isEmpty()
                 ? List.of()
-                : getPermissions(userId, tenantId).stream()
+                : permissionResolution.permissions().stream()
                         .filter(permission -> permission.getResourceKey() != null
                                 && permissionPrefixes.stream().anyMatch(
                                         permission.getResourceKey()::startsWith))
                         .toList();
-        return toMeResponse(user, tenant, permissions);
+        return toMeResponse(
+                user, tenant, permissions, !permissionResolution.permissionModelPresent());
     }
 
     @Transactional
@@ -247,11 +249,16 @@ public class AuthService {
 
         user.setPreferredLocale(canonicalLocale(request.locale()));
         userRepository.save(user);
-        return toMeResponse(user, tenant, List.of());
+        PermissionResolution permissionResolution = resolvePermissions(userId, tenantId);
+        return toMeResponse(
+                user, tenant, List.of(), !permissionResolution.permissionModelPresent());
     }
 
     private MeResponse toMeResponse(
-            User user, Tenant tenant, List<PermissionDTO> permissions) {
+            User user,
+            Tenant tenant,
+            List<PermissionDTO> permissions,
+            boolean legacyRoleFallbackAllowed) {
         return MeResponse.builder()
                 .userId(user.getUserId())
                 .personPublicId(user.getPersonPublicId())
@@ -264,6 +271,7 @@ public class AuthService {
                 .tenantCode(tenant.getCode())
                 .tenantName(tenant.getName())
                 .roles(getRoleCodes(user.getUserId(), tenant.getTenantId()))
+                .legacyRoleFallbackAllowed(legacyRoleFallbackAllowed)
                 .groups(getGroupMemberships(user.getUserId(), tenant.getTenantId()))
                 .permissions(permissions)
                 .resourceRoles(appGovernanceService.resourceRoles(
@@ -304,6 +312,10 @@ public class AuthService {
 
     @Transactional(readOnly = true)
     public List<PermissionDTO> getPermissions(Long userId, Long tenantId) {
+        return resolvePermissions(userId, tenantId).permissions();
+    }
+
+    private PermissionResolution resolvePermissions(Long userId, Long tenantId) {
         List<Long> roleIds = roleMemberRepository.findRoleIds(tenantId, userId);
         List<RolePermission> assignments = roleIds.isEmpty()
                 ? List.of()
@@ -334,7 +346,14 @@ public class AuthService {
                 .map(this::toPermission)
                 .forEach(permission -> collectPermission(permission, allowed, denied));
         denied.forEach(allowed::remove);
-        return List.copyOf(allowed.values());
+        return new PermissionResolution(
+                List.copyOf(allowed.values()),
+                !assignments.isEmpty() || !principalGrants.isEmpty());
+    }
+
+    private record PermissionResolution(
+            List<PermissionDTO> permissions,
+            boolean permissionModelPresent) {
     }
 
     private void collectPermission(

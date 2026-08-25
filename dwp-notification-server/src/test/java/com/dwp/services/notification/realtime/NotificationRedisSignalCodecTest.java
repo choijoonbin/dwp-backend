@@ -19,7 +19,12 @@ class NotificationRedisSignalCodecTest {
     void roundTripsOnlyContentFreeIdentityVersionEnvelope() {
         UUID notificationId = UUID.fromString("40000000-0000-0000-0000-000000000001");
         NotificationRealtimeEnvelope envelope = new NotificationRealtimeEnvelope(
-                7, 900018, "9007199254740993", "9007199254740993", List.of(notificationId));
+                7,
+                900018,
+                "9007199254740993",
+                "9007199254740993",
+                List.of(notificationId),
+                List.of(notificationId));
 
         String encoded = codec.encode(envelope);
         NotificationRealtimeEnvelope decoded = codec.decode(
@@ -31,6 +36,7 @@ class NotificationRedisSignalCodecTest {
                 .containsOnlyOnce("changeVersion")
                 .containsOnlyOnce("counterVersion")
                 .containsOnlyOnce("changedIds")
+                .containsOnlyOnce("arrivalIds")
                 .doesNotContain("title", "body", "preview", "actor", "action", "payload");
     }
 
@@ -38,7 +44,8 @@ class NotificationRedisSignalCodecTest {
     void rejectsUnknownFieldsMalformedPayloadAndOversizedPayload() {
         assertThatThrownBy(() -> codec.decode((
                 "{\"tenantId\":1,\"userId\":2,\"changeVersion\":\"1\","
-                        + "\"counterVersion\":\"1\",\"changedIds\":[],\"title\":\"secret\"}")
+                        + "\"counterVersion\":\"1\",\"changedIds\":[],"
+                        + "\"arrivalIds\":[],\"title\":\"secret\"}")
                         .getBytes(StandardCharsets.UTF_8)))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> codec.decode("not-json".getBytes(StandardCharsets.UTF_8)))
@@ -51,9 +58,23 @@ class NotificationRedisSignalCodecTest {
     void rejectsNumericVersionsToProtectJavaScriptPrecision() {
         String numeric = "{\"tenantId\":1,\"userId\":2,"
                 + "\"changeVersion\":9007199254740993,\"counterVersion\":\"1\","
-                + "\"changedIds\":[\"40000000-0000-0000-0000-000000000001\"]}";
+                + "\"changedIds\":[\"40000000-0000-0000-0000-000000000001\"],"
+                + "\"arrivalIds\":[]}";
 
         assertThatThrownBy(() -> codec.decode(numeric.getBytes(StandardCharsets.UTF_8)))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void acceptsLegacyRefreshOnlySignalsDuringRollingDeployment() {
+        String legacy = "{\"tenantId\":1,\"userId\":2,"
+                + "\"changeVersion\":\"7\",\"counterVersion\":\"7\","
+                + "\"changedIds\":[\"40000000-0000-0000-0000-000000000001\"]}";
+
+        NotificationRealtimeEnvelope decoded = codec.decode(
+                legacy.getBytes(StandardCharsets.UTF_8));
+
+        assertThat(decoded.arrivalIds()).isEmpty();
+        assertThat(decoded.changedIds()).hasSize(1);
     }
 }

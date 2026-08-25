@@ -119,6 +119,38 @@ class PeopleSecurityFilterTest {
         }
     }
 
+    @Test
+    void rejectsHcmRoleFallbackWhenTheVerifiedPermissionModelIsNotLegacy() throws Exception {
+        PeopleSecurityFilter filter = new PeopleSecurityFilter("trusted", objectMapper);
+
+        for (String permissions : new String[] {"", "APP.MAIL:VIEW"}) {
+            MockHttpServletRequest request = regularRequest(
+                    "GET", "/v1/hr/home", "WORKSPACE_MEMBER");
+            request.removeHeader(PeopleSecurityFilter.LEGACY_ROLE_FALLBACK_HEADER);
+            request.addHeader(PeopleSecurityFilter.LEGACY_ROLE_FALLBACK_HEADER, "false");
+            if (!permissions.isBlank()) {
+                request.addHeader(PeopleSecurityFilter.PERMISSIONS_HEADER, permissions);
+            }
+            MockHttpServletResponse response = new MockHttpServletResponse();
+
+            filter.doFilter(request, response, new MockFilterChain());
+
+            assertThat(response.getStatus()).isEqualTo(403);
+        }
+    }
+
+    @Test
+    void permitsAnExplicitlyVerifiedGenuineLegacyHcmRole() throws Exception {
+        PeopleSecurityFilter filter = new PeopleSecurityFilter("trusted", objectMapper);
+        MockHttpServletRequest request = regularRequest(
+                "GET", "/v1/hr/home", "WORKSPACE_MEMBER");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertThat(response.getStatus()).isEqualTo(200);
+    }
+
     private MockHttpServletRequest request(String method, String path) {
         MockHttpServletRequest request = new MockHttpServletRequest(method, path);
         request.addHeader(PeopleSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
@@ -137,6 +169,7 @@ class PeopleSecurityFilterTest {
         request.addHeader(PeopleSecurityFilter.USER_HEADER, "17");
         request.addHeader(PeopleSecurityFilter.TENANT_HEADER, "42");
         request.addHeader(PeopleSecurityFilter.ROLES_HEADER, roles);
+        request.addHeader(PeopleSecurityFilter.LEGACY_ROLE_FALLBACK_HEADER, "true");
         return request;
     }
 }

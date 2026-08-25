@@ -308,6 +308,7 @@ class WorkspaceServiceTest {
                 new WorkspaceDtos.UpdateWorkStatusRequest("IN_PROGRESS", 2L));
 
         assertThat(result.status()).isEqualTo("IN_PROGRESS");
+        assertThat(result.dataClassification()).isEqualTo("CONFIDENTIAL");
         assertThat(result.version()).isEqualTo(3L);
         verify(repository).addWorkActivity(
                 anyLong(), anyLong(), any(), anyString(), anyString(), anyString(),
@@ -404,6 +405,7 @@ class WorkspaceServiceTest {
                 "WK-1",
                 "Work",
                 "Summary",
+                "CONFIDENTIAL",
                 "TASK",
                 "HIGH",
                 status,

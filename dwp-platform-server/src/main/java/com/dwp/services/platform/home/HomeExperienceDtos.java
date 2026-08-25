@@ -6,8 +6,8 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import jakarta.validation.Valid;
+import io.swagger.v3.oas.annotations.media.Schema;
 
-import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -55,10 +55,23 @@ public final class HomeExperienceDtos {
             @NotNull @Min(0) Long version) {
     }
 
+    @Schema(requiredProperties = {
+            "schemaVersion", "experienceVariant", "personalCustomizationEnabled",
+            "governedZones"
+    })
     public record HomeCompositionPolicy(
             Integer schemaVersion,
+            @Schema(allowableValues = {"CLASSIC", "FLOW_V1"})
+            String experienceVariant,
             Boolean personalCustomizationEnabled,
             List<GovernedHomeZone> governedZones) {
+
+        public HomeCompositionPolicy(
+                Integer schemaVersion,
+                Boolean personalCustomizationEnabled,
+                List<GovernedHomeZone> governedZones) {
+            this(schemaVersion, null, personalCustomizationEnabled, governedZones);
+        }
     }
 
     public record GovernedHomeZone(
@@ -90,6 +103,12 @@ public final class HomeExperienceDtos {
             Integer sortOrder) {
     }
 
+    @Schema(requiredProperties = {
+            "backgroundPosition", "overlayOpacity", "launchpadConfiguration",
+            "compositionPolicy", "effectiveExperienceVariant",
+            "advancedPersonalizationEnabled", "composerEnabled",
+            "homePreferenceStore", "version"
+    })
     public record HomeExperienceResponse(
             String headline,
             String subheadline,
@@ -105,8 +124,13 @@ public final class HomeExperienceDtos {
             Integer backgroundHeight,
             HomeLaunchpadConfiguration launchpadConfiguration,
             HomeCompositionPolicy compositionPolicy,
+            @Schema(allowableValues = {"CLASSIC", "FLOW_V1"})
+            String effectiveExperienceVariant,
+            Boolean advancedPersonalizationEnabled,
+            Boolean composerEnabled,
+            @Schema(allowableValues = {"LEGACY", "VIEWS"}) String homePreferenceStore,
             Long version,
-            LocalDateTime updatedAt,
+            OffsetDateTime updatedAt,
             Long updatedBy) {
     }
 

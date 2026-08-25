@@ -16,6 +16,10 @@ public interface AnnouncementRepository extends JpaRepository<Announcement, Long
 
     Optional<Announcement> findByAnnouncementIdAndTenantId(Long announcementId, Long tenantId);
 
+    List<Announcement> findByTenantIdAndAnnouncementIdIn(
+            Long tenantId,
+            Collection<Long> announcementIds);
+
     @Query("""
             select announcement
             from Announcement announcement

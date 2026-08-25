@@ -11,7 +11,8 @@ public record NotificationRealtimeEnvelope(
         long userId,
         String changeVersion,
         String counterVersion,
-        List<UUID> changedIds) {
+        List<UUID> changedIds,
+        List<UUID> arrivalIds) {
 
     public NotificationRealtimeEnvelope {
         if (tenantId < 1 || userId < 1) {
@@ -20,10 +21,17 @@ public record NotificationRealtimeEnvelope(
         NotificationVersionCodec.nonNegative(changeVersion, "changeVersion");
         NotificationVersionCodec.nonNegative(counterVersion, "counterVersion");
         changedIds = List.copyOf(changedIds);
+        arrivalIds = arrivalIds == null ? List.of() : List.copyOf(arrivalIds);
         if (changedIds.isEmpty()
                 || changedIds.size() > 100
                 || changedIds.stream().anyMatch(java.util.Objects::isNull)) {
             throw new IllegalArgumentException("Realtime signal IDs must contain 1 to 100 UUIDs.");
+        }
+        if (arrivalIds.size() > 100
+                || arrivalIds.stream().anyMatch(java.util.Objects::isNull)
+                || !changedIds.containsAll(arrivalIds)) {
+            throw new IllegalArgumentException(
+                    "Realtime arrival IDs must be a subset of changed IDs.");
         }
     }
 }

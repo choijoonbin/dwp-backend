@@ -15,14 +15,18 @@ import java.util.Set;
 @Component
 public class HomeCompositionPolicyRegistry {
 
-    public static final int SCHEMA_VERSION = 2;
-    private static final Set<Integer> READABLE_SCHEMA_VERSIONS = Set.of(1, SCHEMA_VERSION);
+    public static final int SCHEMA_VERSION = 3;
+    public static final String CLASSIC = "CLASSIC";
+    public static final String FLOW_V1 = "FLOW_V1";
+    private static final Set<Integer> READABLE_SCHEMA_VERSIONS = Set.of(1, 2, SCHEMA_VERSION);
+    private static final Set<String> EXPERIENCE_VARIANTS = Set.of(CLASSIC, FLOW_V1);
     private static final Set<String> LEGACY_PERSONAL_ZONE_KEYS = Set.of("workspace-tools");
     private static final Map<String, ZoneContract> ZONES = contracts();
 
     public HomeExperienceDtos.HomeCompositionPolicy defaultPolicy() {
         return new HomeExperienceDtos.HomeCompositionPolicy(
                 SCHEMA_VERSION,
+                CLASSIC,
                 true,
                 ZONES.values().stream()
                         .map(ZoneContract::defaultZone)
@@ -35,7 +39,7 @@ public class HomeCompositionPolicyRegistry {
     public HomeExperienceDtos.HomeCompositionPolicy failClosedPolicy() {
         HomeExperienceDtos.HomeCompositionPolicy defaults = defaultPolicy();
         return new HomeExperienceDtos.HomeCompositionPolicy(
-                defaults.schemaVersion(), false, defaults.governedZones());
+                defaults.schemaVersion(), CLASSIC, false, defaults.governedZones());
     }
 
     public HomeExperienceDtos.HomeCompositionPolicy normalize(
@@ -47,6 +51,12 @@ public class HomeCompositionPolicyRegistry {
         }
         if (requested.personalCustomizationEnabled() == null) {
             throw invalid("The personal customization policy is required.");
+        }
+        String experienceVariant = requested.schemaVersion() < SCHEMA_VERSION
+                ? CLASSIC
+                : requested.experienceVariant();
+        if (experienceVariant == null || !EXPERIENCE_VARIANTS.contains(experienceVariant)) {
+            throw invalid("The home experience variant is not registered.");
         }
 
         List<HomeExperienceDtos.GovernedHomeZone> requestedZones =
@@ -89,8 +99,17 @@ public class HomeCompositionPolicyRegistry {
                 .thenComparing(HomeExperienceDtos.GovernedHomeZone::zoneKey));
         return new HomeExperienceDtos.HomeCompositionPolicy(
                 SCHEMA_VERSION,
+                experienceVariant,
                 requested.personalCustomizationEnabled(),
                 List.copyOf(zones));
+    }
+
+    public String effectiveVariant(
+            HomeExperienceDtos.HomeCompositionPolicy policy,
+            boolean flowEnabled) {
+        return flowEnabled && policy != null && FLOW_V1.equals(policy.experienceVariant())
+                ? FLOW_V1
+                : CLASSIC;
     }
 
     private int boundedOrder(Integer value, int defaultOrder) {

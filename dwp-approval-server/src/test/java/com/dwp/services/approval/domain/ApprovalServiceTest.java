@@ -18,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -213,6 +214,40 @@ class ApprovalServiceTest {
         assertThat(home.recentRequests()).isEmpty();
         verify(queries, org.mockito.Mockito.never()).metrics(actor);
         verify(queries, org.mockito.Mockito.never()).flow(actor);
+    }
+
+    @Test
+    void doesNotExposeOperationsPulseForAnUnrelatedApprovalAdminPermission() {
+        ApprovalRequestContext.set(
+                17L,
+                42L,
+                null,
+                Set.of("APPROVAL_DESIGNER"),
+                Set.of("APP.APPROVALS:VIEW", "ADMIN.APPROVAL_DESIGN:VIEW"));
+
+        ApprovalDtos.HomeResponse home = service.home();
+
+        assertThat(home.administrator()).isFalse();
+        assertThat(home.adminPulse()).isNull();
+        verify(queries, never()).adminPulse(42L);
+    }
+
+    @Test
+    void exposesOperationsPulseOnlyWithTheExactOperationsReadContract() {
+        ApprovalRequestContext.set(
+                17L,
+                42L,
+                null,
+                Set.of("APPROVAL_OPERATOR"),
+                Set.of("APP.APPROVALS:VIEW", "ADMIN.APPROVAL_OPERATIONS:VIEW"));
+        ApprovalDtos.AdminPulse pulse = new ApprovalDtos.AdminPulse(1, 2, 3, 4, 5, List.of());
+        when(queries.adminPulse(42L)).thenReturn(pulse);
+
+        ApprovalDtos.HomeResponse home = service.home();
+
+        assertThat(home.administrator()).isTrue();
+        assertThat(home.adminPulse()).isEqualTo(pulse);
+        verify(queries).adminPulse(42L);
     }
 
     @Test

@@ -4,13 +4,21 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.audit.PlatformAuditService;
 import com.dwp.services.platform.home.HomeCompositionPolicyReader;
+import com.dwp.services.platform.home.personalization.HomeViewCompatibilityBridge;
+import com.dwp.services.platform.home.personalization.HomePersonalizationScopeLock;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -20,6 +28,8 @@ import java.util.Set;
 
 @Service
 public class HomePreferenceService {
+
+    private static final Logger log = LoggerFactory.getLogger(HomePreferenceService.class);
 
     public static final String WORKSPACE_HOME = "workspace-home";
     public static final String HCM_HOME = "hcm-home";
@@ -42,16 +52,22 @@ public class HomePreferenceService {
     private final ObjectMapper objectMapper;
     private final PlatformAuditService auditService;
     private final HomeCompositionPolicyReader compositionPolicyReader;
+    private final HomePersonalizationScopeLock scopeLock;
+
+    @Autowired(required = false)
+    private HomeViewCompatibilityBridge compatibilityBridge;
 
     public HomePreferenceService(
             HomePreferenceRepository repository,
             ObjectMapper objectMapper,
             PlatformAuditService auditService,
-            HomeCompositionPolicyReader compositionPolicyReader) {
+            HomeCompositionPolicyReader compositionPolicyReader,
+            HomePersonalizationScopeLock scopeLock) {
         this.repository = repository;
         this.objectMapper = objectMapper;
         this.auditService = auditService;
         this.compositionPolicyReader = compositionPolicyReader;
+        this.scopeLock = scopeLock;
     }
 
     @Transactional(readOnly = true)
@@ -63,7 +79,10 @@ public class HomePreferenceService {
         SurfaceContract contract = requireSurface(canonicalSurfaceKey);
         return repository.findByTenantIdAndUserIdAndSurfaceKey(
                         tenantId, userId, canonicalSurfaceKey)
-                .map(preference -> response(preference, contract))
+                .map(preference -> {
+                    if (compatibilityBridge != null) compatibilityBridge.shadowCompare(preference);
+                    return response(preference, contract);
+                })
                 .orElseGet(() -> defaultResponse(canonicalSurfaceKey, contract));
     }
 
@@ -77,19 +96,29 @@ public class HomePreferenceService {
         String canonicalSurfaceKey = canonicalSurfaceKey(surfaceKey);
         SurfaceContract contract = requireSurface(canonicalSurfaceKey);
         requirePersonalCustomization(tenantId, canonicalSurfaceKey);
+        scopeLock.lock(tenantId, userId, canonicalSurfaceKey);
         HomePreferenceDtos.HomeLayoutPayload normalized = normalizeLayout(
                 canonicalSurfaceKey,
                 contract,
                 request.layout(),
+                true,
                 true);
-        HomePreference preference = repository
-                .findByTenantIdAndUserIdAndSurfaceKey(tenantId, userId, canonicalSurfaceKey)
-                .orElseGet(() -> create(tenantId, userId, canonicalSurfaceKey, request.version()));
-        requireVersion(preference, request.version());
+        java.util.Optional<HomePreference> existing = repository
+                .findByTenantIdAndUserIdAndSurfaceKey(tenantId, userId, canonicalSurfaceKey);
+        HomePreference preference = existing.orElseGet(
+                () -> create(tenantId, userId, canonicalSurfaceKey, request.version()));
+        if (existing.isPresent()) requireVersion(preference, request.version());
         Map<String, Object> before = snapshot(preference);
         preference.setSchemaVersion(HomePreferenceDtos.SCHEMA_VERSION);
         preference.setLayoutPayload(objectMapper.valueToTree(normalized));
-        HomePreference saved = repository.saveAndFlush(preference);
+        preference.setCustomized(true);
+        HomePreference saved;
+        try {
+            saved = repository.saveAndFlush(preference);
+        } catch (ObjectOptimisticLockingFailureException | DataIntegrityViolationException exception) {
+            throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
+        }
+        if (compatibilityBridge != null) compatibilityBridge.mirrorLegacyPreference(saved);
         auditService.success(
                 tenantId,
                 userId,
@@ -112,13 +141,30 @@ public class HomePreferenceService {
         String canonicalSurfaceKey = canonicalSurfaceKey(surfaceKey);
         SurfaceContract contract = requireSurface(canonicalSurfaceKey);
         requirePersonalCustomization(tenantId, canonicalSurfaceKey);
+        scopeLock.lock(tenantId, userId, canonicalSurfaceKey);
         HomePreference preference = repository
                 .findByTenantIdAndUserIdAndSurfaceKey(tenantId, userId, canonicalSurfaceKey)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         requireVersion(preference, version);
         Map<String, Object> before = snapshot(preference);
-        repository.delete(preference);
-        repository.flush();
+        HomePreferenceDtos.HomePreferenceResponse defaults =
+                defaultResponse(canonicalSurfaceKey, contract);
+        preference.setSchemaVersion(HomePreferenceDtos.SCHEMA_VERSION);
+        preference.setLayoutPayload(objectMapper.valueToTree(defaults.layout()));
+        preference.setCustomized(false);
+        try {
+            repository.saveAndFlush(preference);
+        } catch (ObjectOptimisticLockingFailureException
+                 | DataIntegrityViolationException exception) {
+            throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
+        }
+        if (compatibilityBridge != null) {
+            compatibilityBridge.mirrorLegacyReset(
+                    tenantId,
+                    userId,
+                    canonicalSurfaceKey,
+                    objectMapper.valueToTree(defaults.layout()));
+        }
         auditService.success(
                 tenantId,
                 userId,
@@ -128,7 +174,7 @@ public class HomePreferenceService {
                 correlationId,
                 before,
                 snapshot(null));
-        return defaultResponse(canonicalSurfaceKey, contract);
+        return response(preference, contract);
     }
 
     private HomePreference create(
@@ -144,6 +190,10 @@ public class HomePreferenceService {
                 .userId(userId)
                 .surfaceKey(surfaceKey)
                 .schemaVersion(HomePreferenceDtos.SCHEMA_VERSION)
+                // Version zero is the create precondition. Persist new rows at one so a
+                // second version-zero request serialized behind the scope lock is stale.
+                .version(1L)
+                .customized(true)
                 .build();
     }
 
@@ -162,11 +212,11 @@ public class HomePreferenceService {
             String surfaceKey,
             SurfaceContract contract,
             HomePreferenceDtos.HomeLayoutPayload layout,
-            boolean rejectUnsupportedAppLayout) {
+            boolean rejectUnsupportedAppLayout,
+            boolean rejectGovernedZoneInput) {
         if (rejectUnsupportedAppLayout
                 && !contract.supportsAppLayout()
-                && layout.appLayout() != null
-                && !layout.appLayout().isNull()) {
+                && layout.appLayout() != null) {
             throw invalid("This personal home surface does not support an application layout.");
         }
         if (contract.supportsAppLayout()) validateAppLayout(layout.appLayout());
@@ -181,10 +231,19 @@ public class HomePreferenceService {
         Set<String> unique = new HashSet<>();
         Map<String, HomePreferenceDtos.WidgetPreference> requested = new LinkedHashMap<>();
         for (HomePreferenceDtos.WidgetPreference widget : layout.widgets()) {
+            if (widget == null || widget.widgetKey() == null || widget.widgetKey().isBlank()
+                    || widget.visible() == null) {
+                throw invalid("The personal home layout contains an incomplete widget.");
+            }
             if (!unique.add(widget.widgetKey())) {
                 throw invalid("The personal home layout contains an unknown or duplicate widget.");
             }
-            if (isLegacyWorkspaceFixedZonePreference(surfaceKey, widget.widgetKey())) continue;
+            if (isLegacyWorkspaceFixedZonePreference(surfaceKey, widget.widgetKey())) {
+                if (rejectGovernedZoneInput) {
+                    throw invalid("A governed home zone cannot be changed by personal layout APIs.");
+                }
+                continue;
+            }
             WidgetContract widgetContract = contract.widgets().get(widget.widgetKey());
             if (widgetContract == null) {
                 throw invalid("The personal home layout contains an unknown or duplicate widget.");
@@ -241,89 +300,121 @@ public class HomePreferenceService {
         return normalized;
     }
 
-    private void validateAppLayout(JsonNode appLayout) {
-        if (appLayout == null || appLayout.isNull()) return;
-        if (!appLayout.isObject()
-                || !appLayout.path("version").canConvertToInt()
-                || appLayout.path("version").asInt() != 1
-                || !appLayout.path("groups").isObject()
-                || !appLayout.path("folders").isObject()) {
-            throw invalid("The app layout schema is invalid.");
-        }
-        validateGroups(appLayout.path("groups"));
-        validateFolders(appLayout.path("folders"));
-        Set<String> hiddenAppIds = validateHiddenAppIds(appLayout.get("hiddenAppIds"));
-        validateHiddenAppsAreNotPlaced(hiddenAppIds, appLayout.path("groups"), appLayout.path("folders"));
+    public HomePreferenceDtos.HomeLayoutPayload normalizeForSurface(
+            String surfaceKey,
+            HomePreferenceDtos.HomeLayoutPayload layout) {
+        String canonical = canonicalSurfaceKey(surfaceKey);
+        return normalizeLayout(canonical, requireSurface(canonical), layout, true, true);
     }
 
-    private void validateGroups(JsonNode groups) {
+    /** Reconciles registry-stale persisted layouts for read-cutover without mutating storage. */
+    public HomePreferenceDtos.HomeLayoutPayload reconcileStoredForSurface(
+            String surfaceKey,
+            HomePreferenceDtos.HomeLayoutPayload layout) {
+        String canonical = canonicalSurfaceKey(surfaceKey);
+        return normalizeLayout(canonical, requireSurface(canonical), layout, false, false);
+    }
+
+    public HomePreferenceDtos.HomeLayoutPayload defaultLayoutForSurface(String surfaceKey) {
+        String canonical = canonicalSurfaceKey(surfaceKey);
+        return defaultResponse(canonical, requireSurface(canonical)).layout();
+    }
+
+    private void validateAppLayout(HomePreferenceDtos.AppLayoutPayloadV1 appLayout) {
+        if (appLayout == null) return;
+        if (appLayout.version() == null || appLayout.version() != 1
+                || appLayout.groups() == null
+                || appLayout.folders() == null
+                || appLayout.hiddenAppIds() == null) {
+            throw invalid("The app layout schema is invalid.");
+        }
+        validateGroups(appLayout.groups());
+        validateFolders(appLayout.groups(), appLayout.folders());
+        Set<String> hiddenAppIds = validateHiddenAppIds(appLayout.hiddenAppIds());
+        validateAppPlacementExclusivity(appLayout.groups(), appLayout.folders(), hiddenAppIds);
+    }
+
+    private void validateGroups(Map<String, List<String>> groups) {
         if (groups.size() > 12) throw invalid("The app layout contains too many groups.");
-        groups.properties().forEach(entry -> {
-            if (entry.getKey().length() > 40
-                    || !entry.getValue().isArray()
-                    || entry.getValue().size() > 100) {
+        groups.forEach((groupId, items) -> {
+            if (groupId == null || groupId.isBlank() || groupId.length() > 40
+                    || items == null || items.size() > 100) {
                 throw invalid("The app layout contains an invalid group.");
             }
-            entry.getValue().forEach(item -> {
-                if (!item.isTextual() || item.asText().length() > 100) {
+            Set<String> unique = new HashSet<>();
+            items.forEach(item -> {
+                if (item == null || item.isBlank() || item.length() > 100
+                        || !unique.add(item)) {
                     throw invalid("The app layout contains an invalid item identifier.");
                 }
             });
         });
     }
 
-    private void validateFolders(JsonNode folders) {
+    private void validateFolders(
+            Map<String, List<String>> groups,
+            Map<String, HomePreferenceDtos.AppFolderV1> folders) {
         if (folders.size() > 50) throw invalid("The app layout contains too many folders.");
-        folders.properties().forEach(entry -> {
-            JsonNode folder = entry.getValue();
-            if (entry.getKey().length() > 100
-                    || !folder.isObject()
-                    || !folder.path("name").isTextual()
-                    || folder.path("name").asText().length() > 80
-                    || !folder.path("groupId").isTextual()
-                    || folder.path("groupId").asText().length() > 40
-                    || !folder.path("appIds").isArray()
-                    || folder.path("appIds").size() > 50) {
+        folders.forEach((folderId, folder) -> {
+            if (folderId == null || folderId.length() > 100
+                    || folder == null
+                    || !folderId.equals(folder.id())
+                    || folder.name() == null || folder.name().isBlank()
+                    || folder.name().length() > 80
+                    || folder.groupId() == null || !groups.containsKey(folder.groupId())
+                    || folder.appIds() == null
+                    || folder.appIds().size() < 2 || folder.appIds().size() > 50) {
                 throw invalid("The app layout contains an invalid folder.");
             }
-            folder.path("appIds").forEach(item -> {
-                if (!item.isTextual() || item.asText().length() > 100) {
+            Set<String> unique = new HashSet<>();
+            folder.appIds().forEach(item -> {
+                if (item == null || item.isBlank() || item.length() > 100
+                        || !unique.add(item)) {
                     throw invalid("The app folder contains an invalid application identifier.");
                 }
             });
         });
     }
 
-    private Set<String> validateHiddenAppIds(JsonNode hiddenAppIds) {
-        if (hiddenAppIds == null || hiddenAppIds.isMissingNode()) return Set.of();
-        if (!hiddenAppIds.isArray() || hiddenAppIds.size() > 100) {
+    private Set<String> validateHiddenAppIds(List<String> hiddenAppIds) {
+        if (hiddenAppIds == null || hiddenAppIds.size() > 100) {
             throw invalid("The app layout contains an invalid hidden application list.");
         }
         Set<String> unique = new HashSet<>();
         hiddenAppIds.forEach(item -> {
-            if (!item.isTextual()
-                    || item.asText().isBlank()
-                    || item.asText().length() > 100
-                    || !unique.add(item.asText())) {
+            if (item == null || item.isBlank() || item.length() > 100
+                    || !unique.add(item)) {
                 throw invalid("The hidden application list contains an invalid identifier.");
             }
         });
         return Set.copyOf(unique);
     }
 
-    private void validateHiddenAppsAreNotPlaced(
-            Set<String> hiddenAppIds,
-            JsonNode groups,
-            JsonNode folders) {
-        if (hiddenAppIds.isEmpty()) return;
-        groups.forEach(items -> items.forEach(item -> {
-            if (item.isTextual() && hiddenAppIds.contains(item.asText())) {
-                throw invalid("A hidden application cannot remain in a launchpad group.");
+    private void validateAppPlacementExclusivity(
+            Map<String, List<String>> groups,
+            Map<String, HomePreferenceDtos.AppFolderV1> folders,
+            Set<String> hiddenAppIds) {
+        Set<String> placedApps = new HashSet<>();
+        Set<String> placedFolders = new HashSet<>();
+        groups.forEach((groupId, items) -> items.forEach(itemId -> {
+            HomePreferenceDtos.AppFolderV1 folder = folders.get(itemId);
+            if (folder != null) {
+                if (!groupId.equals(folder.groupId()) || !placedFolders.add(itemId)) {
+                    throw invalid("An app folder must be placed exactly once in its declared group.");
+                }
+                return;
+            }
+            if (hiddenAppIds.contains(itemId) || !placedApps.add(itemId)) {
+                throw invalid("An application can be placed in only one visible location.");
             }
         }));
-        folders.forEach(folder -> folder.path("appIds").forEach(item -> {
-            if (item.isTextual() && hiddenAppIds.contains(item.asText())) {
-                throw invalid("A hidden application cannot remain in an app folder.");
+        if (!placedFolders.equals(folders.keySet())) {
+            throw invalid("Every app folder must be placed in its declared group.");
+        }
+        folders.forEach((folderId, folder) -> folder.appIds().forEach(appId -> {
+            if (folders.containsKey(appId) || hiddenAppIds.contains(appId)
+                    || !placedApps.add(appId)) {
+                throw invalid("An application can be placed in only one visible location.");
             }
         }));
     }
@@ -347,19 +438,29 @@ public class HomePreferenceService {
                     preference.getLayoutPayload(),
                     HomePreferenceDtos.HomeLayoutPayload.class);
             HomePreferenceDtos.HomeLayoutPayload normalized =
-                    normalizeLayout(surfaceKey, contract, stored, false);
+                    normalizeLayout(surfaceKey, contract, stored, false, false);
+            boolean unchanged = preference.getSchemaVersion() != null
+                    && preference.getSchemaVersion() == HomePreferenceDtos.SCHEMA_VERSION
+                    && objectMapper.valueToTree(normalized).equals(preference.getLayoutPayload());
             return new HomePreferenceDtos.HomePreferenceResponse(
                     HomePreferenceDtos.SCHEMA_VERSION,
                     surfaceKey,
-                    true,
+                    preference.isCustomized(),
+                    unchanged
+                            ? HomePreferenceDtos.HomePreferenceIntegrityStatus.VALID
+                            : HomePreferenceDtos.HomePreferenceIntegrityStatus.RECONCILED,
                     normalized,
                     preference.getVersion() == null ? 0L : preference.getVersion(),
-                    preference.getUpdatedAt());
-        } catch (JsonProcessingException exception) {
-            throw new BaseException(
-                    ErrorCode.INTERNAL_SERVER_ERROR,
-                    "The stored personal home preference is invalid.",
+                    offset(preference.getUpdatedAt()),
+                    unchanged ? List.of() : List.of("LAYOUT_RECONCILED"));
+        } catch (Exception exception) {
+            log.warn(
+                    "Invalid stored home preference for tenant {}, user {}, surface {}; returning a recoverable default.",
+                    preference.getTenantId(),
+                    preference.getUserId(),
+                    preference.getSurfaceKey(),
                     exception);
+            return recoveryResponse(preference, contract);
         }
     }
 
@@ -377,12 +478,56 @@ public class HomePreferenceService {
                 HomePreferenceDtos.SCHEMA_VERSION,
                 surfaceKey,
                 false,
+                HomePreferenceDtos.HomePreferenceIntegrityStatus.VALID,
                 new HomePreferenceDtos.HomeLayoutPayload(
-                        null,
+                        contract.supportsAppLayout() ? emptyAppLayout() : null,
                         contract.defaultPresentation(),
                         widgets),
                 0L,
-                null);
+                null,
+                List.of());
+    }
+
+    private HomePreferenceDtos.HomePreferenceResponse recoveryResponse(
+            HomePreference preference,
+            SurfaceContract contract) {
+        String surfaceKey = preference.getSurfaceKey() == null
+                ? WORKSPACE_HOME
+                : preference.getSurfaceKey();
+        HomePreferenceDtos.HomePreferenceResponse defaults =
+                defaultResponse(surfaceKey, contract);
+        return new HomePreferenceDtos.HomePreferenceResponse(
+                HomePreferenceDtos.SCHEMA_VERSION,
+                surfaceKey,
+                preference.isCustomized(),
+                HomePreferenceDtos.HomePreferenceIntegrityStatus.RECOVERED,
+                defaults.layout(),
+                preference.getVersion() == null ? 0L : preference.getVersion(),
+                offset(preference.getUpdatedAt()),
+                List.of("INVALID_STORED_LAYOUT"));
+    }
+
+    public HomePreferenceDtos.AppLayoutPayloadV1 emptyAppLayout() {
+        return new HomePreferenceDtos.AppLayoutPayloadV1(
+                1, Map.of(), Map.of(), List.of());
+    }
+
+    /**
+     * Shares the same registry contract used by the base layout validator with
+     * device-specific overlays. An overlay may change presentation only inside
+     * the widget's declared responsive size set.
+     */
+    public boolean isWidgetSizeAllowed(String surfaceKey, String widgetKey, String size) {
+        SurfaceContract contract = SURFACE_CONTRACTS.get(canonicalSurfaceKey(surfaceKey));
+        if (contract == null || widgetKey == null || size == null) return false;
+        WidgetContract widget = contract.widgets().get(widgetKey);
+        return widget != null && WIDGET_SIZES.contains(size) && widget.allowedSizes().contains(size);
+    }
+
+    private java.time.OffsetDateTime offset(java.time.LocalDateTime value) {
+        return value == null
+                ? null
+                : value.atZone(ZoneId.systemDefault()).toOffsetDateTime();
     }
 
     private void requireVersion(HomePreference preference, Long requestedVersion) {
@@ -398,7 +543,7 @@ public class HomePreferenceService {
             value.put("customized", false);
             return value;
         }
-        value.put("customized", true);
+        value.put("customized", preference.isCustomized());
         value.put("surfaceKey", preference.getSurfaceKey());
         value.put("schemaVersion", preference.getSchemaVersion());
         value.put("layout", preference.getLayoutPayload());
@@ -434,7 +579,7 @@ public class HomePreferenceService {
                 "tall", Set.of("short", "standard", "tall", "expanded")));
         widgets.put("schedule", widget(true, "quarter", Set.of("fifth", "quarter", "compact", "medium"),
                 "standard", Set.of("short", "standard", "tall")));
-        widgets.put("daily-brief", widget(true, "full", Set.of("large", "full"),
+        widgets.put("daily-brief", widget(true, "full", Set.of("compact", "large", "full"),
                 "standard", Set.of("short", "standard", "tall")));
         return new SurfaceContract(true, "balanced", List.copyOf(widgets.keySet()), Map.copyOf(widgets));
     }

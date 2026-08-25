@@ -148,6 +148,27 @@ class AuthServiceTest {
         var response = service.getMe(10L, 1L);
 
         assertThat(response.getPersonPublicId()).isEqualTo(personPublicId);
+        assertThat(response.isLegacyRoleFallbackAllowed()).isTrue();
+    }
+
+    @Test
+    void disablesLegacyFallbackWhenAnyVerifiedPermissionModelAssignmentExists() {
+        User user = User.builder()
+                .userId(10L)
+                .tenantId(1L)
+                .displayName("Employee")
+                .status("ACTIVE")
+                .build();
+        when(users.findByUserIdAndTenantId(10L, 1L)).thenReturn(Optional.of(user));
+        when(principalGrants.findEffective(1L, 10L)).thenReturn(List.of(
+                new PrincipalResourceGrantRepository.EffectiveGrant(
+                        UUID.randomUUID().toString(), "APP", "APP.HCM",
+                        "HR", "VIEW", "View", "DENY")));
+
+        var response = service.getMe(10L, 1L, "APP.HCM,APP.HRIS");
+
+        assertThat(response.getPermissions()).isEmpty();
+        assertThat(response.isLegacyRoleFallbackAllowed()).isFalse();
     }
 
     @Test

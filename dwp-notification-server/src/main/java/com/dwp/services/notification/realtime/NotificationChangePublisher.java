@@ -40,8 +40,14 @@ public class NotificationChangePublisher {
     }
 
     public void publishAfterCommit(List<ChangeSignal> signals) {
+        publishAfterCommit(signals, NotificationChangeCause.MATERIALIZED);
+    }
+
+    public void publishAfterCommit(
+            List<ChangeSignal> signals,
+            NotificationChangeCause cause) {
         if (signals == null || signals.isEmpty()) return;
-        List<NotificationRealtimeEnvelope> envelopes = coalesce(signals);
+        List<NotificationRealtimeEnvelope> envelopes = coalesce(signals, cause);
         if (TransactionSynchronizationManager.isActualTransactionActive()
                 && TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(
@@ -80,6 +86,12 @@ public class NotificationChangePublisher {
     }
 
     static List<NotificationRealtimeEnvelope> coalesce(List<ChangeSignal> signals) {
+        return coalesce(signals, NotificationChangeCause.MATERIALIZED);
+    }
+
+    static List<NotificationRealtimeEnvelope> coalesce(
+            List<ChangeSignal> signals,
+            NotificationChangeCause cause) {
         Map<UserKey, Aggregate> aggregateByUser = new LinkedHashMap<>();
         signals.stream()
                 .sorted(Comparator.comparingLong(ChangeSignal::changeVersion))
@@ -87,14 +99,15 @@ public class NotificationChangePublisher {
                         .computeIfAbsent(
                                 new UserKey(signal.tenantId(), signal.userId()),
                                 ignored -> new Aggregate())
-                        .add(signal));
+                        .add(signal, cause));
         List<NotificationRealtimeEnvelope> envelopes = new ArrayList<>();
         aggregateByUser.forEach((key, aggregate) -> envelopes.add(new NotificationRealtimeEnvelope(
                 key.tenantId(),
                 key.userId(),
                 NotificationVersionCodec.external(aggregate.version),
                 NotificationVersionCodec.external(aggregate.version),
-                List.copyOf(aggregate.notificationIds))));
+                List.copyOf(aggregate.notificationIds),
+                List.copyOf(aggregate.arrivalIds))));
         return List.copyOf(envelopes);
     }
 
@@ -104,10 +117,12 @@ public class NotificationChangePublisher {
     private static final class Aggregate {
         private long version;
         private final LinkedHashSet<UUID> notificationIds = new LinkedHashSet<>();
+        private final LinkedHashSet<UUID> arrivalIds = new LinkedHashSet<>();
 
-        void add(ChangeSignal signal) {
+        void add(ChangeSignal signal, NotificationChangeCause cause) {
             version = Math.max(version, signal.changeVersion());
             notificationIds.add(signal.notificationId());
+            if (cause.arrivalEligible()) arrivalIds.add(signal.notificationId());
         }
     }
 }

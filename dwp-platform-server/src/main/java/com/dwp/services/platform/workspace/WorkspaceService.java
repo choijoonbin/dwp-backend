@@ -658,6 +658,7 @@ public class WorkspaceService {
                 row.id(),
                 row.title(),
                 row.summary(),
+                row.dataClassification(),
                 row.type(),
                 row.priority(),
                 row.status(),

@@ -2,6 +2,7 @@ package com.dwp.services.notification.operations;
 
 import com.dwp.services.notification.domain.NotificationModels.ChangeSignal;
 import com.dwp.services.notification.operations.NotificationRetentionRepository.PurgeResult;
+import com.dwp.services.notification.realtime.NotificationChangeCause;
 import com.dwp.services.notification.realtime.NotificationChangePublisher;
 import com.dwp.services.notification.security.NotificationDatabaseScope;
 import org.junit.jupiter.api.Test;
@@ -61,7 +62,9 @@ class NotificationRetentionServiceTest {
         verify(scope).applyWorker(7);
         verify(repository).cleanupAdmissionHistory(
                 7, now.minus(Duration.ofDays(7)), now.minus(Duration.ofDays(2)), 100);
-        verify(publisher).publishAfterCommit(eq(List.of(signal)));
+        verify(repository).cleanupBulkUndoReceipts(7, now, 100);
+        verify(publisher).publishAfterCommit(
+                eq(List.of(signal)), eq(NotificationChangeCause.SYSTEM_RECONCILIATION));
     }
 
     private NotificationRetentionService service(

@@ -1,6 +1,7 @@
 package com.dwp.services.notification.operations;
 
 import com.dwp.services.notification.operations.NotificationRetentionRepository.PurgeResult;
+import com.dwp.services.notification.realtime.NotificationChangeCause;
 import com.dwp.services.notification.realtime.NotificationChangePublisher;
 import com.dwp.services.notification.security.NotificationDatabaseScope;
 import org.springframework.beans.factory.annotation.Value;
@@ -60,7 +61,9 @@ public class NotificationRetentionService {
                 now.minus(admissionReceiptTtl),
                 now.minus(Duration.ofDays(2)),
                 batchSize);
-        changePublisher.publishAfterCommit(result.signals());
+        repository.cleanupBulkUndoReceipts(tenantId, now, batchSize);
+        changePublisher.publishAfterCommit(
+                result.signals(), NotificationChangeCause.SYSTEM_RECONCILIATION);
         return result;
     }
 }

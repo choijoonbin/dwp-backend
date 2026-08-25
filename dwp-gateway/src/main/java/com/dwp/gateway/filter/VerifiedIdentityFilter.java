@@ -31,6 +31,8 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
     public static final String RESOURCE_ROLES_HEADER = "X-DWP-Resource-Roles";
     public static final String PERSON_PUBLIC_ID_HEADER = "X-DWP-Person-Public-ID";
     public static final String DISPLAY_NAME_HEADER = "X-DWP-Display-Name-B64";
+    public static final String LEGACY_ROLE_FALLBACK_HEADER =
+            "X-DWP-Legacy-Role-Fallback-Allowed";
 
     private final SessionVerifier sessionVerifier;
 
@@ -50,6 +52,7 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
                     headers.remove(RESOURCE_ROLES_HEADER);
                     headers.remove(PERSON_PUBLIC_ID_HEADER);
                     headers.remove(DISPLAY_NAME_HEADER);
+                    headers.remove(LEGACY_ROLE_FALLBACK_HEADER);
                 })
                 .build();
         ServerWebExchange sanitizedExchange = exchange.mutate().request(sanitizedRequest).build();
@@ -99,6 +102,9 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
                                             .encodeToString(identity.displayName()
                                                 .getBytes(StandardCharsets.UTF_8)));
                                 }
+                                headers.set(
+                                        LEGACY_ROLE_FALLBACK_HEADER,
+                                        Boolean.toString(identity.legacyRoleFallbackAllowed()));
                             })
                             .build();
                     return chain.filter(sanitizedExchange.mutate()

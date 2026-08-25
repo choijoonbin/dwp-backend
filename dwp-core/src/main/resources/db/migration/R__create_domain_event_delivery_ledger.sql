@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS sys_domain_event_outbox (
     replay_count INTEGER NOT NULL DEFAULT 0 CHECK (replay_count >= 0),
     available_at TIMESTAMPTZ NOT NULL,
     locked_by VARCHAR(240),
+    lock_token VARCHAR(80),
     locked_until TIMESTAMPTZ,
     published_at TIMESTAMPTZ,
     dead_lettered_at TIMESTAMPTZ,
@@ -30,6 +31,9 @@ CREATE TABLE IF NOT EXISTS sys_domain_event_outbox (
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE sys_domain_event_outbox
+    ADD COLUMN IF NOT EXISTS lock_token VARCHAR(80);
 
 ALTER TABLE sys_domain_event_outbox
     DROP CONSTRAINT IF EXISTS uq_domain_event_outbox_aggregate_sequence;

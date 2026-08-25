@@ -36,6 +36,7 @@ public final class WorkspaceDtos {
             String id,
             String title,
             String summary,
+            String dataClassification,
             String type,
             String priority,
             String status,

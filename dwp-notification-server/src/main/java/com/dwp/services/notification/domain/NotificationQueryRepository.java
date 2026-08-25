@@ -11,6 +11,7 @@ import com.dwp.services.notification.domain.NotificationModels.NotificationActio
 import com.dwp.services.notification.domain.NotificationModels.NotificationReason;
 import com.dwp.services.notification.domain.NotificationModels.NotificationSource;
 import com.dwp.services.notification.domain.NotificationModels.TimelineEntry;
+import com.dwp.services.notification.domain.NotificationModels.TargetResolution;
 import com.dwp.services.notification.security.NotificationRequestContext;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -32,15 +33,17 @@ import java.util.UUID;
 @Repository
 public class NotificationQueryRepository {
 
-    private static final String INBOX_SELECT = """
+    static final String INBOX_SELECT = """
             SELECT user_notification.notification_id,
                    notification.thread_key,
-                   notification.first_activity_at,
-                   notification.occurrence_count,
-                   notification.actor_ref,
-                   notification.action_payload::text AS action_payload,
-                   notification.safe_body,
-                   notification.target_ref,
+                   user_notification.first_activity_at,
+                   user_notification.occurrence_count,
+                   user_notification.actor_ref,
+                   user_notification.action_payload::text AS action_payload,
+                   user_notification.safe_body,
+                   user_notification.target_ref,
+                   user_notification.target_state,
+                   user_notification.target_state_reason,
                    notification.expires_at,
                    type.type_key,
                    type.owner_app_key,
@@ -177,6 +180,43 @@ public class NotificationQueryRepository {
         return details.get(0);
     }
 
+    public TargetResolution resolveTarget(
+            NotificationRequestContext.Actor actor,
+            UUID notificationId) {
+        List<TargetRow> rows = jdbc.query(INBOX_SELECT + """
+                 WHERE user_notification.tenant_id = :tenantId
+                   AND user_notification.user_id = :userId
+                   AND user_notification.notification_id = :notificationId
+                """, actorParams(actor).addValue("notificationId", notificationId),
+                (resultSet, rowNumber) -> new TargetRow(
+                        resultSet.getString("target_state"),
+                        resultSet.getString("target_state_reason"),
+                        instant(resultSet, "expires_at"),
+                        actions(resultSet.getString("action_payload"))));
+        if (rows.isEmpty()) {
+            throw new NotificationException(NotificationErrorCode.NOTIFICATION_NOT_FOUND);
+        }
+        TargetRow row = rows.get(0);
+        if (row.expiresAt() != null && !row.expiresAt().isAfter(Instant.now())) {
+            throw targetUnavailable("The source object has expired.");
+        }
+        if (!"AVAILABLE".equals(row.state())) {
+            throw targetUnavailable(row.reason());
+        }
+        NotificationAction action = row.actions().stream()
+                .filter(NotificationAction::enabled)
+                .filter(candidate -> safeTargetHref(candidate.href()))
+                .filter(NotificationAction::primary)
+                .findFirst()
+                .orElseGet(() -> row.actions().stream()
+                        .filter(NotificationAction::enabled)
+                        .filter(candidate -> safeTargetHref(candidate.href()))
+                        .findFirst()
+                        .orElseThrow(() -> targetUnavailable(
+                                "The source application did not provide a safe target.")));
+        return new TargetResolution(notificationId, "AVAILABLE", action);
+    }
+
     public long currentVersion(NotificationRequestContext.Actor actor, UUID notificationId) {
         List<Long> versions = jdbc.query("""
                 SELECT version
@@ -238,8 +278,10 @@ public class NotificationQueryRepository {
         InboxRow row = mapInboxRow(resultSet, 0);
         Instant expiresAt = instant(resultSet, "expires_at");
         boolean expired = expiresAt != null && !expiresAt.isAfter(Instant.now());
-        String targetState = expired ? "EXPIRED" : "AVAILABLE";
-        String targetStateReason = expired ? "The source object is no longer available." : null;
+        String targetState = expired ? "EXPIRED" : resultSet.getString("target_state");
+        String targetStateReason = expired
+                ? "The source object has expired."
+                : resultSet.getString("target_state_reason");
         String body = resultSet.getString("safe_body");
         String actorLabel = row.item().actorLabel();
         return new Detail(
@@ -412,6 +454,22 @@ public class NotificationQueryRepository {
         result.add(new NotificationAction(actionKey, label, href, true, null, primary));
     }
 
+    static boolean safeTargetHref(String href) {
+        return href != null
+                && href.startsWith("/")
+                && !href.startsWith("//")
+                && href.chars().noneMatch(character -> character < 32);
+    }
+
+    private NotificationException targetUnavailable(String reason) {
+        String message = reason == null || reason.isBlank()
+                ? NotificationErrorCode.NOTIFICATION_TARGET_UNAVAILABLE.message()
+                : reason;
+        return new NotificationException(
+                NotificationErrorCode.NOTIFICATION_TARGET_UNAVAILABLE,
+                message);
+    }
+
     private String text(JsonNode node, String key) {
         JsonNode value = node.path(key);
         return value.isTextual() && !value.asText().isBlank() ? value.asText() : null;
@@ -423,7 +481,7 @@ public class NotificationQueryRepository {
             case "approvals" -> "Approvals";
             case "hcm", "people" -> "HR";
             case "space" -> "Space";
-            case "messaging" -> "Mail & Calendar";
+            case "messaging" -> "Messenger";
             case "platform" -> "Digital Workplace";
             default -> appKey.substring(0, 1).toUpperCase(Locale.ROOT) + appKey.substring(1);
         };
@@ -446,6 +504,13 @@ public class NotificationQueryRepository {
 
     private String escapeLike(String value) {
         return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+    }
+
+    private record TargetRow(
+            String state,
+            String reason,
+            Instant expiresAt,
+            List<NotificationAction> actions) {
     }
 
     private Instant instant(ResultSet resultSet, String column) throws SQLException {
