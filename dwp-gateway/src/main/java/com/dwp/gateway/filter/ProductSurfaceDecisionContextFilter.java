@@ -168,7 +168,11 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                         SupportSessionContextFilter.SUPPORT_SCOPES_HEADER)),
                 request.getHeaders().getFirst("X-Correlation-ID"),
                 request.getHeaders().getFirst("traceparent"),
-                request.getHeaders().getFirst("tracestate"));
+                request.getHeaders().getFirst("tracestate"),
+                request.getHeaders().getFirst(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER),
+                splitScopes(request.getHeaders().getFirst(VerifiedIdentityFilter.ROLES_HEADER)),
+                splitScopes(request.getHeaders().getFirst(
+                        VerifiedIdentityFilter.PERMISSIONS_HEADER)));
     }
 
     private Mono<Void> forwardOrDeny(

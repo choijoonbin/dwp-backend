@@ -117,6 +117,7 @@ public final class HrisDtos {
             long unchangedCount,
             String failureCode,
             String redactedFailureMessage,
+            long version,
             Instant startedAt,
             Instant completedAt) {
     }

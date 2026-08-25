@@ -4,6 +4,19 @@
   "version": 1,
   "bundleStatus": "DRAFT",
   "owner": "Identity Architecture + Security",
+  "rolloutProducts": [
+    "approvals",
+    "calendar",
+    "communications",
+    "dwaion",
+    "hcm",
+    "mail",
+    "messaging",
+    "notifications",
+    "services",
+    "spaces",
+    "workplace"
+  ],
   "capabilities": [
     {
       "contractKey": "communications.content.read",

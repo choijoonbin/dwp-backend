@@ -34,8 +34,13 @@ class HrServiceTest {
     private static final UUID REQUEST_ID = UUID.randomUUID();
 
     private final HrRepository repository = mock(HrRepository.class);
+    private final HcmPopulationRepository populationRepository =
+            mock(HcmPopulationRepository.class);
+    private final HcmPopulationScopeService populationScopes =
+            mock(HcmPopulationScopeService.class);
     private final AuditOutboxRecorder audit = mock(AuditOutboxRecorder.class);
-    private final HrService service = new HrService(repository, audit);
+    private final HrService service = new HrService(
+            repository, populationRepository, populationScopes, audit);
 
     @AfterEach
     void clearContext() {
@@ -125,9 +130,11 @@ class HrServiceTest {
         assertThat(home.enrollmentWindows()).containsExactly(openWindow, scheduledWindow);
         assertThat(home.journeys()).containsExactly(journey);
         assertThat(home.openBenefitWindowCount()).isEqualTo(1);
-        assertThat(home.teamTimePendingCount()).isEqualTo(1);
-        assertThat(home.teamAbsencePendingCount()).isEqualTo(2);
-        assertThat(home.teamPendingCount()).isEqualTo(3);
+        assertThat(home.teamTimePendingCount()).isZero();
+        assertThat(home.teamAbsencePendingCount()).isZero();
+        assertThat(home.teamPendingCount()).isZero();
+        assertThat(home.domainStates().get("TEAM").dataOrigin())
+                .isEqualTo(HrDtos.HomeDataOrigin.NONE);
         assertThat(home.domainStates().get("TIME").availability())
                 .isEqualTo(HrDtos.HomeAvailability.AVAILABLE);
         assertThat(home.domainStates().get("PAY").dataOrigin())
@@ -171,6 +178,80 @@ class HrServiceTest {
                 anyLong(), any(), any(), any(LocalDate.class));
     }
 
+    @Test
+    void teamWorkspaceReadsOnlyThroughTheResolvedLivePopulation() {
+        PeopleRequestContext.set(USER_ID, TENANT_ID, PERSON_ID, Set.of("MANAGER"), Set.of());
+        stubWorker(WORKER_ID);
+        HcmPopulationScopeService.ResolvedPopulation population = population(
+                "ASSIGN-1", Set.of("DIRECTORY", "EMPLOYMENT"));
+        when(populationScopes.requireTeam()).thenReturn(population);
+        HrDtos.TeamMember member = new HrDtos.TeamMember(
+                UUID.randomUUID(), "Employee", "Analyst", "Operations", 0);
+        when(populationRepository.teamMembers(TENANT_ID, population.scope()))
+                .thenReturn(List.of(member));
+        when(populationRepository.teamQueue(TENANT_ID, population.scope(), "TIME"))
+                .thenReturn(List.of(approval("TIME")));
+        when(populationRepository.teamQueue(TENANT_ID, population.scope(), "ABSENCE"))
+                .thenReturn(List.of(approval("ABSENCE"), approval("ABSENCE")));
+
+        HrDtos.TeamWorkspace result = service.team();
+
+        assertThat(result.members()).containsExactly(member);
+        assertThat(result.timePendingCount()).isEqualTo(1);
+        assertThat(result.absencePendingCount()).isEqualTo(2);
+        assertThat(result.dataBoundary()).isEqualTo(HrDtos.DataBoundary.TEAM);
+        verify(populationScopes).requireTrustedScope(
+                eq(population), eq("hcm.team"), eq("TARGET_POPULATION"), any(String[].class));
+    }
+
+    @Test
+    void operationsMetricsNeverFallBackToWholeTenantQueries() {
+        PeopleRequestContext.set(USER_ID, TENANT_ID, PERSON_ID, Set.of("TIME_ADMIN"),
+                Set.of("DATA.HR_TIME:VIEW"));
+        HcmPopulationScopeService.ResolvedPopulation population = population(
+                null, Set.of("DIRECTORY", "EMPLOYMENT"));
+        when(populationScopes.requireOperations("READ")).thenReturn(population);
+        List<HrDtos.DomainMetric> metrics = List.of(
+                new HrDtos.DomainMetric("submitted", 2, "ATTENTION"));
+        when(populationRepository.metrics(TENANT_ID, population.scope(), "TIME"))
+                .thenReturn(metrics);
+        when(populationRepository.teamQueue(TENANT_ID, population.scope(), "TIME"))
+                .thenReturn(List.of(approval("TIME")));
+
+        HrDtos.DomainOperations result = service.operations("time");
+
+        assertThat(result.metrics()).isEqualTo(metrics);
+        assertThat(result.workQueue()).hasSize(1);
+        assertThat(result.dataBoundary()).isEqualTo(HrDtos.DataBoundary.ORGANIZATION_SET);
+        verify(repository, never()).metrics(anyLong(), any());
+        verify(repository, never()).submittedQueue(anyLong(), any());
+    }
+
+    @Test
+    void approveCapabilityCannotMutateAWorkerOutsideTheReadPopulation() {
+        PeopleRequestContext.set(USER_ID, TENANT_ID, PERSON_ID, Set.of("TIME_ADMIN"),
+                Set.of("DATA.HR_TIME:APPROVE"));
+        HcmPopulationScopeService.ResolvedPopulation population = population(
+                null, Set.of("DIRECTORY", "EMPLOYMENT"));
+        when(populationScopes.requireOperationsForMutation("READ")).thenReturn(population);
+        UUID cardId = UUID.randomUUID();
+        when(repository.timeCardTarget(TENANT_ID, cardId)).thenReturn(Optional.of(
+                new HrRepository.TimeCardTarget(
+                        71L, 999L, "SUBMITTED", 3L, UUID.randomUUID(),
+                        "Outside Employee", "Analyst", 480)));
+        when(populationRepository.lockWorkerInPopulation(TENANT_ID, population.scope(), 999L))
+                .thenReturn(false);
+
+        assertThatThrownBy(() -> service.decideTimeCard(
+                cardId, new HrDtos.DecisionRequest("APPROVE", "Approved request", 3L),
+                "corr-outside"))
+                .isInstanceOf(BaseException.class);
+
+        verify(repository, never()).decideTimeCard(
+                anyLong(), any(), any(), any(), anyLong(), anyLong());
+        verify(audit, never()).record(any(AuditEvent.class));
+    }
+
     private void stubWorker(long workerId) {
         when(repository.worker(TENANT_ID, PERSON_ID)).thenReturn(Optional.of(
                 new HrRepository.WorkerIdentity(
@@ -183,6 +264,23 @@ class HrServiceTest {
         return new HrRepository.LeaveRequestTarget(
                 71L, workerId, 12L, 480, status, version,
                 PERSON_ID, "Minseo Kim", "Network Operations Lead", "Annual leave");
+    }
+
+    private HcmPopulationScopeService.ResolvedPopulation population(
+            String managerAssignment,
+            Set<String> fields) {
+        HcmPopulationRepository.ActorWorkforce actor = managerAssignment == null
+                ? null : new HcmPopulationRepository.ActorWorkforce(
+                        WORKER_ID, PERSON_ID, "Minseo Kim", managerAssignment,
+                        "Lead", "Operations", 1L, 2L, 3L);
+        HcmPopulationRepository.PopulationScope scope =
+                new HcmPopulationRepository.PopulationScope(
+                        actor == null ? 0L : WORKER_ID, managerAssignment,
+                        false, actor == null ? Set.of(UUID.randomUUID()) : Set.of(),
+                        fields, "policy-fingerprint");
+        return new HcmPopulationScopeService.ResolvedPopulation(
+                actor, scope, new HcmPopulationRepository.PopulationEvidence(
+                        2L, "population-revision"));
     }
 
     private HrDtos.ApprovalItem approval(String domain) {

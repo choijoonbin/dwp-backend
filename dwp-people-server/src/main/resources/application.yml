@@ -75,6 +75,17 @@ dwp:
       flush-interval: ${DWP_API_HISTORY_FLUSH_INTERVAL:PT1S}
   people:
     service-token: ${DWP_PEOPLE_SERVICE_TOKEN:}
+    product-authorization-v3-enabled: ${DWP_HCM_PRODUCT_AUTHORIZATION_V3_ENABLED:false}
+    step-up:
+      public-key-pem: ${DWP_PEOPLE_STEP_UP_PUBLIC_KEY_PEM:}
+      issuer: ${DWP_PEOPLE_STEP_UP_ISSUER:}
+      audience: ${DWP_PEOPLE_STEP_UP_AUDIENCE:dwp-people-server}
+      key-id: ${DWP_PEOPLE_STEP_UP_KEY_ID:}
+      required-acr: ${DWP_PEOPLE_STEP_UP_REQUIRED_ACR:urn:dwp:acr:mfa}
+      maximum-authentication-age-seconds: ${DWP_PEOPLE_STEP_UP_MAX_AUTH_AGE_SECONDS:600}
+      maximum-challenge-ttl-seconds: ${DWP_PEOPLE_STEP_UP_MAX_TTL_SECONDS:900}
+      ledger-purge-batch-size: ${DWP_PEOPLE_STEP_UP_LEDGER_PURGE_BATCH_SIZE:500}
+      ledger-purge-delay-ms: ${DWP_PEOPLE_STEP_UP_LEDGER_PURGE_DELAY_MS:900000}
     cursor-secret: ${DWP_PEOPLE_CURSOR_SECRET:}
     cursor-ttl: ${DWP_PEOPLE_CURSOR_TTL:PT15M}
     synthetic-import-enabled: ${DWP_SYNTHETIC_IMPORT_ENABLED:false}

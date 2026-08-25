@@ -147,6 +147,25 @@ class GeneratedProductRouteCatalogTest {
         assertThat(authorities).hasSize(45);
     }
 
+    @Test
+    void criticalHcmExportCommandsRemainStepUpEligibleAtTheGateway() {
+        assertThat(catalog.match(
+                        "POST", "/api/people/v1/workforce/exports", null)
+                .uniqueRoute())
+                .satisfies(route -> {
+                    assertThat(route.routeContractKey()).isEqualTo(
+                            "route.hcm.management.controlled-export-create.action");
+                    assertThat(route.stateChanging()).isTrue();
+                    assertThat(route.highRiskStepUp()).isTrue();
+                });
+        assertThat(catalog.match(
+                        "PATCH",
+                        "/api/people/v1/workforce/exports/"
+                                + "11111111-1111-1111-1111-111111111111/retry",
+                        null)
+                .uniqueRoute().highRiskStepUp()).isTrue();
+    }
+
     private GeneratedProductRouteCatalog catalog(int version) {
         return new GeneratedProductRouteCatalog(
                 objectMapper,

@@ -123,29 +123,109 @@ class ProductSurfaceStepUpRouteResolverTest {
     }
 
     @Test
-    void rejectsV1AndHcmBearingV3UntilTheirRuntimeGatesAreExplicitlyWired()
-            throws Exception {
-        for (int version : new int[]{1, 3}) {
-            ProductAuthorizationContractDtos.BundleContract other = readContract(version);
-            UUID bundleId = UUID.randomUUID();
-            ProductAuthorizationContractRepository.StoredBundle otherStored =
-                    new ProductAuthorizationContractRepository.StoredBundle(
-                            bundleId, other.bundleKey(), other.version(), "ACTIVE",
-                            other.schemaVersion(), other.checksumAlgorithm(), other.checksum(),
-                            other.owner(), "approver", OffsetDateTime.now(),
-                            OffsetDateTime.now(), OffsetDateTime.now());
-            when(repository.findActive("product-surfaces"))
-                    .thenReturn(Optional.of(otherStored));
+    void rejectsV1ButAcceptsTheHcmV3BodyTargetBinding() throws Exception {
+        ProductAuthorizationContractDtos.BundleContract v1 = readContract(1);
+        ProductAuthorizationContractRepository.StoredBundle v1Stored = stored(v1);
+        when(repository.findActive("product-surfaces")).thenReturn(Optional.of(v1Stored));
+        when(repository.loadContract(v1Stored)).thenReturn(v1);
+        String approvalTarget = UUID.randomUUID().toString();
+        assertThatThrownBy(() -> resolver.resolve(request(
+                "/api/approvals/v1/admin/workflows/" + approvalTarget + "/publish",
+                "WORKFLOW", approvalTarget, 1L,
+                objectMapper.createObjectNode().put("expectedVersion", 1))))
+                .isInstanceOf(BaseException.class)
+                .satisfies(error -> assertThat(((BaseException) error).getErrorCode())
+                        .isEqualTo(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE));
 
-            String target = UUID.randomUUID().toString();
-            assertThatThrownBy(() -> resolver.resolve(request(
-                    "/api/approvals/v1/admin/workflows/" + target + "/publish",
-                    "WORKFLOW", target, 1L,
-                    objectMapper.createObjectNode().put("expectedVersion", 1))))
-                    .isInstanceOf(BaseException.class)
-                    .satisfies(error -> assertThat(((BaseException) error).getErrorCode())
-                            .isEqualTo(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE));
+        activateV3();
+        ObjectNode payload = exportEnvelope();
+
+        ProductSurfaceStepUpRouteResolver.Resolution resolution = resolver.resolve(request(
+                "/api/people/v1/workforce/exports", "EXPORT_DATASET",
+                "WORKFORCE_DIRECTORY@v3:hcm-scope-1234", 3L, payload));
+
+        assertThat(resolution.routeContractKey())
+                .isEqualTo("route.hcm.management.controlled-export-create.action");
+        assertThat(resolution.targetIdPathParameter()).isNull();
+        assertThat(resolution.targetIdBodyFields())
+                .containsExactly("dataset", "population");
+    }
+
+    @Test
+    void rejectsMissingOrNonScalarHcmBodyTargetsAndTargetMismatch() throws Exception {
+        activateV3();
+        ObjectNode missing = exportEnvelope();
+        missing.remove("population");
+        assertBodyTargetMismatch(missing, "WORKFORCE_DIRECTORY@v3:hcm-scope-1234");
+
+        ObjectNode array = exportEnvelope();
+        array.putArray("population").add("hcm-scope-1234");
+        assertBodyTargetMismatch(array, "WORKFORCE_DIRECTORY@v3:hcm-scope-1234");
+
+        ObjectNode object = exportEnvelope();
+        object.putObject("dataset").put("key", "WORKFORCE_DIRECTORY@v3");
+        assertBodyTargetMismatch(object, "WORKFORCE_DIRECTORY@v3:hcm-scope-1234");
+
+        assertBodyTargetMismatch(
+                exportEnvelope(), "WORKFORCE_DIRECTORY@v3:hcm-scope-other");
+    }
+
+    @Test
+    void bodyTargetAllowsOpaqueAtAndColonButRejectsPathQueryControlAndOverlength()
+            throws Exception {
+        activateV3();
+        ProductSurfaceStepUpRouteResolver.Resolution resolution = resolver.resolve(request(
+                "/api/people/v1/workforce/exports", "EXPORT_DATASET",
+                "WORKFORCE_DIRECTORY@v3:hcm-scope-1234", 3L, exportEnvelope()));
+        assertThat(resolution.routeContractKey())
+                .isEqualTo("route.hcm.management.controlled-export-create.action");
+
+        for (String invalid : java.util.List.of(
+                "WORKFORCE_DIRECTORY@v3/hcm-scope-1234",
+                "WORKFORCE_DIRECTORY@v3?hcm-scope-1234",
+                "WORKFORCE_DIRECTORY@v3\nhcm-scope-1234",
+                "x".repeat(201))) {
+            assertBodyTargetMismatch(exportEnvelope(), invalid);
         }
+    }
+
+    private void activateV3() throws Exception {
+        ProductAuthorizationContractDtos.BundleContract v3 = readContract(3);
+        ProductAuthorizationContractRepository.StoredBundle v3Stored = stored(v3);
+        when(repository.findActive("product-surfaces")).thenReturn(Optional.of(v3Stored));
+        when(repository.loadContract(v3Stored)).thenReturn(v3);
+        when(repository.findActivePointer("product-surfaces")).thenReturn(Optional.of(
+                new ProductAuthorizationContractRepository.ActivePointer(
+                        "product-surfaces", v3Stored.bundleId(), 3L,
+                        "activator", OffsetDateTime.now())));
+    }
+
+    private ObjectNode exportEnvelope() {
+        ObjectNode payload = objectMapper.createObjectNode();
+        payload.put("dataset", "WORKFORCE_DIRECTORY@v3");
+        payload.put("population", "hcm-scope-1234");
+        payload.putObject("command")
+                .put("idempotencyKey", "idem-1")
+                .put("datasetKey", "WORKFORCE_DIRECTORY");
+        return payload;
+    }
+
+    private void assertBodyTargetMismatch(ObjectNode payload, String targetId) {
+        assertThatThrownBy(() -> resolver.resolve(request(
+                "/api/people/v1/workforce/exports", "EXPORT_DATASET",
+                targetId, 3L, payload)))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.STEP_UP_CHALLENGE_MISMATCH));
+    }
+
+    private ProductAuthorizationContractRepository.StoredBundle stored(
+            ProductAuthorizationContractDtos.BundleContract value) {
+        return new ProductAuthorizationContractRepository.StoredBundle(
+                UUID.randomUUID(), value.bundleKey(), value.version(), "ACTIVE",
+                value.schemaVersion(), value.checksumAlgorithm(), value.checksum(),
+                value.owner(), "approver", OffsetDateTime.now(), OffsetDateTime.now(),
+                OffsetDateTime.now());
     }
 
     private ProductAuthorizationContractDtos.BundleContract readContract(int version)

@@ -38,8 +38,12 @@ public class GeneratedProductSurfaceCandidateCatalog
             "^[a-z][a-z0-9-]{0,47}(\\.[a-z][a-z0-9-]{0,47})+$");
     private static final Set<String> ROUTE_KINDS = Set.of("PAGE", "DATA", "ACTION");
     private static final Set<String> LIFECYCLE_STATES = Set.of("ACTIVE", "RETIRED");
+    private static final Set<String> ROLLOUT_PRODUCTS = Set.of(
+            "approvals", "calendar", "communications", "dwaion", "hcm", "mail",
+            "messaging", "notifications", "services", "spaces", "workplace");
 
     private final List<ProductSurfaceContextDtos.ProductCandidate> candidates;
+    private final List<String> rolloutProductKeys;
 
     @Autowired
     public GeneratedProductSurfaceCandidateCatalog(
@@ -51,25 +55,78 @@ public class GeneratedProductSurfaceCandidateCatalog
             @Value("${dwp.product-surface.candidate-catalog-index-location:"
                     + "classpath:product-authorization/"
                     + "product-surfaces-v1.index.generated.json}")
-            String indexLocation) {
+            String indexLocation,
+            @Value("${dwp.product-surface.rollout-inventory-location:"
+                    + "classpath:product-authorization/"
+                    + "product-surface-rollout-inventory.v1.generated.json}")
+            String rolloutInventoryLocation) {
         this(objectMapper,
                 resourceLoader.getResource(catalogLocation),
-                resourceLoader.getResource(indexLocation));
+                resourceLoader.getResource(indexLocation),
+                resourceLoader.getResource(rolloutInventoryLocation));
     }
 
     GeneratedProductSurfaceCandidateCatalog(
             ObjectMapper objectMapper,
             Resource catalogResource,
-            Resource indexResource) {
+            Resource indexResource,
+            Resource rolloutInventoryResource) {
         JsonNode catalog = read(objectMapper, catalogResource, "candidate catalog");
         JsonNode index = read(objectMapper, indexResource, "candidate catalog index");
+        JsonNode rolloutInventory = read(
+                objectMapper, rolloutInventoryResource, "rollout inventory");
         validateBundleBinding(objectMapper, catalog, index);
+        this.rolloutProductKeys = rolloutProductKeys(objectMapper, rolloutInventory);
         this.candidates = candidates(catalog);
     }
 
     @Override
     public List<ProductSurfaceContextDtos.ProductCandidate> activeCandidates() {
         return candidates;
+    }
+
+    @Override
+    public List<String> rolloutProductKeys() {
+        return rolloutProductKeys;
+    }
+
+    private List<String> rolloutProductKeys(ObjectMapper objectMapper, JsonNode inventory) {
+        if (!Set.of(
+                        "schemaVersion", "inventoryKey", "products",
+                        "checksumAlgorithm", "checksum")
+                .equals(iterableFieldNames(inventory))) {
+            throw invalid("Generated rollout inventory field set is invalid");
+        }
+        String checksum = requiredText(inventory, "checksum");
+        JsonNode products = inventory.get("products");
+        if (inventory.path("schemaVersion").asInt(-1) != 1
+                || !"product-surface-rollout-products.v1".equals(
+                        requiredText(inventory, "inventoryKey"))
+                || !"SHA-256".equals(requiredText(inventory, "checksumAlgorithm"))
+                || !CHECKSUM.matcher(checksum).matches()
+                || !checksum.equals(documentChecksum(
+                        objectMapper, inventory, Set.of("checksum")))
+                || products == null || !products.isArray() || products.size() != 11) {
+            throw invalid("Generated candidate catalog has no complete rollout inventory");
+        }
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        for (JsonNode product : products) {
+            if (!product.isTextual()
+                    || !PRODUCT_KEY.matcher(product.textValue()).matches()
+                    || !values.add(product.textValue())) {
+                throw invalid("Generated rollout product inventory is invalid");
+            }
+        }
+        if (!values.equals(ROLLOUT_PRODUCTS)) {
+            throw invalid("Generated rollout product inventory is not the exact v1 set");
+        }
+        return values.stream().sorted().toList();
+    }
+
+    private Set<String> iterableFieldNames(JsonNode document) {
+        Set<String> fields = new HashSet<>();
+        document.fieldNames().forEachRemaining(fields::add);
+        return fields;
     }
 
     private JsonNode read(ObjectMapper objectMapper, Resource resource, String label) {

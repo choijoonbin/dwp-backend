@@ -24,6 +24,21 @@ import static org.mockito.Mockito.when;
 
 class FeatureRolloutServiceTest {
 
+    private static final List<String> ALL_PRODUCT_SURFACE_FLAGS = List.of(
+            "access.product-surfaces.context-shadow.v1",
+            "access.product-surfaces.capability-enforcement.v1",
+            "ux.product-surfaces.dwaion.v1",
+            "ux.product-surfaces.communications.v1",
+            "ux.product-surfaces.services.v1",
+            "ux.product-surfaces.notifications.v1",
+            "ux.product-surfaces.calendar.v1",
+            "ux.product-surfaces.workplace.v1",
+            "ux.product-surfaces.mail.v1",
+            "ux.product-surfaces.messaging.v1",
+            "ux.product-surfaces.approvals.v1",
+            "ux.product-surfaces.spaces.v1",
+            "ux.product-surfaces.hcm.v1");
+
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final FeatureRolloutRepository repository = mock(FeatureRolloutRepository.class);
     private final ProviderAuditService audit = mock(ProviderAuditService.class);
@@ -134,6 +149,15 @@ class FeatureRolloutServiceTest {
                 "corr-canary");
 
         verify(decisionOutbox).appendAllTenants(flagId, featureKey, "ENABLED");
+    }
+
+    @Test
+    void evaluationAllowlistCoversEveryGovernedProductSurfaceAndRejectsUnknownKeys() {
+        assertThat(ALL_PRODUCT_SURFACE_FLAGS)
+                .hasSize(13)
+                .allMatch(FeatureRolloutService::isProductSurfaceFlag);
+        assertThat(FeatureRolloutService.isProductSurfaceFlag("ux.product-surfaces.unknown.v1"))
+                .isFalse();
     }
 
     private FeatureRolloutRepository.RolloutRow rollout(

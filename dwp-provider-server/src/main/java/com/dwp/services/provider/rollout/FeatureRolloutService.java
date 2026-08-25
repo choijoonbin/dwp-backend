@@ -35,9 +35,16 @@ public class FeatureRolloutService {
     private static final Set<String> PRODUCT_SURFACE_FLAGS = Set.of(
             "access.product-surfaces.context-shadow.v1",
             "access.product-surfaces.capability-enforcement.v1",
+            "ux.product-surfaces.dwaion.v1",
             "ux.product-surfaces.communications.v1",
             "ux.product-surfaces.services.v1",
+            "ux.product-surfaces.notifications.v1",
+            "ux.product-surfaces.calendar.v1",
+            "ux.product-surfaces.workplace.v1",
+            "ux.product-surfaces.mail.v1",
+            "ux.product-surfaces.messaging.v1",
             "ux.product-surfaces.approvals.v1",
+            "ux.product-surfaces.spaces.v1",
             "ux.product-surfaces.hcm.v1");
     private static final Set<String> SECRET_FIELD_MARKERS =
             Set.of("secret", "password", "token", "credential", "privatekey");
@@ -315,13 +322,17 @@ public class FeatureRolloutService {
     FeatureRolloutDtos.Evaluation evaluateProductSurfaceFlag(
             String featureKey,
             Long authTenantId) {
-        if (!PRODUCT_SURFACE_FLAGS.contains(featureKey)) {
+        if (!isProductSurfaceFlag(featureKey)) {
             throw new BaseException(ErrorCode.NOT_FOUND);
         }
         UUID tenantId = repository.tenantByAuthTenantId(authTenantId)
                 .map(FeatureRolloutRepository.TenantRow::tenantId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         return evaluateDecision(featureKey, tenantId);
+    }
+
+    static boolean isProductSurfaceFlag(String featureKey) {
+        return PRODUCT_SURFACE_FLAGS.contains(featureKey);
     }
 
     private FeatureRolloutDtos.Evaluation evaluateDecision(String featureKey, UUID tenantId) {

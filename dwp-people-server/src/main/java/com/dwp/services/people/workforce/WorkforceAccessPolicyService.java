@@ -13,6 +13,7 @@ import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -102,9 +103,40 @@ public class WorkforceAccessPolicyService {
 
     @Transactional(readOnly = true)
     public Decision require(String action) {
+        return find(action).orElseThrow(() -> {
+            PeopleRequestContext.Actor actor = PeopleRequestContext.require();
+            denied(actor, action, "NO_ACTIVE_OR_NONEMPTY_WORKFORCE_BOUNDARY");
+            return new BaseException(
+                    ErrorCode.FORBIDDEN,
+                    "No active workforce access boundary permits this action.");
+        });
+    }
+
+    public Decision requireForMutation(String action) {
+        return findForMutation(action).orElseThrow(() ->
+                new BaseException(ErrorCode.FORBIDDEN,
+                        "No active workforce access policy permits this mutation."));
+    }
+
+    /** Resolve current owner-service policy evidence without turning navigation into denial audit. */
+    @Transactional(readOnly = true)
+    public Optional<Decision> find(String action) {
+        return find(action, false);
+    }
+
+    /** Locks the policy evidence until the surrounding mutation commits. */
+    @Transactional
+    public Optional<Decision> findForMutation(String action) {
+        return find(action, true);
+    }
+
+    private Optional<Decision> find(String action, boolean lock) {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
-        List<WorkforceAccessPolicyRepository.PolicyRow> policies = repository.resolve(
-                actor.tenantId(), actor.userId(), actor.roles(), Instant.now());
+        List<WorkforceAccessPolicyRepository.PolicyRow> policies = lock
+                ? repository.resolveForShare(
+                        actor.tenantId(), actor.userId(), actor.roles(), Instant.now())
+                : repository.resolve(
+                        actor.tenantId(), actor.userId(), actor.roles(), Instant.now());
         boolean hasUserOverride = policies.stream()
                 .anyMatch(policy -> "USER".equals(policy.subjectType()));
         List<WorkforceAccessPolicyRepository.PolicyRow> effective = hasUserOverride
@@ -114,10 +146,7 @@ public class WorkforceAccessPolicyService {
                 .filter(policy -> policy.actionCodes().contains(action))
                 .toList();
         if (permitted.isEmpty()) {
-            denied(actor, action, "NO_ACTIVE_WORKFORCE_BOUNDARY");
-            throw new BaseException(
-                    ErrorCode.FORBIDDEN,
-                    "No active workforce access boundary permits this action.");
+            return Optional.empty();
         }
         Set<String> fields = new LinkedHashSet<>();
         permitted.forEach(policy -> fields.addAll(policy.fieldGroups()));
@@ -125,14 +154,14 @@ public class WorkforceAccessPolicyService {
                 .anyMatch(policy -> "TENANT".equals(policy.populationType()));
         Set<UUID> organizations = tenantWide
                 ? Set.of()
+                : lock
+                ? repository.expandOrganizationsForShare(actor.tenantId(), permitted)
                 : repository.expandOrganizations(actor.tenantId(), permitted);
         if (!tenantWide && organizations.isEmpty()) {
-            denied(actor, action, "EMPTY_TARGET_POPULATION");
-            throw new BaseException(
-                    ErrorCode.FORBIDDEN,
-                    "The workforce access boundary resolves to an empty population.");
+            return Optional.empty();
         }
-        return new Decision(tenantWide, organizations, Set.copyOf(fields), action);
+        return Optional.of(new Decision(
+                tenantWide, organizations, Set.copyOf(fields), action));
     }
 
     private void validate(

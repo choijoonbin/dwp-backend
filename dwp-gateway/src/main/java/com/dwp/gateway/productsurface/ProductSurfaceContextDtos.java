@@ -71,10 +71,30 @@ public final class ProductSurfaceContextDtos {
             List<String> supportScopes,
             String correlationId,
             String traceParent,
-            String traceState) {
+            String traceState,
+            String personPublicId,
+            List<String> roles,
+            List<String> permissions) {
 
         public RequestContext {
             supportScopes = supportScopes == null ? List.of() : List.copyOf(supportScopes);
+            roles = roles == null ? List.of() : List.copyOf(roles);
+            permissions = permissions == null ? List.of() : List.copyOf(permissions);
+        }
+
+        RequestContext(
+                long tenantId,
+                long actorId,
+                AccessMode activeAccessMode,
+                String supportSessionRef,
+                String supportRevision,
+                List<String> supportScopes,
+                String correlationId,
+                String traceParent,
+                String traceState) {
+            this(tenantId, actorId, activeAccessMode, supportSessionRef, supportRevision,
+                    supportScopes, correlationId, traceParent, traceState, null, List.of(),
+                    List.of());
         }
     }
 

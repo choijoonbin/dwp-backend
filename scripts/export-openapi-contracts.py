@@ -43,6 +43,24 @@ SCOPE_SELECTION_PARAMETER = {
         "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
     },
 }
+EXPECTED_DECISION_REVISION_PARAMETER = {
+    "name": "X-DWP-Expected-Decision-Revision",
+    "in": "header",
+    "required": False,
+    "description": (
+        "Required and fail-closed for product-authorization rollout states 110/111; "
+        "optional for backward-compatible baseline/shadow states 000/100."
+    ),
+    "schema": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200,
+    },
+    "x-dwp-conditional-required": {
+        "enforcement": "FAIL_CLOSED",
+        "rolloutStates": ["110", "111"],
+    },
+}
 
 
 @dataclass(frozen=True)
@@ -231,11 +249,11 @@ def gateway_contract(
 
     if not gateway["paths"]:
         raise RuntimeError("Gateway public contract contains no routes")
-    add_product_scope_selection_contract(gateway)
+    add_product_governance_contract(gateway)
     return prune_unreachable_components(gateway)
 
 
-def product_governed_operations() -> set[tuple[str, str]]:
+def product_governed_operations() -> dict[tuple[str, str], bool]:
     try:
         registry = json.loads(PRODUCT_AUTHORIZATION_REGISTRY.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
@@ -250,11 +268,15 @@ def product_governed_operations() -> set[tuple[str, str]]:
         or not isinstance(registry.get("routes"), list)
     ):
         raise RuntimeError("Product authorization v3 registry is invalid")
-    operations: set[tuple[str, str]] = set()
+    operations: dict[tuple[str, str], bool] = {}
     for route in registry["routes"]:
         subject = route.get("subject", {})
         if route.get("lifecycleState") != "ACTIVE" or subject.get("type") != "PRODUCT":
             continue
+        state_changing = (
+            route.get("routeKind") == "ACTION"
+            and route.get("sideEffectFree") is not True
+        )
         bindings = route.get("gatewayApiBindings")
         if not isinstance(bindings, list) or not bindings:
             raise RuntimeError(
@@ -272,15 +294,17 @@ def product_governed_operations() -> set[tuple[str, str]]:
                     f"Active PRODUCT route has an invalid Gateway binding: "
                     f"{route.get('routeContractKey')}"
                 )
-            operations.add((path, method))
+            key = (path, method)
+            operations[key] = operations.get(key, False) or state_changing
     if not operations:
         raise RuntimeError("Product authorization v3 registry has no public operations")
     return operations
 
 
-def add_product_scope_selection_contract(document: dict[str, Any]) -> None:
+def add_product_governance_contract(document: dict[str, Any]) -> None:
     injected = 0
-    for path, method in sorted(product_governed_operations()):
+    revision_injected = 0
+    for (path, method), state_changing in sorted(product_governed_operations().items()):
         operation = document.get("paths", {}).get(path, {}).get(method)
         if not isinstance(operation, dict):
             # The DRAFT registry also contains fail-closed bindings for service
@@ -304,8 +328,32 @@ def add_product_scope_selection_contract(document: dict[str, Any]) -> None:
             )
         parameters.append(copy.deepcopy(SCOPE_SELECTION_PARAMETER))
         injected += 1
+        if state_changing:
+            revision_collisions = [
+                (index, parameter)
+                for index, parameter in enumerate(parameters)
+                if isinstance(parameter, dict)
+                and str(parameter.get("in", "")).lower() == "header"
+                and str(parameter.get("name", "")).lower()
+                == EXPECTED_DECISION_REVISION_PARAMETER["name"].lower()
+            ]
+            if len(revision_collisions) > 1:
+                raise RuntimeError(
+                    f"Gateway expected-decision revision parameter collision: "
+                    f"{method.upper()} {path}"
+                )
+            canonical_revision = copy.deepcopy(EXPECTED_DECISION_REVISION_PARAMETER)
+            if revision_collisions:
+                parameters[revision_collisions[0][0]] = canonical_revision
+            else:
+                parameters.append(canonical_revision)
+            revision_injected += 1
     if injected == 0:
         raise RuntimeError("Gateway public contract has no exported governed PRODUCT operation")
+    if revision_injected == 0:
+        raise RuntimeError(
+            "Gateway public contract has no exported state-changing PRODUCT operation"
+        )
 
 
 def prune_unreachable_components(document: dict[str, Any]) -> dict[str, Any]:

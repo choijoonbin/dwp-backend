@@ -5,6 +5,7 @@ import com.dwp.core.audit.AuditOutboxRecorder;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.people.security.PeopleRequestContext;
+import com.dwp.services.people.security.HcmPepContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,7 +39,8 @@ public class WorkforceReferenceService {
             WorkforceReferenceDtos.UpdateReferenceValueRequest request,
             String correlationId) {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
-        if (!actor.hasAnyRole("ADMIN", "HR_ADMIN")) {
+        if (HcmPepContext.current() == null
+                && !actor.hasAnyRole("ADMIN", "HR_ADMIN")) {
             throw new BaseException(ErrorCode.FORBIDDEN,
                     "HR administrator permission is required to change workforce reference data.");
         }

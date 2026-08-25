@@ -3,6 +3,8 @@ package com.dwp.services.people.organization;
 import com.dwp.core.audit.AuditOutboxRecorder;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.people.security.PeopleRequestContext;
+import com.dwp.services.people.security.HcmPepContext;
+import com.dwp.services.people.security.HcmV3PepRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -10,13 +12,17 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThat;
+import org.springframework.test.util.ReflectionTestUtils;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -42,7 +48,30 @@ class OrganizationScenarioServiceTest {
 
     @AfterEach
     void clearContext() {
+        ReflectionTestUtils.invokeMethod(HcmPepContext.class, "clear");
         PeopleRequestContext.clear();
+    }
+
+    @Test
+    void exactAppConfigAuthorityDoesNotRequireGlobalHrAdminRole() {
+        PeopleRequestContext.set(USER_ID, TENANT_ID, Set.of(),
+                Set.of("ACTION.WORKFORCE_ORG_DESIGN:VIEW"));
+        String route = "route.hcm.management.org-scenarios.page";
+        ReflectionTestUtils.invokeMethod(HcmPepContext.class, "set",
+                new HcmPepContext.Evidence(
+                        new HcmV3PepRegistry.RouteAuthority(
+                                route, "PAGE", "full-management", true,
+                                Set.of("predicate.hcm-configuration-scope.v1"),
+                                Set.of("RESOURCE_SET"), route + ".binding.01",
+                                "hcm.org-design.view", null, "GET",
+                                "/api/people/v1/workforce/organization/scenarios", null),
+                        "psr-" + "a".repeat(64),
+                        OffsetDateTime.parse("2099-01-01T00:00:00Z"),
+                        "hcm.management", "scope-config", "110"));
+        when(repository.scenarios(TENANT_ID)).thenReturn(List.of());
+
+        assertThat(service.scenarios()).isEmpty();
+        verify(repository).scenarios(TENANT_ID);
     }
 
     @Test
@@ -210,7 +239,7 @@ class OrganizationScenarioServiceTest {
                 effectiveDate,
                 fingerprintPlaceholder(),
                 "APPROVED",
-                USER_ID,
+                USER_ID + 1,
                 4L);
         when(repository.scenario(TENANT_ID, scenarioId)).thenReturn(Optional.of(scenario));
         OrganizationScenarioDtos.DecisionPack decision =
@@ -233,6 +262,34 @@ class OrganizationScenarioServiceTest {
                 "corr-drift"))
                 .isInstanceOf(BaseException.class)
                 .hasMessageContaining("Rebase");
+        verifyNoInteractions(audit);
+    }
+
+    @Test
+    void scenarioMakerCannotPublishTheirOwnApprovedScenario() {
+        UUID scenarioId = UUID.randomUUID();
+        OrganizationScenarioRepository.ScenarioRecord scenario =
+                new OrganizationScenarioRepository.ScenarioRecord(
+                        scenarioId, "maker-owned", "Maker owned",
+                        LocalDate.now(), LocalDate.now().plusDays(30),
+                        fingerprintPlaceholder(), "APPROVED", USER_ID, 6L);
+        when(repository.scenario(TENANT_ID, scenarioId)).thenReturn(Optional.of(scenario));
+
+        assertThatThrownBy(() -> service.publish(
+                scenarioId, new OrganizationScenarioDtos.PublishScenarioRequest(6L),
+                "corr-maker-publish"))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        org.assertj.core.api.Assertions.assertThat(exception.getErrorCode())
+                                .isEqualTo(com.dwp.core.common.ErrorCode.SOD_CONFLICT));
+
+        verify(decisionService, never()).validateForWorkflow(
+                scenarioId, "PUBLISH", "corr-maker-publish");
+        verify(repository, never()).publish(
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong());
         verifyNoInteractions(audit);
     }
 

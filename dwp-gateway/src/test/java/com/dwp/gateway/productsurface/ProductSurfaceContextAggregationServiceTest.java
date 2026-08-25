@@ -49,6 +49,7 @@ class ProductSurfaceContextAggregationServiceTest {
         when(catalog.activeCandidates()).thenReturn(List.of(
                 new ProductSurfaceContextDtos.ProductCandidate(
                         "approvals", "approvals.admin")));
+        when(catalog.rolloutProductKeys()).thenReturn(List.of("approvals"));
         when(rollout.evaluateProducts(anyLong(), any(), any()))
                 .thenReturn(Mono.just(List.of(new ProductSurfaceContextDtos.ProductRollout(
                         "approvals",
@@ -282,6 +283,94 @@ class ProductSurfaceContextAggregationServiceTest {
     }
 
     @Test
+    void defaultOffEnvelopeIncludesTheCompleteRolloutInventoryWithoutRouteAuthority() {
+        List<String> products = List.of(
+                "approvals", "calendar", "communications", "dwaion", "hcm", "mail",
+                "messaging", "notifications", "services", "spaces", "workplace");
+        when(catalog.rolloutProductKeys()).thenReturn(products);
+        when(rollout.evaluateProducts(anyLong(), any(), any()))
+                .thenReturn(Mono.just(products.stream()
+                        .map(product -> rollout(product, "000"))
+                        .toList()));
+
+        var result = service.listContexts(requestContext()).block();
+
+        assertThat(result).isNotNull();
+        assertThat(result.contexts()).isEmpty();
+        assertThat(result.rollouts())
+                .extracting(ProductSurfaceContextDtos.ProductRollout::productKey)
+                .containsExactlyElementsOf(products);
+        assertThat(result.rollouts())
+                .allMatch(value -> value.authorityStatus()
+                        == ProductSurfaceContextDtos.AuthorityStatus.NOT_EVALUATED);
+        verify(rollout).evaluateProducts(eq(1L), eq(products), any());
+        verify(authority, never()).evaluate(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void enforcedEnvelopeKeepsUiOffProductsWithoutActiveAuthorityNonParticipating() {
+        List<String> products = List.of(
+                "approvals", "calendar", "communications", "dwaion", "hcm", "mail",
+                "messaging", "notifications", "services", "spaces", "workplace");
+        List<ProductSurfaceContextDtos.ProductCandidate> active = List.of(
+                new ProductSurfaceContextDtos.ProductCandidate(
+                        "approvals", "approvals.admin"),
+                new ProductSurfaceContextDtos.ProductCandidate(
+                        "communications", "communications.admin"),
+                new ProductSurfaceContextDtos.ProductCandidate(
+                        "hcm", "hcm.management"),
+                new ProductSurfaceContextDtos.ProductCandidate(
+                        "services", "services.admin"));
+        when(catalog.activeCandidates()).thenReturn(active);
+        when(catalog.rolloutProductKeys()).thenReturn(products);
+        when(rollout.evaluateProducts(anyLong(), any(), any()))
+                .thenReturn(Mono.just(products.stream()
+                        .map(product -> rollout(product, "110"))
+                        .toList()));
+        when(authority.evaluate(any(), any(), any(), isNull(), isNull(), isNull()))
+                .thenAnswer(invocation -> Mono.just(allowed(
+                        invocation.getArgument(1), invocation.getArgument(2))));
+
+        var result = service.listContexts(requestContext()).block();
+
+        assertThat(result).isNotNull();
+        assertThat(result.contexts())
+                .extracting(ProductSurfaceContextDtos.EffectiveContext::productKey)
+                .containsExactly("approvals", "communications", "hcm", "services");
+        assertThat(result.rollouts())
+                .filteredOn(value -> active.stream().noneMatch(candidate ->
+                        candidate.productKey().equals(value.productKey())))
+                .hasSize(7)
+                .allMatch(value -> value.state().equals("110")
+                        && value.authorityStatus()
+                        == ProductSurfaceContextDtos.AuthorityStatus.NOT_EVALUATED);
+        assertThat(result.rollouts())
+                .filteredOn(value -> active.stream().anyMatch(candidate ->
+                        candidate.productKey().equals(value.productKey())))
+                .allMatch(value -> value.authorityStatus()
+                        == ProductSurfaceContextDtos.AuthorityStatus.AVAILABLE);
+    }
+
+    @Test
+    void uiEnabledProductWithoutActiveAuthorityFailsClosed() {
+        List<String> products = List.of(
+                "approvals", "calendar", "communications", "dwaion", "hcm", "mail",
+                "messaging", "notifications", "services", "spaces", "workplace");
+        when(catalog.rolloutProductKeys()).thenReturn(products);
+        when(rollout.evaluateProducts(anyLong(), any(), any()))
+                .thenReturn(Mono.just(products.stream()
+                        .map(product -> rollout(product,
+                                "calendar".equals(product) ? "111" : "110"))
+                        .toList()));
+
+        assertThatThrownBy(() -> service.listContexts(requestContext()).block())
+                .isInstanceOf(ProductSurfaceContextAggregationService
+                        .AuthorityUnavailableException.class);
+
+        verify(authority, never()).evaluate(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
     void noActiveAuthorityBundleFailsClosedWhenEnforcementWasApproved() {
         when(authority.evaluate(any(), any(), any(), isNull(), isNull(), isNull()))
                 .thenReturn(Mono.just(unavailable()));
@@ -316,6 +405,7 @@ class ProductSurfaceContextAggregationServiceTest {
                         "approvals", "approvals.admin"),
                 new ProductSurfaceContextDtos.ProductCandidate(
                         "hcm", "hcm.management")));
+        when(catalog.rolloutProductKeys()).thenReturn(List.of("approvals", "hcm"));
         when(rollout.evaluateProducts(anyLong(), any(), any()))
                 .thenReturn(Mono.just(List.of(
                         rollout("approvals", "100"),
@@ -354,6 +444,7 @@ class ProductSurfaceContextAggregationServiceTest {
                         "approvals", "approvals.admin"),
                 new ProductSurfaceContextDtos.ProductCandidate(
                         "hcm", "hcm.management")));
+        when(catalog.rolloutProductKeys()).thenReturn(List.of("approvals", "hcm"));
         when(rollout.evaluateProducts(anyLong(), any(), any()))
                 .thenReturn(Mono.just(List.of(
                         rollout("approvals", "100"),
@@ -619,6 +710,19 @@ class ProductSurfaceContextAggregationServiceTest {
                 null,
                 OffsetDateTime.parse("2026-08-24T01:10:00Z"),
                 "auth-evidence");
+    }
+
+    private ProductSurfaceContextDtos.AuthorityResult allowed(
+            String productKey,
+            String surfaceKey) {
+        ProductSurfaceContextDtos.AuthorityResult base = allowed(false);
+        return new ProductSurfaceContextDtos.AuthorityResult(
+                base.decision(), base.reasonCode(), base.authRevision(), base.policyRevision(),
+                base.contextKey(), productKey, surfaceKey, base.plane(), base.accessMode(),
+                base.accessSource(), base.appResourceKey(), base.effectiveGrants(), base.scopes(),
+                base.routeGrantRef(), base.effectiveReadOnly(), base.requiresProductEligibility(),
+                base.validUntil(), base.expiredAt(), base.requiredAssurance(),
+                base.requestPolicyRef(), base.revalidateAt(), base.evidenceRef());
     }
 
     private ProductSurfaceContextDtos.AuthorityResult challenged(boolean requiresEligibility) {

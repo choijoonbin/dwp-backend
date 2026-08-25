@@ -43,7 +43,7 @@ public class OrganizationScenarioRepository {
         return jdbc.query("""
                 SELECT organization_scenario_id, scenario_key, name, baseline_date, effective_date,
                        baseline_fingerprint, lifecycle_state, owner_user_id, version
-                  FROM ppl_organization_scenarios
+                 FROM ppl_organization_scenarios
                  WHERE tenant_id = ? AND organization_scenario_id = ?
                 """, (result, ignored) -> new ScenarioRecord(
                 result.getObject("organization_scenario_id", UUID.class),

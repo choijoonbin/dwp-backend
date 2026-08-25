@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -87,6 +88,27 @@ class WorkforceAccessPolicyServiceTest {
 
         assertThatThrownBy(service::list)
                 .isInstanceOf(BaseException.class);
+    }
+
+    @Test
+    void mutationResolutionFailsClosedWhenTheLockedOrganizationSetIsEmpty() {
+        PeopleRequestContext.set(41L, 7L, Set.of("HR_ADMIN"));
+        UUID organizationId = UUID.randomUUID();
+        WorkforceAccessPolicyRepository.PolicyRow policy = policy(
+                organizationId, List.of("DIRECTORY", "EMPLOYMENT"));
+        when(repository.resolveForShare(
+                eq(7L), eq(41L), eq(Set.of("HR_ADMIN")), any(Instant.class)))
+                .thenReturn(List.of(policy));
+        when(repository.expandOrganizationsForShare(7L, List.of(policy)))
+                .thenReturn(Set.of());
+
+        Optional<WorkforceAccessPolicyService.Decision> result =
+                service.findForMutation("READ");
+
+        assertThat(result).isEmpty();
+        verify(repository).resolveForShare(
+                eq(7L), eq(41L), eq(Set.of("HR_ADMIN")), any(Instant.class));
+        verify(repository).expandOrganizationsForShare(7L, List.of(policy));
     }
 
     private WorkforceAccessPolicyRepository.PolicyRow policy(

@@ -23,7 +23,8 @@ import java.util.stream.Collectors;
 public class ProductSurfaceStepUpRouteResolver {
 
     private static final String BUNDLE_KEY = "product-surfaces";
-    private static final long W1A_APPROVALS_BUNDLE_VERSION = 2L;
+    private static final java.util.Set<Long> STEP_UP_RUNTIME_BUNDLE_VERSIONS =
+            java.util.Set.of(2L, 3L);
     private static final String AUTHORITY_ENDPOINT_KEY =
             "product-surface-step-up-challenge.issue";
     private static final String AUTHORITY_PUBLIC_PATH =
@@ -36,7 +37,7 @@ public class ProductSurfaceStepUpRouteResolver {
             Pattern.compile("\\{([A-Za-z][A-Za-z0-9]*)}");
     private static final Pattern COMMAND_METHOD = Pattern.compile("POST|PUT|PATCH|DELETE");
     private static final Pattern TARGET_TYPE = Pattern.compile("[A-Z][A-Z0-9_]{0,79}");
-    private static final Pattern TARGET_ID = Pattern.compile("[A-Za-z0-9._~-]{1,200}");
+    private static final Pattern TARGET_ID = Pattern.compile("[A-Za-z0-9._~:@-]{1,200}");
 
     private final ProductAuthorizationContractRepository repository;
 
@@ -50,7 +51,7 @@ public class ProductSurfaceStepUpRouteResolver {
         ProductAuthorizationContractRepository.StoredBundle stored = repository
                 .findActive(BUNDLE_KEY)
                 .orElseThrow(this::unavailable);
-        if (stored.version() != W1A_APPROVALS_BUNDLE_VERSION) throw unavailable();
+        if (!STEP_UP_RUNTIME_BUNDLE_VERSIONS.contains(stored.version())) throw unavailable();
         ProductAuthorizationContractDtos.BundleContract contract = repository.loadContract(stored);
         validateAuthorityEndpoint(contract);
 
@@ -76,7 +77,7 @@ public class ProductSurfaceStepUpRouteResolver {
         ProductAuthorizationContractDtos.CapabilityContract capability = capabilities.get(
                 profile.requiredAccess().capabilityContractKey());
         if (capability == null || !"ACTIVE".equals(capability.lifecycleState())
-                || !"HIGH".equals(capability.riskTier())
+                || !java.util.Set.of("HIGH", "CRITICAL").contains(capability.riskTier())
                 || blank(capability.activationPolicy())
                 || blank(capability.scopeResolver())) {
             throw mismatch("The registered command is not an active high-risk capability.");
@@ -92,6 +93,7 @@ public class ProductSurfaceStepUpRouteResolver {
                 resolved.route().subject().surfaceKey(), capability.contractKey(),
                 capability.activationPolicy(), capability.scopeResolver(), stepUp.ownerServiceKey(),
                 stepUp.audience(), stepUp.targetType(), stepUp.targetIdPathParameter(),
+                safe(stepUp.targetIdBodyFields()),
                 stepUp.expectedObjectVersionSource(), stepUp.expectedObjectVersionName(),
                 stored.version(), stored.checksum(), pointerRevision);
     }
@@ -205,7 +207,7 @@ public class ProductSurfaceStepUpRouteResolver {
             ResolvedRoute route,
             ProductAuthorizationContractDtos.CapabilityContract capability) {
         ProductAuthorizationContractDtos.StepUpCommandBinding stepUp = route.stepUp();
-        String boundTarget = route.parameters().get(stepUp.targetIdPathParameter());
+        String boundTarget = boundTarget(route, request.payload());
         if (!stepUp.targetType().equals(request.targetType())
                 || boundTarget == null || !request.targetId().equals(boundTarget)) {
             throw mismatch("The target does not match the registered command binding.");
@@ -226,10 +228,40 @@ public class ProductSurfaceStepUpRouteResolver {
         }
         if (!safe(capability.routeContractKeys()).contains(route.route().routeContractKey())
                 || blank(stepUp.ownerServiceKey()) || blank(stepUp.audience())
-                || blank(stepUp.targetIdPathParameter())
+                || !hasExactlyOneTargetSource(stepUp)
                 || blank(stepUp.expectedObjectVersionName())) {
             throw unavailable();
         }
+    }
+
+    private String boundTarget(ResolvedRoute route, JsonNode payload) {
+        ProductAuthorizationContractDtos.StepUpCommandBinding stepUp = route.stepUp();
+        if (!blank(stepUp.targetIdPathParameter())) {
+            return route.parameters().get(stepUp.targetIdPathParameter());
+        }
+        List<String> fields = safe(stepUp.targetIdBodyFields());
+        if (fields.isEmpty() || fields.size() != new java.util.LinkedHashSet<>(fields).size()) {
+            return null;
+        }
+        List<String> values = new java.util.ArrayList<>();
+        for (String field : fields) {
+            JsonNode value = payload.get(field);
+            if (blank(field) || value == null || !value.isTextual()
+                    || blank(value.textValue()) || value.textValue().contains(":")
+                    || value.textValue().indexOf('\n') >= 0
+                    || value.textValue().indexOf('\r') >= 0) {
+                return null;
+            }
+            values.add(value.textValue());
+        }
+        return String.join(":", values);
+    }
+
+    private boolean hasExactlyOneTargetSource(
+            ProductAuthorizationContractDtos.StepUpCommandBinding stepUp) {
+        boolean path = !blank(stepUp.targetIdPathParameter());
+        boolean body = !safe(stepUp.targetIdBodyFields()).isEmpty();
+        return path != body;
     }
 
     private boolean blank(String value) {
@@ -263,11 +295,34 @@ public class ProductSurfaceStepUpRouteResolver {
             String audience,
             String targetType,
             String targetIdPathParameter,
+            List<String> targetIdBodyFields,
             String expectedObjectVersionSource,
             String expectedObjectVersionName,
             long bundleVersion,
             String bundleChecksum,
             long pointerRevision) {
+
+        public Resolution(
+                String routeContractKey,
+                String productKey,
+                String surfaceKey,
+                String capabilityContractKey,
+                String activationPolicy,
+                String scopeResolver,
+                String ownerServiceKey,
+                String audience,
+                String targetType,
+                String targetIdPathParameter,
+                String expectedObjectVersionSource,
+                String expectedObjectVersionName,
+                long bundleVersion,
+                String bundleChecksum,
+                long pointerRevision) {
+            this(routeContractKey, productKey, surfaceKey, capabilityContractKey,
+                    activationPolicy, scopeResolver, ownerServiceKey, audience, targetType,
+                    targetIdPathParameter, List.of(), expectedObjectVersionSource,
+                    expectedObjectVersionName, bundleVersion, bundleChecksum, pointerRevision);
+        }
     }
 
     private record ResolvedBinding(

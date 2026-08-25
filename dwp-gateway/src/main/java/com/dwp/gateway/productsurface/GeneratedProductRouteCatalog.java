@@ -157,7 +157,8 @@ public final class GeneratedProductRouteCatalog {
         for (JsonNode capability : bundle.path("capabilities")) {
             result.put(capability.path("contractKey").asText(),
                     "ACTIVE".equals(capability.path("lifecycleState").asText())
-                            && "HIGH".equals(capability.path("riskTier").asText())
+                            && Set.of("HIGH", "CRITICAL").contains(
+                                    capability.path("riskTier").asText())
                             && capability.path("activationPolicy").asText().startsWith("STEPUP-"));
         }
         return result;

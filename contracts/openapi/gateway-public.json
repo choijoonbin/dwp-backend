@@ -3477,6 +3477,25 @@
         },
         "type": "object"
       },
+      "auth_ActivateAppAdminPresetRequest": {
+        "properties": {
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason",
+          "version"
+        ],
+        "type": "object"
+      },
       "auth_ActivationRequest": {
         "properties": {
           "durationMinutes": {
@@ -3579,6 +3598,60 @@
           },
           "data": {
             "$ref": "#/components/schemas/auth_ActivationSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "auth_ApiResponseAppAdminPresetAssignment": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/auth_AppAdminPresetAssignment"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "auth_ApiResponseAppAdminPresetReview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/auth_AppAdminPresetReview"
           },
           "errorCode": {
             "type": "string"
@@ -4011,6 +4084,96 @@
           },
           "data": {
             "$ref": "#/components/schemas/auth_ItemSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "auth_ApiResponseListAppAdminPreset": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/auth_AppAdminPreset"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "auth_ApiResponseListAppAdminPresetAssignment": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/auth_AppAdminPresetAssignment"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "auth_ApiResponseListAppAdminPresetSelfServiceOption": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/auth_AppAdminPresetSelfServiceOption"
+            },
+            "type": "array"
           },
           "errorCode": {
             "type": "string"
@@ -4935,6 +5098,370 @@
         },
         "type": "object"
       },
+      "auth_AppAdminPreset": {
+        "properties": {
+          "appResourceKey": {
+            "type": "string"
+          },
+          "catalogVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "description": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "duties": {
+            "items": {
+              "$ref": "#/components/schemas/auth_AppAdminPresetDuty"
+            },
+            "type": "array"
+          },
+          "presetCode": {
+            "type": "string"
+          },
+          "productKey": {
+            "type": "string"
+          },
+          "requestable": {
+            "type": "boolean"
+          },
+          "responsibilityCode": {
+            "type": "string"
+          },
+          "riskTier": {
+            "type": "string"
+          },
+          "unavailableReason": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "auth_AppAdminPresetAssignment": {
+        "properties": {
+          "activatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "activatedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "activatedByName": {
+            "type": "string"
+          },
+          "activationReason": {
+            "type": "string"
+          },
+          "approvedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "approvedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "approvedByName": {
+            "type": "string"
+          },
+          "assignmentSource": {
+            "type": "string"
+          },
+          "catalogVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decisionReason": {
+            "type": "string"
+          },
+          "duties": {
+            "items": {
+              "$ref": "#/components/schemas/auth_AppAdminPresetDutyAssignment"
+            },
+            "type": "array"
+          },
+          "justification": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "presetAssignmentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "presetCode": {
+            "type": "string"
+          },
+          "presetName": {
+            "type": "string"
+          },
+          "principalName": {
+            "type": "string"
+          },
+          "principalRef": {
+            "type": "string"
+          },
+          "principalType": {
+            "type": "string"
+          },
+          "productKey": {
+            "type": "string"
+          },
+          "requestChannel": {
+            "type": "string"
+          },
+          "requestedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "requestedByName": {
+            "type": "string"
+          },
+          "resourceSetId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resourceSetKey": {
+            "type": "string"
+          },
+          "resourceSetName": {
+            "type": "string"
+          },
+          "responsibilityAssignmentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reviewDueAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "revocationReason": {
+            "type": "string"
+          },
+          "revokedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "revokedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "revokedByName": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validTo": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "auth_AppAdminPresetDecisionRequest": {
+        "properties": {
+          "decision": {
+            "minLength": 1,
+            "pattern": "APPROVED|DENIED",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "decision",
+          "reason",
+          "version"
+        ],
+        "type": "object"
+      },
+      "auth_AppAdminPresetDuty": {
+        "properties": {
+          "auditPolicyException": {
+            "type": "boolean"
+          },
+          "capabilityContractKeys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "dutyCode": {
+            "type": "string"
+          },
+          "legacyRoleCode": {
+            "type": "string"
+          },
+          "resourceKey": {
+            "type": "string"
+          },
+          "riskTier": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "auth_AppAdminPresetDutyAssignment": {
+        "properties": {
+          "assignmentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "dutyCode": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "auth_AppAdminPresetResourceSetOption": {
+        "properties": {
+          "resourceSetId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resourceSetKey": {
+            "type": "string"
+          },
+          "resourceSetName": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "auth_AppAdminPresetReview": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "dutyCode": {
+            "type": "string"
+          },
+          "evidence": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "reasonCode": {
+            "type": "string"
+          },
+          "resolutionReason": {
+            "type": "string"
+          },
+          "resolvedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "resolvedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "resourceSetId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resourceSetName": {
+            "type": "string"
+          },
+          "reviewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "sourceRoleCode": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "userId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "userName": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "auth_AppAdminPresetReviewDecisionRequest": {
+        "properties": {
+          "decision": {
+            "minLength": 1,
+            "pattern": "RESOLVED|DISMISSED",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "decision",
+          "reason",
+          "version"
+        ],
+        "type": "object"
+      },
+      "auth_AppAdminPresetSelfServiceOption": {
+        "properties": {
+          "preset": {
+            "$ref": "#/components/schemas/auth_AppAdminPreset"
+          },
+          "resourceSets": {
+            "items": {
+              "$ref": "#/components/schemas/auth_AppAdminPresetResourceSetOption"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "auth_ApplicationContext": {
         "properties": {
           "applicationName": {
@@ -5641,6 +6168,52 @@
         },
         "type": "object"
       },
+      "auth_CreateAppAdminPresetAssignmentRequest": {
+        "properties": {
+          "justification": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "type": "string"
+          },
+          "presetCode": {
+            "minLength": 1,
+            "pattern": "[A-Z][A-Z0-9_]{2,79}",
+            "type": "string"
+          },
+          "principalRef": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "principalType": {
+            "minLength": 1,
+            "pattern": "USER|GROUP",
+            "type": "string"
+          },
+          "resourceSetId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reviewDueAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validTo": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "justification",
+          "presetCode",
+          "principalRef",
+          "principalType",
+          "resourceSetId",
+          "reviewDueAt",
+          "validTo"
+        ],
+        "type": "object"
+      },
       "auth_CreateAssignmentRequest": {
         "properties": {
           "justification": {
@@ -6025,6 +6598,40 @@
         ],
         "type": "object"
       },
+      "auth_CreateSelfServicePresetRequest": {
+        "properties": {
+          "justification": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "type": "string"
+          },
+          "presetCode": {
+            "minLength": 1,
+            "pattern": "[A-Z][A-Z0-9_]{2,79}",
+            "type": "string"
+          },
+          "resourceSetId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reviewDueAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validTo": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "justification",
+          "presetCode",
+          "resourceSetId",
+          "reviewDueAt",
+          "validTo"
+        ],
+        "type": "object"
+      },
       "auth_CredentialIssued": {
         "properties": {
           "bearerToken": {
@@ -6071,6 +6678,24 @@
           },
           "metrics": {
             "$ref": "#/components/schemas/auth_Metrics"
+          },
+          "presetAssignments": {
+            "items": {
+              "$ref": "#/components/schemas/auth_AppAdminPresetAssignment"
+            },
+            "type": "array"
+          },
+          "presetCatalog": {
+            "items": {
+              "$ref": "#/components/schemas/auth_AppAdminPreset"
+            },
+            "type": "array"
+          },
+          "presetReviews": {
+            "items": {
+              "$ref": "#/components/schemas/auth_AppAdminPresetReview"
+            },
+            "type": "array"
           },
           "principals": {
             "items": {
@@ -8395,6 +9020,25 @@
             "type": "integer"
           }
         },
+        "type": "object"
+      },
+      "auth_RevokeAppAdminPresetRequest": {
+        "properties": {
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason",
+          "version"
+        ],
         "type": "object"
       },
       "auth_RevokeAssignmentRequest": {
@@ -13838,6 +14482,36 @@
         },
         "type": "object"
       },
+      "people_ApiResponseListOrganizationCandidate": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/people_OrganizationCandidate"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "people_ApiResponseListOrganizationOption": {
         "properties": {
           "correlationId": {
@@ -14435,6 +15109,87 @@
         },
         "type": "object"
       },
+      "people_ApiResponseTeamAbsenceWorkspace": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/people_TeamAbsenceWorkspace"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_ApiResponseTeamTimeWorkspace": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/people_TeamTimeWorkspace"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_ApiResponseTeamWorkspace": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/people_TeamWorkspace"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "people_ApiResponseTimeWorkspace": {
         "properties": {
           "correlationId": {
@@ -14468,6 +15223,33 @@
             "type": "string"
           },
           "data": {},
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_ApiResponseWorkforceOperationsOverview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/people_WorkforceOperationsOverview"
+          },
           "errorCode": {
             "type": "string"
           },
@@ -15681,6 +16463,12 @@
       "people_DomainOperations": {
         "properties": {
           "dataBoundary": {
+            "enum": [
+              "TEAM",
+              "ORGANIZATION_SET",
+              "TEAM_AND_ORGANIZATION_SET",
+              "TENANT"
+            ],
             "type": "string"
           },
           "domain": {
@@ -15701,6 +16489,24 @@
               "$ref": "#/components/schemas/people_ApprovalItem"
             },
             "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "people_DomainOperationsSummary": {
+        "properties": {
+          "domain": {
+            "type": "string"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/people_DomainMetric"
+            },
+            "type": "array"
+          },
+          "pendingCount": {
+            "format": "int32",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -16409,6 +17215,42 @@
             "type": "integer"
           }
         },
+        "type": "object"
+      },
+      "people_OrganizationCandidate": {
+        "properties": {
+          "displayName": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "eligibility": {
+            "enum": [
+              "ELIGIBLE",
+              "INELIGIBLE"
+            ],
+            "type": "string"
+          },
+          "organization": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "position": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "publicId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "displayName",
+          "eligibility",
+          "organization",
+          "publicId"
+        ],
         "type": "object"
       },
       "people_OrganizationChart": {
@@ -17561,6 +18403,10 @@
           "updatedCount": {
             "format": "int64",
             "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -17620,6 +18466,111 @@
           },
           "status": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_TeamAbsenceWorkspace": {
+        "properties": {
+          "dataBoundary": {
+            "enum": [
+              "TEAM",
+              "ORGANIZATION_SET",
+              "TEAM_AND_ORGANIZATION_SET",
+              "TENANT"
+            ],
+            "type": "string"
+          },
+          "manager": {
+            "$ref": "#/components/schemas/people_EmployeeContext"
+          },
+          "teamCalendar": {
+            "items": {
+              "$ref": "#/components/schemas/people_TeamAbsence"
+            },
+            "type": "array"
+          },
+          "teamQueue": {
+            "items": {
+              "$ref": "#/components/schemas/people_ApprovalItem"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "people_TeamMember": {
+        "properties": {
+          "businessTitle": {
+            "type": "string"
+          },
+          "directReportCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "personId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_TeamTimeWorkspace": {
+        "properties": {
+          "dataBoundary": {
+            "enum": [
+              "TEAM",
+              "ORGANIZATION_SET",
+              "TEAM_AND_ORGANIZATION_SET",
+              "TENANT"
+            ],
+            "type": "string"
+          },
+          "manager": {
+            "$ref": "#/components/schemas/people_EmployeeContext"
+          },
+          "teamQueue": {
+            "items": {
+              "$ref": "#/components/schemas/people_ApprovalItem"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "people_TeamWorkspace": {
+        "properties": {
+          "absencePendingCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "dataBoundary": {
+            "enum": [
+              "TEAM",
+              "ORGANIZATION_SET",
+              "TEAM_AND_ORGANIZATION_SET",
+              "TENANT"
+            ],
+            "type": "string"
+          },
+          "manager": {
+            "$ref": "#/components/schemas/people_EmployeeContext"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/people_TeamMember"
+            },
+            "type": "array"
+          },
+          "timePendingCount": {
+            "format": "int32",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -18077,6 +19028,36 @@
             "type": "string"
           },
           "workerType": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_WorkforceOperationsOverview": {
+        "properties": {
+          "dataBoundary": {
+            "enum": [
+              "TEAM",
+              "ORGANIZATION_SET",
+              "TEAM_AND_ORGANIZATION_SET",
+              "TENANT"
+            ],
+            "type": "string"
+          },
+          "domains": {
+            "items": {
+              "$ref": "#/components/schemas/people_DomainOperationsSummary"
+            },
+            "type": "array"
+          },
+          "fieldGroups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "generatedAt": {
+            "format": "date-time",
             "type": "string"
           }
         },
@@ -40103,6 +41084,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -40163,6 +41162,24 @@
               "minLength": 3,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -40254,6 +41271,24 @@
               "minLength": 3,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -40366,6 +41401,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -40446,6 +41499,8 @@
             "name": "X-DWP-Expected-Decision-Revision",
             "required": false,
             "schema": {
+              "maxLength": 200,
+              "minLength": 1,
               "type": "string"
             },
             "x-dwp-conditional-required": {
@@ -40656,6 +41711,8 @@
             "name": "X-DWP-Expected-Decision-Revision",
             "required": false,
             "schema": {
+              "maxLength": 200,
+              "minLength": 1,
               "type": "string"
             },
             "x-dwp-conditional-required": {
@@ -40858,6 +41915,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -40938,6 +42013,8 @@
             "name": "X-DWP-Expected-Decision-Revision",
             "required": false,
             "schema": {
+              "maxLength": 200,
+              "minLength": 1,
               "type": "string"
             },
             "x-dwp-conditional-required": {
@@ -41189,6 +42266,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -41300,6 +42395,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -41380,6 +42493,8 @@
             "name": "X-DWP-Expected-Decision-Revision",
             "required": false,
             "schema": {
+              "maxLength": 200,
+              "minLength": 1,
               "type": "string"
             },
             "x-dwp-conditional-required": {
@@ -41610,6 +42725,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -41723,6 +42856,24 @@
               "minLength": 3,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -41860,6 +43011,24 @@
               "minLength": 3,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -42008,6 +43177,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -42068,6 +43255,24 @@
               "minLength": 3,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -42130,6 +43335,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -42190,6 +43413,24 @@
               "minLength": 3,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -42353,6 +43594,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -42413,6 +43672,24 @@
               "minLength": 3,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -42608,6 +43885,7 @@
     },
     "/api/auth/admin/access/app-governance/assignments": {
       "post": {
+        "description": "Two-person, responsibility-only control-plane bootstrap exception. Only APP_OWNER, APP_ACCESS_APPROVER, APP_ACCESS_MANAGER, and APP_ACCESS_REVIEWER are accepted; APP_OWNER is Catalog-authority-only and this path cannot issue product capabilities, duties, or APP_CONFIG_ADMIN. All product specialist access must use the three-stage preset workflow.",
         "operationId": "auth_requestAssignment",
         "parameters": [
           {
@@ -42656,6 +43934,7 @@
     },
     "/api/auth/admin/access/app-governance/assignments/{assignmentId}/decision": {
       "post": {
+        "description": "Completes the two-person, responsibility-only bootstrap with an exact-scope APP_ACCESS_APPROVER, except APP_OWNER which requires independent APP_CATALOG_ADMIN authority. Product specialist rows, capabilities, and duties cannot be decided here.",
         "operationId": "auth_decideAssignment",
         "parameters": [
           {
@@ -42713,6 +43992,7 @@
     },
     "/api/auth/admin/access/app-governance/assignments/{assignmentId}/revoke": {
       "patch": {
+        "description": "Revokes a legacy control-plane responsibility with an exact-scope APP_ACCESS_MANAGER, except APP_OWNER which only APP_CATALOG_ADMIN can revoke. Broad tenant roles alone are forbidden.",
         "operationId": "auth_revokeAssignment",
         "parameters": [
           {
@@ -42757,6 +44037,477 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/auth_ApiResponseAssignment"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/admin/access/app-governance/presets/assignments": {
+      "get": {
+        "operationId": "auth_presetAssignments",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Tenant-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/auth_ApiResponseListAppAdminPresetAssignment"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      },
+      "post": {
+        "operationId": "auth_requestPresetAssignment",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Tenant-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/auth_CreateAppAdminPresetAssignmentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/auth_ApiResponseAppAdminPresetAssignment"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/admin/access/app-governance/presets/assignments/{assignmentId}": {
+      "get": {
+        "operationId": "auth_presetAssignment",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Tenant-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "assignmentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/auth_ApiResponseAppAdminPresetAssignment"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/admin/access/app-governance/presets/assignments/{assignmentId}/activate": {
+      "post": {
+        "description": "Activates an independently approved preset with an exact-scope APP_ACCESS_MANAGER. The requester, approver, activator, and target remain separated.",
+        "operationId": "auth_activatePresetAssignment",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Tenant-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "assignmentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/auth_ActivateAppAdminPresetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/auth_ApiResponseAppAdminPresetAssignment"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/admin/access/app-governance/presets/assignments/{assignmentId}/decision": {
+      "post": {
+        "operationId": "auth_decidePresetAssignment",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Tenant-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "assignmentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/auth_AppAdminPresetDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/auth_ApiResponseAppAdminPresetAssignment"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/admin/access/app-governance/presets/assignments/{assignmentId}/revoke": {
+      "patch": {
+        "operationId": "auth_revokePresetAssignment",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Tenant-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "assignmentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/auth_RevokeAppAdminPresetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/auth_ApiResponseAppAdminPresetAssignment"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/admin/access/app-governance/presets/catalog": {
+      "get": {
+        "operationId": "auth_presetCatalog",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Tenant-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/auth_ApiResponseListAppAdminPreset"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/admin/access/app-governance/presets/reviews/{reviewId}/decision": {
+      "post": {
+        "operationId": "auth_decidePresetReview",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Tenant-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "reviewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/auth_AppAdminPresetReviewDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/auth_ApiResponseAppAdminPresetReview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/admin/access/app-governance/presets/self-service-options": {
+      "get": {
+        "operationId": "auth_selfServiceOptions",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Tenant-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "appResourceKey",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/auth_ApiResponseListAppAdminPresetSelfServiceOption"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/admin/access/app-governance/presets/self-service-requests": {
+      "post": {
+        "operationId": "auth_selfServiceRequest",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Tenant-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 160,
+              "minLength": 8,
+              "pattern": "[A-Za-z0-9][A-Za-z0-9._:-]{7,159}",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/auth_CreateSelfServicePresetRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/auth_ApiResponseAppAdminPresetAssignment"
                 }
               }
             },
@@ -49204,6 +50955,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -49265,6 +51034,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -49325,6 +51112,24 @@
               "minLength": 3,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -49565,6 +51370,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -49583,6 +51406,266 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/people_ApiResponseTalentWorkspace"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "people"
+        ]
+      }
+    },
+    "/api/people/v1/hr/team": {
+      "get": {
+        "operationId": "people_team",
+        "parameters": [
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_ApiResponseTeamWorkspace"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "people"
+        ]
+      }
+    },
+    "/api/people/v1/hr/team/absence": {
+      "get": {
+        "operationId": "people_teamAbsence",
+        "parameters": [
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_ApiResponseTeamAbsenceWorkspace"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "people"
+        ]
+      }
+    },
+    "/api/people/v1/hr/team/absence/{requestId}/decision": {
+      "post": {
+        "operationId": "people_decideTeamLeaveRequest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/people_DecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_ApiResponseApprovalItem"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "people"
+        ]
+      }
+    },
+    "/api/people/v1/hr/team/time": {
+      "get": {
+        "operationId": "people_teamTime",
+        "parameters": [
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_ApiResponseTeamTimeWorkspace"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "people"
+        ]
+      }
+    },
+    "/api/people/v1/hr/team/time/{cardId}/decision": {
+      "post": {
+        "operationId": "people_decideTeamTimeCard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cardId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/people_DecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_ApiResponseApprovalItem"
                 }
               }
             },
@@ -49660,6 +51743,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -49729,6 +51830,24 @@
               "minLength": 3,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -49800,6 +51919,24 @@
               "minLength": 3,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -50066,6 +52203,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -50127,6 +52282,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -50178,6 +52351,49 @@
             }
           },
           {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
             "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
             "in": "query",
             "name": "contextScopeKey",
@@ -50226,6 +52442,49 @@
             "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
             }
           },
           {
@@ -50288,6 +52547,49 @@
             "schema": {
               "format": "uuid",
               "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
             }
           },
           {
@@ -50367,6 +52669,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -50419,6 +52739,24 @@
               "minLength": 3,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -50524,6 +52862,24 @@
               "minLength": 3,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -50736,6 +53092,49 @@
             }
           },
           {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
             "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
             "in": "query",
             "name": "contextScopeKey",
@@ -50807,6 +53206,49 @@
             "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
             }
           },
           {
@@ -51002,6 +53444,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -51053,6 +53513,49 @@
             }
           },
           {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
             "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
             "in": "query",
             "name": "contextScopeKey",
@@ -51081,6 +53584,74 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/people_ApiResponseRequestSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "people"
+        ]
+      }
+    },
+    "/api/people/v1/workforce/operations/overview": {
+      "get": {
+        "operationId": "people_overview",
+        "parameters": [
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_ApiResponseWorkforceOperationsOverview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "people"
+        ]
+      }
+    },
+    "/api/people/v1/workforce/organization/candidates": {
+      "get": {
+        "operationId": "people_listOrganizationCandidates",
+        "parameters": [
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_ApiResponseListOrganizationCandidate"
                 }
               }
             },
@@ -51298,6 +53869,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -51359,6 +53948,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -51419,6 +54026,24 @@
               "minLength": 3,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -51499,6 +54124,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "responses": {
@@ -51549,6 +54192,24 @@
               "minLength": 3,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -51697,6 +54358,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -51757,6 +54436,24 @@
               "minLength": 3,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -51819,6 +54516,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -51879,6 +54594,24 @@
               "minLength": 3,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -51950,6 +54683,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -51998,6 +54749,49 @@
             "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
             }
           },
           {
@@ -52071,6 +54865,24 @@
               "minLength": 3,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -52321,6 +55133,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -52405,6 +55235,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -52465,6 +55313,24 @@
               "minLength": 3,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -52527,6 +55393,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -52587,6 +55471,24 @@
               "minLength": 3,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -58242,6 +61144,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -58301,6 +61221,24 @@
               "minLength": 3,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -58457,6 +61395,24 @@
               "minLength": 3,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -61853,6 +64809,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "responses": {
@@ -61912,6 +64886,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "responses": {
@@ -61962,6 +64954,24 @@
               "minLength": 3,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -62023,6 +65033,24 @@
               "minLength": 3,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -62265,6 +65293,24 @@
               "minLength": 3,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -63855,6 +66901,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -63959,6 +67023,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -64020,6 +67102,24 @@
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -64080,6 +67180,24 @@
               "minLength": 3,
               "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],

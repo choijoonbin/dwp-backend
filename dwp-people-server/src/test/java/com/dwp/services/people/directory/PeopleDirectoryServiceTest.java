@@ -1,5 +1,8 @@
 package com.dwp.services.people.directory;
 
+import com.dwp.services.people.hr.HcmPopulationScopeService;
+import com.dwp.services.people.security.HcmPepContext;
+import com.dwp.services.people.security.HcmV3PepRegistry;
 import com.dwp.services.people.security.PeopleRequestContext;
 import com.dwp.services.people.workforce.WorkforceAccessPolicyService;
 import org.junit.jupiter.api.AfterEach;
@@ -11,6 +14,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.time.OffsetDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -18,6 +22,12 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import com.dwp.core.exception.BaseException;
+import com.dwp.core.common.ErrorCode;
+import org.springframework.test.util.ReflectionTestUtils;
 
 class PeopleDirectoryServiceTest {
 
@@ -28,8 +38,10 @@ class PeopleDirectoryServiceTest {
     private final PeopleCursorCodec cursorCodec = mock(PeopleCursorCodec.class);
     private final WorkforceAccessPolicyService accessPolicyService =
             mock(WorkforceAccessPolicyService.class);
+    private final HcmPopulationScopeService populationScopes =
+            mock(HcmPopulationScopeService.class);
     private final PeopleDirectoryService service = new PeopleDirectoryService(
-            repository, cursorCodec, accessPolicyService);
+            repository, cursorCodec, accessPolicyService, populationScopes);
 
     @BeforeEach
     void setContext() {
@@ -51,6 +63,7 @@ class PeopleDirectoryServiceTest {
 
     @AfterEach
     void clearContext() {
+        ReflectionTestUtils.invokeMethod(HcmPepContext.class, "clear");
         PeopleRequestContext.clear();
     }
 
@@ -127,6 +140,65 @@ class PeopleDirectoryServiceTest {
                         assertThat(assignment.assignmentId()).isEqualTo(assignmentId));
             });
         });
+    }
+
+    @Test
+    void personalMePredicateNeverReturnsAnotherTenantPersonRow() {
+        UUID self = UUID.randomUUID();
+        UUID other = UUID.randomUUID();
+        PeopleRequestContext.set(9L, TENANT_ID, self, Set.of("USER"), Set.of());
+        setPep("route.hcm.personal.me.page");
+
+        assertThatThrownBy(() -> service.get(other, AS_OF))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.NOT_FOUND));
+        verify(repository, never()).findByPublicId(TENANT_ID, other, AS_OF);
+    }
+
+    @Test
+    void explicitDirectoryViewCanResolveAnotherVisibleTenantPerson() {
+        UUID self = UUID.randomUUID();
+        UUID other = UUID.randomUUID();
+        PeopleRequestContext.set(9L, TENANT_ID, self, Set.of("USER"), Set.of());
+        setPep("route.hcm.personal.directory-person-detail.data");
+        when(repository.findByPublicId(TENANT_ID, other, AS_OF))
+                .thenReturn(Optional.of(directoryRow()));
+
+        assertThat(service.get(other, AS_OF)).isNotNull();
+        verify(repository).findByPublicId(TENANT_ID, other, AS_OF);
+    }
+
+    @Test
+    void workforceDetailNeverFallsBackToAnUnscopedTenantLookup() {
+        UUID requested = UUID.randomUUID();
+        UUID allowedOrganization = UUID.randomUUID();
+        WorkforceAccessPolicyService.Decision scoped =
+                new WorkforceAccessPolicyService.Decision(
+                        false, Set.of(allowedOrganization), Set.of("DIRECTORY"), "READ");
+        when(accessPolicyService.require("READ")).thenReturn(scoped);
+        when(repository.findByPublicId(
+                TENANT_ID, requested, AS_OF, false, Set.of(allowedOrganization)))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getWorkforce(requested, AS_OF))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.NOT_FOUND));
+
+        verify(repository).findByPublicId(
+                TENANT_ID, requested, AS_OF, false, Set.of(allowedOrganization));
+        verify(repository, never()).findByPublicId(TENANT_ID, requested, AS_OF);
+    }
+
+    private void setPep(String route) {
+        HcmV3PepRegistry.RouteAuthority authority = new HcmV3PepRegistry.RouteAuthority(
+                route, route.endsWith(".page") ? "PAGE" : "DATA", "self", true,
+                Set.of("predicate.self-person.v1"), Set.of("SELF"),
+                route + ".binding.01", null, null, "GET", "/api/people", null);
+        ReflectionTestUtils.invokeMethod(HcmPepContext.class, "set",
+                new HcmPepContext.Evidence(
+                        authority, "psr-" + "a".repeat(64),
+                        OffsetDateTime.parse("2099-01-01T00:00:00Z"),
+                        "hcm.personal", "scope-self", "110"));
     }
 
     private PeopleDirectoryRepository.DirectoryRow directoryRow() {

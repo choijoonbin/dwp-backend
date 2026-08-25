@@ -169,7 +169,11 @@ public class ProductSurfaceContextHandler {
                         SupportSessionContextFilter.SUPPORT_SCOPES_HEADER)),
                 request.headers().firstHeader(CORRELATION_HEADER),
                 request.headers().firstHeader(TRACE_PARENT_HEADER),
-                request.headers().firstHeader(TRACE_STATE_HEADER));
+                request.headers().firstHeader(TRACE_STATE_HEADER),
+                request.headers().firstHeader(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER),
+                commaSeparated(request.headers().firstHeader(VerifiedIdentityFilter.ROLES_HEADER)),
+                commaSeparated(request.headers().firstHeader(
+                        VerifiedIdentityFilter.PERMISSIONS_HEADER)));
     }
 
     private long positiveLong(String value) {

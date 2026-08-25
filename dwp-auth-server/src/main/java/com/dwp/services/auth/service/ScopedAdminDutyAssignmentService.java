@@ -50,13 +50,15 @@ public class ScopedAdminDutyAssignmentService {
                         scoped_duty_assignment_id, tenant_id,
                         principal_type, principal_ref, duty_code,
                         resource_set_id, responsibility_assignment_id,
+                        app_preset_assignment_id,
                         assignment_source, lifecycle_state, valid_from, valid_to,
                         review_due_at, justification, requested_by, created_by, updated_by)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING_APPROVAL', ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING_APPROVAL', ?, ?, ?, ?, ?, ?, ?)
                     """,
                     assignmentId, command.tenantId(), command.principalType(),
                     command.principalRef(), command.dutyCode(), command.resourceSetId(),
-                    command.responsibilityAssignmentId(), command.assignmentSource(),
+                    command.responsibilityAssignmentId(), command.appPresetAssignmentId(),
+                    command.assignmentSource(),
                     command.validFrom(), command.validTo(), command.reviewDueAt(),
                     command.justification().trim(), command.requestedBy(),
                     command.requestedBy(), command.requestedBy());
@@ -88,7 +90,9 @@ public class ScopedAdminDutyAssignmentService {
         try {
             int updated = jdbc.update("""
                     UPDATE com_admin_scoped_duty_assignments
-                       SET lifecycle_state = 'ACTIVE', approved_by = ?,
+                       SET lifecycle_state = 'ACTIVE',
+                           valid_from = COALESCE(valid_from, CURRENT_TIMESTAMP),
+                           approved_by = ?,
                            approved_at = CURRENT_TIMESTAMP, decision_reason = ?,
                            version = version + 1, updated_at = CURRENT_TIMESTAMP,
                            updated_by = ?
@@ -108,6 +112,109 @@ public class ScopedAdminDutyAssignmentService {
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
+    public Assignment approveForActivation(
+            Long tenantId,
+            UUID assignmentId,
+            Long approverId,
+            long expectedVersion,
+            String reason) {
+        requireDecision(tenantId, assignmentId, approverId, expectedVersion, reason);
+        lockTenant(tenantId);
+        Assignment current = findForUpdate(tenantId, assignmentId);
+        if (current.version() != expectedVersion) throw versionConflict();
+        if (!"PENDING_APPROVAL".equals(current.lifecycleState())) {
+            throw conflict("Only a pending scoped duty can be approved.");
+        }
+        if (Objects.equals(current.requestedBy(), approverId)) {
+            throw new BaseException(ErrorCode.SOD_CONFLICT,
+                    "Scoped duty requester and approver must be different users.");
+        }
+        try {
+            int updated = jdbc.update("""
+                    UPDATE com_admin_scoped_duty_assignments
+                       SET lifecycle_state = 'APPROVED', approved_by = ?,
+                           approved_at = CURRENT_TIMESTAMP, decision_reason = ?,
+                           version = version + 1, updated_at = CURRENT_TIMESTAMP,
+                           updated_by = ?
+                     WHERE tenant_id = ? AND scoped_duty_assignment_id = ?
+                       AND lifecycle_state = 'PENDING_APPROVAL' AND version = ?
+                    """, approverId, reason.trim(), approverId, tenantId,
+                    assignmentId, expectedVersion);
+            if (updated != 1) throw versionConflict();
+            return find(tenantId, assignmentId);
+        } catch (DataIntegrityViolationException exception) {
+            throw integrity(exception);
+        }
+    }
+
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public Assignment activate(
+            Long tenantId,
+            UUID assignmentId,
+            Long actorId,
+            long expectedVersion,
+            String reason) {
+        requireDecision(tenantId, assignmentId, actorId, expectedVersion, reason);
+        lockTenant(tenantId);
+        Assignment current = findForUpdate(tenantId, assignmentId);
+        if (current.version() != expectedVersion) throw versionConflict();
+        if (!"APPROVED".equals(current.lifecycleState())) {
+            throw conflict("Only an approved scoped duty can be activated.");
+        }
+        try {
+            int updated = jdbc.update("""
+                    UPDATE com_admin_scoped_duty_assignments
+                       SET lifecycle_state = 'ACTIVE',
+                           valid_from = COALESCE(valid_from, CURRENT_TIMESTAMP),
+                           version = version + 1, updated_at = CURRENT_TIMESTAMP,
+                           updated_by = ?
+                     WHERE tenant_id = ? AND scoped_duty_assignment_id = ?
+                       AND lifecycle_state = 'APPROVED' AND version = ?
+                    """, actorId, tenantId, assignmentId, expectedVersion);
+            if (updated != 1) throw versionConflict();
+            if (!effectiveOrAuditException(tenantId, assignmentId)) {
+                throw new BaseException(ErrorCode.SOD_CONFLICT,
+                        "Scoped duty lacks matching active responsibility evidence.");
+            }
+            return find(tenantId, assignmentId);
+        } catch (DataIntegrityViolationException exception) {
+            throw integrity(exception);
+        }
+    }
+
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public Assignment deny(
+            Long tenantId,
+            UUID assignmentId,
+            Long approverId,
+            long expectedVersion,
+            String reason) {
+        requireDecision(tenantId, assignmentId, approverId, expectedVersion, reason);
+        lockTenant(tenantId);
+        Assignment current = findForUpdate(tenantId, assignmentId);
+        if (current.version() != expectedVersion) throw versionConflict();
+        if (!"PENDING_APPROVAL".equals(current.lifecycleState())) {
+            throw conflict("Only a pending scoped duty can be denied.");
+        }
+        if (Objects.equals(current.requestedBy(), approverId)) {
+            throw new BaseException(ErrorCode.SOD_CONFLICT,
+                    "Scoped duty requester and approver must be different users.");
+        }
+        int updated = jdbc.update("""
+                UPDATE com_admin_scoped_duty_assignments
+                   SET lifecycle_state = 'DENIED', approved_by = ?,
+                       approved_at = CURRENT_TIMESTAMP, decision_reason = ?,
+                       version = version + 1, updated_at = CURRENT_TIMESTAMP,
+                       updated_by = ?
+                 WHERE tenant_id = ? AND scoped_duty_assignment_id = ?
+                   AND lifecycle_state = 'PENDING_APPROVAL' AND version = ?
+                """, approverId, reason.trim(), approverId, tenantId,
+                assignmentId, expectedVersion);
+        if (updated != 1) throw versionConflict();
+        return find(tenantId, assignmentId);
+    }
+
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public Assignment revoke(
             Long tenantId,
             UUID assignmentId,
@@ -123,7 +230,7 @@ public class ScopedAdminDutyAssignmentService {
                        version = version + 1, updated_at = CURRENT_TIMESTAMP,
                        updated_by = ?
                  WHERE tenant_id = ? AND scoped_duty_assignment_id = ?
-                   AND lifecycle_state = 'ACTIVE' AND version = ?
+                   AND lifecycle_state IN ('APPROVED', 'ACTIVE') AND version = ?
                 """, actorId, reason.trim(), actorId, tenantId,
                 assignmentId, expectedVersion);
         if (updated != 1) throw versionConflict();
@@ -144,7 +251,8 @@ public class ScopedAdminDutyAssignmentService {
         java.util.List<Assignment> values = jdbc.query("""
                 SELECT scoped_duty_assignment_id, tenant_id, principal_type,
                        principal_ref, duty_code, resource_set_id,
-                       responsibility_assignment_id, assignment_source,
+                       responsibility_assignment_id, app_preset_assignment_id,
+                       assignment_source,
                        lifecycle_state, valid_from, valid_to, review_due_at,
                        justification, requested_by, approved_by, approved_at,
                        decision_reason, revoked_by, revoked_at,
@@ -164,6 +272,7 @@ public class ScopedAdminDutyAssignmentService {
                 result.getString("principal_ref"), result.getString("duty_code"),
                 result.getObject("resource_set_id", UUID.class),
                 result.getObject("responsibility_assignment_id", UUID.class),
+                result.getObject("app_preset_assignment_id", UUID.class),
                 result.getString("assignment_source"), result.getString("lifecycle_state"),
                 result.getObject("valid_from", OffsetDateTime.class),
                 result.getObject("valid_to", OffsetDateTime.class),
@@ -259,13 +368,25 @@ public class ScopedAdminDutyAssignmentService {
     public record Request(
             Long tenantId, String principalType, String principalRef,
             String dutyCode, UUID resourceSetId, UUID responsibilityAssignmentId,
+            UUID appPresetAssignmentId,
             String assignmentSource, OffsetDateTime validFrom, OffsetDateTime validTo,
             OffsetDateTime reviewDueAt, String justification, Long requestedBy) {
+
+        public Request(
+                Long tenantId, String principalType, String principalRef,
+                String dutyCode, UUID resourceSetId, UUID responsibilityAssignmentId,
+                String assignmentSource, OffsetDateTime validFrom, OffsetDateTime validTo,
+                OffsetDateTime reviewDueAt, String justification, Long requestedBy) {
+            this(tenantId, principalType, principalRef, dutyCode, resourceSetId,
+                    responsibilityAssignmentId, null, assignmentSource, validFrom,
+                    validTo, reviewDueAt, justification, requestedBy);
+        }
     }
 
     public record Assignment(
             UUID assignmentId, Long tenantId, String principalType, String principalRef,
             String dutyCode, UUID resourceSetId, UUID responsibilityAssignmentId,
+            UUID appPresetAssignmentId,
             String assignmentSource, String lifecycleState,
             OffsetDateTime validFrom, OffsetDateTime validTo,
             OffsetDateTime reviewDueAt, String justification,

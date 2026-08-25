@@ -8,9 +8,11 @@ import java.lang.reflect.RecordComponent;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -113,6 +115,84 @@ class GatewayProductSurfaceOpenApiContractTest {
                 .path("post").path("parameters"))
                 .noneMatch(parameter ->
                         "contextScopeKey".equals(parameter.path("name").asText()));
+    }
+
+    @Test
+    void everyActiveStateChangingProductBindingExposesTheConditionalRevisionHeader()
+            throws Exception {
+        Path root = repositoryRoot();
+        JsonNode registry = read(root,
+                "contracts/product-authorization/product-surfaces-v1.bundle-v3.json");
+        JsonNode gateway = read(root, "contracts/openapi/gateway-public.json");
+        Set<GatewayOperation> expected = new HashSet<>();
+
+        for (JsonNode route : registry.path("routes")) {
+            if (!"ACTIVE".equals(route.path("lifecycleState").asText())
+                    || !"PRODUCT".equals(route.path("subject").path("type").asText())
+                    || !"ACTION".equals(route.path("routeKind").asText())
+                    || route.path("sideEffectFree").asBoolean(false)) {
+                continue;
+            }
+            for (JsonNode binding : route.path("gatewayApiBindings")) {
+                expected.add(new GatewayOperation(
+                        binding.path("path").asText(),
+                        binding.path("method").asText().toLowerCase()));
+            }
+        }
+        assertThat(expected).isNotEmpty();
+
+        expected.forEach(binding -> {
+            JsonNode operation = gateway.path("paths").path(binding.path())
+                    .path(binding.method());
+            assertThat(operation.isObject())
+                    .as("exported governed mutation %s %s", binding.method(), binding.path())
+                    .isTrue();
+            assertThat(StreamSupport.stream(
+                            operation.path("parameters").spliterator(), false)
+                    .filter(parameter -> "header".equalsIgnoreCase(
+                            parameter.path("in").asText()))
+                    .filter(parameter -> "X-DWP-Expected-Decision-Revision".equalsIgnoreCase(
+                            parameter.path("name").asText()))
+                    .toList())
+                    .as("revision header for %s %s", binding.method(), binding.path())
+                    .singleElement()
+                    .satisfies(parameter -> {
+                        assertThat(parameter.path("required").asBoolean(true)).isFalse();
+                        assertThat(parameter.path("description").asText())
+                                .contains("110/111", "000/100", "fail-closed");
+                        assertThat(parameter.path("schema").path("type").asText())
+                                .isEqualTo("string");
+                        assertThat(parameter.path("schema").path("minLength").asInt())
+                                .isEqualTo(1);
+                        assertThat(parameter.path("schema").path("maxLength").asInt())
+                                .isEqualTo(200);
+                        assertThat(parameter.path("x-dwp-conditional-required")
+                                .path("enforcement").asText()).isEqualTo("FAIL_CLOSED");
+                        assertThat(parameter.path("x-dwp-conditional-required")
+                                .path("rolloutStates"))
+                                .extracting(JsonNode::asText)
+                                .containsExactly("110", "111");
+                    });
+        });
+
+        Set<GatewayOperation> actualConditional = new HashSet<>();
+        gateway.path("paths").properties().forEach(path ->
+                path.getValue().properties().forEach(method -> {
+                    boolean conditionalRevision = StreamSupport.stream(
+                                    method.getValue().path("parameters").spliterator(), false)
+                            .anyMatch(parameter -> "header".equalsIgnoreCase(
+                                            parameter.path("in").asText())
+                                    && "X-DWP-Expected-Decision-Revision".equalsIgnoreCase(
+                                            parameter.path("name").asText())
+                                    && "FAIL_CLOSED".equals(parameter
+                                            .path("x-dwp-conditional-required")
+                                            .path("enforcement").asText()));
+                    if (conditionalRevision) {
+                        actualConditional.add(new GatewayOperation(
+                                path.getKey(), method.getKey()));
+                    }
+                }));
+        assertThat(actualConditional).containsExactlyInAnyOrderElementsOf(expected);
     }
 
     @Test
@@ -234,5 +314,8 @@ class GatewayProductSurfaceOpenApiContractTest {
             candidate = candidate.getParent();
         }
         throw new IllegalStateException("Backend repository root could not be located.");
+    }
+
+    private record GatewayOperation(String path, String method) {
     }
 }

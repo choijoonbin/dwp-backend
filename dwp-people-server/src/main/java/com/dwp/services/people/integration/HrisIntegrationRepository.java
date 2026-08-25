@@ -17,16 +17,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-
 @Repository
 public class HrisIntegrationRepository {
-
     private final NamedParameterJdbcTemplate jdbc;
-
     public HrisIntegrationRepository(NamedParameterJdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
-
     public long upsertSource(
             Long tenantId,
             Long actorId,
@@ -157,6 +153,7 @@ public class HrisIntegrationRepository {
                 UPDATE int_connector_instances
                    SET health_state = :healthState,
                        last_health_checked_at = CURRENT_TIMESTAMP,
+                       version = version + 1,
                        updated_at = CURRENT_TIMESTAMP,
                        updated_by = :actorId
                  WHERE tenant_id = :tenantId
@@ -925,6 +922,7 @@ public class HrisIntegrationRepository {
                        created_count = :created,
                        updated_count = :updated,
                        rejected_count = :rejected,
+                       version = version + 1,
                        completed_at = CURRENT_TIMESTAMP,
                        updated_at = CURRENT_TIMESTAMP
                  WHERE tenant_id = :tenantId AND sync_run_id = :syncRunId
@@ -954,6 +952,7 @@ public class HrisIntegrationRepository {
                        health_state = 'HEALTHY',
                        last_error_code = NULL,
                        consecutive_failure_count = 0,
+                       version = version + 1,
                        updated_at = CURRENT_TIMESTAMP
                  WHERE tenant_id = :tenantId
                    AND %s
@@ -1131,6 +1130,7 @@ public class HrisIntegrationRepository {
         jdbc.update("""
                 UPDATE int_connector_instances
                    SET last_attempted_sync_at = CURRENT_TIMESTAMP,
+                       version = version + 1,
                        updated_at = CURRENT_TIMESTAMP, updated_by = :actorId
                  WHERE tenant_id = :tenantId AND connector_instance_id = :connectorId
                 """, params(tenantId, actorId).addValue("connectorId", connectorId));
@@ -1188,6 +1188,7 @@ public class HrisIntegrationRepository {
                                            THEN 'DEGRADED' ELSE 'FAILED' END,
                        last_error_code = :failureCode,
                        consecutive_failure_count = consecutive_failure_count + 1,
+                       version = version + 1,
                        updated_at = CURRENT_TIMESTAMP, updated_by = :actorId
                  WHERE tenant_id = :tenantId AND connector_instance_id = :connectorId
                 """, params(tenantId, actorId)
@@ -1469,7 +1470,7 @@ public class HrisIntegrationRepository {
                        run.read_count, run.created_count, run.updated_count, run.rejected_count,
                        run.connector_instance_id, run.mapping_profile_id, run.retry_of_sync_run_id,
                        run.page_count, run.unchanged_count, run.failure_code,
-                       run.redacted_failure_message,
+                       run.redacted_failure_message, run.version,
                        run.started_at, run.completed_at
                   FROM int_sync_runs run
                   JOIN int_source_systems source
@@ -1490,6 +1491,7 @@ public class HrisIntegrationRepository {
                 rs.getObject("retry_of_sync_run_id", UUID.class),
                 rs.getInt("page_count"), rs.getLong("unchanged_count"),
                 rs.getString("failure_code"), rs.getString("redacted_failure_message"),
+                rs.getLong("version"),
                 instant(rs.getTimestamp("started_at")), instant(rs.getTimestamp("completed_at")));
     }
 
@@ -1548,10 +1550,8 @@ public class HrisIntegrationRepository {
             String payloadSha256,
             boolean acquired) {
     }
-
     public record PersonUpsert(long personId, UUID publicId, boolean inserted) {
     }
-
     public record MappingRuntime(
             UUID mappingProfileId,
             long sourceSystemId,

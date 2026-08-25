@@ -2,6 +2,9 @@ package com.dwp.services.people.integration;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.people.security.HcmHighRiskCommandGuard;
+import com.dwp.services.people.security.HcmPepContext;
+import com.dwp.services.people.security.HcmStepUpHeaders;
 import com.dwp.services.people.security.PeopleRequestContext;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -19,23 +22,57 @@ public class HrisConnectorExecutionService {
     private final HrisIntegrationRepository repository;
     private final HrisImportService importer;
     private final WorkdayRestAdapter workday;
+    private final HcmHighRiskCommandGuard highRisk;
+    private final HrisHighRiskTargetRepository highRiskTargets;
 
     public HrisConnectorExecutionService(
             HrisIntegrationRepository repository,
             HrisImportService importer,
-            WorkdayRestAdapter workday) {
+            WorkdayRestAdapter workday,
+            HcmHighRiskCommandGuard highRisk,
+            HrisHighRiskTargetRepository highRiskTargets) {
         this.repository = repository;
         this.importer = importer;
         this.workday = workday;
+        this.highRisk = highRisk;
+        this.highRiskTargets = highRiskTargets;
     }
 
+    @Transactional
     public HrisDtos.ImportResult execute(
             UUID connectorId,
             String syncMode,
             UUID retryOfSyncRunId,
             String requestedCorrelationId) {
+        return execute(connectorId, syncMode, retryOfSyncRunId,
+                requestedCorrelationId, null);
+    }
+
+    @Transactional
+    public HrisDtos.ImportResult execute(
+            UUID connectorId,
+            String syncMode,
+            UUID retryOfSyncRunId,
+            String requestedCorrelationId,
+            HcmStepUpHeaders headers) {
         PeopleRequestContext.Actor actor = administrator();
-        HrisDtos.ConnectorInstance connector = connector(actor.tenantId(), connectorId);
+        HrisDtos.ConnectorInstance connector = lockedConnector(actor.tenantId(), connectorId);
+        highRisk.require(
+                "hcm.integration.execute", "HCM_CONNECTOR", connectorId.toString(),
+                connector.version(),
+                "/api/people/v1/workforce/data-operations/hris/connectors/"
+                        + connectorId + "/executions",
+                Map.of("syncMode", syncMode), headers);
+        return performExecute(actor, connector, syncMode, retryOfSyncRunId,
+                requestedCorrelationId);
+    }
+
+    private HrisDtos.ImportResult performExecute(
+            PeopleRequestContext.Actor actor,
+            HrisDtos.ConnectorInstance connector,
+            String syncMode,
+            UUID retryOfSyncRunId,
+            String requestedCorrelationId) {
         if (!"ACTIVE".equals(connector.lifecycleState())) {
             throw new BaseException(
                     ErrorCode.INVALID_STATE,
@@ -54,8 +91,9 @@ public class HrisConnectorExecutionService {
         String correlationId = correlationId(requestedCorrelationId);
         String cursor = "FULL".equals(syncMode)
                 ? null
-                : repository.currentCursor(actor.tenantId(), connectorId);
-        repository.markConnectorAttempt(actor.tenantId(), actor.userId(), connectorId);
+                : repository.currentCursor(actor.tenantId(), connector.connectorInstanceId());
+        repository.markConnectorAttempt(
+                actor.tenantId(), actor.userId(), connector.connectorInstanceId());
         try {
             WorkdayRestAdapter.FetchResult fetched = workday.fetch(
                     connector, mapping, cursor, syncMode);
@@ -74,22 +112,67 @@ public class HrisConnectorExecutionService {
         }
     }
 
+    @Transactional
     public HrisDtos.ImportResult retry(UUID syncRunId, String correlationId) {
+        return retry(syncRunId, correlationId, null);
+    }
+
+    @Transactional
+    public HrisDtos.ImportResult retry(
+            UUID syncRunId, String correlationId, HcmStepUpHeaders headers) {
         PeopleRequestContext.Actor actor = administrator();
-        HrisDtos.SyncRun previous = repository.findRun(actor.tenantId(), syncRunId)
+        HrisHighRiskTargetRepository.SyncRunTarget previous = highRiskTargets
+                .lockRun(actor.tenantId(), syncRunId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        if (!"FAILED".equals(previous.lifecycleState()) || previous.connectorInstanceId() == null) {
+        if (!"FAILED".equals(previous.lifecycleState()) || previous.connectorId() == null) {
             throw new BaseException(
                     ErrorCode.INVALID_STATE,
                     "Only a failed connector synchronization can be retried.");
         }
+        highRisk.require(
+                "hcm.integration.execute", "HCM_SYNC_RUN", syncRunId.toString(),
+                previous.version(),
+                "/api/people/v1/workforce/data-operations/hris/sync-runs/"
+                        + syncRunId + "/retry",
+                Map.of(), headers);
+        if (!highRiskTargets.claimRunRetry(
+                actor.tenantId(), syncRunId, previous.version())) {
+            throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
+                    "The synchronization run changed before retry.");
+        }
         String replayMode = "FULL".equals(previous.syncMode()) ? "FULL" : "DELTA";
-        return execute(previous.connectorInstanceId(), replayMode, syncRunId, correlationId);
+        HrisDtos.ConnectorInstance connector = lockedConnector(
+                actor.tenantId(), previous.connectorId());
+        return performExecute(actor, connector, replayMode, syncRunId, correlationId);
     }
 
     public HrisDtos.ConfigurationCheck probe(UUID connectorId, String correlationId) {
         PeopleRequestContext.Actor actor = administrator();
         HrisDtos.ConnectorInstance connector = connector(actor.tenantId(), connectorId);
+        return probe(actor, connector, correlationId);
+    }
+
+    @Transactional
+    public HrisDtos.ConfigurationCheck checkConnector(
+            UUID connectorId, String correlationId, HcmStepUpHeaders headers) {
+        PeopleRequestContext.Actor actor = administrator();
+        HrisDtos.ConnectorInstance connector = lockedConnector(actor.tenantId(), connectorId);
+        highRisk.require(
+                "hcm.integration.execute", "HCM_CONNECTOR", connectorId.toString(),
+                connector.version(),
+                "/api/people/v1/workforce/data-operations/hris/connectors/"
+                        + connectorId + "/configuration-check",
+                Map.of(), headers);
+        HrisDtos.ConfigurationCheck local = importer.checkConnectorConfiguration(
+                connectorId, correlationId);
+        return local.valid() ? probe(actor, connector, correlationId) : local;
+    }
+
+    private HrisDtos.ConfigurationCheck probe(
+            PeopleRequestContext.Actor actor,
+            HrisDtos.ConnectorInstance connector,
+            String correlationId) {
+        UUID connectorId = connector.connectorInstanceId();
         try {
             WorkdayRestAdapter.ProbeResult probe = workday.probe(connector);
             repository.recordConfigurationCheck(
@@ -143,7 +226,20 @@ public class HrisConnectorExecutionService {
 
     @Transactional
     public HrisDtos.ReconciliationRun reconcile(UUID connectorId, UUID syncRunId) {
+        return reconcile(connectorId, syncRunId, null);
+    }
+
+    @Transactional
+    public HrisDtos.ReconciliationRun reconcile(
+            UUID connectorId, UUID syncRunId, HcmStepUpHeaders headers) {
         PeopleRequestContext.Actor actor = administrator();
+        HrisDtos.ConnectorInstance connector = lockedConnector(actor.tenantId(), connectorId);
+        highRisk.require(
+                "hcm.integration.execute", "HCM_CONNECTOR", connectorId.toString(),
+                connector.version(),
+                "/api/people/v1/workforce/data-operations/hris/connectors/"
+                        + connectorId + "/reconciliations",
+                Map.of("syncRunId", syncRunId.toString()), headers);
         HrisDtos.SyncRun run = repository.findRun(actor.tenantId(), syncRunId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         if (!connectorId.equals(run.connectorInstanceId())
@@ -185,9 +281,21 @@ public class HrisConnectorExecutionService {
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
     }
 
+    private HrisDtos.ConnectorInstance lockedConnector(Long tenantId, UUID connectorId) {
+        long version = highRiskTargets.lockConnector(tenantId, connectorId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        HrisDtos.ConnectorInstance connector = connector(tenantId, connectorId);
+        if (connector.version() != version) {
+            throw new BaseException(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "The locked HRIS connector revision could not be resolved.");
+        }
+        return connector;
+    }
+
     private PeopleRequestContext.Actor administrator() {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
-        if (!actor.hasAnyRole("ADMIN", "HR_ADMIN")) {
+        if (HcmPepContext.current() == null
+                && !actor.hasAnyRole("ADMIN", "HR_ADMIN")) {
             throw new BaseException(
                     ErrorCode.FORBIDDEN,
                     "HR administrator permission is required to operate HRIS integrations.");

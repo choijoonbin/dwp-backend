@@ -29,6 +29,14 @@ LATEST_CONTRACT_OUTPUT = CONTRACT_DIRECTORY / "product-surfaces-v1.json"
 LATEST_AUTH_SEED_OUTPUT = AUTH_SEED_DIRECTORY / "product-surfaces-v1.generated.json"
 CONTRACT_INDEX_OUTPUT = CONTRACT_DIRECTORY / "product-surfaces-v1.index.json"
 AUTH_SEED_INDEX_OUTPUT = AUTH_SEED_DIRECTORY / "product-surfaces-v1.index.generated.json"
+ROLLOUT_INVENTORY_OUTPUT = (
+    CONTRACT_DIRECTORY / "product-surface-rollout-inventory.v1.generated.json"
+)
+GATEWAY_ROLLOUT_INVENTORY_OUTPUT = (
+    ROOT
+    / "dwp-gateway/src/main/resources/product-authorization/"
+    / "product-surface-rollout-inventory.v1.generated.json"
+)
 PLATFORM_CANARY_PEP_OUTPUT = (
     ROOT
     / "dwp-platform-server/src/main/resources/product-authorization/"
@@ -43,6 +51,11 @@ PLATFORM_APPROVALS_PEP_OUTPUT = (
     ROOT
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-approvals-pep-v2.generated.json"
+)
+HCM_PEOPLE_PEP_OUTPUT = (
+    ROOT
+    / "dwp-people-server/src/main/resources/product-authorization/"
+    / "hcm-people-pep-v3.generated.json"
 )
 PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     ROOT
@@ -90,6 +103,19 @@ EXPECTED_RELEASE_COUNTS = {
         "predicatePolicies": 25, "routes": 129, "PAGE": 58, "DATA": 12, "ACTION": 59},
 }
 PLATFORM_CANARY_PRODUCTS = {"communications", "services"}
+PRODUCT_SURFACE_ROLLOUT_PRODUCTS = {
+    "approvals",
+    "calendar",
+    "communications",
+    "dwaion",
+    "hcm",
+    "mail",
+    "messaging",
+    "notifications",
+    "services",
+    "spaces",
+    "workplace",
+}
 
 ROUTE_KINDS = {"PAGE", "DATA", "ACTION"}
 ACCESS_MODES = {"NORMAL", "ELEVATED", "PROVIDER_SUPPORT"}
@@ -152,10 +178,21 @@ def normalize_source(source: dict[str, Any]) -> dict[str, Any]:
     require(source.get("bundleKey") == "product-surfaces", "bundleKey must be product-surfaces")
     require(source.get("version") in {1, 2, 3}, "bundle version must be 1, 2, or 3")
     require(source.get("bundleStatus") in BUNDLE_STATES, "invalid bundleStatus")
+    rollout_products = source.get("rolloutProducts")
+    require(
+        isinstance(rollout_products, list)
+        and len(rollout_products) == len(set(rollout_products))
+        and set(rollout_products) == PRODUCT_SURFACE_ROLLOUT_PRODUCTS,
+        "rolloutProducts must contain the exact eleven product rollout keys",
+    )
     for section in required_sections:
         require(isinstance(source.get(section), list), f"{section} must be an array")
 
     generated = copy.deepcopy(source)
+    # Rollout participation is an operational inventory, not an authorization-bundle
+    # field. Keeping it out of snapshots preserves the immutable v1-v3 bytes and the
+    # Flyway manifests that already bind those checksums.
+    generated.pop("rolloutProducts", None)
     generated["checksumAlgorithm"] = "SHA-256"
 
     capabilities = unique(generated["capabilities"], "contractKey", "capabilities")
@@ -1089,6 +1126,24 @@ def render(value: dict[str, Any]) -> str:
     return json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
 
 
+def build_rollout_inventory(source: dict[str, Any]) -> dict[str, Any]:
+    products = source.get("rolloutProducts")
+    require(
+        isinstance(products, list)
+        and len(products) == len(set(products))
+        and set(products) == PRODUCT_SURFACE_ROLLOUT_PRODUCTS,
+        "rolloutProducts must contain the exact eleven product rollout keys",
+    )
+    inventory = {
+        "schemaVersion": 1,
+        "inventoryKey": "product-surface-rollout-products.v1",
+        "products": sorted(products),
+        "checksumAlgorithm": "SHA-256",
+    }
+    inventory["checksum"] = checksum(inventory)
+    return inventory
+
+
 def build_index(snapshots: list[dict[str, Any]]) -> dict[str, Any]:
     versions = []
     for snapshot in snapshots:
@@ -1272,12 +1327,16 @@ def build_approvals_pep(
     service_key: str,
     projection_key: str,
     expected: dict[str, Any],
+    *,
+    version: int = 2,
+    product_key: str = "approvals",
 ) -> dict[str, Any]:
-    """Project one service-owned W1a Approvals PEP from registry v2."""
-    require(snapshot["version"] == 2, "Approvals PEP must project registry v2")
+    """Project one closed product/service PEP from an immutable registry snapshot."""
+    require(snapshot["version"] == version,
+            f"{projection_key} must project registry v{version}")
     routes: list[dict[str, Any]] = []
     for source_route in snapshot["routes"]:
-        if source_route["subject"].get("productKey") != "approvals":
+        if source_route["subject"].get("productKey") != product_key:
             continue
         bindings = [
             copy.deepcopy(binding)
@@ -1548,6 +1607,7 @@ def verify_no_out_of_lineage_artifacts() -> None:
         APPROVAL_PILOT_PEP_OUTPUT,
         PLATFORM_APPROVALS_PEP_OUTPUT,
         PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT,
+        HCM_PEOPLE_PEP_OUTPUT,
     }
     candidates = {
         *CONTRACT_DIRECTORY.glob("product-surfaces-v1.bundle-v*.json"),
@@ -1559,6 +1619,7 @@ def verify_no_out_of_lineage_artifacts() -> None:
         *PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT.parent.glob(
             "platform-telemetry-dimensions-v*.generated.json"
         ),
+        *HCM_PEOPLE_PEP_OUTPUT.parent.glob("hcm-people-pep-v*.generated.json"),
     }
     stale = sorted(path.relative_to(ROOT) for path in candidates - allowed)
     require(not stale, f"out-of-lineage generated artifacts are forbidden: {stale}")
@@ -1569,7 +1630,9 @@ def main() -> int:
     parser.add_argument("--check", action="store_true", help="fail if generated artifacts drift")
     args = parser.parse_args()
     try:
-        snapshots = build_snapshots(load_source())
+        source = load_source()
+        snapshots = build_snapshots(source)
+        rollout_inventory = build_rollout_inventory(source)
         index = build_index(snapshots)
         platform_canary_pep = build_platform_canary_pep(snapshots[0])
         approval_pilot_pep = build_approvals_pep(
@@ -1603,6 +1666,22 @@ def main() -> int:
         platform_telemetry_dimensions = build_platform_telemetry_dimensions(
             snapshots[1]
         )
+        hcm_people_pep = build_approvals_pep(
+            snapshots[2],
+            "people",
+            "hcm-people-pep-v3",
+            {
+                "routes": 48,
+                "bindings": 75,
+                "routeKinds": {"ACTION": 21, "DATA": 3, "PAGE": 24},
+                "capabilities": 28,
+                "accessPolicies": 5,
+                "entitlementExpressions": 3,
+                "predicatePolicies": 11,
+            },
+            version=3,
+            product_key="hcm",
+        )
     except ContractError as exc:
         print(f"authorization contract error: {exc}", file=sys.stderr)
         return 1
@@ -1620,6 +1699,16 @@ def main() -> int:
     index_content = render(index)
     outcomes.extend(
         [
+            write_or_check(
+                ROLLOUT_INVENTORY_OUTPUT,
+                render(rollout_inventory),
+                args.check,
+            ),
+            write_or_check(
+                GATEWAY_ROLLOUT_INVENTORY_OUTPUT,
+                render(rollout_inventory),
+                args.check,
+            ),
             write_or_check(LATEST_CONTRACT_OUTPUT, latest_content, args.check),
             write_or_check(LATEST_AUTH_SEED_OUTPUT, latest_content, args.check),
             write_or_check(CONTRACT_INDEX_OUTPUT, index_content, args.check),
@@ -1644,17 +1733,32 @@ def main() -> int:
                 render(platform_telemetry_dimensions),
                 args.check,
             ),
+            write_or_check(
+                HCM_PEOPLE_PEP_OUTPUT,
+                render(hcm_people_pep),
+                args.check,
+            ),
         ]
     )
     if not all(outcomes):
         return 1
     try:
         verify_artifact_set(index)
+        require(
+            ROLLOUT_INVENTORY_OUTPUT.read_bytes()
+            == GATEWAY_ROLLOUT_INVENTORY_OUTPUT.read_bytes(),
+            "rollout inventory contract/gateway bytes differ",
+        )
+        require(
+            checksum(rollout_inventory) == rollout_inventory["checksum"],
+            "rollout inventory checksum mismatch",
+        )
         verify_no_out_of_lineage_artifacts()
         verify_platform_canary_pep(platform_canary_pep)
         verify_approvals_pep(APPROVAL_PILOT_PEP_OUTPUT, approval_pilot_pep)
         verify_approvals_pep(PLATFORM_APPROVALS_PEP_OUTPUT, platform_approvals_pep)
         verify_platform_telemetry_dimensions(platform_telemetry_dimensions)
+        verify_approvals_pep(HCM_PEOPLE_PEP_OUTPUT, hcm_people_pep)
     except (ContractError, OSError, json.JSONDecodeError) as exc:
         print(f"authorization artifact error: {exc}", file=sys.stderr)
         return 1

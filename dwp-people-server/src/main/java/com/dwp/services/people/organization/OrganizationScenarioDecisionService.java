@@ -5,6 +5,7 @@ import com.dwp.core.audit.AuditOutboxRecorder;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.people.security.PeopleRequestContext;
+import com.dwp.services.people.security.HcmPepContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
@@ -419,13 +420,15 @@ public class OrganizationScenarioDecisionService {
     }
 
     private void requirePlanner(PeopleRequestContext.Actor actor) {
-        if (!actor.hasAnyRole("HR_ADMIN", "ADMIN")) {
+        if (HcmPepContext.current() == null
+                && !actor.hasAnyRole("HR_ADMIN", "ADMIN")) {
             throw new BaseException(ErrorCode.FORBIDDEN, "Organization design permission is required.");
         }
     }
 
     private void requireViewer(PeopleRequestContext.Actor actor) {
-        if (!actor.hasAnyRole("HR_ADMIN", "PEOPLE_ADMIN", "ADMIN")) {
+        if (HcmPepContext.current() == null
+                && !actor.hasAnyRole("HR_ADMIN", "PEOPLE_ADMIN", "ADMIN")) {
             throw new BaseException(ErrorCode.FORBIDDEN, "Workforce data permission is required.");
         }
     }

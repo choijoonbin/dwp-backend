@@ -101,6 +101,7 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
         }
         boolean supportAccess = request.getHeader(SUPPORT_SESSION_HEADER) != null
                 && !request.getHeader(SUPPORT_SESSION_HEADER).isBlank();
+        boolean exactHcmEvidence = exactHcmEvidence(request);
         if (supportAccess && !authorizedSupportRequest(request)) {
             writeError(response, ErrorCode.FORBIDDEN,
                     "The support session does not permit this workforce resource.");
@@ -126,7 +127,8 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
                 isReadOnly(request) ? Set.of("VIEW", "MANAGE") : Set.of("MANAGE"));
         boolean legacyWorkforceRole = permissions.isEmpty()
                 && roles.stream().anyMatch(WORKFORCE_ROLES::contains);
-        if (!supportAccess && request.getRequestURI().startsWith("/v1/workforce/")
+        if (!exactHcmEvidence && !supportAccess
+                && request.getRequestURI().startsWith("/v1/workforce/")
                 && !legacyWorkforceRole
                 && !workforcePermission) {
             writeError(response, ErrorCode.FORBIDDEN,
@@ -143,7 +145,7 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
         boolean legacyHcmRole = permissions.isEmpty()
                 && (roles.contains("WORKSPACE_MEMBER")
                     || roles.stream().anyMatch(WORKFORCE_ROLES::contains));
-        if (request.getRequestURI().startsWith("/v1/hr/")
+        if (!exactHcmEvidence && request.getRequestURI().startsWith("/v1/hr/")
                 && (!supportAccess && !hcmPermission && !legacyHcmRole)) {
             writeError(response, ErrorCode.FORBIDDEN,
                     "HR application permission is required.");
@@ -156,6 +158,13 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
         } finally {
             PeopleRequestContext.clear();
         }
+    }
+
+    private boolean exactHcmEvidence(HttpServletRequest request) {
+        String state = request.getHeader(HcmProductSurfacePepFilter.ROLLOUT_STATE_HEADER);
+        String route = request.getHeader(HcmProductSurfacePepFilter.ROUTE_CONTRACT_HEADER);
+        return state != null && state.matches("1[1][01]")
+                && route != null && route.startsWith("route.hcm.");
     }
 
     private Set<String> parseRoles(String header) {

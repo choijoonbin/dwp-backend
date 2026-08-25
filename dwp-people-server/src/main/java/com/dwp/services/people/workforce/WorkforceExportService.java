@@ -4,6 +4,10 @@ import com.dwp.audit.AuditEvent;
 import com.dwp.core.audit.AuditOutboxRecorder;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.people.hr.HcmPopulationScopeService;
+import com.dwp.services.people.security.HcmHighRiskCommandGuard;
+import com.dwp.services.people.security.HcmPepContext;
+import com.dwp.services.people.security.HcmStepUpHeaders;
 import com.dwp.services.people.security.PeopleRequestContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -32,28 +36,47 @@ public class WorkforceExportService {
     private final WorkforceAccessPolicyService accessPolicyService;
     private final WorkforceExportRepository repository;
     private final WorkforceExportPolicy policy;
+    private final HcmPopulationScopeService populationScopes;
     private final AuditOutboxRecorder audit;
     private final ObjectMapper objectMapper;
+    private final HcmHighRiskCommandGuard highRisk;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public WorkforceExportService(
             WorkforceAccessPolicyService accessPolicyService,
             WorkforceExportRepository repository,
             WorkforceExportPolicy policy,
+            HcmPopulationScopeService populationScopes,
             AuditOutboxRecorder audit,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            HcmHighRiskCommandGuard highRisk) {
         this.accessPolicyService = accessPolicyService;
         this.repository = repository;
         this.policy = policy;
+        this.populationScopes = populationScopes;
         this.audit = audit;
         this.objectMapper = objectMapper;
+        this.highRisk = highRisk;
+    }
+
+    WorkforceExportService(
+            WorkforceAccessPolicyService accessPolicyService,
+            WorkforceExportRepository repository,
+            WorkforceExportPolicy policy,
+            HcmPopulationScopeService populationScopes,
+            AuditOutboxRecorder audit,
+            ObjectMapper objectMapper) {
+        this(accessPolicyService, repository, policy, populationScopes,
+                audit, objectMapper, null);
     }
 
     @Transactional
     public WorkforceExportDtos.Preview preview(WorkforceExportDtos.PreviewRequest request) {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
         WorkforceAccessPolicyService.Decision decision = accessPolicyService.require("EXPORT");
+        requireExportScope();
         DatasetDecision dataset = requireDataset(
-                request.datasetKey(), request.selection(), decision.fieldGroups());
+                request.datasetKey(), request.selection(), decision.fieldGroups(), false);
         WorkforceExportDtos.Preview preview = new WorkforceExportDtos.Preview(
                 true,
                 policy.executionEnabled(),
@@ -87,6 +110,7 @@ public class WorkforceExportService {
     @Transactional(readOnly = true)
     public List<WorkforceExportDtos.DatasetSummary> datasets() {
         WorkforceAccessPolicyService.Decision decision = accessPolicyService.require("EXPORT");
+        requireExportScope();
         return repository.activeDatasets().stream()
                 .filter(dataset -> decision.fieldGroups().containsAll(dataset.requiredFieldGroups()))
                 .map(dataset -> new WorkforceExportDtos.DatasetSummary(
@@ -99,7 +123,11 @@ public class WorkforceExportService {
     @Transactional(readOnly = true)
     public List<WorkforceExportDtos.RequestSummary> list() {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
-        return repository.list(actor.tenantId(), actor.userId(), canGovern(actor)).stream()
+        HcmPopulationScopeService.ResolvedPopulation population = requireExportScope(false);
+        return repository.listWithinPopulation(
+                actor.tenantId(), actor.userId(), canGovern(actor),
+                population.scope().tenantWide(), population.scope().organizationIds(),
+                population.scope().fieldGroups()).stream()
                 .map(this::summary)
                 .toList();
     }
@@ -107,7 +135,9 @@ public class WorkforceExportService {
     @Transactional(readOnly = true)
     public List<WorkforceExportDtos.AttemptEvent> attempts(UUID requestId) {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
-        requireRequest(actor, requestId);
+        HcmPopulationScopeService.ResolvedPopulation population = requireExportScope(false);
+        WorkforceExportRepository.RequestRow request = requireRequest(actor, requestId);
+        requireStoredPopulation(population, request);
         return repository.attempts(actor.tenantId(), requestId);
     }
 
@@ -115,14 +145,39 @@ public class WorkforceExportService {
     public WorkforceExportDtos.RequestSummary create(
             WorkforceExportDtos.CreateRequest request,
             String correlationId) {
+        return create(request, correlationId, null);
+    }
+
+    @Transactional
+    public WorkforceExportDtos.RequestSummary create(
+            WorkforceExportDtos.CreateRequest request,
+            String correlationId,
+            HcmStepUpHeaders headers) {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
-        WorkforceAccessPolicyService.Decision decision = accessPolicyService.require("EXPORT");
+        WorkforceAccessPolicyService.Decision decision =
+                accessPolicyService.requireForMutation("EXPORT");
+        HcmPopulationScopeService.ResolvedPopulation population = requireExportScope(true);
         DatasetDecision dataset = requireDataset(
-                request.datasetKey(), request.selection(), decision.fieldGroups());
+                request.datasetKey(), request.selection(), decision.fieldGroups(), true);
         UUID requestId = UUID.randomUUID();
         List<UUID> organizationIds = decision.organizationIds().stream().sorted().toList();
         List<String> fieldGroups = decision.fieldGroups().stream().sorted().toList();
         String populationType = decision.tenantWide() ? "TENANT" : "ORGANIZATION_SET";
+        String populationTarget = populationTarget(populationType);
+        if (headers != null && headers.idempotencyKey() != null
+                && !headers.idempotencyKey().equals(request.idempotencyKey().trim())) {
+            throw new BaseException(ErrorCode.STEP_UP_CHALLENGE_MISMATCH,
+                    "The export idempotency key is not bound to the request body.");
+        }
+        if (highRisk != null) {
+            String datasetTarget = datasetTarget(dataset.dataset());
+            highRisk.require(
+                    "hcm.controlled-export.create", "EXPORT_DATASET",
+                    datasetTarget + ':' + populationTarget,
+                    dataset.dataset().version(),
+                    "/api/people/v1/workforce/exports",
+                    exportCreateEnvelope(datasetTarget, populationTarget, request), headers);
+        }
         String watermark = policy.watermark(
                 actor.tenantId(), actor.userId(), request.recipientReference().trim(), requestId);
         Map<String, Object> snapshot = Map.ofEntries(
@@ -184,13 +239,35 @@ public class WorkforceExportService {
         }
     }
 
+    private HcmPopulationScopeService.ResolvedPopulation requireExportScope(
+            boolean mutation) {
+        HcmPopulationScopeService.ResolvedPopulation population =
+                mutation ? populationScopes.requireOperationsForMutation("EXPORT")
+                        : populationScopes.requireOperations("EXPORT");
+        populationScopes.requireTrustedScope(
+                population, "hcm.management", "TARGET_POPULATION",
+                "APPROVED_EXPORT_POPULATION");
+        return population;
+    }
+
+    private void requireExportScope() {
+        requireExportScope(false);
+    }
+
     @Transactional
     public WorkforceExportDtos.RequestSummary cancel(
             UUID requestId,
             WorkforceExportDtos.DecisionRequest request,
             String correlationId) {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
-        WorkforceExportRepository.RequestRow before = requireRequest(actor, requestId);
+        HcmPopulationScopeService.ResolvedPopulation population = requireExportScope(true);
+        WorkforceExportRepository.RequestRow before = repository.findForUpdate(
+                actor.tenantId(), actor.userId(), requestId, canGovern(actor))
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        requireStoredPopulation(population, before);
+        if (request.version() != before.version()) {
+            throw conflict("The export request changed before cancellation.");
+        }
         String target = WorkforceExportLifecycle.cancellationTarget(before.lifecycleState());
         WorkforceExportRepository.RequestRow cancelled = repository.cancel(
                 actor.tenantId(), actor.userId(), requestId, request.version(), target,
@@ -208,11 +285,34 @@ public class WorkforceExportService {
             UUID requestId,
             WorkforceExportDtos.DecisionRequest request,
             String correlationId) {
+        return retry(requestId, request, correlationId, null);
+    }
+
+    @Transactional
+    public WorkforceExportDtos.RequestSummary retry(
+            UUID requestId,
+            WorkforceExportDtos.DecisionRequest request,
+            String correlationId,
+            HcmStepUpHeaders headers) {
         PeopleRequestContext.Actor actor = requireGovernor();
-        WorkforceExportRepository.RequestRow before = requireRequest(actor, requestId);
+        HcmPopulationScopeService.ResolvedPopulation population = requireExportScope(true);
+        WorkforceExportRepository.RequestRow before = repository.findForUpdate(
+                actor.tenantId(), actor.userId(), requestId, canGovern(actor))
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        requireStoredPopulation(population, before);
+        if (request.version() != before.version()) {
+            throw conflict("The export request changed before retry.");
+        }
         WorkforceExportLifecycle.requireRetryable(
                 before.lifecycleState(), before.executionEnabled(), !before.blockers().isEmpty(),
                 before.manualRetryCount(), policy.maximumManualRetries());
+        if (highRisk != null) {
+            highRisk.require(
+                    "hcm.controlled-export.retry", "EXPORT_REQUEST", requestId.toString(),
+                    before.version(),
+                    "/api/people/v1/workforce/exports/" + requestId + "/retry",
+                    request, headers);
+        }
         WorkforceExportRepository.RequestRow retried = repository.retry(
                 actor.tenantId(), actor.userId(), requestId, request.version(), true);
         if (retried == null) throw conflict("The export request changed before retry.");
@@ -309,9 +409,42 @@ public class WorkforceExportService {
     }
 
     private boolean canGovern(PeopleRequestContext.Actor actor) {
-        return actor.permissions().contains(GOVERNANCE_PERMISSION)
+        return HcmPepContext.current() != null
+                || actor.permissions().contains(GOVERNANCE_PERMISSION)
                 || (actor.permissions().isEmpty()
                     && actor.hasAnyRole("ADMIN", "TENANT_ADMIN"));
+    }
+
+    private String populationTarget(String baseline) {
+        HcmPepContext.Evidence current = HcmPepContext.current();
+        return current == null ? baseline : current.scopeKey();
+    }
+
+    private String datasetTarget(WorkforceExportRepository.DatasetRow dataset) {
+        return dataset.datasetKey() + "@v" + dataset.version();
+    }
+
+    private Map<String, Object> exportCreateEnvelope(
+            String datasetTarget,
+            String populationTarget,
+            WorkforceExportDtos.CreateRequest command) {
+        return Map.of(
+                "dataset", datasetTarget,
+                "population", populationTarget,
+                "command", command);
+    }
+
+    private void requireStoredPopulation(
+            HcmPopulationScopeService.ResolvedPopulation current,
+            WorkforceExportRepository.RequestRow request) {
+        boolean organizations = current.scope().tenantWide()
+                || (!"TENANT".equals(request.populationType())
+                && current.scope().organizationIds().containsAll(request.organizationIds()));
+        if (!organizations
+                || !current.scope().fieldGroups().containsAll(request.fieldGroups())) {
+            throw new BaseException(ErrorCode.FORBIDDEN,
+                    "The export request is outside the current approved population.");
+        }
     }
 
     private WorkforceExportDtos.RequestSummary summary(WorkforceExportRepository.RequestRow row) {
@@ -390,8 +523,10 @@ public class WorkforceExportService {
     private DatasetDecision requireDataset(
             String datasetKey,
             Map<String, String> selection,
-            Set<String> permittedFieldGroups) {
-        WorkforceExportRepository.DatasetRow dataset = repository.dataset(datasetKey)
+            Set<String> permittedFieldGroups,
+            boolean lockForCommand) {
+        WorkforceExportRepository.DatasetRow dataset = (lockForCommand
+                ? repository.datasetForShare(datasetKey) : repository.dataset(datasetKey))
                 .filter(row -> "ACTIVE".equals(row.lifecycleState()))
                 .orElseThrow(() -> new BaseException(
                         ErrorCode.INVALID_INPUT_VALUE,

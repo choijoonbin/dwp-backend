@@ -15,6 +15,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Repository
@@ -55,11 +56,47 @@ public class WorkforceExportRepository {
                 this::row);
     }
 
+    public List<RequestRow> listWithinPopulation(
+            Long tenantId,
+            Long requestedBy,
+            boolean governAll,
+            boolean tenantWide,
+            Set<UUID> organizationIds,
+            Set<String> fieldGroups) {
+        String ownerClause = governAll ? "" : " AND requested_by = :requestedBy";
+        String populationClause = tenantWide ? "" : """
+                 AND population_type <> 'TENANT'
+                 AND organization_ids <@ CAST(:organizationIds AS UUID[])
+                """;
+        return jdbc.query(
+                SELECT + " WHERE tenant_id = :tenantId" + ownerClause + populationClause
+                        + " AND field_groups <@ CAST(:fieldGroups AS VARCHAR[])"
+                        + " ORDER BY created_at DESC LIMIT 100",
+                new MapSqlParameterSource("tenantId", tenantId)
+                        .addValue("requestedBy", requestedBy)
+                        .addValue("organizationIds", pgArray(
+                                organizationIds.stream().map(UUID::toString).toList()))
+                        .addValue("fieldGroups", pgArray(fieldGroups.stream().toList())),
+                this::row);
+    }
+
     public Optional<RequestRow> find(Long tenantId, Long requestedBy, UUID requestId, boolean governAll) {
+        return find(tenantId, requestedBy, requestId, governAll, false);
+    }
+
+    public Optional<RequestRow> findForUpdate(
+            Long tenantId, Long requestedBy, UUID requestId, boolean governAll) {
+        return find(tenantId, requestedBy, requestId, governAll, true);
+    }
+
+    private Optional<RequestRow> find(
+            Long tenantId, Long requestedBy, UUID requestId,
+            boolean governAll, boolean lockForUpdate) {
         String ownerClause = governAll ? "" : " AND requested_by = :requestedBy";
         return jdbc.query(
                 SELECT + " WHERE tenant_id = :tenantId"
-                        + " AND workforce_export_request_id = :requestId" + ownerClause,
+                        + " AND workforce_export_request_id = :requestId" + ownerClause
+                        + (lockForUpdate ? " FOR UPDATE" : ""),
                 new MapSqlParameterSource("tenantId", tenantId)
                         .addValue("requestedBy", requestedBy)
                         .addValue("requestId", requestId),
@@ -466,12 +503,22 @@ public class WorkforceExportRepository {
     }
 
     public Optional<DatasetRow> dataset(String datasetKey) {
+        return dataset(datasetKey, false);
+    }
+
+    /** Locks the dataset definition used by a command-bound export request. */
+    public Optional<DatasetRow> datasetForShare(String datasetKey) {
+        return dataset(datasetKey, true);
+    }
+
+    private Optional<DatasetRow> dataset(String datasetKey, boolean lock) {
         return jdbc.query("""
                 SELECT dataset_key, name, description, required_field_groups,
                        allowed_selection_keys, lifecycle_state, version
                   FROM ppl_workforce_export_datasets
                  WHERE dataset_key = :datasetKey
-                """, new MapSqlParameterSource("datasetKey", datasetKey),
+                """ + (lock ? " FOR SHARE" : ""),
+                new MapSqlParameterSource("datasetKey", datasetKey),
                 (result, ignored) -> new DatasetRow(
                         result.getString("dataset_key"), result.getString("name"),
                         result.getString("description"),
