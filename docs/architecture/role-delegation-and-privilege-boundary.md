@@ -77,6 +77,11 @@ assigns `APP_OWNER` to an application resource set. An owner can delegate
 
 - `APP_CATALOG_ADMIN` governs ownership and can read the tenant request queue;
   it cannot approve, fulfil, or revoke requests.
+- A scope with an effective `APP_OWNER` but no effective `APP_ACCESS_APPROVER`
+  may bootstrap exactly its first manual user approver through an independent
+  active `APP_CATALOG_ADMIN`. The owner must be the requester. Once any effective
+  approver exists, every later control-plane decision requires an exact-scope
+  `APP_ACCESS_APPROVER`; the catalog exception is closed.
 - `TENANT_ADMIN` does not inherit request queue, approval, fulfilment, or
   revocation authority. Application duties require an explicit scoped
   responsibility even for the tenant accountable administrator.

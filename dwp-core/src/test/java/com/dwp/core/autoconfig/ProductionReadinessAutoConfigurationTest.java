@@ -51,6 +51,33 @@ class ProductionReadinessAutoConfigurationTest {
     }
 
     @Test
+    void rejectsLocalPilotActivationInProductionReadiness() {
+        MockEnvironment environment = completeAuthProduction()
+                .withProperty(
+                        "dwp.product-authorization.local-pilot-activation.enabled", "true");
+
+        var runner = new ProductionReadinessAutoConfiguration()
+                .dwpProductionReadinessGuard(environment);
+
+        assertThatIllegalStateException().isThrownBy(() -> runner.run(null))
+                .withMessageContaining("local-pilot-activation.enabled must be false");
+    }
+
+    @Test
+    void rejectsLocalSeedFlywayLocationInProductionReadiness() {
+        MockEnvironment environment = completeAuthProduction()
+                .withProperty(
+                        "spring.flyway.locations",
+                        "classpath:db/migration,classpath:db/local-seed");
+
+        var runner = new ProductionReadinessAutoConfiguration()
+                .dwpProductionReadinessGuard(environment);
+
+        assertThatIllegalStateException().isThrownBy(() -> runner.run(null))
+                .withMessageContaining("Flyway locations must not contain db/local-seed");
+    }
+
+    @Test
     void acceptsACompleteAuthProductionConfiguration() throws Exception {
         MockEnvironment environment = productionBase("dwp-auth-server")
                 .withProperty("jwt.secret", secret("jwt"))

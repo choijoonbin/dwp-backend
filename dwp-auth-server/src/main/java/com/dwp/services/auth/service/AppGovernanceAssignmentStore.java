@@ -34,6 +34,11 @@ final class AppGovernanceAssignmentStore {
     }
 
     void lockResourceSet(Long tenantId, UUID resourceSetId) {
+        jdbc.query("""
+                SELECT resource_set_id FROM com_admin_resource_sets
+                 WHERE tenant_id = ? AND resource_set_id = ?
+                 FOR UPDATE
+                """, ignored -> { }, tenantId, resourceSetId);
         lockTransactionKey(tenantId, "app-admin-resource-set:" + resourceSetId);
     }
 
@@ -114,6 +119,125 @@ final class AppGovernanceAssignmentStore {
                    AND (valid_to IS NULL OR valid_to > CURRENT_TIMESTAMP)
                 """, Long.class, tenantId, resourceSetId);
         return count == null ? 0 : count;
+    }
+
+    long effectiveResponsibilityCount(
+            Long tenantId, UUID resourceSetId, String responsibilityCode) {
+        Long count = jdbc.queryForObject("""
+                SELECT COUNT(*) FROM com_admin_role_assignments
+                 WHERE tenant_id = ? AND resource_set_id = ?
+                   AND responsibility_code = ? AND lifecycle_state = 'ACTIVE'
+                   AND (valid_from IS NULL OR valid_from <= statement_timestamp())
+                   AND (valid_to IS NULL OR valid_to > statement_timestamp())
+                   AND (
+                       (principal_type = 'USER' AND EXISTS (
+                           SELECT 1 FROM com_users user_record
+                            WHERE user_record.tenant_id = com_admin_role_assignments.tenant_id
+                              AND user_record.user_id::text =
+                                  com_admin_role_assignments.principal_ref
+                              AND user_record.status = 'ACTIVE'))
+                       OR (principal_type = 'GROUP' AND EXISTS (
+                           SELECT 1 FROM com_groups access_group
+                           JOIN com_group_members membership
+                             ON membership.tenant_id = access_group.tenant_id
+                            AND membership.group_id = access_group.group_id
+                           JOIN com_users member
+                             ON member.tenant_id = membership.tenant_id
+                            AND member.user_id = membership.user_id
+                            AND member.status = 'ACTIVE'
+                            WHERE access_group.tenant_id =
+                                  com_admin_role_assignments.tenant_id
+                              AND access_group.group_id::text =
+                                  com_admin_role_assignments.principal_ref
+                              AND access_group.status = 'ACTIVE')))
+                """, Long.class, tenantId, resourceSetId, responsibilityCode);
+        return count == null ? 0 : count;
+    }
+
+    boolean hasEffectiveResponsibilityForUser(
+            Long tenantId,
+            Long userId,
+            UUID resourceSetId,
+            String responsibilityCode) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1 FROM com_admin_role_assignments assignment
+                     JOIN com_users actor
+                       ON actor.tenant_id = assignment.tenant_id
+                      AND actor.user_id = ?
+                      AND actor.status = 'ACTIVE'
+                     WHERE assignment.tenant_id = ?
+                       AND assignment.resource_set_id = ?
+                       AND assignment.responsibility_code = ?
+                       AND assignment.lifecycle_state = 'ACTIVE'
+                       AND (assignment.valid_from IS NULL
+                            OR assignment.valid_from <= statement_timestamp())
+                       AND (assignment.valid_to IS NULL
+                            OR assignment.valid_to > statement_timestamp())
+                       AND ((assignment.principal_type = 'USER'
+                              AND assignment.principal_ref = actor.user_id::text)
+                         OR (assignment.principal_type = 'GROUP' AND EXISTS (
+                             SELECT 1 FROM com_groups access_group
+                             JOIN com_group_members membership
+                               ON membership.tenant_id = access_group.tenant_id
+                              AND membership.group_id = access_group.group_id
+                              AND membership.user_id = actor.user_id
+                            WHERE access_group.tenant_id = assignment.tenant_id
+                              AND access_group.group_id::text = assignment.principal_ref
+                              AND access_group.status = 'ACTIVE'))))
+                """, Boolean.class, userId, tenantId, resourceSetId,
+                responsibilityCode));
+    }
+
+    boolean isActiveUser(Long tenantId, Long userId) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1 FROM com_users
+                     WHERE tenant_id = ? AND user_id = ? AND status = 'ACTIVE')
+                """, Boolean.class, tenantId, userId));
+    }
+
+    boolean isActivePrincipal(Long tenantId, String principalType, String principalRef) {
+        String sql = "USER".equals(principalType)
+                ? """
+                  SELECT EXISTS (
+                      SELECT 1 FROM com_users
+                       WHERE tenant_id = ? AND user_id::text = ? AND status = 'ACTIVE')
+                  """
+                : """
+                  SELECT EXISTS (
+                      SELECT 1 FROM com_groups access_group
+                      JOIN com_group_members membership
+                        ON membership.tenant_id = access_group.tenant_id
+                       AND membership.group_id = access_group.group_id
+                      JOIN com_users member
+                        ON member.tenant_id = membership.tenant_id
+                       AND member.user_id = membership.user_id
+                       AND member.status = 'ACTIVE'
+                       WHERE access_group.tenant_id = ?
+                         AND access_group.group_id::text = ?
+                         AND access_group.status = 'ACTIVE')
+                  """;
+        return Boolean.TRUE.equals(
+                jdbc.queryForObject(sql, Boolean.class, tenantId, principalRef));
+    }
+
+    boolean principalIncludesUser(
+            Long tenantId, String principalType, String principalRef, Long userId) {
+        if ("USER".equals(principalType)) {
+            return userId.toString().equals(principalRef);
+        }
+        return Boolean.TRUE.equals(jdbc.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1 FROM com_group_members membership
+                    JOIN com_groups access_group
+                      ON access_group.tenant_id = membership.tenant_id
+                     AND access_group.group_id = membership.group_id
+                     AND access_group.status = 'ACTIVE'
+                   WHERE membership.tenant_id = ?
+                     AND membership.group_id::text = ?
+                     AND membership.user_id = ?)
+                """, Boolean.class, tenantId, principalRef, userId));
     }
 
     void invalidatePrincipal(

@@ -102,9 +102,12 @@ public class AppGovernanceController {
 
     @PostMapping("/assignments/{assignmentId}/decision")
     @Operation(description = "Completes the two-person, responsibility-only bootstrap with an "
-            + "exact-scope APP_ACCESS_APPROVER, except APP_OWNER which requires independent "
-            + "APP_CATALOG_ADMIN authority. Product specialist rows, capabilities, and duties "
-            + "cannot be decided here.")
+            + "exact-scope APP_ACCESS_APPROVER. The one-time exception for a scope with an "
+            + "effective APP_OWNER and zero effective APP_ACCESS_APPROVER permits an independent "
+            + "APP_CATALOG_ADMIN to approve the first MANUAL user approver requested by that "
+            + "owner. Later approvers require an exact-scope approver. APP_OWNER requires "
+            + "independent APP_CATALOG_ADMIN authority. Product specialist rows, capabilities, "
+            + "and duties cannot be decided here.")
     public ApiResponse<AppGovernanceDtos.Assignment> decideAssignment(
             Authentication authentication,
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,

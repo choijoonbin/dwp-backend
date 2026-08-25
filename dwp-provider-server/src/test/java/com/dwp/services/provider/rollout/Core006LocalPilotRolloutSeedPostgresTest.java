@@ -1,0 +1,146 @@
+package com.dwp.services.provider.rollout;
+
+import org.flywaydb.core.Flyway;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.postgresql.ds.PGSimpleDataSource;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.support.EncodedResource;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.init.ScriptUtils;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+import java.sql.Connection;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+@Testcontainers(disabledWithoutDocker = true)
+class Core006LocalPilotRolloutSeedPostgresTest {
+
+    @Container
+    private static final PostgreSQLContainer<?> POSTGRES =
+            new PostgreSQLContainer<>("postgres:16-alpine");
+
+    private static PGSimpleDataSource dataSource;
+    private static JdbcTemplate jdbc;
+
+    @BeforeAll
+    static void migrateWithExplicitLocalSeedLocation() {
+        dataSource = new PGSimpleDataSource();
+        dataSource.setURL(POSTGRES.getJdbcUrl());
+        dataSource.setUser(POSTGRES.getUsername());
+        dataSource.setPassword(POSTGRES.getPassword());
+        Flyway flyway = Flyway.configure()
+                .dataSource(dataSource)
+                .locations(
+                        "filesystem:src/main/resources/db/migration",
+                        "filesystem:src/main/resources/db/local-seed",
+                        "filesystem:../dwp-core/src/main/resources/db/migration")
+                .cleanDisabled(false)
+                .load();
+        flyway.clean();
+        flyway.migrate();
+        jdbc = new JdbcTemplate(dataSource);
+    }
+
+    @Test
+    void activatesOnlyTheFourPilotUiFlagsWithSharedEnforcementForTheExactTenant() {
+        Map<Boolean, Integer> values = jdbc.query("""
+                SELECT (revision.rollout_value = 'true'::jsonb) AS enabled,
+                       COUNT(*) AS count
+                  FROM prv_feature_rollout_revisions revision
+                 WHERE revision.rollout_revision_id::text LIKE 'c0061000-%'
+                   AND revision.lifecycle_state = 'ACTIVE'
+                 GROUP BY enabled
+                """, result -> {
+            java.util.HashMap<Boolean, Integer> counts = new java.util.HashMap<>();
+            while (result.next()) {
+                counts.put(result.getBoolean("enabled"), result.getInt("count"));
+            }
+            return counts;
+        });
+        assertThat(values).containsEntry(true, 6).containsEntry(false, 7);
+
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*)
+                  FROM prv_feature_rollout_revisions revision
+                  JOIN prv_feature_flags flag
+                    ON flag.feature_flag_id = revision.feature_flag_id
+                 WHERE revision.rollout_revision_id::text LIKE 'c0061000-%'
+                   AND revision.revision_number = 1
+                   AND revision.version >= 3
+                   AND revision.current_stage_order = 1
+                   AND revision.requested_by <> revision.approved_by
+                   AND revision.targeting =
+                       '{"tenantIds":["00000000-0000-0000-0000-000000000001"]}'::jsonb
+                   AND flag.default_value = 'false'::jsonb
+                """, Integer.class)).isEqualTo(13);
+
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*)
+                  FROM prv_feature_rollout_stages stage
+                 WHERE stage.rollout_stage_id::text LIKE 'c0062000-%'
+                   AND stage.stage_order = 1
+                   AND stage.exposure_percentage = 100.00
+                   AND stage.lifecycle_state = 'ACTIVE'
+                """, Integer.class)).isEqualTo(13);
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*)
+                  FROM prv_feature_rollout_approvals approval
+                 WHERE approval.rollout_approval_id::text LIKE 'c0063000-%'
+                   AND approval.lifecycle_state = 'APPROVED'
+                   AND approval.requested_by <> approval.decided_by
+                """, Integer.class)).isEqualTo(13);
+
+        assertThat(jdbc.queryForList("""
+                SELECT flag.feature_key
+                  FROM prv_feature_rollout_revisions revision
+                  JOIN prv_feature_flags flag
+                    ON flag.feature_flag_id = revision.feature_flag_id
+                 WHERE revision.rollout_revision_id::text LIKE 'c0061000-%'
+                   AND revision.rollout_value = 'true'::jsonb
+                 ORDER BY flag.feature_key
+                """, String.class)).containsExactly(
+                "access.product-surfaces.capability-enforcement.v1",
+                "access.product-surfaces.context-shadow.v1",
+                "ux.product-surfaces.approvals.v1",
+                "ux.product-surfaces.communications.v1",
+                "ux.product-surfaces.hcm.v1",
+                "ux.product-surfaces.services.v1");
+    }
+
+    @Test
+    void repeatableSeedIsIdempotentWhenExecutedAgain() throws Exception {
+        try (Connection connection = dataSource.getConnection()) {
+            connection.setAutoCommit(false);
+            ScriptUtils.executeSqlScript(
+                    connection,
+                    new EncodedResource(new FileSystemResource(
+                            "src/main/resources/db/local-seed/"
+                                    + "R__activate_core006_local_pilot_rollouts.sql")),
+                    false,
+                    false,
+                    ScriptUtils.DEFAULT_COMMENT_PREFIXES,
+                    ScriptUtils.EOF_STATEMENT_SEPARATOR,
+                    ScriptUtils.DEFAULT_BLOCK_COMMENT_START_DELIMITER,
+                    ScriptUtils.DEFAULT_BLOCK_COMMENT_END_DELIMITER);
+            connection.commit();
+        }
+
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM prv_feature_rollout_revisions
+                 WHERE rollout_revision_id::text LIKE 'c0061000-%'
+                """, Integer.class)).isEqualTo(13);
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM prv_feature_rollout_stages
+                 WHERE rollout_stage_id::text LIKE 'c0062000-%'
+                """, Integer.class)).isEqualTo(13);
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM prv_feature_rollout_approvals
+                 WHERE rollout_approval_id::text LIKE 'c0063000-%'
+                """, Integer.class)).isEqualTo(13);
+    }
+}

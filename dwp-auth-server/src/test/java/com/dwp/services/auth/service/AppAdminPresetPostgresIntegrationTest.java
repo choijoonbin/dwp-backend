@@ -22,9 +22,16 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -575,6 +582,193 @@ class AppAdminPresetPostgresIntegrationTest {
     }
 
     @Test
+    void firstExactScopeApproverBootstrapIsOwnerAnchoredOneTimeAndIndependent() {
+        AppGovernanceService generic = new AppGovernanceService(jdbc, audit);
+        Long secondCatalogAdmin = user(fixture.tenantId(), "bootstrap-catalog-admin");
+        grantRole(fixture.tenantId(), secondCatalogAdmin, "APP_CATALOG_ADMIN");
+
+        UUID bootstrapSet = additionalApprovalsResourceSet(fixture.tenantId());
+        Long owner = user(fixture.tenantId(), "bootstrap-owner");
+        grantResponsibility(
+                fixture.tenantId(), owner, "APP_OWNER", bootstrapSet,
+                fixture.catalogAdmin());
+        Long firstApprover = user(fixture.tenantId(), "bootstrap-first-approver");
+        AppGovernanceDtos.Assignment firstPending = inTransaction(() ->
+                generic.requestAssignment(
+                        fixture.tenantId(), owner, "first-approver-request",
+                        genericRequest(
+                                firstApprover, "APP_ACCESS_APPROVER", bootstrapSet)));
+        AppGovernanceDtos.Assignment firstActive = inTransaction(() ->
+                generic.decideAssignment(
+                        fixture.tenantId(), fixture.catalogAdmin(),
+                        "first-approver-catalog-decision", firstPending.assignmentId(),
+                        genericDecision("APPROVED", firstPending.version())));
+        assertThat(firstActive.lifecycleState()).isEqualTo("ACTIVE");
+        assertThat(firstActive.approvedBy()).isEqualTo(fixture.catalogAdmin());
+
+        Long secondApprover = user(fixture.tenantId(), "bootstrap-second-approver");
+        AppGovernanceDtos.Assignment secondPending = inTransaction(() ->
+                generic.requestAssignment(
+                        fixture.tenantId(), owner, "second-approver-request",
+                        genericRequest(
+                                secondApprover, "APP_ACCESS_APPROVER", bootstrapSet)));
+        assertThatThrownBy(() -> inTransaction(() -> generic.decideAssignment(
+                fixture.tenantId(), secondCatalogAdmin,
+                "second-approver-catalog-forbidden", secondPending.assignmentId(),
+                genericDecision("APPROVED", secondPending.version()))))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+        AppGovernanceDtos.Assignment secondActive = inTransaction(() ->
+                generic.decideAssignment(
+                        fixture.tenantId(), firstApprover,
+                        "second-approver-scoped-decision", secondPending.assignmentId(),
+                        genericDecision("APPROVED", secondPending.version())));
+        assertThat(secondActive.lifecycleState()).isEqualTo("ACTIVE");
+
+        UUID ownerlessSet = additionalApprovalsResourceSet(fixture.tenantId());
+        Long inactiveOwner = user(fixture.tenantId(), "inactive-bootstrap-owner");
+        grantResponsibility(
+                fixture.tenantId(), inactiveOwner, "APP_OWNER", ownerlessSet,
+                fixture.catalogAdmin());
+        jdbc.update("""
+                UPDATE com_users SET status = 'SUSPENDED'
+                 WHERE tenant_id = ? AND user_id = ?
+                """, fixture.tenantId(), inactiveOwner);
+        Long ownerlessCandidate = user(fixture.tenantId(), "ownerless-approver");
+        AppGovernanceDtos.Assignment ownerlessPending = inTransaction(() ->
+                generic.requestAssignment(
+                        fixture.tenantId(), fixture.catalogAdmin(),
+                        "ownerless-approver-request",
+                        genericRequest(
+                                ownerlessCandidate, "APP_ACCESS_APPROVER", ownerlessSet)));
+        assertThatThrownBy(() -> inTransaction(() -> generic.decideAssignment(
+                fixture.tenantId(), secondCatalogAdmin,
+                "ownerless-approver-catalog-forbidden", ownerlessPending.assignmentId(),
+                genericDecision("APPROVED", ownerlessPending.version()))))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+
+        UUID selfApprovalSet = additionalApprovalsResourceSet(fixture.tenantId());
+        Long selfApprovalOwner = user(fixture.tenantId(), "self-approval-owner");
+        grantResponsibility(
+                fixture.tenantId(), selfApprovalOwner, "APP_OWNER", selfApprovalSet,
+                fixture.catalogAdmin());
+        Long selfApprovalTarget = user(fixture.tenantId(), "self-approval-target");
+        AppGovernanceDtos.Assignment selfPending = inTransaction(() ->
+                generic.requestAssignment(
+                        fixture.tenantId(), secondCatalogAdmin,
+                        "first-approver-self-request",
+                        genericRequest(
+                                selfApprovalTarget, "APP_ACCESS_APPROVER", selfApprovalSet)));
+        assertThatThrownBy(() -> inTransaction(() -> generic.decideAssignment(
+                fixture.tenantId(), secondCatalogAdmin,
+                "first-approver-self-decision", selfPending.assignmentId(),
+                genericDecision("APPROVED", selfPending.version()))))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+    }
+
+    @Test
+    void concurrentFirstApproverDecisionsActivateExactlyOneAssignment() throws Exception {
+        AppGovernanceService generic = new AppGovernanceService(jdbc, audit);
+        Long secondCatalogAdmin = user(fixture.tenantId(), "concurrent-catalog-admin");
+        grantRole(fixture.tenantId(), secondCatalogAdmin, "APP_CATALOG_ADMIN");
+        UUID resourceSetId = additionalApprovalsResourceSet(fixture.tenantId());
+        Long owner = user(fixture.tenantId(), "concurrent-bootstrap-owner");
+        grantResponsibility(
+                fixture.tenantId(), owner, "APP_OWNER", resourceSetId,
+                fixture.catalogAdmin());
+        Long firstSubject = user(fixture.tenantId(), "concurrent-first-approver");
+        Long secondSubject = user(fixture.tenantId(), "concurrent-second-approver");
+        AppGovernanceDtos.Assignment firstPending = inTransaction(() ->
+                generic.requestAssignment(
+                        fixture.tenantId(), owner, "concurrent-first-request",
+                        genericRequest(
+                                firstSubject, "APP_ACCESS_APPROVER", resourceSetId)));
+        AppGovernanceDtos.Assignment secondPending = inTransaction(() ->
+                generic.requestAssignment(
+                        fixture.tenantId(), owner, "concurrent-second-request",
+                        genericRequest(
+                                secondSubject, "APP_ACCESS_APPROVER", resourceSetId)));
+
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try (Connection boundaryBlocker = dataSource.getConnection()) {
+            boundaryBlocker.setAutoCommit(false);
+            lockResourceSetBoundary(boundaryBlocker, fixture.tenantId(), resourceSetId);
+
+            Future<DecisionAttempt> first = executor.submit(() -> decideConcurrently(
+                    generic, fixture.catalogAdmin(), firstPending, ready, start));
+            Future<DecisionAttempt> second = executor.submit(() -> decideConcurrently(
+                    generic, secondCatalogAdmin, secondPending, ready, start));
+            assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+            assertThat(awaitBlockedFirstApproverDecisions()).isEqualTo(2);
+            boundaryBlocker.commit();
+
+            List<DecisionAttempt> results = List.of(
+                    first.get(30, TimeUnit.SECONDS), second.get(30, TimeUnit.SECONDS));
+            assertThat(results.stream().filter(DecisionAttempt::active)).hasSize(1);
+            assertThat(results.stream().filter(
+                    result -> result.errorCode() == ErrorCode.FORBIDDEN)).hasSize(1);
+        } finally {
+            start.countDown();
+            executor.shutdownNow();
+            assertThat(executor.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
+        }
+
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM com_admin_role_assignments
+                 WHERE tenant_id = ? AND resource_set_id = ?
+                   AND responsibility_code = 'APP_ACCESS_APPROVER'
+                   AND lifecycle_state = 'ACTIVE'
+                """, Integer.class, fixture.tenantId(), resourceSetId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM com_admin_role_assignments
+                 WHERE tenant_id = ? AND resource_set_id = ?
+                   AND responsibility_code = 'APP_ACCESS_APPROVER'
+                   AND lifecycle_state = 'PENDING_APPROVAL'
+                """, Integer.class, fixture.tenantId(), resourceSetId)).isEqualTo(1);
+    }
+
+    @Test
+    void scopedApproverCannotApproveAControlResponsibilityForTheirOwnGroup() {
+        AppGovernanceService generic = new AppGovernanceService(jdbc, audit);
+        Long groupId = jdbc.queryForObject("""
+                INSERT INTO com_groups (
+                    tenant_id, group_key, display_name, source_type, status)
+                VALUES (?, ?, 'Approver target group', 'LOCAL', 'ACTIVE')
+                RETURNING group_id
+                """, Long.class, fixture.tenantId(),
+                "SELF_APPROVAL_GROUP_" + UUID.randomUUID());
+        jdbc.update("""
+                INSERT INTO com_group_members (
+                    tenant_id, group_id, user_id, source_type)
+                VALUES (?, ?, ?, 'LOCAL')
+                """, fixture.tenantId(), groupId, fixture.approver());
+        AppGovernanceDtos.Assignment pending = inTransaction(() ->
+                generic.requestAssignment(
+                        fixture.tenantId(), fixture.catalogAdmin(),
+                        "group-control-request",
+                        new AppGovernanceDtos.CreateAssignmentRequest(
+                                "GROUP", groupId.toString(), "APP_ACCESS_REVIEWER",
+                                fixture.resourceSetId(), VALID_TO,
+                                "Create a governed reviewer responsibility for the group.")));
+
+        assertThatThrownBy(() -> inTransaction(() -> generic.decideAssignment(
+                fixture.tenantId(), fixture.approver(), "group-self-approval",
+                pending.assignmentId(), genericDecision("APPROVED", pending.version()))))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+        assertThat(jdbc.queryForObject("""
+                SELECT lifecycle_state FROM com_admin_role_assignments
+                 WHERE tenant_id = ? AND admin_role_assignment_id = ?
+                """, String.class, fixture.tenantId(), pending.assignmentId()))
+                .isEqualTo("PENDING_APPROVAL");
+    }
+
+    @Test
     void dashboardsProjectOnlyExactResponsibilityAndReviewerResourceSets() {
         Long scopedViewer = user(fixture.tenantId(), "scoped-viewer");
         grantResponsibility(
@@ -1103,9 +1297,14 @@ class AppAdminPresetPostgresIntegrationTest {
 
     private AppGovernanceDtos.CreateAssignmentRequest genericRequest(
             Long subjectId, String responsibilityCode) {
+        return genericRequest(subjectId, responsibilityCode, fixture.resourceSetId());
+    }
+
+    private AppGovernanceDtos.CreateAssignmentRequest genericRequest(
+            Long subjectId, String responsibilityCode, UUID resourceSetId) {
         return new AppGovernanceDtos.CreateAssignmentRequest(
                 "USER", subjectId.toString(), responsibilityCode,
-                fixture.resourceSetId(), VALID_TO,
+                resourceSetId, VALID_TO,
                 "Create an independently governed control-plane responsibility.");
     }
 
@@ -1233,6 +1432,70 @@ class AppAdminPresetPostgresIntegrationTest {
         return transactions.execute(ignored -> work.get());
     }
 
+    private DecisionAttempt decideConcurrently(
+            AppGovernanceService generic,
+            Long actorId,
+            AppGovernanceDtos.Assignment pending,
+            CountDownLatch ready,
+            CountDownLatch start) {
+        ready.countDown();
+        try {
+            if (!start.await(10, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("Concurrent decision gate did not open.");
+            }
+            AppGovernanceDtos.Assignment active = inTransaction(() -> {
+                jdbc.queryForObject(
+                        "SELECT set_config('application_name', ?, true)", String.class,
+                        "core006-first-approver-" + actorId);
+                return generic.decideAssignment(
+                            fixture.tenantId(), actorId,
+                            "concurrent-first-approver-" + actorId,
+                            pending.assignmentId(),
+                            genericDecision("APPROVED", pending.version()));
+            });
+            return new DecisionAttempt(active, null);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Concurrent decision was interrupted.", exception);
+        } catch (BaseException exception) {
+            return new DecisionAttempt(null, exception.getErrorCode());
+        }
+    }
+
+    private void lockResourceSetBoundary(
+            Connection connection, Long tenantId, UUID resourceSetId) throws Exception {
+        try (PreparedStatement statement = connection.prepareStatement("""
+                SELECT resource_set_id FROM com_admin_resource_sets
+                 WHERE tenant_id = ? AND resource_set_id = ?
+                 FOR UPDATE
+                """)) {
+            statement.setLong(1, tenantId);
+            statement.setObject(2, resourceSetId);
+            try (var result = statement.executeQuery()) {
+                assertThat(result.next()).isTrue();
+            }
+        }
+    }
+
+    private int awaitBlockedFirstApproverDecisions() throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        int blocked = 0;
+        do {
+            Integer count = jdbc.queryForObject("""
+                    SELECT count(*) FROM pg_stat_activity
+                     WHERE application_name LIKE 'core006-first-approver-%'
+                       AND state = 'active'
+                       AND wait_event_type = 'Lock'
+                       AND query ILIKE '%com_admin_resource_sets%'
+                       AND query ILIKE '%FOR UPDATE%'
+                    """, Integer.class);
+            blocked = count == null ? 0 : count;
+            if (blocked == 2) return blocked;
+            Thread.sleep(25);
+        } while (System.nanoTime() < deadline);
+        return blocked;
+    }
+
     private record Fixture(
             Long tenantId,
             Long requester,
@@ -1256,5 +1519,14 @@ class AppAdminPresetPostgresIntegrationTest {
             String correlationId,
             String reason,
             String afterSnapshot) {
+    }
+
+    private record DecisionAttempt(
+            AppGovernanceDtos.Assignment assignment,
+            ErrorCode errorCode) {
+
+        boolean active() {
+            return assignment != null && "ACTIVE".equals(assignment.lifecycleState());
+        }
     }
 }

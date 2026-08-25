@@ -352,6 +352,11 @@ def local_environment() -> dict[str, str]:
         "SERVICE_SPACE_URL": "http://localhost:8006",
         "SERVICE_MESSAGING_URL": "http://localhost:8007",
         "SERVICE_NOTIFICATION_URL": "http://localhost:8008",
+        "DWP_PRODUCT_SURFACE_TOKEN": (
+            "dwp-local-product-surface-token-change-outside-local"
+        ),
+        "DWP_PRODUCT_AUTHORIZATION_SEED_ENABLED": "true",
+        "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_ENABLED": "true",
         "DWP_AGENT_SERVICE_TOKEN": "dwp-local-agent-service-token",
         "DWP_AGENT_DATABASE_URL": (
             "postgresql://dwp_user:dwp_password@localhost:5432/dwp_agent"
@@ -369,17 +374,23 @@ def local_environment() -> dict[str, str]:
         "DWP_AGENT_REGISTRY_MODE": "enforced",
         "DWP_PLATFORM_SERVICE_TOKEN": "dwp-local-platform-service-token",
         "DWP_PLATFORM_RUNTIME_SERVICE_TOKEN": "dwp-local-platform-runtime-token",
+        "DWP_PLATFORM_PRODUCT_AUTHORIZATION_APPROVALS_V2_ENABLED": "true",
         "DWP_PRODUCTIVITY_DATA_KEY": (
             "ZHdwLWxvY2FsLXByb2R1Y3Rpdml0eS1rZXktMzJieXQ="
         ),
         "DWP_PEOPLE_SERVICE_TOKEN": "dwp-local-people-service-token",
         "DWP_PEOPLE_CURSOR_SECRET": "dwp-local-people-cursor-secret-change-outside-local",
+        "DWP_HCM_PRODUCT_AUTHORIZATION_V3_ENABLED": "true",
         "DWP_PEOPLE_FLYWAY_LOCATIONS": (
             "classpath:db/migration,classpath:db/local-seed"
         ),
         "DWP_PROVIDER_SERVICE_TOKEN": "dwp-local-provider-service-token",
+        "DWP_PROVIDER_FLYWAY_LOCATIONS": (
+            "classpath:db/migration,classpath:db/local-seed"
+        ),
         "DWP_APPROVAL_SERVICE_TOKEN": "dwp-local-approval-service-token",
         "DWP_APPROVAL_RUNTIME_SERVICE_TOKEN": "dwp-local-approval-runtime-token",
+        "DWP_APPROVAL_PRODUCT_AUTHORIZATION_V2_ENABLED": "true",
         "DWP_APPROVAL_FLYWAY_LOCATIONS": (
             "classpath:db/migration,classpath:db/local-seed"
         ),
@@ -470,6 +481,13 @@ def service_environment(service_name: str) -> dict[str, str]:
     else:
         for key in AGENT_MODEL_ENVIRONMENT:
             environment.pop(key, None)
+    if service_name not in {"auth", "gateway"}:
+        environment.pop("DWP_PRODUCT_SURFACE_TOKEN", None)
+    if service_name != "auth":
+        environment.pop("DWP_PRODUCT_AUTHORIZATION_SEED_ENABLED", None)
+        environment.pop(
+            "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_ENABLED", None
+        )
     if service_name not in {"agent", "gateway"}:
         environment.pop("DWP_AGENT_SERVICE_TOKEN", None)
     if service_name == "agent":
@@ -479,6 +497,10 @@ def service_environment(service_name: str) -> dict[str, str]:
     elif service_name not in {"platform"}:
         environment.pop("DWP_PLATFORM_SERVICE_TOKEN", None)
         environment.pop("DWP_PLATFORM_RUNTIME_SERVICE_TOKEN", None)
+    if service_name != "platform":
+        environment.pop(
+            "DWP_PLATFORM_PRODUCT_AUTHORIZATION_APPROVALS_V2_ENABLED", None
+        )
     if service_name != "agent":
         environment.pop("DWP_AGENT_DATABASE_URL", None)
         environment.pop("DWP_AGENT_DATABASE_REQUIRED", None)
@@ -493,15 +515,19 @@ def service_environment(service_name: str) -> dict[str, str]:
     if service_name != "people":
         environment.pop("DWP_PEOPLE_CURSOR_SECRET", None)
         environment.pop("DWP_PEOPLE_FLYWAY_LOCATIONS", None)
+        environment.pop("DWP_HCM_PRODUCT_AUTHORIZATION_V3_ENABLED", None)
     if service_name not in {"gateway", "provider"}:
         environment.pop("DWP_PROVIDER_SERVICE_TOKEN", None)
         environment.pop("DWP_PROVIDER_SUPPORT_VALIDATION_TOKEN", None)
+    if service_name != "provider":
+        environment.pop("DWP_PROVIDER_FLYWAY_LOCATIONS", None)
     if service_name not in {"gateway", "approval"}:
         environment.pop("DWP_APPROVAL_SERVICE_TOKEN", None)
     if service_name not in {"agent", "approval"}:
         environment.pop("DWP_APPROVAL_RUNTIME_SERVICE_TOKEN", None)
     if service_name != "approval":
         environment.pop("DWP_APPROVAL_FLYWAY_LOCATIONS", None)
+        environment.pop("DWP_APPROVAL_PRODUCT_AUTHORIZATION_V2_ENABLED", None)
         environment.pop("DWP_APPROVAL_EXTERNAL_SIGNATURE_ENABLED", None)
         environment.pop("DWP_APPROVAL_INTEGRATION_RELAY_ENABLED", None)
     if service_name != "provider":
