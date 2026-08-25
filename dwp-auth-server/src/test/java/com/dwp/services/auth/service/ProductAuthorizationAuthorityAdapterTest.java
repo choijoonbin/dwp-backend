@@ -553,8 +553,10 @@ class ProductAuthorizationAuthorityAdapterTest {
                 .noneMatch(ProductSurfaceAuthorityDtos.EffectiveScope::isDefault);
         assertThat(approvalInbox.decision())
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
-        assertThat(approvalInbox.scopes()).singleElement()
-                .matches(ProductSurfaceAuthorityDtos.EffectiveScope::isDefault);
+        assertThat(approvalInbox.scopes()).singleElement().satisfies(scope -> {
+            assertThat(scope.kind()).isEqualTo("SELF");
+            assertThat(scope.isDefault()).isTrue();
+        });
     }
 
     @Test
@@ -577,19 +579,16 @@ class ProductAuthorizationAuthorityAdapterTest {
         when(ports.orderedStream()).thenAnswer(ignored -> Stream.of(adapter));
         ProductSurfaceAuthorityService service = new ProductSurfaceAuthorityService(ports);
 
+        ProductSurfaceAuthorityDtos.EvaluateRequest approvalWorkRequest =
+                request("approvals", "approvals.work");
         ProductSurfaceAuthorityDtos.AuthorityResult approvals = service.evaluate(
-                request("approvals", "approvals.work"));
-        ProductSurfaceAuthorityDtos.AuthorityResult approvalInbox = service.evaluate(
-                request("approvals", "approvals.work",
-                        "route.approvals.work.inbox.page"));
-
+                approvalWorkRequest);
         assertThat(approvals.decision())
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
-        assertThat(approvals.scopes()).singleElement().satisfies(scope -> {
-            assertThat(scope.kind()).isEqualTo("SELF");
-            assertThat(scope.isDefault()).isTrue();
-        });
-        String selfScopeKey = approvals.scopes().getFirst().key();
+        assertThat(approvals.scopes()).hasSize(1);
+        ProductSurfaceAuthorityDtos.EffectiveScope selfScope = approvals.scopes().getFirst();
+        assertThat(selfScope.kind()).isEqualTo("SELF");
+        assertThat(selfScope.isDefault()).isTrue();
         assertThat(approvals.effectiveGrants())
                 .filteredOn(ProductSurfaceAuthorityDtos.CapabilityGrant.class::isInstance)
                 .map(ProductSurfaceAuthorityDtos.CapabilityGrant.class::cast)
@@ -599,12 +598,39 @@ class ProductAuthorizationAuthorityAdapterTest {
                             .isEqualTo(
                                     ProductSurfaceAuthorityDtos.ResponsibilityRequirement.NOT_REQUIRED);
                     assertThat(grant.responsibility()).isNull();
-                    assertThat(grant.scopeKeys()).containsExactly(selfScopeKey);
+                    assertThat(grant.scopeKeys()).containsExactly(selfScope.key());
                 });
-        assertThat(approvalInbox.decision())
-                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
-        assertTargetPopulationCapabilityScope(
-                approvalInbox, "approvals.work.task.read");
+        assertThat(approvals.effectiveGrants())
+                .filteredOn(ProductSurfaceAuthorityDtos.PolicyGrant.class::isInstance)
+                .map(ProductSurfaceAuthorityDtos.PolicyGrant.class::cast)
+                .singleElement()
+                .satisfies(grant -> assertThat(grant.scopeKeys())
+                        .containsExactly(selfScope.key()));
+
+        List<String> workPageRoutes = List.of(
+                "route.approvals.work.completed.page",
+                "route.approvals.work.delegations.page",
+                "route.approvals.work.home.page",
+                "route.approvals.work.inbox.page",
+                "route.approvals.work.request-archive.page",
+                "route.approvals.work.request-drafts.page",
+                "route.approvals.work.request-needs-info.page",
+                "route.approvals.work.request-new.page",
+                "route.approvals.work.request-submitted.page");
+        for (String route : workPageRoutes) {
+            ProductSurfaceAuthorityDtos.AuthorityResult directWithoutContext =
+                    service.evaluate(request("approvals", "approvals.work", route));
+            assertSelfScopedWorkRoute(directWithoutContext, selfScope.key());
+            assertThat(directWithoutContext.contextKey())
+                    .isEqualTo(approvals.contextKey());
+
+            ProductSurfaceAuthorityDtos.AuthorityResult direct = service.evaluate(request(
+                    "approvals", "approvals.work", route,
+                    approvals.contextKey(), selfScope.key()));
+
+            assertSelfScopedWorkRoute(direct, selfScope.key());
+            assertThat(direct.contextKey()).isEqualTo(approvals.contextKey());
+        }
     }
 
     @Test
@@ -614,18 +640,133 @@ class ProductAuthorizationAuthorityAdapterTest {
                 "DATA.HR_TIME:VIEW"), List.of(role(
                         "APP_CONFIG_ADMIN", "APP.HCM", "RS_HCM_CONFIG")));
 
-        ProductSurfaceAuthorityDtos.AuthorityResult teamTime = evaluate(
-                "hcm", "hcm.team", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
-                "route.hcm.team.time.page",
-                null, null, null, null, List.of());
-        ProductSurfaceAuthorityDtos.AuthorityResult operationsTime = evaluate(
-                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
-                "route.hcm.operations.time.page",
-                null, null, null, null, List.of());
+        @SuppressWarnings("unchecked")
+        ObjectProvider<ProductSurfaceAuthorityPort> ports =
+                org.mockito.Mockito.mock(ObjectProvider.class);
+        when(ports.orderedStream()).thenAnswer(ignored -> Stream.of(adapter));
+        ProductSurfaceAuthorityService service = new ProductSurfaceAuthorityService(ports);
+
+        ProductSurfaceAuthorityDtos.AuthorityResult teamTime = service.evaluate(request(
+                "hcm", "hcm.team", "route.hcm.team.time.page"));
+        ProductSurfaceAuthorityDtos.AuthorityResult operationsTime = service.evaluate(request(
+                "hcm", "hcm.operations", "route.hcm.operations.time.page"));
 
         assertTargetPopulationCapabilityScope(teamTime, "hcm.team.time.read");
         assertTargetPopulationCapabilityScope(
                 operationsTime, "hcm.operations.time.read");
+    }
+
+    @Test
+    void hcmTeamAndOperationsKeepModeSpecificEntryAndPageScopeKinds() {
+        evidence(Set.of(
+                "APP.HCM:VIEW",
+                "DATA.HR_TIME:VIEW"), List.of());
+
+        ProductSurfaceAuthorityDtos.AuthorityResult teamEntry = evaluate(
+                "hcm", "hcm.team", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                null, null, null, null, null, List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult teamTime = evaluate(
+                "hcm", "hcm.team", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.team.time.page", null, null, null, null, List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult operationsEntry = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                null, null, null, null, null, List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult operationsTime = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.operations.time.page", null, null, null, null, List.of());
+
+        assertThat(List.of(teamEntry, teamTime, operationsEntry, operationsTime))
+                .allSatisfy(result -> {
+                    assertThat(result.decision())
+                            .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+                    assertThat(result.scopes()).isNotEmpty()
+                            .extracting(ProductSurfaceAuthorityDtos.EffectiveScope::kind)
+                            .containsOnly("TARGET_POPULATION");
+                });
+
+        evidence(Set.of(), List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult operationsSupportEntry = evaluate(
+                "hcm", "hcm.operations",
+                ProductSurfaceAuthorityDtos.AccessMode.PROVIDER_SUPPORT,
+                null, null, null, "support-1", "support-rev-1",
+                List.of("WORKFORCE_READ"));
+        ProductSurfaceAuthorityDtos.AuthorityResult operationsSupportPage = evaluate(
+                "hcm", "hcm.operations",
+                ProductSurfaceAuthorityDtos.AccessMode.PROVIDER_SUPPORT,
+                "route.hcm.operations.overview.page", null, null,
+                "support-1", "support-rev-1", List.of("WORKFORCE_READ"));
+        assertThat(List.of(operationsSupportEntry, operationsSupportPage))
+                .allSatisfy(result -> {
+                    assertThat(result.decision())
+                            .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+                    assertThat(result.scopes()).singleElement().satisfies(scope -> {
+                        assertThat(scope.kind()).isEqualTo("SUPPORT_SESSION");
+                        assertThat(scope.readOnly()).isTrue();
+                    });
+                });
+
+        ProductSurfaceAuthorityDtos.AuthorityResult teamSupportEntry = evaluate(
+                "hcm", "hcm.team", ProductSurfaceAuthorityDtos.AccessMode.PROVIDER_SUPPORT,
+                null, null, null, "support-1", "support-rev-1",
+                List.of("WORKFORCE_READ"));
+        ProductSurfaceAuthorityDtos.AuthorityResult teamSupportPage = evaluate(
+                "hcm", "hcm.team", ProductSurfaceAuthorityDtos.AccessMode.PROVIDER_SUPPORT,
+                "route.hcm.team.time.page", null, null,
+                "support-1", "support-rev-1", List.of("WORKFORCE_READ"));
+        ProductSurfaceAuthorityDtos.AuthorityResult unsupportedOperationsPage = evaluate(
+                "hcm", "hcm.operations",
+                ProductSurfaceAuthorityDtos.AccessMode.PROVIDER_SUPPORT,
+                "route.hcm.operations.time.page", null, null,
+                "support-1", "support-rev-1", List.of("WORKFORCE_READ"));
+        assertThat(List.of(teamSupportEntry, teamSupportPage, unsupportedOperationsPage))
+                .allSatisfy(result -> {
+                    assertThat(result.decision())
+                            .isEqualTo(ProductSurfaceAuthorityDtos.Decision.SUPPORT_SCOPE_DENIED);
+                    assertThat(result.scopes()).isEmpty();
+                });
+    }
+
+    @Test
+    void multipleHcmPersonalEntryPoliciesRemainBoundToTheSelectedDirectPolicy() {
+        evidence(Set.of(
+                "APP.HCM:VIEW",
+                "APP.PEOPLE_DIRECTORY:VIEW",
+                "APP.EMPLOYEE_SERVICES:VIEW"), List.of());
+
+        @SuppressWarnings("unchecked")
+        ObjectProvider<ProductSurfaceAuthorityPort> ports =
+                org.mockito.Mockito.mock(ObjectProvider.class);
+        when(ports.orderedStream()).thenAnswer(ignored -> Stream.of(adapter));
+        ProductSurfaceAuthorityService service = new ProductSurfaceAuthorityService(ports);
+
+        ProductSurfaceAuthorityDtos.AuthorityResult entry = service.evaluate(
+                request("hcm", "hcm.personal"));
+        assertThat(entry.decision()).isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(entry.scopes()).singleElement().satisfies(scope -> {
+            assertThat(scope.kind()).isEqualTo("SELF");
+            assertThat(scope.isDefault()).isTrue();
+        });
+        assertThat(entry.effectiveGrants())
+                .filteredOn(ProductSurfaceAuthorityDtos.PolicyGrant.class::isInstance)
+                .hasSize(4);
+        ProductSurfaceAuthorityDtos.EffectiveScope selfScope = entry.scopes().getFirst();
+        ProductSurfaceAuthorityDtos.AuthorityResult directory = service.evaluate(request(
+                "hcm", "hcm.personal", "route.hcm.personal.directory.page",
+                entry.contextKey(), selfScope.key()));
+
+        assertThat(directory.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(directory.contextKey()).isEqualTo(entry.contextKey());
+        assertThat(directory.scopes()).singleElement().satisfies(scope -> {
+            assertThat(scope.key()).isEqualTo(selfScope.key());
+            assertThat(scope.kind()).isEqualTo("SELF");
+            assertThat(scope.isDefault()).isTrue();
+        });
+        assertThat(directory.effectiveGrants()).singleElement()
+                .isInstanceOfSatisfying(
+                        ProductSurfaceAuthorityDtos.PolicyGrant.class,
+                        grant -> assertThat(grant.accessPolicyKey())
+                                .isEqualTo("hcm.directory-access.v1"));
     }
 
     @Test
@@ -711,6 +852,25 @@ class ProductAuthorizationAuthorityAdapterTest {
                             assertThat(grant.responsibility()).isNull();
                             assertThat(grant.scopeKeys()).containsExactly(scopeKey);
                         });
+    }
+
+    private void assertSelfScopedWorkRoute(
+            ProductSurfaceAuthorityDtos.AuthorityResult result,
+            String selfScopeKey) {
+        assertThat(result.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(result.scopes()).singleElement().satisfies(scope -> {
+            assertThat(scope.key()).isEqualTo(selfScopeKey);
+            assertThat(scope.kind()).isEqualTo("SELF");
+            assertThat(scope.isDefault()).isTrue();
+        });
+        assertThat(result.effectiveGrants()).isNotEmpty()
+                .allSatisfy(grant -> assertThat(grant.scopeKeys())
+                        .containsExactly(selfScopeKey));
+        assertThat(result.effectiveGrants())
+                .filteredOn(ProductSurfaceAuthorityDtos.CapabilityGrant.class::isInstance)
+                .map(ProductSurfaceAuthorityDtos.CapabilityGrant.class::cast)
+                .allSatisfy(grant -> assertThat(grant.responsibility()).isNull());
     }
 
     private void evidence(
@@ -813,9 +973,18 @@ class ProductAuthorizationAuthorityAdapterTest {
             String product,
             String surface,
             String route) {
+        return request(product, surface, route, null, null);
+    }
+
+    private ProductSurfaceAuthorityDtos.EvaluateRequest request(
+            String product,
+            String surface,
+            String route,
+            String contextKey,
+            String contextScopeKey) {
         return new ProductSurfaceAuthorityDtos.EvaluateRequest(
                 10L, 20L, product, surface,
                 ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
-                route, null, null, null, null, List.of());
+                route, contextKey, contextScopeKey, null, null, List.of());
     }
 }

@@ -105,35 +105,16 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                     ProductSurfaceAuthorityDtos.Decision.SURFACE_DENIED,
                     "SURFACE_NOT_REGISTERED");
         }
-        List<ProductAuthorizationContractDtos.AccessPolicy> policies = registry.policies().stream()
-                .filter(value -> request.productKey().equals(value.productKey()))
-                .filter(value -> request.surfaceKey().equals(value.surfaceKey()))
-                .filter(value -> value.surfaceEntryKeys() != null
-                        && value.surfaceEntryKeys().contains(request.surfaceKey()))
-                .sorted(Comparator
-                        .comparing((ProductAuthorizationContractDtos.AccessPolicy value) ->
-                                value.routeContractKeys() != null
-                                        && value.routeContractKeys().isEmpty() ? 0 : 1)
-                        .thenComparing(value ->
-                                value.accessPolicyKey().contains("entry") ? 0 : 1)
-                        .thenComparing(
-                                ProductAuthorizationContractDtos.AccessPolicy::accessPolicyKey))
-                .toList();
+        List<ProductAuthorizationContractDtos.AccessPolicy> policies = entryPolicies(
+                request, registry);
         if (request.activeAccessMode()
                 == ProductSurfaceAuthorityDtos.AccessMode.PROVIDER_SUPPORT) {
             return evaluateSupportEntry(request, registry, identity, policies);
         }
-        List<Evaluation> allowed = new ArrayList<>();
-        Evaluation typedDeny = null;
-        for (ProductAuthorizationContractDtos.AccessPolicy policy : policies) {
-            Evaluation result = evaluatePolicy(request, registry, identity, policy, true);
-            if (result.allowed()) {
-                allowed.add(result);
-                if (policy.accessPolicyKey().contains("entry")) break;
-            } else if (typedDeny == null) {
-                typedDeny = result;
-            }
-        }
+        EntryPolicyEvaluation policyEvaluation = evaluateEntryPolicies(
+                request, registry, identity, policies);
+        List<Evaluation> allowed = new ArrayList<>(policyEvaluation.allowed());
+        Evaluation typedDeny = policyEvaluation.typedDeny();
         Map<String, ProductSurfaceAuthorityDtos.EffectiveScope> entryPolicyScopesByKey =
                 new LinkedHashMap<>();
         allowed.stream().flatMap(result -> result.scopes().stream())
@@ -165,6 +146,44 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                 isWork(request.surfaceKey())
                         ? "APP_ENTITLEMENT_REQUIRED"
                         : "SURFACE_CAPABILITY_REQUIRED");
+    }
+
+    private List<ProductAuthorizationContractDtos.AccessPolicy> entryPolicies(
+            ProductSurfaceAuthorityDtos.EvaluateRequest request,
+            Registry registry) {
+        return registry.policies().stream()
+                .filter(value -> request.productKey().equals(value.productKey()))
+                .filter(value -> request.surfaceKey().equals(value.surfaceKey()))
+                .filter(value -> value.surfaceEntryKeys() != null
+                        && value.surfaceEntryKeys().contains(request.surfaceKey()))
+                .sorted(Comparator
+                        .comparing((ProductAuthorizationContractDtos.AccessPolicy value) ->
+                                value.routeContractKeys() != null
+                                        && value.routeContractKeys().isEmpty() ? 0 : 1)
+                        .thenComparing(value ->
+                                value.accessPolicyKey().contains("entry") ? 0 : 1)
+                        .thenComparing(
+                                ProductAuthorizationContractDtos.AccessPolicy::accessPolicyKey))
+                .toList();
+    }
+
+    private EntryPolicyEvaluation evaluateEntryPolicies(
+            ProductSurfaceAuthorityDtos.EvaluateRequest request,
+            Registry registry,
+            ProductAuthorizationIdentityEvidenceService.IdentityEvidence identity,
+            List<ProductAuthorizationContractDtos.AccessPolicy> policies) {
+        List<Evaluation> allowed = new ArrayList<>();
+        Evaluation typedDeny = null;
+        for (ProductAuthorizationContractDtos.AccessPolicy policy : policies) {
+            Evaluation result = evaluatePolicy(request, registry, identity, policy, true);
+            if (result.allowed()) {
+                allowed.add(result);
+                if (policy.accessPolicyKey().contains("entry")) break;
+            } else if (typedDeny == null) {
+                typedDeny = result;
+            }
+        }
+        return new EntryPolicyEvaluation(List.copyOf(allowed), typedDeny);
     }
 
     private Evaluation evaluateSupportEntry(
@@ -236,9 +255,12 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                                     ? "SUPPORT_SCOPE_REQUIRED"
                                     : "ROUTE_CAPABILITY_REQUIRED");
         }
+        List<ProductSurfaceAuthorityDtos.EffectiveScope> directEntryScopes =
+                singleSelfEntryPolicyScopes(request, registry, identity);
         Evaluation firstDenial = null;
         for (ProductAuthorizationContractDtos.AccessProfile profile : profiles) {
-            Evaluation result = evaluateProfile(request, registry, identity, profile);
+            Evaluation result = evaluateProfile(
+                    request, registry, identity, profile, directEntryScopes);
             if (blockingProfileDenial(result)) return result.forRoute();
             if (result.allowed() || result.decision()
                     == ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED) {
@@ -253,7 +275,8 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
             ProductSurfaceAuthorityDtos.EvaluateRequest request,
             Registry registry,
             ProductAuthorizationIdentityEvidenceService.IdentityEvidence identity,
-            ProductAuthorizationContractDtos.AccessProfile profile) {
+            ProductAuthorizationContractDtos.AccessProfile profile,
+            List<ProductSurfaceAuthorityDtos.EffectiveScope> directEntryScopes) {
         ProductAuthorizationContractDtos.RequiredAccess access = profile.requiredAccess();
         return switch (access.type()) {
             case "CAPABILITY" -> evaluateCapability(
@@ -262,7 +285,8 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                     identity,
                     registry.capabilitiesByKey().get(access.capabilityContractKey()),
                     profile.predicatePolicyKeys(),
-                    profile.readOnly());
+                    profile.readOnly(),
+                    directEntryScopes);
             case "POLICY" -> evaluatePolicy(
                     request,
                     registry,
@@ -276,10 +300,26 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                     access.mode(),
                     access.capabilityContractKeys(),
                     profile.predicatePolicyKeys(),
-                    profile.readOnly());
+                    profile.readOnly(),
+                    directEntryScopes);
             default -> throw new IllegalStateException(
                     "Unknown route required access type: " + access.type());
         };
+    }
+
+    private List<ProductSurfaceAuthorityDtos.EffectiveScope> singleSelfEntryPolicyScopes(
+            ProductSurfaceAuthorityDtos.EvaluateRequest request,
+            Registry registry,
+            ProductAuthorizationIdentityEvidenceService.IdentityEvidence identity) {
+        Map<String, ProductSurfaceAuthorityDtos.EffectiveScope> byKey = new LinkedHashMap<>();
+        evaluateEntryPolicies(request, registry, identity, entryPolicies(request, registry))
+                .allowed().stream()
+                .flatMap(evaluation -> evaluation.scopes().stream())
+                .forEach(scope -> byKey.putIfAbsent(scope.key(), scope));
+        if (byKey.size() != 1) return List.of();
+        ProductSurfaceAuthorityDtos.EffectiveScope scope =
+                byKey.values().iterator().next();
+        return "SELF".equals(scope.kind()) ? List.of(scope) : List.of();
     }
 
     private Evaluation routed(
@@ -433,6 +473,19 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
             List<String> keys,
             List<String> predicates,
             boolean readOnly) {
+        return evaluateCapabilityExpression(
+                request, registry, identity, mode, keys, predicates, readOnly, List.of());
+    }
+
+    private Evaluation evaluateCapabilityExpression(
+            ProductSurfaceAuthorityDtos.EvaluateRequest request,
+            Registry registry,
+            ProductAuthorizationIdentityEvidenceService.IdentityEvidence identity,
+            String mode,
+            List<String> keys,
+            List<String> predicates,
+            boolean readOnly,
+            List<ProductSurfaceAuthorityDtos.EffectiveScope> entryPolicyScopes) {
         if (keys == null || keys.isEmpty() || !Set.of("ANY", "ALL").contains(mode)) {
             throw new IllegalStateException("Capability expression is empty or invalid");
         }
@@ -441,7 +494,7 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
         for (String key : keys) {
             Evaluation result = evaluateCapability(
                     request, registry, identity, registry.capabilitiesByKey().get(key),
-                    predicates, readOnly);
+                    predicates, readOnly, entryPolicyScopes);
             if (result.allowed()) allowed.add(result);
             else if (typedDeny == null) typedDeny = result;
         }
@@ -707,6 +760,11 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                 evaluations.stream().anyMatch(Evaluation::requiresProductEligibility),
                 evaluations.stream().map(Evaluation::appResourceKey)
                         .filter(Objects::nonNull).findFirst().orElse(null));
+    }
+
+    private record EntryPolicyEvaluation(
+            List<Evaluation> allowed,
+            Evaluation typedDeny) {
     }
 
 }
