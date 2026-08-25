@@ -545,14 +545,87 @@ class ProductAuthorizationAuthorityAdapterTest {
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
         assertThat(team.decision())
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
-        assertThat(approvals.scopes()).hasSizeGreaterThan(1)
-                .noneMatch(ProductSurfaceAuthorityDtos.EffectiveScope::isDefault);
+        assertThat(approvals.scopes()).singleElement().satisfies(scope -> {
+            assertThat(scope.kind()).isEqualTo("SELF");
+            assertThat(scope.isDefault()).isTrue();
+        });
         assertThat(team.scopes()).hasSizeGreaterThan(1)
                 .noneMatch(ProductSurfaceAuthorityDtos.EffectiveScope::isDefault);
         assertThat(approvalInbox.decision())
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
         assertThat(approvalInbox.scopes()).singleElement()
                 .matches(ProductSurfaceAuthorityDtos.EffectiveScope::isDefault);
+    }
+
+    @Test
+    void optionalAdminResponsibilityDoesNotRebindPermissionRichApprovalWorkEntry() {
+        evidence(Set.of(
+                "APP.APPROVALS:VIEW",
+                "ACTION.APPROVAL_TASK:VIEW",
+                "ACTION.APPROVAL_TASK:UPDATE",
+                "ACTION.APPROVAL_TASK:APPROVE",
+                "ACTION.APPROVAL_REQUEST:VIEW",
+                "ACTION.APPROVAL_REQUEST:CREATE",
+                "ACTION.APPROVAL_REQUEST:UPDATE",
+                "ACTION.APPROVAL_DELEGATION:VIEW",
+                "ACTION.APPROVAL_DELEGATION:MANAGE"), List.of(role(
+                        "APP_CONFIG_ADMIN", "APP.APPROVALS", "RS_APPROVALS")));
+
+        @SuppressWarnings("unchecked")
+        ObjectProvider<ProductSurfaceAuthorityPort> ports =
+                org.mockito.Mockito.mock(ObjectProvider.class);
+        when(ports.orderedStream()).thenAnswer(ignored -> Stream.of(adapter));
+        ProductSurfaceAuthorityService service = new ProductSurfaceAuthorityService(ports);
+
+        ProductSurfaceAuthorityDtos.AuthorityResult approvals = service.evaluate(
+                request("approvals", "approvals.work"));
+        ProductSurfaceAuthorityDtos.AuthorityResult approvalInbox = service.evaluate(
+                request("approvals", "approvals.work",
+                        "route.approvals.work.inbox.page"));
+
+        assertThat(approvals.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(approvals.scopes()).singleElement().satisfies(scope -> {
+            assertThat(scope.kind()).isEqualTo("SELF");
+            assertThat(scope.isDefault()).isTrue();
+        });
+        String selfScopeKey = approvals.scopes().getFirst().key();
+        assertThat(approvals.effectiveGrants())
+                .filteredOn(ProductSurfaceAuthorityDtos.CapabilityGrant.class::isInstance)
+                .map(ProductSurfaceAuthorityDtos.CapabilityGrant.class::cast)
+                .hasSize(8)
+                .allSatisfy(grant -> {
+                    assertThat(grant.responsibilityRequirement())
+                            .isEqualTo(
+                                    ProductSurfaceAuthorityDtos.ResponsibilityRequirement.NOT_REQUIRED);
+                    assertThat(grant.responsibility()).isNull();
+                    assertThat(grant.scopeKeys()).containsExactly(selfScopeKey);
+                });
+        assertThat(approvalInbox.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertTargetPopulationCapabilityScope(
+                approvalInbox, "approvals.work.task.read");
+    }
+
+    @Test
+    void optionalHcmResponsibilityDoesNotRebindTeamOrOperationsTargetPopulations() {
+        evidence(Set.of(
+                "APP.HCM:VIEW",
+                "DATA.HR_TIME:VIEW"), List.of(role(
+                        "APP_CONFIG_ADMIN", "APP.HCM", "RS_HCM_CONFIG")));
+
+        ProductSurfaceAuthorityDtos.AuthorityResult teamTime = evaluate(
+                "hcm", "hcm.team", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.team.time.page",
+                null, null, null, null, List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult operationsTime = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.operations.time.page",
+                null, null, null, null, List.of());
+
+        assertTargetPopulationCapabilityScope(teamTime, "hcm.team.time.read");
+        assertTargetPopulationCapabilityScope(
+                operationsTime, "hcm.operations.time.read");
     }
 
     @Test
@@ -617,6 +690,27 @@ class ProductAuthorizationAuthorityAdapterTest {
             Set<String> permissions,
             List<AppGovernanceDtos.ResourceRole> responsibilities) {
         evidence(permissions, Set.of(), responsibilities);
+    }
+
+    private void assertTargetPopulationCapabilityScope(
+            ProductSurfaceAuthorityDtos.AuthorityResult result,
+            String capabilityContractKey) {
+        assertThat(result.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(result.scopes()).singleElement().satisfies(scope -> {
+            assertThat(scope.kind()).isEqualTo("TARGET_POPULATION");
+            assertThat(scope.isDefault()).isTrue();
+        });
+        String scopeKey = result.scopes().getFirst().key();
+        assertThat(result.effectiveGrants()).singleElement()
+                .isInstanceOfSatisfying(
+                        ProductSurfaceAuthorityDtos.CapabilityGrant.class,
+                        grant -> {
+                            assertThat(grant.capabilityContractKey())
+                                    .isEqualTo(capabilityContractKey);
+                            assertThat(grant.responsibility()).isNull();
+                            assertThat(grant.scopeKeys()).containsExactly(scopeKey);
+                        });
     }
 
     private void evidence(

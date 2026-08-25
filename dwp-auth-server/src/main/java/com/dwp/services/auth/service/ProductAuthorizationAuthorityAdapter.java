@@ -134,6 +134,12 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                 typedDeny = result;
             }
         }
+        Map<String, ProductSurfaceAuthorityDtos.EffectiveScope> entryPolicyScopesByKey =
+                new LinkedHashMap<>();
+        allowed.stream().flatMap(result -> result.scopes().stream())
+                .forEach(scope -> entryPolicyScopesByKey.putIfAbsent(scope.key(), scope));
+        List<ProductSurfaceAuthorityDtos.EffectiveScope> entryPolicyScopes =
+                List.copyOf(entryPolicyScopesByKey.values());
 
         List<ProductAuthorizationContractDtos.CapabilityContract> surfaceCapabilities =
                 registry.capabilities().stream()
@@ -143,7 +149,7 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
         for (ProductAuthorizationContractDtos.CapabilityContract capability : surfaceCapabilities) {
             Evaluation result = evaluateCapability(
                     request, registry, identity, capability, List.of(),
-                    readOnlyCapability(capability));
+                    readOnlyCapability(capability), entryPolicyScopes);
             if (result.allowed()) allowed.add(result);
             else if (typedDeny == null) typedDeny = result;
         }
@@ -457,6 +463,18 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
             ProductAuthorizationContractDtos.CapabilityContract capability,
             List<String> predicates,
             boolean readOnly) {
+        return evaluateCapability(
+                request, registry, identity, capability, predicates, readOnly, List.of());
+    }
+
+    private Evaluation evaluateCapability(
+            ProductSurfaceAuthorityDtos.EvaluateRequest request,
+            Registry registry,
+            ProductAuthorizationIdentityEvidenceService.IdentityEvidence identity,
+            ProductAuthorizationContractDtos.CapabilityContract capability,
+            List<String> predicates,
+            boolean readOnly,
+            List<ProductSurfaceAuthorityDtos.EffectiveScope> entryPolicyScopes) {
         if (capability == null) {
             return Evaluation.denied(
                     ProductSurfaceAuthorityDtos.Decision.ROUTE_DENIED,
@@ -469,6 +487,11 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                     "APP_ENTITLEMENT_REQUIRED");
         }
         boolean scoped = ScopedAdminDutyPolicy.requiresScopedDuty(capability);
+        boolean responsibilityOptional =
+                "NOT_REQUIRED".equals(capability.responsibilityRequirement());
+        boolean inheritsSelfEntryScope = responsibilityOptional
+                && entryPolicyScopes.size() == 1
+                && "SELF".equals(entryPolicyScopes.getFirst().kind());
         String productResourceKey = productResourceKey(request, registry);
         List<ScopedAdminDutyEvidenceService.EffectiveDuty> duties = scoped
                 ? ScopedAdminDutyPolicy.matchingDuties(
@@ -483,7 +506,9 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
         List<AppGovernanceDtos.ResourceRole> roles = scoped
                 ? ScopedAdminDutyPolicy.matchingResponsibilities(
                         identity, capability, duties, productResourceKey)
-                : matchingResponsibilities(identity, capability, productResourceKey);
+                : responsibilityOptional
+                        ? List.of()
+                        : matchingResponsibilities(identity, capability, productResourceKey);
         if ("REQUIRED".equals(capability.responsibilityRequirement()) && roles.isEmpty()) {
             return Evaluation.denied(
                     ProductSurfaceAuthorityDtos.Decision.SURFACE_DENIED,
@@ -503,11 +528,16 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                 ? ScopedAdminDutyPolicy.validUntil(duties, roles)
                 : roles.stream().map(AppGovernanceDtos.ResourceRole::validTo)
                         .filter(Objects::nonNull).min(Comparator.naturalOrder()).orElse(null);
-        List<ProductSurfaceAuthorityDtos.EffectiveScope> scopes = scoped
-                ? ScopedAdminDutyPolicy.scopes(request, duties, roles, readOnly)
-                : roles.isEmpty()
-                        ? policyScopes(request, capability.scopeResolver(), validUntil, readOnly)
-                        : responsibilityScopes(request, roles, readOnly);
+        List<ProductSurfaceAuthorityDtos.EffectiveScope> scopes;
+        if (scoped) {
+            scopes = ScopedAdminDutyPolicy.scopes(request, duties, roles, readOnly);
+        } else if (inheritsSelfEntryScope) {
+            scopes = entryPolicyScopes;
+        } else if (roles.isEmpty()) {
+            scopes = policyScopes(request, capability.scopeResolver(), validUntil, readOnly);
+        } else {
+            scopes = responsibilityScopes(request, roles, readOnly);
+        }
         List<ProductSurfaceAuthorityDtos.EffectiveGrant> grants = capabilityGrants(
                 request, capability, predicates, roles, scopes, readOnly, activationEligible);
         if (activationEligible && request.directRouteEvaluation()) {
