@@ -1694,6 +1694,16 @@
             "format": "uuid",
             "type": "string"
           },
+          "mentionedUserIds": {
+            "items": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "maxItems": 50,
+            "minItems": 0,
+            "type": "array"
+          },
           "replyToMessageId": {
             "format": "uuid",
             "type": "string"

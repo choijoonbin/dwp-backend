@@ -7733,6 +7733,9 @@
           "jobTitle": {
             "type": "string"
           },
+          "legacyRoleFallbackAllowed": {
+            "type": "boolean"
+          },
           "permissions": {
             "items": {
               "$ref": "#/components/schemas/auth_PermissionDTO"
@@ -12197,6 +12200,16 @@
           "idempotencyKey": {
             "format": "uuid",
             "type": "string"
+          },
+          "mentionedUserIds": {
+            "items": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            },
+            "maxItems": 50,
+            "minItems": 0,
+            "type": "array"
           },
           "replyToMessageId": {
             "format": "uuid",

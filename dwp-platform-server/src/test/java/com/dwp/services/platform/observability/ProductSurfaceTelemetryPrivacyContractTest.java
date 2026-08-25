@@ -43,7 +43,7 @@ class ProductSurfaceTelemetryPrivacyContractTest {
     void rawAndAggregateStoresContainNoIdentityOrObjectColumns() throws Exception {
         String migration = Files.readString(Path.of(
                 "src/main/resources/db/migration/"
-                        + "V177__create_product_surface_ux_telemetry.sql"))
+                        + "V179__create_product_surface_ux_telemetry.sql"))
                 .toLowerCase();
 
         assertThat(migration)

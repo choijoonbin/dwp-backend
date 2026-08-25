@@ -1,6 +1,7 @@
 package com.dwp.gateway.productsurface;
 
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -32,6 +33,7 @@ public class ProductSurfaceContextAggregationService {
     private final ObjectProvider<ProductSurfaceCandidateCatalog> candidateCatalogs;
     private final Clock clock;
 
+    @Autowired
     public ProductSurfaceContextAggregationService(
             ProductSurfaceAuthorityClient authorityClient,
             GovernedRouteAuthorityClient governedClient,

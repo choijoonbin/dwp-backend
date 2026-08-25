@@ -8,6 +8,7 @@ import com.dwp.services.notification.security.NotificationDatabaseScope;
 import com.dwp.services.notification.security.NotificationRequestContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
@@ -32,6 +33,7 @@ public class NotificationAppSummaryService {
     private final NotificationAppSummaryRepository repository;
     private final Clock clock;
 
+    @Autowired
     public NotificationAppSummaryService(
             NotificationDatabaseScope databaseScope,
             NotificationAppSummaryRepository repository) {

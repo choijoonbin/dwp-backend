@@ -13,7 +13,7 @@ class IdentityGovernanceWorkItemMigrationContractTest {
     void reviewIsAProjectionWithOwnerSequenceAndNoDecisionColumns() throws Exception {
         String sql = Files.readString(Path.of(
                 "src/main/resources/db/migration/"
-                        + "V178__add_review_workspace_work_items.sql"));
+                        + "V180__add_review_workspace_work_items.sql"));
 
         assertThat(sql)
                 .contains("'REVIEW'")
