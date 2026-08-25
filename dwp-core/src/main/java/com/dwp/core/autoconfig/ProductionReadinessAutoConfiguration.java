@@ -36,6 +36,7 @@ public class ProductionReadinessAutoConfiguration {
             if (!production(environment)) return;
             String service = environment.getProperty("spring.application.name", "unknown");
             List<String> failures = new ArrayList<>();
+            failures.addAll(LocalBootstrapProductionGuard.violations(environment));
             requireFalse(environment, failures, "otel.sdk.disabled");
             requireFalse(environment, failures, "springdoc.api-docs.enabled");
             requireUrl(environment, failures, "otel.exporter.otlp.endpoint", false,

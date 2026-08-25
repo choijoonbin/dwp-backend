@@ -10,6 +10,54 @@ from scripts import devctl
 
 
 class AgentLocalEnvironmentTest(unittest.TestCase):
+    def test_core006_bootstrap_settings_are_injected_only_into_exact_services(
+        self,
+    ) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            environments = {
+                name: devctl.service_environment(name) for name in devctl.SERVICES
+            }
+
+        product_token = "DWP_PRODUCT_SURFACE_TOKEN"
+        self.assertEqual(
+            environments["auth"][product_token], environments["gateway"][product_token]
+        )
+        for name, environment in environments.items():
+            self.assertEqual(product_token in environment, name in {"auth", "gateway"})
+
+        auth_only = {
+            "DWP_PRODUCT_AUTHORIZATION_SEED_ENABLED": "true",
+            "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_ENABLED": "true",
+        }
+        for key, value in auth_only.items():
+            self.assertEqual(environments["auth"][key], value)
+            self.assertTrue(
+                all(key not in environment for name, environment in environments.items()
+                    if name != "auth")
+            )
+
+        provider_flyway = "DWP_PROVIDER_FLYWAY_LOCATIONS"
+        self.assertEqual(
+            environments["provider"][provider_flyway],
+            "classpath:db/migration,classpath:db/local-seed",
+        )
+        self.assertTrue(
+            all(provider_flyway not in environment
+                for name, environment in environments.items() if name != "provider")
+        )
+
+        exact_latches = {
+            "platform": "DWP_PLATFORM_PRODUCT_AUTHORIZATION_APPROVALS_V2_ENABLED",
+            "people": "DWP_HCM_PRODUCT_AUTHORIZATION_V3_ENABLED",
+            "approval": "DWP_APPROVAL_PRODUCT_AUTHORIZATION_V2_ENABLED",
+        }
+        for owner, key in exact_latches.items():
+            self.assertEqual(environments[owner][key], "true")
+            self.assertTrue(
+                all(key not in environment
+                    for name, environment in environments.items() if name != owner)
+            )
+
     def test_agent_receives_local_model_settings_without_leaking_to_other_services(
         self,
     ) -> None:

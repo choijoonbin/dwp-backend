@@ -333,8 +333,8 @@ public class AppGovernanceService {
             throw new BaseException(ErrorCode.INVALID_STATE, "Only pending assignments can be decided.");
         }
         if (actorId.equals(before.requestedBy())
-                || ("USER".equals(before.principalType())
-                    && actorId.toString().equals(before.principalRef()))) {
+                || assignmentStore.principalIncludesUser(
+                        tenantId, before.principalType(), before.principalRef(), actorId)) {
             denied(tenantId, actorId, correlationId, "APP_ADMIN_ASSIGNMENT",
                     assignmentId.toString(), "SELF_APPROVAL_FORBIDDEN");
         }
@@ -506,9 +506,34 @@ public class AppGovernanceService {
                     "APP_ADMIN_ASSIGNMENT", assignmentId.toString());
             return;
         }
+        if (isFirstApproverBootstrap(tenantId, actorId, assignment)) {
+            authorization.requireCatalogAdmin(
+                    tenantId, actorId, correlationId,
+                    "APP_ADMIN_ASSIGNMENT", assignmentId.toString());
+            return;
+        }
         authorization.requireScopedResponsibility(
                 tenantId, actorId, "APP_ACCESS_APPROVER", assignment.resourceSetId(),
                 correlationId, "APP_ADMIN_ASSIGNMENT", assignmentId.toString());
+    }
+
+    private boolean isFirstApproverBootstrap(
+            Long tenantId, Long actorId, AppGovernanceDtos.Assignment assignment) {
+        return "APP_ACCESS_APPROVER".equals(assignment.responsibilityCode())
+                && "PENDING_APPROVAL".equals(assignment.lifecycleState())
+                && "MANUAL".equals(assignment.assignmentSource())
+                && "USER".equals(assignment.principalType())
+                && assignment.requestedBy() != null
+                && assignmentStore.isActiveUser(tenantId, actorId)
+                && assignmentStore.isActivePrincipal(
+                        tenantId, assignment.principalType(), assignment.principalRef())
+                && assignmentStore.hasEffectiveResponsibilityForUser(
+                        tenantId, assignment.requestedBy(), assignment.resourceSetId(),
+                        "APP_OWNER")
+                && assignmentStore.effectiveResponsibilityCount(
+                        tenantId, assignment.resourceSetId(), "APP_OWNER") > 0
+                && assignmentStore.effectiveResponsibilityCount(
+                        tenantId, assignment.resourceSetId(), "APP_ACCESS_APPROVER") == 0;
     }
 
     private void requireAssignmentRevocationAuthority(

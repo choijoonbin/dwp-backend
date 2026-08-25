@@ -10,6 +10,7 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -17,6 +18,7 @@ import java.io.InputStream;
 import java.util.List;
 
 @Component
+@Order(100)
 public class ProductAuthorizationSeedLoader implements ApplicationRunner {
 
     private static final Logger LOGGER =
