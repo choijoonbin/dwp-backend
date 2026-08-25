@@ -44,6 +44,8 @@ final class ApprovalQuerySql02 {
           ) usage_count ON TRUE
          WHERE form.tenant_id = :tenantId
            AND form.form_id = :formId
+           AND (:workCatalog = TRUE OR
+                form.management_resource_set_key = :managementScope)
         """;
 
     static final String FORM_ROUTES_SELECT_APR_FORM_WORKFLOW_BINDINGS = """
@@ -57,7 +59,21 @@ final class ApprovalQuerySql02 {
            AND workflow.workflow_id = binding.workflow_id
          WHERE binding.tenant_id = :tenantId
            AND binding.form_id = :formId
+           AND (:workCatalog = TRUE OR
+                workflow.management_resource_set_key = :managementScope)
+           AND EXISTS (
+               SELECT 1 FROM apr_forms form
+                WHERE form.tenant_id = binding.tenant_id
+                  AND form.form_id = binding.form_id
+                  AND (:workCatalog = TRUE OR
+                       form.management_resource_set_key = :managementScope))
            AND binding.lifecycle_state = 'ACTIVE'
+           AND (:workCatalog = FALSE OR (
+               workflow.lifecycle_state = 'PUBLISHED'
+               AND (binding.effective_from IS NULL
+                    OR binding.effective_from <= CURRENT_TIMESTAMP)
+               AND (binding.effective_to IS NULL
+                    OR binding.effective_to > CURRENT_TIMESTAMP)))
          ORDER BY CASE binding.binding_type WHEN 'DEFAULT' THEN 0 ELSE 1 END,
                   binding.priority, workflow.name_en
         """;
@@ -69,8 +85,9 @@ final class ApprovalQuerySql02 {
                pending_enforcement_mode, pending_severity,
                pending_lifecycle_state, pending_rule_payload::text,
                pending_change_reason, pending_by, pending_at
-          FROM apr_policy_rules
+         FROM apr_policy_rules
          WHERE tenant_id = :tenantId
+           AND management_resource_set_key = :managementScope
          ORDER BY CASE severity WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1
                                 WHEN 'MEDIUM' THEN 2 ELSE 3 END,
                   policy_key
@@ -81,8 +98,13 @@ final class ApprovalQuerySql02 {
                severity, lifecycle_state, rule_payload::text,
                change_reason, submitted_by, submitted_at,
                published_by, published_at, review_comment
-          FROM apr_policy_rule_versions
-         WHERE tenant_id = :tenantId AND policy_id = :policyId
+          FROM apr_policy_rule_versions version
+         WHERE version.tenant_id = :tenantId AND version.policy_id = :policyId
+           AND EXISTS (
+               SELECT 1 FROM apr_policy_rules policy
+                WHERE policy.tenant_id = version.tenant_id
+                  AND policy.policy_id = version.policy_id
+                  AND policy.management_resource_set_key = :managementScope)
          ORDER BY version_number DESC
          LIMIT 100
         """;
@@ -92,8 +114,9 @@ final class ApprovalQuerySql02 {
                lifecycle_state, capability_metadata::text,
                credential_reference IS NOT NULL AS credential_configured,
                last_health_checked_at, version
-          FROM apr_signature_providers
+         FROM apr_signature_providers
          WHERE tenant_id = :tenantId
+           AND management_resource_set_key = :managementScope
          ORDER BY CASE provider_type WHEN 'INTERNAL_ATTESTATION' THEN 0 ELSE 1 END,
                   display_name
         """;
@@ -101,7 +124,7 @@ final class ApprovalQuerySql02 {
     static final String DELEGATIONS_SELECT_APR_DELEGATIONS = """
         SELECT delegation_id, delegator_user_id, delegate_user_id,
                delegate_person_public_id, delegate_display_name, delegate_email,
-               scope_type, workflow_key, starts_at, ends_at,
+               scope_type, workflow_id, workflow_key, starts_at, ends_at,
                lifecycle_state, reason, version,
                CASE WHEN delegator_user_id = :userId THEN 'OUTGOING' ELSE 'INCOMING' END
                    AS direction
@@ -114,20 +137,25 @@ final class ApprovalQuerySql02 {
 
     static final String FAILED_INTEGRATION_COUNT_SELECT_APR_INTEGRATION_OUTBOX = """
         SELECT COUNT(*)::INTEGER FROM apr_integration_outbox
-         WHERE tenant_id = :tenantId AND status IN ('FAILED', 'DEAD')
+         WHERE tenant_id = :tenantId
+           AND management_resource_set_key = :managementScope
+           AND status IN ('FAILED', 'DEAD')
         """;
 
     static final String PENDING_INTEGRATION_COUNT_SELECT_APR_INTEGRATION_OUTBOX = """
         SELECT COUNT(*)::INTEGER FROM apr_integration_outbox
-         WHERE tenant_id = :tenantId AND status IN ('PENDING', 'SENDING')
+         WHERE tenant_id = :tenantId
+           AND management_resource_set_key = :managementScope
+           AND status IN ('PENDING', 'SENDING')
         """;
 
     static final String INTEGRATION_DELIVERIES_SELECT_APR_INTEGRATION_OUTBOX = """
         SELECT outbox_id, event_id, request_id, event_type, status,
                attempt_count, manual_retry_count, available_at,
-               published_at, last_error, created_at, last_retried_at
-          FROM apr_integration_outbox
+               published_at, last_error, created_at, last_retried_at, version
+         FROM apr_integration_outbox
          WHERE tenant_id = :tenantId
+           AND management_resource_set_key = :managementScope
          ORDER BY CASE status
                       WHEN 'DEAD' THEN 0
                       WHEN 'FAILED' THEN 1
@@ -143,20 +171,32 @@ final class ApprovalQuerySql02 {
         SELECT COUNT(*)::INTEGER FROM apr_delegations
          WHERE tenant_id = :tenantId AND lifecycle_state = 'ACTIVE'
            AND CURRENT_TIMESTAMP BETWEEN starts_at AND ends_at
+           AND ((
+               scope_type = 'ALL' AND :managementScope = 'RS_APPROVALS') OR EXISTS (
+               SELECT 1 FROM apr_workflow_definitions workflow
+                WHERE workflow.tenant_id = apr_delegations.tenant_id
+                  AND workflow.workflow_id = apr_delegations.workflow_id
+                  AND workflow.management_resource_set_key = :managementScope))
         """;
 
     static final String BREACHED_TASKS_SQL_STATEMENT = """
         WHERE task.tenant_id = :tenantId
           AND task.status IN ('PENDING', 'CLAIMED')
           AND task.due_at < CURRENT_TIMESTAMP
+          AND request.management_resource_set_key = :managementScope
         ORDER BY task.due_at, task.risk_score DESC
         LIMIT :limit
         """;
 
     static final String OVERDUE_COUNT_SELECT_APR_TASKS = """
-        SELECT COUNT(*)::INTEGER FROM apr_tasks
-         WHERE tenant_id = :tenantId
-           AND status IN ('PENDING', 'CLAIMED')
-           AND due_at < CURRENT_TIMESTAMP
+        SELECT COUNT(*)::INTEGER FROM apr_tasks task
+         WHERE task.tenant_id = :tenantId
+           AND task.status IN ('PENDING', 'CLAIMED')
+           AND task.due_at < CURRENT_TIMESTAMP
+           AND EXISTS (
+               SELECT 1 FROM apr_requests request
+                WHERE request.tenant_id = task.tenant_id
+                  AND request.request_id = task.request_id
+                  AND request.management_resource_set_key = :managementScope)
         """;
 }

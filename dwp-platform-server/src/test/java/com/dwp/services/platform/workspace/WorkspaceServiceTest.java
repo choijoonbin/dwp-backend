@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -377,6 +378,46 @@ class WorkspaceServiceTest {
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
     }
 
+    @Test
+    void reviewTypeCannotBeMutatedAsAGenericWorkspaceTaskEvenWhenStatusIsUnchanged() {
+        UUID id = UUID.randomUUID();
+        WorkspaceRepository.WorkRow review = work(
+                id, "DUE_SOON", 1L, "REVIEW", "OTHER_OWNER");
+        when(repository.workItem(1L, 7L, id, false)).thenReturn(Optional.of(review));
+
+        assertThatThrownBy(() -> service.updateWorkStatus(
+                1L,
+                7L,
+                "APP.WORK:VIEW,APP.WORK:UPDATE",
+                "en",
+                "corr-review",
+                id,
+                new WorkspaceDtos.UpdateWorkStatusRequest("DUE_SOON", 1L)))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.RESOURCE_CONFLICT));
+        verify(repository, never()).updateWorkStatus(
+                anyLong(), anyLong(), any(), anyString(), anyLong(), anyString(), anyString());
+    }
+
+    @Test
+    void identityOwnerMarkerCannotBeMutatedEvenIfTheProjectedTypeDrifts() {
+        UUID id = UUID.randomUUID();
+        WorkspaceRepository.WorkRow ownerManaged = work(
+                id, "DUE_SOON", 1L, "TASK",
+                IdentityGovernanceWorkItemProjectionRepository.SOURCE_SYSTEM);
+        when(repository.workItem(1L, 7L, id, false)).thenReturn(Optional.of(ownerManaged));
+
+        assertThatThrownBy(() -> service.updateWorkStatus(
+                1L, 7L, "APP.WORK:UPDATE", "en", "corr-review", id,
+                new WorkspaceDtos.UpdateWorkStatusRequest("COMPLETED", 1L)))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.RESOURCE_CONFLICT));
+        verify(repository, never()).updateWorkStatus(
+                anyLong(), anyLong(), any(), anyString(), anyLong(), anyString(), anyString());
+    }
+
     private WorkspaceRepository.AppRow app(
             String id,
             String resource,
@@ -400,18 +441,23 @@ class WorkspaceServiceTest {
     }
 
     private WorkspaceRepository.WorkRow work(UUID id, String status, long version) {
+        return work(id, status, version, "TASK", "Source");
+    }
+
+    private WorkspaceRepository.WorkRow work(
+            UUID id, String status, long version, String type, String sourceSystem) {
         return new WorkspaceRepository.WorkRow(
                 id,
                 "WK-1",
                 "Work",
                 "Summary",
                 "CONFIDENTIAL",
-                "TASK",
+                type,
                 "HIGH",
                 status,
                 "SELF",
                 OffsetDateTime.now().plusHours(1),
-                "Source",
+                sourceSystem,
                 "REF-1",
                 "/work",
                 "Reason",

@@ -2,6 +2,8 @@ package com.dwp.services.people.organization;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.people.hr.HcmPopulationScopeService;
+import com.dwp.services.people.security.HcmPepContext;
 import com.dwp.services.people.security.PeopleRequestContext;
 import com.dwp.services.people.workforce.WorkforceAccessPolicyService;
 import org.springframework.stereotype.Service;
@@ -24,6 +26,12 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static com.dwp.services.people.organization.OrganizationChartMetrics.addSignal;
+import static com.dwp.services.people.organization.OrganizationChartMetrics.average;
+import static com.dwp.services.people.organization.OrganizationChartMetrics.countPeople;
+import static com.dwp.services.people.organization.OrganizationChartMetrics.percentage;
+import static com.dwp.services.people.organization.OrganizationChartMetrics.round;
+
 @Service
 public class OrganizationChartService {
 
@@ -33,14 +41,17 @@ public class OrganizationChartService {
     private final OrganizationChartRepository repository;
     private final OrganizationScenarioRepository scenarioRepository;
     private final WorkforceAccessPolicyService accessPolicyService;
+    private final HcmPopulationScopeService populationScopes;
 
     public OrganizationChartService(
             OrganizationChartRepository repository,
             OrganizationScenarioRepository scenarioRepository,
-            WorkforceAccessPolicyService accessPolicyService) {
+            WorkforceAccessPolicyService accessPolicyService,
+            HcmPopulationScopeService populationScopes) {
         this.repository = repository;
         this.scenarioRepository = scenarioRepository;
         this.accessPolicyService = accessPolicyService;
+        this.populationScopes = populationScopes;
     }
 
     @Transactional(readOnly = true)
@@ -56,6 +67,7 @@ public class OrganizationChartService {
             LocalDate requestedAsOf,
             UUID requestedRoot,
             int requestedDepth) {
+        populationScopes.requireSelfScope();
         return directoryProjection(build(
                 requestedAsOf, requestedRoot, requestedDepth, null, null));
     }
@@ -66,9 +78,28 @@ public class OrganizationChartService {
             UUID requestedRoot,
             int requestedDepth,
             UUID scenarioId) {
-        WorkforceAccessPolicyService.Decision decision = accessPolicyService.require("READ");
+        WorkforceAccessPolicyService.Decision decision = chartDecision();
         return workforceProjection(build(
                 requestedAsOf, requestedRoot, requestedDepth, scenarioId, decision), decision);
+    }
+
+    private WorkforceAccessPolicyService.Decision chartDecision() {
+        HcmPepContext.Evidence evidence = HcmPepContext.current();
+        if (evidence != null && evidence.authority().routeContractKey()
+                .startsWith("route.hcm.management.org-")) {
+            populationScopes.requireConfigurationScope();
+            return new WorkforceAccessPolicyService.Decision(
+                    true, Set.of(),
+                    Set.of("DIRECTORY", "WORKER_IDENTIFIERS", "EMPLOYMENT", "JOB_GRADE"),
+                    "READ");
+        }
+        WorkforceAccessPolicyService.Decision decision = accessPolicyService.require("READ");
+        HcmPopulationScopeService.ResolvedPopulation population =
+                populationScopes.requireOperations("READ");
+        populationScopes.requireTrustedScope(
+                population, "hcm.operations", "TARGET_POPULATION",
+                "WORKFORCE_TARGET_POPULATION", "ORG_UNIT/LEGAL_ENTITY");
+        return decision;
     }
 
     private OrganizationChartDtos.OrganizationChart build(
@@ -125,14 +156,14 @@ public class OrganizationChartService {
         List<OrganizationChartRepository.PersonRow> personRows = allPersonRows.stream()
                 .filter(person -> includedOrganizationIds.contains(person.organizationPublicId()))
                 .toList();
-        Map<String, OrganizationChartRepository.PersonRow> personByAssignment = allPersonRows.stream()
+        Map<String, OrganizationChartRepository.PersonRow> personByAssignment = personRows.stream()
                 .filter(person -> person.assignmentKey() != null)
                 .collect(Collectors.toMap(
                         OrganizationChartRepository.PersonRow::assignmentKey,
                         Function.identity(),
                         (first, ignored) -> first));
         Map<String, Integer> reportCountByAssignment = new HashMap<>();
-        allPersonRows.stream()
+        personRows.stream()
                 .map(OrganizationChartRepository.PersonRow::managerAssignmentKey)
                 .filter(manager -> manager != null && !manager.isBlank())
                 .forEach(manager -> reportCountByAssignment.merge(manager, 1, Integer::sum));
@@ -953,40 +984,6 @@ public class OrganizationChartService {
         visiting.remove(organizationId);
         memo.put(organizationId, total);
         return total;
-    }
-
-    private int countPeople(
-            List<OrganizationChartDtos.Person> people,
-            String status,
-            String type) {
-        return (int) people.stream()
-                .filter(person -> status == null || status.equals(person.workerStatus()))
-                .filter(person -> type == null || type.equals(person.workerType()))
-                .count();
-    }
-
-    private double average(List<Integer> values) {
-        return values.stream().mapToInt(Integer::intValue).average().orElse(0.0);
-    }
-
-    private double percentage(int numerator, int denominator) {
-        return denominator == 0 ? 0.0 : (numerator * 100.0) / denominator;
-    }
-
-    private double round(double value) {
-        return Math.round(value * 10.0) / 10.0;
-    }
-
-    private void addSignal(
-            List<OrganizationChartDtos.AnalysisSignal> signals,
-            String code,
-            String severity,
-            int count,
-            UUID organizationId) {
-        if (count > 0) {
-            signals.add(new OrganizationChartDtos.AnalysisSignal(
-                    code, severity, count, organizationId));
-        }
     }
 
     private String mask(String value) {

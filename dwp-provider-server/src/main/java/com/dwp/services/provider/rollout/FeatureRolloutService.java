@@ -32,17 +32,34 @@ public class FeatureRolloutService {
     private static final String READ = "FEATURE_ROLLOUT_READ";
     private static final String WRITE = "FEATURE_ROLLOUT_WRITE";
     private static final String APPROVE = "FEATURE_ROLLOUT_APPROVE";
+    private static final Set<String> PRODUCT_SURFACE_FLAGS = Set.of(
+            "access.product-surfaces.context-shadow.v1",
+            "access.product-surfaces.capability-enforcement.v1",
+            "ux.product-surfaces.dwaion.v1",
+            "ux.product-surfaces.communications.v1",
+            "ux.product-surfaces.services.v1",
+            "ux.product-surfaces.notifications.v1",
+            "ux.product-surfaces.calendar.v1",
+            "ux.product-surfaces.workplace.v1",
+            "ux.product-surfaces.mail.v1",
+            "ux.product-surfaces.messaging.v1",
+            "ux.product-surfaces.approvals.v1",
+            "ux.product-surfaces.spaces.v1",
+            "ux.product-surfaces.hcm.v1");
     private static final Set<String> SECRET_FIELD_MARKERS =
             Set.of("secret", "password", "token", "credential", "privatekey");
 
     private final FeatureRolloutRepository repository;
     private final ProviderAuditService audit;
+    private final FeatureRolloutDecisionOutboxRepository decisionOutbox;
 
     public FeatureRolloutService(
             FeatureRolloutRepository repository,
-            ProviderAuditService audit) {
+            ProviderAuditService audit,
+            FeatureRolloutDecisionOutboxRepository decisionOutbox) {
         this.repository = repository;
         this.audit = audit;
+        this.decisionOutbox = decisionOutbox;
     }
 
     @Transactional(readOnly = true)
@@ -185,6 +202,7 @@ public class FeatureRolloutService {
             throw conflict("The approved rollout changed or cannot be activated.");
         }
         FeatureRolloutRepository.RolloutRow result = requireRollout(rolloutId);
+        recordDecisionChange(result, enabledState(result));
         audit.success(
                 "provider.feature-rollout.activated",
                 "FEATURE_ROLLOUT",
@@ -244,6 +262,7 @@ public class FeatureRolloutService {
             throw conflict("The active rollout stage changed before it could advance.");
         }
         FeatureRolloutRepository.RolloutRow result = requireRollout(rolloutId);
+        recordDecisionChange(result, "ADVANCED");
         audit.success(
                 "provider.feature-rollout.advanced",
                 "FEATURE_ROLLOUT",
@@ -281,6 +300,7 @@ public class FeatureRolloutService {
                 rollbackValue,
                 request.reason().trim(),
                 ProviderRequestContext.require().operatorId());
+        recordDecisionChange(rollback, "ROLLED_BACK");
         audit.success(
                 "provider.feature-rollout.rolled-back",
                 "FEATURE_ROLLOUT",
@@ -296,6 +316,26 @@ public class FeatureRolloutService {
     @Transactional
     public FeatureRolloutDtos.Evaluation evaluate(String featureKey, UUID tenantId) {
         ProviderRequestContext.requirePermission(READ);
+        return evaluateDecision(featureKey, tenantId);
+    }
+
+    FeatureRolloutDtos.Evaluation evaluateProductSurfaceFlag(
+            String featureKey,
+            Long authTenantId) {
+        if (!isProductSurfaceFlag(featureKey)) {
+            throw new BaseException(ErrorCode.NOT_FOUND);
+        }
+        UUID tenantId = repository.tenantByAuthTenantId(authTenantId)
+                .map(FeatureRolloutRepository.TenantRow::tenantId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        return evaluateDecision(featureKey, tenantId);
+    }
+
+    static boolean isProductSurfaceFlag(String featureKey) {
+        return PRODUCT_SURFACE_FLAGS.contains(featureKey);
+    }
+
+    private FeatureRolloutDtos.Evaluation evaluateDecision(String featureKey, UUID tenantId) {
         FeatureRolloutRepository.FlagRow flag = repository.flag(featureKey)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         FeatureRolloutRepository.TenantRow tenant = repository.tenant(tenantId)
@@ -367,6 +407,7 @@ public class FeatureRolloutService {
         }
         FeatureRolloutRepository.RolloutRow result = requireRollout(rolloutId);
         String action = pause ? "paused" : "resumed";
+        recordDecisionChange(result, pause ? "PAUSED" : "RESUMED");
         audit.success(
                 "provider.feature-rollout." + action,
                 "FEATURE_ROLLOUT",
@@ -375,6 +416,19 @@ public class FeatureRolloutService {
                 Map.of("before", snapshot(before), "after", snapshot(result),
                         "reason", request.reason()));
         return rollout(result);
+    }
+
+    private void recordDecisionChange(
+            FeatureRolloutRepository.RolloutRow rollout,
+            String state) {
+        decisionOutbox.appendAllTenants(
+                rollout.flagId(), rollout.featureKey(), state);
+    }
+
+    private static String enabledState(FeatureRolloutRepository.RolloutRow rollout) {
+        return rollout.value().isBoolean() && rollout.value().booleanValue()
+                ? "ENABLED"
+                : "DISABLED";
     }
 
     private void validateValue(String valueType, JsonNode value) {

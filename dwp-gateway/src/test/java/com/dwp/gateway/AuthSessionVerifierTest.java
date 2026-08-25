@@ -634,6 +634,60 @@ class AuthSessionVerifierTest {
     }
 
     @Test
+    void preservesTheAuthResourceSetKeyForApprovalResponsibilityEvidence() {
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(ignored -> Mono.just(
+                ClientResponse.create(HttpStatus.OK)
+                        .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                        .body("""
+                                {"success":true,"data":{"userId":7,"tenantId":1,
+                                "roles":["WORKSPACE_MEMBER"],"resourceRoles":[{
+                                  "responsibilityCode":"APP_CONFIG_ADMIN",
+                                  "resourceType":"APPLICATION",
+                                  "resourceKey":"APP.APPROVALS",
+                                  "resourceSetId":"58fa4516-dc70-4785-ac9f-3606992c3f6b",
+                                  "resourceSetKey":"RS_APPROVALS"
+                                }]}}
+                                """)
+                        .build()));
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+
+        VerifiedIdentity identity = verifier.verify(MockServerHttpRequest
+                .get("/api/approvals/v1/admin/workflows")
+                .build()).block();
+
+        assertThat(identity).isNotNull();
+        assertThat(identity.resourceRoles())
+                .containsExactly("APP_CONFIG_ADMIN@RS_APPROVALS");
+        assertThat(identity.resourceRoles())
+                .doesNotContain("APP_CONFIG_ADMIN@APP.APPROVALS");
+    }
+
+    @Test
+    void dropsResponsibilityEvidenceWhenTheAuthResourceSetKeyIsMissingOrInvalid() {
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(ignored -> Mono.just(
+                ClientResponse.create(HttpStatus.OK)
+                        .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                        .body("""
+                                {"success":true,"data":{"userId":7,"tenantId":1,
+                                "roles":["WORKSPACE_MEMBER"],"resourceRoles":[
+                                  {"responsibilityCode":"APP_CONFIG_ADMIN","resourceKey":"APP.APPROVALS"},
+                                  {"responsibilityCode":"APP_CONFIG_ADMIN","resourceSetKey":"../RS_APPROVALS"}
+                                ]}}
+                                """)
+                        .build()));
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+
+        VerifiedIdentity identity = verifier.verify(MockServerHttpRequest
+                .get("/api/approvals/v1/admin/workflows")
+                .build()).block();
+
+        assertThat(identity).isNotNull();
+        assertThat(identity.resourceRoles()).isEmpty();
+    }
+
+    @Test
     void requestsProductivityControlPlaneAuthoritiesForConnectorRoutes() {
         AtomicReference<ClientRequest> captured = new AtomicReference<>();
         WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {

@@ -3,6 +3,7 @@ package com.dwp.services.people.integration;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.people.security.PeopleRequestContext;
+import com.dwp.services.people.security.HcmPepContext;
 import com.dwp.services.people.hr.HrDomainFoundationService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -224,6 +225,7 @@ public class HrisImportService {
             String correlationId) {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
         requireDataOperationsAdministrator(actor);
+        requireNonSecretProductRequest(request.credentialReference());
         List<String> issues = connectorIssues(
                 request.connectorType(), request.endpointUri(), request.authMode(),
                 request.credentialReference());
@@ -258,6 +260,7 @@ public class HrisImportService {
             String correlationId) {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
         requireDataOperationsAdministrator(actor);
+        requireNonSecretProductRequest(request.credentialReference());
         HrisDtos.ConnectorInstance current = repository
                 .findConnector(actor.tenantId(), connectorId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
@@ -325,7 +328,8 @@ public class HrisImportService {
     }
 
     private void requireDataOperationsAdministrator(PeopleRequestContext.Actor actor) {
-        if (!actor.hasAnyRole("ADMIN", "HR_ADMIN")) {
+        if (HcmPepContext.current() == null
+                && !actor.hasAnyRole("ADMIN", "HR_ADMIN")) {
             throw new BaseException(
                     ErrorCode.FORBIDDEN,
                     "HR administrator permission is required to change HRIS data operations.");
@@ -380,6 +384,17 @@ public class HrisImportService {
             }
         }
         return issues;
+    }
+
+    private void requireNonSecretProductRequest(String credentialReference) {
+        HcmPepContext.Evidence evidence = HcmPepContext.current();
+        if (evidence == null || !evidence.authority().predicatePolicyKeys()
+                .contains("predicate.hcm-integration-nonsecret-update.v1")) return;
+        if (credentialReference != null) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "credentialReference is forbidden on governed HCM integration requests.");
+        }
     }
 
     private String redactReference(String value) {

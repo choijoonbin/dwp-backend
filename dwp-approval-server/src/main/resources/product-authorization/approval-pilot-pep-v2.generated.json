@@ -1,0 +1,3513 @@
+{
+  "accessPolicies": [
+    {
+      "accessPolicyKey": "approvals.work-access.v1",
+      "authorityMode": "ENTITLEMENT",
+      "entitlementExpressionKey": "APPROVALS_WORK_ACCESS_V1",
+      "evaluationType": "SINGLE",
+      "lifecycleState": "ACTIVE",
+      "modeBranches": null,
+      "navigationContextId": "approvals.work",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "productKey": "approvals",
+      "relationshipResolver": null,
+      "requiresProductEntitlement": true,
+      "routeContractKeys": [
+        "route.approvals.work.home-preference-update.action",
+        "route.approvals.work.home-preference.data",
+        "route.approvals.work.home.page"
+      ],
+      "scopeResolver": "SELF",
+      "supportScopes": null,
+      "surfaceEntryKeys": [
+        "approvals.work"
+      ],
+      "surfaceKey": "approvals.work"
+    }
+  ],
+  "bindingPairCount": 47,
+  "capabilities": [
+    {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "approvals.audit.operations.read",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "productKey": "approvals",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.APPROVAL_OPERATIONS:VIEW",
+      "resourceKey": "ADMIN.APPROVAL_OPERATIONS",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.approvals.admin.operations.page"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_APPROVALS",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "approvals.admin"
+    },
+    {
+      "action": "CREATE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "approvals.design.create",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "productKey": "approvals",
+      "requiredResponsibilityCode": "APP_CONFIG_ADMIN",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.APPROVAL_DESIGN:CREATE",
+      "resourceKey": "ADMIN.APPROVAL_DESIGN",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.approvals.admin.form-category-create.action",
+        "route.approvals.admin.form-create.action",
+        "route.approvals.admin.workflow-create.action"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_APPROVALS",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "approvals.admin"
+    },
+    {
+      "action": "PUBLISH",
+      "activationPolicy": "STEPUP-MGMT-HIGH-V1",
+      "authorityMode": "PERMISSION",
+      "contractKey": "approvals.design.publish",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "productKey": "approvals",
+      "requiredResponsibilityCode": "APP_CONFIG_ADMIN",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.APPROVAL_DESIGN:PUBLISH",
+      "resourceKey": "ADMIN.APPROVAL_DESIGN",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "HIGH",
+      "routeContractKeys": [
+        "route.approvals.admin.form-publish.action",
+        "route.approvals.admin.workflow-publish.action"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_APPROVALS",
+      "sodPolicyId": "SOD-APR-DESIGN-PUBLISH-V1",
+      "sunsetAt": null,
+      "surfaceKey": "approvals.admin"
+    },
+    {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "approvals.design.read",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "productKey": "approvals",
+      "requiredResponsibilityCode": "APP_CONFIG_ADMIN",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.APPROVAL_DESIGN:VIEW",
+      "resourceKey": "ADMIN.APPROVAL_DESIGN",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.approvals.admin.forms-workflow-reference.data",
+        "route.approvals.admin.forms.page",
+        "route.approvals.admin.workflows.page"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_APPROVALS",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "approvals.admin"
+    },
+    {
+      "action": "UPDATE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "approvals.design.update",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "productKey": "approvals",
+      "requiredResponsibilityCode": "APP_CONFIG_ADMIN",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.APPROVAL_DESIGN:UPDATE",
+      "resourceKey": "ADMIN.APPROVAL_DESIGN",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.approvals.admin.form-category-update.action",
+        "route.approvals.admin.form-update.action",
+        "route.approvals.admin.workflow-update.action"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_APPROVALS",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "approvals.admin"
+    },
+    {
+      "action": "EXECUTE",
+      "activationPolicy": "STEPUP-MGMT-HIGH-V1",
+      "authorityMode": "PERMISSION",
+      "contractKey": "approvals.operations.execute",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "productKey": "approvals",
+      "requiredResponsibilityCode": "APP_CONFIG_ADMIN",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.APPROVAL_OPERATIONS:EXECUTE",
+      "resourceKey": "ADMIN.APPROVAL_OPERATIONS",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "HIGH",
+      "routeContractKeys": [
+        "route.approvals.admin.operations.retry.action"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_APPROVALS",
+      "sodPolicyId": "SOD-APR-OPS-AUDIT-V1",
+      "sunsetAt": null,
+      "surfaceKey": "approvals.admin"
+    },
+    {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "approvals.operations.read",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "productKey": "approvals",
+      "requiredResponsibilityCode": "APP_CONFIG_ADMIN",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.APPROVAL_OPERATIONS:VIEW",
+      "resourceKey": "ADMIN.APPROVAL_OPERATIONS",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.approvals.admin.operations.page",
+        "route.approvals.admin.overview.page"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_APPROVALS",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "approvals.admin"
+    },
+    {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "approvals.oversight.design.read",
+      "legacySource": "tenant-admin explicit product VIEW allowlist",
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "productKey": "approvals",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.APPROVAL_DESIGN:VIEW",
+      "resourceKey": "ADMIN.APPROVAL_DESIGN",
+      "responsibilityRequirement": "LEGACY_OVERSIGHT",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.approvals.admin.forms-workflow-reference.data",
+        "route.approvals.admin.forms.page",
+        "route.approvals.admin.workflows.page"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_APPROVALS",
+      "sodPolicyId": null,
+      "sunsetAt": "2027-02-28T14:59:59Z",
+      "surfaceKey": "approvals.admin"
+    },
+    {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "approvals.oversight.operations.read",
+      "legacySource": "tenant-admin explicit product VIEW allowlist",
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "productKey": "approvals",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.APPROVAL_OPERATIONS:VIEW",
+      "resourceKey": "ADMIN.APPROVAL_OPERATIONS",
+      "responsibilityRequirement": "LEGACY_OVERSIGHT",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.approvals.admin.operations.page"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_APPROVALS",
+      "sodPolicyId": null,
+      "sunsetAt": "2027-02-28T14:59:59Z",
+      "surfaceKey": "approvals.admin"
+    },
+    {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "approvals.oversight.overview.read",
+      "legacySource": "tenant-admin explicit product VIEW allowlist",
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "productKey": "approvals",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.APPROVAL_OPERATIONS:VIEW",
+      "resourceKey": "ADMIN.APPROVAL_OPERATIONS",
+      "responsibilityRequirement": "LEGACY_OVERSIGHT",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.approvals.admin.overview.page"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_APPROVALS",
+      "sodPolicyId": null,
+      "sunsetAt": "2027-02-28T14:59:59Z",
+      "surfaceKey": "approvals.admin"
+    },
+    {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "approvals.oversight.policy.read",
+      "legacySource": "tenant-admin explicit product VIEW allowlist",
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "productKey": "approvals",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.APPROVAL_POLICY:VIEW",
+      "resourceKey": "ADMIN.APPROVAL_POLICY",
+      "responsibilityRequirement": "LEGACY_OVERSIGHT",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.approvals.admin.policies.page"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_APPROVALS",
+      "sodPolicyId": null,
+      "sunsetAt": "2027-02-28T14:59:59Z",
+      "surfaceKey": "approvals.admin"
+    },
+    {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "approvals.oversight.signature.read",
+      "legacySource": "tenant-admin explicit product VIEW allowlist",
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "productKey": "approvals",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.APPROVAL_SIGNATURE:VIEW",
+      "resourceKey": "ADMIN.APPROVAL_SIGNATURE",
+      "responsibilityRequirement": "LEGACY_OVERSIGHT",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.approvals.admin.signatures.page"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_APPROVALS",
+      "sodPolicyId": null,
+      "sunsetAt": "2027-02-28T14:59:59Z",
+      "surfaceKey": "approvals.admin"
+    },
+    {
+      "action": "PUBLISH",
+      "activationPolicy": "STEPUP-MGMT-HIGH-V1",
+      "authorityMode": "PERMISSION",
+      "contractKey": "approvals.policy.publish",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "productKey": "approvals",
+      "requiredResponsibilityCode": "APP_CONFIG_ADMIN",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.APPROVAL_POLICY:PUBLISH",
+      "resourceKey": "ADMIN.APPROVAL_POLICY",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "HIGH",
+      "routeContractKeys": [
+        "route.approvals.admin.policy-publish.action"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_APPROVALS",
+      "sodPolicyId": "SOD-APR-POLICY-PUBLISH-V1",
+      "sunsetAt": null,
+      "surfaceKey": "approvals.admin"
+    },
+    {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "approvals.policy.read",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "productKey": "approvals",
+      "requiredResponsibilityCode": "APP_CONFIG_ADMIN",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.APPROVAL_POLICY:VIEW",
+      "resourceKey": "ADMIN.APPROVAL_POLICY",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.approvals.admin.policies.page"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_APPROVALS",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "approvals.admin"
+    },
+    {
+      "action": "UPDATE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "approvals.policy.update",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "productKey": "approvals",
+      "requiredResponsibilityCode": "APP_CONFIG_ADMIN",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.APPROVAL_POLICY:UPDATE",
+      "resourceKey": "ADMIN.APPROVAL_POLICY",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.approvals.admin.policy-update.action"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_APPROVALS",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "approvals.admin"
+    },
+    {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "approvals.signature.read",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "productKey": "approvals",
+      "requiredResponsibilityCode": "APP_CONFIG_ADMIN",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.APPROVAL_SIGNATURE:VIEW",
+      "resourceKey": "ADMIN.APPROVAL_SIGNATURE",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.approvals.admin.signatures.page"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_APPROVALS",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "approvals.admin"
+    },
+    {
+      "action": "MANAGE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "approvals.work.delegation.manage",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "productKey": "approvals",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "ACTION.APPROVAL_DELEGATION:MANAGE",
+      "resourceKey": "ACTION.APPROVAL_DELEGATION",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.approvals.work.delegation-create.action",
+        "route.approvals.work.delegation-revoke.action",
+        "route.approvals.work.delegations.page"
+      ],
+      "scopeResolver": "ACTOR_OWNED_DELEGATION_POLICY_WINDOW",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "approvals.work"
+    },
+    {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "approvals.work.delegation.read",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "productKey": "approvals",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "ACTION.APPROVAL_DELEGATION:VIEW",
+      "resourceKey": "ACTION.APPROVAL_DELEGATION",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.approvals.work.delegations.page"
+      ],
+      "scopeResolver": "ACTOR_OWNED_DELEGATION",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "approvals.work"
+    },
+    {
+      "action": "CREATE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "approvals.work.request.create",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "productKey": "approvals",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "ACTION.APPROVAL_REQUEST:CREATE",
+      "resourceKey": "ACTION.APPROVAL_REQUEST",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.approvals.work.form-template.data",
+        "route.approvals.work.request-create.action",
+        "route.approvals.work.request-new.page"
+      ],
+      "scopeResolver": "SELF_PUBLISHED_FORM",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "approvals.work"
+    },
+    {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "approvals.work.request.read",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "productKey": "approvals",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "ACTION.APPROVAL_REQUEST:VIEW",
+      "resourceKey": "ACTION.APPROVAL_REQUEST",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.approvals.work.request-archive.page",
+        "route.approvals.work.request-detail.data",
+        "route.approvals.work.request-drafts.page",
+        "route.approvals.work.request-needs-info.page",
+        "route.approvals.work.request-submitted.page"
+      ],
+      "scopeResolver": "ACTOR_OWNED_REQUEST",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "approvals.work"
+    },
+    {
+      "action": "UPDATE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "approvals.work.request.update",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "productKey": "approvals",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "ACTION.APPROVAL_REQUEST:UPDATE",
+      "resourceKey": "ACTION.APPROVAL_REQUEST",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.approvals.work.form-template.data",
+        "route.approvals.work.request-draft-update.action",
+        "route.approvals.work.request-information-response.action",
+        "route.approvals.work.request-new.page",
+        "route.approvals.work.request-submit.action",
+        "route.approvals.work.request-withdraw.action"
+      ],
+      "scopeResolver": "ACTOR_OWNED_REQUEST_EXPECTED_VERSION",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "approvals.work"
+    },
+    {
+      "action": "APPROVE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "approvals.work.task.approve",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "productKey": "approvals",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "ACTION.APPROVAL_TASK:APPROVE",
+      "resourceKey": "ACTION.APPROVAL_TASK",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.approvals.work.task-decision.action"
+      ],
+      "scopeResolver": "DECIDABLE_TASK_SELF_APPROVAL_SOD",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "approvals.work"
+    },
+    {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "approvals.work.task.read",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "productKey": "approvals",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "ACTION.APPROVAL_TASK:VIEW",
+      "resourceKey": "ACTION.APPROVAL_TASK",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.approvals.work.completed.page",
+        "route.approvals.work.inbox.page",
+        "route.approvals.work.task-detail.data"
+      ],
+      "scopeResolver": "ASSIGNED_CANDIDATE_DELEGATED_TASK",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "approvals.work"
+    },
+    {
+      "action": "UPDATE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "approvals.work.task.update",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "productKey": "approvals",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "ACTION.APPROVAL_TASK:UPDATE",
+      "resourceKey": "ACTION.APPROVAL_TASK",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.approvals.work.task-claim.action"
+      ],
+      "scopeResolver": "CLAIMABLE_TASK",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "approvals.work"
+    }
+  ],
+  "entitlementExpressions": [
+    {
+      "expression": {
+        "entitlement": "APP.APPROVALS:VIEW",
+        "type": "LEAF"
+      },
+      "expressionKey": "APPROVALS_WORK_ACCESS_V1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Approvals + Security",
+      "policyVersion": 1
+    }
+  ],
+  "ownerServiceKey": "approval",
+  "predicatePolicies": [
+    {
+      "inputEvidenceSchemaKey": "ApprovalPublishedFormEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Approval + Approvals + Security",
+      "ownerServiceKey": "approval",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.approval-published-form.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.approval-published-form.v1",
+      "routeContractKeys": [
+        "route.approvals.work.form-template.data"
+      ],
+      "targetBindingKinds": [
+        "OBJECT"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "ApprovalClaimableTaskEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Approval + Approvals + Security",
+      "ownerServiceKey": "approval",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.approval-task-claimable.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.approval-task-claimable.v1",
+      "routeContractKeys": [
+        "route.approvals.work.task-claim.action"
+      ],
+      "targetBindingKinds": [
+        "OBJECT"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "ApprovalDecisionTaskEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Approval + Approvals + Security",
+      "ownerServiceKey": "approval",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.approval-task-decision.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.approval-task-decision.v1",
+      "routeContractKeys": [
+        "route.approvals.work.task-decision.action"
+      ],
+      "targetBindingKinds": [
+        "OBJECT"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "ApprovalReadableTaskEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Approval + Approvals + Security",
+      "ownerServiceKey": "approval",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.approval-task-readable.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.approval-task-readable.v1",
+      "routeContractKeys": [
+        "route.approvals.work.completed.page",
+        "route.approvals.work.inbox.page",
+        "route.approvals.work.task-detail.data"
+      ],
+      "targetBindingKinds": [
+        "OBJECT"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "ApprovalObjectVersionEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Approval + Approvals + Security",
+      "ownerServiceKey": "approval",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.approval.object-version.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.approval.object-version.v1",
+      "routeContractKeys": [
+        "route.approvals.admin.form-category-update.action",
+        "route.approvals.admin.form-publish.action",
+        "route.approvals.admin.form-update.action",
+        "route.approvals.admin.operations.retry.action",
+        "route.approvals.admin.policy-publish.action",
+        "route.approvals.admin.policy-update.action",
+        "route.approvals.admin.workflow-publish.action",
+        "route.approvals.admin.workflow-update.action",
+        "route.approvals.work.delegation-revoke.action",
+        "route.approvals.work.request-detail.data",
+        "route.approvals.work.request-draft-update.action",
+        "route.approvals.work.request-information-response.action",
+        "route.approvals.work.request-submit.action",
+        "route.approvals.work.request-withdraw.action"
+      ],
+      "targetBindingKinds": [
+        "SELF",
+        "OBJECT"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "ApprovalOwnedRequestEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Approval + Approvals + Security",
+      "ownerServiceKey": "approval",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.approval.own-request.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.approval.own-request.v1",
+      "routeContractKeys": [
+        "route.approvals.work.request-archive.page",
+        "route.approvals.work.request-detail.data",
+        "route.approvals.work.request-draft-update.action",
+        "route.approvals.work.request-drafts.page",
+        "route.approvals.work.request-information-response.action",
+        "route.approvals.work.request-needs-info.page",
+        "route.approvals.work.request-submit.action",
+        "route.approvals.work.request-submitted.page",
+        "route.approvals.work.request-withdraw.action"
+      ],
+      "targetBindingKinds": [
+        "SELF",
+        "OBJECT"
+      ]
+    }
+  ],
+  "projectedRouteContractCount": 39,
+  "projectionChecksum": "b6b3d9fa5b4d296d333d05b03c001252a93b229d112322ee49425d26f7f6f83f",
+  "projectionChecksumAlgorithm": "SHA-256",
+  "projectionKey": "approval-pilot-pep-v2",
+  "registryRef": {
+    "bundleKey": "product-surfaces",
+    "sha256": "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
+    "version": 2
+  },
+  "routeKindCounts": {
+    "ACTION": 20,
+    "DATA": 4,
+    "PAGE": 15
+  },
+  "routes": [
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.design.create",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": []
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.admin.form-category-create.action.binding.01",
+          "method": "POST",
+          "path": "/api/approvals/v1/admin/form-categories",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.admin",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.admin.form-category-create.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.admin.form-category-create.action.binding.01",
+          "method": "POST",
+          "path": "/v1/admin/form-categories",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.admin",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.approval.object-version.v1"
+          ],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.design.update",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.admin.form-category-update.action.binding.01",
+          "method": "PUT",
+          "path": "/api/approvals/v1/admin/form-categories/{categoryId}",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.admin",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.admin.form-category-update.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.admin.form-category-update.action.binding.01",
+          "method": "PUT",
+          "path": "/v1/admin/form-categories/{categoryId}",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.admin",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.design.create",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": []
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.admin.form-create.action.binding.01",
+          "method": "POST",
+          "path": "/api/approvals/v1/admin/forms",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.admin",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.admin.form-create.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.admin.form-create.action.binding.01",
+          "method": "POST",
+          "path": "/v1/admin/forms",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.admin",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.approval.object-version.v1"
+          ],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.design.publish",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.admin.form-publish.action.binding.01",
+          "method": "POST",
+          "path": "/api/approvals/v1/admin/forms/{formId}/publish",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.admin",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.admin.form-publish.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.admin.form-publish.action.binding.01",
+          "method": "POST",
+          "path": "/v1/admin/forms/{formId}/publish",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "stepUpCommandBindings": [
+        {
+          "audience": "dwp-approval-server",
+          "bindingKey": "route.approvals.admin.form-publish.action.binding.01",
+          "expectedObjectVersionName": "expectedVersion",
+          "expectedObjectVersionSource": "COMMAND_BODY",
+          "ownerServiceKey": "approval",
+          "targetIdPathParameter": "formId",
+          "targetType": "FORM"
+        }
+      ],
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.admin",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.approval.object-version.v1"
+          ],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.design.update",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.admin.form-update.action.binding.01",
+          "method": "PUT",
+          "path": "/api/approvals/v1/admin/forms/{formId}/draft",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.admin",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.admin.form-update.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.admin.form-update.action.binding.01",
+          "method": "PUT",
+          "path": "/v1/admin/forms/{formId}/draft",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.admin",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.design.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.approvals.admin.forms-workflow-reference.data.binding.01",
+              "projectionPolicyKey": "route.approvals.admin.forms-workflow-reference.data.full-management.projection.v1",
+              "responseSchemaKey": "route.approvals.admin.forms-workflow-reference.data.response.v1"
+            },
+            {
+              "apiBindingKey": "route.approvals.admin.forms-workflow-reference.data.binding.02",
+              "projectionPolicyKey": "route.approvals.admin.forms-workflow-reference.data.full-management.projection.v1",
+              "responseSchemaKey": "route.approvals.admin.forms-workflow-reference.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": []
+        },
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 100,
+          "predicatePolicyKeys": [],
+          "profileKey": "legacy-oversight",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.oversight.design.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "additionalProperties": false,
+              "apiBindingKey": "route.approvals.admin.forms-workflow-reference.data.binding.01",
+              "openApiSchemaSha256": "165b99298f758b0de7303fffd0af9cbed7d56e9e0ffca96a1071892cf3c9ce8d",
+              "projectionPolicyKey": "approvals.oversight.workflow-metadata.v1",
+              "responseSchemaKey": "ApprovalOversightWorkflowV1",
+              "schemaVersion": 1
+            },
+            {
+              "additionalProperties": false,
+              "apiBindingKey": "route.approvals.admin.forms-workflow-reference.data.binding.02",
+              "openApiSchemaSha256": "165b99298f758b0de7303fffd0af9cbed7d56e9e0ffca96a1071892cf3c9ce8d",
+              "projectionPolicyKey": "approvals.oversight.workflow-metadata.v1",
+              "responseSchemaKey": "ApprovalOversightWorkflowV1",
+              "schemaVersion": 1
+            }
+          ],
+          "targetBindingKinds": []
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.admin.forms-workflow-reference.data.binding.01",
+          "method": "GET",
+          "path": "/api/approvals/v1/admin/workflows",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "view": {
+              "kind": "FIXED",
+              "value": "reference"
+            }
+          }
+        },
+        {
+          "bindingKey": "route.approvals.admin.forms-workflow-reference.data.binding.02",
+          "method": "GET",
+          "path": "/api/approvals/v1/admin/workflows/{workflowId}",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "view": {
+              "kind": "FIXED",
+              "value": "reference"
+            }
+          }
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.admin",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.admin.forms-workflow-reference.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.admin.forms-workflow-reference.data.binding.01",
+          "method": "GET",
+          "path": "/v1/admin/workflows",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "view": {
+              "kind": "FIXED",
+              "value": "reference"
+            }
+          },
+          "serviceKey": "approval"
+        },
+        {
+          "bindingKey": "route.approvals.admin.forms-workflow-reference.data.binding.02",
+          "method": "GET",
+          "path": "/v1/admin/workflows/{workflowId}",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "view": {
+              "kind": "FIXED",
+              "value": "reference"
+            }
+          },
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.admin",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.design.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.approvals.admin.forms.page.binding.01",
+              "projectionPolicyKey": "route.approvals.admin.forms.page.full-management.projection.v1",
+              "responseSchemaKey": "route.approvals.admin.forms.page.response.v1"
+            },
+            {
+              "apiBindingKey": "route.approvals.admin.forms.page.binding.02",
+              "projectionPolicyKey": "route.approvals.admin.forms.page.full-management.projection.v1",
+              "responseSchemaKey": "route.approvals.admin.forms.page.response.v1"
+            },
+            {
+              "apiBindingKey": "route.approvals.admin.forms.page.binding.03",
+              "projectionPolicyKey": "route.approvals.admin.forms.page.full-management.projection.v1",
+              "responseSchemaKey": "route.approvals.admin.forms.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": []
+        },
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 100,
+          "predicatePolicyKeys": [],
+          "profileKey": "legacy-oversight",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.oversight.design.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "additionalProperties": false,
+              "apiBindingKey": "route.approvals.admin.forms.page.binding.01",
+              "openApiSchemaSha256": "bb78d6769fd6f8c9e7c4d29d84906978923b31b79786a1b46d1bdb5e9d4ca679",
+              "projectionPolicyKey": "approvals.oversight.form-metadata.v1",
+              "responseSchemaKey": "ApprovalOversightFormV1",
+              "schemaVersion": 1
+            },
+            {
+              "additionalProperties": false,
+              "apiBindingKey": "route.approvals.admin.forms.page.binding.02",
+              "openApiSchemaSha256": "bb78d6769fd6f8c9e7c4d29d84906978923b31b79786a1b46d1bdb5e9d4ca679",
+              "projectionPolicyKey": "approvals.oversight.form-metadata.v1",
+              "responseSchemaKey": "ApprovalOversightFormV1",
+              "schemaVersion": 1
+            },
+            {
+              "additionalProperties": false,
+              "apiBindingKey": "route.approvals.admin.forms.page.binding.03",
+              "openApiSchemaSha256": "bb78d6769fd6f8c9e7c4d29d84906978923b31b79786a1b46d1bdb5e9d4ca679",
+              "projectionPolicyKey": "approvals.oversight.form-metadata.v1",
+              "responseSchemaKey": "ApprovalOversightFormV1",
+              "schemaVersion": 1
+            }
+          ],
+          "targetBindingKinds": []
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.admin.forms.page.binding.01",
+          "method": "GET",
+          "path": "/api/approvals/v1/admin/forms",
+          "pathParameterConstraints": {}
+        },
+        {
+          "bindingKey": "route.approvals.admin.forms.page.binding.02",
+          "method": "GET",
+          "path": "/api/approvals/v1/admin/forms/{formId}",
+          "pathParameterConstraints": {}
+        },
+        {
+          "bindingKey": "route.approvals.admin.forms.page.binding.03",
+          "method": "GET",
+          "path": "/api/approvals/v1/admin/form-categories",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.admin",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.admin.forms.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.admin.forms.page.binding.01",
+          "method": "GET",
+          "path": "/v1/admin/forms",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        },
+        {
+          "bindingKey": "route.approvals.admin.forms.page.binding.02",
+          "method": "GET",
+          "path": "/v1/admin/forms/{formId}",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        },
+        {
+          "bindingKey": "route.approvals.admin.forms.page.binding.03",
+          "method": "GET",
+          "path": "/v1/admin/form-categories",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.admin",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "approvals.admin.forms",
+      "uiRoutePattern": "/approvals/admin/forms"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.operations.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.approvals.admin.operations.page.binding.01",
+              "projectionPolicyKey": "route.approvals.admin.operations.page.full-management.projection.v1",
+              "responseSchemaKey": "route.approvals.admin.operations.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": []
+        },
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 200,
+          "predicatePolicyKeys": [],
+          "profileKey": "auditor",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.audit.operations.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "additionalProperties": false,
+              "apiBindingKey": "route.approvals.admin.operations.page.binding.01",
+              "openApiSchemaSha256": "f04250e9a303775f8494f0a4625141b9da82b08dbd5cf912e9495e4991b774b6",
+              "projectionPolicyKey": "approvals.audit.operations.v1",
+              "responseSchemaKey": "ApprovalAuditorOperationsV1",
+              "schemaVersion": 1
+            }
+          ],
+          "targetBindingKinds": []
+        },
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 100,
+          "predicatePolicyKeys": [],
+          "profileKey": "legacy-oversight",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.oversight.operations.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "additionalProperties": false,
+              "apiBindingKey": "route.approvals.admin.operations.page.binding.01",
+              "openApiSchemaSha256": "feb172b3248374f394feb17c030cdcecbb0cb12566fc814f04cfd3b7bcedf384",
+              "projectionPolicyKey": "approvals.oversight.operations.v1",
+              "responseSchemaKey": "ApprovalOversightOperationsV1",
+              "schemaVersion": 1
+            }
+          ],
+          "targetBindingKinds": []
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.admin.operations.page.binding.01",
+          "method": "GET",
+          "path": "/api/approvals/v1/admin/operations",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.admin",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.admin.operations.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.admin.operations.page.binding.01",
+          "method": "GET",
+          "path": "/v1/admin/operations",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.admin",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "approvals.admin.operations",
+      "uiRoutePattern": "/approvals/admin/operations"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.approval.object-version.v1"
+          ],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.operations.execute",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.admin.operations.retry.action.binding.01",
+          "method": "POST",
+          "path": "/api/approvals/v1/admin/operations/events/{outboxId}/retry",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.admin",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.admin.operations.retry.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.admin.operations.retry.action.binding.01",
+          "method": "POST",
+          "path": "/v1/admin/operations/events/{outboxId}/retry",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "stepUpCommandBindings": [
+        {
+          "audience": "dwp-approval-server",
+          "bindingKey": "route.approvals.admin.operations.retry.action.binding.01",
+          "expectedObjectVersionName": "X-DWP-Expected-Object-Version",
+          "expectedObjectVersionSource": "COMMAND_HEADER",
+          "ownerServiceKey": "approval",
+          "targetIdPathParameter": "outboxId",
+          "targetType": "OUTBOX_EVENT"
+        }
+      ],
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.admin",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.operations.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.approvals.admin.overview.page.binding.01",
+              "projectionPolicyKey": "route.approvals.admin.overview.page.full-management.projection.v1",
+              "responseSchemaKey": "route.approvals.admin.overview.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": []
+        },
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 100,
+          "predicatePolicyKeys": [],
+          "profileKey": "legacy-oversight",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.oversight.overview.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "additionalProperties": false,
+              "apiBindingKey": "route.approvals.admin.overview.page.binding.01",
+              "openApiSchemaSha256": "74adb296d5bb6dd47ff11012543bcccaf7fdcb3217fc89f94b82c286ba9e5095",
+              "projectionPolicyKey": "approvals.oversight.summary.v1",
+              "responseSchemaKey": "ApprovalOversightAdminPulseV1",
+              "schemaVersion": 1
+            }
+          ],
+          "targetBindingKinds": []
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.admin.overview.page.binding.01",
+          "method": "GET",
+          "path": "/api/approvals/v1/admin/overview",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.admin",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.admin.overview.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.admin.overview.page.binding.01",
+          "method": "GET",
+          "path": "/v1/admin/overview",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.admin",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "approvals.admin.overview",
+      "uiRoutePattern": "/approvals/admin/overview"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.policy.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.approvals.admin.policies.page.binding.01",
+              "projectionPolicyKey": "route.approvals.admin.policies.page.full-management.projection.v1",
+              "responseSchemaKey": "route.approvals.admin.policies.page.response.v1"
+            },
+            {
+              "apiBindingKey": "route.approvals.admin.policies.page.binding.02",
+              "projectionPolicyKey": "route.approvals.admin.policies.page.full-management.projection.v1",
+              "responseSchemaKey": "route.approvals.admin.policies.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": []
+        },
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 100,
+          "predicatePolicyKeys": [],
+          "profileKey": "legacy-oversight",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.oversight.policy.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "additionalProperties": false,
+              "apiBindingKey": "route.approvals.admin.policies.page.binding.01",
+              "openApiSchemaSha256": "06d7d41b5223b7d40cda65c295a6fe9322b7122655202574a21947a503a95669",
+              "projectionPolicyKey": "approvals.oversight.policy-metadata.v1",
+              "responseSchemaKey": "ApprovalOversightPolicyV1",
+              "schemaVersion": 1
+            },
+            {
+              "additionalProperties": false,
+              "apiBindingKey": "route.approvals.admin.policies.page.binding.02",
+              "openApiSchemaSha256": "06d7d41b5223b7d40cda65c295a6fe9322b7122655202574a21947a503a95669",
+              "projectionPolicyKey": "approvals.oversight.policy-metadata.v1",
+              "responseSchemaKey": "ApprovalOversightPolicyV1",
+              "schemaVersion": 1
+            }
+          ],
+          "targetBindingKinds": []
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.admin.policies.page.binding.01",
+          "method": "GET",
+          "path": "/api/approvals/v1/admin/policies",
+          "pathParameterConstraints": {}
+        },
+        {
+          "bindingKey": "route.approvals.admin.policies.page.binding.02",
+          "method": "GET",
+          "path": "/api/approvals/v1/admin/policies/{policyId}/versions",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.admin",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.admin.policies.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.admin.policies.page.binding.01",
+          "method": "GET",
+          "path": "/v1/admin/policies",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        },
+        {
+          "bindingKey": "route.approvals.admin.policies.page.binding.02",
+          "method": "GET",
+          "path": "/v1/admin/policies/{policyId}/versions",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.admin",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "approvals.admin.policies",
+      "uiRoutePattern": "/approvals/admin/policies"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.approval.object-version.v1"
+          ],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.policy.publish",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.admin.policy-publish.action.binding.01",
+          "method": "POST",
+          "path": "/api/approvals/v1/admin/policies/{policyId}/publish",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.admin",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.admin.policy-publish.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.admin.policy-publish.action.binding.01",
+          "method": "POST",
+          "path": "/v1/admin/policies/{policyId}/publish",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "stepUpCommandBindings": [
+        {
+          "audience": "dwp-approval-server",
+          "bindingKey": "route.approvals.admin.policy-publish.action.binding.01",
+          "expectedObjectVersionName": "expectedVersion",
+          "expectedObjectVersionSource": "COMMAND_BODY",
+          "ownerServiceKey": "approval",
+          "targetIdPathParameter": "policyId",
+          "targetType": "POLICY"
+        }
+      ],
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.admin",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.approval.object-version.v1"
+          ],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.policy.update",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.admin.policy-update.action.binding.01",
+          "method": "PUT",
+          "path": "/api/approvals/v1/admin/policies/{policyId}",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.admin",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.admin.policy-update.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.admin.policy-update.action.binding.01",
+          "method": "PUT",
+          "path": "/v1/admin/policies/{policyId}",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.admin",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-management",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.signature.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.approvals.admin.signatures.page.binding.01",
+              "projectionPolicyKey": "route.approvals.admin.signatures.page.full-management.projection.v1",
+              "responseSchemaKey": "route.approvals.admin.signatures.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": []
+        },
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 100,
+          "predicatePolicyKeys": [],
+          "profileKey": "legacy-oversight",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.oversight.signature.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "additionalProperties": false,
+              "apiBindingKey": "route.approvals.admin.signatures.page.binding.01",
+              "openApiSchemaSha256": "5acc481b5d6752be8ab255274bd8ae0d3732fc2a1af40cb9d5b323507be6f13c",
+              "projectionPolicyKey": "approvals.oversight.signature-metadata.v1",
+              "responseSchemaKey": "ApprovalOversightSignatureV1",
+              "schemaVersion": 1
+            }
+          ],
+          "targetBindingKinds": []
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.admin.signatures.page.binding.01",
+          "method": "GET",
+          "path": "/api/approvals/v1/admin/signatures",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.admin",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.admin.signatures.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.admin.signatures.page.binding.01",
+          "method": "GET",
+          "path": "/v1/admin/signatures",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.admin",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "approvals.admin.signatures",
+      "uiRoutePattern": "/approvals/admin/signatures"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.design.create",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": []
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.admin.workflow-create.action.binding.01",
+          "method": "POST",
+          "path": "/api/approvals/v1/admin/workflows",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.admin",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.admin.workflow-create.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.admin.workflow-create.action.binding.01",
+          "method": "POST",
+          "path": "/v1/admin/workflows",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.admin",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.approval.object-version.v1"
+          ],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.design.publish",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.admin.workflow-publish.action.binding.01",
+          "method": "POST",
+          "path": "/api/approvals/v1/admin/workflows/{workflowId}/publish",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.admin",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.admin.workflow-publish.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.admin.workflow-publish.action.binding.01",
+          "method": "POST",
+          "path": "/v1/admin/workflows/{workflowId}/publish",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "stepUpCommandBindings": [
+        {
+          "audience": "dwp-approval-server",
+          "bindingKey": "route.approvals.admin.workflow-publish.action.binding.01",
+          "expectedObjectVersionName": "expectedVersion",
+          "expectedObjectVersionSource": "COMMAND_BODY",
+          "ownerServiceKey": "approval",
+          "targetIdPathParameter": "workflowId",
+          "targetType": "WORKFLOW"
+        }
+      ],
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.admin",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.approval.object-version.v1"
+          ],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.design.update",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.admin.workflow-update.action.binding.01",
+          "method": "PUT",
+          "path": "/api/approvals/v1/admin/workflows/{workflowId}/draft",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.admin",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.admin.workflow-update.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.admin.workflow-update.action.binding.01",
+          "method": "PUT",
+          "path": "/v1/admin/workflows/{workflowId}/draft",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.admin",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.design.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.approvals.admin.workflows.page.binding.01",
+              "projectionPolicyKey": "route.approvals.admin.workflows.page.full-management.projection.v1",
+              "responseSchemaKey": "route.approvals.admin.workflows.page.response.v1"
+            },
+            {
+              "apiBindingKey": "route.approvals.admin.workflows.page.binding.02",
+              "projectionPolicyKey": "route.approvals.admin.workflows.page.full-management.projection.v1",
+              "responseSchemaKey": "route.approvals.admin.workflows.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": []
+        },
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 100,
+          "predicatePolicyKeys": [],
+          "profileKey": "legacy-oversight",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.oversight.design.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "additionalProperties": false,
+              "apiBindingKey": "route.approvals.admin.workflows.page.binding.01",
+              "openApiSchemaSha256": "165b99298f758b0de7303fffd0af9cbed7d56e9e0ffca96a1071892cf3c9ce8d",
+              "projectionPolicyKey": "approvals.oversight.workflow-metadata.v1",
+              "responseSchemaKey": "ApprovalOversightWorkflowV1",
+              "schemaVersion": 1
+            },
+            {
+              "additionalProperties": false,
+              "apiBindingKey": "route.approvals.admin.workflows.page.binding.02",
+              "openApiSchemaSha256": "165b99298f758b0de7303fffd0af9cbed7d56e9e0ffca96a1071892cf3c9ce8d",
+              "projectionPolicyKey": "approvals.oversight.workflow-metadata.v1",
+              "responseSchemaKey": "ApprovalOversightWorkflowV1",
+              "schemaVersion": 1
+            }
+          ],
+          "targetBindingKinds": []
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.admin.workflows.page.binding.01",
+          "method": "GET",
+          "path": "/api/approvals/v1/admin/workflows",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "view": {
+              "kind": "ABSENT"
+            }
+          }
+        },
+        {
+          "bindingKey": "route.approvals.admin.workflows.page.binding.02",
+          "method": "GET",
+          "path": "/api/approvals/v1/admin/workflows/{workflowId}",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "view": {
+              "kind": "ABSENT"
+            }
+          }
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.admin",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.admin.workflows.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.admin.workflows.page.binding.01",
+          "method": "GET",
+          "path": "/v1/admin/workflows",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "view": {
+              "kind": "ABSENT"
+            }
+          },
+          "serviceKey": "approval"
+        },
+        {
+          "bindingKey": "route.approvals.admin.workflows.page.binding.02",
+          "method": "GET",
+          "path": "/v1/admin/workflows/{workflowId}",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "view": {
+              "kind": "ABSENT"
+            }
+          },
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.admin",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "approvals.admin.workflows",
+      "uiRoutePattern": "/approvals/admin/workflows"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.approval-task-readable.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.work.task.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.approvals.work.completed.page.binding.01",
+              "projectionPolicyKey": "approvals.work.task-list.v1",
+              "responseSchemaKey": "ApprovalTaskListV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "OBJECT"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.approvals.work.tasks-list.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.work.completed.page.binding.01",
+          "method": "GET",
+          "path": "/api/approvals/v1/tasks",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.work",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.work.completed.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.work.completed.page.binding.01",
+          "method": "GET",
+          "path": "/v1/tasks",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "approvals.work.completed",
+      "uiRoutePattern": "/approvals/completed"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.work.delegation.manage",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.work.delegation-create.action.binding.01",
+          "method": "POST",
+          "path": "/api/approvals/v1/delegations",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.work",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.work.delegation-create.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.work.delegation-create.action.binding.01",
+          "method": "POST",
+          "path": "/v1/delegations",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.approval.object-version.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.work.delegation.manage",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.work.delegation-revoke.action.binding.01",
+          "method": "POST",
+          "path": "/api/approvals/v1/delegations/{delegationId}/revoke",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.work",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.work.delegation-revoke.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.work.delegation-revoke.action.binding.01",
+          "method": "POST",
+          "path": "/v1/delegations/{delegationId}/revoke",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKeys": [
+              "approvals.work.delegation.read",
+              "approvals.work.delegation.manage"
+            ],
+            "mode": "ANY",
+            "type": "CAPABILITY_EXPRESSION"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.approvals.work.delegations.page.binding.01",
+              "projectionPolicyKey": "route.approvals.work.delegations.page.full-work.projection.v1",
+              "responseSchemaKey": "route.approvals.work.delegations.page.response.v1"
+            },
+            {
+              "apiBindingKey": "route.approvals.work.delegations.page.binding.02",
+              "projectionPolicyKey": "route.approvals.work.delegations.page.full-work.projection.v1",
+              "responseSchemaKey": "route.approvals.work.delegations.page.response.v1"
+            },
+            {
+              "apiBindingKey": "route.approvals.work.delegations.page.binding.03",
+              "projectionPolicyKey": "route.approvals.work.delegations.page.full-work.projection.v1",
+              "responseSchemaKey": "route.approvals.work.delegations.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.work.delegations.page.binding.01",
+          "method": "GET",
+          "path": "/api/approvals/v1/delegations",
+          "pathParameterConstraints": {}
+        },
+        {
+          "bindingKey": "route.approvals.work.delegations.page.binding.02",
+          "method": "GET",
+          "path": "/api/approvals/v1/delegations/candidates",
+          "pathParameterConstraints": {}
+        },
+        {
+          "bindingKey": "route.approvals.work.delegations.page.binding.03",
+          "method": "GET",
+          "path": "/api/approvals/v1/workflows/published",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.work",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.work.delegations.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.work.delegations.page.binding.01",
+          "method": "GET",
+          "path": "/v1/delegations",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        },
+        {
+          "bindingKey": "route.approvals.work.delegations.page.binding.02",
+          "method": "GET",
+          "path": "/v1/delegations/candidates",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        },
+        {
+          "bindingKey": "route.approvals.work.delegations.page.binding.03",
+          "method": "GET",
+          "path": "/v1/workflows/published",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "approvals.work.delegations",
+      "uiRoutePattern": "/approvals/delegations"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.approval-published-form.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKeys": [
+              "approvals.work.request.create",
+              "approvals.work.request.update"
+            ],
+            "mode": "ALL",
+            "type": "CAPABILITY_EXPRESSION"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.approvals.work.form-template.data.binding.01",
+              "projectionPolicyKey": "route.approvals.work.form-template.data.full-work.projection.v1",
+              "responseSchemaKey": "route.approvals.work.form-template.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.work.form-template.data.binding.01",
+          "method": "GET",
+          "path": "/api/approvals/v1/catalog/forms/{formId}/template",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.work",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.work.form-template.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.work.form-template.data.binding.01",
+          "method": "GET",
+          "path": "/v1/catalog/forms/{formId}/template",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "accessPolicyKey": "approvals.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.approvals.work.home.page.binding.01",
+              "projectionPolicyKey": "route.approvals.work.home.page.full-work.projection.v1",
+              "responseSchemaKey": "route.approvals.work.home.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.work.home.page.binding.01",
+          "method": "GET",
+          "path": "/api/approvals/v1/home",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.work",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.work.home.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.work.home.page.binding.01",
+          "method": "GET",
+          "path": "/v1/home",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "approvals.work.home",
+      "uiRoutePattern": "/approvals/home"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.approval-task-readable.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.work.task.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.approvals.work.inbox.page.binding.01",
+              "projectionPolicyKey": "approvals.work.task-list.v1",
+              "responseSchemaKey": "ApprovalTaskListV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "OBJECT"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.approvals.work.tasks-list.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.work.inbox.page.binding.01",
+          "method": "GET",
+          "path": "/api/approvals/v1/tasks",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.work",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.work.inbox.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.work.inbox.page.binding.01",
+          "method": "GET",
+          "path": "/v1/tasks",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "approvals.work.inbox",
+      "uiRoutePattern": "/approvals/inbox"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.approval.own-request.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.work.request.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.approvals.work.request-archive.page.binding.01",
+              "projectionPolicyKey": "approvals.work.request-list.v1",
+              "responseSchemaKey": "ApprovalRequestListV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.approvals.work.requests-list.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.work.request-archive.page.binding.01",
+          "method": "GET",
+          "path": "/api/approvals/v1/requests",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.work",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.work.request-archive.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.work.request-archive.page.binding.01",
+          "method": "GET",
+          "path": "/v1/requests",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "approvals.work.request-archive",
+      "uiRoutePattern": "/approvals/requests/archive"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.work.request.create",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.work.request-create.action.binding.01",
+          "method": "POST",
+          "path": "/api/approvals/v1/requests",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.work",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.work.request-create.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.work.request-create.action.binding.01",
+          "method": "POST",
+          "path": "/v1/requests",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.approval.own-request.v1",
+            "predicate.approval.object-version.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.work.request.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.approvals.work.request-detail.data.binding.01",
+              "projectionPolicyKey": "route.approvals.work.request-detail.data.full-work.projection.v1",
+              "responseSchemaKey": "route.approvals.work.request-detail.data.response.v1"
+            },
+            {
+              "apiBindingKey": "route.approvals.work.request-detail.data.binding.02",
+              "projectionPolicyKey": "route.approvals.work.request-detail.data.full-work.projection.v1",
+              "responseSchemaKey": "route.approvals.work.request-detail.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.work.request-detail.data.binding.01",
+          "method": "GET",
+          "path": "/api/approvals/v1/requests/{requestId}",
+          "pathParameterConstraints": {}
+        },
+        {
+          "bindingKey": "route.approvals.work.request-detail.data.binding.02",
+          "method": "GET",
+          "path": "/api/approvals/v1/requests/{requestId}/detail",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.work",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.work.request-detail.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.work.request-detail.data.binding.01",
+          "method": "GET",
+          "path": "/v1/requests/{requestId}",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        },
+        {
+          "bindingKey": "route.approvals.work.request-detail.data.binding.02",
+          "method": "GET",
+          "path": "/v1/requests/{requestId}/detail",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.approval.own-request.v1",
+            "predicate.approval.object-version.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.work.request.update",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.work.request-draft-update.action.binding.01",
+          "method": "PUT",
+          "path": "/api/approvals/v1/requests/{requestId}/draft",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.work",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.work.request-draft-update.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.work.request-draft-update.action.binding.01",
+          "method": "PUT",
+          "path": "/v1/requests/{requestId}/draft",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.approval.own-request.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.work.request.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.approvals.work.request-drafts.page.binding.01",
+              "projectionPolicyKey": "approvals.work.request-list.v1",
+              "responseSchemaKey": "ApprovalRequestListV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.approvals.work.requests-list.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.work.request-drafts.page.binding.01",
+          "method": "GET",
+          "path": "/api/approvals/v1/requests",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.work",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.work.request-drafts.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.work.request-drafts.page.binding.01",
+          "method": "GET",
+          "path": "/v1/requests",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "approvals.work.request-drafts",
+      "uiRoutePattern": "/approvals/requests/drafts"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.approval.own-request.v1",
+            "predicate.approval.object-version.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.work.request.update",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.work.request-information-response.action.binding.01",
+          "method": "POST",
+          "path": "/api/approvals/v1/requests/{requestId}/information-response",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.work",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.work.request-information-response.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.work.request-information-response.action.binding.01",
+          "method": "POST",
+          "path": "/v1/requests/{requestId}/information-response",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.approval.own-request.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.work.request.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.approvals.work.request-needs-info.page.binding.01",
+              "projectionPolicyKey": "approvals.work.request-list.v1",
+              "responseSchemaKey": "ApprovalRequestListV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.approvals.work.requests-list.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.work.request-needs-info.page.binding.01",
+          "method": "GET",
+          "path": "/api/approvals/v1/requests",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.work",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.work.request-needs-info.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.work.request-needs-info.page.binding.01",
+          "method": "GET",
+          "path": "/v1/requests",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "approvals.work.request-needs-info",
+      "uiRoutePattern": "/approvals/requests/needs-info"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKeys": [
+              "approvals.work.request.create",
+              "approvals.work.request.update"
+            ],
+            "mode": "ALL",
+            "type": "CAPABILITY_EXPRESSION"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.approvals.work.request-new.page.binding.01",
+              "projectionPolicyKey": "route.approvals.work.request-new.page.full-work.projection.v1",
+              "responseSchemaKey": "route.approvals.work.request-new.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": []
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.work.request-new.page.binding.01",
+          "method": "GET",
+          "path": "/api/approvals/v1/catalog/forms",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.work",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.work.request-new.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.work.request-new.page.binding.01",
+          "method": "GET",
+          "path": "/v1/catalog/forms",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "approvals.work.request-new",
+      "uiRoutePattern": "/approvals/requests/new"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.approval.own-request.v1",
+            "predicate.approval.object-version.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.work.request.update",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.work.request-submit.action.binding.01",
+          "method": "POST",
+          "path": "/api/approvals/v1/requests/{requestId}/submit",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.work",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.work.request-submit.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.work.request-submit.action.binding.01",
+          "method": "POST",
+          "path": "/v1/requests/{requestId}/submit",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.approval.own-request.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.work.request.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.approvals.work.request-submitted.page.binding.01",
+              "projectionPolicyKey": "approvals.work.request-list.v1",
+              "responseSchemaKey": "ApprovalRequestListV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.approvals.work.requests-list.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.work.request-submitted.page.binding.01",
+          "method": "GET",
+          "path": "/api/approvals/v1/requests",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.work",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.work.request-submitted.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.work.request-submitted.page.binding.01",
+          "method": "GET",
+          "path": "/v1/requests",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "approvals.work.request-submitted",
+      "uiRoutePattern": "/approvals/requests/submitted"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.approval.own-request.v1",
+            "predicate.approval.object-version.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.work.request.update",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.work.request-withdraw.action.binding.01",
+          "method": "POST",
+          "path": "/api/approvals/v1/requests/{requestId}/withdraw",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.work",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.work.request-withdraw.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.work.request-withdraw.action.binding.01",
+          "method": "POST",
+          "path": "/v1/requests/{requestId}/withdraw",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.approval-task-claimable.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.work.task.update",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.work.task-claim.action.binding.01",
+          "method": "POST",
+          "path": "/api/approvals/v1/tasks/{taskId}/claim",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.work",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.work.task-claim.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.work.task-claim.action.binding.01",
+          "method": "POST",
+          "path": "/v1/tasks/{taskId}/claim",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.approval-task-decision.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.work.task.approve",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.work.task-decision.action.binding.01",
+          "method": "POST",
+          "path": "/api/approvals/v1/tasks/{taskId}/decisions",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.work",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.work.task-decision.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.work.task-decision.action.binding.01",
+          "method": "POST",
+          "path": "/v1/tasks/{taskId}/decisions",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.approval-task-readable.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "approvals.work.task.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.approvals.work.task-detail.data.binding.01",
+              "projectionPolicyKey": "route.approvals.work.task-detail.data.full-work.projection.v1",
+              "responseSchemaKey": "route.approvals.work.task-detail.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.work.task-detail.data.binding.01",
+          "method": "GET",
+          "path": "/api/approvals/v1/tasks/{taskId}",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.work",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.work.task-detail.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.work.task-detail.data.binding.01",
+          "method": "GET",
+          "path": "/v1/tasks/{taskId}",
+          "pathParameterConstraints": {},
+          "serviceKey": "approval"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    }
+  ],
+  "schemaVersion": 1,
+  "sourceRegistryRouteCount": 76
+}

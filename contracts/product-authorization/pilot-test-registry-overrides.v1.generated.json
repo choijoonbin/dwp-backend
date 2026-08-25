@@ -1,0 +1,42 @@
+{
+  "integrity": {
+    "algorithm": "SHA-256",
+    "sha256": "21154b1db74160d69a842b6d158e39c607d5c5f7cde77fbeb3d834d8d975d39a"
+  },
+  "overrides": [
+    {
+      "descriptor": {
+        "capabilityContractKeys": [
+          "services.catalog.read"
+        ],
+        "entryCapabilityMode": "ALL",
+        "requiredEntitlementExpression": "APP.TEST:VIEW",
+        "requiresProductEntitlement": true
+      },
+      "key": "test.management-and-app.v1",
+      "routeContractKey": "route.test.management-and-app.page",
+      "testIds": [
+        "PS-G006"
+      ]
+    },
+    {
+      "descriptor": {
+        "activationPolicy": "TEST-JIT-TENANT-V1",
+        "activationState": "REQUIRED",
+        "capabilityContractKeys": [
+          "services.catalog.read"
+        ],
+        "entryCapabilityMode": "ALL",
+        "requiredEntitlementExpression": "APP.EMPLOYEE_SERVICES:VIEW",
+        "requiresProductEntitlement": true
+      },
+      "key": "test.services-catalog-jit.v1",
+      "routeContractKey": "route.test.services-catalog-jit.page",
+      "testIds": [
+        "PS-G010"
+      ]
+    }
+  ],
+  "profile": "contract-test",
+  "schemaVersion": 1
+}

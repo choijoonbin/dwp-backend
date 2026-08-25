@@ -2,6 +2,8 @@ package com.dwp.services.approval.domain;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.approval.security.ApprovalDecisionRevisionContext;
+import com.dwp.services.approval.security.ApprovalManagementScopeContext;
 import com.dwp.services.approval.security.ApprovalRequestContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -13,6 +15,7 @@ import org.springframework.stereotype.Repository;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,6 +26,7 @@ import java.util.UUID;
 @Repository
 public class ApprovalQueryRepository {
 
+    private static final String ROOT_MANAGEMENT_SCOPE = "RS_APPROVALS";
     private static final String TASK_SELECT = ApprovalQuerySql01.QUERY_SELECT_APR_TASKS;
 
     private static final String DIRECT_TASK_ACCESS = ApprovalQuerySql01.QUERY_SQL_STATEMENT;
@@ -86,9 +90,17 @@ public class ApprovalQueryRepository {
     }
 
     public boolean isBlockingPolicyActive(long tenantId, String policyKey) {
+        return isBlockingPolicyActive(tenantId, policyKey, "RS_APPROVALS");
+    }
+
+    public boolean isBlockingPolicyActive(
+            long tenantId,
+            String policyKey,
+            String managementResourceSetKey) {
         Integer count = jdbc.queryForObject(ApprovalQuerySql01.IS_BLOCKING_POLICY_ACTIVE_SELECT_APR_POLICY_RULES, new MapSqlParameterSource()
                 .addValue("tenantId", tenantId)
-                .addValue("policyKey", policyKey), Integer.class);
+                .addValue("policyKey", policyKey)
+                .addValue("managementScope", managementResourceSetKey), Integer.class);
         return count != null && count > 0;
     }
 
@@ -130,6 +142,7 @@ public class ApprovalQueryRepository {
                         result.getLong("requester_user_id"),
                         nullableLong(result, "assignee_user_id"),
                         result.getString("candidate_role"),
+                        result.getString("management_resource_set_key"),
                         false,
                         null));
         if (matches.isEmpty()) throw new BaseException(ErrorCode.NOT_FOUND);
@@ -137,7 +150,8 @@ public class ApprovalQueryRepository {
         Long delegatedFrom = delegationSource(actor, taskId);
         return new TaskAccess(
                 match.summary(), match.requesterUserId(), match.assigneeUserId(),
-                match.candidateRole(), delegatedFrom != null, delegatedFrom);
+                match.candidateRole(), match.managementResourceSetKey(),
+                delegatedFrom != null, delegatedFrom);
     }
 
     private Long delegationSource(ApprovalRequestContext.Actor actor, UUID taskId) {
@@ -245,7 +259,7 @@ public class ApprovalQueryRepository {
     }
 
     public ApprovalDtos.AdminPulse adminPulse(long tenantId) {
-        return jdbc.queryForObject(ApprovalQuerySql01.ADMIN_PULSE_SELECT_APR_WORKFLOW_DEFINITIONS, new MapSqlParameterSource("tenantId", tenantId),
+        return jdbc.queryForObject(ApprovalQuerySql01.ADMIN_PULSE_SELECT_APR_WORKFLOW_DEFINITIONS, managementParams(tenantId),
                 (result, rowNumber) -> new ApprovalDtos.AdminPulse(
                         result.getInt("published_workflows"),
                         result.getInt("draft_workflows"),
@@ -265,9 +279,22 @@ public class ApprovalQueryRepository {
     }
 
     public List<ApprovalDtos.WorkflowSummary> workflows(long tenantId, boolean publishedOnly) {
+        return workflows(tenantId, publishedOnly, false);
+    }
+
+    public List<ApprovalDtos.WorkflowSummary> publishedWorkflowsForWork(long tenantId) {
+        return workflows(tenantId, true, true);
+    }
+
+    private List<ApprovalDtos.WorkflowSummary> workflows(
+            long tenantId,
+            boolean publishedOnly,
+            boolean workCatalog) {
         return jdbc.query(ApprovalQuerySql01.WORKFLOWS_SELECT_APR_WORKFLOW_DEFINITIONS,
                 new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
+                        .addValue("managementScope", managementResourceSetKey(workCatalog), Types.VARCHAR)
+                        .addValue("workCatalog", workCatalog)
                         .addValue("publishedOnly", publishedOnly),
                 (result, rowNumber) -> new ApprovalDtos.WorkflowSummary(
                         result.getObject("workflow_id", UUID.class),
@@ -288,8 +315,17 @@ public class ApprovalQueryRepository {
     }
 
     public ApprovalDtos.WorkflowDetail workflow(long tenantId, UUID workflowId) {
+        return workflow(tenantId, workflowId, false);
+    }
+
+    private ApprovalDtos.WorkflowDetail workflow(
+            long tenantId,
+            UUID workflowId,
+            boolean workCatalog) {
         List<ApprovalDtos.WorkflowDetail> matches = jdbc.query(ApprovalQuerySql01.WORKFLOW_SELECT_APR_WORKFLOW_DEFINITIONS, new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
+                        .addValue("managementScope", managementResourceSetKey(workCatalog), Types.VARCHAR)
+                        .addValue("workCatalog", workCatalog)
                         .addValue("workflowId", workflowId),
                 (result, rowNumber) -> new ApprovalDtos.WorkflowDetail(
                         new ApprovalDtos.WorkflowSummary(
@@ -315,32 +351,38 @@ public class ApprovalQueryRepository {
     }
 
     public ApprovalDtos.RequestTemplate publishedTemplate(long tenantId, UUID workflowId) {
-        ApprovalDtos.WorkflowDetail workflow = workflow(tenantId, workflowId);
+        ApprovalDtos.WorkflowDetail workflow = workflow(tenantId, workflowId, true);
         if (!"PUBLISHED".equals(workflow.workflow().lifecycleState())) {
             throw new BaseException(ErrorCode.NOT_FOUND);
         }
         List<UUID> formIds = jdbc.query(ApprovalQuerySql01.PUBLISHED_TEMPLATE_SELECT_APR_FORM_WORKFLOW_BINDINGS, new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
+                        .addValue("managementScope", ROOT_MANAGEMENT_SCOPE, Types.VARCHAR)
+                        .addValue("workCatalog", true)
                         .addValue("workflowId", workflowId),
                 (result, rowNumber) -> result.getObject("form_id", UUID.class));
         if (formIds.isEmpty()) throw new BaseException(ErrorCode.NOT_FOUND);
         return new ApprovalDtos.RequestTemplate(
-                workflow.workflow(), workflow.definition(), form(tenantId, formIds.get(0)));
+                workflow.workflow(), workflow.definition(),
+                form(tenantId, formIds.get(0), true));
     }
 
     public ApprovalDtos.RequestTemplate publishedTemplateByForm(long tenantId, UUID formId) {
         List<UUID> workflowIds = jdbc.query(ApprovalQuerySql01.PUBLISHED_TEMPLATE_BY_FORM_SELECT_APR_FORM_WORKFLOW_BINDINGS, new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
+                        .addValue("managementScope", ROOT_MANAGEMENT_SCOPE, Types.VARCHAR)
+                        .addValue("workCatalog", true)
                         .addValue("formId", formId),
                 (result, rowNumber) -> result.getObject("workflow_id", UUID.class));
         if (workflowIds.isEmpty()) throw new BaseException(ErrorCode.NOT_FOUND);
-        ApprovalDtos.WorkflowDetail workflow = workflow(tenantId, workflowIds.get(0));
+        ApprovalDtos.WorkflowDetail workflow = workflow(
+                tenantId, workflowIds.get(0), true);
         return new ApprovalDtos.RequestTemplate(
-                workflow.workflow(), workflow.definition(), form(tenantId, formId));
+                workflow.workflow(), workflow.definition(), form(tenantId, formId, true));
     }
 
     public List<ApprovalDtos.FormCategorySummary> formCategories(long tenantId) {
-        return jdbc.query(ApprovalQuerySql01.FORM_CATEGORIES_SELECT_APR_FORM_CATEGORIES, new MapSqlParameterSource("tenantId", tenantId),
+        return jdbc.query(ApprovalQuerySql01.FORM_CATEGORIES_SELECT_APR_FORM_CATEGORIES, managementParams(tenantId),
                 (result, rowNumber) -> new ApprovalDtos.FormCategorySummary(
                         result.getObject("category_id", UUID.class),
                         result.getString("category_key"),
@@ -357,36 +399,55 @@ public class ApprovalQueryRepository {
     }
 
     public List<ApprovalDtos.FormSummary> forms(long tenantId) {
-        return forms(tenantId, false);
+        return forms(tenantId, false, false);
     }
 
     public List<ApprovalDtos.FormSummary> publishedForms(long tenantId) {
-        return forms(tenantId, true);
+        return forms(tenantId, true, true);
     }
 
-    private List<ApprovalDtos.FormSummary> forms(long tenantId, boolean publishedOnly) {
+    private List<ApprovalDtos.FormSummary> forms(
+            long tenantId,
+            boolean publishedOnly,
+            boolean workCatalog) {
         return jdbc.query(ApprovalQuerySql01.FORMS_SELECT_APR_FORMS, new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
+                        .addValue("managementScope", managementResourceSetKey(workCatalog), Types.VARCHAR)
+                        .addValue("workCatalog", workCatalog)
                         .addValue("publishedOnly", publishedOnly),
                 (result, rowNumber) -> formSummary(result));
     }
 
     public ApprovalDtos.FormDetail form(long tenantId, UUID formId) {
+        return form(tenantId, formId, false);
+    }
+
+    private ApprovalDtos.FormDetail form(
+            long tenantId,
+            UUID formId,
+            boolean workCatalog) {
         List<ApprovalDtos.FormDetail> matches = jdbc.query(ApprovalQuerySql02.FORM_SELECT_APR_FORMS, new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
+                        .addValue("managementScope", managementResourceSetKey(workCatalog), Types.VARCHAR)
+                        .addValue("workCatalog", workCatalog)
                         .addValue("formId", formId),
                 (result, rowNumber) -> new ApprovalDtos.FormDetail(
                         formSummary(result),
                         json(result.getString("schema_payload")),
                         result.getString("schema_sha256"),
-                        formRoutes(tenantId, formId)));
+                        formRoutes(tenantId, formId, workCatalog)));
         if (matches.isEmpty()) throw new BaseException(ErrorCode.NOT_FOUND);
         return matches.get(0);
     }
 
-    private List<ApprovalDtos.FormRouteSummary> formRoutes(long tenantId, UUID formId) {
+    private List<ApprovalDtos.FormRouteSummary> formRoutes(
+            long tenantId,
+            UUID formId,
+            boolean workCatalog) {
         return jdbc.query(ApprovalQuerySql02.FORM_ROUTES_SELECT_APR_FORM_WORKFLOW_BINDINGS, new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
+                        .addValue("managementScope", managementResourceSetKey(workCatalog), Types.VARCHAR)
+                        .addValue("workCatalog", workCatalog)
                         .addValue("formId", formId),
                 (result, rowNumber) -> new ApprovalDtos.FormRouteSummary(
                         result.getObject("binding_id", UUID.class),
@@ -402,7 +463,7 @@ public class ApprovalQueryRepository {
     }
 
     public List<ApprovalDtos.PolicySummary> policies(long tenantId) {
-        return jdbc.query(ApprovalQuerySql02.POLICIES_SELECT_APR_POLICY_RULES, new MapSqlParameterSource("tenantId", tenantId),
+        return jdbc.query(ApprovalQuerySql02.POLICIES_SELECT_APR_POLICY_RULES, managementParams(tenantId),
                 (result, rowNumber) -> new ApprovalDtos.PolicySummary(
                         result.getObject("policy_id", UUID.class),
                         result.getString("policy_key"),
@@ -429,6 +490,7 @@ public class ApprovalQueryRepository {
             UUID policyId) {
         return jdbc.query(ApprovalQuerySql02.POLICY_VERSIONS_SELECT_APR_POLICY_RULE_VERSIONS, new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
+                        .addValue("managementScope", managementResourceSetKey(), Types.VARCHAR)
                         .addValue("policyId", policyId),
                 (result, rowNumber) -> new ApprovalDtos.PolicyVersionSummary(
                         result.getObject("policy_version_id", UUID.class),
@@ -446,7 +508,7 @@ public class ApprovalQueryRepository {
     }
 
     public List<ApprovalDtos.SignatureProviderSummary> signatureProviders(long tenantId) {
-        return jdbc.query(ApprovalQuerySql02.SIGNATURE_PROVIDERS_SELECT_APR_SIGNATURE_PROVIDERS, new MapSqlParameterSource("tenantId", tenantId),
+        return jdbc.query(ApprovalQuerySql02.SIGNATURE_PROVIDERS_SELECT_APR_SIGNATURE_PROVIDERS, managementParams(tenantId),
                 (result, rowNumber) -> new ApprovalDtos.SignatureProviderSummary(
                         result.getObject("provider_id", UUID.class),
                         result.getString("provider_key"),
@@ -469,6 +531,7 @@ public class ApprovalQueryRepository {
                         result.getString("delegate_display_name"),
                         result.getString("delegate_email"),
                         result.getString("scope_type"),
+                        result.getObject("workflow_id", UUID.class),
                         result.getString("workflow_key"),
                         instant(result, "starts_at"),
                         instant(result, "ends_at"),
@@ -479,12 +542,12 @@ public class ApprovalQueryRepository {
     }
 
     public int failedIntegrationCount(long tenantId) {
-        Integer count = jdbc.queryForObject(ApprovalQuerySql02.FAILED_INTEGRATION_COUNT_SELECT_APR_INTEGRATION_OUTBOX, new MapSqlParameterSource("tenantId", tenantId), Integer.class);
+        Integer count = jdbc.queryForObject(ApprovalQuerySql02.FAILED_INTEGRATION_COUNT_SELECT_APR_INTEGRATION_OUTBOX, managementParams(tenantId), Integer.class);
         return count == null ? 0 : count;
     }
 
     public int pendingIntegrationCount(long tenantId) {
-        Integer count = jdbc.queryForObject(ApprovalQuerySql02.PENDING_INTEGRATION_COUNT_SELECT_APR_INTEGRATION_OUTBOX, new MapSqlParameterSource("tenantId", tenantId), Integer.class);
+        Integer count = jdbc.queryForObject(ApprovalQuerySql02.PENDING_INTEGRATION_COUNT_SELECT_APR_INTEGRATION_OUTBOX, managementParams(tenantId), Integer.class);
         return count == null ? 0 : count;
     }
 
@@ -493,6 +556,7 @@ public class ApprovalQueryRepository {
             int limit) {
         return jdbc.query(ApprovalQuerySql02.INTEGRATION_DELIVERIES_SELECT_APR_INTEGRATION_OUTBOX, new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
+                        .addValue("managementScope", managementResourceSetKey(), Types.VARCHAR)
                         .addValue("limit", Math.max(1, Math.min(limit, 100))),
                 (result, rowNumber) -> new ApprovalDtos.IntegrationDeliverySummary(
                         result.getObject("outbox_id", UUID.class),
@@ -506,23 +570,25 @@ public class ApprovalQueryRepository {
                         instant(result, "published_at"),
                         result.getString("last_error"),
                         instant(result, "created_at"),
-                        instant(result, "last_retried_at")));
+                        instant(result, "last_retried_at"),
+                        result.getLong("version")));
     }
 
     public int activeDelegationCount(long tenantId) {
-        Integer count = jdbc.queryForObject(ApprovalQuerySql02.ACTIVE_DELEGATION_COUNT_SELECT_APR_DELEGATIONS, new MapSqlParameterSource("tenantId", tenantId), Integer.class);
+        Integer count = jdbc.queryForObject(ApprovalQuerySql02.ACTIVE_DELEGATION_COUNT_SELECT_APR_DELEGATIONS, managementParams(tenantId), Integer.class);
         return count == null ? 0 : count;
     }
 
     public List<ApprovalDtos.TaskSummary> breachedTasks(long tenantId, int limit) {
         return jdbc.query(TASK_SELECT + ApprovalQuerySql02.BREACHED_TASKS_SQL_STATEMENT, new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
+                        .addValue("managementScope", managementResourceSetKey(), Types.VARCHAR)
                         .addValue("limit", Math.max(1, Math.min(limit, 100))),
                 (result, rowNumber) -> taskSummary(result));
     }
 
     private int overdueCount(long tenantId) {
-        Integer count = jdbc.queryForObject(ApprovalQuerySql02.OVERDUE_COUNT_SELECT_APR_TASKS, new MapSqlParameterSource("tenantId", tenantId), Integer.class);
+        Integer count = jdbc.queryForObject(ApprovalQuerySql02.OVERDUE_COUNT_SELECT_APR_TASKS, managementParams(tenantId), Integer.class);
         return count == null ? 0 : count;
     }
 
@@ -532,6 +598,29 @@ public class ApprovalQueryRepository {
                 .addValue("tenantId", actor.tenantId())
                 .addValue("userId", actor.userId())
                 .addValue("roles", roles);
+    }
+
+    private MapSqlParameterSource managementParams(long tenantId) {
+        return new MapSqlParameterSource()
+                .addValue("tenantId", tenantId)
+                .addValue("managementScope", managementResourceSetKey(), Types.VARCHAR);
+    }
+
+    private String managementResourceSetKey() {
+        return ApprovalManagementScopeContext.current()
+                .map(ApprovalManagementScopeContext.Evidence::resourceSetKey)
+                .orElseGet(() -> {
+                    if (ApprovalDecisionRevisionContext.current().isPresent()) {
+                        throw new BaseException(
+                                ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                                "Approval management scope evidence is unavailable.");
+                    }
+                    return ROOT_MANAGEMENT_SCOPE;
+                });
+    }
+
+    private String managementResourceSetKey(boolean workCatalog) {
+        return workCatalog ? ROOT_MANAGEMENT_SCOPE : managementResourceSetKey();
     }
 
     private ApprovalDtos.TaskSummary taskSummary(ResultSet result) throws SQLException {
@@ -636,8 +725,20 @@ public class ApprovalQueryRepository {
             long requesterUserId,
             Long assigneeUserId,
             String candidateRole,
+            String managementResourceSetKey,
             boolean delegatedAccess,
             Long delegatedFromUserId) {
+
+        public TaskAccess(
+                ApprovalDtos.TaskSummary summary,
+                long requesterUserId,
+                Long assigneeUserId,
+                String candidateRole,
+                boolean delegatedAccess,
+                Long delegatedFromUserId) {
+            this(summary, requesterUserId, assigneeUserId, candidateRole,
+                    "RS_APPROVALS", delegatedAccess, delegatedFromUserId);
+        }
     }
 
     private record RequestAssetIds(

@@ -4,6 +4,7 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.auth.dto.AccessReviewDtos;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,10 +43,20 @@ public class AccessReviewService {
 
     private final JdbcTemplate jdbc;
     private final IdentityAuditService auditService;
+    private final AccessReviewWorkItemOutboxPublisher workItemEvents;
 
     public AccessReviewService(JdbcTemplate jdbc, IdentityAuditService auditService) {
+        this(jdbc, auditService, null);
+    }
+
+    @Autowired
+    public AccessReviewService(
+            JdbcTemplate jdbc,
+            IdentityAuditService auditService,
+            AccessReviewWorkItemOutboxPublisher workItemEvents) {
         this.jdbc = jdbc;
         this.auditService = auditService;
+        this.workItemEvents = workItemEvents;
     }
 
     @Transactional(readOnly = true)
@@ -167,6 +178,9 @@ public class AccessReviewService {
                    AND lifecycle_state = 'DRAFT' AND version = ?
                 """, actorId, tenantId, campaignId, expectedVersion);
         if (updated != 1) throw conflict();
+        if (workItemEvents != null && "NAMED_REVIEWER".equals(campaign.reviewerStrategy())) {
+            workItemEvents.assignedForCampaign(tenantId, campaignId, correlationId);
+        }
         auditService.success(
                 tenantId, actorId, "access-review.campaign.activated", "ACCESS_REVIEW_CAMPAIGN",
                 campaignId.toString(), correlationId,
@@ -204,12 +218,58 @@ public class AccessReviewService {
                 request.decision(), request.reason().strip(), actorId, remediationState,
                 tenantId, campaignId, itemId, request.version());
         if (updated != 1) throw conflict();
+        if (workItemEvents != null && "NAMED_REVIEWER".equals(campaign.reviewerStrategy())) {
+            workItemEvents.decidedByInternalId(
+                    tenantId, campaignId, itemId, correlationId, request.decision(),
+                    request.version() + 1L);
+        }
         auditService.success(
                 tenantId, actorId, "access-review.item.decided", "ACCESS_REVIEW_ITEM",
                 itemId.toString(), correlationId,
                 Map.of("decision", "PENDING", "version", request.version()),
                 Map.of("decision", request.decision(), "remediationState", remediationState));
         return requireItem(tenantId, campaignId, itemId);
+    }
+
+    /**
+     * Revokes only the named-reviewer relationship. It does not infer or remove any
+     * tenant-admin role and is intended for campaign lifecycle orchestration.
+     */
+    @Transactional
+    public void revokeNamedReviewerAssignment(
+            Long tenantId,
+            Long actorId,
+            String correlationId,
+            UUID campaignId,
+            UUID itemId,
+            long expectedVersion) {
+        int updated = jdbc.update("""
+                UPDATE com_access_review_items item
+                   SET reviewer_assignment_state = 'REVOKED',
+                       version = item.version + 1,
+                       updated_at = CURRENT_TIMESTAMP
+                  FROM com_access_review_campaigns campaign
+                 WHERE item.tenant_id = ?
+                   AND item.access_review_campaign_id = ?
+                   AND item.access_review_item_id = ?
+                   AND item.version = ?
+                   AND item.reviewer_assignment_state = 'ACTIVE'
+                   AND item.reviewer_user_id IS NOT NULL
+                   AND campaign.tenant_id = item.tenant_id
+                   AND campaign.access_review_campaign_id = item.access_review_campaign_id
+                   AND campaign.reviewer_strategy = 'NAMED_REVIEWER'
+                """, tenantId, campaignId, itemId, expectedVersion);
+        if (updated != 1) throw conflict();
+        AccessReviewWorkRef ref = workRef(tenantId, campaignId, itemId);
+        if (workItemEvents != null) {
+            workItemEvents.revoked(
+                    tenantId, ref.workItemRef(), correlationId, ref.version());
+        }
+        auditService.success(
+                tenantId, actorId, "access-review.item.assignment-revoked",
+                "ACCESS_REVIEW_ITEM", itemId.toString(), correlationId,
+                Map.of("assignmentState", "ACTIVE", "version", expectedVersion),
+                Map.of("assignmentState", "REVOKED", "version", ref.version()));
     }
 
     @Transactional
@@ -466,6 +526,19 @@ public class AccessReviewService {
         return values.get(0);
     }
 
+    private AccessReviewWorkRef workRef(Long tenantId, UUID campaignId, UUID itemId) {
+        return jdbc.query("""
+                SELECT work_item_ref, version
+                  FROM com_access_review_items
+                 WHERE tenant_id = ? AND access_review_campaign_id = ?
+                   AND access_review_item_id = ?
+                """, (result, ignored) -> new AccessReviewWorkRef(
+                        result.getObject("work_item_ref", UUID.class),
+                        result.getLong("version")), tenantId, campaignId, itemId)
+                .stream().findFirst()
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+    }
+
     private String sourceType(Long tenantId, UUID campaignId, UUID itemId) {
         List<String> values = jdbc.query(
                 "SELECT access_source_type FROM com_access_review_items "
@@ -571,5 +644,8 @@ public class AccessReviewService {
     }
 
     private record DirectRevoke(UUID itemId, Long userId, Long roleId, Long sourceId) {
+    }
+
+    private record AccessReviewWorkRef(UUID workItemRef, long version) {
     }
 }

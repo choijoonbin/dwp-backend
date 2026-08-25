@@ -77,6 +77,35 @@ public final class AccessReviewDtos {
             long version) {
     }
 
+    /**
+     * Privacy-bounded projection for the assigned Work surface. Internal campaign and
+     * review-item identifiers are intentionally omitted; callers retain only workItemRef.
+     */
+    public record WorkItemDetail(
+            UUID workItemRef,
+            String campaignName,
+            Instant dueAt,
+            Long subjectUserId,
+            String subjectDisplayName,
+            String subjectEmail,
+            Long roleId,
+            String roleCode,
+            String roleName,
+            String accessSourceType,
+            String sourceKey,
+            String sourceDisplayName,
+            Instant assignmentCreatedAt,
+            Instant subjectLastSignInAt,
+            boolean privileged,
+            String recommendation,
+            String recommendationReason,
+            String decision,
+            String decisionReason,
+            Instant decidedAt,
+            String remediationState,
+            long version) {
+    }
+
     public record VersionRequest(@NotNull @Min(0) Long version) {
     }
 

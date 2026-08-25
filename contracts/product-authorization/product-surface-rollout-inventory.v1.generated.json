@@ -1,0 +1,19 @@
+{
+  "checksum": "841e2cd03d6eac70f0787160d77532d56c309af4c63214c2dc50e2101e303aa2",
+  "checksumAlgorithm": "SHA-256",
+  "inventoryKey": "product-surface-rollout-products.v1",
+  "products": [
+    "approvals",
+    "calendar",
+    "communications",
+    "dwaion",
+    "hcm",
+    "mail",
+    "messaging",
+    "notifications",
+    "services",
+    "spaces",
+    "workplace"
+  ],
+  "schemaVersion": 1
+}

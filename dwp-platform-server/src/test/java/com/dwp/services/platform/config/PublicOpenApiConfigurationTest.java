@@ -26,6 +26,7 @@ class PublicOpenApiConfigurationTest {
                 .addParametersItem(header("X-DWP-Person-Public-ID"))
                 .addParametersItem(header("X-DWP-Group-Refs"))
                 .addParametersItem(header("X-DWP-Resource-Roles"))
+                .addParametersItem(header("X-DWP-Rollout-Cohort"))
                 .addParametersItem(header("Accept-Language"))
                 .addParametersItem(new Parameter().in("query").name("from"));
         OpenAPI openApi = new OpenAPI().paths(new Paths().addPathItem(

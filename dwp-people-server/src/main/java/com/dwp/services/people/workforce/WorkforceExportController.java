@@ -1,6 +1,7 @@
 package com.dwp.services.people.workforce;
 
 import com.dwp.core.common.ApiResponse;
+import com.dwp.services.people.security.HcmStepUpHeaders;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -43,8 +44,17 @@ public class WorkforceExportController {
     @PostMapping
     public ApiResponse<WorkforceExportDtos.RequestSummary> create(
             @Valid @RequestBody WorkforceExportDtos.CreateRequest request,
-            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId) {
-        return ApiResponse.success(service.create(request, correlationId));
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader(value = HcmStepUpHeaders.CHALLENGE, required = false) String challenge,
+            @RequestHeader(value = HcmStepUpHeaders.IDEMPOTENCY_KEY, required = false)
+            String idempotencyKey,
+            @RequestHeader(value = HcmStepUpHeaders.DECISION_REVISION, required = false)
+            String decisionRevision,
+            @RequestHeader(value = HcmStepUpHeaders.EXPECTED_OBJECT_VERSION, required = false)
+            Long expectedObjectVersion) {
+        return ApiResponse.success(service.create(request, correlationId,
+                headers(challenge, idempotencyKey,
+                        decisionRevision, expectedObjectVersion)));
     }
 
     @GetMapping("/{requestId}/attempts")
@@ -65,7 +75,25 @@ public class WorkforceExportController {
     public ApiResponse<WorkforceExportDtos.RequestSummary> retry(
             @PathVariable UUID requestId,
             @Valid @RequestBody WorkforceExportDtos.DecisionRequest request,
-            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId) {
-        return ApiResponse.success(service.retry(requestId, request, correlationId));
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader(value = HcmStepUpHeaders.CHALLENGE, required = false) String challenge,
+            @RequestHeader(value = HcmStepUpHeaders.IDEMPOTENCY_KEY, required = false)
+            String idempotencyKey,
+            @RequestHeader(value = HcmStepUpHeaders.DECISION_REVISION, required = false)
+            String decisionRevision,
+            @RequestHeader(value = HcmStepUpHeaders.EXPECTED_OBJECT_VERSION, required = false)
+            Long expectedObjectVersion) {
+        return ApiResponse.success(service.retry(requestId, request, correlationId,
+                headers(challenge, idempotencyKey,
+                        decisionRevision, expectedObjectVersion)));
+    }
+
+    private HcmStepUpHeaders headers(
+            String challenge,
+            String idempotencyKey,
+            String decisionRevision,
+            Long expectedObjectVersion) {
+        return new HcmStepUpHeaders(
+                challenge, idempotencyKey, decisionRevision, expectedObjectVersion);
     }
 }

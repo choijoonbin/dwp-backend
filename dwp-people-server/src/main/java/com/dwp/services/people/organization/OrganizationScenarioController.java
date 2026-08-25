@@ -1,6 +1,7 @@
 package com.dwp.services.people.organization;
 
 import com.dwp.core.common.ApiResponse;
+import com.dwp.services.people.security.HcmStepUpHeaders;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -143,7 +144,16 @@ public class OrganizationScenarioController {
     public ApiResponse<OrganizationScenarioDtos.Scenario> publish(
             @PathVariable UUID scenarioId,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @RequestHeader(value = HcmStepUpHeaders.CHALLENGE, required = false) String challenge,
+            @RequestHeader(value = HcmStepUpHeaders.IDEMPOTENCY_KEY, required = false)
+            String idempotencyKey,
+            @RequestHeader(value = HcmStepUpHeaders.DECISION_REVISION, required = false)
+            String decisionRevision,
+            @RequestHeader(value = HcmStepUpHeaders.EXPECTED_OBJECT_VERSION, required = false)
+            Long expectedObjectVersion,
             @Valid @RequestBody OrganizationScenarioDtos.PublishScenarioRequest request) {
-        return ApiResponse.success(service.publish(scenarioId, request, correlationId));
+        return ApiResponse.success(service.publish(scenarioId, request, correlationId,
+                new HcmStepUpHeaders(challenge, idempotencyKey,
+                        decisionRevision, expectedObjectVersion)));
     }
 }

@@ -426,6 +426,22 @@ public class FeatureRolloutRepository {
                 .stream().findFirst();
     }
 
+    public Optional<TenantRow> tenantByAuthTenantId(Long authTenantId) {
+        return jdbc.query("""
+                SELECT provider_tenant_id, tenant_key, data_region, service_tier, isolation_model
+                  FROM prv_tenants
+                 WHERE auth_tenant_id = :authTenantId
+                   AND lifecycle_state <> 'RETIRED'
+                """, new MapSqlParameterSource("authTenantId", authTenantId),
+                (result, ignored) -> new TenantRow(
+                        result.getObject("provider_tenant_id", UUID.class),
+                        result.getString("tenant_key"),
+                        result.getString("data_region"),
+                        result.getString("service_tier"),
+                        result.getString("isolation_model")))
+                .stream().findFirst();
+    }
+
     public void recordEvaluation(
             UUID flagId,
             UUID rolloutId,

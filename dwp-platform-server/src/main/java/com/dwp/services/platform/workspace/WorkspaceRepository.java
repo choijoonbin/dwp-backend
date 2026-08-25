@@ -13,6 +13,20 @@ import java.util.UUID;
 @Repository
 public class WorkspaceRepository {
 
+    static final String UPDATE_WORK_STATUS_SQL = """
+            UPDATE wrk_items
+               SET lifecycle_state = ?,
+                   latest_activity_ko = ?,
+                   latest_activity_en = ?,
+                   version = version + 1,
+                   updated_at = CURRENT_TIMESTAMP,
+                   updated_by = ?
+             WHERE tenant_id = ? AND work_item_id = ? AND version = ?
+               AND assignee_user_id = ?
+               AND work_type <> 'REVIEW'
+               AND source_system <> 'IDENTITY_GOVERNANCE'
+            """;
+
     private final JdbcTemplate jdbc;
 
     public WorkspaceRepository(JdbcTemplate jdbc) {
@@ -65,17 +79,8 @@ public class WorkspaceRepository {
             long version,
             String latestActivityKo,
             String latestActivityEn) {
-        return jdbc.update("""
-                UPDATE wrk_items
-                   SET lifecycle_state = ?,
-                       latest_activity_ko = ?,
-                       latest_activity_en = ?,
-                       version = version + 1,
-                       updated_at = CURRENT_TIMESTAMP,
-                       updated_by = ?
-                 WHERE tenant_id = ? AND work_item_id = ? AND version = ?
-                   AND assignee_user_id = ?
-                """, status, latestActivityKo, latestActivityEn, actorId,
+        return jdbc.update(UPDATE_WORK_STATUS_SQL,
+                status, latestActivityKo, latestActivityEn, actorId,
                 tenantId, workItemId, version, actorId) == 1;
     }
 

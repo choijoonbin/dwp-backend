@@ -72,6 +72,12 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
         return verification
                 .switchIfEmpty(Mono.error(new AuthenticationRequiredException()))
                 .flatMap(identity -> {
+                    String clientTenant = sanitizedRequest.getHeaders().getFirst("X-Tenant-ID");
+                    if (isStepUpIssuer(sanitizedRequest.getURI().getPath())
+                            && clientTenant != null
+                            && !clientTenant.equals(identity.tenantId())) {
+                        return complete(exchange, HttpStatus.FORBIDDEN);
+                    }
                     exchange.getAttributes().put(ApiHistoryAttributes.ACTOR_TYPE, "USER");
                     exchange.getAttributes().put(ApiHistoryAttributes.ACTOR_ID, identity.userId());
                     exchange.getAttributes().put(ApiHistoryAttributes.TENANT_ID, identity.tenantId());
@@ -123,7 +129,18 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
         String path = request.getURI().getPath();
         return request.getMethod() != HttpMethod.OPTIONS
                 && path.startsWith("/api/")
-                && !path.startsWith("/api/auth/");
+                && (!path.startsWith("/api/auth/") || isProductSurfaceAuthorityPath(path));
+    }
+
+    private boolean isProductSurfaceAuthorityPath(String path) {
+        return path.equals("/api/auth/product-surface-contexts")
+                || path.equals("/api/auth/product-surface-access/evaluate")
+                || path.equals("/api/auth/governed-route-access/evaluate")
+                || path.equals("/api/auth/product-surface-step-up-challenges");
+    }
+
+    private boolean isStepUpIssuer(String path) {
+        return path.equals("/api/auth/product-surface-step-up-challenges");
     }
 
     private Mono<Void> complete(ServerWebExchange exchange, HttpStatus status) {

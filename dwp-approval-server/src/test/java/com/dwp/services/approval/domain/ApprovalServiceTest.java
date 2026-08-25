@@ -3,6 +3,9 @@ package com.dwp.services.approval.domain;
 import com.dwp.core.audit.AuditOutboxRecorder;
 import com.dwp.services.approval.security.ApprovalRequestContext;
 import com.dwp.services.approval.integration.ApprovalIdentityDirectory;
+import com.dwp.services.approval.security.ApprovalHighRiskCommandGuard;
+import com.dwp.services.approval.security.ApprovalOwnerPredicateEvaluator;
+import com.dwp.services.approval.security.ApprovalStepUpHeaders;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,9 +20,11 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.same;
 import static org.mockito.Mockito.when;
 
 class ApprovalServiceTest {
@@ -87,7 +92,8 @@ class ApprovalServiceTest {
                         pending, 17L, 17L, "FINANCE_APPROVERS", false, null));
         when(queries.requestPayload(42L, requestId)).thenReturn(Map.of());
         when(queries.timeline(42L, requestId)).thenReturn(List.of());
-        when(queries.isBlockingPolicyActive(42L, "BLOCK_SELF_APPROVAL")).thenReturn(true);
+        when(queries.isBlockingPolicyActive(
+                42L, "BLOCK_SELF_APPROVAL", "RS_APPROVALS")).thenReturn(true);
 
         ApprovalDtos.TaskDetail detail = service.task(taskId);
 
@@ -176,6 +182,39 @@ class ApprovalServiceTest {
                 .containsEntry("outboxId", outboxId.toString());
         assertThat(event.getValue().retentionClass()).isEqualTo("EXTENDED");
         assertThat(response.integrationDeliveries()).isEmpty();
+    }
+
+    @Test
+    void bindsHeaderVersionedRecoveryToAnEmptyCanonicalPayload() {
+        UUID outboxId = UUID.randomUUID();
+        long expectedVersion = 2L;
+        ApprovalHighRiskCommandGuard guard = mock(ApprovalHighRiskCommandGuard.class);
+        ApprovalService governed = new ApprovalService(
+                queries, commands, audit, identities, guard,
+                mock(ApprovalOwnerPredicateEvaluator.class));
+        ApprovalStepUpHeaders headers = ApprovalStepUpHeaders.of(
+                "signed-challenge", "retry-idempotency", "D-A-OPS-R1", expectedVersion);
+        when(queries.adminPulse(42L)).thenReturn(new ApprovalDtos.AdminPulse(
+                0, 0, 0, 0, 0, List.of()));
+        when(queries.breachedTasks(42L, 20)).thenReturn(List.of());
+        when(queries.integrationDeliveries(42L, 50)).thenReturn(List.of());
+
+        governed.retryIntegrationDelivery(
+                outboxId, expectedVersion, "retry-correlation", headers);
+
+        ArgumentCaptor<Object> payload = ArgumentCaptor.forClass(Object.class);
+        verify(guard).begin(
+                eq(ApprovalRequestContext.require()),
+                eq("approvals.operations.execute"),
+                eq("OUTBOX_EVENT"),
+                eq(outboxId),
+                eq(expectedVersion),
+                eq("/api/approvals/v1/admin/operations/events/" + outboxId + "/retry"),
+                payload.capture(),
+                same(headers));
+        assertThat(payload.getValue()).isEqualTo(Map.of());
+        verify(commands).retryIntegrationDelivery(
+                ApprovalRequestContext.require(), outboxId, expectedVersion);
     }
 
     @Test

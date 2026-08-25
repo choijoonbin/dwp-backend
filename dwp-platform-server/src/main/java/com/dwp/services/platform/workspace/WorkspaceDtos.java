@@ -1,5 +1,6 @@
 package com.dwp.services.platform.workspace;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -37,6 +38,7 @@ public final class WorkspaceDtos {
             String title,
             String summary,
             String dataClassification,
+            @Schema(allowableValues = {"APPROVAL", "TASK", "SERVICE", "REQUIRED", "REVIEW"})
             String type,
             String priority,
             String status,

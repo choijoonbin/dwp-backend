@@ -10,6 +10,7 @@ import jakarta.validation.constraints.Size;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public final class AppGovernanceDtos {
@@ -22,7 +23,20 @@ public final class AppGovernanceDtos {
             List<Responsibility> responsibilities,
             List<Principal> principals,
             List<ResourceSet> resourceSets,
-            List<Assignment> assignments) {
+            List<Assignment> assignments,
+            List<AppAdminPreset> presetCatalog,
+            List<AppAdminPresetAssignment> presetAssignments,
+            List<AppAdminPresetReview> presetReviews) {
+
+        public Dashboard(
+                Metrics metrics,
+                List<Responsibility> responsibilities,
+                List<Principal> principals,
+                List<ResourceSet> resourceSets,
+                List<Assignment> assignments) {
+            this(metrics, responsibilities, principals, resourceSets, assignments,
+                    List.of(), List.of(), List.of());
+        }
     }
 
     public record Metrics(
@@ -121,6 +135,147 @@ public final class AppGovernanceDtos {
     }
 
     public record RevokeAssignmentRequest(
+            @NotBlank @Size(min = 10, max = 1000) String reason,
+            @NotNull @Min(0) Long version) {
+    }
+
+    /** Product-specific minimum package; intentionally not an all-admin role. */
+    public record AppAdminPreset(
+            String presetCode,
+            String productKey,
+            String appResourceKey,
+            String displayName,
+            String description,
+            String responsibilityCode,
+            String riskTier,
+            long catalogVersion,
+            boolean requestable,
+            String unavailableReason,
+            List<AppAdminPresetDuty> duties) {
+    }
+
+    public record AppAdminPresetDuty(
+            String dutyCode,
+            String legacyRoleCode,
+            String resourceKey,
+            String riskTier,
+            boolean auditPolicyException,
+            List<String> capabilityContractKeys) {
+    }
+
+    public record AppAdminPresetAssignment(
+            UUID presetAssignmentId,
+            String presetCode,
+            String productKey,
+            String presetName,
+            String principalType,
+            String principalRef,
+            String principalName,
+            UUID resourceSetId,
+            String resourceSetKey,
+            String resourceSetName,
+            UUID responsibilityAssignmentId,
+            String assignmentSource,
+            String requestChannel,
+            String lifecycleState,
+            OffsetDateTime validFrom,
+            OffsetDateTime validTo,
+            OffsetDateTime reviewDueAt,
+            String justification,
+            Long requestedBy,
+            String requestedByName,
+            Long approvedBy,
+            String approvedByName,
+            OffsetDateTime approvedAt,
+            String decisionReason,
+            Long activatedBy,
+            String activatedByName,
+            OffsetDateTime activatedAt,
+            String activationReason,
+            Long revokedBy,
+            String revokedByName,
+            OffsetDateTime revokedAt,
+            String revocationReason,
+            long version,
+            long catalogVersion,
+            OffsetDateTime createdAt,
+            OffsetDateTime updatedAt,
+            List<AppAdminPresetDutyAssignment> duties) {
+    }
+
+    public record AppAdminPresetDutyAssignment(
+            UUID assignmentId,
+            String dutyCode,
+            String lifecycleState,
+            long version) {
+    }
+
+    public record AppAdminPresetReview(
+            UUID reviewId,
+            Long userId,
+            String userName,
+            String sourceRoleCode,
+            String dutyCode,
+            String reasonCode,
+            UUID resourceSetId,
+            String resourceSetName,
+            Map<String, Object> evidence,
+            String lifecycleState,
+            Long resolvedBy,
+            OffsetDateTime resolvedAt,
+            String resolutionReason,
+            long version,
+            OffsetDateTime createdAt,
+            OffsetDateTime updatedAt) {
+    }
+
+    public record CreateAppAdminPresetAssignmentRequest(
+            @NotBlank @Pattern(regexp = "USER|GROUP") String principalType,
+            @NotBlank @Size(max = 160) String principalRef,
+            @NotBlank @Pattern(regexp = "[A-Z][A-Z0-9_]{2,79}") String presetCode,
+            @NotNull UUID resourceSetId,
+            @NotNull @Future OffsetDateTime validTo,
+            @NotNull @Future OffsetDateTime reviewDueAt,
+            @NotBlank @Size(min = 10, max = 1000) String justification) {
+    }
+
+    public record AppAdminPresetResourceSetOption(
+            UUID resourceSetId,
+            String resourceSetKey,
+            String resourceSetName) {
+    }
+
+    public record AppAdminPresetSelfServiceOption(
+            AppAdminPreset preset,
+            List<AppAdminPresetResourceSetOption> resourceSets) {
+    }
+
+    public record CreateSelfServicePresetRequest(
+            @NotBlank @Pattern(regexp = "[A-Z][A-Z0-9_]{2,79}") String presetCode,
+            @NotNull UUID resourceSetId,
+            @NotNull @Future OffsetDateTime validTo,
+            @NotNull @Future OffsetDateTime reviewDueAt,
+            @NotBlank @Size(min = 10, max = 1000) String justification) {
+    }
+
+    public record AppAdminPresetDecisionRequest(
+            @NotBlank @Pattern(regexp = "APPROVED|DENIED") String decision,
+            @NotBlank @Size(min = 10, max = 1000) String reason,
+            @NotNull @Min(0) Long version) {
+    }
+
+    public record RevokeAppAdminPresetRequest(
+            @NotBlank @Size(min = 10, max = 1000) String reason,
+            @NotNull @Min(0) Long version) {
+    }
+
+    public record ActivateAppAdminPresetRequest(
+            @NotBlank @Size(min = 10, max = 1000) String reason,
+            @NotNull @Min(0) Long version) {
+    }
+
+    public record AppAdminPresetReviewDecisionRequest(
+            @NotBlank @Pattern(regexp = "RESOLVED|DISMISSED") String decision,
             @NotBlank @Size(min = 10, max = 1000) String reason,
             @NotNull @Min(0) Long version) {
     }

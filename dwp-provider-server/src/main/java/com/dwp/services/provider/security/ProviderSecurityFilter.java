@@ -2,6 +2,7 @@ package com.dwp.services.provider.security;
 
 import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
+import com.dwp.services.provider.rollout.FeatureRolloutInternalEvaluationSecurityFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -47,6 +48,7 @@ public class ProviderSecurityFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         return path.startsWith("/actuator/health")
                 || path.startsWith("/v3/api-docs")
+                || path.equals(FeatureRolloutInternalEvaluationSecurityFilter.PATH)
                 || path.equals("/error");
     }
 

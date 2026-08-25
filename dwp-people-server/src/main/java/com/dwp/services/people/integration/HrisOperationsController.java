@@ -1,6 +1,7 @@
 package com.dwp.services.people.integration;
 
 import com.dwp.core.common.ApiResponse;
+import com.dwp.services.people.security.HcmStepUpHeaders;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -61,11 +62,16 @@ public class HrisOperationsController {
     @PostMapping("/connectors/{connectorId}/configuration-check")
     public ApiResponse<HrisDtos.ConfigurationCheck> checkConnector(
             @PathVariable UUID connectorId,
-            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId) {
-        HrisDtos.ConfigurationCheck local = service.checkConnectorConfiguration(connectorId, correlationId);
-        return ApiResponse.success(local.valid()
-                ? execution.probe(connectorId, correlationId)
-                : local);
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @RequestHeader(value = HcmStepUpHeaders.CHALLENGE, required = false) String challenge,
+            @RequestHeader(value = IDEMPOTENCY_HEADER, required = false) String idempotencyKey,
+            @RequestHeader(value = HcmStepUpHeaders.DECISION_REVISION, required = false)
+            String decisionRevision,
+            @RequestHeader(value = HcmStepUpHeaders.EXPECTED_OBJECT_VERSION, required = false)
+            Long expectedObjectVersion) {
+        return ApiResponse.success(execution.checkConnector(
+                connectorId, correlationId, headers(challenge, idempotencyKey,
+                        decisionRevision, expectedObjectVersion)));
     }
 
     @GetMapping("/mapping-profiles")
@@ -96,16 +102,30 @@ public class HrisOperationsController {
     public ApiResponse<HrisDtos.ImportResult> execute(
             @PathVariable UUID connectorId,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @RequestHeader(value = HcmStepUpHeaders.CHALLENGE, required = false) String challenge,
+            @RequestHeader(value = IDEMPOTENCY_HEADER, required = false) String idempotencyKey,
+            @RequestHeader(value = HcmStepUpHeaders.DECISION_REVISION, required = false)
+            String decisionRevision,
+            @RequestHeader(value = HcmStepUpHeaders.EXPECTED_OBJECT_VERSION, required = false)
+            Long expectedObjectVersion,
             @Valid @RequestBody HrisDtos.ExecuteConnectorRequest request) {
         return ApiResponse.success(execution.execute(
-                connectorId, request.syncMode(), null, correlationId));
+                connectorId, request.syncMode(), null, correlationId,
+                headers(challenge, idempotencyKey, decisionRevision, expectedObjectVersion)));
     }
 
     @PostMapping("/sync-runs/{syncRunId}/retry")
     public ApiResponse<HrisDtos.ImportResult> retry(
             @PathVariable UUID syncRunId,
-            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId) {
-        return ApiResponse.success(execution.retry(syncRunId, correlationId));
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @RequestHeader(value = HcmStepUpHeaders.CHALLENGE, required = false) String challenge,
+            @RequestHeader(value = IDEMPOTENCY_HEADER, required = false) String idempotencyKey,
+            @RequestHeader(value = HcmStepUpHeaders.DECISION_REVISION, required = false)
+            String decisionRevision,
+            @RequestHeader(value = HcmStepUpHeaders.EXPECTED_OBJECT_VERSION, required = false)
+            Long expectedObjectVersion) {
+        return ApiResponse.success(execution.retry(syncRunId, correlationId,
+                headers(challenge, idempotencyKey, decisionRevision, expectedObjectVersion)));
     }
 
     @GetMapping("/reconciliations")
@@ -117,8 +137,15 @@ public class HrisOperationsController {
     @PostMapping("/connectors/{connectorId}/reconciliations")
     public ApiResponse<HrisDtos.ReconciliationRun> reconcile(
             @PathVariable UUID connectorId,
-            @RequestParam UUID syncRunId) {
-        return ApiResponse.success(execution.reconcile(connectorId, syncRunId));
+            @RequestParam UUID syncRunId,
+            @RequestHeader(value = HcmStepUpHeaders.CHALLENGE, required = false) String challenge,
+            @RequestHeader(value = IDEMPOTENCY_HEADER, required = false) String idempotencyKey,
+            @RequestHeader(value = HcmStepUpHeaders.DECISION_REVISION, required = false)
+            String decisionRevision,
+            @RequestHeader(value = HcmStepUpHeaders.EXPECTED_OBJECT_VERSION, required = false)
+            Long expectedObjectVersion) {
+        return ApiResponse.success(execution.reconcile(connectorId, syncRunId,
+                headers(challenge, idempotencyKey, decisionRevision, expectedObjectVersion)));
     }
 
     @GetMapping("/reconciliation-issues")
@@ -142,5 +169,14 @@ public class HrisOperationsController {
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId) {
         return ApiResponse.success(service.importSyntheticWorkdayFixture(
                 idempotencyKey, correlationId));
+    }
+
+    private HcmStepUpHeaders headers(
+            String challenge,
+            String idempotencyKey,
+            String decisionRevision,
+            Long expectedObjectVersion) {
+        return new HcmStepUpHeaders(
+                challenge, idempotencyKey, decisionRevision, expectedObjectVersion);
     }
 }

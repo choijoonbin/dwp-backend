@@ -15,6 +15,7 @@ final class ApprovalQuerySql01 {
                request.requester_org_name, task.assignee_user_id,
                task.candidate_role, task.status, request.priority,
                request.data_classification, task.risk_score,
+               request.management_resource_set_key,
                request.submitted_at, task.due_at, task.version
           FROM apr_tasks task
           JOIN apr_requests request
@@ -45,7 +46,7 @@ final class ApprovalQuerySql01 {
                AND delegation.lifecycle_state = 'ACTIVE'
                AND CURRENT_TIMESTAMP BETWEEN delegation.starts_at AND delegation.ends_at
                AND (delegation.scope_type = 'ALL'
-                    OR delegation.workflow_key = workflow.workflow_key)
+                    OR delegation.workflow_id = workflow.workflow_id)
                AND (
                     task.assignee_user_id = delegation.delegator_user_id
                     OR (task.assignee_user_id IS NULL
@@ -120,6 +121,7 @@ final class ApprovalQuerySql01 {
           FROM apr_policy_rules
          WHERE tenant_id = :tenantId
            AND policy_key = :policyKey
+           AND management_resource_set_key = :managementScope
            AND lifecycle_state = 'ACTIVE'
            AND enforcement_mode = 'BLOCK'
         """;
@@ -168,7 +170,7 @@ final class ApprovalQuerySql01 {
            AND delegation.lifecycle_state = 'ACTIVE'
            AND CURRENT_TIMESTAMP BETWEEN delegation.starts_at AND delegation.ends_at
            AND (delegation.scope_type = 'ALL'
-                OR delegation.workflow_key = workflow.workflow_key)
+                OR delegation.workflow_id = workflow.workflow_id)
            AND (
                 task.assignee_user_id = delegation.delegator_user_id
                 OR (task.assignee_user_id IS NULL
@@ -377,37 +379,78 @@ final class ApprovalQuerySql01 {
     static final String ADMIN_PULSE_SELECT_APR_WORKFLOW_DEFINITIONS = """
         SELECT
             (SELECT COUNT(*) FROM apr_workflow_definitions
-              WHERE tenant_id = :tenantId AND lifecycle_state = 'PUBLISHED')::INTEGER
+              WHERE tenant_id = :tenantId
+                AND management_resource_set_key = :managementScope
+                AND lifecycle_state = 'PUBLISHED')::INTEGER
                 AS published_workflows,
             (SELECT COUNT(*) FROM apr_workflow_definitions
-              WHERE tenant_id = :tenantId AND lifecycle_state = 'DRAFT')::INTEGER
+              WHERE tenant_id = :tenantId
+                AND management_resource_set_key = :managementScope
+                AND lifecycle_state = 'DRAFT')::INTEGER
                 AS draft_workflows,
             (SELECT COUNT(*) FROM apr_requests
               WHERE tenant_id = :tenantId
+                AND management_resource_set_key = :managementScope
                 AND status IN ('SUBMITTED', 'IN_REVIEW', 'NEEDS_INFO'))::INTEGER
                 AS active_requests,
-            (SELECT COUNT(*) FROM apr_tasks
-              WHERE tenant_id = :tenantId
-                AND status IN ('PENDING', 'CLAIMED')
-                AND due_at < CURRENT_TIMESTAMP)::INTEGER AS overdue_tasks,
+            (SELECT COUNT(*) FROM apr_tasks task
+              WHERE task.tenant_id = :tenantId
+                AND task.status IN ('PENDING', 'CLAIMED')
+                AND task.due_at < CURRENT_TIMESTAMP
+                AND EXISTS (
+                    SELECT 1 FROM apr_requests request
+                     WHERE request.tenant_id = task.tenant_id
+                       AND request.request_id = task.request_id
+                       AND request.management_resource_set_key = :managementScope))::INTEGER
+                AS overdue_tasks,
             (SELECT COUNT(*) FROM apr_integration_outbox
-              WHERE tenant_id = :tenantId AND status IN ('FAILED', 'DEAD'))::INTEGER
+              WHERE tenant_id = :tenantId
+                AND management_resource_set_key = :managementScope
+                AND status IN ('FAILED', 'DEAD'))::INTEGER
                 AS failed_integrations,
-            (SELECT COUNT(*) FROM apr_delegations
-              WHERE tenant_id = :tenantId AND lifecycle_state = 'ACTIVE'
+            (SELECT COUNT(*) FROM apr_delegations delegation
+              WHERE delegation.tenant_id = :tenantId
+                AND delegation.lifecycle_state = 'ACTIVE'
                 AND CURRENT_TIMESTAMP BETWEEN starts_at AND ends_at
                 AND (delegate_person_public_id IS NULL
-                     OR delegate_display_name IS NULL))::INTEGER AS identity_gaps,
-            ((SELECT COUNT(*) FROM apr_workflow_versions
-               WHERE tenant_id = :tenantId AND lifecycle_state = 'PUBLISHED'
-                 AND created_by = published_by)
-             + (SELECT COUNT(*) FROM apr_form_versions
-                 WHERE tenant_id = :tenantId AND lifecycle_state = 'PUBLISHED'
-                   AND created_by = published_by))::INTEGER AS sod_violations,
-            (SELECT COUNT(*) FROM apr_tasks
-              WHERE tenant_id = :tenantId
-                AND status IN ('APPROVED', 'REJECTED')
-                AND decision_actor_user_id IS NULL)::INTEGER AS evidence_gaps
+                     OR delegate_display_name IS NULL)
+                AND ((
+                    delegation.scope_type = 'ALL'
+                    AND :managementScope = 'RS_APPROVALS') OR EXISTS (
+                    SELECT 1 FROM apr_workflow_definitions workflow
+                     WHERE workflow.tenant_id = delegation.tenant_id
+                       AND workflow.workflow_id = delegation.workflow_id
+                       AND workflow.management_resource_set_key = :managementScope)))::INTEGER
+                AS identity_gaps,
+            ((SELECT COUNT(*)
+                FROM apr_workflow_versions version
+                JOIN apr_workflow_definitions definition
+                  ON definition.tenant_id = version.tenant_id
+                 AND definition.workflow_id = version.workflow_id
+               WHERE version.tenant_id = :tenantId
+                 AND definition.management_resource_set_key = :managementScope
+                 AND version.lifecycle_state = 'PUBLISHED'
+                 AND version.created_by = version.published_by)
+             + (SELECT COUNT(*)
+                  FROM apr_form_versions version
+                  JOIN apr_forms form
+                    ON form.tenant_id = version.tenant_id
+                   AND form.form_id = version.form_id
+                 WHERE version.tenant_id = :tenantId
+                   AND form.management_resource_set_key = :managementScope
+                   AND version.lifecycle_state = 'PUBLISHED'
+                   AND version.created_by = version.published_by))::INTEGER
+                AS sod_violations,
+            (SELECT COUNT(*) FROM apr_tasks task
+              WHERE task.tenant_id = :tenantId
+                AND task.status IN ('APPROVED', 'REJECTED')
+                AND task.decision_actor_user_id IS NULL
+                AND EXISTS (
+                    SELECT 1 FROM apr_requests request
+                     WHERE request.tenant_id = task.tenant_id
+                       AND request.request_id = task.request_id
+                       AND request.management_resource_set_key = :managementScope))::INTEGER
+                AS evidence_gaps
         """;
 
     static final String WORKFLOWS_SELECT_APR_WORKFLOW_DEFINITIONS = """
@@ -418,6 +461,8 @@ final class ApprovalQuerySql01 {
                version, updated_at
           FROM apr_workflow_definitions
          WHERE tenant_id = :tenantId
+           AND (:workCatalog = TRUE
+                OR management_resource_set_key = :managementScope)
            AND (:publishedOnly = FALSE OR lifecycle_state = 'PUBLISHED')
          ORDER BY CASE lifecycle_state WHEN 'PUBLISHED' THEN 0 WHEN 'DRAFT' THEN 1 ELSE 2 END,
                   category, name_en
@@ -440,6 +485,8 @@ final class ApprovalQuerySql01 {
            AND version.version_number = definition.current_version
          WHERE definition.tenant_id = :tenantId
            AND definition.workflow_id = :workflowId
+           AND (:workCatalog = TRUE OR
+                definition.management_resource_set_key = :managementScope)
         """;
 
     static final String PUBLISHED_TEMPLATE_SELECT_APR_FORM_WORKFLOW_BINDINGS = """
@@ -448,10 +495,20 @@ final class ApprovalQuerySql01 {
           JOIN apr_forms form
             ON form.tenant_id = binding.tenant_id
            AND form.form_id = binding.form_id
+          JOIN apr_workflow_definitions workflow
+            ON workflow.tenant_id = binding.tenant_id
+           AND workflow.workflow_id = binding.workflow_id
          WHERE binding.tenant_id = :tenantId
            AND binding.workflow_id = :workflowId
+           AND (:workCatalog = TRUE OR
+                form.management_resource_set_key = :managementScope)
            AND binding.lifecycle_state = 'ACTIVE'
            AND form.lifecycle_state = 'PUBLISHED'
+           AND workflow.lifecycle_state = 'PUBLISHED'
+           AND (binding.effective_from IS NULL
+                OR binding.effective_from <= CURRENT_TIMESTAMP)
+           AND (binding.effective_to IS NULL
+                OR binding.effective_to > CURRENT_TIMESTAMP)
          ORDER BY CASE binding.binding_type WHEN 'DEFAULT' THEN 0 ELSE 1 END,
                   binding.priority, form.name_en
          LIMIT 1
@@ -468,6 +525,9 @@ final class ApprovalQuerySql01 {
            AND workflow.workflow_id = binding.workflow_id
          WHERE binding.tenant_id = :tenantId
            AND binding.form_id = :formId
+           AND (:workCatalog = TRUE OR (
+               form.management_resource_set_key = :managementScope
+               AND workflow.management_resource_set_key = :managementScope))
            AND binding.binding_type = 'DEFAULT'
            AND binding.lifecycle_state = 'ACTIVE'
            AND form.lifecycle_state = 'PUBLISHED'
@@ -487,8 +547,10 @@ final class ApprovalQuerySql01 {
           LEFT JOIN apr_forms form
             ON form.tenant_id = category.tenant_id
            AND form.category_id = category.category_id
+           AND form.management_resource_set_key = category.management_resource_set_key
            AND form.lifecycle_state <> 'RETIRED'
          WHERE category.tenant_id = :tenantId
+           AND category.management_resource_set_key = :managementScope
          GROUP BY category.category_id
          ORDER BY category.sort_order, category.name_en
         """;
@@ -530,6 +592,8 @@ final class ApprovalQuerySql01 {
                  AND used_version.form_id = form.form_id
           ) usage_count ON TRUE
          WHERE form.tenant_id = :tenantId
+           AND (:workCatalog = TRUE OR
+                form.management_resource_set_key = :managementScope)
            AND (:publishedOnly = FALSE OR (
                form.lifecycle_state = 'PUBLISHED'
                AND category.lifecycle_state = 'ACTIVE'
@@ -542,7 +606,11 @@ final class ApprovalQuerySql01 {
                     AND active_binding.form_id = form.form_id
                     AND active_binding.binding_type = 'DEFAULT'
                     AND active_binding.lifecycle_state = 'ACTIVE'
-                    AND active_workflow.lifecycle_state = 'PUBLISHED')))
+                    AND active_workflow.lifecycle_state = 'PUBLISHED'
+                    AND (active_binding.effective_from IS NULL
+                         OR active_binding.effective_from <= CURRENT_TIMESTAMP)
+                    AND (active_binding.effective_to IS NULL
+                         OR active_binding.effective_to > CURRENT_TIMESTAMP))))
          ORDER BY category.sort_order,
                   CASE form.lifecycle_state WHEN 'PUBLISHED' THEN 0 WHEN 'DRAFT' THEN 1 ELSE 2 END,
                   form.name_en

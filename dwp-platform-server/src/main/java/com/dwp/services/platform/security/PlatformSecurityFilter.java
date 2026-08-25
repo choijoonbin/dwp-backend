@@ -8,6 +8,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -36,6 +37,16 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
     static final String SUPPORT_SESSION_HEADER = "X-DWP-Support-Session-ID";
     static final String SUPPORT_SCOPES_HEADER = "X-DWP-Support-Scopes";
     static final String ACTOR_TENANT_HEADER = "X-DWP-Actor-Tenant-ID";
+    static final String ROUTE_CONTRACT_HEADER = "X-DWP-Route-Contract-Key";
+    static final String CURRENT_DECISION_REVISION_HEADER = "X-DWP-Current-Decision-Revision";
+    static final String CURRENT_REVALIDATE_AT_HEADER = "X-DWP-Current-Revalidate-At";
+    static final String EXPECTED_DECISION_REVISION_HEADER = "X-DWP-Expected-Decision-Revision";
+    static final String CONTEXT_HEADER = "X-DWP-Context-Key";
+    static final String SCOPE_HEADER = "X-DWP-Context-Scope-Key";
+    static final String RESPONSE_DECISION_REVISION_HEADER = "X-DWP-Decision-Revision";
+    static final String ROLLOUT_COHORT_HEADER = "X-DWP-Rollout-Cohort";
+    static final String ROLLOUT_REVISION_HEADER = "X-DWP-Rollout-Revision";
+    static final String ROLLOUT_STATE_HEADER = "X-DWP-Rollout-State";
     private static final Set<String> ADMIN_ROLES = Set.of("ADMIN", "TENANT_ADMIN", "PLATFORM_ADMIN");
     private static final List<String> SUPPORT_CONFIGURATION_PATHS = List.of(
             "/v1/admin/tenant-branding",
@@ -49,14 +60,55 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
     private final String serviceToken;
     private final String runtimeServiceToken;
     private final ObjectMapper objectMapper;
+    private final PlatformCanaryPepRegistry canaryPepRegistry;
+    private final boolean approvalsProductAuthorizationV2Enabled;
+    private final PlatformApprovalsPepRegistry approvalsPepRegistry;
+    private final PlatformProductAuthorizationSupport productAuthorization;
 
+    @Autowired
     public PlatformSecurityFilter(
             @Value("${dwp.platform.service-token:}") String serviceToken,
             @Value("${dwp.platform.runtime-service-token:}") String runtimeServiceToken,
-            ObjectMapper objectMapper) {
+            @Value("${dwp.platform.product-authorization-approvals-v2-enabled:false}")
+            boolean approvalsProductAuthorizationV2Enabled,
+            ObjectMapper objectMapper,
+            PlatformCanaryPepRegistry canaryPepRegistry,
+            PlatformApprovalsPepRegistry approvalsPepRegistry) {
         this.serviceToken = serviceToken == null ? "" : serviceToken.trim();
         this.runtimeServiceToken = runtimeServiceToken == null ? "" : runtimeServiceToken.trim();
         this.objectMapper = objectMapper;
+        this.canaryPepRegistry = canaryPepRegistry;
+        this.approvalsProductAuthorizationV2Enabled = approvalsProductAuthorizationV2Enabled;
+        this.approvalsPepRegistry = approvalsPepRegistry;
+        this.productAuthorization = new PlatformProductAuthorizationSupport(
+                canaryPepRegistry, approvalsPepRegistry);
+    }
+
+    PlatformSecurityFilter(
+            String serviceToken,
+            String runtimeServiceToken,
+            ObjectMapper objectMapper) {
+        this(serviceToken, runtimeServiceToken, objectMapper,
+                new PlatformCanaryPepRegistry(objectMapper));
+    }
+
+    PlatformSecurityFilter(
+            String serviceToken,
+            String runtimeServiceToken,
+            ObjectMapper objectMapper,
+            PlatformCanaryPepRegistry canaryPepRegistry) {
+        this(serviceToken, runtimeServiceToken, false, objectMapper, canaryPepRegistry,
+                new PlatformApprovalsPepRegistry(objectMapper));
+    }
+
+    PlatformSecurityFilter(
+            String serviceToken,
+            String runtimeServiceToken,
+            boolean approvalsProductAuthorizationV2Enabled,
+            ObjectMapper objectMapper) {
+        this(serviceToken, runtimeServiceToken, approvalsProductAuthorizationV2Enabled,
+                objectMapper, new PlatformCanaryPepRegistry(objectMapper),
+                new PlatformApprovalsPepRegistry(objectMapper));
     }
 
     @Override
@@ -98,10 +150,109 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
             return;
         }
         String path = request.getRequestURI();
+        List<String> resolvedCanaryRoutes = List.of();
+        List<String> resolvedApprovalRoutes = List.of();
+        boolean approvalStateChanging = false;
+        String approvalExpectedRevision = null;
+        boolean canaryProductPath = canaryPepRegistry.ownsPath(path);
+        boolean approvalProductPath = approvalsPepRegistry.governsPathFamily(path);
+        boolean productPath = canaryProductPath || approvalProductPath;
+        boolean exactEnforcement = false;
+        if (productPath && gatewayIdentity) {
+            String rolloutState = productAuthorization.exactHeader(
+                    request, ROLLOUT_STATE_HEADER);
+            if (!productAuthorization.validRolloutEvidence(
+                    rolloutState,
+                    productAuthorization.exactHeader(request, ROLLOUT_REVISION_HEADER),
+                    productAuthorization.exactHeader(request, ROLLOUT_COHORT_HEADER))) {
+                writeError(response, ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                        "Trusted product rollout evidence is missing or invalid.");
+                return;
+            }
+            exactEnforcement = rolloutState.charAt(1) == '1';
+        }
         boolean supportAccess = !isBlank(request.getHeader(SUPPORT_SESSION_HEADER));
         if (supportAccess && !authorizedSupportRequest(request)) {
             writeError(response, ErrorCode.FORBIDDEN,
                     "The support session does not permit this platform resource.");
+            return;
+        }
+        PlatformProductAuthorizationSupport.TrustedAuthorityEvidence trustedAuthority = null;
+        if (exactEnforcement) {
+            trustedAuthority = productAuthorization.trustedAuthority(request);
+            if (trustedAuthority == null) {
+                writeError(response, ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                        "Trusted product route, context, scope, and revision evidence is invalid.");
+                return;
+            }
+        }
+        if (canaryProductPath && exactEnforcement) {
+            PlatformCanaryPepRegistry.Decision decision = canaryPepRegistry.authorize(
+                    new PlatformCanaryPepRegistry.RequestEvidence(
+                            request.getMethod(),
+                            path,
+                            parseValues(request.getHeader(PERMISSIONS_HEADER)),
+                            request.getHeader(RESOURCE_ROLES_HEADER),
+                            request.getHeader(SUPPORT_SESSION_HEADER),
+                            parseValues(request.getHeader(SUPPORT_SCOPES_HEADER)),
+                            request.getHeader(ACTOR_TENANT_HEADER),
+                            trustedAuthority.routeContractKey()));
+            if (!decision.allowed()) {
+                writeError(response, ErrorCode.FORBIDDEN,
+                        "The exact Platform product route authority is required.");
+                return;
+            }
+            request.setAttribute(
+                    PlatformCanaryPepRegistry.class.getName() + ".routeContractKeys",
+                    decision.routeContractKeys());
+            resolvedCanaryRoutes = decision.routeContractKeys();
+            if (productAuthorization.stateChangingCanary(resolvedCanaryRoutes)
+                    && !trustedAuthority.currentRevision().equals(
+                    productAuthorization.exactHeader(
+                            request, EXPECTED_DECISION_REVISION_HEADER))) {
+                writeError(response, ErrorCode.DECISION_REVISION_CONFLICT,
+                        "Platform authority changed after the client decision.");
+                return;
+            }
+        }
+        if (approvalProductPath && exactEnforcement) {
+            if (!approvalsProductAuthorizationV2Enabled) {
+                writeError(response, ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                        "Approval-home product authorization is not ready for enforcement.");
+                return;
+            }
+            PlatformApprovalsPepRegistry.Decision decision = approvalsPepRegistry.authorize(
+                    new PlatformApprovalsPepRegistry.RequestEvidence(
+                            request.getMethod(), path,
+                            parseValues(request.getHeader(PERMISSIONS_HEADER)),
+                            trustedAuthority.routeContractKey()));
+            if (!decision.allowed()) {
+                writeError(response, ErrorCode.FORBIDDEN,
+                        "The exact approval-home route authority is required.");
+                return;
+            }
+            resolvedApprovalRoutes = decision.routeContractKeys();
+            request.setAttribute(
+                    PlatformApprovalsPepRegistry.class.getName() + ".routeContractKeys",
+                    resolvedApprovalRoutes);
+            boolean stateChanging = productAuthorization
+                    .stateChangingApproval(resolvedApprovalRoutes);
+            String expected = productAuthorization.exactHeader(
+                    request, EXPECTED_DECISION_REVISION_HEADER);
+            if (stateChanging && !trustedAuthority.currentRevision().equals(expected)) {
+                writeError(response, ErrorCode.DECISION_REVISION_CONFLICT,
+                        "Approval-home authority changed after the client decision.");
+                return;
+            }
+            approvalStateChanging = stateChanging;
+            approvalExpectedRevision = expected;
+            response.setHeader(RESPONSE_DECISION_REVISION_HEADER,
+                    trustedAuthority.currentRevision());
+        }
+        if (canaryProductPath && !exactEnforcement
+                && !productAuthorization.legacyProductAuthorized(request, supportAccess)) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "The legacy product permission required for this operation is missing.");
             return;
         }
         boolean auditAdminPath = path.startsWith("/v1/admin/audit-control");
@@ -118,18 +269,6 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
         boolean workspacePath = path.startsWith("/v1/workspace");
         if (workspacePath && isBlank(request.getHeader(PERMISSIONS_HEADER))) {
             writeError(response, ErrorCode.FORBIDDEN, "Workspace permission is required.");
-            return;
-        }
-        boolean communicationsPath = path.startsWith("/v1/communications");
-        if (communicationsPath && !hasAuthority(
-                request.getHeader(PERMISSIONS_HEADER), "APP.COMMUNICATIONS", "VIEW")) {
-            writeError(response, ErrorCode.FORBIDDEN, "Communications access is required.");
-            return;
-        }
-        boolean serviceCenterPath = path.startsWith("/v1/services");
-        if (serviceCenterPath && !hasAuthority(
-                request.getHeader(PERMISSIONS_HEADER), "APP.EMPLOYEE_SERVICES", "VIEW")) {
-            writeError(response, ErrorCode.FORBIDDEN, "Employee services access is required.");
             return;
         }
         boolean calendarPath = path.startsWith("/v1/calendar");
@@ -153,10 +292,9 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
             return;
         }
         boolean communicationsAdminPath = path.startsWith("/v1/admin/announcements");
-        boolean delegatedCommunicationsAccess = communicationsAdminPath
-                && hasCommunicationsAuthority(request);
+        boolean delegatedCommunicationsAccess = communicationsAdminPath;
         boolean servicesAdminPath = path.startsWith("/v1/admin/services");
-        boolean delegatedServicesAccess = servicesAdminPath && hasServicesAuthority(request);
+        boolean delegatedServicesAccess = servicesAdminPath;
         boolean calendarAdminPath = path.startsWith("/v1/admin/calendar");
         boolean delegatedCalendarAccess = calendarAdminPath && hasCalendarAdminAuthority(request);
         if (calendarAdminPath && !delegatedCalendarAccess) {
@@ -212,11 +350,25 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
             return;
         }
 
+        if (!resolvedCanaryRoutes.isEmpty()) {
+            PlatformCanaryAuthorizationContext.set(resolvedCanaryRoutes);
+        }
+        if (!resolvedApprovalRoutes.isEmpty()) {
+            PlatformApprovalsAuthorizationContext.setEnforced(
+                    tenantId, actorId, resolvedApprovalRoutes,
+                    trustedAuthority.currentRevision(), trustedAuthority.revalidateAt(),
+                    trustedAuthority.contextKey(), trustedAuthority.scopeKey(),
+                    approvalExpectedRevision, approvalStateChanging);
+        } else if (approvalProductPath && !exactEnforcement) {
+            PlatformApprovalsAuthorizationContext.setLegacy(tenantId, actorId);
+        }
         RequestActorContext.set(actorId);
         try {
             filterChain.doFilter(request, response);
         } finally {
             RequestActorContext.clear();
+            PlatformApprovalsAuthorizationContext.clear();
+            PlatformCanaryAuthorizationContext.clear();
         }
     }
 
@@ -256,34 +408,6 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
                 .map(String::trim)
                 .map(String::toUpperCase)
                 .anyMatch(expected::equals);
-    }
-
-    private boolean hasCommunicationsAuthority(HttpServletRequest request) {
-        String requiredPermission = switch (request.getMethod()) {
-            case "GET", "HEAD" -> "VIEW";
-            case "PUT" -> "UPDATE";
-            case "POST" -> request.getRequestURI().endsWith("/publish")
-                    ? "APPROVE"
-                    : request.getRequestURI().endsWith("/archive") ? "MANAGE" : "CREATE";
-            default -> "MANAGE";
-        };
-        return hasAuthority(
-                request.getHeader(PERMISSIONS_HEADER),
-                "ADMIN.COMMUNICATIONS",
-                requiredPermission);
-    }
-
-    private boolean hasServicesAuthority(HttpServletRequest request) {
-        String path = request.getRequestURI();
-        boolean catalog = path.startsWith("/v1/admin/services/catalog");
-        String resource = catalog ? "ADMIN.SERVICE_CATALOG" : "ADMIN.SERVICE_OPERATIONS";
-        String requiredPermission = switch (request.getMethod()) {
-            case "GET", "HEAD" -> "VIEW";
-            case "PUT" -> "UPDATE";
-            case "POST" -> catalog ? "CREATE" : "MANAGE";
-            default -> "MANAGE";
-        };
-        return hasAuthority(request.getHeader(PERMISSIONS_HEADER), resource, requiredPermission);
     }
 
     private boolean hasCalendarAuthority(HttpServletRequest request) {
@@ -484,4 +608,5 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         objectMapper.writeValue(response.getOutputStream(), ApiResponse.error(errorCode, message));
     }
+
 }

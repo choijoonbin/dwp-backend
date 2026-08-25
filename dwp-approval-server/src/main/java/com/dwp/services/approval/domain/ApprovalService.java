@@ -4,11 +4,15 @@ import com.dwp.audit.AuditEvent;
 import com.dwp.core.audit.AuditOutboxRecorder;
 import com.dwp.services.approval.integration.ApprovalIdentityDirectory;
 import com.dwp.services.approval.security.ApprovalRequestContext;
+import com.dwp.services.approval.security.ApprovalHighRiskCommandGuard;
+import com.dwp.services.approval.security.ApprovalOwnerPredicateEvaluator;
+import com.dwp.services.approval.security.ApprovalPilotAuthorizationContext;
+import com.dwp.services.approval.security.ApprovalStepUpHeaders;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -20,26 +24,46 @@ public class ApprovalService {
     private final ApprovalCommandRepository commands;
     private final AuditOutboxRecorder audit;
     private final ApprovalIdentityDirectory identities;
+    private final ApprovalHighRiskCommandGuard highRiskGuard;
+    private final ApprovalOwnerPredicateEvaluator ownerPredicates;
 
     public ApprovalService(
             ApprovalQueryRepository queries,
             ApprovalCommandRepository commands,
             AuditOutboxRecorder audit,
             ApprovalIdentityDirectory identities) {
+        this(queries, commands, audit, identities, null, null);
+    }
+
+    @Autowired
+    public ApprovalService(
+            ApprovalQueryRepository queries,
+            ApprovalCommandRepository commands,
+            AuditOutboxRecorder audit,
+            ApprovalIdentityDirectory identities,
+            ApprovalHighRiskCommandGuard highRiskGuard,
+            ApprovalOwnerPredicateEvaluator ownerPredicates) {
         this.queries = queries;
         this.commands = commands;
         this.audit = audit;
         this.identities = identities;
+        this.highRiskGuard = highRiskGuard;
+        this.ownerPredicates = ownerPredicates;
     }
 
     @Transactional
     public ApprovalDtos.HomeResponse home() {
         ApprovalRequestContext.Actor actor = prepare();
-        boolean canUseTasks = actor.hasPermission("ACTION.APPROVAL_TASK", "VIEW", "MANAGE");
-        boolean canUseRequests = actor.hasPermission("ACTION.APPROVAL_REQUEST", "VIEW", "MANAGE");
+        boolean governedWorkSurface = ApprovalPilotAuthorizationContext.current().isPresent();
+        boolean canUseTasks = governedWorkSurface
+                ? actor.hasPermission("ACTION.APPROVAL_TASK", "VIEW")
+                : actor.hasPermission("ACTION.APPROVAL_TASK", "VIEW", "MANAGE");
+        boolean canUseRequests = governedWorkSurface
+                ? actor.hasPermission("ACTION.APPROVAL_REQUEST", "VIEW")
+                : actor.hasPermission("ACTION.APPROVAL_REQUEST", "VIEW", "MANAGE");
         ApprovalDtos.ApprovalMetrics rawMetrics = canUseTasks || canUseRequests
                 ? queries.metrics(actor)
-                : emptyMetrics();
+                : ApprovalResponseAssembler.emptyMetrics();
         ApprovalDtos.ApprovalMetrics metrics = new ApprovalDtos.ApprovalMetrics(
                 canUseTasks ? rawMetrics.pending() : 0,
                 canUseTasks ? rawMetrics.dueToday() : 0,
@@ -54,7 +78,7 @@ public class ApprovalService {
         List<ApprovalDtos.RequestSummary> requests = canUseRequests
                 ? queries.requests(actor, "SUBMITTED", 5)
                 : List.of();
-        boolean canViewOperations = actor.hasPermission(
+        boolean canViewOperations = !governedWorkSurface && actor.hasPermission(
                 "ADMIN.APPROVAL_OPERATIONS", "VIEW", "MANAGE");
         ApprovalDtos.AdminPulse pulse = canViewOperations
                 ? queries.adminPulse(actor.tenantId())
@@ -65,7 +89,7 @@ public class ApprovalService {
                 tasks,
                 requests,
                 canUseTasks || canUseRequests ? queries.flow(actor) : List.of(),
-                insights(metrics, pulse),
+                ApprovalResponseAssembler.insights(metrics, pulse),
                 canViewOperations,
                 pulse);
     }
@@ -80,7 +104,9 @@ public class ApprovalService {
         ApprovalRequestContext.Actor actor = prepare();
         ApprovalQueryRepository.TaskAccess access = queries.taskDetail(actor, taskId);
         boolean selfApprovalBlocked = access.requesterUserId() == actor.userId()
-                && queries.isBlockingPolicyActive(actor.tenantId(), "BLOCK_SELF_APPROVAL");
+                && queries.isBlockingPolicyActive(
+                        actor.tenantId(), "BLOCK_SELF_APPROVAL",
+                        access.managementResourceSetKey());
         boolean candidate = access.assigneeUserId() == null
                 && access.candidateRole() != null
                 && actor.roles().contains(access.candidateRole());
@@ -88,10 +114,15 @@ public class ApprovalService {
         boolean delegated = access.delegatedAccess();
         boolean pending = "PENDING".equals(access.summary().status());
         boolean decisionOpen = pending || "CLAIMED".equals(access.summary().status());
-        boolean canClaimTask = actor.hasPermission(
-                "ACTION.APPROVAL_TASK", "UPDATE", "MANAGE");
-        boolean canDecideTask = actor.hasPermission(
-                "ACTION.APPROVAL_TASK", "APPROVE", "MANAGE");
+        boolean governed = ApprovalPilotAuthorizationContext.current().isPresent();
+        boolean canClaimTask = governed
+                ? actor.hasPermission("ACTION.APPROVAL_TASK", "UPDATE")
+                : actor.hasPermission("ACTION.APPROVAL_TASK", "UPDATE", "MANAGE");
+        boolean canDecideTask = governed
+                ? actor.hasPermission("ACTION.APPROVAL_TASK", "APPROVE")
+                : actor.hasPermission("ACTION.APPROVAL_TASK", "APPROVE", "MANAGE");
+        boolean exactDecision = governed || ApprovalPilotAuthorizationContext.requiresPredicate(
+                "predicate.approval-task-decision.v1");
         return new ApprovalDtos.TaskDetail(
                 access.summary(),
                 queries.requestPayload(actor.tenantId(), access.summary().requestId()),
@@ -99,7 +130,7 @@ public class ApprovalService {
                 queries.timeline(actor.tenantId(), access.summary().requestId()),
                 canClaimTask && pending && access.assigneeUserId() == null && (candidate || delegated),
                 canDecideTask && decisionOpen && !selfApprovalBlocked
-                        && (assigned || candidate || delegated),
+                        && (assigned || delegated || (!exactDecision && candidate)),
                 selfApprovalBlocked);
     }
 
@@ -110,7 +141,13 @@ public class ApprovalService {
             String correlationId) {
         ApprovalRequestContext.Actor actor = prepare();
         ApprovalQueryRepository.TaskAccess task = queries.taskDetail(actor, taskId);
-        validateDelegatedAuthority(actor, task);
+        if (ApprovalPilotAuthorizationContext.requiresPredicate(
+                "predicate.approval-task-claimable.v1")) {
+            requireOwnerPredicates();
+            ownerPredicates.lockClaimableTask(actor, task, expectedVersion);
+        } else {
+            ApprovalLegacyDelegationGuard.verify(actor, task, identities);
+        }
         commands.claim(actor, task, expectedVersion, correlationId);
         record(actor, "approval.task.claimed", "APPROVAL_TASK", taskId.toString(),
                 correlationId, Map.of("requestId", task.summary().requestId().toString()));
@@ -124,7 +161,13 @@ public class ApprovalService {
             String correlationId) {
         ApprovalRequestContext.Actor actor = prepare();
         ApprovalQueryRepository.TaskAccess task = queries.taskDetail(actor, taskId);
-        validateDelegatedAuthority(actor, task);
+        if (ApprovalPilotAuthorizationContext.requiresPredicate(
+                "predicate.approval-task-decision.v1")) {
+            requireOwnerPredicates();
+            ownerPredicates.lockDecidableTask(actor, task, request.expectedVersion());
+        } else {
+            ApprovalLegacyDelegationGuard.verify(actor, task, identities);
+        }
         ApprovalCommandRepository.DecisionResult result = commands.decide(
                 actor, task, request, correlationId);
         record(actor, "approval.task.decided", "APPROVAL_TASK", taskId.toString(),
@@ -157,6 +200,9 @@ public class ApprovalService {
             ApprovalDtos.CreateRequest request,
             String correlationId) {
         ApprovalRequestContext.Actor actor = prepare();
+        if (ownerPredicates != null && ApprovalPilotAuthorizationContext.current().isPresent()) {
+            ownerPredicates.requirePublishedForm(actor, request.formId(), request.workflowId());
+        }
         UUID requestId = commands.createDraft(actor, request, correlationId);
         record(actor, "approval.request.drafted", "APPROVAL_REQUEST", requestId.toString(),
                 correlationId, Map.of("workflowId", request.workflowId().toString()));
@@ -169,6 +215,7 @@ public class ApprovalService {
             ApprovalDtos.UpdateDraftRequest request,
             String correlationId) {
         ApprovalRequestContext.Actor actor = prepare();
+        lockOwnedRequest(actor, requestId, request.expectedVersion());
         commands.updateDraft(actor, requestId, request, correlationId);
         record(actor, "approval.request.draft.updated", "APPROVAL_REQUEST", requestId.toString(),
                 correlationId, Map.of("workflowId", request.workflowId().toString()));
@@ -181,6 +228,7 @@ public class ApprovalService {
             long expectedVersion,
             String correlationId) {
         ApprovalRequestContext.Actor actor = prepare();
+        lockOwnedRequest(actor, requestId, expectedVersion);
         commands.submit(actor, requestId, expectedVersion, correlationId);
         record(actor, "approval.request.submitted", "APPROVAL_REQUEST", requestId.toString(),
                 correlationId, Map.of());
@@ -193,6 +241,7 @@ public class ApprovalService {
             long expectedVersion,
             String correlationId) {
         ApprovalRequestContext.Actor actor = prepare();
+        lockOwnedRequest(actor, requestId, expectedVersion);
         commands.withdraw(actor, requestId, expectedVersion, correlationId);
         record(actor, "approval.request.withdrawn", "APPROVAL_REQUEST", requestId.toString(),
                 correlationId, Map.of());
@@ -205,6 +254,7 @@ public class ApprovalService {
             ApprovalDtos.InformationResponseRequest request,
             String correlationId) {
         ApprovalRequestContext.Actor actor = prepare();
+        lockOwnedRequest(actor, requestId, request.expectedVersion());
         commands.respondToInformationRequest(actor, requestId, request, correlationId);
         record(actor, "approval.request.information.responded", "APPROVAL_REQUEST",
                 requestId.toString(), correlationId, Map.of());
@@ -214,7 +264,7 @@ public class ApprovalService {
     @Transactional
     public List<ApprovalDtos.WorkflowSummary> publishedWorkflows() {
         ApprovalRequestContext.Actor actor = prepare();
-        return queries.workflows(actor.tenantId(), true);
+        return queries.publishedWorkflowsForWork(actor.tenantId());
     }
 
     @Transactional
@@ -247,13 +297,11 @@ public class ApprovalService {
         ApprovalRequestContext.Actor actor = prepare();
         ApprovalIdentityDirectory.Subject delegate = identities.require(
                 actor.tenantId(), request.delegateUserId());
-        UUID delegationId = commands.createDelegation(actor, request, delegate);
+        ApprovalDelegationCommandSupport.Created created =
+                commands.createDelegation(actor, request, delegate);
         record(actor, "approval.delegation.created", "APPROVAL_DELEGATION",
-                delegationId.toString(), correlationId,
-                Map.of(
-                        "delegateUserId", request.delegateUserId(),
-                        "scopeType", request.scopeType().trim().toUpperCase(java.util.Locale.ROOT),
-                        "endsAt", request.endsAt().toString()));
+                created.delegationId().toString(), correlationId,
+                created.auditAfterState(request.delegateUserId(), request.endsAt()));
         return queries.delegations(actor);
     }
 
@@ -274,6 +322,10 @@ public class ApprovalService {
             long expectedVersion,
             String correlationId) {
         ApprovalRequestContext.Actor actor = prepare();
+        if (ownerPredicates != null && ApprovalPilotAuthorizationContext.requiresPredicate(
+                "predicate.approval.object-version.v1")) {
+            ownerPredicates.lockOwnedDelegation(actor, delegationId, expectedVersion);
+        }
         commands.revokeDelegation(actor, delegationId, expectedVersion);
         record(actor, "approval.delegation.revoked", "APPROVAL_DELEGATION",
                 delegationId.toString(), correlationId, Map.of());
@@ -328,11 +380,29 @@ public class ApprovalService {
             UUID workflowId,
             long expectedVersion,
             String correlationId) {
+        return publishWorkflow(workflowId, expectedVersion, correlationId, null);
+    }
+
+    @Transactional
+    public List<ApprovalDtos.WorkflowSummary> publishWorkflow(
+            UUID workflowId,
+            long expectedVersion,
+            String correlationId,
+            ApprovalStepUpHeaders stepUpHeaders) {
         ApprovalRequestContext.Actor actor = prepare();
+        ApprovalHighRiskCommandGuard.Permit permit = beginHighRisk(
+                actor, "approvals.design.publish", "WORKFLOW", workflowId, expectedVersion,
+                "/api/approvals/v1/admin/workflows/" + workflowId + "/publish",
+                Map.of("expectedVersion", expectedVersion), stepUpHeaders);
+        if (prior(permit)) {
+            return queries.workflows(actor.tenantId(), false);
+        }
         commands.publishWorkflow(actor, workflowId, expectedVersion, correlationId);
         record(actor, "approval.workflow.published", "APPROVAL_WORKFLOW",
                 workflowId.toString(), correlationId, Map.of());
-        return queries.workflows(actor.tenantId(), false);
+        List<ApprovalDtos.WorkflowSummary> result = queries.workflows(actor.tenantId(), false);
+        completeHighRisk(permit);
+        return result;
     }
 
     @Transactional
@@ -408,11 +478,29 @@ public class ApprovalService {
             UUID formId,
             long expectedVersion,
             String correlationId) {
+        return publishForm(formId, expectedVersion, correlationId, null);
+    }
+
+    @Transactional
+    public ApprovalDtos.FormDetail publishForm(
+            UUID formId,
+            long expectedVersion,
+            String correlationId,
+            ApprovalStepUpHeaders stepUpHeaders) {
         ApprovalRequestContext.Actor actor = prepare();
+        ApprovalHighRiskCommandGuard.Permit permit = beginHighRisk(
+                actor, "approvals.design.publish", "FORM", formId, expectedVersion,
+                "/api/approvals/v1/admin/forms/" + formId + "/publish",
+                Map.of("expectedVersion", expectedVersion), stepUpHeaders);
+        if (prior(permit)) {
+            return queries.form(actor.tenantId(), formId);
+        }
         commands.publishForm(actor, formId, expectedVersion);
         record(actor, "approval.form.published", "APPROVAL_FORM",
                 formId.toString(), correlationId, Map.of());
-        return queries.form(actor.tenantId(), formId);
+        ApprovalDtos.FormDetail result = queries.form(actor.tenantId(), formId);
+        completeHighRisk(permit);
+        return result;
     }
 
     @Transactional
@@ -446,18 +534,40 @@ public class ApprovalService {
             UUID policyId,
             ApprovalDtos.PublishPolicyRequest request,
             String correlationId) {
+        return publishPolicy(policyId, request, correlationId, null);
+    }
+
+    @Transactional
+    public List<ApprovalDtos.PolicySummary> publishPolicy(
+            UUID policyId,
+            ApprovalDtos.PublishPolicyRequest request,
+            String correlationId,
+            ApprovalStepUpHeaders stepUpHeaders) {
         ApprovalRequestContext.Actor actor = prepare();
+        ApprovalHighRiskCommandGuard.Permit permit = beginHighRisk(
+                actor, "approvals.policy.publish", "POLICY", policyId,
+                request.expectedVersion(),
+                "/api/approvals/v1/admin/policies/" + policyId + "/publish",
+                Map.of(
+                        "expectedVersion", request.expectedVersion(),
+                        "reviewComment", request.reviewComment().trim()),
+                stepUpHeaders);
+        if (prior(permit)) {
+            return queries.policies(actor.tenantId());
+        }
         commands.publishPolicy(actor, policyId, request);
         record(actor, "approval.policy.published", "APPROVAL_POLICY",
                 policyId.toString(), correlationId,
                 Map.of("reviewComment", request.reviewComment().trim()));
-        return queries.policies(actor.tenantId());
+        List<ApprovalDtos.PolicySummary> result = queries.policies(actor.tenantId());
+        completeHighRisk(permit);
+        return result;
     }
 
     @Transactional
     public ApprovalDtos.OperationsResponse operations() {
         ApprovalRequestContext.Actor actor = prepare();
-        return operations(actor);
+        return ApprovalResponseAssembler.operations(queries, actor);
     }
 
     @Transactional
@@ -469,39 +579,39 @@ public class ApprovalService {
         record(actor, "approval.integration.delivery.retried", "APPROVAL_INTEGRATION_EVENT",
                 outboxId.toString(), correlationId,
                 Map.of("outboxId", outboxId.toString()));
-        return operations(actor);
+        return ApprovalResponseAssembler.operations(queries, actor);
     }
 
-    private ApprovalDtos.OperationsResponse operations(ApprovalRequestContext.Actor actor) {
-        int failed = queries.failedIntegrationCount(actor.tenantId());
-        int pending = queries.pendingIntegrationCount(actor.tenantId());
-        int delegations = queries.activeDelegationCount(actor.tenantId());
-        int overdue = queries.adminPulse(actor.tenantId()).overdueTasks();
-        return new ApprovalDtos.OperationsResponse(
-                Instant.now(),
-                List.of(
-                        new ApprovalDtos.OperationSignal(
-                                "sla", overdue == 0 ? "HEALTHY" : "ATTENTION",
-                                "SLA 준수", "SLA assurance",
-                                "기한을 넘긴 결재를 추적합니다.",
-                                "Track approval tasks beyond their due time.", overdue),
-                        new ApprovalDtos.OperationSignal(
-                                "integration", failed == 0 ? "HEALTHY" : "DEGRADED",
-                                "통합 전달", "Integration delivery",
-                                "실패·격리된 아웃박스 이벤트를 감시합니다.",
-                                "Monitor failed and isolated outbox events.", failed),
-                        new ApprovalDtos.OperationSignal(
-                                "outbox", pending < 25 ? "HEALTHY" : "ATTENTION",
-                                "이벤트 백로그", "Event backlog",
-                                "외부 전달을 기다리는 이벤트입니다.",
-                                "Events waiting for external delivery.", pending),
-                        new ApprovalDtos.OperationSignal(
-                                "delegation", "INFORMATIONAL",
-                                "활성 위임", "Active delegations",
-                                "현재 효력이 있는 사용자 위임입니다.",
-                                "User delegations currently in effect.", delegations)),
-                queries.breachedTasks(actor.tenantId(), 20),
-                queries.integrationDeliveries(actor.tenantId(), 50));
+    @Transactional
+    public ApprovalDtos.OperationsResponse retryIntegrationDelivery(
+            UUID outboxId,
+            Long expectedVersion,
+            String correlationId,
+            ApprovalStepUpHeaders stepUpHeaders) {
+        if (expectedVersion == null && ApprovalPilotAuthorizationContext.highRisk().isEmpty()
+                && com.dwp.services.approval.security.ApprovalDecisionRevisionContext.current().isEmpty()) {
+            return retryIntegrationDelivery(outboxId, correlationId);
+        }
+        ApprovalRequestContext.Actor actor = prepare();
+        if (expectedVersion == null || expectedVersion < 0) {
+            throw new com.dwp.core.exception.BaseException(
+                    com.dwp.core.common.ErrorCode.OBJECT_VERSION_CONFLICT,
+                    "Expected delivery version is required.");
+        }
+        ApprovalHighRiskCommandGuard.Permit permit = beginHighRisk(
+                actor, "approvals.operations.execute", "OUTBOX_EVENT", outboxId,
+                expectedVersion,
+                "/api/approvals/v1/admin/operations/events/" + outboxId + "/retry",
+                Map.of(), stepUpHeaders);
+        if (prior(permit)) {
+            return ApprovalResponseAssembler.operations(queries, actor);
+        }
+        commands.retryIntegrationDelivery(actor, outboxId, expectedVersion);
+        record(actor, "approval.integration.delivery.retried", "APPROVAL_INTEGRATION_EVENT",
+                outboxId.toString(), correlationId, Map.of("outboxId", outboxId.toString()));
+        ApprovalDtos.OperationsResponse result = ApprovalResponseAssembler.operations(queries, actor);
+        completeHighRisk(permit);
+        return result;
     }
 
     @Transactional
@@ -516,64 +626,44 @@ public class ApprovalService {
         return actor;
     }
 
-    private void validateDelegatedAuthority(
+    private ApprovalHighRiskCommandGuard.Permit beginHighRisk(
             ApprovalRequestContext.Actor actor,
-            ApprovalQueryRepository.TaskAccess task) {
-        if (!task.delegatedAccess() || task.delegatedFromUserId() == null) return;
-        ApprovalIdentityDirectory.Subject delegator = identities.require(
-                actor.tenantId(), task.delegatedFromUserId());
-        boolean roleBasedAuthority = task.assigneeUserId() == null;
-        if (!delegator.active()
-                || (roleBasedAuthority
-                    && task.candidateRole() != null
-                    && !delegator.hasRole(task.candidateRole()))) {
+            String capability,
+            String targetType,
+            UUID targetId,
+            long expectedVersion,
+            String publicPath,
+            Object payload,
+            ApprovalStepUpHeaders headers) {
+        return highRiskGuard == null ? null : highRiskGuard.begin(
+                actor, capability, targetType, targetId, expectedVersion,
+                publicPath, payload, headers);
+    }
+
+    private boolean prior(ApprovalHighRiskCommandGuard.Permit permit) {
+        return permit != null && permit.priorResult();
+    }
+
+    private void completeHighRisk(ApprovalHighRiskCommandGuard.Permit permit) {
+        if (highRiskGuard != null) highRiskGuard.complete(permit);
+    }
+
+    private void lockOwnedRequest(
+            ApprovalRequestContext.Actor actor,
+            UUID requestId,
+            long expectedVersion) {
+        if (ownerPredicates != null && ApprovalPilotAuthorizationContext.requiresPredicate(
+                "predicate.approval.own-request.v1")) {
+            ownerPredicates.lockOwnedRequest(actor, requestId, expectedVersion);
+        }
+    }
+
+    private void requireOwnerPredicates() {
+        if (ownerPredicates == null) {
             throw new com.dwp.core.exception.BaseException(
-                    com.dwp.core.common.ErrorCode.FORBIDDEN,
-                    "The original approver no longer holds the delegated authority.");
+                    com.dwp.core.common.ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "The Approval owner predicate evaluator is unavailable.");
         }
-    }
-
-    private List<ApprovalDtos.DecisionInsight> insights(
-            ApprovalDtos.ApprovalMetrics metrics,
-            ApprovalDtos.AdminPulse pulse) {
-        List<ApprovalDtos.DecisionInsight> values = new ArrayList<>();
-        if (metrics.overdue() > 0) {
-            values.add(new ApprovalDtos.DecisionInsight(
-                    "overdue", "critical",
-                    "기한을 넘긴 결정이 있습니다", "Decisions have passed their due time",
-                    "리스크가 높은 항목부터 검토해 업무 지연을 줄이세요.",
-                    "Review high-risk items first to reduce downstream delay.",
-                    "/approvals/inbox"));
-        }
-        if (metrics.needsInformation() > 0) {
-            values.add(new ApprovalDtos.DecisionInsight(
-                    "needs-info", "warning",
-                    "추가 정보 응답이 필요합니다", "More information is required",
-                    "요청자 응답을 완료하면 결재 흐름이 다시 시작됩니다.",
-                    "Respond to restart the approval flow.",
-                    "/approvals/requests/needs-info"));
-        }
-        if (pulse != null && pulse.draftWorkflows() > 0) {
-            values.add(new ApprovalDtos.DecisionInsight(
-                    "draft-workflow", "info",
-                    "게시 대기 중인 프로세스가 있습니다", "A process is waiting to be published",
-                    "설계자와 게시 책임자의 직무 분리 검토가 필요합니다.",
-                    "Designer and publisher separation requires review.",
-                    "/approvals/admin/workflows"));
-        }
-        if (values.isEmpty()) {
-            values.add(new ApprovalDtos.DecisionInsight(
-                    "healthy", "success",
-                    "결재 흐름이 안정적입니다", "Approval flow is healthy",
-                    "현재 즉시 조치가 필요한 SLA 또는 통합 문제가 없습니다.",
-                    "No SLA or integration issue requires immediate action.",
-                    "/approvals/inbox"));
-        }
-        return List.copyOf(values);
-    }
-
-    private ApprovalDtos.ApprovalMetrics emptyMetrics() {
-        return new ApprovalDtos.ApprovalMetrics(0, 0, 0, 0, 0, 0, 100);
     }
 
     private void record(

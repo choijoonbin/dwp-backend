@@ -1,6 +1,7 @@
 package com.dwp.services.provider.rollout;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -9,6 +10,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
 import java.math.BigDecimal;
@@ -142,6 +144,24 @@ public final class FeatureRolloutDtos {
             BigDecimal exposurePercentage,
             int deterministicBucket,
             boolean externalExecutionEnabled,
+            Instant evaluatedAt) {
+    }
+
+    @Schema(name = "FeatureRolloutInternalEvaluationRequest")
+    public record InternalEvaluationRequest(
+            @NotNull @Positive Long authTenantId,
+            @NotBlank @Size(max = 160)
+            @Pattern(regexp = "^(access|ux)\\.product-surfaces\\.[a-z0-9.-]+\\.v1$")
+            String flagKey) {
+    }
+
+    @Schema(name = "FeatureRolloutInternalEvaluation")
+    public record InternalEvaluation(
+            String flagKey,
+            boolean enabled,
+            String reasonCode,
+            String opaqueRevision,
+            String cohort,
             Instant evaluatedAt) {
     }
 }

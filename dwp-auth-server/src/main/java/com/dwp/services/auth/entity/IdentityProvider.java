@@ -56,4 +56,14 @@ public class IdentityProvider extends BaseEntity {
 
     @Column(name = "client_secret_env", length = 100)
     private String clientSecretEnv;
+
+    @Column(name = "step_up_acr_values", length = 500)
+    private String stepUpAcrValues;
+
+    @Column(name = "step_up_accepted_amr_values", length = 500)
+    private String stepUpAcceptedAmrValues;
+
+    @Builder.Default
+    @Column(name = "step_up_max_age_seconds", nullable = false)
+    private Integer stepUpMaxAgeSeconds = 600;
 }

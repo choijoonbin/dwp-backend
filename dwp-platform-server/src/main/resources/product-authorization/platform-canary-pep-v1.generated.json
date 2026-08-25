@@ -1,0 +1,2628 @@
+{
+  "accessPolicies": [
+    {
+      "accessPolicyKey": "communications.content-route-access.v1",
+      "authorityMode": null,
+      "entitlementExpressionKey": null,
+      "evaluationType": "MODE_BRANCH",
+      "lifecycleState": "ACTIVE",
+      "modeBranches": [
+        {
+          "activeAccessMode": "NORMAL",
+          "capabilityContractKeys": [
+            "communications.content.read"
+          ],
+          "capabilityMode": "ALL",
+          "responsibilityRequirement": "REQUIRED",
+          "resultGrantKind": "CAPABILITY"
+        },
+        {
+          "activeAccessMode": "PROVIDER_SUPPORT",
+          "authorityMode": "SUPPORT_SESSION",
+          "resultGrantKind": "POLICY",
+          "supportScopes": [
+            "TENANT_CONFIGURATION_READ",
+            "TENANT_CONFIGURATION_WRITE"
+          ]
+        }
+      ],
+      "navigationContextId": "communications.management",
+      "owner": "Communications + Security",
+      "policyVersion": 1,
+      "productKey": "communications",
+      "relationshipResolver": null,
+      "requiresProductEntitlement": false,
+      "routeContractKeys": [
+        "route.communications.management.content.page"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_COMMUNICATIONS",
+      "supportScopes": null,
+      "surfaceEntryKeys": [
+        "communications.management"
+      ],
+      "surfaceKey": "communications.management"
+    },
+    {
+      "accessPolicyKey": "communications.work-access.v1",
+      "authorityMode": "ENTITLEMENT",
+      "entitlementExpressionKey": "COMMUNICATIONS_WORK_ACCESS_V1",
+      "evaluationType": "SINGLE",
+      "lifecycleState": "ACTIVE",
+      "modeBranches": null,
+      "navigationContextId": "communications.work",
+      "owner": "Communications + Security",
+      "policyVersion": 1,
+      "productKey": "communications",
+      "relationshipResolver": null,
+      "requiresProductEntitlement": true,
+      "routeContractKeys": [
+        "route.communications.work.acknowledgement.action",
+        "route.communications.work.all-story.page",
+        "route.communications.work.all.page",
+        "route.communications.work.event.action",
+        "route.communications.work.for-you-story.page",
+        "route.communications.work.for-you.page",
+        "route.communications.work.home.page",
+        "route.communications.work.reaction.action",
+        "route.communications.work.reader-state.action",
+        "route.communications.work.required-story.page",
+        "route.communications.work.required.page",
+        "route.communications.work.saved-story.page",
+        "route.communications.work.saved.page"
+      ],
+      "scopeResolver": "SELF",
+      "supportScopes": null,
+      "surfaceEntryKeys": [
+        "communications.work"
+      ],
+      "surfaceKey": "communications.work"
+    },
+    {
+      "accessPolicyKey": "services.work-access.v1",
+      "authorityMode": "ENTITLEMENT",
+      "entitlementExpressionKey": "SERVICES_WORK_ACCESS_V1",
+      "evaluationType": "SINGLE",
+      "lifecycleState": "ACTIVE",
+      "modeBranches": null,
+      "navigationContextId": "services.work",
+      "owner": "Services + Security",
+      "policyVersion": 1,
+      "productKey": "services",
+      "relationshipResolver": null,
+      "requiresProductEntitlement": true,
+      "routeContractKeys": [
+        "route.services.work.discover.page",
+        "route.services.work.draft-detail.page",
+        "route.services.work.draft-submit.action",
+        "route.services.work.draft-update.action",
+        "route.services.work.drafts.page",
+        "route.services.work.home.page",
+        "route.services.work.my-detail.page",
+        "route.services.work.my.page",
+        "route.services.work.request-cancel.action",
+        "route.services.work.request-create.action"
+      ],
+      "scopeResolver": "SELF",
+      "supportScopes": null,
+      "surfaceEntryKeys": [
+        "services.work"
+      ],
+      "surfaceKey": "services.work"
+    }
+  ],
+  "bindingPairCount": 36,
+  "capabilities": [
+    {
+      "action": "MANAGE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "communications.content.archive",
+      "legacySource": "route-scoped legacy archive",
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Communications + Security",
+      "policyVersion": 1,
+      "productKey": "communications",
+      "requiredResponsibilityCode": "APP_CONFIG_ADMIN",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.COMMUNICATIONS:MANAGE",
+      "resourceKey": "ADMIN.COMMUNICATIONS",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.communications.management.content-archive.action"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_COMMUNICATIONS",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "communications.management"
+    },
+    {
+      "action": "CREATE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "communications.content.create",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Communications + Security",
+      "policyVersion": 1,
+      "productKey": "communications",
+      "requiredResponsibilityCode": "APP_CONFIG_ADMIN",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.COMMUNICATIONS:CREATE",
+      "resourceKey": "ADMIN.COMMUNICATIONS",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.communications.management.content-create.action"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_COMMUNICATIONS",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "communications.management"
+    },
+    {
+      "action": "APPROVE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "communications.content.publish",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Communications + Security",
+      "policyVersion": 1,
+      "productKey": "communications",
+      "requiredResponsibilityCode": "APP_CONFIG_ADMIN",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.COMMUNICATIONS:APPROVE",
+      "resourceKey": "ADMIN.COMMUNICATIONS",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.communications.management.content-publish.action"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_COMMUNICATIONS",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "communications.management"
+    },
+    {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "communications.content.read",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Communications + Security",
+      "policyVersion": 1,
+      "productKey": "communications",
+      "requiredResponsibilityCode": "APP_CONFIG_ADMIN",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.COMMUNICATIONS:VIEW",
+      "resourceKey": "ADMIN.COMMUNICATIONS",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.communications.management.content.page"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_COMMUNICATIONS",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "communications.management"
+    },
+    {
+      "action": "UPDATE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "communications.content.update",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Communications + Security",
+      "policyVersion": 1,
+      "productKey": "communications",
+      "requiredResponsibilityCode": "APP_CONFIG_ADMIN",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.COMMUNICATIONS:UPDATE",
+      "resourceKey": "ADMIN.COMMUNICATIONS",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.communications.management.content-update.action"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_COMMUNICATIONS",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "communications.management"
+    },
+    {
+      "action": "CREATE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "services.catalog.create",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Services + Security",
+      "policyVersion": 1,
+      "productKey": "services",
+      "requiredResponsibilityCode": "APP_CONFIG_ADMIN",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.SERVICE_CATALOG:CREATE",
+      "resourceKey": "ADMIN.SERVICE_CATALOG",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.services.management.catalog-create.action"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_SERVICES",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "services.management"
+    },
+    {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "services.catalog.read",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Services + Security",
+      "policyVersion": 1,
+      "productKey": "services",
+      "requiredResponsibilityCode": "APP_CONFIG_ADMIN",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.SERVICE_CATALOG:VIEW",
+      "resourceKey": "ADMIN.SERVICE_CATALOG",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.services.management.catalog.page"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_SERVICES",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "services.management"
+    },
+    {
+      "action": "UPDATE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "services.catalog.update",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Services + Security",
+      "policyVersion": 1,
+      "productKey": "services",
+      "requiredResponsibilityCode": "APP_CONFIG_ADMIN",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.SERVICE_CATALOG:UPDATE",
+      "resourceKey": "ADMIN.SERVICE_CATALOG",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.services.management.catalog-update.action"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_SERVICES",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "services.management"
+    },
+    {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "services.operations.read",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Services + Security",
+      "policyVersion": 1,
+      "productKey": "services",
+      "requiredResponsibilityCode": "APP_CONFIG_ADMIN",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.SERVICE_OPERATIONS:VIEW",
+      "resourceKey": "ADMIN.SERVICE_OPERATIONS",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.services.management.operations.page"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_SERVICES",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "services.management"
+    },
+    {
+      "action": "UPDATE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "services.operations.update",
+      "legacySource": "legacy MANAGE shadow comparison only",
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Services + Security",
+      "policyVersion": 1,
+      "productKey": "services",
+      "requiredResponsibilityCode": "APP_CONFIG_ADMIN",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.SERVICE_OPERATIONS:UPDATE",
+      "resourceKey": "ADMIN.SERVICE_OPERATIONS",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.services.management.request-transition.action"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_SERVICES",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "services.management"
+    }
+  ],
+  "entitlementExpressions": [
+    {
+      "expression": {
+        "entitlement": "APP.COMMUNICATIONS:VIEW",
+        "type": "LEAF"
+      },
+      "expressionKey": "COMMUNICATIONS_WORK_ACCESS_V1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Communications + Security",
+      "policyVersion": 1
+    },
+    {
+      "expression": {
+        "entitlement": "APP.EMPLOYEE_SERVICES:VIEW",
+        "type": "LEAF"
+      },
+      "expressionKey": "SERVICES_WORK_ACCESS_V1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Services + Security",
+      "policyVersion": 1
+    }
+  ],
+  "ownedPathRoots": [
+    "/v1/admin/announcements",
+    "/v1/admin/services",
+    "/v1/communications",
+    "/v1/services"
+  ],
+  "ownerServiceKey": "platform",
+  "predicatePolicies": [
+    {
+      "inputEvidenceSchemaKey": "CommunicationReaderActionEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Platform + Communications + Security",
+      "ownerServiceKey": "platform",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "eventType": {
+            "enum": [
+              "action",
+              "impression",
+              "open"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.communication-reader-action.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.communication-reader-action.v1",
+      "routeContractKeys": [
+        "route.communications.work.acknowledgement.action",
+        "route.communications.work.event.action",
+        "route.communications.work.reaction.action",
+        "route.communications.work.reader-state.action"
+      ],
+      "targetBindingKinds": [
+        "SELF",
+        "OBJECT"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "AssignedServiceRequestEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Platform + Services + Security",
+      "ownerServiceKey": "platform",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.platform.assigned-service-request.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.platform.assigned-service-request.v1",
+      "routeContractKeys": [
+        "route.services.management.request-transition.action"
+      ],
+      "targetBindingKinds": [
+        "OBJECT"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "PlatformObjectVersionEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Platform + Security",
+      "ownerServiceKey": "platform",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.platform.object-version.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.platform.object-version.v1",
+      "routeContractKeys": [
+        "route.communications.management.content-archive.action",
+        "route.communications.management.content-publish.action",
+        "route.communications.management.content-update.action",
+        "route.services.management.catalog-update.action",
+        "route.services.management.request-transition.action"
+      ],
+      "targetBindingKinds": [
+        "OBJECT"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "PlatformOwnedRequestEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Platform + Services + Security",
+      "ownerServiceKey": "platform",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.platform.own-request.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.platform.own-request.v1",
+      "routeContractKeys": [
+        "route.services.work.draft-detail.page",
+        "route.services.work.draft-submit.action",
+        "route.services.work.draft-update.action",
+        "route.services.work.my-detail.page",
+        "route.services.work.request-cancel.action"
+      ],
+      "targetBindingKinds": [
+        "SELF",
+        "OBJECT"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "CommunicationVisibilityEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Platform + Communications + Security",
+      "ownerServiceKey": "platform",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.visible-communication.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.visible-communication.v1",
+      "routeContractKeys": [
+        "route.communications.work.all-story.page",
+        "route.communications.work.for-you-story.page",
+        "route.communications.work.required-story.page",
+        "route.communications.work.saved-story.page"
+      ],
+      "targetBindingKinds": [
+        "OBJECT"
+      ]
+    }
+  ],
+  "projectedRouteContractCount": 33,
+  "projectionChecksum": "a0fa42a6ea068eff22ab64001fb3cb5bf2d67b2f15b6a463561955051f1a3c93",
+  "projectionChecksumAlgorithm": "SHA-256",
+  "projectionKey": "platform-canary-pep-v1",
+  "registryRef": {
+    "bundleKey": "product-surfaces",
+    "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+    "version": 1
+  },
+  "routeKindCounts": {
+    "ACTION": 15,
+    "DATA": 0,
+    "PAGE": 18
+  },
+  "routes": [
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.platform.object-version.v1"
+          ],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "communications.content.archive",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.communications.management.content-archive.action.binding.01",
+          "method": "POST",
+          "path": "/api/platform/v1/admin/announcements/{announcementId}/archive",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "communications.management",
+      "owner": "Platform + Communications + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.communications.management.content-archive.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.communications.management.content-archive.action.binding.01",
+          "method": "POST",
+          "path": "/v1/admin/announcements/{announcementId}/archive",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "communications",
+        "surfaceKey": "communications.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "communications.content.create",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": []
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.communications.management.content-create.action.binding.01",
+          "method": "POST",
+          "path": "/api/platform/v1/admin/announcements",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "communications.management",
+      "owner": "Platform + Communications + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.communications.management.content-create.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.communications.management.content-create.action.binding.01",
+          "method": "POST",
+          "path": "/v1/admin/announcements",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "communications",
+        "surfaceKey": "communications.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.platform.object-version.v1"
+          ],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "communications.content.publish",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.communications.management.content-publish.action.binding.01",
+          "method": "POST",
+          "path": "/api/platform/v1/admin/announcements/{announcementId}/publish",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "communications.management",
+      "owner": "Platform + Communications + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.communications.management.content-publish.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.communications.management.content-publish.action.binding.01",
+          "method": "POST",
+          "path": "/v1/admin/announcements/{announcementId}/publish",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "communications",
+        "surfaceKey": "communications.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.platform.object-version.v1"
+          ],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "communications.content.update",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.communications.management.content-update.action.binding.01",
+          "method": "PUT",
+          "path": "/api/platform/v1/admin/announcements/{announcementId}",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "communications.management",
+      "owner": "Platform + Communications + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.communications.management.content-update.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.communications.management.content-update.action.binding.01",
+          "method": "PUT",
+          "path": "/v1/admin/announcements/{announcementId}",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "communications",
+        "surfaceKey": "communications.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "communications.content.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.communications.management.content.page.binding.01",
+              "projectionPolicyKey": "route.communications.management.content.page.full-management.projection.v1",
+              "responseSchemaKey": "route.communications.management.content.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": []
+        },
+        {
+          "activeAccessModes": [
+            "PROVIDER_SUPPORT"
+          ],
+          "precedence": 150,
+          "predicatePolicyKeys": [],
+          "profileKey": "provider-support",
+          "readOnly": true,
+          "requiredAccess": {
+            "accessPolicyKey": "communications.content-route-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.communications.management.content.page.binding.01",
+              "projectionPolicyKey": "communications.support.content.v1",
+              "responseSchemaKey": "CommunicationSupportContentV1"
+            }
+          ],
+          "targetBindingKinds": []
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.communications.management.content.page.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/admin/announcements",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "communications.management",
+      "owner": "Platform + Communications + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.communications.management.content.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.communications.management.content.page.binding.01",
+          "method": "GET",
+          "path": "/v1/admin/announcements",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "communications",
+        "surfaceKey": "communications.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "communications.management.content",
+      "uiRoutePattern": "/communications/admin/content"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.communication-reader-action.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "accessPolicyKey": "communications.work-access.v1",
+            "type": "POLICY"
+          },
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.communications.work.acknowledgement.action.binding.01",
+          "method": "POST",
+          "path": "/api/platform/v1/communications/{communicationId}/acknowledgement",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "communications.work",
+      "owner": "Platform + Communications + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.communications.work.acknowledgement.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.communications.work.acknowledgement.action.binding.01",
+          "method": "POST",
+          "path": "/v1/communications/{communicationId}/acknowledgement",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "communications",
+        "surfaceKey": "communications.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.visible-communication.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "accessPolicyKey": "communications.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.communications.work.all-story.page.binding.01",
+              "projectionPolicyKey": "communications.work.story.v1",
+              "responseSchemaKey": "CommunicationStoryV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "OBJECT"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.communications.work.story.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.communications.work.all-story.page.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/communications/{communicationId}",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "communications.work",
+      "owner": "Platform + Communications + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.communications.work.all-story.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.communications.work.all-story.page.binding.01",
+          "method": "GET",
+          "path": "/v1/communications/{communicationId}",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "communications",
+        "surfaceKey": "communications.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "communications.work.all-story",
+      "uiRoutePattern": "/communications/all/:storyId"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "accessPolicyKey": "communications.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.communications.work.all.page.binding.01",
+              "projectionPolicyKey": "communications.work.list.v1",
+              "responseSchemaKey": "CommunicationListV1"
+            }
+          ],
+          "targetBindingKinds": []
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.communications.work.list.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.communications.work.all.page.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/communications",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "communications.work",
+      "owner": "Platform + Communications + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.communications.work.all.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.communications.work.all.page.binding.01",
+          "method": "GET",
+          "path": "/v1/communications",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "communications",
+        "surfaceKey": "communications.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "communications.work.all",
+      "uiRoutePattern": "/communications/all"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.communication-reader-action.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "accessPolicyKey": "communications.work-access.v1",
+            "type": "POLICY"
+          },
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.communications.work.event.action.binding.01",
+          "method": "POST",
+          "path": "/api/platform/v1/communications/{communicationId}/events/{eventType}",
+          "pathParameterConstraints": {
+            "eventType": {
+              "kind": "ALLOWLIST",
+              "values": [
+                "action",
+                "impression",
+                "open"
+              ]
+            }
+          }
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "communications.work",
+      "owner": "Platform + Communications + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.communications.work.event.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.communications.work.event.action.binding.01",
+          "method": "POST",
+          "path": "/v1/communications/{communicationId}/events/{eventType}",
+          "pathParameterConstraints": {
+            "eventType": {
+              "kind": "ALLOWLIST",
+              "values": [
+                "action",
+                "impression",
+                "open"
+              ]
+            }
+          },
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "communications",
+        "surfaceKey": "communications.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.visible-communication.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "accessPolicyKey": "communications.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.communications.work.for-you-story.page.binding.01",
+              "projectionPolicyKey": "communications.work.story.v1",
+              "responseSchemaKey": "CommunicationStoryV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "OBJECT"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.communications.work.story.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.communications.work.for-you-story.page.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/communications/{communicationId}",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "communications.work",
+      "owner": "Platform + Communications + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.communications.work.for-you-story.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.communications.work.for-you-story.page.binding.01",
+          "method": "GET",
+          "path": "/v1/communications/{communicationId}",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "communications",
+        "surfaceKey": "communications.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "communications.work.for-you-story",
+      "uiRoutePattern": "/communications/for-you/:storyId"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "accessPolicyKey": "communications.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.communications.work.for-you.page.binding.01",
+              "projectionPolicyKey": "communications.work.list.v1",
+              "responseSchemaKey": "CommunicationListV1"
+            }
+          ],
+          "targetBindingKinds": []
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.communications.work.list.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.communications.work.for-you.page.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/communications",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "communications.work",
+      "owner": "Platform + Communications + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.communications.work.for-you.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.communications.work.for-you.page.binding.01",
+          "method": "GET",
+          "path": "/v1/communications",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "communications",
+        "surfaceKey": "communications.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "communications.work.for-you",
+      "uiRoutePattern": "/communications/for-you"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "accessPolicyKey": "communications.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.communications.work.home.page.binding.01",
+              "projectionPolicyKey": "communications.work.list.v1",
+              "responseSchemaKey": "CommunicationListV1"
+            }
+          ],
+          "targetBindingKinds": []
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.communications.work.list.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.communications.work.home.page.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/communications",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "communications.work",
+      "owner": "Platform + Communications + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.communications.work.home.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.communications.work.home.page.binding.01",
+          "method": "GET",
+          "path": "/v1/communications",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "communications",
+        "surfaceKey": "communications.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "communications.work.home",
+      "uiRoutePattern": "/communications/home"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.communication-reader-action.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "accessPolicyKey": "communications.work-access.v1",
+            "type": "POLICY"
+          },
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.communications.work.reaction.action.binding.01",
+          "method": "PUT",
+          "path": "/api/platform/v1/communications/{communicationId}/reaction",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "communications.work",
+      "owner": "Platform + Communications + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.communications.work.reaction.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.communications.work.reaction.action.binding.01",
+          "method": "PUT",
+          "path": "/v1/communications/{communicationId}/reaction",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "communications",
+        "surfaceKey": "communications.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.communication-reader-action.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "accessPolicyKey": "communications.work-access.v1",
+            "type": "POLICY"
+          },
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.communications.work.reader-state.action.binding.01",
+          "method": "PUT",
+          "path": "/api/platform/v1/communications/{communicationId}/reader-state",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "communications.work",
+      "owner": "Platform + Communications + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.communications.work.reader-state.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.communications.work.reader-state.action.binding.01",
+          "method": "PUT",
+          "path": "/v1/communications/{communicationId}/reader-state",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "communications",
+        "surfaceKey": "communications.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.visible-communication.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "accessPolicyKey": "communications.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.communications.work.required-story.page.binding.01",
+              "projectionPolicyKey": "communications.work.story.v1",
+              "responseSchemaKey": "CommunicationStoryV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "OBJECT"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.communications.work.story.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.communications.work.required-story.page.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/communications/{communicationId}",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "communications.work",
+      "owner": "Platform + Communications + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.communications.work.required-story.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.communications.work.required-story.page.binding.01",
+          "method": "GET",
+          "path": "/v1/communications/{communicationId}",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "communications",
+        "surfaceKey": "communications.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "communications.work.required-story",
+      "uiRoutePattern": "/communications/required/:storyId"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "accessPolicyKey": "communications.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.communications.work.required.page.binding.01",
+              "projectionPolicyKey": "communications.work.list.v1",
+              "responseSchemaKey": "CommunicationListV1"
+            }
+          ],
+          "targetBindingKinds": []
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.communications.work.list.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.communications.work.required.page.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/communications",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "communications.work",
+      "owner": "Platform + Communications + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.communications.work.required.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.communications.work.required.page.binding.01",
+          "method": "GET",
+          "path": "/v1/communications",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "communications",
+        "surfaceKey": "communications.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "communications.work.required",
+      "uiRoutePattern": "/communications/required"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.visible-communication.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "accessPolicyKey": "communications.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.communications.work.saved-story.page.binding.01",
+              "projectionPolicyKey": "communications.work.story.v1",
+              "responseSchemaKey": "CommunicationStoryV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "OBJECT"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.communications.work.story.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.communications.work.saved-story.page.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/communications/{communicationId}",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "communications.work",
+      "owner": "Platform + Communications + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.communications.work.saved-story.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.communications.work.saved-story.page.binding.01",
+          "method": "GET",
+          "path": "/v1/communications/{communicationId}",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "communications",
+        "surfaceKey": "communications.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "communications.work.saved-story",
+      "uiRoutePattern": "/communications/saved/:storyId"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "accessPolicyKey": "communications.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.communications.work.saved.page.binding.01",
+              "projectionPolicyKey": "communications.work.list.v1",
+              "responseSchemaKey": "CommunicationListV1"
+            }
+          ],
+          "targetBindingKinds": []
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.communications.work.list.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.communications.work.saved.page.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/communications",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "communications.work",
+      "owner": "Platform + Communications + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.communications.work.saved.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.communications.work.saved.page.binding.01",
+          "method": "GET",
+          "path": "/v1/communications",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "communications",
+        "surfaceKey": "communications.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "communications.work.saved",
+      "uiRoutePattern": "/communications/saved"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "services.catalog.create",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": []
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.services.management.catalog-create.action.binding.01",
+          "method": "POST",
+          "path": "/api/platform/v1/admin/services/catalog",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "services.management",
+      "owner": "Platform + Services + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.services.management.catalog-create.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.services.management.catalog-create.action.binding.01",
+          "method": "POST",
+          "path": "/v1/admin/services/catalog",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "services",
+        "surfaceKey": "services.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.platform.object-version.v1"
+          ],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "services.catalog.update",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.services.management.catalog-update.action.binding.01",
+          "method": "PUT",
+          "path": "/api/platform/v1/admin/services/catalog/{serviceKey}",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "services.management",
+      "owner": "Platform + Services + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.services.management.catalog-update.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.services.management.catalog-update.action.binding.01",
+          "method": "PUT",
+          "path": "/v1/admin/services/catalog/{serviceKey}",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "services",
+        "surfaceKey": "services.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "services.catalog.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.services.management.catalog.page.binding.01",
+              "projectionPolicyKey": "route.services.management.catalog.page.full-management.projection.v1",
+              "responseSchemaKey": "route.services.management.catalog.page.response.v1"
+            },
+            {
+              "apiBindingKey": "route.services.management.catalog.page.binding.02",
+              "projectionPolicyKey": "route.services.management.catalog.page.full-management.projection.v1",
+              "responseSchemaKey": "route.services.management.catalog.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": []
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.services.management.catalog.page.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/admin/services/catalog",
+          "pathParameterConstraints": {}
+        },
+        {
+          "bindingKey": "route.services.management.catalog.page.binding.02",
+          "method": "GET",
+          "path": "/api/platform/v1/services/catalog",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "surface": {
+              "kind": "ABSENT"
+            },
+            "view": {
+              "kind": "FIXED",
+              "value": "management"
+            }
+          }
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "services.management",
+      "owner": "Platform + Services + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.services.management.catalog.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.services.management.catalog.page.binding.01",
+          "method": "GET",
+          "path": "/v1/admin/services/catalog",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        },
+        {
+          "bindingKey": "route.services.management.catalog.page.binding.02",
+          "method": "GET",
+          "path": "/v1/services/catalog",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "surface": {
+              "kind": "ABSENT"
+            },
+            "view": {
+              "kind": "FIXED",
+              "value": "management"
+            }
+          },
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "services",
+        "surfaceKey": "services.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "services.management.catalog",
+      "uiRoutePattern": "/services/admin/catalog"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "services.operations.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.services.management.operations.page.binding.01",
+              "projectionPolicyKey": "route.services.management.operations.page.full-management.projection.v1",
+              "responseSchemaKey": "route.services.management.operations.page.response.v1"
+            },
+            {
+              "apiBindingKey": "route.services.management.operations.page.binding.02",
+              "projectionPolicyKey": "route.services.management.operations.page.full-management.projection.v1",
+              "responseSchemaKey": "route.services.management.operations.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": []
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.services.management.operations.page.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/admin/services/requests",
+          "pathParameterConstraints": {}
+        },
+        {
+          "bindingKey": "route.services.management.operations.page.binding.02",
+          "method": "GET",
+          "path": "/api/platform/v1/admin/services/requests/{requestId}",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "services.management",
+      "owner": "Platform + Services + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.services.management.operations.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.services.management.operations.page.binding.01",
+          "method": "GET",
+          "path": "/v1/admin/services/requests",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        },
+        {
+          "bindingKey": "route.services.management.operations.page.binding.02",
+          "method": "GET",
+          "path": "/v1/admin/services/requests/{requestId}",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "services",
+        "surfaceKey": "services.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "services.management.operations",
+      "uiRoutePattern": "/services/admin/operations"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.platform.assigned-service-request.v1",
+            "predicate.platform.object-version.v1"
+          ],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "services.operations.update",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.services.management.request-transition.action.binding.01",
+          "method": "POST",
+          "path": "/api/platform/v1/admin/services/requests/{requestId}/transition",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "services.management",
+      "owner": "Platform + Services + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.services.management.request-transition.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.services.management.request-transition.action.binding.01",
+          "method": "POST",
+          "path": "/v1/admin/services/requests/{requestId}/transition",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "services",
+        "surfaceKey": "services.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "accessPolicyKey": "services.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.services.work.discover.page.binding.01",
+              "projectionPolicyKey": "route.services.work.discover.page.full-work.projection.v1",
+              "responseSchemaKey": "route.services.work.discover.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": []
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.services.work.discover.page.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/services/catalog",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "surface": {
+              "kind": "ABSENT"
+            },
+            "view": {
+              "kind": "FIXED",
+              "value": "discover"
+            }
+          }
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "services.work",
+      "owner": "Platform + Services + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.services.work.discover.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.services.work.discover.page.binding.01",
+          "method": "GET",
+          "path": "/v1/services/catalog",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "surface": {
+              "kind": "ABSENT"
+            },
+            "view": {
+              "kind": "FIXED",
+              "value": "discover"
+            }
+          },
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "services",
+        "surfaceKey": "services.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "services.work.discover",
+      "uiRoutePattern": "/services/discover"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.platform.own-request.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "accessPolicyKey": "services.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.services.work.draft-detail.page.binding.01",
+              "projectionPolicyKey": "route.services.work.draft-detail.page.full-work.projection.v1",
+              "responseSchemaKey": "route.services.work.draft-detail.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.services.work.draft-detail.page.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/services/requests/{requestId}",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "view": {
+              "kind": "FIXED",
+              "value": "draft"
+            }
+          }
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "services.work",
+      "owner": "Platform + Services + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.services.work.draft-detail.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.services.work.draft-detail.page.binding.01",
+          "method": "GET",
+          "path": "/v1/services/requests/{requestId}",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "view": {
+              "kind": "FIXED",
+              "value": "draft"
+            }
+          },
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "services",
+        "surfaceKey": "services.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "services.work.draft-detail",
+      "uiRoutePattern": "/services/drafts/:requestId"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.platform.own-request.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "accessPolicyKey": "services.work-access.v1",
+            "type": "POLICY"
+          },
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.services.work.draft-submit.action.binding.01",
+          "method": "POST",
+          "path": "/api/platform/v1/services/requests/{requestId}/submit",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "services.work",
+      "owner": "Platform + Services + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.services.work.draft-submit.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.services.work.draft-submit.action.binding.01",
+          "method": "POST",
+          "path": "/v1/services/requests/{requestId}/submit",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "services",
+        "surfaceKey": "services.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.platform.own-request.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "accessPolicyKey": "services.work-access.v1",
+            "type": "POLICY"
+          },
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.services.work.draft-update.action.binding.01",
+          "method": "PUT",
+          "path": "/api/platform/v1/services/requests/{requestId}/draft",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "services.work",
+      "owner": "Platform + Services + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.services.work.draft-update.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.services.work.draft-update.action.binding.01",
+          "method": "PUT",
+          "path": "/v1/services/requests/{requestId}/draft",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "services",
+        "surfaceKey": "services.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "accessPolicyKey": "services.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.services.work.drafts.page.binding.01",
+              "projectionPolicyKey": "route.services.work.drafts.page.full-work.projection.v1",
+              "responseSchemaKey": "route.services.work.drafts.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": []
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.services.work.drafts.page.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/services/requests",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "surface": {
+              "kind": "ABSENT"
+            },
+            "view": {
+              "kind": "FIXED",
+              "value": "drafts"
+            }
+          }
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "services.work",
+      "owner": "Platform + Services + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.services.work.drafts.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.services.work.drafts.page.binding.01",
+          "method": "GET",
+          "path": "/v1/services/requests",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "surface": {
+              "kind": "ABSENT"
+            },
+            "view": {
+              "kind": "FIXED",
+              "value": "drafts"
+            }
+          },
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "services",
+        "surfaceKey": "services.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "services.work.drafts",
+      "uiRoutePattern": "/services/drafts"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "accessPolicyKey": "services.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.services.work.home.page.binding.01",
+              "projectionPolicyKey": "route.services.work.home.page.full-work.projection.v1",
+              "responseSchemaKey": "route.services.work.home.page.response.v1"
+            },
+            {
+              "apiBindingKey": "route.services.work.home.page.binding.02",
+              "projectionPolicyKey": "route.services.work.home.page.full-work.projection.v1",
+              "responseSchemaKey": "route.services.work.home.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": []
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.services.work.home.page.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/services/catalog",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "surface": {
+              "kind": "ABSENT"
+            },
+            "view": {
+              "kind": "ABSENT"
+            }
+          }
+        },
+        {
+          "bindingKey": "route.services.work.home.page.binding.02",
+          "method": "GET",
+          "path": "/api/platform/v1/services/requests",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "surface": {
+              "kind": "ABSENT"
+            },
+            "view": {
+              "kind": "ABSENT"
+            }
+          }
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "services.work",
+      "owner": "Platform + Services + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.services.work.home.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.services.work.home.page.binding.01",
+          "method": "GET",
+          "path": "/v1/services/catalog",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "surface": {
+              "kind": "ABSENT"
+            },
+            "view": {
+              "kind": "ABSENT"
+            }
+          },
+          "serviceKey": "platform"
+        },
+        {
+          "bindingKey": "route.services.work.home.page.binding.02",
+          "method": "GET",
+          "path": "/v1/services/requests",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "surface": {
+              "kind": "ABSENT"
+            },
+            "view": {
+              "kind": "ABSENT"
+            }
+          },
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "services",
+        "surfaceKey": "services.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "services.work.home",
+      "uiRoutePattern": "/services/home"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.platform.own-request.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "accessPolicyKey": "services.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.services.work.my-detail.page.binding.01",
+              "projectionPolicyKey": "route.services.work.my-detail.page.full-work.projection.v1",
+              "responseSchemaKey": "route.services.work.my-detail.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.services.work.my-detail.page.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/services/requests/{requestId}",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "view": {
+              "kind": "ABSENT"
+            }
+          }
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "services.work",
+      "owner": "Platform + Services + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.services.work.my-detail.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.services.work.my-detail.page.binding.01",
+          "method": "GET",
+          "path": "/v1/services/requests/{requestId}",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "view": {
+              "kind": "ABSENT"
+            }
+          },
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "services",
+        "surfaceKey": "services.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "services.work.my-detail",
+      "uiRoutePattern": "/services/my/:requestId"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "accessPolicyKey": "services.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.services.work.my.page.binding.01",
+              "projectionPolicyKey": "route.services.work.my.page.full-work.projection.v1",
+              "responseSchemaKey": "route.services.work.my.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": []
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.services.work.my.page.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/services/requests",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "surface": {
+              "kind": "ABSENT"
+            },
+            "view": {
+              "kind": "FIXED",
+              "value": "my"
+            }
+          }
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "services.work",
+      "owner": "Platform + Services + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.services.work.my.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.services.work.my.page.binding.01",
+          "method": "GET",
+          "path": "/v1/services/requests",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "surface": {
+              "kind": "ABSENT"
+            },
+            "view": {
+              "kind": "FIXED",
+              "value": "my"
+            }
+          },
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "services",
+        "surfaceKey": "services.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "services.work.my",
+      "uiRoutePattern": "/services/my"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.platform.own-request.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "accessPolicyKey": "services.work-access.v1",
+            "type": "POLICY"
+          },
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.services.work.request-cancel.action.binding.01",
+          "method": "POST",
+          "path": "/api/platform/v1/services/requests/{requestId}/cancel",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "services.work",
+      "owner": "Platform + Services + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.services.work.request-cancel.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.services.work.request-cancel.action.binding.01",
+          "method": "POST",
+          "path": "/v1/services/requests/{requestId}/cancel",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "services",
+        "surfaceKey": "services.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "accessPolicyKey": "services.work-access.v1",
+            "type": "POLICY"
+          },
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.services.work.request-create.action.binding.01",
+          "method": "POST",
+          "path": "/api/platform/v1/services/requests",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "services.work",
+      "owner": "Platform + Services + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.services.work.request-create.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.services.work.request-create.action.binding.01",
+          "method": "POST",
+          "path": "/v1/services/requests",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "services",
+        "surfaceKey": "services.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    }
+  ],
+  "schemaVersion": 1,
+  "sourceRegistryRouteCount": 35
+}

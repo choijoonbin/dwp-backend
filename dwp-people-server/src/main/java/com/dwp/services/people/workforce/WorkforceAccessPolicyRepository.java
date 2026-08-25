@@ -54,21 +54,33 @@ public class WorkforceAccessPolicyRepository {
     }
 
     public List<PolicyRow> resolve(Long tenantId, Long userId, Set<String> roles, Instant now) {
-        if (roles.isEmpty()) return List.of();
+        return resolve(tenantId, userId, roles, now, false);
+    }
+
+    public List<PolicyRow> resolveForShare(
+            Long tenantId, Long userId, Set<String> roles, Instant now) {
+        return resolve(tenantId, userId, roles, now, true);
+    }
+
+    private List<PolicyRow> resolve(
+            Long tenantId, Long userId, Set<String> roles, Instant now, boolean lock) {
+        String subjectClause = roles.isEmpty()
+                ? "(policy.subject_type = 'USER' AND policy.subject_ref = :userId)"
+                : "((policy.subject_type = 'USER' AND policy.subject_ref = :userId)"
+                    + " OR (policy.subject_type = 'ROLE' AND policy.subject_ref IN (:roles)))";
+        MapSqlParameterSource parameters = new MapSqlParameterSource("tenantId", tenantId)
+                .addValue("userId", userId.toString())
+                .addValue("now", timestamp(now));
+        if (!roles.isEmpty()) parameters.addValue("roles", roles);
         return jdbc.query(
                 SELECT + """
                  WHERE policy.tenant_id = :tenantId
                    AND policy.lifecycle_state = 'ACTIVE'
                    AND (policy.valid_from IS NULL OR policy.valid_from <= :now)
                    AND (policy.valid_to IS NULL OR policy.valid_to > :now)
-                   AND ((policy.subject_type = 'USER' AND policy.subject_ref = :userId)
-                     OR (policy.subject_type = 'ROLE' AND policy.subject_ref IN (:roles)))
-                 ORDER BY policy.subject_type, policy.subject_ref
-                """,
-                new MapSqlParameterSource("tenantId", tenantId)
-                        .addValue("userId", userId.toString())
-                        .addValue("roles", roles)
-                        .addValue("now", timestamp(now)),
+                """ + " AND " + subjectClause
+                        + " ORDER BY policy.subject_type, policy.subject_ref"
+                        + (lock ? " FOR SHARE OF policy" : ""), parameters,
                 this::row);
     }
 
@@ -111,6 +123,16 @@ public class WorkforceAccessPolicyRepository {
     }
 
     public Set<UUID> expandOrganizations(Long tenantId, List<PolicyRow> policies) {
+        return expandOrganizations(tenantId, policies, false);
+    }
+
+    public Set<UUID> expandOrganizationsForShare(
+            Long tenantId, List<PolicyRow> policies) {
+        return expandOrganizations(tenantId, policies, true);
+    }
+
+    private Set<UUID> expandOrganizations(
+            Long tenantId, List<PolicyRow> policies, boolean lock) {
         Set<UUID> exact = new LinkedHashSet<>();
         Set<UUID> trees = new LinkedHashSet<>();
         policies.forEach(policy -> {
@@ -127,7 +149,8 @@ public class WorkforceAccessPolicyRepository {
                         SELECT organization_id, public_id
                           FROM ppl_organizations
                          WHERE tenant_id = :tenantId AND public_id IN (:roots)
-                        UNION ALL
+                           AND lifecycle_state = 'ACTIVE'
+                        UNION
                         SELECT child.organization_id, child.public_id
                           FROM ppl_organizations child
                           JOIN organization_tree parent
@@ -135,9 +158,27 @@ public class WorkforceAccessPolicyRepository {
                          WHERE child.tenant_id = :tenantId
                            AND child.lifecycle_state = 'ACTIVE'
                     )
-                    SELECT DISTINCT public_id FROM organization_tree
-                    """, new MapSqlParameterSource("tenantId", tenantId).addValue("roots", trees),
+                    SELECT organization.public_id
+                      FROM ppl_organizations organization
+                     JOIN organization_tree tree
+                        ON tree.organization_id = organization.organization_id
+                     WHERE organization.tenant_id = :tenantId
+                       AND organization.lifecycle_state = 'ACTIVE'
+                    """ + (lock ? " FOR SHARE OF organization" : ""),
+                    new MapSqlParameterSource("tenantId", tenantId).addValue("roots", trees),
                     (result, ignored) -> result.getObject("public_id", UUID.class)));
+        }
+        if (!exact.isEmpty()) {
+            List<UUID> locked = jdbc.query("""
+                    SELECT public_id FROM ppl_organizations
+                     WHERE tenant_id = :tenantId
+                       AND lifecycle_state = 'ACTIVE'
+                       AND public_id IN (:organizationIds)
+                    """ + (lock ? " FOR SHARE" : ""),
+                    new MapSqlParameterSource("tenantId", tenantId)
+                    .addValue("organizationIds", exact),
+                    (result, ignored) -> result.getObject("public_id", UUID.class));
+            exact.retainAll(locked);
         }
         return Set.copyOf(exact);
     }

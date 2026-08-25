@@ -4,6 +4,9 @@ import com.dwp.audit.AuditEvent;
 import com.dwp.core.audit.AuditOutboxRecorder;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.people.security.HcmHighRiskCommandGuard;
+import com.dwp.services.people.security.HcmPepContext;
+import com.dwp.services.people.security.HcmStepUpHeaders;
 import com.dwp.services.people.security.PeopleRequestContext;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -18,6 +21,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import static com.dwp.services.people.organization.OrganizationScenarioGraphValidator.validateOrganizations;
+import static com.dwp.services.people.organization.OrganizationScenarioGraphValidator.validatePositionMoves;
+import static com.dwp.services.people.organization.OrganizationScenarioGraphValidator.validateProjectedPositions;
+
 @Service
 public class OrganizationScenarioService {
 
@@ -25,16 +32,31 @@ public class OrganizationScenarioService {
     private final OrganizationChartService chartService;
     private final OrganizationScenarioDecisionService decisionService;
     private final AuditOutboxRecorder audit;
+    private final HcmHighRiskCommandGuard highRisk;
+    private final OrganizationScenarioPublishTargetRepository publishTargets;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public OrganizationScenarioService(
             OrganizationScenarioRepository repository,
             OrganizationChartService chartService,
             OrganizationScenarioDecisionService decisionService,
-            AuditOutboxRecorder audit) {
+            AuditOutboxRecorder audit,
+            HcmHighRiskCommandGuard highRisk,
+            OrganizationScenarioPublishTargetRepository publishTargets) {
         this.repository = repository;
         this.chartService = chartService;
         this.decisionService = decisionService;
         this.audit = audit;
+        this.highRisk = highRisk;
+        this.publishTargets = publishTargets;
+    }
+
+    OrganizationScenarioService(
+            OrganizationScenarioRepository repository,
+            OrganizationChartService chartService,
+            OrganizationScenarioDecisionService decisionService,
+            AuditOutboxRecorder audit) {
+        this(repository, chartService, decisionService, audit, null, null);
     }
 
     @Transactional(readOnly = true)
@@ -147,7 +169,7 @@ public class OrganizationScenarioService {
         }
         proposedMoves.add(new OrganizationScenarioRepository.MoveRecord(
                 UUID.randomUUID(), request.organizationId(), request.newParentOrganizationId()));
-        validateGraph(effectiveChart, proposedMoves);
+        validateOrganizations(effectiveChart, proposedMoves);
         OrganizationScenarioRepository.OrganizationRecord organization = organization(
                 actor.tenantId(), request.organizationId(), scenario.effectiveDate());
         OrganizationScenarioRepository.OrganizationRecord parent = organization(
@@ -196,7 +218,7 @@ public class OrganizationScenarioService {
                 actor.tenantId(), scenarioId, request.positionId(), request.newParentPositionId());
         proposedMoves.add(new OrganizationScenarioRepository.PositionMoveRecord(
                 UUID.randomUUID(), request.positionId(), request.newParentPositionId()));
-        validatePositionGraph(effectiveChart, proposedMoves);
+        validatePositionMoves(effectiveChart, proposedMoves);
         OrganizationScenarioRepository.PositionRecord position = position(
                 actor.tenantId(), request.positionId(), scenario.effectiveDate());
         OrganizationScenarioRepository.PositionRecord parent = position(
@@ -389,9 +411,9 @@ public class OrganizationScenarioService {
         }
         OrganizationChartDtos.OrganizationChart effectiveChart = chartService.get(
                 scenario.effectiveDate(), null, 10);
-        validateGraph(effectiveChart, repository.moves(actor.tenantId(), scenarioId));
-        validatePositionGraph(effectiveChart, repository.positionMoves(actor.tenantId(), scenarioId));
-        validateProjectedPositionGraph(chartService.get(
+        validateOrganizations(effectiveChart, repository.moves(actor.tenantId(), scenarioId));
+        validatePositionMoves(effectiveChart, repository.positionMoves(actor.tenantId(), scenarioId));
+        validateProjectedPositions(chartService.get(
                 scenario.effectiveDate(), null, 12, scenarioId));
         OrganizationScenarioDtos.DecisionPack validation = decisionService.validateForWorkflow(
                 scenarioId, "SUBMIT", correlationId);
@@ -425,12 +447,13 @@ public class OrganizationScenarioService {
         if (!"PENDING".equals(approval.lifecycleState())) {
             throw new BaseException(ErrorCode.INVALID_STATE, "The scenario approval is no longer pending.");
         }
-        if (!actor.hasAnyRole(approval.requiredRoleCode(), "ADMIN")) {
+        if (HcmPepContext.current() == null
+                && !actor.hasAnyRole(approval.requiredRoleCode(), "ADMIN")) {
             throw new BaseException(ErrorCode.FORBIDDEN, "The required approval role is not assigned.");
         }
         if (approval.separationOfDuties() && approval.requestedBy().equals(actor.userId())) {
             throw new BaseException(
-                    ErrorCode.FORBIDDEN,
+                    ErrorCode.SOD_CONFLICT,
                     "Separation of duties prevents the scenario requester from approving it.");
         }
         String validationTrigger = "APPROVED".equals(request.decision()) ? "APPROVE" : "REJECT";
@@ -483,12 +506,37 @@ public class OrganizationScenarioService {
             UUID scenarioId,
             OrganizationScenarioDtos.PublishScenarioRequest request,
             String correlationId) {
+        return publish(scenarioId, request, correlationId, null);
+    }
+
+    @Transactional
+    public OrganizationScenarioDtos.Scenario publish(
+            UUID scenarioId,
+            OrganizationScenarioDtos.PublishScenarioRequest request,
+            String correlationId,
+            HcmStepUpHeaders headers) {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
         requirePlanner(actor);
-        OrganizationScenarioRepository.ScenarioRecord scenario = requireScenario(actor.tenantId(), scenarioId);
+        OrganizationScenarioRepository.ScenarioRecord scenario = (publishTargets == null
+                ? repository.scenario(actor.tenantId(), scenarioId)
+                : publishTargets.lock(actor.tenantId(), scenarioId))
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         requireVersion(scenario.version(), request.version());
+        if (scenario.ownerUserId().equals(actor.userId())) {
+            throw new BaseException(
+                    ErrorCode.SOD_CONFLICT,
+                    "Separation of duties prevents the scenario maker from publishing it.");
+        }
         if (!"APPROVED".equals(scenario.lifecycleState())) {
             throw new BaseException(ErrorCode.INVALID_STATE, "Only an approved scenario can be published.");
+        }
+        if (highRisk != null) {
+            highRisk.require(
+                    "hcm.org-design.publish", "ORG_SCENARIO", scenarioId.toString(),
+                    scenario.version(),
+                    "/api/people/v1/workforce/organization/scenarios/"
+                            + scenarioId + "/publish",
+                    request, headers);
         }
         OrganizationScenarioDtos.DecisionPack validation = decisionService.validateForWorkflow(
                 scenarioId, "PUBLISH", correlationId);
@@ -510,9 +558,9 @@ public class OrganizationScenarioService {
                 actor.tenantId(), scenarioId);
         OrganizationChartDtos.OrganizationChart effectiveChart = chartService.get(
                 scenario.effectiveDate(), null, 10);
-        validateGraph(effectiveChart, moves);
-        validatePositionGraph(effectiveChart, positionMoves);
-        validateProjectedPositionGraph(chartService.get(
+        validateOrganizations(effectiveChart, moves);
+        validatePositionMoves(effectiveChart, positionMoves);
+        validateProjectedPositions(chartService.get(
                 scenario.effectiveDate(), null, 12, scenarioId));
         try {
             positionCreates.forEach(create -> repository.applyPositionCreate(
@@ -547,106 +595,6 @@ public class OrganizationScenarioService {
                         "changeCount", moves.size() + positionMoves.size()
                                 + positionCreates.size() + positionCloses.size()));
         return requireSummary(actor.tenantId(), scenarioId);
-    }
-
-    private void validateGraph(
-            OrganizationChartDtos.OrganizationChart chart,
-            List<OrganizationScenarioRepository.MoveRecord> moves) {
-        Set<UUID> organizations = chart.organizations().stream()
-                .map(OrganizationChartDtos.Organization::organizationId)
-                .collect(java.util.stream.Collectors.toSet());
-        Map<UUID, UUID> parents = new HashMap<>();
-        chart.organizations().forEach(organization -> {
-            if (organization.parentOrganizationId() != null) {
-                parents.put(organization.organizationId(), organization.parentOrganizationId());
-            }
-        });
-        for (OrganizationScenarioRepository.MoveRecord move : moves) {
-            if (!organizations.contains(move.organizationId()) || !organizations.contains(move.newParentId())) {
-                throw new BaseException(
-                        ErrorCode.INVALID_INPUT_VALUE,
-                        "Every scenario target must belong to the effective organization scope.");
-            }
-            if (move.organizationId().equals(chart.company().organizationId())) {
-                throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "The company root cannot be moved.");
-            }
-            parents.put(move.organizationId(), move.newParentId());
-        }
-        for (UUID organizationId : organizations) {
-            Set<UUID> path = new HashSet<>();
-            UUID current = organizationId;
-            while (current != null) {
-                if (!path.add(current)) {
-                    throw new BaseException(
-                            ErrorCode.INVALID_INPUT_VALUE,
-                            "The proposed scenario creates a supervisory cycle.");
-                }
-                current = parents.get(current);
-            }
-        }
-    }
-
-    private void validatePositionGraph(
-            OrganizationChartDtos.OrganizationChart chart,
-            List<OrganizationScenarioRepository.PositionMoveRecord> moves) {
-        Set<UUID> positions = chart.positions().stream()
-                .map(OrganizationChartDtos.Position::positionId)
-                .collect(java.util.stream.Collectors.toSet());
-        Map<UUID, UUID> parents = new HashMap<>();
-        chart.positions().forEach(position -> {
-            if (position.reportsToPositionId() != null) {
-                parents.put(position.positionId(), position.reportsToPositionId());
-            }
-        });
-        for (OrganizationScenarioRepository.PositionMoveRecord move : moves) {
-            if (!positions.contains(move.positionId()) || !positions.contains(move.newParentId())) {
-                throw new BaseException(
-                        ErrorCode.INVALID_INPUT_VALUE,
-                        "Every position scenario target must belong to the effective organization scope.");
-            }
-            parents.put(move.positionId(), move.newParentId());
-        }
-        for (UUID positionId : positions) {
-            Set<UUID> path = new HashSet<>();
-            UUID current = positionId;
-            while (current != null) {
-                if (!path.add(current)) {
-                    throw new BaseException(
-                            ErrorCode.INVALID_INPUT_VALUE,
-                            "The proposed scenario creates a position hierarchy cycle.");
-                }
-                current = parents.get(current);
-            }
-        }
-    }
-
-    private void validateProjectedPositionGraph(OrganizationChartDtos.OrganizationChart chart) {
-        Set<UUID> positions = chart.positions().stream()
-                .map(OrganizationChartDtos.Position::positionId)
-                .collect(java.util.stream.Collectors.toSet());
-        Map<UUID, UUID> parents = new HashMap<>();
-        chart.positions().forEach(position -> {
-            UUID parentId = position.reportsToPositionId();
-            if (parentId == null) return;
-            if (!positions.contains(parentId)) {
-                throw new BaseException(
-                        ErrorCode.INVALID_INPUT_VALUE,
-                        "The proposed scenario leaves a position reporting to a closed or unavailable parent.");
-            }
-            parents.put(position.positionId(), parentId);
-        });
-        for (UUID positionId : positions) {
-            Set<UUID> path = new HashSet<>();
-            UUID current = positionId;
-            while (current != null) {
-                if (!path.add(current)) {
-                    throw new BaseException(
-                            ErrorCode.INVALID_INPUT_VALUE,
-                            "The proposed scenario creates a position hierarchy cycle.");
-                }
-                current = parents.get(current);
-            }
-        }
     }
 
     private void ensureNotScheduledForClosure(
@@ -711,13 +659,15 @@ public class OrganizationScenarioService {
     }
 
     private void requirePlanner(PeopleRequestContext.Actor actor) {
-        if (!actor.hasAnyRole("HR_ADMIN", "ADMIN")) {
+        if (HcmPepContext.current() == null
+                && !actor.hasAnyRole("HR_ADMIN", "ADMIN")) {
             throw new BaseException(ErrorCode.FORBIDDEN, "Organization design permission is required.");
         }
     }
 
     private void requireViewer(PeopleRequestContext.Actor actor) {
-        if (!actor.hasAnyRole("HR_ADMIN", "PEOPLE_ADMIN", "ADMIN")) {
+        if (HcmPepContext.current() == null
+                && !actor.hasAnyRole("HR_ADMIN", "PEOPLE_ADMIN", "ADMIN")) {
             throw new BaseException(ErrorCode.FORBIDDEN, "Workforce data permission is required.");
         }
     }
@@ -726,6 +676,7 @@ public class OrganizationScenarioService {
             PeopleRequestContext.Actor actor,
             OrganizationScenarioRepository.ScenarioRecord scenario) {
         if (!scenario.ownerUserId().equals(actor.userId())
+                && HcmPepContext.current() == null
                 && !actor.hasAnyRole("HR_ADMIN", "ADMIN")) {
             throw new BaseException(ErrorCode.FORBIDDEN, "Only the owner can edit this scenario.");
         }

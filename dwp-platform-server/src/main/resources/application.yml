@@ -49,6 +49,9 @@ spring:
     validate-on-migrate: true
 
 dwp:
+  workspace:
+    # Requires approved Kafka consumer onboarding; queue projection remains off by default.
+    identity-governance-consumer-enabled: ${DWP_IDENTITY_GOVERNANCE_CONSUMER_ENABLED:false}
   http:
     client:
       connect-timeout: ${DWP_HTTP_CONNECT_TIMEOUT:2s}
@@ -95,6 +98,12 @@ dwp:
         revision-retention-per-object: ${DWP_HOME_REVISION_RETENTION_PER_OBJECT:100}
       views-shadow-compare-enabled: ${DWP_HOME_VIEWS_SHADOW_COMPARE_ENABLED:false}
       views-read-enabled: ${DWP_HOME_VIEWS_READ_ENABLED:false}
+    product-authorization-approvals-v2-enabled: ${DWP_PLATFORM_PRODUCT_AUTHORIZATION_APPROVALS_V2_ENABLED:false}
+    product-surface-telemetry:
+      collection-enabled: ${DWP_PRODUCT_SURFACE_TELEMETRY_COLLECTION_ENABLED:false}
+      maintenance-enabled: ${DWP_PRODUCT_SURFACE_TELEMETRY_MAINTENANCE_ENABLED:true}
+      maintenance-batch-size: ${DWP_PRODUCT_SURFACE_TELEMETRY_MAINTENANCE_BATCH_SIZE:1000}
+      maintenance-cron: ${DWP_PRODUCT_SURFACE_TELEMETRY_MAINTENANCE_CRON:0 41 2 * * *}
     api-history:
       cursor-secret: ${DWP_API_HISTORY_CURSOR_SECRET:}
       cursor-ttl: ${DWP_API_HISTORY_CURSOR_TTL:PT15M}

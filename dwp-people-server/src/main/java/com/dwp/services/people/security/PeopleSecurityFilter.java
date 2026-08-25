@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 public class PeopleSecurityFilter extends OncePerRequestFilter {
 
     static final String SERVICE_TOKEN_HEADER = "X-DWP-Service-Token";
+    static final String SERVICE_IDENTITY_HEADER = "X-DWP-Service-Identity";
     static final String USER_HEADER = "X-DWP-User-ID";
     static final String TENANT_HEADER = "X-DWP-Tenant-ID";
     static final String ROLES_HEADER = "X-DWP-Roles";
@@ -37,6 +38,9 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
     static final String ACTOR_TENANT_HEADER = "X-DWP-Actor-Tenant-ID";
     static final String PERSON_PUBLIC_ID_HEADER = "X-DWP-Person-Public-ID";
     static final String LEGACY_ROLE_FALLBACK_HEADER = "X-DWP-Legacy-Role-Fallback-Allowed";
+    private static final String GATEWAY_SERVICE_IDENTITY = "dwp-gateway";
+    private static final String PRODUCT_SURFACE_ELIGIBILITY_PATH =
+            "/internal/people/v1/product-surface-eligibility/evaluate";
     private static final Set<String> ADMIN_ROLES =
             Set.of("ADMIN", "TENANT_ADMIN", "PLATFORM_ADMIN", "HR_ADMIN", "PEOPLE_ADMIN");
     private static final Set<String> WORKFORCE_ROLES =
@@ -78,6 +82,13 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
                     "Trusted people service identity is required.");
             return;
         }
+        if (PRODUCT_SURFACE_ELIGIBILITY_PATH.equals(request.getRequestURI())
+                && !GATEWAY_SERVICE_IDENTITY.equals(
+                        request.getHeader(SERVICE_IDENTITY_HEADER))) {
+            writeError(response, ErrorCode.UNAUTHORIZED,
+                    "Trusted gateway service identity is required.");
+            return;
+        }
 
         Long actorId = positiveLong(request.getHeader(USER_HEADER));
         Long tenantId = positiveLong(request.getHeader(TENANT_HEADER));
@@ -93,6 +104,7 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
         }
         boolean supportAccess = request.getHeader(SUPPORT_SESSION_HEADER) != null
                 && !request.getHeader(SUPPORT_SESSION_HEADER).isBlank();
+        boolean exactHcmEvidence = exactHcmEvidence(request);
         if (supportAccess && !authorizedSupportRequest(request)) {
             writeError(response, ErrorCode.FORBIDDEN,
                     "The support session does not permit this workforce resource.");
@@ -118,7 +130,8 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
                 isReadOnly(request) ? Set.of("VIEW", "MANAGE") : Set.of("MANAGE"));
         boolean legacyWorkforceRole = legacyRoleFallbackAllowed && permissions.isEmpty()
                 && roles.stream().anyMatch(WORKFORCE_ROLES::contains);
-        if (!supportAccess && request.getRequestURI().startsWith("/v1/workforce/")
+        if (!exactHcmEvidence && !supportAccess
+                && request.getRequestURI().startsWith("/v1/workforce/")
                 && !legacyWorkforceRole
                 && !workforcePermission) {
             writeError(response, ErrorCode.FORBIDDEN,
@@ -135,7 +148,7 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
         boolean legacyHcmRole = legacyRoleFallbackAllowed && permissions.isEmpty()
                 && (roles.contains("WORKSPACE_MEMBER")
                     || roles.stream().anyMatch(WORKFORCE_ROLES::contains));
-        if (request.getRequestURI().startsWith("/v1/hr/")
+        if (!exactHcmEvidence && request.getRequestURI().startsWith("/v1/hr/")
                 && (!supportAccess && !hcmPermission && !legacyHcmRole)) {
             writeError(response, ErrorCode.FORBIDDEN,
                     "HR application permission is required.");
@@ -148,6 +161,13 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
         } finally {
             PeopleRequestContext.clear();
         }
+    }
+
+    private boolean exactHcmEvidence(HttpServletRequest request) {
+        String state = request.getHeader(HcmProductSurfacePepFilter.ROLLOUT_STATE_HEADER);
+        String route = request.getHeader(HcmProductSurfacePepFilter.ROUTE_CONTRACT_HEADER);
+        return state != null && state.matches("1[1][01]")
+                && route != null && route.startsWith("route.hcm.");
     }
 
     private Set<String> parseRoles(String header) {

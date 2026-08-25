@@ -16,9 +16,24 @@ dependencies {
     implementation 'org.springdoc:springdoc-openapi-starter-webflux-api:2.8.17'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
     implementation 'org.springframework.cloud:spring-cloud-starter-circuitbreaker-reactor-resilience4j'
+    implementation 'org.springframework.kafka:spring-kafka'
     implementation 'com.github.ben-manes.caffeine:caffeine'
     implementation 'io.opentelemetry.instrumentation:opentelemetry-spring-boot-starter'
     runtimeOnly 'io.netty:netty-resolver-dns-native-macos::osx-aarch_64'
     
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+}
+
+tasks.named('processResources') {
+    dependsOn rootProject.tasks.named('productAuthorizationRegistryCheck')
+    from(rootProject.file(
+            'contracts/product-authorization/product-surfaces-v1.json')) {
+        into 'product-authorization'
+        rename { 'product-surfaces-v1.generated.json' }
+    }
+    from(rootProject.file(
+            'contracts/product-authorization/product-surfaces-v1.index.json')) {
+        into 'product-authorization'
+        rename { 'product-surfaces-v1.index.generated.json' }
+    }
 }

@@ -2,10 +2,9 @@ package com.dwp.services.approval.domain;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
-import com.dwp.services.approval.integration.ApprovalIdentityDirectory;
+import com.dwp.services.approval.security.ApprovalDecisionRevisionContext;
+import com.dwp.services.approval.security.ApprovalManagementScopeContext;
 import com.dwp.services.approval.security.ApprovalRequestContext;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -15,7 +14,6 @@ import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.Duration;
 import java.time.format.DateTimeParseException;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -28,16 +26,19 @@ import java.util.UUID;
 @Repository
 public class ApprovalCommandRepository {
 
+    private static final String ROOT_MANAGEMENT_SCOPE = "RS_APPROVALS";
+
     private final NamedParameterJdbcTemplate jdbc;
-    private final ObjectMapper objectMapper;
     private final ApprovalCommandPayloadSupport payloadSupport;
+    private final ApprovalDelegationCommandSupport delegationCommands;
 
     public ApprovalCommandRepository(
             NamedParameterJdbcTemplate jdbc,
             ObjectMapper objectMapper) {
         this.jdbc = jdbc;
-        this.objectMapper = objectMapper;
         this.payloadSupport = new ApprovalCommandPayloadSupport(objectMapper);
+        this.delegationCommands = new ApprovalDelegationCommandSupport(
+                jdbc, payloadSupport);
     }
 
     public UUID createDraft(
@@ -52,7 +53,7 @@ public class ApprovalCommandRepository {
         WorkflowRuntime workflow = workflow(
                 actor.tenantId(), request.workflowId(), request.formId(), payload, false);
         validateRequestPayload(workflow.formSchema(), payload, false);
-        String payloadJson = json(payload);
+        String payloadJson = payloadSupport.json(payload);
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("requestId", requestId)
                 .addValue("tenantId", actor.tenantId())
@@ -66,6 +67,7 @@ public class ApprovalCommandRepository {
                 .addValue("requesterName", actor.displayName())
                 .addValue("priority", priority)
                 .addValue("classification", workflow.dataClassification())
+                .addValue("managementScope", workflow.managementResourceSetKey())
                 .addValue("payload", payloadJson)
                 .addValue("correlationId", correlationId);
         jdbc.update(ApprovalCommandSql01.CREATE_DRAFT_INSERT_APR_REQUESTS, params);
@@ -85,7 +87,7 @@ public class ApprovalCommandRepository {
         WorkflowRuntime workflow = workflow(
                 actor.tenantId(), request.workflowId(), request.formId(), payload, false);
         validateRequestPayload(workflow.formSchema(), payload, false);
-        String payloadJson = json(payload);
+        String payloadJson = payloadSupport.json(payload);
         MapSqlParameterSource params = actorParams(actor)
                 .addValue("requestId", requestId)
                 .addValue("workflowVersionId", workflow.workflowVersionId())
@@ -94,6 +96,7 @@ public class ApprovalCommandRepository {
                 .addValue("summary", request.summary().trim())
                 .addValue("priority", priority)
                 .addValue("classification", workflow.dataClassification())
+                .addValue("managementScope", workflow.managementResourceSetKey())
                 .addValue("payload", payloadJson)
                 .addValue("expectedVersion", request.expectedVersion());
         int updated = jdbc.update(ApprovalCommandSql01.UPDATE_DRAFT_UPDATE_APR_REQUESTS, params);
@@ -205,7 +208,7 @@ public class ApprovalCommandRepository {
             }
         }
         amendedFields.sort(String::compareTo);
-        String amendedPayloadJson = json(amendedPayload);
+        String amendedPayloadJson = payloadSupport.json(amendedPayload);
         MapSqlParameterSource params = actorParams(actor)
                 .addValue("requestId", requestId)
                 .addValue("expectedVersion", request.expectedVersion())
@@ -264,10 +267,22 @@ public class ApprovalCommandRepository {
             ApprovalDtos.DecisionRequest decision,
             String correlationId) {
         PolicyRuntime selfApprovalPolicy = policy(
-                actor.tenantId(), "BLOCK_SELF_APPROVAL");
+                actor.tenantId(), "BLOCK_SELF_APPROVAL",
+                task.managementResourceSetKey());
         if (task.requesterUserId() == actor.userId()
-                && selfApprovalPolicy.blocks()) {
-            throw new BaseException(ErrorCode.FORBIDDEN, "A requester cannot decide their own request.");
+                && (selfApprovalPolicy.blocks()
+                || com.dwp.services.approval.security.ApprovalPilotAuthorizationContext
+                .requiresPredicate("predicate.approval-task-decision.v1"))) {
+            throw new BaseException(
+                    ErrorCode.SOD_CONFLICT,
+                    "A requester cannot decide their own request.");
+        }
+        if (com.dwp.services.approval.security.ApprovalPilotAuthorizationContext
+                .requiresPredicate("predicate.approval-task-decision.v1")
+                && task.assigneeUserId() == null && !task.delegatedAccess()) {
+            throw new BaseException(
+                    ErrorCode.FORBIDDEN,
+                    "An approval task must be claimed before it can be decided.");
         }
         if (task.assigneeUserId() != null && !task.assigneeUserId().equals(actor.userId())
                 && !task.delegatedAccess()) {
@@ -285,7 +300,8 @@ public class ApprovalCommandRepository {
             }
             case "REJECT" -> {
                 PolicyRuntime rejectionPolicy = policy(
-                        actor.tenantId(), "REQUIRE_REJECT_REASON");
+                        actor.tenantId(), "REQUIRE_REJECT_REASON",
+                        task.managementResourceSetKey());
                 int minimumLength = rejectionPolicy.integer("minimumLength", 8, 4, 1000);
                 if (rejectionPolicy.blocks()
                         && (decision.comment() == null
@@ -400,78 +416,18 @@ public class ApprovalCommandRepository {
                         "candidateRole", nextStep.candidateRole()));
     }
 
-    public UUID createDelegation(
+    public ApprovalDelegationCommandSupport.Created createDelegation(
             ApprovalRequestContext.Actor actor,
             ApprovalDtos.CreateDelegationRequest request,
-            ApprovalIdentityDirectory.Subject delegate) {
-        if (request.delegateUserId().equals(actor.userId()) || !request.endsAt().isAfter(request.startsAt())) {
-            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE);
-        }
-        Instant now = Instant.now();
-        if (request.startsAt().isBefore(now.minus(Duration.ofMinutes(5)))
-                || Duration.between(request.startsAt(), request.endsAt()).compareTo(Duration.ofDays(90)) > 0
-                || !delegate.active()
-                || !request.delegateUserId().equals(delegate.userId())
-                || !actor.tenantId().equals(delegate.tenantId())) {
-            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE);
-        }
-        String scope = request.scopeType().trim().toUpperCase(Locale.ROOT);
-        if (!Set.of("ALL", "WORKFLOW").contains(scope)) {
-            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE);
-        }
-        if ("WORKFLOW".equals(scope)
-                && (request.workflowKey() == null || request.workflowKey().isBlank())) {
-            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE);
-        }
-        String workflowKey = "WORKFLOW".equals(scope)
-                ? request.workflowKey().trim().toUpperCase(Locale.ROOT)
-                : null;
-        if (workflowKey != null) {
-            Integer workflowCount = jdbc.queryForObject(ApprovalCommandSql01.CREATE_DELEGATION_SELECT_APR_WORKFLOW_DEFINITIONS, actorParams(actor).addValue("workflowKey", workflowKey), Integer.class);
-            if (workflowCount == null || workflowCount == 0) {
-                throw new BaseException(ErrorCode.NOT_FOUND);
-            }
-        }
-        MapSqlParameterSource lockParams = actorParams(actor)
-                .addValue("delegateUserId", request.delegateUserId())
-                .addValue("scopeType", scope)
-                .addValue("workflowKey", workflowKey)
-                .addValue("startsAt", request.startsAt())
-                .addValue("endsAt", request.endsAt());
-        jdbc.queryForObject(
-                "SELECT pg_advisory_xact_lock(hashtextextended(:lockKey, 0))",
-                lockParams.addValue(
-                        "lockKey",
-                        actor.tenantId() + ":approval-delegation:" + actor.userId()),
-                Object.class);
-        Integer overlaps = jdbc.queryForObject(ApprovalCommandSql01.COUNT_SELECT_APR_DELEGATIONS, lockParams, Integer.class);
-        if (overlaps != null && overlaps > 0) {
-            throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
-        }
-        UUID id = UUID.randomUUID();
-        jdbc.update(ApprovalCommandSql01.COALESCE_INSERT_APR_DELEGATIONS, actorParams(actor)
-                .addValue("id", id)
-                .addValue("delegateUserId", request.delegateUserId())
-                .addValue("delegatePersonPublicId", delegate.personPublicId())
-                .addValue("delegateDisplayName", delegate.displayName())
-                .addValue("delegateEmail", delegate.email())
-                .addValue("delegatedRoles", json(actor.roles().stream().sorted().toList()))
-                .addValue("scopeType", scope)
-                .addValue("workflowKey", workflowKey)
-                .addValue("startsAt", request.startsAt())
-                .addValue("endsAt", request.endsAt())
-                .addValue("reason", request.reason().trim()));
-        return id;
+            com.dwp.services.approval.integration.ApprovalIdentityDirectory.Subject delegate) {
+        return delegationCommands.create(actor, request, delegate);
     }
 
     public void revokeDelegation(
             ApprovalRequestContext.Actor actor,
             UUID delegationId,
             long expectedVersion) {
-        int updated = jdbc.update(ApprovalCommandSql01.REVOKE_DELEGATION_UPDATE_APR_DELEGATIONS, actorParams(actor)
-                .addValue("delegationId", delegationId)
-                .addValue("expectedVersion", expectedVersion));
-        requireUpdated(updated);
+        delegationCommands.revoke(actor, delegationId, expectedVersion);
     }
 
     public UUID createFormCategory(
@@ -525,7 +481,7 @@ public class ApprovalCommandRepository {
         String formKey = request.formKey().trim().toUpperCase(Locale.ROOT);
         UUID formId = UUID.randomUUID();
         UUID formVersionId = UUID.randomUUID();
-        String schema = json(payloadSupport.formSchema(request.fields()));
+        String schema = payloadSupport.json(payloadSupport.formSchema(request.fields()));
         MapSqlParameterSource params = actorParams(actor)
                 .addValue("formId", formId)
                 .addValue("formVersionId", formVersionId)
@@ -558,12 +514,17 @@ public class ApprovalCommandRepository {
         Integer existing = jdbc.queryForObject(ApprovalCommandSql01.CREATE_WORKFLOW_DRAFT_SELECT_APR_WORKFLOW_DEFINITIONS, actorParams(actor).addValue("workflowKey", workflowKey), Integer.class);
         if (existing != null && existing > 0) throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
 
+        jdbc.update(
+                ApprovalCommandSql01.ENSURE_WORKFLOW_CATEGORY_INSERT_APR_FORM_CATEGORIES,
+                actorParams(actor).addValue(
+                        "category", request.category().trim().toUpperCase(Locale.ROOT)));
+
         UUID workflowId = UUID.randomUUID();
         UUID workflowVersionId = UUID.randomUUID();
         UUID formId = UUID.randomUUID();
         UUID formVersionId = UUID.randomUUID();
-        String definition = json(payloadSupport.workflowDefinition(request.steps()));
-        String schema = json(payloadSupport.defaultFormSchema());
+        String definition = payloadSupport.json(payloadSupport.workflowDefinition(request.steps()));
+        String schema = payloadSupport.json(payloadSupport.defaultFormSchema());
         MapSqlParameterSource params = actorParams(actor)
                 .addValue("workflowId", workflowId)
                 .addValue("workflowVersionId", workflowVersionId)
@@ -597,7 +558,7 @@ public class ApprovalCommandRepository {
             ApprovalDtos.UpdateWorkflowDraftRequest request) {
         payloadSupport.validateWorkflowInput(
                 request.category(), request.dataClassification(), request.slaMinutes(), request.steps());
-        String definition = json(payloadSupport.workflowDefinition(request.steps()));
+        String definition = payloadSupport.json(payloadSupport.workflowDefinition(request.steps()));
         MapSqlParameterSource params = actorParams(actor)
                 .addValue("workflowId", workflowId)
                 .addValue("nameKo", request.nameKo().trim())
@@ -622,7 +583,7 @@ public class ApprovalCommandRepository {
         payloadSupport.validateFormFields(request.fields());
         requireCategory(actor.tenantId(), request.categoryId());
         requireWorkflow(actor.tenantId(), request.defaultWorkflowId());
-        String schema = json(payloadSupport.formSchema(request.fields()));
+        String schema = payloadSupport.json(payloadSupport.formSchema(request.fields()));
         MapSqlParameterSource params = actorParams(actor)
                 .addValue("formId", formId)
                 .addValue("categoryId", request.categoryId())
@@ -672,7 +633,7 @@ public class ApprovalCommandRepository {
                 .addValue("mode", mode)
                 .addValue("severity", severity)
                 .addValue("state", state)
-                .addValue("rule", json(request.rule()))
+                .addValue("rule", payloadSupport.json(request.rule()))
                 .addValue("changeReason", request.changeReason().trim())
                 .addValue("expectedVersion", request.expectedVersion()));
         requireUpdated(updated);
@@ -692,8 +653,22 @@ public class ApprovalCommandRepository {
 
     public void retryIntegrationDelivery(
             ApprovalRequestContext.Actor actor,
+            UUID outboxId,
+            long expectedVersion) {
+        int updated = jdbc.update(
+                ApprovalCommandSql01.RETRY_INTEGRATION_DELIVERY_UPDATE_APR_INTEGRATION_OUTBOX,
+                actorParams(actor)
+                        .addValue("outboxId", outboxId)
+                        .addValue("expectedVersion", expectedVersion));
+        requireUpdated(updated);
+    }
+
+    public void retryIntegrationDelivery(
+            ApprovalRequestContext.Actor actor,
             UUID outboxId) {
-        int updated = jdbc.update(ApprovalCommandSql01.RETRY_INTEGRATION_DELIVERY_UPDATE_APR_INTEGRATION_OUTBOX, actorParams(actor).addValue("outboxId", outboxId));
+        int updated = jdbc.update(
+                ApprovalCommandSql01.LEGACY_RETRY_INTEGRATION_DELIVERY_UPDATE_APR_INTEGRATION_OUTBOX,
+                actorParams(actor).addValue("outboxId", outboxId));
         requireUpdated(updated);
     }
 
@@ -741,15 +716,20 @@ public class ApprovalCommandRepository {
         return parsed;
     }
 
-    private PolicyRuntime policy(long tenantId, String policyKey) {
+    private PolicyRuntime policy(
+            long tenantId,
+            String policyKey,
+            String managementResourceSetKey) {
         return jdbc.query(ApprovalCommandSql01.POLICY_SELECT_APR_POLICY_RULES, new MapSqlParameterSource()
                 .addValue("tenantId", tenantId)
-                .addValue("policyKey", policyKey), result -> {
+                .addValue("policyKey", policyKey)
+                .addValue("managementScope", managementResourceSetKey), result -> {
             if (!result.next()) return PolicyRuntime.disabled();
             return new PolicyRuntime(
                     result.getString("enforcement_mode"),
                     result.getString("lifecycle_state"),
-                    object(result.getString("rule_payload")));
+                    payloadSupport.object(result.getString("rule_payload"),
+                            "Stored approval policy data is invalid."));
         });
     }
 
@@ -790,6 +770,7 @@ public class ApprovalCommandRepository {
                             result.getObject("workflow_version_id", UUID.class),
                             result.getObject("form_version_id", UUID.class),
                             result.getString("data_classification"),
+                            result.getString("management_resource_set_key"),
                             result.getString("form_schema"));
                 });
     }
@@ -798,8 +779,8 @@ public class ApprovalCommandRepository {
             String storedCondition,
             Map<String, Object> requestPayload) {
         try {
-            Map<String, Object> condition = objectMapper.readValue(
-                    storedCondition, new TypeReference<Map<String, Object>>() { });
+            Map<String, Object> condition = payloadSupport.object(
+                    storedCondition, "The approval route condition is invalid.");
             Object rawClauses = condition.get("all");
             if (!(rawClauses instanceof List<?> clauses) || clauses.isEmpty()) return false;
             for (Object rawClause : clauses) {
@@ -821,10 +802,8 @@ public class ApprovalCommandRepository {
                 if (!matched) return false;
             }
             return true;
-        } catch (JsonProcessingException exception) {
-            throw new BaseException(
-                    ErrorCode.INVALID_STATE,
-                    "The approval route condition is invalid.");
+        } catch (BaseException exception) {
+            throw exception;
         }
     }
 
@@ -853,7 +832,8 @@ public class ApprovalCommandRepository {
                     slaMinutes,
                     runtimeSteps(result.getString("workflow_definition"), slaMinutes),
                     result.getString("form_schema"),
-                    object(result.getString("request_payload")),
+                    payloadSupport.object(result.getString("request_payload"),
+                            "Stored approval request data is invalid."),
                     result.getString("binding_type"),
                     result.getString("binding_condition"));
         });
@@ -866,7 +846,8 @@ public class ApprovalCommandRepository {
             if (!result.next()) throw new BaseException(ErrorCode.INVALID_STATE);
             return new InformationRuntime(
                     result.getString("form_schema"),
-                    object(result.getString("request_payload")));
+                    payloadSupport.object(result.getString("request_payload"),
+                            "Stored approval request data is invalid."));
         });
     }
 
@@ -897,12 +878,13 @@ public class ApprovalCommandRepository {
         jdbc.update(ApprovalCommandSql02.APPEND_EVENT_INSERT_APR_REQUEST_EVENTS, new MapSqlParameterSource()
                 .addValue("eventId", UUID.randomUUID())
                 .addValue("tenantId", actor.tenantId())
+                .addValue("userId", actor.userId())
                 .addValue("requestId", requestId)
                 .addValue("eventType", eventType)
                 .addValue("actorId", actor.userId().toString())
                 .addValue("message", message)
                 .addValue("correlationId", correlationId)
-                .addValue("eventData", json(evidence)));
+                .addValue("eventData", payloadSupport.json(evidence)));
     }
 
     private void appendIntegration(
@@ -912,26 +894,31 @@ public class ApprovalCommandRepository {
             String correlationId,
             Map<String, Object> payload) {
         UUID eventId = UUID.randomUUID();
-        String value = json(Map.of(
+        String value = payloadSupport.json(Map.of(
                 "specVersion", "1.0",
                 "eventType", eventType,
                 "tenantId", actor.tenantId(),
                 "requestId", requestId.toString(),
                 "correlationId", correlationId == null ? "" : correlationId,
                 "payload", payload));
-        jdbc.update(ApprovalCommandSql02.APPEND_INTEGRATION_INSERT_APR_INTEGRATION_OUTBOX, new MapSqlParameterSource()
+        int appended = jdbc.update(
+                ApprovalCommandSql02.APPEND_INTEGRATION_INSERT_APR_INTEGRATION_OUTBOX,
+                new MapSqlParameterSource()
                 .addValue("outboxId", UUID.randomUUID())
                 .addValue("eventId", eventId)
                 .addValue("tenantId", actor.tenantId())
+                .addValue("userId", actor.userId())
                 .addValue("requestId", requestId)
                 .addValue("eventType", eventType)
                 .addValue("payload", value));
+        requireUpdated(appended);
     }
 
     private MapSqlParameterSource actorParams(ApprovalRequestContext.Actor actor) {
         return new MapSqlParameterSource()
                 .addValue("tenantId", actor.tenantId())
-                .addValue("userId", actor.userId());
+                .addValue("userId", actor.userId())
+                .addValue("managementScope", managementResourceSetKey());
     }
 
     private String normalizedPriority(String value) {
@@ -960,8 +947,8 @@ public class ApprovalCommandRepository {
             Map<String, Object> payload,
             boolean requireRequiredFields) {
         try {
-            Map<String, Object> definition = objectMapper.readValue(
-                    schema, new TypeReference<Map<String, Object>>() { });
+            Map<String, Object> definition = payloadSupport.object(
+                    schema, "Stored approval form schema is invalid.");
             Object rawFields = definition.get("fields");
             if (!(rawFields instanceof List<?> fields) || fields.isEmpty()) {
                 throw new BaseException(ErrorCode.INVALID_STATE);
@@ -993,8 +980,8 @@ public class ApprovalCommandRepository {
                             "Unknown approval field: " + key);
                 }
             }
-        } catch (JsonProcessingException exception) {
-            throw new BaseException(ErrorCode.INVALID_STATE);
+        } catch (BaseException exception) {
+            throw exception;
         }
     }
 
@@ -1039,6 +1026,7 @@ public class ApprovalCommandRepository {
     private void requireCategory(long tenantId, UUID categoryId) {
         Integer count = jdbc.queryForObject(ApprovalCommandSql02.REQUIRE_CATEGORY_SELECT_APR_FORM_CATEGORIES, new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
+                        .addValue("managementScope", managementResourceSetKey())
                         .addValue("categoryId", categoryId), Integer.class);
         if (count == null || count == 0) throw new BaseException(ErrorCode.INVALID_INPUT_VALUE);
     }
@@ -1046,6 +1034,7 @@ public class ApprovalCommandRepository {
     private void requireWorkflow(long tenantId, UUID workflowId) {
         Integer count = jdbc.queryForObject(ApprovalCommandSql02.REQUIRE_WORKFLOW_SELECT_APR_WORKFLOW_DEFINITIONS, new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
+                        .addValue("managementScope", managementResourceSetKey())
                         .addValue("workflowId", workflowId), Integer.class);
         if (count == null || count == 0) throw new BaseException(ErrorCode.INVALID_INPUT_VALUE);
     }
@@ -1057,6 +1046,7 @@ public class ApprovalCommandRepository {
         if (categoryId == null) return;
         Integer descendants = jdbc.queryForObject(ApprovalCommandSql02.VALIDATE_CATEGORY_PARENT_WITH_APR_FORM_CATEGORIES, new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
+                        .addValue("managementScope", managementResourceSetKey())
                         .addValue("categoryId", categoryId)
                         .addValue("parentCategoryId", parentCategoryId), Integer.class);
         if (descendants != null && descendants > 0) {
@@ -1100,25 +1090,6 @@ public class ApprovalCommandRepository {
         return normalized;
     }
 
-    private String json(Object value) {
-        try {
-            return objectMapper.writeValueAsString(value);
-        } catch (JsonProcessingException exception) {
-            throw new IllegalArgumentException("Approval payload could not be serialized.", exception);
-        }
-    }
-
-    private Map<String, Object> object(String value) {
-        try {
-            return objectMapper.readValue(
-                    value, new TypeReference<Map<String, Object>>() { });
-        } catch (JsonProcessingException exception) {
-            throw new BaseException(
-                    ErrorCode.INVALID_STATE,
-                    "Stored approval policy data is invalid.");
-        }
-    }
-
     private void requireUpdated(int updated) {
         if (updated == 0) throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
     }
@@ -1127,7 +1098,21 @@ public class ApprovalCommandRepository {
             UUID workflowVersionId,
             UUID formVersionId,
             String dataClassification,
+            String managementResourceSetKey,
             String formSchema) {
+    }
+
+    private String managementResourceSetKey() {
+        return ApprovalManagementScopeContext.current()
+                .map(ApprovalManagementScopeContext.Evidence::resourceSetKey)
+                .orElseGet(() -> {
+                    if (ApprovalDecisionRevisionContext.current().isPresent()) {
+                        throw new BaseException(
+                                ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                                "Approval management scope evidence is unavailable.");
+                    }
+                    return ROOT_MANAGEMENT_SCOPE;
+                });
     }
 
     private record RequestRuntime(

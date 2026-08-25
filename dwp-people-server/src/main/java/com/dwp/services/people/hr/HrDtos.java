@@ -217,6 +217,42 @@ public final class HrDtos {
             long version) {
     }
 
+    public record TeamMember(
+            UUID personId,
+            String displayName,
+            String businessTitle,
+            String organizationName,
+            int directReportCount) {
+    }
+
+    public enum DataBoundary {
+        TEAM,
+        ORGANIZATION_SET,
+        TEAM_AND_ORGANIZATION_SET,
+        TENANT
+    }
+
+    public record TeamWorkspace(
+            EmployeeContext manager,
+            List<TeamMember> members,
+            int timePendingCount,
+            int absencePendingCount,
+            DataBoundary dataBoundary) {
+    }
+
+    public record TeamTimeWorkspace(
+            EmployeeContext manager,
+            List<ApprovalItem> teamQueue,
+            DataBoundary dataBoundary) {
+    }
+
+    public record TeamAbsenceWorkspace(
+            EmployeeContext manager,
+            List<ApprovalItem> teamQueue,
+            List<TeamAbsence> teamCalendar,
+            DataBoundary dataBoundary) {
+    }
+
     public record DomainMetric(String key, long value, String severity) {
     }
 
@@ -225,7 +261,20 @@ public final class HrDtos {
             Instant generatedAt,
             List<DomainMetric> metrics,
             List<ApprovalItem> workQueue,
-            String dataBoundary) {
+            DataBoundary dataBoundary) {
+    }
+
+    public record DomainOperationsSummary(
+            String domain,
+            List<DomainMetric> metrics,
+            int pendingCount) {
+    }
+
+    public record WorkforceOperationsOverview(
+            Instant generatedAt,
+            DataBoundary dataBoundary,
+            List<String> fieldGroups,
+            List<DomainOperationsSummary> domains) {
     }
 
     public enum HomeAvailability {

@@ -241,7 +241,11 @@ def policy_manifest_violations(policy: dict[str, Any]) -> list[str]:
                         )
                     if not any(
                         token in required_markers
-                        for token in ("X-DWP-Provisioning-Token", "X-DWP-Identity-Sync-Token")
+                        for token in (
+                            "X-DWP-Provisioning-Token",
+                            "X-DWP-Identity-Sync-Token",
+                            "X-DWP-Approval-Recovery-Token",
+                        )
                     ):
                         violations.append(
                             f"{section}:{entry_id} internal-http contracts must require a purpose-specific service token"

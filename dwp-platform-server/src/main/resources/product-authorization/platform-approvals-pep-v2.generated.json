@@ -1,0 +1,234 @@
+{
+  "accessPolicies": [
+    {
+      "accessPolicyKey": "approvals.work-access.v1",
+      "authorityMode": "ENTITLEMENT",
+      "entitlementExpressionKey": "APPROVALS_WORK_ACCESS_V1",
+      "evaluationType": "SINGLE",
+      "lifecycleState": "ACTIVE",
+      "modeBranches": null,
+      "navigationContextId": "approvals.work",
+      "owner": "Approvals + Security",
+      "policyVersion": 1,
+      "productKey": "approvals",
+      "relationshipResolver": null,
+      "requiresProductEntitlement": true,
+      "routeContractKeys": [
+        "route.approvals.work.home-preference-update.action",
+        "route.approvals.work.home-preference.data",
+        "route.approvals.work.home.page"
+      ],
+      "scopeResolver": "SELF",
+      "supportScopes": null,
+      "surfaceEntryKeys": [
+        "approvals.work"
+      ],
+      "surfaceKey": "approvals.work"
+    }
+  ],
+  "bindingPairCount": 2,
+  "capabilities": [],
+  "entitlementExpressions": [
+    {
+      "expression": {
+        "entitlement": "APP.APPROVALS:VIEW",
+        "type": "LEAF"
+      },
+      "expressionKey": "APPROVALS_WORK_ACCESS_V1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Approvals + Security",
+      "policyVersion": 1
+    }
+  ],
+  "ownerServiceKey": "platform",
+  "predicatePolicies": [
+    {
+      "inputEvidenceSchemaKey": "PlatformSelfPreferenceEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Platform + Approvals + HCM + Security",
+      "ownerServiceKey": "platform",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "surfaceKey": {
+            "enum": [
+              "approval-home",
+              "hcm-home"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "surfaceKey"
+        ],
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.platform.self-preference.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.platform.self-preference.v1",
+      "routeContractKeys": [
+        "route.approvals.work.home-preference-update.action",
+        "route.approvals.work.home-preference.data"
+      ],
+      "targetBindingKinds": [
+        "SELF",
+        "OBJECT"
+      ]
+    }
+  ],
+  "projectedRouteContractCount": 2,
+  "projectionChecksum": "2fcd5b74e9fe1854582bb4f632c978862bfc64a2b7d493cb9498738592f9085c",
+  "projectionChecksumAlgorithm": "SHA-256",
+  "projectionKey": "platform-approvals-pep-v2",
+  "registryRef": {
+    "bundleKey": "product-surfaces",
+    "sha256": "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
+    "version": 2
+  },
+  "routeKindCounts": {
+    "ACTION": 1,
+    "DATA": 1,
+    "PAGE": 0
+  },
+  "routes": [
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.platform.self-preference.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "accessPolicyKey": "approvals.work-access.v1",
+            "type": "POLICY"
+          },
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.work.home-preference-update.action.binding.01",
+          "method": "PUT",
+          "path": "/api/platform/v1/home-preferences/surfaces/{surfaceKey}",
+          "pathParameterConstraints": {
+            "surfaceKey": {
+              "kind": "FIXED",
+              "value": "approval-home"
+            }
+          }
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.work",
+      "owner": "Approvals + Platform + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.work.home-preference-update.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.work.home-preference-update.action.binding.01",
+          "method": "PUT",
+          "path": "/v1/home-preferences/surfaces/{surfaceKey}",
+          "pathParameterConstraints": {
+            "surfaceKey": {
+              "kind": "FIXED",
+              "value": "approval-home"
+            }
+          },
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.platform.self-preference.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": true,
+          "requiredAccess": {
+            "accessPolicyKey": "approvals.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.approvals.work.home-preference.data.binding.01",
+              "projectionPolicyKey": "route.approvals.work.home-preference.data.full-work.projection.v1",
+              "responseSchemaKey": "route.approvals.work.home-preference.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.approvals.work.home-preference.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/home-preferences/surfaces/{surfaceKey}",
+          "pathParameterConstraints": {
+            "surfaceKey": {
+              "kind": "FIXED",
+              "value": "approval-home"
+            }
+          }
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "approvals.work",
+      "owner": "Approvals + Platform + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.approvals.work.home-preference.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.approvals.work.home-preference.data.binding.01",
+          "method": "GET",
+          "path": "/v1/home-preferences/surfaces/{surfaceKey}",
+          "pathParameterConstraints": {
+            "surfaceKey": {
+              "kind": "FIXED",
+              "value": "approval-home"
+            }
+          },
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "approvals",
+        "surfaceKey": "approvals.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    }
+  ],
+  "schemaVersion": 1,
+  "sourceRegistryRouteCount": 76
+}

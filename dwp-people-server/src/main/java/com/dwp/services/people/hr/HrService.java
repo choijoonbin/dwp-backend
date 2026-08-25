@@ -5,6 +5,7 @@ import com.dwp.core.audit.AuditOutboxRecorder;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.people.security.PeopleRequestContext;
+import com.dwp.services.people.security.HcmPepContext;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
@@ -29,21 +30,33 @@ public class HrService {
 
     private static final Logger log = LoggerFactory.getLogger(HrService.class);
 
-    private static final Map<String, String> DOMAIN_RESOURCES = Map.of(
-            "TIME", "DATA.HR_TIME",
-            "ABSENCE", "DATA.HR_ABSENCE",
-            "BENEFITS", "DATA.HR_BENEFITS",
-            "PAY", "DATA.HR_PAY",
-            "TALENT", "DATA.HR_TALENT");
-
     private final HrRepository repository;
+    private final HcmPopulationRepository populationRepository;
+    private final HcmPopulationScopeService populationScopes;
     private final AuditOutboxRecorder audit;
+    private final HcmWorkspaceService workspaces;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public HrService(
             HrRepository repository,
-            AuditOutboxRecorder audit) {
+            HcmPopulationRepository populationRepository,
+            HcmPopulationScopeService populationScopes,
+            AuditOutboxRecorder audit,
+            HcmWorkspaceService workspaces) {
         this.repository = repository;
+        this.populationRepository = populationRepository;
+        this.populationScopes = populationScopes;
         this.audit = audit;
+        this.workspaces = workspaces;
+    }
+
+    HrService(
+            HrRepository repository,
+            HcmPopulationRepository populationRepository,
+            HcmPopulationScopeService populationScopes,
+            AuditOutboxRecorder audit) {
+        this(repository, populationRepository, populationScopes, audit,
+                new HcmWorkspaceService(repository, populationRepository, populationScopes));
     }
 
     public HrDtos.HomeOverview home() {
@@ -87,18 +100,8 @@ public class HrService {
                         : HrDtos.HomeDataOrigin.UNKNOWN);
         HomeLoad<TeamHome> team = loadHomeDomain(
                 "TEAM", new TeamHome(0, 0),
-                () -> context.worker().directReportCount() == 0
-                        ? new TeamHome(0, 0)
-                        : new TeamHome(
-                                repository.teamPendingCount(
-                                        tenantId, context.worker().assignmentKey(),
-                                        "TIME", context.asOf()),
-                                repository.teamPendingCount(
-                                        tenantId, context.worker().assignmentKey(),
-                                        "ABSENCE", context.asOf())),
-                value -> context.worker().directReportCount() == 0
-                        ? HrDtos.HomeDataOrigin.NONE
-                        : HrDtos.HomeDataOrigin.UNKNOWN);
+                () -> new TeamHome(0, 0),
+                value -> HrDtos.HomeDataOrigin.NONE);
 
         Map<String, HrDtos.HomeDomainState> domainStates = new LinkedHashMap<>();
         domainStates.put("TIME", time.state());
@@ -145,7 +148,22 @@ public class HrService {
                 repository.timeExceptions(
                         context.actor().tenantId(), context.worker().workerId(),
                         card == null ? null : card.timeCardId()),
-                teamQueue(context, "TIME"));
+                List.of());
+    }
+
+    @Transactional(readOnly = true)
+    public HrDtos.TeamWorkspace team() {
+        return workspaces.team();
+    }
+
+    @Transactional(readOnly = true)
+    public HrDtos.TeamTimeWorkspace teamTime() {
+        return workspaces.teamTime();
+    }
+
+    @Transactional(readOnly = true)
+    public HrDtos.TeamAbsenceWorkspace teamAbsence() {
+        return workspaces.teamAbsence();
     }
 
     @Transactional
@@ -186,21 +204,53 @@ public class HrService {
             UUID cardId,
             HrDtos.DecisionRequest request,
             String correlationId) {
+        PeopleRequestContext.Actor actor = PeopleRequestContext.require();
+        requireDomainPermission(actor, "TIME", "APPROVE", "MANAGE");
+        HcmPopulationScopeService.ResolvedPopulation population =
+                populationScopes.requireOperationsForMutation("READ");
+        populationScopes.requireTrustedScope(
+                population, "hcm.operations", "TARGET_POPULATION",
+                "TIME_TARGET_POPULATION", "ORG_UNIT/LEGAL_ENTITY");
+        return decideTimeCard(cardId, request, correlationId, actor, population);
+    }
+
+    @Transactional
+    public HrDtos.ApprovalItem decideTeamTimeCard(
+            UUID cardId,
+            HrDtos.DecisionRequest request,
+            String correlationId) {
         Context context = context();
+        requireDomainPermission(context.actor(), "TIME", "APPROVE", "MANAGE");
+        HcmPopulationScopeService.ResolvedPopulation population =
+                populationScopes.requireTeamForMutation();
+        requireTeamScope(population);
+        return decideTimeCard(cardId, request, correlationId, context.actor(), population);
+    }
+
+    private HrDtos.ApprovalItem decideTimeCard(
+            UUID cardId,
+            HrDtos.DecisionRequest request,
+            String correlationId,
+            PeopleRequestContext.Actor actor,
+            HcmPopulationScopeService.ResolvedPopulation population) {
+        populationScopes.requireField(population, "EMPLOYMENT");
         HrRepository.TimeCardTarget target = repository.timeCardTarget(
-                context.actor().tenantId(), cardId)
+                actor.tenantId(), cardId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        requireDecisionAuthority(context, "TIME", target.workerId());
+        if (!populationRepository.lockWorkerInPopulation(
+                actor.tenantId(), population.scope(), target.workerId())) {
+            throw new BaseException(ErrorCode.NOT_FOUND);
+        }
         if (target.version() != request.version()) {
             throw conflict("The time card changed after it was loaded.");
         }
         String status = "APPROVE".equals(request.decision()) ? "APPROVED" : "REJECTED";
         if (!repository.decideTimeCard(
-                context.actor().tenantId(), cardId, status, request.note(),
-                request.version(), context.actor().userId())) {
+                actor.tenantId(), cardId, status, request.note(),
+                request.version(), actor.userId())) {
             throw conflict("Only a submitted time card can be decided.");
         }
-        record(context.actor(), "hr.time-card." + status.toLowerCase(), "TIME_CARD", cardId,
+        record(actor, "hr.time-card." + status.toLowerCase(), "TIME_CARD", cardId,
                 correlationId, Map.of("status", status, "note", request.note()), "EXTENDED");
         return new HrDtos.ApprovalItem(
                 cardId, "TIME", target.personId(), target.displayName(), target.businessTitle(),
@@ -216,8 +266,8 @@ public class HrService {
                 repository.leaveBalances(
                         context.actor().tenantId(), context.worker().workerId(), context.asOf()),
                 repository.leaveRequests(context.actor().tenantId(), context.worker().workerId()),
-                teamQueue(context, "ABSENCE"),
-                teamCoverage(context));
+                List.of(),
+                List.of());
     }
 
     @Transactional
@@ -265,21 +315,54 @@ public class HrService {
             UUID requestId,
             HrDtos.DecisionRequest request,
             String correlationId) {
+        PeopleRequestContext.Actor actor = PeopleRequestContext.require();
+        requireDomainPermission(actor, "ABSENCE", "APPROVE", "MANAGE");
+        HcmPopulationScopeService.ResolvedPopulation population =
+                populationScopes.requireOperationsForMutation("READ");
+        populationScopes.requireTrustedScope(
+                population, "hcm.operations", "TARGET_POPULATION",
+                "ABSENCE_TARGET_POPULATION", "ORG_UNIT/LEGAL_ENTITY");
+        return decideLeaveRequest(requestId, request, correlationId, actor, population);
+    }
+
+    @Transactional
+    public HrDtos.ApprovalItem decideTeamLeaveRequest(
+            UUID requestId,
+            HrDtos.DecisionRequest request,
+            String correlationId) {
         Context context = context();
+        requireDomainPermission(context.actor(), "ABSENCE", "APPROVE", "MANAGE");
+        HcmPopulationScopeService.ResolvedPopulation population =
+                populationScopes.requireTeamForMutation();
+        requireTeamScope(population);
+        return decideLeaveRequest(
+                requestId, request, correlationId, context.actor(), population);
+    }
+
+    private HrDtos.ApprovalItem decideLeaveRequest(
+            UUID requestId,
+            HrDtos.DecisionRequest request,
+            String correlationId,
+            PeopleRequestContext.Actor actor,
+            HcmPopulationScopeService.ResolvedPopulation population) {
+        populationScopes.requireField(population, "EMPLOYMENT");
         HrRepository.LeaveRequestTarget target = repository.leaveRequestTarget(
-                context.actor().tenantId(), requestId)
+                actor.tenantId(), requestId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        requireDecisionAuthority(context, "ABSENCE", target.workerId());
+        if (!populationRepository.lockWorkerInPopulation(
+                actor.tenantId(), population.scope(), target.workerId())) {
+            throw new BaseException(ErrorCode.NOT_FOUND);
+        }
         if (target.version() != request.version()) {
             throw conflict("The leave request changed after it was loaded.");
         }
         String status = "APPROVE".equals(request.decision()) ? "APPROVED" : "REJECTED";
         if (!repository.decideLeaveRequest(
-                context.actor().tenantId(), requestId, target, status, request.note(),
-                context.actor().userId())) {
+                actor.tenantId(), requestId, target, status, request.note(),
+                actor.userId())) {
             throw conflict("Only a submitted leave request can be decided.");
         }
-        record(context.actor(), "hr.leave-request." + status.toLowerCase(),
+        record(actor, "hr.leave-request." + status.toLowerCase(),
                 "LEAVE_REQUEST", requestId, correlationId,
                 Map.of("status", status, "note", request.note()), "EXTENDED");
         return new HrDtos.ApprovalItem(
@@ -364,33 +447,21 @@ public class HrService {
 
     @Transactional(readOnly = true)
     public HrDtos.DomainOperations operations(String requestedDomain) {
-        Context context = context();
-        String domain = normalizedDomain(requestedDomain);
-        requireDomainPermission(context.actor(), domain, "VIEW", "MANAGE");
-        return new HrDtos.DomainOperations(
-                domain, Instant.now(), repository.metrics(context.actor().tenantId(), domain),
-                domain.equals("TIME") || domain.equals("ABSENCE")
-                        ? allSubmitted(context, domain)
-                        : List.of(),
-                "TENANT");
+        return workspaces.operations(requestedDomain);
     }
 
-    private List<HrDtos.ApprovalItem> allSubmitted(Context context, String domain) {
-        return repository.submittedQueue(context.actor().tenantId(), domain);
+    @Transactional(readOnly = true)
+    public HrDtos.WorkforceOperationsOverview operationsOverview() {
+        return workspaces.operationsOverview();
     }
 
-    private List<HrDtos.ApprovalItem> teamQueue(Context context, String domain) {
-        return context.worker().directReportCount() == 0
-                ? List.of()
-                : repository.teamQueue(
-                        context.actor().tenantId(), context.worker().assignmentKey(), domain);
-    }
-
-    private List<HrDtos.TeamAbsence> teamCoverage(Context context) {
-        return context.worker().directReportCount() == 0
-                ? List.of()
-                : repository.teamAbsences(
-                        context.actor().tenantId(), context.worker().assignmentKey());
+    private void requireTeamScope(HcmPopulationScopeService.ResolvedPopulation population) {
+        populationScopes.requireTrustedScope(
+                population, "hcm.team", "TARGET_POPULATION",
+                "DIRECT_REPORT_OR_APPROVED_DELEGATION+TARGET_POPULATION",
+                "TEAM/ORG_UNIT");
+        populationScopes.requireField(population, "DIRECTORY");
+        populationScopes.requireField(population, "EMPLOYMENT");
     }
 
     private Context context() {
@@ -403,6 +474,10 @@ public class HrService {
                 actor.tenantId(), actor.personPublicId())
                 .orElseThrow(() -> new BaseException(ErrorCode.FORBIDDEN,
                         "The authenticated identity is not linked to an active worker."));
+        HcmPepContext.Evidence pep = HcmPepContext.current();
+        if (pep != null && pep.authority().routeContractKey().startsWith("route.hcm.personal.")) {
+            populationScopes.requireSelfScope();
+        }
         LocalDate utcDate = LocalDate.now(ZoneOffset.UTC);
         HrRepository.WorkerSchedule schedule = loadSchedule(actor, worker, utcDate);
         ZoneId zone = zoneId(schedule == null ? null : schedule.timeZone());
@@ -504,29 +579,10 @@ public class HrService {
             PeopleRequestContext.Actor actor,
             String domain,
             String... actions) {
-        String resource = DOMAIN_RESOURCES.get(domain);
+        String resource = HrAuthorization.DOMAIN_RESOURCES.get(domain);
         return actor.hasPermission(resource, actions)
                 || (actor.permissions().isEmpty()
-                    && actor.hasAnyRole("ADMIN", "HR_ADMIN", domainRole(domain)));
-    }
-
-    private String domainRole(String domain) {
-        return switch (domain) {
-            case "TIME" -> "TIME_ADMIN";
-            case "ABSENCE" -> "ABSENCE_ADMIN";
-            case "BENEFITS" -> "BENEFITS_ADMIN";
-            case "PAY" -> "PAYROLL_ADMIN";
-            case "TALENT" -> "TALENT_ADMIN";
-            default -> "";
-        };
-    }
-
-    private String normalizedDomain(String domain) {
-        String normalized = domain == null ? "" : domain.trim().toUpperCase();
-        if (!DOMAIN_RESOURCES.containsKey(normalized)) {
-            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "Unsupported HR domain.");
-        }
-        return normalized;
+                    && actor.hasAnyRole("ADMIN", "HR_ADMIN", HrAuthorization.role(domain)));
     }
 
     private HrDtos.EmployeeContext employee(HrRepository.WorkerIdentity worker) {

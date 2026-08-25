@@ -8,6 +8,7 @@ import org.springframework.mock.web.server.MockServerWebExchange;
 import reactor.core.publisher.Mono;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -116,5 +117,37 @@ class RequiredHeaderFilterTest {
         }).block();
 
         assertThat(called).isTrue();
+    }
+
+    @Test
+    void letsGatewayOwnedAuthorityRoutesDeriveTenantFromTheVerifiedSession() {
+        RequiredHeaderFilter filter = new RequiredHeaderFilter();
+        for (String path : List.of(
+                "/api/auth/product-surface-contexts",
+                "/api/auth/product-surface-access/evaluate",
+                "/api/auth/governed-route-access/evaluate",
+                "/api/auth/product-surface-step-up-challenges")) {
+            MockServerWebExchange exchange = MockServerWebExchange.from(
+                    MockServerHttpRequest.get(path).build());
+            AtomicBoolean called = new AtomicBoolean();
+
+            filter.filter(exchange, ignored -> {
+                called.set(true);
+                return Mono.empty();
+            }).block();
+
+            assertThat(called).isTrue();
+        }
+    }
+
+    @Test
+    void doesNotExtendTheAuthorityRouteExemptionByPrefix() {
+        RequiredHeaderFilter filter = new RequiredHeaderFilter();
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/auth/product-surface-contexts-extra").build());
+
+        filter.filter(exchange, ignored -> Mono.empty()).block();
+
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 }

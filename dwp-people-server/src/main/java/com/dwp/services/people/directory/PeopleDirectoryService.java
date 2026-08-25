@@ -2,6 +2,8 @@ package com.dwp.services.people.directory;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.people.hr.HcmPopulationScopeService;
+import com.dwp.services.people.security.HcmPepContext;
 import com.dwp.services.people.security.PeopleRequestContext;
 import com.dwp.services.people.workforce.WorkforceAccessPolicyService;
 import org.springframework.stereotype.Service;
@@ -24,14 +26,17 @@ public class PeopleDirectoryService {
     private final PeopleDirectoryRepository repository;
     private final PeopleCursorCodec cursorCodec;
     private final WorkforceAccessPolicyService accessPolicyService;
+    private final HcmPopulationScopeService populationScopes;
 
     public PeopleDirectoryService(
             PeopleDirectoryRepository repository,
             PeopleCursorCodec cursorCodec,
-            WorkforceAccessPolicyService accessPolicyService) {
+            WorkforceAccessPolicyService accessPolicyService,
+            HcmPopulationScopeService populationScopes) {
         this.repository = repository;
         this.cursorCodec = cursorCodec;
         this.accessPolicyService = accessPolicyService;
+        this.populationScopes = populationScopes;
     }
 
     @Transactional(readOnly = true)
@@ -65,9 +70,11 @@ public class PeopleDirectoryService {
         int size = Math.min(100, Math.max(1, requestedSize));
         LocalDate asOf = requestedAsOf == null ? LocalDate.now() : requestedAsOf;
         String normalizedStatus = normalizeStatus(status);
+        if (!workforceAccess) populationScopes.requireSelfScope();
         WorkforceAccessPolicyService.Decision decision = workforceAccess
                 ? accessPolicyService.require("READ")
                 : null;
+        if (workforceAccess) requireTrustedWorkforceScope();
         String policyFingerprint = decision == null ? "directory" : decision.fingerprint();
         String fingerprint = cursorCodec.fingerprint(
                 query, normalizedStatus, asOf + "|" + policyFingerprint);
@@ -114,9 +121,12 @@ public class PeopleDirectoryService {
             boolean workforceAccess) {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
         LocalDate asOf = requestedAsOf == null ? LocalDate.now() : requestedAsOf;
+        if (!workforceAccess) requireSelfObject(actor, publicId);
+        if (!workforceAccess) populationScopes.requireSelfScope();
         WorkforceAccessPolicyService.Decision decision = workforceAccess
                 ? accessPolicyService.require("READ")
                 : null;
+        if (workforceAccess) requireTrustedWorkforceScope();
         PeopleDirectoryRepository.DirectoryRow row = (workforceAccess
                 ? repository.findByPublicId(
                         actor.tenantId(), publicId, asOf,
@@ -157,6 +167,24 @@ public class PeopleDirectoryService {
                 employment && identifiers ? row.managerAssignmentKey() : null,
                 assignments,
                 workers);
+    }
+
+    private void requireTrustedWorkforceScope() {
+        HcmPopulationScopeService.ResolvedPopulation population =
+                populationScopes.requireOperations("READ");
+        populationScopes.requireTrustedScope(
+                population, "hcm.operations", "TARGET_POPULATION",
+                "WORKFORCE_TARGET_POPULATION", "ORG_UNIT/LEGAL_ENTITY");
+    }
+
+    private void requireSelfObject(PeopleRequestContext.Actor actor, UUID requestedPersonId) {
+        HcmPepContext.Evidence evidence = HcmPepContext.current();
+        if (evidence == null || !"route.hcm.personal.me.page".equals(
+                evidence.authority().routeContractKey())) return;
+        if (actor.personPublicId() == null
+                || !actor.personPublicId().equals(requestedPersonId)) {
+            throw new BaseException(ErrorCode.NOT_FOUND);
+        }
     }
 
     private List<PeopleDtos.Worker> workforceEntities(

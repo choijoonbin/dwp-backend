@@ -1,5 +1,8 @@
 package com.dwp.services.people.organization;
 
+import com.dwp.services.people.hr.HcmPopulationScopeService;
+import com.dwp.services.people.security.HcmPepContext;
+import com.dwp.services.people.security.HcmV3PepRegistry;
 import com.dwp.services.people.security.PeopleRequestContext;
 import com.dwp.services.people.workforce.WorkforceAccessPolicyService;
 import org.junit.jupiter.api.AfterEach;
@@ -8,6 +11,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -15,7 +19,10 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import org.springframework.test.util.ReflectionTestUtils;
 
 class OrganizationChartServiceTest {
 
@@ -27,8 +34,11 @@ class OrganizationChartServiceTest {
             mock(OrganizationScenarioRepository.class);
     private final WorkforceAccessPolicyService accessPolicyService =
             mock(WorkforceAccessPolicyService.class);
+    private final HcmPopulationScopeService populationScopes =
+            mock(HcmPopulationScopeService.class);
     private final OrganizationChartService service =
-            new OrganizationChartService(repository, scenarioRepository, accessPolicyService);
+            new OrganizationChartService(
+                    repository, scenarioRepository, accessPolicyService, populationScopes);
 
     @BeforeEach
     void setContext() {
@@ -43,7 +53,61 @@ class OrganizationChartServiceTest {
 
     @AfterEach
     void clearContext() {
+        ReflectionTestUtils.invokeMethod(HcmPepContext.class, "clear");
         PeopleRequestContext.clear();
+    }
+
+    @Test
+    void organizationScopedChartCannotLeakAnExternalManagerOrExternalReportCount() {
+        UUID teamId = UUID.randomUUID();
+        UUID managerId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        UUID outsideId = UUID.randomUUID();
+        when(accessPolicyService.require("READ")).thenReturn(
+                new WorkforceAccessPolicyService.Decision(
+                        false, Set.of(teamId), Set.of("DIRECTORY", "EMPLOYMENT"), "READ"));
+        when(repository.organizations(TENANT_ID, AS_OF)).thenReturn(List.of(
+                new OrganizationChartRepository.OrganizationRow(
+                        1L, teamId, "TEAM-A", "Team A", "Team A", "SUPERVISORY",
+                        "Team", 10, true, "Scoped team", null, "BLUE", null, managerId)));
+        when(repository.people(TENANT_ID, AS_OF)).thenReturn(List.of(
+                person(managerId, "ASG-MANAGER", null, teamId, "SK0001", "G7", 7),
+                person(memberId, "ASG-MEMBER", "ASG-MANAGER", teamId, "SK0002", "G3", 3),
+                person(outsideId, "ASG-OUTSIDE", "ASG-MANAGER", UUID.randomUUID(),
+                        "SK9999", "G3", 3)));
+        when(repository.designPolicy(TENANT_ID)).thenReturn(Optional.empty());
+
+        OrganizationChartDtos.OrganizationChart result = service.get(AS_OF, null, 6);
+
+        assertThat(result.people()).extracting(OrganizationChartDtos.Person::personId)
+                .containsExactlyInAnyOrder(managerId, memberId)
+                .doesNotContain(outsideId);
+        assertThat(result.people()).filteredOn(person -> person.personId().equals(managerId))
+                .singleElement().satisfies(manager ->
+                        assertThat(manager.directReportCount()).isEqualTo(1));
+    }
+
+    @Test
+    void exactAppConfigAuthorityUsesTheConfigurationScopeWithoutLegacyWorkforcePolicy() {
+        HcmV3PepRegistry.RouteAuthority authority = mock(HcmV3PepRegistry.RouteAuthority.class);
+        when(authority.routeContractKey()).thenReturn("route.hcm.management.org-design.page");
+        ReflectionTestUtils.invokeMethod(HcmPepContext.class, "set",
+                new HcmPepContext.Evidence(
+                        authority, "psr-" + "a".repeat(64),
+                        OffsetDateTime.parse("2099-01-01T00:00:00Z"),
+                        "hcm.management", "hcm-config-scope", "110"));
+        UUID rootId = UUID.randomUUID();
+        when(repository.organizations(TENANT_ID, AS_OF)).thenReturn(List.of(
+                new OrganizationChartRepository.OrganizationRow(
+                        1L, rootId, "ROOT", "SKAX", "SKAX", "COMPANY",
+                        "Company", 10, true, "Company", "CC-0000", "RED", null, null)));
+        when(repository.designPolicy(TENANT_ID)).thenReturn(Optional.empty());
+
+        OrganizationChartDtos.OrganizationChart result = service.get(AS_OF, null, 6);
+
+        assertThat(result.company().organizationId()).isEqualTo(rootId);
+        verify(populationScopes).requireConfigurationScope();
+        verify(accessPolicyService, never()).require("READ");
     }
 
     @Test

@@ -7,6 +7,7 @@ import com.dwp.services.platform.announcement.AnnouncementAudienceType;
 import com.dwp.services.platform.announcement.AnnouncementLifecycle;
 import com.dwp.services.platform.announcement.AnnouncementRepository;
 import com.dwp.services.platform.announcement.AnnouncementSeverity;
+import com.dwp.services.platform.security.PlatformRoutePredicateEvaluator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,7 +20,6 @@ import org.springframework.jdbc.core.RowMapper;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -41,18 +41,21 @@ class CommunicationServiceTest {
     private JdbcTemplate jdbc;
     @Mock
     private CommunicationActionQuery actionQuery;
+    @Mock
+    private PlatformRoutePredicateEvaluator predicateEvaluator;
 
     private CommunicationService service;
 
     @BeforeEach
     void setUp() {
-        service = new CommunicationService(repository, jdbc, actionQuery);
+        service = new CommunicationService(repository, jdbc, actionQuery, predicateEvaluator);
     }
 
     @Test
     void impressionEvidenceDoesNotMarkAStoryAsOpened() {
-        when(repository.findByAnnouncementIdAndTenantId(91L, 7L))
-                .thenReturn(Optional.of(visibleAnnouncement()));
+        when(predicateEvaluator.requireCommunicationReaderAction(
+                7L, "WORKSPACE_MEMBER", 91L))
+                .thenReturn(visibleAnnouncement());
 
         service.recordInteraction(7L, 11L, "WORKSPACE_MEMBER", 91L, "impression");
 
@@ -63,8 +66,9 @@ class CommunicationServiceTest {
 
     @Test
     void intentionalOpenCreatesReaderStateAndClearsDismissal() {
-        when(repository.findByAnnouncementIdAndTenantId(91L, 7L))
-                .thenReturn(Optional.of(visibleAnnouncement()));
+        when(predicateEvaluator.requireCommunicationReaderAction(
+                7L, "WORKSPACE_MEMBER", 91L))
+                .thenReturn(visibleAnnouncement());
 
         service.recordInteraction(7L, 11L, "WORKSPACE_MEMBER", 91L, "open");
 
@@ -75,8 +79,9 @@ class CommunicationServiceTest {
 
     @Test
     void ordinaryStoryCannotCreateAcknowledgementEvidence() {
-        when(repository.findByAnnouncementIdAndTenantId(91L, 7L))
-                .thenReturn(Optional.of(visibleAnnouncement()));
+        when(predicateEvaluator.requireCommunicationReaderAction(
+                7L, "WORKSPACE_MEMBER", 91L))
+                .thenReturn(visibleAnnouncement());
 
         assertThatThrownBy(() -> service.acknowledge(
                 7L, 11L, "WORKSPACE_MEMBER", 91L))
@@ -90,11 +95,9 @@ class CommunicationServiceTest {
 
     @Test
     void roleTargetedStoryIsHiddenFromOtherRoles() {
-        Announcement announcement = visibleAnnouncement();
-        announcement.setAudienceType(AnnouncementAudienceType.ROLE);
-        announcement.setAudienceValue("TENANT_ADMIN");
-        when(repository.findByAnnouncementIdAndTenantId(91L, 7L))
-                .thenReturn(Optional.of(announcement));
+        when(predicateEvaluator.requireCommunicationReaderAction(
+                7L, "WORKSPACE_MEMBER", 91L))
+                .thenThrow(new BaseException(ErrorCode.FORBIDDEN));
 
         assertThatThrownBy(() -> service.recordInteraction(
                 7L, 11L, "WORKSPACE_MEMBER", 91L, "open"))
@@ -104,8 +107,9 @@ class CommunicationServiceTest {
 
     @Test
     void reactionUpsertKeepsOneCurrentReactionPerReader() {
-        when(repository.findByAnnouncementIdAndTenantId(91L, 7L))
-                .thenReturn(Optional.of(visibleAnnouncement()));
+        when(predicateEvaluator.requireCommunicationReaderAction(
+                7L, "WORKSPACE_MEMBER", 91L))
+                .thenReturn(visibleAnnouncement());
 
         service.updateReaction(
                 7L,

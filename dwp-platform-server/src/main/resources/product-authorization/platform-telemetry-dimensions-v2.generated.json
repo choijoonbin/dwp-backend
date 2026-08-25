@@ -1,0 +1,96 @@
+{
+  "ownerServiceKey": "platform",
+  "productCount": 3,
+  "products": [
+    {
+      "productKey": "approvals",
+      "surfaces": [
+        {
+          "routeIds": [
+            "approvals.admin.forms",
+            "approvals.admin.operations",
+            "approvals.admin.overview",
+            "approvals.admin.policies",
+            "approvals.admin.signatures",
+            "approvals.admin.workflows"
+          ],
+          "surfaceKey": "approvals.admin"
+        },
+        {
+          "routeIds": [
+            "approvals.work.completed",
+            "approvals.work.delegations",
+            "approvals.work.home",
+            "approvals.work.inbox",
+            "approvals.work.request-archive",
+            "approvals.work.request-drafts",
+            "approvals.work.request-needs-info",
+            "approvals.work.request-new",
+            "approvals.work.request-submitted"
+          ],
+          "surfaceKey": "approvals.work"
+        }
+      ]
+    },
+    {
+      "productKey": "communications",
+      "surfaces": [
+        {
+          "routeIds": [
+            "communications.management.content"
+          ],
+          "surfaceKey": "communications.management"
+        },
+        {
+          "routeIds": [
+            "communications.work.all",
+            "communications.work.all-story",
+            "communications.work.for-you",
+            "communications.work.for-you-story",
+            "communications.work.home",
+            "communications.work.required",
+            "communications.work.required-story",
+            "communications.work.saved",
+            "communications.work.saved-story"
+          ],
+          "surfaceKey": "communications.work"
+        }
+      ]
+    },
+    {
+      "productKey": "services",
+      "surfaces": [
+        {
+          "routeIds": [
+            "services.management.catalog",
+            "services.management.operations"
+          ],
+          "surfaceKey": "services.management"
+        },
+        {
+          "routeIds": [
+            "services.work.discover",
+            "services.work.draft-detail",
+            "services.work.drafts",
+            "services.work.home",
+            "services.work.my",
+            "services.work.my-detail"
+          ],
+          "surfaceKey": "services.work"
+        }
+      ]
+    }
+  ],
+  "projectionChecksum": "cd272ca955d7449f35ac2880529872f34fa07a41f326375198c76b96f663f367",
+  "projectionChecksumAlgorithm": "SHA-256",
+  "projectionKey": "platform-telemetry-dimensions-v2",
+  "registryRef": {
+    "bundleKey": "product-surfaces",
+    "sha256": "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
+    "version": 2
+  },
+  "routeIdCount": 33,
+  "schemaVersion": 1,
+  "sourceRegistryRouteCount": 76,
+  "surfaceCount": 6
+}

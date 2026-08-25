@@ -37,6 +37,25 @@ public class HrController {
         return ApiResponse.success(service.time());
     }
 
+    @GetMapping("/team")
+    public ApiResponse<HrDtos.TeamWorkspace> team() {
+        return ApiResponse.success(service.team());
+    }
+
+    @GetMapping("/team/time")
+    public ApiResponse<HrDtos.TeamTimeWorkspace> teamTime() {
+        return ApiResponse.success(service.teamTime());
+    }
+
+    @PostMapping("/team/time/{cardId}/decision")
+    public ApiResponse<HrDtos.ApprovalItem> decideTeamTimeCard(
+            @PathVariable UUID cardId,
+            @Valid @RequestBody HrDtos.DecisionRequest request,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId) {
+        return ApiResponse.success(
+                service.decideTeamTimeCard(cardId, request, correlationId));
+    }
+
     @PutMapping("/time/{cardId}/entries/{workDate}")
     public ApiResponse<HrDtos.TimeWorkspace> upsertTimeEntry(
             @PathVariable UUID cardId,
@@ -65,6 +84,20 @@ public class HrController {
     @GetMapping("/absence")
     public ApiResponse<HrDtos.AbsenceWorkspace> absence() {
         return ApiResponse.success(service.absence());
+    }
+
+    @GetMapping("/team/absence")
+    public ApiResponse<HrDtos.TeamAbsenceWorkspace> teamAbsence() {
+        return ApiResponse.success(service.teamAbsence());
+    }
+
+    @PostMapping("/team/absence/{requestId}/decision")
+    public ApiResponse<HrDtos.ApprovalItem> decideTeamLeaveRequest(
+            @PathVariable UUID requestId,
+            @Valid @RequestBody HrDtos.DecisionRequest request,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId) {
+        return ApiResponse.success(
+                service.decideTeamLeaveRequest(requestId, request, correlationId));
     }
 
     @PostMapping("/absence/requests")

@@ -17,6 +17,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -173,6 +174,66 @@ class AuthSessionServiceTest {
 
         assertThat(current.getRevokedAt()).isNull();
         assertThat(other.getRevokedAt()).isNotNull();
+    }
+
+    @Test
+    void elevationRejectsUncanonicalizedAssuranceBeforeMutatingTheSessionFamily() {
+        AuthSession current = activeSession(Instant.now().minusSeconds(60));
+        when(repository.findByTokenIdForUpdate(current.getTokenId()))
+                .thenReturn(Optional.of(current));
+        AuthSessionService.AssuranceEvidence raw = new AuthSessionService.AssuranceEvidence(
+                "OIDC_STEP_UP", Instant.now().minusSeconds(10), "urn:dwp:acr:mfa",
+                List.of("otp", "pwd"));
+
+        assertThatThrownBy(() -> service.elevate(
+                jwt(current), current.getUserId(), current.getTenantId(), List.of("EMPLOYEE"),
+                current.getSessionFamilyId(), raw, new MockHttpServletRequest()))
+                .isInstanceOfSatisfying(BaseException.class, error -> assertThat(
+                        error.getErrorCode()).isEqualTo(ErrorCode.STEP_UP_REQUIRED));
+
+        verify(repository, never()).saveAndFlush(org.mockito.ArgumentMatchers.any());
+        verify(repository, never()).save(org.mockito.ArgumentMatchers.any());
+        assertThat(current.getSupersededAt()).isNull();
+    }
+
+    @Test
+    void elevationRejectsNormalLoginEvenWhenTheProviderReturnedLiteralMfa() {
+        AuthSession current = activeSession(Instant.now().minusSeconds(60));
+        when(repository.findByTokenIdForUpdate(current.getTokenId()))
+                .thenReturn(Optional.of(current));
+        AuthSessionService.AssuranceEvidence login = new AuthSessionService.AssuranceEvidence(
+                "OIDC", Instant.now().minusSeconds(10), "urn:dwp:acr:mfa", List.of("mfa"));
+
+        assertThatThrownBy(() -> service.elevate(
+                jwt(current), current.getUserId(), current.getTenantId(), List.of("EMPLOYEE"),
+                current.getSessionFamilyId(), login, new MockHttpServletRequest()))
+                .isInstanceOfSatisfying(BaseException.class, error -> assertThat(
+                        error.getErrorCode()).isEqualTo(ErrorCode.STEP_UP_REQUIRED));
+
+        verify(repository, never()).saveAndFlush(org.mockito.ArgumentMatchers.any());
+        verify(repository, never()).save(org.mockito.ArgumentMatchers.any());
+        assertThat(current.getSupersededAt()).isNull();
+    }
+
+    @Test
+    void elevationPersistsCanonicalMfaAndOriginalProviderEvidence() {
+        AuthSession current = activeSession(Instant.now().minusSeconds(60));
+        when(repository.findByTokenIdForUpdate(current.getTokenId()))
+                .thenReturn(Optional.of(current));
+        AuthSessionService.AssuranceEvidence canonical =
+                new AuthSessionService.AssuranceEvidence(
+                        "OIDC_STEP_UP", Instant.now().minusSeconds(10), "urn:dwp:acr:mfa",
+                        List.of("mfa", "otp", "pwd"));
+
+        AuthSessionService.IssuedSession issued = service.elevate(
+                jwt(current), current.getUserId(), current.getTenantId(), List.of("EMPLOYEE"),
+                current.getSessionFamilyId(), canonical, new MockHttpServletRequest());
+
+        ArgumentCaptor<AuthSession> saved = ArgumentCaptor.forClass(AuthSession.class);
+        verify(repository).save(saved.capture());
+        assertThat(issued.accessToken()).isNotBlank();
+        assertThat(saved.getValue().getAssuranceAmr())
+                .containsExactly("mfa", "otp", "pwd");
     }
 
     private AuthSession activeSession(Instant issuedAt) {

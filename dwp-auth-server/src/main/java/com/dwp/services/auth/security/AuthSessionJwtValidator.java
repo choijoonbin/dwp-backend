@@ -52,11 +52,32 @@ public class AuthSessionJwtValidator implements OAuth2TokenValidator<Jwt> {
                         && Objects.equals(
                                 session.getSessionFamilyId().toString(),
                                 jwt.getClaimAsString("sid"))
+                        && assuranceMatches(jwt, session)
                         && currentRolesMatch(jwt, session.getTenantId(), session.getUserId()))
                 .orElse(false);
         return active
                 ? OAuth2TokenValidatorResult.success()
                 : OAuth2TokenValidatorResult.failure(INVALID_SESSION);
+    }
+
+    private boolean assuranceMatches(
+            Jwt jwt,
+            com.dwp.services.auth.entity.AuthSession session) {
+        if (session.getAuthenticatedAt() == null || session.getAssuranceAcr() == null) {
+            return jwt.getClaims().get("auth_time") == null
+                    && jwt.getClaims().get("acr") == null;
+        }
+        Object authTime = jwt.getClaims().get("auth_time");
+        long claimedAuthTime = authTime instanceof Number number
+                ? number.longValue()
+                : Long.MIN_VALUE;
+        Object amr = jwt.getClaims().get("amr");
+        Set<String> claimedAmr = amr instanceof Collection<?> values
+                ? values.stream().map(String::valueOf).collect(Collectors.toSet())
+                : Set.of();
+        return claimedAuthTime == session.getAuthenticatedAt().getEpochSecond()
+                && session.getAssuranceAcr().equals(jwt.getClaimAsString("acr"))
+                && claimedAmr.equals(new LinkedHashSet<>(session.getAssuranceAmr()));
     }
 
     private boolean currentRolesMatch(Jwt jwt, Long tenantId, Long userId) {

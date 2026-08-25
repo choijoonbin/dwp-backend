@@ -24,10 +24,28 @@ import static org.mockito.Mockito.when;
 
 class FeatureRolloutServiceTest {
 
+    private static final List<String> ALL_PRODUCT_SURFACE_FLAGS = List.of(
+            "access.product-surfaces.context-shadow.v1",
+            "access.product-surfaces.capability-enforcement.v1",
+            "ux.product-surfaces.dwaion.v1",
+            "ux.product-surfaces.communications.v1",
+            "ux.product-surfaces.services.v1",
+            "ux.product-surfaces.notifications.v1",
+            "ux.product-surfaces.calendar.v1",
+            "ux.product-surfaces.workplace.v1",
+            "ux.product-surfaces.mail.v1",
+            "ux.product-surfaces.messaging.v1",
+            "ux.product-surfaces.approvals.v1",
+            "ux.product-surfaces.spaces.v1",
+            "ux.product-surfaces.hcm.v1");
+
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final FeatureRolloutRepository repository = mock(FeatureRolloutRepository.class);
     private final ProviderAuditService audit = mock(ProviderAuditService.class);
-    private final FeatureRolloutService service = new FeatureRolloutService(repository, audit);
+    private final FeatureRolloutDecisionOutboxRepository decisionOutbox =
+            mock(FeatureRolloutDecisionOutboxRepository.class);
+    private final FeatureRolloutService service =
+            new FeatureRolloutService(repository, audit, decisionOutbox);
 
     @BeforeEach
     void setContext() {
@@ -110,6 +128,36 @@ class FeatureRolloutServiceTest {
                 .isInstanceOf(BaseException.class);
 
         verify(repository, never()).createRollout(any(), any(), any(), any());
+    }
+
+    @Test
+    void activationAdvancesTheInvalidationRevisionInTheSameServiceTransaction() {
+        UUID rolloutId = UUID.randomUUID();
+        UUID flagId = UUID.randomUUID();
+        String featureKey = "ux.product-surfaces.communications.v1";
+        FeatureRolloutRepository.RolloutRow active = new FeatureRolloutRepository.RolloutRow(
+                rolloutId, flagId, featureKey, 2, "Communications canary", "ACTIVE",
+                objectMapper.valueToTree(true), objectMapper.createObjectNode(), "RING",
+                1, null, null, "Approved canary", 7L, 19L,
+                Instant.now(), Instant.now(), Instant.now(), null, null, 5L);
+        when(repository.rollout(rolloutId)).thenReturn(Optional.of(active));
+        when(repository.activate(rolloutId, 4L)).thenReturn(true);
+
+        service.activate(
+                rolloutId,
+                new FeatureRolloutDtos.VersionedReasonRequest(4L, "Canary approved"),
+                "corr-canary");
+
+        verify(decisionOutbox).appendAllTenants(flagId, featureKey, "ENABLED");
+    }
+
+    @Test
+    void evaluationAllowlistCoversEveryGovernedProductSurfaceAndRejectsUnknownKeys() {
+        assertThat(ALL_PRODUCT_SURFACE_FLAGS)
+                .hasSize(13)
+                .allMatch(FeatureRolloutService::isProductSurfaceFlag);
+        assertThat(FeatureRolloutService.isProductSurfaceFlag("ux.product-surfaces.unknown.v1"))
+                .isFalse();
     }
 
     private FeatureRolloutRepository.RolloutRow rollout(

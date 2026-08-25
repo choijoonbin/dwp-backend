@@ -197,7 +197,8 @@ INSERT INTO apr_requests (
     title, summary, requester_user_id, requester_person_public_id,
     requester_name, requester_org_name, status, priority, data_classification,
     submitted_at, due_at, completed_at, source_system, source_reference,
-    reference_seed_key, version, created_at, created_by, updated_at, updated_by)
+    reference_seed_key, management_resource_set_key,
+    version, created_at, created_by, updated_at, updated_by)
 SELECT seed.request_id, 1, seed.request_number,
        workflow_version.workflow_version_id, form_version.form_version_id,
        seed.title, seed.summary, seed.user_id, seed.person_public_id,
@@ -206,6 +207,7 @@ SELECT seed.request_id, 1, seed.request_number,
        seed.submitted_at, seed.due_at, seed.completed_at,
        'DWP_LOCAL_SEED', seed.email || ':' || LOWER(seed.scenario_key),
        'seed:skax-approval:v1:' || seed.user_id || ':' || LOWER(seed.scenario_key),
+       'RS_APPROVALS',
        CASE WHEN seed.scenario_key = 'DRAFT' THEN 0 ELSE 1 END,
        COALESCE(seed.submitted_at, CURRENT_TIMESTAMP - INTERVAL '1 hour'),
        seed.user_id,
@@ -215,6 +217,7 @@ SELECT seed.request_id, 1, seed.request_number,
   JOIN apr_workflow_definitions workflow
     ON workflow.tenant_id = 1
    AND workflow.workflow_key = seed.workflow_key
+   AND workflow.management_resource_set_key = 'RS_APPROVALS'
   JOIN apr_workflow_versions workflow_version
     ON workflow_version.tenant_id = workflow.tenant_id
    AND workflow_version.workflow_id = workflow.workflow_id
@@ -222,6 +225,7 @@ SELECT seed.request_id, 1, seed.request_number,
   JOIN apr_forms form
     ON form.tenant_id = workflow.tenant_id
    AND form.form_key = workflow.workflow_key || '_FORM'
+   AND form.management_resource_set_key = 'RS_APPROVALS'
   JOIN apr_form_versions form_version
     ON form_version.tenant_id = form.tenant_id
    AND form_version.form_id = form.form_id
@@ -505,13 +509,15 @@ INSERT INTO apr_delegations (
     delegation_id, tenant_id, delegator_user_id, delegate_user_id,
     delegate_person_public_id, delegate_display_name, delegate_email,
     delegated_role_codes,
-    scope_type, workflow_key, starts_at, ends_at, lifecycle_state,
+    scope_type, workflow_id, workflow_key, starts_at, ends_at, lifecycle_state,
     reason, version, created_at, created_by, updated_at, updated_by)
 SELECT md5('skax-approval-delegation:v1:' || delegator.user_id)::uuid,
        1, delegator.user_id, delegate.user_id,
        delegate.person_public_id, delegate.display_name, delegate.email,
        jsonb_build_array('WORKSPACE_MEMBER'),
        CASE WHEN MOD(delegator.user_id, 2) = 0 THEN 'WORKFLOW' ELSE 'ALL' END,
+       CASE WHEN MOD(delegator.user_id, 2) = 0
+            THEN md5('approval-workflow:1:CAPEX_PURCHASE')::uuid ELSE NULL END,
        CASE WHEN MOD(delegator.user_id, 2) = 0 THEN 'CAPEX_PURCHASE' ELSE NULL END,
        CURRENT_TIMESTAMP - INTERVAL '5 days',
        CASE MOD(delegator.member_order, 3)
@@ -538,14 +544,36 @@ ON CONFLICT (delegation_id) DO UPDATE
         delegate_display_name = EXCLUDED.delegate_display_name,
         delegate_email = EXCLUDED.delegate_email,
         delegated_role_codes = EXCLUDED.delegated_role_codes,
-        scope_type = EXCLUDED.scope_type,
-        workflow_key = EXCLUDED.workflow_key,
         starts_at = EXCLUDED.starts_at,
         ends_at = EXCLUDED.ends_at,
         lifecycle_state = EXCLUDED.lifecycle_state,
         reason = EXCLUDED.reason,
         updated_at = EXCLUDED.updated_at,
         updated_by = EXCLUDED.updated_by;
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+          FROM seed_skax_members delegator
+          JOIN apr_delegations delegation
+            ON delegation.delegation_id =
+               md5('skax-approval-delegation:v1:' || delegator.user_id)::uuid
+         WHERE MOD(delegator.member_order - 1, 4) = 0
+           AND (delegation.scope_type IS DISTINCT FROM
+                    CASE WHEN MOD(delegator.user_id, 2) = 0
+                         THEN 'WORKFLOW' ELSE 'ALL' END
+                OR delegation.workflow_id IS DISTINCT FROM
+                    CASE WHEN MOD(delegator.user_id, 2) = 0
+                         THEN md5('approval-workflow:1:CAPEX_PURCHASE')::uuid
+                         ELSE NULL END
+                OR delegation.workflow_key IS DISTINCT FROM
+                    CASE WHEN MOD(delegator.user_id, 2) = 0
+                         THEN 'CAPEX_PURCHASE' ELSE NULL END)) THEN
+        RAISE EXCEPTION 'SKAX Approval delegation seed identity is inconsistent';
+    END IF;
+END
+$$;
 
 DROP TABLE seed_skax_requests;
 DROP TABLE seed_skax_members;

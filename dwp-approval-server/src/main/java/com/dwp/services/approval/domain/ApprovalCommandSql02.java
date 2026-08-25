@@ -10,6 +10,7 @@ final class ApprovalCommandSql02 {
            SET lifecycle_state = 'PUBLISHED', version = version + 1,
                updated_at = CURRENT_TIMESTAMP, updated_by = :userId
          WHERE tenant_id = :tenantId AND workflow_id = :workflowId
+           AND management_resource_set_key = :managementScope
            AND lifecycle_state = 'DRAFT' AND version = :expectedVersion
            AND COALESCE(updated_by, created_by, -1) <> :userId
         """;
@@ -20,11 +21,17 @@ final class ApprovalCommandSql02 {
                published_at = CURRENT_TIMESTAMP, published_by = :userId
          WHERE tenant_id = :tenantId AND workflow_id = :workflowId
            AND lifecycle_state = 'DRAFT'
+           AND EXISTS (
+               SELECT 1 FROM apr_workflow_definitions definition
+                WHERE definition.tenant_id = :tenantId
+                  AND definition.workflow_id = :workflowId
+                  AND definition.management_resource_set_key = :managementScope)
         """;
 
     static final String WORKFLOW_SELECT_APR_WORKFLOW_DEFINITIONS = """
         SELECT version.workflow_version_id, form_version.form_version_id,
                definition.data_classification,
+               definition.management_resource_set_key,
                form_version.schema_payload::text AS form_schema,
                binding.binding_type,
                binding.condition_payload::text AS binding_condition
@@ -51,6 +58,7 @@ final class ApprovalCommandSql02 {
            AND form_version.version_number = form.current_version
          WHERE definition.tenant_id = :tenantId
            AND definition.workflow_id = :workflowId
+           AND definition.management_resource_set_key = form.management_resource_set_key
            AND definition.lifecycle_state = 'PUBLISHED'
            AND version.lifecycle_state = 'PUBLISHED'
            AND (version.effective_from IS NULL
@@ -138,17 +146,23 @@ final class ApprovalCommandSql02 {
     static final String APPEND_INTEGRATION_INSERT_APR_INTEGRATION_OUTBOX = """
         INSERT INTO apr_integration_outbox (
             outbox_id, event_id, tenant_id, request_id,
-            event_type, payload, payload_sha256, status)
-        VALUES (
-            :outboxId, :eventId, :tenantId, :requestId,
-            :eventType, CAST(:payload AS jsonb),
-            encode(sha256(convert_to(:payload, 'UTF8')), 'hex'), 'PENDING')
+            event_type, payload, payload_sha256, status,
+            event_originator_user_id, recovery_auditor_assignment_state,
+            management_resource_set_key)
+        SELECT :outboxId, :eventId, request.tenant_id, request.request_id,
+               :eventType, CAST(:payload AS jsonb),
+               encode(sha256(convert_to(:payload, 'UTF8')), 'hex'), 'PENDING',
+               :userId, 'PENDING', request.management_resource_set_key
+          FROM apr_requests request
+         WHERE request.tenant_id = :tenantId
+           AND request.request_id = :requestId
         """;
 
     static final String REQUIRE_CATEGORY_SELECT_APR_FORM_CATEGORIES = """
         SELECT COUNT(*)::INTEGER
           FROM apr_form_categories
          WHERE tenant_id = :tenantId AND category_id = :categoryId
+           AND management_resource_set_key = :managementScope
            AND lifecycle_state = 'ACTIVE'
         """;
 
@@ -156,19 +170,22 @@ final class ApprovalCommandSql02 {
         SELECT COUNT(*)::INTEGER
           FROM apr_workflow_definitions
          WHERE tenant_id = :tenantId AND workflow_id = :workflowId
+           AND management_resource_set_key = :managementScope
            AND lifecycle_state <> 'RETIRED'
         """;
 
     static final String VALIDATE_CATEGORY_PARENT_WITH_APR_FORM_CATEGORIES = """
         WITH RECURSIVE descendants AS (
             SELECT category_id
-              FROM apr_form_categories
+             FROM apr_form_categories
              WHERE tenant_id = :tenantId AND parent_category_id = :categoryId
+               AND management_resource_set_key = :managementScope
             UNION ALL
             SELECT child.category_id
               FROM apr_form_categories child
-              JOIN descendants parent ON child.parent_category_id = parent.category_id
+             JOIN descendants parent ON child.parent_category_id = parent.category_id
              WHERE child.tenant_id = :tenantId
+               AND child.management_resource_set_key = :managementScope
         )
         SELECT COUNT(*)::INTEGER FROM descendants WHERE category_id = :parentCategoryId
         """;
@@ -180,6 +197,10 @@ final class ApprovalCommandSql02 {
          WHERE tenant_id = :tenantId AND form_id = :formId
            AND binding_type = 'DEFAULT' AND lifecycle_state = 'ACTIVE'
            AND workflow_id <> :workflowId
+           AND EXISTS (
+               SELECT 1 FROM apr_forms form
+                WHERE form.tenant_id = :tenantId AND form.form_id = :formId
+                  AND form.management_resource_set_key = :managementScope)
         """;
 
     static final String REPLACE_DEFAULT_FORM_ROUTE_UPDATE_APR_FORM_WORKFLOW_BINDINGS_2 = """
@@ -189,6 +210,10 @@ final class ApprovalCommandSql02 {
                updated_at = CURRENT_TIMESTAMP, updated_by = :userId
          WHERE tenant_id = :tenantId AND form_id = :formId
            AND workflow_id = :workflowId
+           AND EXISTS (
+               SELECT 1 FROM apr_forms form
+                WHERE form.tenant_id = :tenantId AND form.form_id = :formId
+                  AND form.management_resource_set_key = :managementScope)
         """;
 
     static final String REPLACE_DEFAULT_FORM_ROUTE_INSERT_APR_FORM_WORKFLOW_BINDINGS = """

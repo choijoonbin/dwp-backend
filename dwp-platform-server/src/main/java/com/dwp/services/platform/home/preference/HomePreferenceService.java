@@ -6,6 +6,7 @@ import com.dwp.services.platform.audit.PlatformAuditService;
 import com.dwp.services.platform.home.HomeCompositionPolicyReader;
 import com.dwp.services.platform.home.personalization.HomeViewCompatibilityBridge;
 import com.dwp.services.platform.home.personalization.HomePersonalizationScopeLock;
+import com.dwp.services.platform.security.PlatformApprovalsAuthorizationContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -76,6 +77,8 @@ public class HomePreferenceService {
             Long userId,
             String surfaceKey) {
         String canonicalSurfaceKey = canonicalSurfaceKey(surfaceKey);
+        PlatformApprovalsAuthorizationContext.requireSelf(
+                tenantId, userId, canonicalSurfaceKey);
         SurfaceContract contract = requireSurface(canonicalSurfaceKey);
         return repository.findByTenantIdAndUserIdAndSurfaceKey(
                         tenantId, userId, canonicalSurfaceKey)
@@ -94,6 +97,8 @@ public class HomePreferenceService {
             String correlationId,
             HomePreferenceDtos.UpdateHomePreferenceRequest request) {
         String canonicalSurfaceKey = canonicalSurfaceKey(surfaceKey);
+        PlatformApprovalsAuthorizationContext.requireSelf(
+                tenantId, userId, canonicalSurfaceKey);
         SurfaceContract contract = requireSurface(canonicalSurfaceKey);
         requirePersonalCustomization(tenantId, canonicalSurfaceKey);
         scopeLock.lock(tenantId, userId, canonicalSurfaceKey);
@@ -103,8 +108,11 @@ public class HomePreferenceService {
                 request.layout(),
                 true,
                 true);
-        java.util.Optional<HomePreference> existing = repository
-                .findByTenantIdAndUserIdAndSurfaceKey(tenantId, userId, canonicalSurfaceKey);
+        java.util.Optional<HomePreference> existing =
+                PlatformApprovalsAuthorizationContext.current().isPresent()
+                        ? repository.findForUpdate(tenantId, userId, canonicalSurfaceKey)
+                        : repository.findByTenantIdAndUserIdAndSurfaceKey(
+                                tenantId, userId, canonicalSurfaceKey);
         HomePreference preference = existing.orElseGet(
                 () -> create(tenantId, userId, canonicalSurfaceKey, request.version()));
         if (existing.isPresent()) requireVersion(preference, request.version());
@@ -139,6 +147,8 @@ public class HomePreferenceService {
             String correlationId,
             Long version) {
         String canonicalSurfaceKey = canonicalSurfaceKey(surfaceKey);
+        PlatformApprovalsAuthorizationContext.requireSelf(
+                tenantId, userId, canonicalSurfaceKey);
         SurfaceContract contract = requireSurface(canonicalSurfaceKey);
         requirePersonalCustomization(tenantId, canonicalSurfaceKey);
         scopeLock.lock(tenantId, userId, canonicalSurfaceKey);
@@ -200,6 +210,10 @@ public class HomePreferenceService {
     private SurfaceContract requireSurface(String surfaceKey) {
         SurfaceContract contract = SURFACE_CONTRACTS.get(surfaceKey);
         if (contract == null) throw invalid("The personal home surface is not registered.");
+        if (APPROVAL_HOME.equals(surfaceKey)
+                && PlatformApprovalsAuthorizationContext.current().isPresent()) {
+            return approvalWorkContract(contract);
+        }
         return contract;
     }
 
@@ -437,6 +451,12 @@ public class HomePreferenceService {
             HomePreferenceDtos.HomeLayoutPayload stored = objectMapper.treeToValue(
                     preference.getLayoutPayload(),
                     HomePreferenceDtos.HomeLayoutPayload.class);
+            if (APPROVAL_HOME.equals(surfaceKey)
+                    && PlatformApprovalsAuthorizationContext.current().isPresent()) {
+                stored = new HomePreferenceDtos.HomeLayoutPayload(
+                        stored.appLayout(), stored.presentation(), stored.widgets().stream()
+                        .filter(widget -> !"admin-health".equals(widget.widgetKey())).toList());
+            }
             HomePreferenceDtos.HomeLayoutPayload normalized =
                     normalizeLayout(surfaceKey, contract, stored, false, false);
             boolean unchanged = preference.getSchemaVersion() != null
@@ -616,6 +636,16 @@ public class HomePreferenceService {
         widgets.put("admin-health", widget(true, "full", Set.of("large", "full"),
                 "tall", Set.of("standard", "tall", "expanded")));
         return new SurfaceContract(false, "balanced", List.copyOf(widgets.keySet()), Map.copyOf(widgets));
+    }
+
+    private static SurfaceContract approvalWorkContract(SurfaceContract legacy) {
+        Map<String, WidgetContract> widgets = new LinkedHashMap<>(legacy.widgets());
+        widgets.remove("admin-health");
+        return new SurfaceContract(
+                legacy.supportsAppLayout(), legacy.defaultPresentation(),
+                legacy.widgetOrder().stream()
+                        .filter(key -> !"admin-health".equals(key)).toList(),
+                Map.copyOf(widgets));
     }
 
     private static WidgetContract widget(

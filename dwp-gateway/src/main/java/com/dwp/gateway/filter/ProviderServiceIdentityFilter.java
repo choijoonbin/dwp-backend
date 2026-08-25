@@ -17,6 +17,10 @@ import java.util.List;
 public class ProviderServiceIdentityFilter implements GlobalFilter, Ordered {
 
     private static final String SERVICE_TOKEN_HEADER = "X-DWP-Service-Token";
+    private static final String SERVICE_IDENTITY_HEADER = "X-DWP-Service-Identity";
+    private static final List<String> INTERNAL_PUBLIC_PREFIXES = List.of(
+            "/api/provider/internal/",
+            "/api/provider/v1/internal/");
     private static final List<String> SUPPORT_INTERNAL_HEADERS = List.of(
             "X-DWP-Support-Validation-Token",
             "X-DWP-Support-Resource-Method",
@@ -31,10 +35,16 @@ public class ProviderServiceIdentityFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        if (INTERNAL_PUBLIC_PREFIXES.stream().anyMatch(
+                exchange.getRequest().getURI().getPath()::startsWith)) {
+            exchange.getResponse().setStatusCode(HttpStatus.NOT_FOUND);
+            return exchange.getResponse().setComplete();
+        }
         if (!requiresServiceIdentity(exchange.getRequest())) return chain.filter(exchange);
         ServerHttpRequest sanitized = exchange.getRequest().mutate()
                 .headers(headers -> {
                     headers.remove(SERVICE_TOKEN_HEADER);
+                    headers.remove(SERVICE_IDENTITY_HEADER);
                     SUPPORT_INTERNAL_HEADERS.forEach(headers::remove);
                 })
                 .build();

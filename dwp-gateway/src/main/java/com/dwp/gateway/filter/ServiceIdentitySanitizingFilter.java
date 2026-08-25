@@ -12,11 +12,15 @@ import reactor.core.publisher.Mono;
 public class ServiceIdentitySanitizingFilter implements GlobalFilter, Ordered {
 
     public static final String SERVICE_TOKEN_HEADER = "X-DWP-Service-Token";
+    public static final String SERVICE_IDENTITY_HEADER = "X-DWP-Service-Identity";
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         ServerHttpRequest sanitizedRequest = exchange.getRequest().mutate()
-                .headers(headers -> headers.remove(SERVICE_TOKEN_HEADER))
+                .headers(headers -> {
+                    headers.remove(SERVICE_TOKEN_HEADER);
+                    headers.remove(SERVICE_IDENTITY_HEADER);
+                })
                 .build();
         return chain.filter(exchange.mutate().request(sanitizedRequest).build());
     }
@@ -26,4 +30,3 @@ public class ServiceIdentitySanitizingFilter implements GlobalFilter, Ordered {
         return -100;
     }
 }
-

@@ -59,8 +59,20 @@ jwt:
 
 dwp:
   auth:
+    product-surface-token: ${DWP_PRODUCT_SURFACE_TOKEN:}
+    approval-recovery-token: ${DWP_APPROVAL_RECOVERY_TOKEN:}
+    step-up:
+      private-key-pem: ${DWP_AUTH_STEP_UP_PRIVATE_KEY_PEM:}
+      issuer: ${DWP_AUTH_STEP_UP_ISSUER:}
+      key-id: ${DWP_AUTH_STEP_UP_KEY_ID:}
+      required-acr: ${DWP_AUTH_STEP_UP_REQUIRED_ACR:}
+      allowed-audiences: ${DWP_AUTH_STEP_UP_ALLOWED_AUDIENCES:}
+      maximum-authentication-age-seconds: ${DWP_AUTH_STEP_UP_MAX_AUTH_AGE_SECONDS:600}
+      challenge-ttl-seconds: ${DWP_AUTH_STEP_UP_CHALLENGE_TTL_SECONDS:900}
+      assurance-clock-skew-seconds: ${DWP_AUTH_STEP_UP_CLOCK_SKEW_SECONDS:30}
     oidc:
       allowed-hosts: ${DWP_OIDC_ALLOWED_HOSTS:}
+      allowed-callback-hosts: ${DWP_OIDC_ALLOWED_CALLBACK_HOSTS:}
       allow-unlisted-hosts: ${DWP_OIDC_ALLOW_UNLISTED_HOSTS:false}
   http:
     client:
@@ -77,6 +89,10 @@ dwp:
     token: ${DWP_IDENTITY_SYNC_TOKEN:}
   provider:
     provisioning-token: ${DWP_PROVIDER_PROVISIONING_TOKEN:}
+  product-authorization:
+    seed:
+      enabled: ${DWP_PRODUCT_AUTHORIZATION_SEED_ENABLED:false}
+      index-location: ${DWP_PRODUCT_AUTHORIZATION_SEED_INDEX_LOCATION:classpath:product-authorization/product-surfaces-v1.index.generated.json}
   observability:
     api-history:
       enabled: ${DWP_API_HISTORY_ENABLED:true}

@@ -1,5 +1,6 @@
 package com.dwp.services.approval.domain;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -296,7 +297,8 @@ public final class ApprovalDtos {
             Instant publishedAt,
             String lastError,
             Instant createdAt,
-            Instant lastRetriedAt) {
+            Instant lastRetriedAt,
+            long version) {
     }
 
     public record SignatureProviderSummary(
@@ -319,6 +321,11 @@ public final class ApprovalDtos {
             String delegateDisplayName,
             String delegateEmail,
             String scopeType,
+            @Schema(description = "Immutable workflow identity for WORKFLOW scope")
+            UUID workflowId,
+            @Schema(
+                    description = "Deprecated display-only workflow key; authorize by workflowId",
+                    deprecated = true)
             String workflowKey,
             Instant startsAt,
             Instant endsAt,
@@ -373,10 +380,26 @@ public final class ApprovalDtos {
     public record CreateDelegationRequest(
             @NotNull Long delegateUserId,
             @NotBlank String scopeType,
+            @Schema(
+                    description = "Deprecated root-only compatibility key; use workflowId",
+                    deprecated = true)
             String workflowKey,
+            @Schema(description = "Immutable published workflow identity for WORKFLOW scope")
+            UUID workflowId,
             @NotNull Instant startsAt,
             @NotNull Instant endsAt,
             @NotBlank @Size(min = 10, max = 1000) String reason) {
+
+        public CreateDelegationRequest(
+                Long delegateUserId,
+                String scopeType,
+                String workflowKey,
+                Instant startsAt,
+                Instant endsAt,
+                String reason) {
+            this(delegateUserId, scopeType, workflowKey, null,
+                    startsAt, endsAt, reason);
+        }
     }
 
     public record PublishWorkflowRequest(@NotNull Long expectedVersion) {

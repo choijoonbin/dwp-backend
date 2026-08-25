@@ -60,6 +60,16 @@ public class AuthSessionService {
             Long tenantId,
             List<String> roles,
             HttpServletRequest request) {
+        return create(userId, tenantId, roles, AssuranceEvidence.local(Instant.now()), request);
+    }
+
+    @Transactional
+    public IssuedSession create(
+            Long userId,
+            Long tenantId,
+            List<String> roles,
+            AssuranceEvidence assurance,
+            HttpServletRequest request) {
         Instant now = Instant.now();
         Instant expiresAt = now.plusSeconds(absoluteLifetimeSeconds);
         Instant idleExpiresAt = earlier(now.plusSeconds(idleTimeoutSeconds), expiresAt);
@@ -74,6 +84,10 @@ public class AuthSessionService {
                 .userId(userId)
                 .sessionStartedAt(now)
                 .issuedAt(now)
+                .authenticationMethod(assurance.authenticationMethod())
+                .authenticatedAt(assurance.authenticatedAt())
+                .assuranceAcr(assurance.acr())
+                .assuranceAmr(assurance.amr())
                 .lastSeenAt(now)
                 .idleExpiresAt(idleExpiresAt)
                 .expiresAt(expiresAt)
@@ -82,7 +96,8 @@ public class AuthSessionService {
                 .build();
         authSessionRepository.save(session);
 
-        String token = createToken(userId, tenantId, roles, tokenId, familyId, now, expiresAt);
+        String token = createToken(
+                userId, tenantId, roles, tokenId, familyId, now, expiresAt, assurance);
         return new IssuedSession(token, secondsUntil(now, expiresAt));
     }
 
@@ -118,6 +133,10 @@ public class AuthSessionService {
                 .userId(userId)
                 .sessionStartedAt(previous.getSessionStartedAt())
                 .issuedAt(now)
+                .authenticationMethod(previous.getAuthenticationMethod())
+                .authenticatedAt(previous.getAuthenticatedAt())
+                .assuranceAcr(previous.getAssuranceAcr())
+                .assuranceAmr(previous.getAssuranceAmr())
                 .lastSeenAt(previous.getLastSeenAt())
                 .idleExpiresAt(previous.getIdleExpiresAt())
                 .expiresAt(previous.getExpiresAt())
@@ -133,7 +152,8 @@ public class AuthSessionService {
                 tokenId,
                 previous.getSessionFamilyId(),
                 now,
-                previous.getExpiresAt());
+                previous.getExpiresAt(),
+                AssuranceEvidence.from(previous));
         return RotationResult.rotated(
                 token,
                 secondsUntil(now, previous.getExpiresAt()),
@@ -222,6 +242,83 @@ public class AuthSessionService {
                 now.plusSeconds(idleTimeoutSeconds));
     }
 
+    @Transactional(readOnly = true)
+    public AssuranceEvidence requireFreshAssurance(
+            Jwt jwt,
+            Long userId,
+            Long tenantId,
+            String requiredAcr,
+            long maximumAgeSeconds) {
+        Instant now = Instant.now();
+        AuthSession session = authSessionRepository.findByTokenId(jwt.getId())
+                .orElseThrow(() -> new BaseException(ErrorCode.TOKEN_INVALID));
+        requireActiveIdentity(session, jwt, userId, tenantId, now);
+        AssuranceEvidence evidence = AssuranceEvidence.from(session);
+        if (!evidence.freshAt(now, requiredAcr, maximumAgeSeconds)) {
+            throw new BaseException(
+                    ErrorCode.STEP_UP_REQUIRED,
+                    "The current session does not contain fresh verified assurance.");
+        }
+        return evidence;
+    }
+
+    @Transactional
+    public IssuedSession elevate(
+            Jwt jwt,
+            Long userId,
+            Long tenantId,
+            List<String> roles,
+            UUID expectedFamilyId,
+            AssuranceEvidence assurance,
+            HttpServletRequest request) {
+        Instant now = Instant.now();
+        AuthSession previous = authSessionRepository.findByTokenIdForUpdate(jwt.getId())
+                .orElseThrow(() -> new BaseException(ErrorCode.TOKEN_INVALID));
+        requireActiveIdentity(previous, jwt, userId, tenantId, now);
+        if (!previous.getSessionFamilyId().equals(expectedFamilyId)
+                || assurance.authenticatedAt() == null
+                || assurance.authenticatedAt().isAfter(now.plusSeconds(30))) {
+            throw new BaseException(ErrorCode.TOKEN_INVALID);
+        }
+        if (!OidcStepUpAmrPolicy.isCanonicalStepUpEvidence(
+                assurance.authenticationMethod(), assurance.amr())) {
+            throw new BaseException(
+                    ErrorCode.STEP_UP_REQUIRED,
+                    "Canonical MFA assurance is required for session elevation.");
+        }
+
+        previous.setSupersededAt(now);
+        previous.setSupersededExpiresAt(earlier(
+                now.plusSeconds(previousTokenGraceSeconds),
+                earlier(previous.getIdleExpiresAt(), previous.getExpiresAt())));
+        authSessionRepository.saveAndFlush(previous);
+
+        String tokenId = UUID.randomUUID().toString();
+        AuthSession current = AuthSession.builder()
+                .sessionId(UUID.randomUUID())
+                .sessionFamilyId(previous.getSessionFamilyId())
+                .tokenId(tokenId)
+                .tenantId(tenantId)
+                .userId(userId)
+                .sessionStartedAt(previous.getSessionStartedAt())
+                .issuedAt(now)
+                .authenticationMethod(assurance.authenticationMethod())
+                .authenticatedAt(assurance.authenticatedAt())
+                .assuranceAcr(assurance.acr())
+                .assuranceAmr(assurance.amr())
+                .lastSeenAt(previous.getLastSeenAt())
+                .idleExpiresAt(previous.getIdleExpiresAt())
+                .expiresAt(previous.getExpiresAt())
+                .ipAddress(firstNonBlank(clientIp(request), previous.getIpAddress()))
+                .userAgent(firstNonBlank(userAgent(request), previous.getUserAgent()))
+                .build();
+        authSessionRepository.save(current);
+        String token = createToken(
+                userId, tenantId, roles, tokenId, current.getSessionFamilyId(), now,
+                current.getExpiresAt(), assurance);
+        return new IssuedSession(token, secondsUntil(now, current.getExpiresAt()));
+    }
+
     private AuthSession requireOwnedSession(String tokenId, Long userId, Long tenantId) {
         return authSessionRepository.findByTokenId(tokenId)
                 .filter(session -> Objects.equals(session.getUserId(), userId))
@@ -251,18 +348,23 @@ public class AuthSessionService {
             String tokenId,
             UUID familyId,
             Instant issuedAt,
-            Instant expiresAt) {
+            Instant expiresAt,
+            AssuranceEvidence assurance) {
         SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
-        return Jwts.builder()
+        var builder = Jwts.builder()
                 .id(tokenId)
                 .subject(String.valueOf(userId))
                 .claim("tenant_id", String.valueOf(tenantId))
                 .claim("roles", roles)
                 .claim("sid", familyId.toString())
                 .issuedAt(Date.from(issuedAt))
-                .expiration(Date.from(expiresAt))
-                .signWith(key, Jwts.SIG.HS256)
-                .compact();
+                .expiration(Date.from(expiresAt));
+        if (assurance.authenticatedAt() != null && assurance.acr() != null) {
+            builder.claim("auth_time", assurance.authenticatedAt().getEpochSecond())
+                    .claim("acr", assurance.acr())
+                    .claim("amr", assurance.amr());
+        }
+        return builder.signWith(key, Jwts.SIG.HS256).compact();
     }
 
     private static Instant earlier(Instant first, Instant second) {
@@ -296,6 +398,47 @@ public class AuthSessionService {
     }
 
     public record IssuedSession(String accessToken, long expiresIn) {
+    }
+
+    public record AssuranceEvidence(
+            String authenticationMethod,
+            Instant authenticatedAt,
+            String acr,
+            List<String> amr) {
+
+        public AssuranceEvidence {
+            authenticationMethod = authenticationMethod == null
+                    ? "LEGACY"
+                    : authenticationMethod.trim().toUpperCase();
+            acr = acr == null || acr.isBlank() ? null : acr.trim();
+            amr = amr == null ? List.of() : amr.stream()
+                    .filter(value -> value != null && !value.isBlank())
+                    .map(String::trim)
+                    .distinct()
+                    .sorted()
+                    .toList();
+        }
+
+        static AssuranceEvidence local(Instant authenticatedAt) {
+            return new AssuranceEvidence(
+                    "LOCAL", authenticatedAt, "urn:dwp:acr:password", List.of("pwd"));
+        }
+
+        static AssuranceEvidence from(AuthSession session) {
+            return new AssuranceEvidence(
+                    session.getAuthenticationMethod(), session.getAuthenticatedAt(),
+                    session.getAssuranceAcr(), session.getAssuranceAmr());
+        }
+
+        boolean freshAt(Instant now, String requiredAcr, long maximumAgeSeconds) {
+            return authenticatedAt != null
+                    && OidcStepUpAmrPolicy.isCanonicalStepUpEvidence(
+                            authenticationMethod, amr)
+                    && acr != null
+                    && acr.equals(requiredAcr)
+                    && !authenticatedAt.isAfter(now.plusSeconds(30))
+                    && authenticatedAt.plusSeconds(maximumAgeSeconds).isAfter(now);
+        }
     }
 
     public record RotationResult(

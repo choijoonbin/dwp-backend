@@ -292,7 +292,8 @@ public class AuthSessionVerifier implements SessionVerifier {
         if (roles == null) return List.of();
         return roles.stream()
                 .filter(Objects::nonNull)
-                .map(role -> resourceRole(role.responsibilityCode(), role.resourceKey()))
+                .map(role -> resourceRole(
+                        role.responsibilityCode(), role.resourceSetKey()))
                 .filter(Objects::nonNull)
                 .distinct()
                 .sorted()
@@ -361,6 +362,12 @@ public class AuthSessionVerifier implements SessionVerifier {
             String effect) {
     }
 
-    private record ResourceRoleData(String responsibilityCode, String resourceKey) {
+    private record ResourceRoleData(
+            String responsibilityCode,
+            String resourceType,
+            String resourceKey,
+            String resourceSetId,
+            String resourceSetKey,
+            String validTo) {
     }
 }

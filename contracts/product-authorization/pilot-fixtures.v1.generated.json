@@ -1,0 +1,3136 @@
+{
+  "catalogs": {
+    "objects": [
+      {
+        "key": "WF_1",
+        "makerId": "U_WF_MAKER",
+        "version": 7
+      },
+      {
+        "key": "FORM_1",
+        "makerId": "U_FORM_MAKER",
+        "version": 5
+      },
+      {
+        "key": "POL_1",
+        "makerId": "U_POLICY_MAKER",
+        "version": 4
+      },
+      {
+        "assignedAuditorId": "U_AUDITOR",
+        "eventOriginatorId": "U_EVENT_ORIGINATOR",
+        "key": "OUT_1",
+        "version": 2
+      },
+      {
+        "key": "ORG_1",
+        "makerId": "U_ORG_MAKER",
+        "version": 5
+      },
+      {
+        "key": "REF_1",
+        "scopeRef": "S_HCM_REFERENCE",
+        "version": 9
+      },
+      {
+        "key": "CONN_1",
+        "ownerId": "U_CONNECTOR_OWNER",
+        "scopeRef": "S_HCM_INTEGRATION",
+        "version": 6
+      },
+      {
+        "key": "DS_HCM_CORE",
+        "population": "LEGAL_A_ACTIVE",
+        "version": 12
+      },
+      {
+        "key": "APPROVAL_HOME_PREF_1",
+        "ownerActor": "BUILDER_ACTOR",
+        "surfaceKey": "approval-home",
+        "version": 8
+      },
+      {
+        "key": "HCM_HOME_PREF_1",
+        "ownerActor": "BUILDER_ACTOR",
+        "surfaceKey": "hcm-home",
+        "version": 9
+      },
+      {
+        "key": "FORM_PUBLISHED_1",
+        "state": "PUBLISHED",
+        "version": 3
+      },
+      {
+        "key": "APR_REQUEST_DRAFT_1",
+        "ownerActor": "BUILDER_ACTOR",
+        "state": "DRAFT",
+        "version": 4
+      },
+      {
+        "key": "APR_REQUEST_SUBMITTED_1",
+        "ownerActor": "BUILDER_ACTOR",
+        "state": "SUBMITTED",
+        "version": 5
+      },
+      {
+        "key": "APR_REQUEST_NEEDS_INFO_1",
+        "ownerActor": "BUILDER_ACTOR",
+        "state": "NEEDS_INFO",
+        "version": 6
+      },
+      {
+        "key": "APR_REQUEST_OTHER_1",
+        "ownerActor": "U_OTHER",
+        "version": 2
+      },
+      {
+        "key": "DELEGATION_SELF_1",
+        "ownerActor": "BUILDER_ACTOR",
+        "state": "ACTIVE",
+        "version": 3
+      },
+      {
+        "key": "DELEGATION_OTHER_1",
+        "ownerActor": "U_OTHER",
+        "version": 2
+      },
+      {
+        "candidateActors": [
+          "BUILDER_ACTOR"
+        ],
+        "key": "TASK_CLAIM_1",
+        "requester": "U_REQUESTER",
+        "state": "PENDING",
+        "version": 2
+      },
+      {
+        "assignee": "BUILDER_ACTOR",
+        "key": "TASK_DECIDE_1",
+        "requester": "U_REQUESTER",
+        "state": "PENDING",
+        "version": 3
+      },
+      {
+        "assignee": "BUILDER_ACTOR",
+        "key": "TASK_SELF_1",
+        "requester": "BUILDER_ACTOR",
+        "state": "PENDING",
+        "version": 1
+      },
+      {
+        "campaign": "CAMP_1",
+        "key": "WORK_ITEM_1",
+        "reviewer": "BUILDER_ACTOR",
+        "state": "PENDING",
+        "version": 11
+      },
+      {
+        "campaign": "CAMP_1",
+        "key": "WORK_ITEM_OTHER_1",
+        "reviewer": "U_OTHER",
+        "state": "PENDING",
+        "version": 4
+      },
+      {
+        "assignmentState": "REVOKED",
+        "campaign": "CAMP_1",
+        "key": "WORK_ITEM_REVOKED_1",
+        "reviewer": "BUILDER_ACTOR",
+        "state": "PENDING",
+        "version": 6
+      },
+      {
+        "assigneeActor": "BUILDER_ACTOR",
+        "key": "SERVICE_REQUEST_ASSIGNED_1",
+        "state": "IN_PROGRESS",
+        "version": 3
+      },
+      {
+        "assigneeActor": "U_OTHER",
+        "key": "SERVICE_REQUEST_OTHER_1",
+        "state": "IN_PROGRESS",
+        "version": 2
+      },
+      {
+        "audience": [
+          "BUILDER_ACTOR"
+        ],
+        "key": "COMMUNICATION_VISIBLE_1",
+        "state": "PUBLISHED",
+        "version": 4
+      },
+      {
+        "key": "ANNOUNCEMENT_DRAFT_1",
+        "ownerActor": "BUILDER_ACTOR",
+        "state": "DRAFT",
+        "version": 3
+      },
+      {
+        "key": "ANNOUNCEMENT_PUBLISHED_1",
+        "ownerActor": "BUILDER_ACTOR",
+        "state": "PUBLISHED",
+        "version": 4
+      },
+      {
+        "key": "SERVICE_CATALOG_ITEM_1",
+        "scopeRef": "S_SERVICES",
+        "state": "ACTIVE",
+        "version": 5
+      },
+      {
+        "key": "TIME_CARD_SELF_1",
+        "ownerPerson": "BUILDER_PERSON",
+        "state": "EDITABLE",
+        "version": 3
+      },
+      {
+        "key": "TIME_CARD_OTHER_1",
+        "ownerPerson": "P_B201",
+        "version": 2
+      },
+      {
+        "key": "ABSENCE_SELF_1",
+        "requesterPerson": "BUILDER_PERSON",
+        "state": "WITHDRAWABLE",
+        "version": 4
+      },
+      {
+        "key": "ABSENCE_OTHER_1",
+        "requesterPerson": "P_B201",
+        "version": 2
+      },
+      {
+        "key": "TALENT_GOAL_SELF_1",
+        "ownerPerson": "BUILDER_PERSON",
+        "state": "EDITABLE",
+        "version": 5
+      },
+      {
+        "key": "TALENT_GOAL_OTHER_1",
+        "ownerPerson": "P_B201",
+        "version": 2
+      },
+      {
+        "dataset": "DS_HCM_CORE@v12",
+        "key": "EXPORT_REQ_CANCEL_1",
+        "population": "LEGAL_A_ACTIVE",
+        "state": "CANCELLABLE",
+        "version": 6
+      },
+      {
+        "dataset": "DS_HCM_CORE@v12",
+        "key": "EXPORT_REQ_RETRY_1",
+        "population": "LEGAL_A_ACTIVE",
+        "state": "RETRYABLE",
+        "version": 7
+      }
+    ],
+    "payloads": [
+      {
+        "expectedVersion": 8,
+        "key": "PAYLOAD_APPROVAL_HOME_PREF_UPDATE_1",
+        "surfaceKey": "approval-home",
+        "target": "APPROVAL_HOME_PREF_1@v8"
+      },
+      {
+        "expectedVersion": 9,
+        "key": "PAYLOAD_HCM_HOME_PREF_UPDATE_1",
+        "surfaceKey": "hcm-home",
+        "target": "HCM_HOME_PREF_1@v9"
+      },
+      {
+        "credentialReferencePresent": false,
+        "key": "PAYLOAD_HRIS_CONNECTOR_CREATE_SAFE_1",
+        "scopeRef": "S_HCM_INTEGRATION"
+      },
+      {
+        "credentialReferencePresent": true,
+        "key": "PAYLOAD_HRIS_CONNECTOR_SECRET_1",
+        "scopeRef": "S_HCM_INTEGRATION"
+      },
+      {
+        "dataset": "DS_HCM_CORE@v12",
+        "key": "PAYLOAD_EXPORT_PREVIEW_1",
+        "population": "LEGAL_A_ACTIVE",
+        "projection": "hcm.controlled-export.preview.v1"
+      }
+    ],
+    "relationships": [
+      {
+        "actor": "BUILDER_ACTOR",
+        "key": "R_DIRECT_TEAM_A",
+        "scopeRef": "S_TEAM_A",
+        "status": "ACTIVE",
+        "target": "TEAM_A",
+        "type": "DIRECT_REPORT"
+      },
+      {
+        "actor": "BUILDER_ACTOR",
+        "key": "R_DELEGATED_TEAM_B",
+        "scopeRef": "S_TEAM_B",
+        "status": "ACTIVE",
+        "target": "TEAM_B",
+        "type": "DELEGATED_TEAM"
+      },
+      {
+        "actor": "BUILDER_ACTOR",
+        "campaign": "CAMP_1",
+        "key": "R_REVIEW_ITEM_1",
+        "status": "ACTIVE",
+        "target": "WORK_ITEM_1@v11",
+        "type": "NAMED_REVIEWER"
+      }
+    ],
+    "scopes": [
+      {
+        "isDefault": true,
+        "key": "S_APPROVAL_SELF",
+        "kind": "SELF",
+        "readOnly": false,
+        "resourceRef": "P_A100",
+        "status": "ACTIVE",
+        "tenantId": "T_A"
+      },
+      {
+        "isDefault": true,
+        "key": "S_APPROVALS",
+        "kind": "RESOURCE_SET",
+        "readOnly": false,
+        "resourceRef": "RS_APPROVALS",
+        "status": "ACTIVE",
+        "tenantId": "T_A"
+      },
+      {
+        "isDefault": true,
+        "key": "S_APPROVALS_AUDIT",
+        "kind": "RESOURCE_SET",
+        "readOnly": true,
+        "resourceRef": "RS_APPROVALS_AUDIT",
+        "status": "ACTIVE",
+        "tenantId": "T_A"
+      },
+      {
+        "isDefault": true,
+        "key": "S_APPROVALS_OVERSIGHT",
+        "kind": "RESOURCE_SET",
+        "readOnly": true,
+        "resourceRef": "RS_APPROVALS",
+        "status": "ACTIVE",
+        "tenantId": "T_A",
+        "validUntil": "2027-02-28T14:59:59Z"
+      },
+      {
+        "isDefault": true,
+        "key": "S_COMM_SELF",
+        "kind": "SELF",
+        "readOnly": false,
+        "resourceRef": "P_A100",
+        "status": "ACTIVE",
+        "tenantId": "T_A"
+      },
+      {
+        "isDefault": true,
+        "key": "S_SERVICES_SELF",
+        "kind": "SELF",
+        "readOnly": false,
+        "resourceRef": "P_A100",
+        "status": "ACTIVE",
+        "tenantId": "T_A"
+      },
+      {
+        "isDefault": true,
+        "key": "S_COMMUNICATIONS",
+        "kind": "RESOURCE_SET",
+        "readOnly": false,
+        "resourceRef": "RS_COMMUNICATIONS",
+        "status": "ACTIVE",
+        "tenantId": "T_A"
+      },
+      {
+        "isDefault": true,
+        "key": "S_COMMUNICATIONS_SUPPORT",
+        "kind": "RESOURCE_SET",
+        "readOnly": true,
+        "resourceRef": "RS_COMMUNICATIONS",
+        "status": "ACTIVE",
+        "tenantId": "T_A",
+        "validUntil": "2026-08-21T09:30:00Z"
+      },
+      {
+        "isDefault": true,
+        "key": "S_SERVICES",
+        "kind": "RESOURCE_SET",
+        "readOnly": false,
+        "resourceRef": "RS_SERVICES",
+        "status": "ACTIVE",
+        "tenantId": "T_A"
+      },
+      {
+        "isDefault": true,
+        "key": "S_SELF_A100",
+        "kind": "SELF",
+        "readOnly": false,
+        "resourceRef": "P_A100",
+        "status": "ACTIVE",
+        "tenantId": "T_A"
+      },
+      {
+        "isDefault": true,
+        "key": "S_TEAM_A",
+        "kind": "TEAM",
+        "readOnly": false,
+        "resourceRef": "TEAM_A",
+        "status": "ACTIVE",
+        "tenantId": "T_A"
+      },
+      {
+        "isDefault": true,
+        "key": "S_TEAM_B",
+        "kind": "TEAM",
+        "readOnly": false,
+        "resourceRef": "TEAM_B",
+        "status": "ACTIVE",
+        "tenantId": "T_A"
+      },
+      {
+        "isDefault": true,
+        "key": "S_LEGAL_A_TIME",
+        "kind": "LEGAL_ENTITY",
+        "readOnly": false,
+        "resourceRef": "LEGAL_A:TIME",
+        "status": "ACTIVE",
+        "tenantId": "T_A"
+      },
+      {
+        "isDefault": false,
+        "key": "S_LEGAL_B_TIME",
+        "kind": "LEGAL_ENTITY",
+        "readOnly": false,
+        "resourceRef": "LEGAL_B:TIME",
+        "status": "ACTIVE",
+        "tenantId": "T_A"
+      },
+      {
+        "isDefault": true,
+        "key": "S_LEGAL_A_WORKFORCE",
+        "kind": "LEGAL_ENTITY",
+        "readOnly": false,
+        "resourceRef": "LEGAL_A:WORKFORCE",
+        "status": "ACTIVE",
+        "tenantId": "T_A"
+      },
+      {
+        "isDefault": true,
+        "key": "S_LEGAL_A_WORKFORCE_SUPPORT",
+        "kind": "LEGAL_ENTITY",
+        "readOnly": true,
+        "resourceRef": "LEGAL_A:WORKFORCE",
+        "status": "ACTIVE",
+        "tenantId": "T_A",
+        "validUntil": "2026-08-21T09:30:00Z"
+      },
+      {
+        "isDefault": true,
+        "key": "S_HCM_CONFIG",
+        "kind": "RESOURCE_SET",
+        "readOnly": false,
+        "resourceRef": "RS_HCM_CONFIG",
+        "status": "ACTIVE",
+        "tenantId": "T_A"
+      },
+      {
+        "isDefault": true,
+        "key": "S_HCM_REFERENCE",
+        "kind": "RESOURCE",
+        "readOnly": false,
+        "resourceRef": "HCM_REFERENCE",
+        "status": "ACTIVE",
+        "tenantId": "T_A"
+      },
+      {
+        "isDefault": true,
+        "key": "S_HCM_INTEGRATION",
+        "kind": "RESOURCE",
+        "readOnly": false,
+        "resourceRef": "HCM_INTEGRATION",
+        "status": "ACTIVE",
+        "tenantId": "T_A"
+      },
+      {
+        "isDefault": true,
+        "key": "S_LEGAL_A_EXPORT",
+        "kind": "LEGAL_ENTITY",
+        "readOnly": false,
+        "resourceRef": "LEGAL_A:EXPORT",
+        "status": "ACTIVE",
+        "tenantId": "T_A"
+      },
+      {
+        "isDefault": true,
+        "key": "S_EXPIRED_TIME",
+        "kind": "LEGAL_ENTITY",
+        "readOnly": true,
+        "resourceRef": "LEGAL_A:TIME",
+        "status": "EXPIRED",
+        "tenantId": "T_A",
+        "validUntil": "2026-08-21T08:59:59Z"
+      },
+      {
+        "isDefault": true,
+        "key": "S_FOREIGN",
+        "kind": "RESOURCE_SET",
+        "readOnly": false,
+        "resourceRef": "RS_APPROVALS_B",
+        "status": "ACTIVE",
+        "tenantId": "T_B"
+      }
+    ],
+    "stepUpChallenges": [
+      {
+        "acr": "urn:dwp:acr:mfa",
+        "actorUserId": 17,
+        "algorithm": "RS256",
+        "amr": [
+          "mfa"
+        ],
+        "audience": "dwp-approval-server",
+        "authenticatedAt": "2026-08-21T08:58:00Z",
+        "capabilityContractKey": "approvals.design.publish",
+        "challengeId": "JTI_HIGH_WF_1",
+        "commandContractKey": "route.approvals.admin.workflow-publish.action",
+        "commandSha256": "4f33d797380d2fcf54e6e0e8900aad98a1b857089b8c7b17027f535dde1ff80b",
+        "compactToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImZpeHR1cmUtYXBwcm92YWwtc3RlcC11cC1yczI1Ni12MSIsInR5cCI6IkpXVCJ9.eyJhY3IiOiJ1cm46ZHdwOmFjcjptZmEiLCJhY3RpdmF0aW9uX3BvbGljeSI6IlNURVBVUC1NR01ULUhJR0gtVjEiLCJhbXIiOlsibWZhIl0sImF1ZCI6ImR3cC1hcHByb3ZhbC1zZXJ2ZXIiLCJhdXRoX3RpbWUiOjE3ODczMDI2ODAsImNhcGFiaWxpdHlfY29udHJhY3Rfa2V5IjoiYXBwcm92YWxzLmRlc2lnbi5wdWJsaXNoIiwiY29tbWFuZF9jb250cmFjdF9rZXkiOiJyb3V0ZS5hcHByb3ZhbHMuYWRtaW4ud29ya2Zsb3ctcHVibGlzaC5hY3Rpb24iLCJjb21tYW5kX21ldGhvZCI6IlBPU1QiLCJjb21tYW5kX3BhdGgiOiIvYXBpL2FwcHJvdmFscy92MS9hZG1pbi93b3JrZmxvd3MvMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxL3B1Ymxpc2giLCJjb21tYW5kX3NoYTI1NiI6IjRmMzNkNzk3MzgwZDJmY2Y1NGU2ZTBlODkwMGFhZDk4YTFiODU3MDg5YjhjN2IxNzAyN2Y1MzVkZGUxZmY4MGIiLCJjb250ZXh0X2tleSI6ImFwcHJvdmFsLW1hbmFnZW1lbnQiLCJkZWNpc2lvbl9yZXZpc2lvbiI6IkQtQS1XRi1QVUItUjEiLCJleHAiOjE3ODczMDM0MDAsImlhdCI6MTc4NzMwMjc3MCwiaWRlbXBvdGVuY3lfa2V5IjoiaWRlbS1oaWdoLXdvcmtmbG93LXB1Ymxpc2gtMSIsImlzcyI6Imh0dHBzOi8vYXV0aC5maXh0dXJlLmR3cC50ZXN0IiwianRpIjoiSlRJX0hJR0hfV0ZfMSIsIm5iZiI6MTc4NzMwMjc3MCwibm9uY2UiOiJOX0hJR0hfV0ZfMSIsIm93bmVyX3NlcnZpY2Vfa2V5IjoiYXBwcm92YWwiLCJwYXlsb2FkX3NoYTI1NiI6IjA5YWNlMWUxM2M4NTQ1MmNjMGMzNjRkMzM5ODM2YjM4OGI2ODZkNTFlNjExZDYxM2RhNTU1OTY3M2Q3ZjlhZDEiLCJzY29wZV9yZWYiOiJTX0FQUFJPVkFMUyIsInN1YiI6IjE3IiwidGFyZ2V0X2lkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAxIiwidGFyZ2V0X3R5cGUiOiJXT1JLRkxPVyIsInRhcmdldF92ZXJzaW9uIjo3LCJ0ZW5hbnRfaWQiOjQyfQ.ZcxwCSPXTwdlLSNpV9NLU77EwzOTVuRKDD-up4RrA70pUpXCl7qllLx584Kf2rVBfaUUzGQTC_zXUA8UvU85NB_VCaz9MLryVciEGwEakds493h_IJFXNpUcW6fqSuD4spbGY3U38ur63oRdFZl0cwHmuQRMMDMs_Ja4oBzYuXTGPkrNR180sB7nnNJSF9WMeq7NtWLAzud2Wz6dPLEed3IjewKH_RdkxheV-nrOKUwqKQ4l3zeYOwvYAusnF60ZlJL6z_BtpdJ2KxAETuykZAPDe__j4bobcqR43_Xk7eWAEw0D9mJNidl2JpbKgDdOBjjrKnkIoTPpxKEGxPVDUQ",
+        "contextKey": "approval-management",
+        "decisionRevision": "D-A-WF-PUB-R1",
+        "expectedObjectVersionName": "expectedVersion",
+        "expectedObjectVersionSource": "COMMAND_BODY",
+        "expiresAt": "2026-08-21T09:10:00Z",
+        "idempotencyKey": "idem-high-workflow-publish-1",
+        "issuedAt": "2026-08-21T08:59:30Z",
+        "issuer": "https://auth.fixture.dwp.test",
+        "key": "STEPUP_HIGH_WORKFLOW_PUBLISH_1",
+        "keyId": "fixture-approval-step-up-rs256-v1",
+        "method": "POST",
+        "nonce": "N_HIGH_WF_1",
+        "ownerServiceKey": "approval",
+        "path": "/api/approvals/v1/admin/workflows/00000000-0000-0000-0000-000000000001/publish",
+        "payload": {
+          "expectedVersion": 7
+        },
+        "payloadSha256": "09ace1e13c85452cc0c364d339836b388b686d51e611d613da5559673d7f9ad1",
+        "policy": "STEPUP-MGMT-HIGH-V1",
+        "requiredRegistryRef": {
+          "bundleKey": "product-surfaces",
+          "sha256": "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
+          "version": 2
+        },
+        "scopeRef": "S_APPROVALS",
+        "state": "ACTIVE",
+        "stepUpCommandBindingKey": "route.approvals.admin.workflow-publish.action.binding.01",
+        "targetId": "00000000-0000-0000-0000-000000000001",
+        "targetIdPathParameter": "workflowId",
+        "targetIdSource": "PATH_PARAMETER",
+        "targetType": "WORKFLOW",
+        "targetVersion": 7,
+        "tenantId": 42
+      },
+      {
+        "acr": "urn:dwp:acr:mfa",
+        "actorUserId": 17,
+        "algorithm": "RS256",
+        "amr": [
+          "mfa"
+        ],
+        "audience": "dwp-approval-server",
+        "authenticatedAt": "2026-08-21T08:58:00Z",
+        "capabilityContractKey": "approvals.design.publish",
+        "challengeId": "JTI_HIGH_FORM_1",
+        "commandContractKey": "route.approvals.admin.form-publish.action",
+        "commandSha256": "a00b7465ac9c3da84f8beeb6544da1746988fd11629381131dc1b7199b7632e9",
+        "compactToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImZpeHR1cmUtYXBwcm92YWwtc3RlcC11cC1yczI1Ni12MSIsInR5cCI6IkpXVCJ9.eyJhY3IiOiJ1cm46ZHdwOmFjcjptZmEiLCJhY3RpdmF0aW9uX3BvbGljeSI6IlNURVBVUC1NR01ULUhJR0gtVjEiLCJhbXIiOlsibWZhIl0sImF1ZCI6ImR3cC1hcHByb3ZhbC1zZXJ2ZXIiLCJhdXRoX3RpbWUiOjE3ODczMDI2ODAsImNhcGFiaWxpdHlfY29udHJhY3Rfa2V5IjoiYXBwcm92YWxzLmRlc2lnbi5wdWJsaXNoIiwiY29tbWFuZF9jb250cmFjdF9rZXkiOiJyb3V0ZS5hcHByb3ZhbHMuYWRtaW4uZm9ybS1wdWJsaXNoLmFjdGlvbiIsImNvbW1hbmRfbWV0aG9kIjoiUE9TVCIsImNvbW1hbmRfcGF0aCI6Ii9hcGkvYXBwcm92YWxzL3YxL2FkbWluL2Zvcm1zLzAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMi9wdWJsaXNoIiwiY29tbWFuZF9zaGEyNTYiOiJhMDBiNzQ2NWFjOWMzZGE4NGY4YmVlYjY1NDRkYTE3NDY5ODhmZDExNjI5MzgxMTMxZGMxYjcxOTliNzYzMmU5IiwiY29udGV4dF9rZXkiOiJhcHByb3ZhbC1tYW5hZ2VtZW50IiwiZGVjaXNpb25fcmV2aXNpb24iOiJELUEtRk9STS1QVUItUjEiLCJleHAiOjE3ODczMDM0MDAsImlhdCI6MTc4NzMwMjc3MCwiaWRlbXBvdGVuY3lfa2V5IjoiaWRlbS1oaWdoLWZvcm0tcHVibGlzaC0xIiwiaXNzIjoiaHR0cHM6Ly9hdXRoLmZpeHR1cmUuZHdwLnRlc3QiLCJqdGkiOiJKVElfSElHSF9GT1JNXzEiLCJuYmYiOjE3ODczMDI3NzAsIm5vbmNlIjoiTl9ISUdIX0ZPUk1fMSIsIm93bmVyX3NlcnZpY2Vfa2V5IjoiYXBwcm92YWwiLCJwYXlsb2FkX3NoYTI1NiI6IjZkOTcyYjAyYWZmZDg1MjM4M2Q4M2M5NGVhNTRhMWQ3OWViNTMyYzdlZTRkYmJlNWJiZDEwZjUyNzIzZGE2MzgiLCJzY29wZV9yZWYiOiJTX0FQUFJPVkFMUyIsInN1YiI6IjE3IiwidGFyZ2V0X2lkIjoiMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAyIiwidGFyZ2V0X3R5cGUiOiJGT1JNIiwidGFyZ2V0X3ZlcnNpb24iOjUsInRlbmFudF9pZCI6NDJ9.JZxXFCjgPm8xKkRYF51BWmMd4v-_Kyit5A0lKdKfRN_3nilRM2cqrvHMJ6al_13GmM-JUmodSs3m6bNOXGbqIe3XNQZsy5NIaMUOnf2-Ah6oj5Oaw_lS-aGxijcYDfrARZrM0qz6qot-SQpLLy0W427IgqrMSQCXaFUWRT5BAyrOLZUTgEDAbxHo12K2fiQ0juX0hXLAeHOrMzMK0CfD18bIGPnN-vv3z_s76MOihZyelJtDag-mKHJ30KISNM2h3m0Poua96UOOG7puLOLxmCg_2NomQA7X_xFERBlmAOarwrMvAAXdxk9R_ky7kY1Jfgb6goNTZz5BIOhZFy-MjQ",
+        "contextKey": "approval-management",
+        "decisionRevision": "D-A-FORM-PUB-R1",
+        "expectedObjectVersionName": "expectedVersion",
+        "expectedObjectVersionSource": "COMMAND_BODY",
+        "expiresAt": "2026-08-21T09:10:00Z",
+        "idempotencyKey": "idem-high-form-publish-1",
+        "issuedAt": "2026-08-21T08:59:30Z",
+        "issuer": "https://auth.fixture.dwp.test",
+        "key": "STEPUP_HIGH_FORM_PUBLISH_1",
+        "keyId": "fixture-approval-step-up-rs256-v1",
+        "method": "POST",
+        "nonce": "N_HIGH_FORM_1",
+        "ownerServiceKey": "approval",
+        "path": "/api/approvals/v1/admin/forms/00000000-0000-0000-0000-000000000002/publish",
+        "payload": {
+          "expectedVersion": 5
+        },
+        "payloadSha256": "6d972b02affd852383d83c94ea54a1d79eb532c7ee4dbbe5bbd10f52723da638",
+        "policy": "STEPUP-MGMT-HIGH-V1",
+        "requiredRegistryRef": {
+          "bundleKey": "product-surfaces",
+          "sha256": "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
+          "version": 2
+        },
+        "scopeRef": "S_APPROVALS",
+        "state": "ACTIVE",
+        "stepUpCommandBindingKey": "route.approvals.admin.form-publish.action.binding.01",
+        "targetId": "00000000-0000-0000-0000-000000000002",
+        "targetIdPathParameter": "formId",
+        "targetIdSource": "PATH_PARAMETER",
+        "targetType": "FORM",
+        "targetVersion": 5,
+        "tenantId": 42
+      },
+      {
+        "acr": "urn:dwp:acr:mfa",
+        "actorUserId": 17,
+        "algorithm": "RS256",
+        "amr": [
+          "mfa"
+        ],
+        "audience": "dwp-approval-server",
+        "authenticatedAt": "2026-08-21T08:58:00Z",
+        "capabilityContractKey": "approvals.policy.publish",
+        "challengeId": "JTI_HIGH_POL_1",
+        "commandContractKey": "route.approvals.admin.policy-publish.action",
+        "commandSha256": "8937d0fc3252346fb42453ae534410f1d6e5e9fae7ad2300dddd0e4f1e2c0652",
+        "compactToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImZpeHR1cmUtYXBwcm92YWwtc3RlcC11cC1yczI1Ni12MSIsInR5cCI6IkpXVCJ9.eyJhY3IiOiJ1cm46ZHdwOmFjcjptZmEiLCJhY3RpdmF0aW9uX3BvbGljeSI6IlNURVBVUC1NR01ULUhJR0gtVjEiLCJhbXIiOlsibWZhIl0sImF1ZCI6ImR3cC1hcHByb3ZhbC1zZXJ2ZXIiLCJhdXRoX3RpbWUiOjE3ODczMDI2ODAsImNhcGFiaWxpdHlfY29udHJhY3Rfa2V5IjoiYXBwcm92YWxzLnBvbGljeS5wdWJsaXNoIiwiY29tbWFuZF9jb250cmFjdF9rZXkiOiJyb3V0ZS5hcHByb3ZhbHMuYWRtaW4ucG9saWN5LXB1Ymxpc2guYWN0aW9uIiwiY29tbWFuZF9tZXRob2QiOiJQT1NUIiwiY29tbWFuZF9wYXRoIjoiL2FwaS9hcHByb3ZhbHMvdjEvYWRtaW4vcG9saWNpZXMvMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAzL3B1Ymxpc2giLCJjb21tYW5kX3NoYTI1NiI6Ijg5MzdkMGZjMzI1MjM0NmZiNDI0NTNhZTUzNDQxMGYxZDZlNWU5ZmFlN2FkMjMwMGRkZGQwZTRmMWUyYzA2NTIiLCJjb250ZXh0X2tleSI6ImFwcHJvdmFsLW1hbmFnZW1lbnQiLCJkZWNpc2lvbl9yZXZpc2lvbiI6IkQtQS1QT0wtUFVCLVIxIiwiZXhwIjoxNzg3MzAzNDAwLCJpYXQiOjE3ODczMDI3NzAsImlkZW1wb3RlbmN5X2tleSI6ImlkZW0taGlnaC1wb2xpY3ktcHVibGlzaC0xIiwiaXNzIjoiaHR0cHM6Ly9hdXRoLmZpeHR1cmUuZHdwLnRlc3QiLCJqdGkiOiJKVElfSElHSF9QT0xfMSIsIm5iZiI6MTc4NzMwMjc3MCwibm9uY2UiOiJOX0hJR0hfUE9MXzEiLCJvd25lcl9zZXJ2aWNlX2tleSI6ImFwcHJvdmFsIiwicGF5bG9hZF9zaGEyNTYiOiIwYzhhYmE0ZjIxNDNjODVlOGU0OTQ2NTBhOWI5YTFkY2YxM2EwNjI5OWM2NzQ1OTFkYjQ0MTljNTA2NGZhNzllIiwic2NvcGVfcmVmIjoiU19BUFBST1ZBTFMiLCJzdWIiOiIxNyIsInRhcmdldF9pZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMyIsInRhcmdldF90eXBlIjoiUE9MSUNZIiwidGFyZ2V0X3ZlcnNpb24iOjQsInRlbmFudF9pZCI6NDJ9.CbTkUEN0W0FV0cvdR6tsSxDDx3rGS1YAg_VGSdSY-0HB-_sYNEBY4VIUnv_jIgjqnThh_9-4huO8qYBWipJDQLaVst45AQXQaCuxDsrdu0_2fNMSC52O2Gmf1pHQBj8gBLR02GtXxybVtxlQIZloJ4JHwSHlCSHXWlD3-hOxuLQBEUm-e_iuv3G9P7uebc8_JKZnHjbs0Myof8jlC4nqloJCiwgwwbBFPzXk09YnUF4Zll7Ro7Uw_326HWnJ0TrCAKAjqxLJ45NvNTfJVJgF56CHolphZheXVgKaYCf9dyaXxdjmiXwCFLeM1kwkYmobUbJ692lo9UjA5vBen1C5rQ",
+        "contextKey": "approval-management",
+        "decisionRevision": "D-A-POL-PUB-R1",
+        "expectedObjectVersionName": "expectedVersion",
+        "expectedObjectVersionSource": "COMMAND_BODY",
+        "expiresAt": "2026-08-21T09:10:00Z",
+        "idempotencyKey": "idem-high-policy-publish-1",
+        "issuedAt": "2026-08-21T08:59:30Z",
+        "issuer": "https://auth.fixture.dwp.test",
+        "key": "STEPUP_HIGH_POLICY_PUBLISH_1",
+        "keyId": "fixture-approval-step-up-rs256-v1",
+        "method": "POST",
+        "nonce": "N_HIGH_POL_1",
+        "ownerServiceKey": "approval",
+        "path": "/api/approvals/v1/admin/policies/00000000-0000-0000-0000-000000000003/publish",
+        "payload": {
+          "expectedVersion": 4,
+          "reviewComment": "Fixture checker approval"
+        },
+        "payloadSha256": "0c8aba4f2143c85e8e494650a9b9a1dcf13a06299c674591db4419c5064fa79e",
+        "policy": "STEPUP-MGMT-HIGH-V1",
+        "requiredRegistryRef": {
+          "bundleKey": "product-surfaces",
+          "sha256": "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
+          "version": 2
+        },
+        "scopeRef": "S_APPROVALS",
+        "state": "ACTIVE",
+        "stepUpCommandBindingKey": "route.approvals.admin.policy-publish.action.binding.01",
+        "targetId": "00000000-0000-0000-0000-000000000003",
+        "targetIdPathParameter": "policyId",
+        "targetIdSource": "PATH_PARAMETER",
+        "targetType": "POLICY",
+        "targetVersion": 4,
+        "tenantId": 42
+      },
+      {
+        "acr": "urn:dwp:acr:mfa",
+        "actorUserId": 17,
+        "algorithm": "RS256",
+        "amr": [
+          "mfa"
+        ],
+        "audience": "dwp-approval-server",
+        "authenticatedAt": "2026-08-21T08:58:00Z",
+        "capabilityContractKey": "approvals.operations.execute",
+        "challengeId": "JTI_HIGH_OPS_1",
+        "commandContractKey": "route.approvals.admin.operations.retry.action",
+        "commandSha256": "347936dbfa18dd498c67bf094453aa3ff381f6deba10c4c502548549187c97f4",
+        "compactToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImZpeHR1cmUtYXBwcm92YWwtc3RlcC11cC1yczI1Ni12MSIsInR5cCI6IkpXVCJ9.eyJhY3IiOiJ1cm46ZHdwOmFjcjptZmEiLCJhY3RpdmF0aW9uX3BvbGljeSI6IlNURVBVUC1NR01ULUhJR0gtVjEiLCJhbXIiOlsibWZhIl0sImF1ZCI6ImR3cC1hcHByb3ZhbC1zZXJ2ZXIiLCJhdXRoX3RpbWUiOjE3ODczMDI2ODAsImNhcGFiaWxpdHlfY29udHJhY3Rfa2V5IjoiYXBwcm92YWxzLm9wZXJhdGlvbnMuZXhlY3V0ZSIsImNvbW1hbmRfY29udHJhY3Rfa2V5Ijoicm91dGUuYXBwcm92YWxzLmFkbWluLm9wZXJhdGlvbnMucmV0cnkuYWN0aW9uIiwiY29tbWFuZF9tZXRob2QiOiJQT1NUIiwiY29tbWFuZF9wYXRoIjoiL2FwaS9hcHByb3ZhbHMvdjEvYWRtaW4vb3BlcmF0aW9ucy9ldmVudHMvMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDA0L3JldHJ5IiwiY29tbWFuZF9zaGEyNTYiOiIzNDc5MzZkYmZhMThkZDQ5OGM2N2JmMDk0NDUzYWEzZmYzODFmNmRlYmExMGM0YzUwMjU0ODU0OTE4N2M5N2Y0IiwiY29udGV4dF9rZXkiOiJhcHByb3ZhbC1tYW5hZ2VtZW50IiwiZGVjaXNpb25fcmV2aXNpb24iOiJELUEtT1BTLVIxIiwiZXhwIjoxNzg3MzAzNDAwLCJpYXQiOjE3ODczMDI3NzAsImlkZW1wb3RlbmN5X2tleSI6ImlkZW0taGlnaC1yZWNvdmVyeS0xIiwiaXNzIjoiaHR0cHM6Ly9hdXRoLmZpeHR1cmUuZHdwLnRlc3QiLCJqdGkiOiJKVElfSElHSF9PUFNfMSIsIm5iZiI6MTc4NzMwMjc3MCwibm9uY2UiOiJOX0hJR0hfT1BTXzEiLCJvd25lcl9zZXJ2aWNlX2tleSI6ImFwcHJvdmFsIiwicGF5bG9hZF9zaGEyNTYiOiI0NDEzNmZhMzU1YjM2NzhhMTE0NmFkMTZmN2U4NjQ5ZTk0ZmI0ZmMyMWZlNzdlODMxMGMwNjBmNjFjYWFmZjhhIiwic2NvcGVfcmVmIjoiU19BUFBST1ZBTFMiLCJzdWIiOiIxNyIsInRhcmdldF9pZCI6IjAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwNCIsInRhcmdldF90eXBlIjoiT1VUQk9YX0VWRU5UIiwidGFyZ2V0X3ZlcnNpb24iOjIsInRlbmFudF9pZCI6NDJ9.iV6A6RG9k1Z3rIKiQcvAWcMvEn6J0IxSRhaL9uEqLIi7iVvc-jaZ9_ZtpXQDzSy5KlHAWxvhxqq60XbInT0aU58pGGdgkV67-kMwgilA8vxaYvBvxIQVFRUP3f2T7qjq7P2vEhcfEtIeMfwddlBU2WJRII_OpSP7l8jQbeMt9eE3CCEUxn-mASDQutEDk3WovRUdEJFICkuHGYrryajfmFKuxcODJEiY77r4WZhQL7-qJZYF04-fA1abP_xnPRWS7QFVWco0AotkIx5SY_4n7zL0CRWrYKKHT9AE41tB-ymuXvJPPtHS6M28lQwDg-a1Vr79NFKpBfrfbUmfkqAQGA",
+        "contextKey": "approval-management",
+        "decisionRevision": "D-A-OPS-R1",
+        "expectedObjectVersionName": "X-DWP-Expected-Object-Version",
+        "expectedObjectVersionSource": "COMMAND_HEADER",
+        "expiresAt": "2026-08-21T09:10:00Z",
+        "idempotencyKey": "idem-high-recovery-1",
+        "issuedAt": "2026-08-21T08:59:30Z",
+        "issuer": "https://auth.fixture.dwp.test",
+        "key": "STEPUP_HIGH_RECOVERY_1",
+        "keyId": "fixture-approval-step-up-rs256-v1",
+        "method": "POST",
+        "nonce": "N_HIGH_OPS_1",
+        "ownerServiceKey": "approval",
+        "path": "/api/approvals/v1/admin/operations/events/00000000-0000-0000-0000-000000000004/retry",
+        "payload": {},
+        "payloadSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "policy": "STEPUP-MGMT-HIGH-V1",
+        "requiredRegistryRef": {
+          "bundleKey": "product-surfaces",
+          "sha256": "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
+          "version": 2
+        },
+        "scopeRef": "S_APPROVALS",
+        "state": "ACTIVE",
+        "stepUpCommandBindingKey": "route.approvals.admin.operations.retry.action.binding.01",
+        "targetId": "00000000-0000-0000-0000-000000000004",
+        "targetIdPathParameter": "outboxId",
+        "targetIdSource": "PATH_PARAMETER",
+        "targetType": "OUTBOX_EVENT",
+        "targetVersion": 2,
+        "tenantId": 42
+      },
+      {
+        "acr": "urn:dwp:acr:mfa",
+        "actorUserId": 17,
+        "algorithm": "RS256",
+        "amr": [
+          "mfa"
+        ],
+        "audience": "dwp-people-server",
+        "authenticatedAt": "2026-08-21T08:58:00Z",
+        "capabilityContractKey": "hcm.org-design.publish",
+        "challengeId": "JTI_HIGH_ORG_1",
+        "commandContractKey": "route.hcm.management.org-publish.action",
+        "commandSha256": "d0f74a05a5f0c3c28b8758dd8d5bda415924f5217e8ab4230e45821147389384",
+        "compactToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImZpeHR1cmUtYXBwcm92YWwtc3RlcC11cC1yczI1Ni12MSIsInR5cCI6IkpXVCJ9.eyJhY3IiOiJ1cm46ZHdwOmFjcjptZmEiLCJhY3RpdmF0aW9uX3BvbGljeSI6IlNURVBVUC1NR01ULUhJR0gtVjEiLCJhbXIiOlsibWZhIl0sImF1ZCI6ImR3cC1wZW9wbGUtc2VydmVyIiwiYXV0aF90aW1lIjoxNzg3MzAyNjgwLCJjYXBhYmlsaXR5X2NvbnRyYWN0X2tleSI6ImhjbS5vcmctZGVzaWduLnB1Ymxpc2giLCJjb21tYW5kX2NvbnRyYWN0X2tleSI6InJvdXRlLmhjbS5tYW5hZ2VtZW50Lm9yZy1wdWJsaXNoLmFjdGlvbiIsImNvbW1hbmRfbWV0aG9kIjoiUE9TVCIsImNvbW1hbmRfcGF0aCI6Ii9hcGkvcGVvcGxlL3YxL3dvcmtmb3JjZS9vcmdhbml6YXRpb24vc2NlbmFyaW9zL09SR18xL3B1Ymxpc2giLCJjb21tYW5kX3NoYTI1NiI6ImQwZjc0YTA1YTVmMGMzYzI4Yjg3NThkZDhkNWJkYTQxNTkyNGY1MjE3ZThhYjQyMzBlNDU4MjExNDczODkzODQiLCJjb250ZXh0X2tleSI6ImhjbS1tYW5hZ2VtZW50IiwiZGVjaXNpb25fcmV2aXNpb24iOiJELUgtT1JHLVIxIiwiZXhwIjoxNzg3MzAzNDAwLCJpYXQiOjE3ODczMDI3NzAsImlkZW1wb3RlbmN5X2tleSI6ImlkZW0taGlnaC1vcmctcHVibGlzaC0xIiwiaXNzIjoiaHR0cHM6Ly9hdXRoLmZpeHR1cmUuZHdwLnRlc3QiLCJqdGkiOiJKVElfSElHSF9PUkdfMSIsIm5iZiI6MTc4NzMwMjc3MCwibm9uY2UiOiJOX0hJR0hfT1JHXzEiLCJvd25lcl9zZXJ2aWNlX2tleSI6InBlb3BsZSIsInBheWxvYWRfc2hhMjU2IjoiNDQxMzZmYTM1NWIzNjc4YTExNDZhZDE2ZjdlODY0OWU5NGZiNGZjMjFmZTc3ZTgzMTBjMDYwZjYxY2FhZmY4YSIsInNjb3BlX3JlZiI6IlNfSENNX0NPTkZJRyIsInN1YiI6IjE3IiwidGFyZ2V0X2lkIjoiT1JHXzEiLCJ0YXJnZXRfdHlwZSI6Ik9SR19TQ0VOQVJJTyIsInRhcmdldF92ZXJzaW9uIjo1LCJ0ZW5hbnRfaWQiOjQyfQ.N1LdUtwgmLmuiqJi7sCcYSMkVuPd5T9iIfZo59RxMGn9KR0Rm876qKSbsCOHf9ZmI84_LGIsPk2JMuJ2PJ20rpvwjOYFlvzq-wvgNjHZWBaEwDheT0tU8k-VT1vI2t2j8HwCrkPeX7J3jAp3YvNIlJE5S0d7a9mNNJ4kXWizXn5nHaDUa7pSMHTenKnf8E5poRFezCSjMZipw4FpCeSVAoXRally9CWQwE510vyED_1v4vrbJFhM0ZalBVeM_g3mNIRKvBRQiERf7aaT7J7gZbWdz2T8--pjzqb6ujXIEOblFVjuGi0CwGcNe174a7BUnadPPjXIENxgyrNc-cgWag",
+        "contextKey": "hcm-management",
+        "decisionRevision": "D-H-ORG-R1",
+        "expectedObjectVersionName": "X-DWP-Expected-Object-Version",
+        "expectedObjectVersionSource": "COMMAND_HEADER",
+        "expiresAt": "2026-08-21T09:10:00Z",
+        "idempotencyKey": "idem-high-org-publish-1",
+        "issuedAt": "2026-08-21T08:59:30Z",
+        "issuer": "https://auth.fixture.dwp.test",
+        "key": "STEPUP_HIGH_ORG_PUBLISH_1",
+        "keyId": "fixture-approval-step-up-rs256-v1",
+        "method": "POST",
+        "nonce": "N_HIGH_ORG_1",
+        "ownerServiceKey": "people",
+        "path": "/api/people/v1/workforce/organization/scenarios/ORG_1/publish",
+        "payload": {},
+        "payloadSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "policy": "STEPUP-MGMT-HIGH-V1",
+        "requiredRegistryRef": {
+          "bundleKey": "product-surfaces",
+          "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+          "version": 3
+        },
+        "scopeRef": "S_HCM_CONFIG",
+        "state": "ACTIVE",
+        "stepUpCommandBindingKey": "route.hcm.management.org-publish.action.binding.01",
+        "targetId": "ORG_1",
+        "targetIdPathParameter": "scenarioId",
+        "targetIdSource": "PATH_PARAMETER",
+        "targetType": "ORG_SCENARIO",
+        "targetVersion": 5,
+        "tenantId": 42
+      },
+      {
+        "acr": "urn:dwp:acr:mfa",
+        "actorUserId": 17,
+        "algorithm": "RS256",
+        "amr": [
+          "mfa"
+        ],
+        "audience": "dwp-people-server",
+        "authenticatedAt": "2026-08-21T08:58:00Z",
+        "capabilityContractKey": "hcm.integration.execute",
+        "challengeId": "JTI_HIGH_INT_1",
+        "commandContractKey": "route.hcm.management.integration-execute.action",
+        "commandSha256": "4ec99f34fd0067254b0a8aaf485b4d605c272cf42f073986167692fa093857e4",
+        "compactToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImZpeHR1cmUtYXBwcm92YWwtc3RlcC11cC1yczI1Ni12MSIsInR5cCI6IkpXVCJ9.eyJhY3IiOiJ1cm46ZHdwOmFjcjptZmEiLCJhY3RpdmF0aW9uX3BvbGljeSI6IlNURVBVUC1NR01ULUhJR0gtVjEiLCJhbXIiOlsibWZhIl0sImF1ZCI6ImR3cC1wZW9wbGUtc2VydmVyIiwiYXV0aF90aW1lIjoxNzg3MzAyNjgwLCJjYXBhYmlsaXR5X2NvbnRyYWN0X2tleSI6ImhjbS5pbnRlZ3JhdGlvbi5leGVjdXRlIiwiY29tbWFuZF9jb250cmFjdF9rZXkiOiJyb3V0ZS5oY20ubWFuYWdlbWVudC5pbnRlZ3JhdGlvbi1leGVjdXRlLmFjdGlvbiIsImNvbW1hbmRfbWV0aG9kIjoiUE9TVCIsImNvbW1hbmRfcGF0aCI6Ii9hcGkvcGVvcGxlL3YxL3dvcmtmb3JjZS9kYXRhLW9wZXJhdGlvbnMvaHJpcy9jb25uZWN0b3JzL0NPTk5fMS9leGVjdXRpb25zIiwiY29tbWFuZF9zaGEyNTYiOiI0ZWM5OWYzNGZkMDA2NzI1NGIwYThhYWY0ODViNGQ2MDVjMjcyY2Y0MmYwNzM5ODYxNjc2OTJmYTA5Mzg1N2U0IiwiY29udGV4dF9rZXkiOiJoY20tbWFuYWdlbWVudCIsImRlY2lzaW9uX3JldmlzaW9uIjoiRC1ILUlOVC1FWEVDLVIxIiwiZXhwIjoxNzg3MzAzNDAwLCJpYXQiOjE3ODczMDI3NzAsImlkZW1wb3RlbmN5X2tleSI6ImlkZW0taGlnaC1pbnRlZ3JhdGlvbi1leGVjdXRlLTEiLCJpc3MiOiJodHRwczovL2F1dGguZml4dHVyZS5kd3AudGVzdCIsImp0aSI6IkpUSV9ISUdIX0lOVF8xIiwibmJmIjoxNzg3MzAyNzcwLCJub25jZSI6Ik5fSElHSF9JTlRfMSIsIm93bmVyX3NlcnZpY2Vfa2V5IjoicGVvcGxlIiwicGF5bG9hZF9zaGEyNTYiOiI0NDEzNmZhMzU1YjM2NzhhMTE0NmFkMTZmN2U4NjQ5ZTk0ZmI0ZmMyMWZlNzdlODMxMGMwNjBmNjFjYWFmZjhhIiwic2NvcGVfcmVmIjoiU19IQ01fSU5URUdSQVRJT04iLCJzdWIiOiIxNyIsInRhcmdldF9pZCI6IkNPTk5fMSIsInRhcmdldF90eXBlIjoiSENNX0NPTk5FQ1RPUiIsInRhcmdldF92ZXJzaW9uIjo2LCJ0ZW5hbnRfaWQiOjQyfQ.TVpRndukZdXWzh9O4sWDbX7tcwXCp0w83u5MFyd9FJ9QM8MdJwlqe23egeSFu1ZxeFYbcWrSLUG9tHx0RS2i0Lv0KO0enK1-8lsDwiMAzRm0xw4CVBssEzJXpI1Qp-AgQdSyEtstWTPgkuBVVbUTt5pwLUrSLESYstO93vW0V1NUynNLy_KUemxQ4qwx7WpJE3X5rI5e4Uw1T7F1ZcIllVVUOnQmrBVDNRqYn4LIkjgsovsTvVkq4jyLlSMEyfWw6szysTfvTjj-eYg_ClMlMqhcY-WOG6oEp6ov5TZieAglH4-Re7N8UN-hbWBYfIPcE5OpePmuZZP_7poZT7CXIg",
+        "contextKey": "hcm-management",
+        "decisionRevision": "D-H-INT-EXEC-R1",
+        "expectedObjectVersionName": "X-DWP-Expected-Object-Version",
+        "expectedObjectVersionSource": "COMMAND_HEADER",
+        "expiresAt": "2026-08-21T09:10:00Z",
+        "idempotencyKey": "idem-high-integration-execute-1",
+        "issuedAt": "2026-08-21T08:59:30Z",
+        "issuer": "https://auth.fixture.dwp.test",
+        "key": "STEPUP_HIGH_INTEGRATION_EXECUTE_1",
+        "keyId": "fixture-approval-step-up-rs256-v1",
+        "method": "POST",
+        "nonce": "N_HIGH_INT_1",
+        "ownerServiceKey": "people",
+        "path": "/api/people/v1/workforce/data-operations/hris/connectors/CONN_1/executions",
+        "payload": {},
+        "payloadSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "policy": "STEPUP-MGMT-HIGH-V1",
+        "requiredRegistryRef": {
+          "bundleKey": "product-surfaces",
+          "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+          "version": 3
+        },
+        "scopeRef": "S_HCM_INTEGRATION",
+        "state": "ACTIVE",
+        "stepUpCommandBindingKey": "route.hcm.management.integration-execute.action.binding.02",
+        "targetId": "CONN_1",
+        "targetIdPathParameter": "connectorId",
+        "targetIdSource": "PATH_PARAMETER",
+        "targetType": "HCM_CONNECTOR",
+        "targetVersion": 6,
+        "tenantId": 42
+      },
+      {
+        "acr": "urn:dwp:acr:mfa",
+        "actorUserId": 17,
+        "algorithm": "RS256",
+        "amr": [
+          "mfa"
+        ],
+        "audience": "dwp-people-server",
+        "authenticatedAt": "2026-08-21T08:58:00Z",
+        "capabilityContractKey": "hcm.controlled-export.create",
+        "challengeId": "JTI_CRIT_1",
+        "commandContractKey": "route.hcm.management.controlled-export-create.action",
+        "commandSha256": "de157a97b0b80a435df50aa313432e201444cf0c555358d13ff0fbf5f109cd09",
+        "compactToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImZpeHR1cmUtYXBwcm92YWwtc3RlcC11cC1yczI1Ni12MSIsInR5cCI6IkpXVCJ9.eyJhY3IiOiJ1cm46ZHdwOmFjcjptZmEiLCJhY3RpdmF0aW9uX3BvbGljeSI6IlNURVBVUC1NR01ULUNSSVRJQ0FMLVYxIiwiYW1yIjpbIm1mYSJdLCJhdWQiOiJkd3AtcGVvcGxlLXNlcnZlciIsImF1dGhfdGltZSI6MTc4NzMwMjY4MCwiY2FwYWJpbGl0eV9jb250cmFjdF9rZXkiOiJoY20uY29udHJvbGxlZC1leHBvcnQuY3JlYXRlIiwiY29tbWFuZF9jb250cmFjdF9rZXkiOiJyb3V0ZS5oY20ubWFuYWdlbWVudC5jb250cm9sbGVkLWV4cG9ydC1jcmVhdGUuYWN0aW9uIiwiY29tbWFuZF9tZXRob2QiOiJQT1NUIiwiY29tbWFuZF9wYXRoIjoiL2FwaS9wZW9wbGUvdjEvd29ya2ZvcmNlL2V4cG9ydHMiLCJjb21tYW5kX3NoYTI1NiI6ImRlMTU3YTk3YjBiODBhNDM1ZGY1MGFhMzEzNDMyZTIwMTQ0NGNmMGM1NTUzNThkMTNmZjBmYmY1ZjEwOWNkMDkiLCJjb250ZXh0X2tleSI6ImhjbS1tYW5hZ2VtZW50IiwiZGVjaXNpb25fcmV2aXNpb24iOiJELUgtRVhQLVIxIiwiZXhwIjoxNzg3MzAzMTAwLCJpYXQiOjE3ODczMDI3NzAsImlkZW1wb3RlbmN5X2tleSI6ImlkZW0tY3JpdGljYWwtZXhwb3J0LWNyZWF0ZS0xIiwiaXNzIjoiaHR0cHM6Ly9hdXRoLmZpeHR1cmUuZHdwLnRlc3QiLCJqdGkiOiJKVElfQ1JJVF8xIiwibmJmIjoxNzg3MzAyNzcwLCJub25jZSI6Ik5fQ1JJVF8xIiwib3duZXJfc2VydmljZV9rZXkiOiJwZW9wbGUiLCJwYXlsb2FkX3NoYTI1NiI6ImM1ZDM3Y2E4ZmZhMzJmOGJlN2NmN2JmZjZhM2I1M2M5NmFjMjRlYzNjNDFjYzEwZmUzY2RjMTE3ZWI2ZGViODgiLCJzY29wZV9yZWYiOiJTX0xFR0FMX0FfRVhQT1JUIiwic3ViIjoiMTciLCJ0YXJnZXRfaWQiOiJEU19IQ01fQ09SRUB2MTI6TEVHQUxfQV9BQ1RJVkUiLCJ0YXJnZXRfdHlwZSI6IkVYUE9SVF9EQVRBU0VUIiwidGFyZ2V0X3ZlcnNpb24iOjEyLCJ0ZW5hbnRfaWQiOjQyfQ.Rtx5loSB_GDfNn7_firXkRIX1WkQWM1IJcQCpREPiXPaWPdN722IjTGD5npormLhS4m1dQAyqlAsxbdGhZDd_vY62GSgBEHYFQHVreVH9t8iLREDXOUWLl_wSh0nOOqfHc6Wl182rY_vV0d0s0hpLKGv6gqCP-jaoZPaM4zCT2b06szn89S8kpCadkPudrs48piS1Gz5jdyN4UQgzS_zpjxGoVBxtlOdwfuqHhlzVNLKMP9LAmG5GgOiPyC463U0YoNVbgofAkcZalrcp2yU8DQDRLkd-EgOJm_jone6jWgVXqoRe3WTmBHL0QqrTR4PJOoHx83LYU7xFy-zw5p2ug",
+        "contextKey": "hcm-management",
+        "decisionRevision": "D-H-EXP-R1",
+        "expectedObjectVersionName": "X-DWP-Expected-Object-Version",
+        "expectedObjectVersionSource": "COMMAND_HEADER",
+        "expiresAt": "2026-08-21T09:05:00Z",
+        "idempotencyKey": "idem-critical-export-create-1",
+        "issuedAt": "2026-08-21T08:59:30Z",
+        "issuer": "https://auth.fixture.dwp.test",
+        "key": "STEPUP_CRITICAL_FRESH_1",
+        "keyId": "fixture-approval-step-up-rs256-v1",
+        "method": "POST",
+        "nonce": "N_CRIT_1",
+        "ownerServiceKey": "people",
+        "path": "/api/people/v1/workforce/exports",
+        "payload": {
+          "dataset": "DS_HCM_CORE@v12",
+          "population": "LEGAL_A_ACTIVE"
+        },
+        "payloadSha256": "c5d37ca8ffa32f8be7cf7bff6a3b53c96ac24ec3c41cc10fe3cdc117eb6deb88",
+        "policy": "STEPUP-MGMT-CRITICAL-V1",
+        "requiredRegistryRef": {
+          "bundleKey": "product-surfaces",
+          "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+          "version": 3
+        },
+        "scopeRef": "S_LEGAL_A_EXPORT",
+        "state": "ACTIVE",
+        "stepUpCommandBindingKey": "route.hcm.management.controlled-export-create.action.binding.01",
+        "targetId": "DS_HCM_CORE@v12:LEGAL_A_ACTIVE",
+        "targetIdBodyFields": [
+          "dataset",
+          "population"
+        ],
+        "targetIdSource": "COMMAND_BODY",
+        "targetType": "EXPORT_DATASET",
+        "targetVersion": 12,
+        "tenantId": 42
+      },
+      {
+        "acr": "urn:dwp:acr:mfa",
+        "actorUserId": 17,
+        "algorithm": "RS256",
+        "amr": [
+          "mfa"
+        ],
+        "audience": "dwp-people-server",
+        "authenticatedAt": "2026-08-21T08:58:00Z",
+        "capabilityContractKey": "hcm.controlled-export.retry",
+        "challengeId": "JTI_CRIT_RETRY_1",
+        "commandContractKey": "route.hcm.management.controlled-export-retry.action",
+        "commandSha256": "ac7c4b481349a79460974bdd52c97b26691a134f4b159c805977f567b88188ab",
+        "compactToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImZpeHR1cmUtYXBwcm92YWwtc3RlcC11cC1yczI1Ni12MSIsInR5cCI6IkpXVCJ9.eyJhY3IiOiJ1cm46ZHdwOmFjcjptZmEiLCJhY3RpdmF0aW9uX3BvbGljeSI6IlNURVBVUC1NR01ULUNSSVRJQ0FMLVYxIiwiYW1yIjpbIm1mYSJdLCJhdWQiOiJkd3AtcGVvcGxlLXNlcnZlciIsImF1dGhfdGltZSI6MTc4NzMwMjY4MCwiY2FwYWJpbGl0eV9jb250cmFjdF9rZXkiOiJoY20uY29udHJvbGxlZC1leHBvcnQucmV0cnkiLCJjb21tYW5kX2NvbnRyYWN0X2tleSI6InJvdXRlLmhjbS5tYW5hZ2VtZW50LmNvbnRyb2xsZWQtZXhwb3J0LXJldHJ5LmFjdGlvbiIsImNvbW1hbmRfbWV0aG9kIjoiUEFUQ0giLCJjb21tYW5kX3BhdGgiOiIvYXBpL3Blb3BsZS92MS93b3JrZm9yY2UvZXhwb3J0cy9FWFBPUlRfUkVRX1JFVFJZXzEvcmV0cnkiLCJjb21tYW5kX3NoYTI1NiI6ImFjN2M0YjQ4MTM0OWE3OTQ2MDk3NGJkZDUyYzk3YjI2NjkxYTEzNGY0YjE1OWM4MDU5NzdmNTY3Yjg4MTg4YWIiLCJjb250ZXh0X2tleSI6ImhjbS1tYW5hZ2VtZW50IiwiZGVjaXNpb25fcmV2aXNpb24iOiJELUgtRVhQLVJFVFJZLVIxIiwiZXhwIjoxNzg3MzAzMTAwLCJpYXQiOjE3ODczMDI3NzAsImlkZW1wb3RlbmN5X2tleSI6ImlkZW0tY3JpdGljYWwtZXhwb3J0LXJldHJ5LTEiLCJpc3MiOiJodHRwczovL2F1dGguZml4dHVyZS5kd3AudGVzdCIsImp0aSI6IkpUSV9DUklUX1JFVFJZXzEiLCJuYmYiOjE3ODczMDI3NzAsIm5vbmNlIjoiTl9DUklUX1JFVFJZXzEiLCJvd25lcl9zZXJ2aWNlX2tleSI6InBlb3BsZSIsInBheWxvYWRfc2hhMjU2IjoiNDQxMzZmYTM1NWIzNjc4YTExNDZhZDE2ZjdlODY0OWU5NGZiNGZjMjFmZTc3ZTgzMTBjMDYwZjYxY2FhZmY4YSIsInNjb3BlX3JlZiI6IlNfTEVHQUxfQV9FWFBPUlQiLCJzdWIiOiIxNyIsInRhcmdldF9pZCI6IkVYUE9SVF9SRVFfUkVUUllfMSIsInRhcmdldF90eXBlIjoiRVhQT1JUX1JFUVVFU1QiLCJ0YXJnZXRfdmVyc2lvbiI6NywidGVuYW50X2lkIjo0Mn0.M5JoO2VWWLyj6DnrgTuQupGOQrwtl9WNFbIILt0U2Ykvz2nvfc3dKh24p-pEVOiRhoiHAkwxwbbYCkr_1qLEPDL8__0pWw-o-EPqvqBrfH2btlymlcDT8SSf19JwujieAFHGSYz-xeOiDXxVw2BL7OwUF1OrqwtirxBHswnl_iV5-8WSZV3Datvz244VxF60BJpd8gm29ZN2sUflNXxmF3ydrr8toTODqmF_2lGuJh3-dXgr17NUiFMJgGFUedlvJngdvKBd5EJU5dLTFvI9RvFwFDgp0PcMfH4lGVSO59gIrEoKUiqRXTkBX4sDpU0lm8eMjzC8amgZ3QBMeidCjg",
+        "contextKey": "hcm-management",
+        "decisionRevision": "D-H-EXP-RETRY-R1",
+        "expectedObjectVersionName": "X-DWP-Expected-Object-Version",
+        "expectedObjectVersionSource": "COMMAND_HEADER",
+        "expiresAt": "2026-08-21T09:05:00Z",
+        "idempotencyKey": "idem-critical-export-retry-1",
+        "issuedAt": "2026-08-21T08:59:30Z",
+        "issuer": "https://auth.fixture.dwp.test",
+        "key": "STEPUP_CRITICAL_EXPORT_RETRY_1",
+        "keyId": "fixture-approval-step-up-rs256-v1",
+        "method": "PATCH",
+        "nonce": "N_CRIT_RETRY_1",
+        "ownerServiceKey": "people",
+        "path": "/api/people/v1/workforce/exports/EXPORT_REQ_RETRY_1/retry",
+        "payload": {},
+        "payloadSha256": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+        "policy": "STEPUP-MGMT-CRITICAL-V1",
+        "requiredRegistryRef": {
+          "bundleKey": "product-surfaces",
+          "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+          "version": 3
+        },
+        "scopeRef": "S_LEGAL_A_EXPORT",
+        "state": "ACTIVE",
+        "stepUpCommandBindingKey": "route.hcm.management.controlled-export-retry.action.binding.01",
+        "targetId": "EXPORT_REQ_RETRY_1",
+        "targetIdPathParameter": "requestId",
+        "targetIdSource": "PATH_PARAMETER",
+        "targetType": "EXPORT_REQUEST",
+        "targetVersion": 7,
+        "tenantId": 42
+      },
+      {
+        "acr": "urn:dwp:acr:mfa",
+        "actorUserId": 17,
+        "algorithm": "RS256",
+        "amr": [
+          "mfa"
+        ],
+        "audience": "dwp-people-server",
+        "authenticatedAt": "2026-08-21T08:58:00Z",
+        "capabilityContractKey": "hcm.controlled-export.create",
+        "challengeId": "JTI_CRIT_USED_1",
+        "commandContractKey": "route.hcm.management.controlled-export-create.action",
+        "commandSha256": "8635108372b623732317d2644a017383e45f42e449714b43ce48c9fd70569289",
+        "compactToken": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImZpeHR1cmUtYXBwcm92YWwtc3RlcC11cC1yczI1Ni12MSIsInR5cCI6IkpXVCJ9.eyJhY3IiOiJ1cm46ZHdwOmFjcjptZmEiLCJhY3RpdmF0aW9uX3BvbGljeSI6IlNURVBVUC1NR01ULUNSSVRJQ0FMLVYxIiwiYW1yIjpbIm1mYSJdLCJhdWQiOiJkd3AtcGVvcGxlLXNlcnZlciIsImF1dGhfdGltZSI6MTc4NzMwMjY4MCwiY2FwYWJpbGl0eV9jb250cmFjdF9rZXkiOiJoY20uY29udHJvbGxlZC1leHBvcnQuY3JlYXRlIiwiY29tbWFuZF9jb250cmFjdF9rZXkiOiJyb3V0ZS5oY20ubWFuYWdlbWVudC5jb250cm9sbGVkLWV4cG9ydC1jcmVhdGUuYWN0aW9uIiwiY29tbWFuZF9tZXRob2QiOiJQT1NUIiwiY29tbWFuZF9wYXRoIjoiL2FwaS9wZW9wbGUvdjEvd29ya2ZvcmNlL2V4cG9ydHMiLCJjb21tYW5kX3NoYTI1NiI6Ijg2MzUxMDgzNzJiNjIzNzMyMzE3ZDI2NDRhMDE3MzgzZTQ1ZjQyZTQ0OTcxNGI0M2NlNDhjOWZkNzA1NjkyODkiLCJjb250ZXh0X2tleSI6ImhjbS1tYW5hZ2VtZW50IiwiZGVjaXNpb25fcmV2aXNpb24iOiJELUgtRVhQLVIxIiwiZXhwIjoxNzg3MzAzMTAwLCJpYXQiOjE3ODczMDI3NzAsImlkZW1wb3RlbmN5X2tleSI6ImlkZW0tY3JpdGljYWwtZXhwb3J0LWNvbnN1bWVkLTEiLCJpc3MiOiJodHRwczovL2F1dGguZml4dHVyZS5kd3AudGVzdCIsImp0aSI6IkpUSV9DUklUX1VTRURfMSIsIm5iZiI6MTc4NzMwMjc3MCwibm9uY2UiOiJOX0NSSVRfVVNFRCIsIm93bmVyX3NlcnZpY2Vfa2V5IjoicGVvcGxlIiwicGF5bG9hZF9zaGEyNTYiOiJjNWQzN2NhOGZmYTMyZjhiZTdjZjdiZmY2YTNiNTNjOTZhYzI0ZWMzYzQxY2MxMGZlM2NkYzExN2ViNmRlYjg4Iiwic2NvcGVfcmVmIjoiU19MRUdBTF9BX0VYUE9SVCIsInN1YiI6IjE3IiwidGFyZ2V0X2lkIjoiRFNfSENNX0NPUkVAdjEyOkxFR0FMX0FfQUNUSVZFIiwidGFyZ2V0X3R5cGUiOiJFWFBPUlRfREFUQVNFVCIsInRhcmdldF92ZXJzaW9uIjoxMiwidGVuYW50X2lkIjo0Mn0.InJM4NLyQbvillgqmO2tdBKhbNGD5EtGnU2ZQncE-jbDB6E3mOuOIakruk88ITGCmhKkq68C3K_k8BakQVtIVNWTw0IFntp7Jls0a1kDuu2inc3i4Cok5lW5QHJdPoInLEfk-h1RiUigDtbwnHt1x8m27O54xuS2yg7bIrvwiDT41vJVt66_zwQnSWR9-3EHWdDcLlhiqBN3Bf-JIJHtIUZ1n0BslDYY2VCHv-Ullm6Gr6t8j_8Xf8tg7ufGEnVBOTFQ3m-2ZVsTzbi27bEjlnWPMm76MX10jiWL4CbX-3900axk2SCXhuAXP4xgfO9n0lyX8NVXXvJlLv9z5bTK7Q",
+        "contextKey": "hcm-management",
+        "decisionRevision": "D-H-EXP-R1",
+        "expectedObjectVersionName": "X-DWP-Expected-Object-Version",
+        "expectedObjectVersionSource": "COMMAND_HEADER",
+        "expiresAt": "2026-08-21T09:05:00Z",
+        "idempotencyKey": "idem-critical-export-consumed-1",
+        "issuedAt": "2026-08-21T08:59:30Z",
+        "issuer": "https://auth.fixture.dwp.test",
+        "key": "STEPUP_CRITICAL_CONSUMED_1",
+        "keyId": "fixture-approval-step-up-rs256-v1",
+        "method": "POST",
+        "nonce": "N_CRIT_USED",
+        "ownerServiceKey": "people",
+        "path": "/api/people/v1/workforce/exports",
+        "payload": {
+          "dataset": "DS_HCM_CORE@v12",
+          "population": "LEGAL_A_ACTIVE"
+        },
+        "payloadSha256": "c5d37ca8ffa32f8be7cf7bff6a3b53c96ac24ec3c41cc10fe3cdc117eb6deb88",
+        "policy": "STEPUP-MGMT-CRITICAL-V1",
+        "requiredRegistryRef": {
+          "bundleKey": "product-surfaces",
+          "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+          "version": 3
+        },
+        "scopeRef": "S_LEGAL_A_EXPORT",
+        "state": "CONSUMED",
+        "stepUpCommandBindingKey": "route.hcm.management.controlled-export-create.action.binding.01",
+        "targetId": "DS_HCM_CORE@v12:LEGAL_A_ACTIVE",
+        "targetIdBodyFields": [
+          "dataset",
+          "population"
+        ],
+        "targetIdSource": "COMMAND_BODY",
+        "targetType": "EXPORT_DATASET",
+        "targetVersion": 12,
+        "tenantId": 42
+      }
+    ],
+    "supportSessions": [
+      {
+        "key": "SUPPORT_HCM_READ_1",
+        "providerActor": "PV_1",
+        "readOnly": true,
+        "scopeRef": "S_LEGAL_A_WORKFORCE_SUPPORT",
+        "supportScope": "WORKFORCE_READ",
+        "tenantId": "T_A",
+        "validUntil": "2026-08-21T09:30:00Z"
+      },
+      {
+        "key": "SUPPORT_COMM_CONFIG_1",
+        "providerActor": "PV_1",
+        "readOnly": true,
+        "scopeRef": "S_COMMUNICATIONS_SUPPORT",
+        "supportScope": "TENANT_CONFIGURATION_READ",
+        "tenantId": "T_A",
+        "validUntil": "2026-08-21T09:30:00Z"
+      }
+    ],
+    "targetPopulations": [
+      {
+        "allow": [
+          "P_A201",
+          "P_A202",
+          "TIME_A_1",
+          "ABSENCE_A_1"
+        ],
+        "deny": [
+          "P_B201",
+          "TIME_B_1",
+          "ABSENCE_B_1"
+        ],
+        "key": "TP_TEAM_A",
+        "scopeRef": "S_TEAM_A"
+      },
+      {
+        "allow": [
+          "P_B201",
+          "TIME_B_1",
+          "ABSENCE_B_1"
+        ],
+        "deny": [
+          "P_A201",
+          "TIME_A_1",
+          "ABSENCE_A_1"
+        ],
+        "key": "TP_TEAM_B",
+        "scopeRef": "S_TEAM_B"
+      },
+      {
+        "allow": [
+          "TIME_A_1@v3",
+          "P_A201",
+          "LEGAL_A"
+        ],
+        "deny": [
+          "TIME_B_1@v2",
+          "P_B201",
+          "LEGAL_B"
+        ],
+        "key": "TP_LEGAL_A_TIME",
+        "scopeRef": "S_LEGAL_A_TIME"
+      },
+      {
+        "allow": [
+          "P_A201",
+          "ASSIGNMENT_A_1@v4"
+        ],
+        "deny": [
+          "P_B201",
+          "ASSIGNMENT_B_1@v2"
+        ],
+        "key": "TP_LEGAL_A_WORKFORCE",
+        "scopeRef": "S_LEGAL_A_WORKFORCE"
+      },
+      {
+        "allow": [
+          "DS_HCM_CORE@v12",
+          "LEGAL_A_ACTIVE"
+        ],
+        "deny": [
+          "DS_HCM_PAY@v8",
+          "LEGAL_B_ACTIVE"
+        ],
+        "key": "TP_LEGAL_A_EXPORT",
+        "scopeRef": "S_LEGAL_A_EXPORT"
+      }
+    ]
+  },
+  "components": [
+    {
+      "accessMode": "NORMAL",
+      "accessPolicyKeys": [
+        "communications.work-access.v1"
+      ],
+      "appEntitlements": [
+        "APP.COMMUNICATIONS:VIEW"
+      ],
+      "authorityMode": "ENTITLEMENT",
+      "key": "COMM_WORK",
+      "kind": "POLICY",
+      "readOnly": false,
+      "scopeRefs": [
+        "S_COMM_SELF"
+      ]
+    },
+    {
+      "accessMode": "NORMAL",
+      "accessPolicyKeys": [
+        "services.work-access.v1"
+      ],
+      "appEntitlements": [
+        "APP.EMPLOYEE_SERVICES:VIEW"
+      ],
+      "authorityMode": "ENTITLEMENT",
+      "key": "SERVICES_WORK",
+      "kind": "POLICY",
+      "readOnly": false,
+      "scopeRefs": [
+        "S_SERVICES_SELF"
+      ]
+    },
+    {
+      "accessMode": "NORMAL",
+      "capabilityContractKeys": [
+        "communications.content.read"
+      ],
+      "key": "COMM_CONTENT_READ",
+      "kind": "CAPABILITY",
+      "readOnly": true,
+      "responsibility": {
+        "code": "APP_CONFIG_ADMIN",
+        "resourceSetKey": "RS_COMMUNICATIONS"
+      },
+      "responsibilityRequirement": "REQUIRED",
+      "scopeRefs": [
+        "S_COMMUNICATIONS"
+      ]
+    },
+    {
+      "accessMode": "NORMAL",
+      "capabilityContractKeys": [
+        "communications.content.read",
+        "communications.content.create",
+        "communications.content.update"
+      ],
+      "key": "COMM_CONTENT_EDITOR",
+      "kind": "CAPABILITY",
+      "readOnly": false,
+      "responsibility": {
+        "code": "APP_CONFIG_ADMIN",
+        "resourceSetKey": "RS_COMMUNICATIONS"
+      },
+      "responsibilityRequirement": "REQUIRED",
+      "scopeRefs": [
+        "S_COMMUNICATIONS"
+      ]
+    },
+    {
+      "accessMode": "NORMAL",
+      "capabilityContractKeys": [
+        "communications.content.read",
+        "communications.content.publish",
+        "communications.content.archive"
+      ],
+      "key": "COMM_CONTENT_PUBLISHER",
+      "kind": "CAPABILITY",
+      "readOnly": false,
+      "responsibility": {
+        "code": "APP_CONFIG_ADMIN",
+        "resourceSetKey": "RS_COMMUNICATIONS"
+      },
+      "responsibilityRequirement": "REQUIRED",
+      "scopeRefs": [
+        "S_COMMUNICATIONS"
+      ]
+    },
+    {
+      "accessMode": "PROVIDER_SUPPORT",
+      "accessPolicyKeys": [
+        "communications.management-entry.v1",
+        "communications.content-route-access.v1"
+      ],
+      "authorityMode": "SUPPORT_SESSION",
+      "key": "COMM_SUPPORT_CONFIG",
+      "kind": "SUPPORT",
+      "readOnly": true,
+      "scopeRefs": [
+        "S_COMMUNICATIONS_SUPPORT"
+      ],
+      "supportSessionRef": "SUPPORT_COMM_CONFIG_1"
+    },
+    {
+      "accessMode": "NORMAL",
+      "capabilityContractKeys": [
+        "services.catalog.read"
+      ],
+      "key": "SERVICES_CATALOG_READ",
+      "kind": "CAPABILITY",
+      "readOnly": true,
+      "responsibility": {
+        "code": "APP_CONFIG_ADMIN",
+        "resourceSetKey": "RS_SERVICES"
+      },
+      "responsibilityRequirement": "REQUIRED",
+      "scopeRefs": [
+        "S_SERVICES"
+      ]
+    },
+    {
+      "accessMode": "NORMAL",
+      "capabilityContractKeys": [
+        "services.catalog.read",
+        "services.catalog.create",
+        "services.catalog.update"
+      ],
+      "key": "SERVICES_CATALOG_EDITOR",
+      "kind": "CAPABILITY",
+      "readOnly": false,
+      "responsibility": {
+        "code": "APP_CONFIG_ADMIN",
+        "resourceSetKey": "RS_SERVICES"
+      },
+      "responsibilityRequirement": "REQUIRED",
+      "scopeRefs": [
+        "S_SERVICES"
+      ]
+    },
+    {
+      "accessMode": "NORMAL",
+      "capabilityContractKeys": [
+        "services.operations.read"
+      ],
+      "key": "SERVICES_OPERATIONS_READ",
+      "kind": "CAPABILITY",
+      "readOnly": true,
+      "responsibility": {
+        "code": "APP_CONFIG_ADMIN",
+        "resourceSetKey": "RS_SERVICES"
+      },
+      "responsibilityRequirement": "REQUIRED",
+      "scopeRefs": [
+        "S_SERVICES"
+      ]
+    },
+    {
+      "accessMode": "NORMAL",
+      "capabilityContractKeys": [
+        "services.operations.read",
+        "services.operations.update"
+      ],
+      "key": "SERVICES_OPERATIONS_AGENT",
+      "kind": "CAPABILITY",
+      "readOnly": false,
+      "responsibility": {
+        "code": "APP_CONFIG_ADMIN",
+        "resourceSetKey": "RS_SERVICES"
+      },
+      "responsibilityRequirement": "REQUIRED",
+      "scopeRefs": [
+        "S_SERVICES"
+      ]
+    },
+    {
+      "accessMode": "NORMAL",
+      "accessPolicyKeys": [
+        "approvals.work-access.v1"
+      ],
+      "appEntitlements": [
+        "APP.APPROVALS:VIEW"
+      ],
+      "authorityMode": "ENTITLEMENT",
+      "capabilityContractKeys": [
+        "approvals.work.task.read",
+        "approvals.work.task.update",
+        "approvals.work.task.approve",
+        "approvals.work.request.read",
+        "approvals.work.request.create",
+        "approvals.work.request.update",
+        "approvals.work.delegation.read",
+        "approvals.work.delegation.manage"
+      ],
+      "key": "AP_WORK_MEMBER",
+      "kind": "COMPOSITE",
+      "readOnly": false,
+      "scopeRefs": [
+        "S_APPROVAL_SELF"
+      ]
+    },
+    {
+      "accessMode": "NORMAL",
+      "capabilityContractKeys": [
+        "approvals.design.read",
+        "approvals.design.create",
+        "approvals.design.update"
+      ],
+      "key": "AP_DESIGN_DRAFT",
+      "kind": "CAPABILITY",
+      "readOnly": false,
+      "responsibility": {
+        "code": "APP_CONFIG_ADMIN",
+        "resourceSetKey": "RS_APPROVALS"
+      },
+      "responsibilityRequirement": "REQUIRED",
+      "scopeRefs": [
+        "S_APPROVALS"
+      ]
+    },
+    {
+      "accessMode": "NORMAL",
+      "capabilityContractKeys": [
+        "approvals.design.read",
+        "approvals.design.publish"
+      ],
+      "key": "AP_DESIGN_PUBLISH",
+      "kind": "CAPABILITY",
+      "readOnly": false,
+      "responsibility": {
+        "code": "APP_CONFIG_ADMIN",
+        "resourceSetKey": "RS_APPROVALS"
+      },
+      "responsibilityRequirement": "REQUIRED",
+      "scopeRefs": [
+        "S_APPROVALS"
+      ]
+    },
+    {
+      "accessMode": "NORMAL",
+      "capabilityContractKeys": [
+        "approvals.policy.read",
+        "approvals.policy.update"
+      ],
+      "key": "AP_POLICY_DRAFT",
+      "kind": "CAPABILITY",
+      "readOnly": false,
+      "responsibility": {
+        "code": "APP_CONFIG_ADMIN",
+        "resourceSetKey": "RS_APPROVALS"
+      },
+      "responsibilityRequirement": "REQUIRED",
+      "scopeRefs": [
+        "S_APPROVALS"
+      ]
+    },
+    {
+      "accessMode": "NORMAL",
+      "capabilityContractKeys": [
+        "approvals.policy.read",
+        "approvals.policy.publish"
+      ],
+      "key": "AP_POLICY_PUBLISH",
+      "kind": "CAPABILITY",
+      "readOnly": false,
+      "responsibility": {
+        "code": "APP_CONFIG_ADMIN",
+        "resourceSetKey": "RS_APPROVALS"
+      },
+      "responsibilityRequirement": "REQUIRED",
+      "scopeRefs": [
+        "S_APPROVALS"
+      ]
+    },
+    {
+      "accessMode": "NORMAL",
+      "capabilityContractKeys": [
+        "approvals.operations.read",
+        "approvals.operations.execute"
+      ],
+      "key": "AP_OPERATE",
+      "kind": "CAPABILITY",
+      "readOnly": false,
+      "responsibility": {
+        "code": "APP_CONFIG_ADMIN",
+        "resourceSetKey": "RS_APPROVALS"
+      },
+      "responsibilityRequirement": "REQUIRED",
+      "scopeRefs": [
+        "S_APPROVALS"
+      ]
+    },
+    {
+      "accessMode": "NORMAL",
+      "capabilityContractKeys": [
+        "approvals.signature.read"
+      ],
+      "key": "AP_SIGNATURE_READ",
+      "kind": "CAPABILITY",
+      "readOnly": true,
+      "responsibility": {
+        "code": "APP_CONFIG_ADMIN",
+        "resourceSetKey": "RS_APPROVALS"
+      },
+      "responsibilityRequirement": "REQUIRED",
+      "scopeRefs": [
+        "S_APPROVALS"
+      ]
+    },
+    {
+      "accessMode": "NORMAL",
+      "capabilityContractKeys": [
+        "approvals.audit.operations.read"
+      ],
+      "key": "AP_AUDIT_READ",
+      "kind": "CAPABILITY",
+      "readOnly": true,
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "scopeRefs": [
+        "S_APPROVALS_AUDIT"
+      ]
+    },
+    {
+      "accessMode": "NORMAL",
+      "authorityMode": "LEGACY_OVERSIGHT",
+      "capabilityContractKeys": [
+        "approvals.oversight.overview.read",
+        "approvals.oversight.design.read",
+        "approvals.oversight.policy.read",
+        "approvals.oversight.operations.read",
+        "approvals.oversight.signature.read"
+      ],
+      "key": "AP_LEGACY_OVERSIGHT",
+      "kind": "CAPABILITY",
+      "readOnly": true,
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "scopeRefs": [
+        "S_APPROVALS_OVERSIGHT"
+      ],
+      "validUntil": "2027-02-28T14:59:59Z"
+    },
+    {
+      "accessMode": "NORMAL",
+      "accessPolicyKeys": [
+        "hcm.personal-access.v1",
+        "hcm.personal-core-access.v1",
+        "hcm.directory-access.v1",
+        "hcm.personal-services-access.v1"
+      ],
+      "appEntitlements": [
+        "APP.HCM:VIEW",
+        "APP.PEOPLE_DIRECTORY:VIEW",
+        "APP.EMPLOYEE_SERVICES:VIEW"
+      ],
+      "authorityMode": "ENTITLEMENT_AND_RELATIONSHIP",
+      "key": "HCM_EMPLOYEE",
+      "kind": "POLICY",
+      "readOnly": false,
+      "scopeRefs": [
+        "S_SELF_A100"
+      ]
+    },
+    {
+      "accessMode": "NORMAL",
+      "accessPolicyKeys": [
+        "hcm.personal-access.v1",
+        "hcm.directory-access.v1"
+      ],
+      "appEntitlements": [
+        "APP.PEOPLE_DIRECTORY:VIEW"
+      ],
+      "authorityMode": "ENTITLEMENT_AND_RELATIONSHIP",
+      "explicitDenies": [
+        {
+          "deniedKey": "APP.HCM:VIEW",
+          "denyKind": "APP_ENTITLEMENT",
+          "productKey": "hcm",
+          "surfaceKey": "hcm.personal"
+        }
+      ],
+      "key": "HCM_DIRECTORY_ONLY",
+      "kind": "POLICY",
+      "readOnly": true,
+      "scopeRefs": [
+        "S_SELF_A100"
+      ]
+    },
+    {
+      "accessMode": "NORMAL",
+      "accessPolicyKeys": [
+        "hcm.team-access.v1"
+      ],
+      "appEntitlements": [
+        "APP.HCM:VIEW"
+      ],
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "capabilityContractKeys": [
+        "hcm.team.time.read",
+        "hcm.team.time.approve",
+        "hcm.team.absence.read",
+        "hcm.team.absence.approve"
+      ],
+      "key": "HCM_LINE_MANAGER",
+      "kind": "COMPOSITE",
+      "readOnly": false,
+      "relationshipRefs": [
+        "R_DIRECT_TEAM_A",
+        "TP_TEAM_A"
+      ],
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "scopeRefs": [
+        "S_TEAM_A"
+      ]
+    },
+    {
+      "accessMode": "NORMAL",
+      "accessPolicyKeys": [
+        "hcm.team-access.v1"
+      ],
+      "appEntitlements": [
+        "APP.HCM:VIEW"
+      ],
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "capabilityContractKeys": [
+        "hcm.team.time.read",
+        "hcm.team.time.approve",
+        "hcm.team.absence.read",
+        "hcm.team.absence.approve"
+      ],
+      "key": "HCM_DELEGATED_MANAGER",
+      "kind": "COMPOSITE",
+      "readOnly": false,
+      "relationshipRefs": [
+        "R_DELEGATED_TEAM_B",
+        "TP_TEAM_B"
+      ],
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "scopeRefs": [
+        "S_TEAM_B"
+      ]
+    },
+    {
+      "accessMode": "NORMAL",
+      "capabilityContractKeys": [
+        "hcm.operations.time.read",
+        "hcm.operations.time.approve"
+      ],
+      "evidenceRefs": [
+        "TP_LEGAL_A_TIME"
+      ],
+      "key": "HCM_TIME_OPERATOR",
+      "kind": "CAPABILITY",
+      "readOnly": false,
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "scopeRefs": [
+        "S_LEGAL_A_TIME"
+      ]
+    },
+    {
+      "accessMode": "NORMAL",
+      "capabilityContractKeys": [
+        "hcm.operations.time.read",
+        "hcm.operations.time.approve"
+      ],
+      "evidenceRefs": [
+        "TP_LEGAL_A_TIME"
+      ],
+      "key": "HCM_TIME_OPERATOR_EXPIRED",
+      "kind": "CAPABILITY",
+      "readOnly": true,
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "scopeRefs": [
+        "S_EXPIRED_TIME"
+      ],
+      "validUntil": "2026-08-21T08:59:59Z"
+    },
+    {
+      "accessMode": "NORMAL",
+      "capabilityContractKeys": [
+        "hcm.operations.time.read",
+        "hcm.operations.time.approve"
+      ],
+      "key": "HCM_TIME_OPERATOR_B",
+      "kind": "CAPABILITY",
+      "readOnly": false,
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "scopeRefs": [
+        "S_LEGAL_B_TIME"
+      ]
+    },
+    {
+      "accessMode": "NORMAL",
+      "capabilityContractKeys": [
+        "hcm.operations.workforce.read"
+      ],
+      "evidenceRefs": [
+        "TP_LEGAL_A_WORKFORCE"
+      ],
+      "key": "HCM_WORKFORCE_OPERATOR",
+      "kind": "CAPABILITY",
+      "readOnly": true,
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "scopeRefs": [
+        "S_LEGAL_A_WORKFORCE"
+      ]
+    },
+    {
+      "accessMode": "NORMAL",
+      "capabilityContractKeys": [
+        "hcm.org-design.read",
+        "hcm.org-design.create",
+        "hcm.org-design.update"
+      ],
+      "key": "HCM_ORG_DESIGN_DRAFT",
+      "kind": "CAPABILITY",
+      "readOnly": false,
+      "responsibility": {
+        "code": "APP_CONFIG_ADMIN",
+        "resourceSetKey": "RS_HCM_CONFIG"
+      },
+      "responsibilityRequirement": "REQUIRED",
+      "scopeRefs": [
+        "S_HCM_CONFIG"
+      ]
+    },
+    {
+      "accessMode": "NORMAL",
+      "capabilityContractKeys": [
+        "hcm.org-design.read",
+        "hcm.org-design.approve"
+      ],
+      "key": "HCM_ORG_DESIGN_APPROVE",
+      "kind": "CAPABILITY",
+      "readOnly": false,
+      "responsibility": {
+        "code": "APP_CONFIG_ADMIN",
+        "resourceSetKey": "RS_HCM_CONFIG"
+      },
+      "responsibilityRequirement": "REQUIRED",
+      "scopeRefs": [
+        "S_HCM_CONFIG"
+      ]
+    },
+    {
+      "accessMode": "NORMAL",
+      "capabilityContractKeys": [
+        "hcm.org-design.read",
+        "hcm.org-design.publish"
+      ],
+      "key": "HCM_ORG_DESIGN_PUBLISH",
+      "kind": "CAPABILITY",
+      "readOnly": false,
+      "responsibility": {
+        "code": "APP_CONFIG_ADMIN",
+        "resourceSetKey": "RS_HCM_CONFIG"
+      },
+      "responsibilityRequirement": "REQUIRED",
+      "scopeRefs": [
+        "S_HCM_CONFIG"
+      ]
+    },
+    {
+      "accessMode": "NORMAL",
+      "capabilityContractKeys": [
+        "hcm.reference.read",
+        "hcm.reference.update"
+      ],
+      "key": "HCM_REFERENCE_DRAFT",
+      "kind": "CAPABILITY",
+      "readOnly": false,
+      "responsibility": {
+        "code": "APP_CONFIG_ADMIN",
+        "resourceSetKey": "RS_HCM_CONFIG"
+      },
+      "responsibilityRequirement": "REQUIRED",
+      "scopeRefs": [
+        "S_HCM_REFERENCE"
+      ]
+    },
+    {
+      "accessMode": "NORMAL",
+      "capabilityContractKeys": [
+        "hcm.integration.read",
+        "hcm.integration.create",
+        "hcm.integration.update",
+        "hcm.integration.execute"
+      ],
+      "key": "HCM_INTEGRATION_ADMIN",
+      "kind": "CAPABILITY",
+      "readOnly": false,
+      "responsibility": {
+        "code": "APP_CONFIG_ADMIN",
+        "resourceSetKey": "RS_HCM_CONFIG"
+      },
+      "responsibilityRequirement": "REQUIRED",
+      "scopeRefs": [
+        "S_HCM_INTEGRATION"
+      ]
+    },
+    {
+      "accessMode": "NORMAL",
+      "capabilityContractKeys": [
+        "hcm.controlled-export.read",
+        "hcm.controlled-export.preview",
+        "hcm.controlled-export.create",
+        "hcm.controlled-export.cancel",
+        "hcm.controlled-export.retry"
+      ],
+      "evidenceRefs": [
+        "TP_LEGAL_A_EXPORT"
+      ],
+      "key": "HCM_CONTROLLED_EXPORT",
+      "kind": "CAPABILITY",
+      "readOnly": false,
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "scopeRefs": [
+        "S_LEGAL_A_EXPORT"
+      ]
+    },
+    {
+      "accessMode": "PROVIDER_SUPPORT",
+      "accessPolicyKeys": [
+        "hcm.operations-access.v1",
+        "hcm.operations-overview-read.v1",
+        "hcm.operations-workforce-read.v1"
+      ],
+      "authorityMode": "SUPPORT_SESSION",
+      "key": "HCM_SUPPORT_READ",
+      "kind": "SUPPORT",
+      "readOnly": true,
+      "scopeRefs": [
+        "S_LEGAL_A_WORKFORCE_SUPPORT"
+      ],
+      "supportSessionRef": "SUPPORT_HCM_READ_1"
+    },
+    {
+      "key": "TENANT_ADMIN",
+      "kind": "ENTITLEMENT",
+      "notes": "Tenant governance role only; no product capability implication"
+    },
+    {
+      "key": "WORKSPACE_MEMBER",
+      "kind": "ENTITLEMENT",
+      "notes": "Workspace baseline only"
+    },
+    {
+      "key": "PROVIDER_ROLE",
+      "kind": "ENTITLEMENT",
+      "notes": "Provider identity without support session grants no tenant product access"
+    },
+    {
+      "accessMode": "NORMAL",
+      "accessPolicyKeys": [
+        "identity.named-reviewer-access.v1"
+      ],
+      "authorityMode": "RELATIONSHIP",
+      "evidenceRefs": [
+        "WORK_ITEM_1"
+      ],
+      "key": "NAMED_REVIEWER_WORK",
+      "kind": "RELATIONSHIP",
+      "readOnly": false,
+      "relationshipRefs": [
+        "R_REVIEW_ITEM_1"
+      ]
+    }
+  ],
+  "contextCases": [
+    {
+      "composition": [
+        "AP_DESIGN_DRAFT",
+        "CASE:READ_T0_30M",
+        "CASE:UPDATE_T0_10M"
+      ],
+      "expected": "REVALIDATE_AT_T0_10M_AND_KEEP_READ",
+      "fixtureId": "FX-C-MULTI-WINDOW"
+    },
+    {
+      "composition": [
+        "COMM_CONTENT_EDITOR",
+        "COMM_SUPPORT_CONFIG"
+      ],
+      "expected": "PROVIDER_SUPPORT_ONLY_UNTIL_SESSION_END",
+      "fixtureId": "FX-C-SUPPORT-EXCLUSIVE"
+    },
+    {
+      "composition": [
+        "CASE:EACH_SOURCE_REVISION_CHANGES_ALONE"
+      ],
+      "expected": "NEW_COMPOSITE_REVISION_AND_OLD_MUTATION_409",
+      "fixtureId": "FX-C-SOURCE-REVISION"
+    }
+  ],
+  "fixedClock": "2026-08-21T09:00:00Z",
+  "fixtureBundleKey": "pilot-fixtures.v1",
+  "fixtureChecksum": "0eb143ce3b2b2d3096666f0b473637424dc4e242ffd48aee3567a517ecd95c15",
+  "fixtureChecksumAlgorithm": "SHA-256",
+  "negativeCases": [
+    {
+      "expected": "DENY_ALL_MANAGEMENT",
+      "fixtureId": "FX-N-CARTESIAN",
+      "input": "responsibility app A + capability app B + scope app C"
+    },
+    {
+      "expected": "404_RESOURCE_NOT_AVAILABLE",
+      "fixtureId": "FX-N-FOREIGN-SCOPE",
+      "input": "actor A uses S_FOREIGN"
+    },
+    {
+      "expected": "DENY_ALL_V2_MUTATIONS",
+      "fixtureId": "FX-N-MANAGE-ONLY",
+      "input": "legacy MANAGE without v2 exact action"
+    },
+    {
+      "expected": "SUPPORT_ONLY_NO_UNION",
+      "fixtureId": "FX-N-SUPPORT-NORMAL-UNION",
+      "input": "NORMAL write plus support read"
+    },
+    {
+      "expected": "ROUTE_DENIED",
+      "fixtureId": "FX-N-DESIGNER-POLICY-DIRECT",
+      "input": "AP_DESIGN_DRAFT requests policy route"
+    },
+    {
+      "expected": "ROUTE_DENIED",
+      "fixtureId": "FX-N-ROUTE-KEY-UNKNOWN",
+      "input": "unknown or retired route key"
+    },
+    {
+      "expected": "ROUTE_DENIED",
+      "fixtureId": "FX-N-ROUTE-KEY-CROSS-SURFACE",
+      "input": "valid key submitted to another surface"
+    },
+    {
+      "expected": "ROUTE_DENIED",
+      "fixtureId": "FX-N-ROUTE-METHOD-MISMATCH",
+      "input": "GET key submitted for mutation"
+    },
+    {
+      "expected": "OWN_WORK_ITEM_ONLY_ADMIN_DENIED",
+      "fixtureId": "FX-N-REVIEWER-ONLY",
+      "input": "named reviewer without tenant admin"
+    },
+    {
+      "expected": "409_VERSION_CONFLICT",
+      "fixtureId": "FX-N-REVIEWER-STALE-VERSION",
+      "input": "WORK_ITEM_1 expected v10"
+    },
+    {
+      "expected": "404_RESOURCE_NOT_AVAILABLE",
+      "fixtureId": "FX-N-REVIEWER-REVOKED",
+      "input": "WORK_ITEM_REVOKED_1"
+    },
+    {
+      "expected": "404_RESOURCE_NOT_AVAILABLE",
+      "fixtureId": "FX-N-REVIEWER-FOREIGN",
+      "input": "WORK_ITEM_OTHER_1"
+    },
+    {
+      "expected": "422_JIT_SCOPE_UNSUPPORTED",
+      "fixtureId": "FX-N-JIT-ORG",
+      "input": "ORG_UNIT JIT activation"
+    },
+    {
+      "expected": "409_DECISION_REVISION_CONFLICT",
+      "fixtureId": "FX-N-STALE-REVISION",
+      "input": "expected D41 server D42"
+    },
+    {
+      "expected": "AUTHORITY_UNAVAILABLE",
+      "fixtureId": "FX-N-UNKNOWN-DECISION",
+      "input": "future server decision enum"
+    },
+    {
+      "expected": "SCOPE_SELECTION_REQUIRED",
+      "fixtureId": "FX-N-SCOPE-NO-DEFAULT",
+      "input": "multiple scopes with zero defaults"
+    },
+    {
+      "expected": "CONTRACT_ERROR_FAIL_CLOSED",
+      "fixtureId": "FX-N-SCOPE-TWO-DEFAULTS",
+      "input": "multiple scopes with two defaults"
+    },
+    {
+      "expected": "DENY_ALL",
+      "fixtureId": "FX-N-LEGACY-OVERSIGHT-SUNSET",
+      "input": "oversight after sunset"
+    },
+    {
+      "expected": "409_STEP_UP_CHALLENGE_REPLAY",
+      "fixtureId": "FX-N-STEPUP-REPLAY",
+      "input": "reuse consumed critical nonce"
+    },
+    {
+      "expected": "409_STEP_UP_CHALLENGE_MISMATCH",
+      "fixtureId": "FX-N-STEPUP-TARGET-SWAP",
+      "input": "DS_HCM_CORE challenge used for DS_HCM_PAY"
+    },
+    {
+      "expected": "409_STEP_UP_CHALLENGE_MISMATCH",
+      "fixtureId": "FX-N-STEPUP-VERSION-SWAP",
+      "input": "v12 challenge used for v13"
+    },
+    {
+      "expected": "409_STEP_UP_CHALLENGE_MISMATCH",
+      "fixtureId": "FX-N-STEPUP-PAYLOAD-SWAP",
+      "input": "payload changed after challenge"
+    },
+    {
+      "expected": "403_SOD_CONFLICT",
+      "fixtureId": "FX-N-SOD-WORKFLOW-MAKER",
+      "input": "workflow publisher equals maker"
+    },
+    {
+      "expected": "403_SOD_CONFLICT",
+      "fixtureId": "FX-N-SOD-FORM-MAKER",
+      "input": "form publisher equals maker"
+    },
+    {
+      "expected": "403_SOD_CONFLICT",
+      "fixtureId": "FX-N-SOD-POLICY-MAKER",
+      "input": "policy publisher equals maker"
+    },
+    {
+      "expected": "403_SOD_CONFLICT",
+      "fixtureId": "FX-N-SOD-RECOVERY-ORIGINATOR",
+      "input": "operator equals event originator"
+    },
+    {
+      "expected": "403_SOD_CONFLICT",
+      "fixtureId": "FX-N-SOD-RECOVERY-AUDITOR",
+      "input": "operator equals assigned auditor"
+    },
+    {
+      "expected": "403_SOD_CONFLICT",
+      "fixtureId": "FX-N-SOD-ORG-MAKER",
+      "input": "org publisher equals maker"
+    },
+    {
+      "expected": "403_SOD_CONFLICT",
+      "fixtureId": "FX-N-SOD-ORG-APPROVER-MAKER",
+      "input": "org approver equals maker"
+    },
+    {
+      "expected": "AUTHORITY_UNAVAILABLE_AND_ROUTE_DENIED",
+      "fixtureId": "FX-N-REFERENCE-PUBLISH-RESERVED",
+      "input": "reserved reference publish request"
+    },
+    {
+      "expected": "AUTHORITY_UNAVAILABLE_AND_ROUTE_DENIED",
+      "fixtureId": "FX-N-INTEGRATION-ROTATE-RESERVED",
+      "input": "reserved secret rotate request"
+    },
+    {
+      "expected": "AUTHORITY_UNAVAILABLE",
+      "fixtureId": "FX-N-PARTY-EVIDENCE-MISSING",
+      "input": "maker originator or auditor evidence missing"
+    },
+    {
+      "expected": "403_NO_MUTATION",
+      "fixtureId": "FX-N-APPROVAL-TASK-UNCLAIMABLE",
+      "input": "TASK_DECIDE_1 submitted to claim"
+    },
+    {
+      "expected": "403_SOD_CONFLICT",
+      "fixtureId": "FX-N-APPROVAL-TASK-SELF-DECISION",
+      "input": "TASK_SELF_1 decision"
+    },
+    {
+      "expected": "404_RESOURCE_NOT_AVAILABLE",
+      "fixtureId": "FX-N-APPROVAL-REQUEST-OTHER",
+      "input": "other request or delegation action"
+    },
+    {
+      "expected": "ROUTE_DENIED",
+      "fixtureId": "FX-N-APPROVAL-HOME-PREFERENCE-KEY",
+      "input": "surfaceKey not approval-home"
+    },
+    {
+      "expected": "404_RESOURCE_NOT_AVAILABLE",
+      "fixtureId": "FX-N-HCM-SELF-TARGET-OUTSIDE",
+      "input": "self grant used for other person"
+    },
+    {
+      "expected": "ROUTE_DENIED",
+      "fixtureId": "FX-N-HCM-HOME-PREFERENCE-KEY",
+      "input": "surfaceKey not hcm-home"
+    },
+    {
+      "expected": "REQUEST_VALIDATION_REJECT",
+      "fixtureId": "FX-N-INTEGRATION-CREDENTIAL-REFERENCE",
+      "input": "client submits credentialReference"
+    },
+    {
+      "expected": "PROJECTION_FAIL_CLOSED",
+      "fixtureId": "FX-N-EXPORT-PREVIEW-PROJECTION",
+      "input": "preview returns raw or forbidden fields"
+    },
+    {
+      "expected": "404_RESOURCE_NOT_AVAILABLE",
+      "fixtureId": "FX-N-TEAM-TARGET-OUTSIDE",
+      "input": "team A grant targets team B"
+    },
+    {
+      "expected": "404_RESOURCE_NOT_AVAILABLE",
+      "fixtureId": "FX-N-DOMAIN-TARGET-OUTSIDE",
+      "input": "legal A time grant targets legal B"
+    },
+    {
+      "expected": "404_RESOURCE_NOT_AVAILABLE",
+      "fixtureId": "FX-N-WORKFORCE-TARGET-OUTSIDE",
+      "input": "legal A workforce grant targets B"
+    },
+    {
+      "expected": "404_RESOURCE_NOT_AVAILABLE",
+      "fixtureId": "FX-N-EXPORT-TARGET-OUTSIDE",
+      "input": "legal A export targets pay or B"
+    },
+    {
+      "expected": "409_STEP_UP_CHALLENGE_MISMATCH",
+      "fixtureId": "FX-N-EXPORT-STEPUP-CROSS-ACTION",
+      "input": "create challenge used for retry or reverse"
+    },
+    {
+      "expected": "CONFIGURATION_REJECT",
+      "fixtureId": "FX-N-FLAG-INVALID",
+      "input": "flag state outside 000 100 110 111"
+    }
+  ],
+  "normalValidUntil": "2026-12-31T15:00:00Z",
+  "registryLineage": {
+    "authority": "INFORMATIONAL_ONLY",
+    "bundleKey": "product-surfaces",
+    "indexSha256": "dbe810156eabb2e81d21a70d1d1746f2566a8ef2ed6b9331ce334a25d2f2617f",
+    "latestAliasVersion": 3,
+    "versions": [
+      {
+        "bundleKey": "product-surfaces",
+        "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+        "version": 1
+      },
+      {
+        "bundleKey": "product-surfaces",
+        "sha256": "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
+        "version": 2
+      },
+      {
+        "bundleKey": "product-surfaces",
+        "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+        "version": 3
+      }
+    ]
+  },
+  "reservedContracts": [
+    "hcm.reference.publish",
+    "hcm.integration.rotate-secret"
+  ],
+  "riskPolicies": [
+    {
+      "key": "RISK_APPROVALS_DESIGN_PUBLISH",
+      "policyIds": [
+        "SOD-APR-DESIGN-PUBLISH-V1",
+        "STEPUP-MGMT-HIGH-V1"
+      ]
+    },
+    {
+      "key": "RISK_APPROVALS_POLICY_PUBLISH",
+      "policyIds": [
+        "SOD-APR-POLICY-PUBLISH-V1",
+        "STEPUP-MGMT-HIGH-V1"
+      ]
+    },
+    {
+      "key": "RISK_APPROVALS_RECOVERY",
+      "policyIds": [
+        "SOD-APR-OPS-AUDIT-V1",
+        "STEPUP-MGMT-HIGH-V1"
+      ]
+    },
+    {
+      "key": "RISK_HCM_ORG_APPROVAL",
+      "policyIds": [
+        "SOD-HCM-ORG-APPROVAL-V1"
+      ]
+    },
+    {
+      "key": "RISK_HCM_ORG_PUBLISH",
+      "policyIds": [
+        "SOD-HCM-ORG-PUBLISH-V1",
+        "STEPUP-MGMT-HIGH-V1"
+      ]
+    },
+    {
+      "key": "RISK_HCM_CONTROLLED_EXPORT",
+      "policyIds": [
+        "STEPUP-MGMT-CRITICAL-V1"
+      ]
+    }
+  ],
+  "schemaVersion": 1,
+  "sourceRevisions": {
+    "auth": "AUTH-R1",
+    "policy": "POLICY-R1",
+    "productRelationship": "REL-R1",
+    "support": "SUPPORT-R0",
+    "targetPopulation": "POP-R1"
+  },
+  "stepUpVerification": {
+    "algorithm": "RS256",
+    "audienceByOwnerService": {
+      "approval": "dwp-approval-server",
+      "people": "dwp-people-server"
+    },
+    "issuer": "https://auth.fixture.dwp.test",
+    "keyId": "fixture-approval-step-up-rs256-v1",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAs0T79NDWWfUnO4qfn3rq\nBD7AbkQ8gLIfNNbPIbGhtcYBi+BzEwzmD+znR8zq9URVZgWNgvRLgJC1S6vVSn1I\nAPkzPCtyia79hePPwswXo8Zc5P/pQ8y9M88+vfBEM0SBqCRCqXjRNO6o4vH7kQFJ\nrfcsYlzQtX6BWtIuiWVmmINN3FQ4Az7tnO79YwmyYwX6QHUt/p0x0NcpQgJ6qH8I\n0CWp6FAIUsTIjvSzGX2lRdtACSrKesmJYeMpgz3lDEfSB/pA1gHTLsFc6v6Vt+/Z\n5WLMQNF1jFBXR/HmmCWiwoQ1hngNnGmX68mUy1Qg2j+e7HSujuyjIPNQ91BQKhif\n0QIDAQAB\n-----END PUBLIC KEY-----",
+    "requiredAcr": "urn:dwp:acr:mfa"
+  },
+  "testCases": [
+    {
+      "composition": [
+        "CASE:UNAUTHENTICATED"
+      ],
+      "expected": "UNAUTHENTICATED",
+      "fixtureId": "FX-G-UNAUTHENTICATED",
+      "group": "GUARD",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+        "version": 1
+      },
+      "testId": "PS-G001"
+    },
+    {
+      "composition": [
+        "COMM_WORK"
+      ],
+      "expected": "WORK_ONLY",
+      "fixtureId": "FX-G-MEMBER-ONLY",
+      "group": "GUARD",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+        "version": 1
+      },
+      "testId": "PS-G002"
+    },
+    {
+      "composition": [
+        "TENANT_ADMIN",
+        "COMM_WORK"
+      ],
+      "expected": "NO_MANAGEMENT_IMPLICATION",
+      "fixtureId": "FX-G-TENANT-ADMIN-ONLY",
+      "group": "GUARD",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+        "version": 1
+      },
+      "testId": "PS-G003"
+    },
+    {
+      "composition": [
+        "TENANT_ADMIN",
+        "AP_LEGACY_OVERSIGHT"
+      ],
+      "expected": "ALLOWLISTED_READ_ONLY_OVERSIGHT",
+      "fixtureId": "FX-A-LEGACY-OVERSIGHT",
+      "group": "GUARD",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
+        "version": 2
+      },
+      "testId": "PS-G004"
+    },
+    {
+      "composition": [
+        "SERVICES_CATALOG_READ"
+      ],
+      "expected": "MANAGEMENT_ROOT",
+      "fixtureId": "FX-G-MANAGEMENT-ONLY",
+      "group": "GUARD",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+        "version": 1
+      },
+      "testId": "PS-G005"
+    },
+    {
+      "composition": [
+        "SERVICES_CATALOG_READ"
+      ],
+      "expected": "APP_DENIED",
+      "fixtureId": "FX-G-MANAGEMENT-AND-APP-MISSING",
+      "group": "GUARD",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+        "version": 1
+      },
+      "testId": "PS-G006",
+      "testRegistryOverrideRef": "test.management-and-app.v1"
+    },
+    {
+      "composition": [
+        "COMM_CONTENT_READ",
+        "SERVICES_WORK"
+      ],
+      "expected": "CROSS_PRODUCT_DENIED",
+      "fixtureId": "FX-G-CROSS-PRODUCT",
+      "group": "GUARD",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+        "version": 1
+      },
+      "testId": "PS-G007"
+    },
+    {
+      "composition": [
+        "SERVICES_WORK",
+        "CASE:RESPONSIBILITY_ONLY_RS_SERVICES"
+      ],
+      "expected": "SURFACE_DENIED",
+      "fixtureId": "FX-G-RESPONSIBILITY-ONLY",
+      "group": "GUARD",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+        "version": 1
+      },
+      "testId": "PS-G008"
+    },
+    {
+      "composition": [
+        "SERVICES_WORK",
+        "SERVICES_CATALOG_READ"
+      ],
+      "delta": {
+        "responsibilityValidUntil": "2026-08-21T08:59:59Z"
+      },
+      "expected": "EXPIRED",
+      "fixtureId": "FX-G-ASSIGNMENT-EXPIRED",
+      "group": "GUARD",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+        "version": 1
+      },
+      "testId": "PS-G009"
+    },
+    {
+      "composition": [
+        "SERVICES_WORK"
+      ],
+      "expected": "ACTIVATION_REQUIRED",
+      "fixtureId": "FX-G-ACTIVATION-REQUIRED",
+      "group": "GUARD",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+        "version": 1
+      },
+      "testId": "PS-G010",
+      "testRegistryOverrideRef": "test.services-catalog-jit.v1"
+    },
+    {
+      "composition": [
+        "PROVIDER_ROLE"
+      ],
+      "expected": "APP_DENIED",
+      "fixtureId": "FX-C-COMM-PROVIDER",
+      "group": "GUARD",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+        "version": 1
+      },
+      "testId": "PS-G011"
+    },
+    {
+      "activeAccessMode": "PROVIDER_SUPPORT",
+      "composition": [
+        "PROVIDER_ROLE",
+        "COMM_SUPPORT_CONFIG"
+      ],
+      "expected": "SUPPORT_READ_ONLY",
+      "fixtureId": "FX-C-COMM-SUPPORT",
+      "group": "GUARD",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+        "version": 1
+      },
+      "testId": "PS-G012"
+    },
+    {
+      "composition": [
+        "HCM_TIME_OPERATOR_EXPIRED",
+        "HCM_TIME_OPERATOR_B"
+      ],
+      "delta": {
+        "contextScopeKey": "S_EXPIRED_TIME"
+      },
+      "expected": "SCOPE_INVALID_NO_FALLBACK",
+      "fixtureId": "FX-G-URL-SCOPE-EXPIRED",
+      "group": "GUARD",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+        "version": 3
+      },
+      "testId": "PS-G013"
+    },
+    {
+      "composition": [
+        "CASE:CACHED_ALLOW",
+        "CASE:AUTHORITY_UNAVAILABLE"
+      ],
+      "expected": "AUTHORITY_UNAVAILABLE_FAIL_CLOSED",
+      "fixtureId": "FX-G-AUTHORITY-UNAVAILABLE",
+      "group": "GUARD",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+        "version": 1
+      },
+      "testId": "PS-G014"
+    },
+    {
+      "composition": [
+        "NAMED_REVIEWER_WORK"
+      ],
+      "expected": "GOVERNED_WORK_ONLY",
+      "fixtureId": "FX-G-NAMED-REVIEWER-WORK",
+      "group": "GUARD",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+        "version": 1
+      },
+      "testId": "PS-G015"
+    },
+    {
+      "activeAccessMode": "PROVIDER_SUPPORT",
+      "composition": [
+        "COMM_CONTENT_EDITOR",
+        "COMM_SUPPORT_CONFIG"
+      ],
+      "expected": "SUPPORT_ONLY_NO_NORMAL_UNION",
+      "fixtureId": "FX-C-SUPPORT-EXCLUSIVE",
+      "group": "GUARD",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+        "version": 1
+      },
+      "testId": "PS-G016"
+    },
+    {
+      "composition": [
+        "CASE:FUTURE_DECISION_ENUM"
+      ],
+      "expected": "AUTHORITY_UNAVAILABLE",
+      "fixtureId": "FX-N-UNKNOWN-DECISION",
+      "group": "GUARD",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+        "version": 1
+      },
+      "testId": "PS-G017"
+    },
+    {
+      "composition": [
+        "COMM_WORK"
+      ],
+      "expected": "COMM_WORK_5",
+      "fixtureId": "FX-C-COMM-MEMBER",
+      "group": "CANARY",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+        "version": 1
+      },
+      "testId": "PS-C001"
+    },
+    {
+      "composition": [
+        "COMM_CONTENT_READ"
+      ],
+      "expected": "COMM_MANAGEMENT_1_WORK_DENIED",
+      "fixtureId": "FX-C-COMM-MGMT-ONLY",
+      "group": "CANARY",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+        "version": 1
+      },
+      "testId": "PS-C002"
+    },
+    {
+      "activeAccessMode": "PROVIDER_SUPPORT",
+      "composition": [
+        "PROVIDER_ROLE",
+        "COMM_SUPPORT_CONFIG"
+      ],
+      "expected": "SUPPORT_SCOPE_READ_ONLY",
+      "fixtureId": "FX-C-COMM-SUPPORT",
+      "group": "CANARY",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+        "version": 1
+      },
+      "testId": "PS-C003"
+    },
+    {
+      "composition": [
+        "PROVIDER_ROLE"
+      ],
+      "expected": "PRODUCT_DENIED",
+      "fixtureId": "FX-C-COMM-PROVIDER",
+      "group": "CANARY",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+        "version": 1
+      },
+      "testId": "PS-C004"
+    },
+    {
+      "composition": [
+        "SERVICES_WORK"
+      ],
+      "expected": "SERVICES_WORK_4",
+      "fixtureId": "FX-C-SERVICE-MEMBER",
+      "group": "CANARY",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+        "version": 1
+      },
+      "testId": "PS-C005"
+    },
+    {
+      "composition": [
+        "SERVICES_CATALOG_READ"
+      ],
+      "expected": "CATALOG_ONLY",
+      "fixtureId": "FX-C-SERVICE-CATALOG",
+      "group": "CANARY",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+        "version": 1
+      },
+      "testId": "PS-C006"
+    },
+    {
+      "composition": [
+        "SERVICES_OPERATIONS_READ"
+      ],
+      "expected": "OPERATIONS_ONLY",
+      "fixtureId": "FX-C-SERVICE-OPERATIONS",
+      "group": "CANARY",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+        "version": 1
+      },
+      "testId": "PS-C007"
+    },
+    {
+      "composition": [
+        "SERVICES_CATALOG_READ",
+        "SERVICES_OPERATIONS_READ"
+      ],
+      "expected": "MANAGEMENT_2_FIRST_ALLOWED",
+      "fixtureId": "FX-C-SERVICE-ALL",
+      "group": "CANARY",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+        "version": 1
+      },
+      "testId": "PS-C008"
+    },
+    {
+      "composition": [
+        "COMM_WORK",
+        "COMM_CONTENT_EDITOR",
+        "COMMUNICATION_VISIBLE_1",
+        "ANNOUNCEMENT_DRAFT_1"
+      ],
+      "expected": "READER_CREATE_UPDATE_NO_PUBLISH",
+      "fixtureId": "FX-C-COMM-EDITOR",
+      "group": "CANARY",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+        "version": 1
+      },
+      "testId": "PS-C009"
+    },
+    {
+      "composition": [
+        "COMM_CONTENT_PUBLISHER",
+        "ANNOUNCEMENT_DRAFT_1",
+        "ANNOUNCEMENT_PUBLISHED_1"
+      ],
+      "expected": "PUBLISH_ARCHIVE_ONLY",
+      "fixtureId": "FX-C-COMM-PUBLISHER",
+      "group": "CANARY",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+        "version": 1
+      },
+      "testId": "PS-C010"
+    },
+    {
+      "composition": [
+        "SERVICES_CATALOG_EDITOR",
+        "SERVICE_CATALOG_ITEM_1"
+      ],
+      "expected": "CATALOG_CREATE_BOUND_UPDATE",
+      "fixtureId": "FX-C-SERVICE-CATALOG-EDITOR",
+      "group": "CANARY",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+        "version": 1
+      },
+      "testId": "PS-C011"
+    },
+    {
+      "composition": [
+        "SERVICES_OPERATIONS_AGENT",
+        "SERVICE_REQUEST_ASSIGNED_1",
+        "SERVICE_REQUEST_OTHER_1"
+      ],
+      "expected": "ASSIGNED_TRANSITION_ONLY",
+      "fixtureId": "FX-C-SERVICE-AGENT",
+      "group": "CANARY",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+        "version": 1
+      },
+      "testId": "PS-C012"
+    },
+    {
+      "composition": [
+        "AP_WORK_MEMBER"
+      ],
+      "expected": "WORK_ONLY",
+      "fixtureId": "FX-A-MEMBER",
+      "group": "APPROVALS",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
+        "version": 2
+      },
+      "testId": "PS-A001"
+    },
+    {
+      "composition": [
+        "AP_WORK_MEMBER",
+        "AP_DESIGN_DRAFT"
+      ],
+      "expected": "DESIGN_DRAFT_ONLY",
+      "fixtureId": "FX-A-DESIGNER",
+      "group": "APPROVALS",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
+        "version": 2
+      },
+      "testId": "PS-A002"
+    },
+    {
+      "composition": [
+        "AP_WORK_MEMBER",
+        "AP_DESIGN_PUBLISH",
+        "STEPUP_HIGH_WORKFLOW_PUBLISH_1"
+      ],
+      "expected": "BOUND_WORKFLOW_PUBLISH_ONCE",
+      "fixtureId": "FX-A-PUBLISHER",
+      "group": "APPROVALS",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
+        "version": 2
+      },
+      "testId": "PS-A003"
+    },
+    {
+      "composition": [
+        "AP_WORK_MEMBER",
+        "AP_OPERATE",
+        "STEPUP_HIGH_RECOVERY_1",
+        "OUT_1"
+      ],
+      "expected": "BOUND_RECOVERY_ONCE",
+      "fixtureId": "FX-A-OPERATOR",
+      "group": "APPROVALS",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
+        "version": 2
+      },
+      "testId": "PS-A004"
+    },
+    {
+      "composition": [
+        "AP_WORK_MEMBER",
+        "AP_AUDIT_READ"
+      ],
+      "expected": "EVIDENCE_READ_ONLY",
+      "fixtureId": "FX-A-AUDITOR",
+      "group": "APPROVALS",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
+        "version": 2
+      },
+      "testId": "PS-A005"
+    },
+    {
+      "composition": [
+        "AP_DESIGN_DRAFT"
+      ],
+      "expected": "MANAGEMENT_ROOT_WORK_DENIED",
+      "fixtureId": "FX-A-MGMT-ONLY",
+      "group": "APPROVALS",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
+        "version": 2
+      },
+      "testId": "PS-A006"
+    },
+    {
+      "composition": [
+        "AP_DESIGN_DRAFT",
+        "AP_DESIGN_PUBLISH"
+      ],
+      "expected": "SOD_ASSIGNMENT_DENIED",
+      "fixtureId": "FX-A-SOD-CONFLICT",
+      "group": "APPROVALS",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
+        "version": 2
+      },
+      "testId": "PS-A007"
+    },
+    {
+      "composition": [
+        "AP_WORK_MEMBER",
+        "AP_OPERATE"
+      ],
+      "delta": {
+        "validUntil": "2026-08-21T09:04:59Z"
+      },
+      "expected": "SINGLE_EXPIRY_WARNING",
+      "fixtureId": "FX-A-EXPIRING",
+      "group": "APPROVALS",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
+        "version": 2
+      },
+      "testId": "PS-A008"
+    },
+    {
+      "composition": [
+        "AP_OPERATE"
+      ],
+      "delta": {
+        "nextRevision": "RESPONSIBILITY_REVOKED"
+      },
+      "expected": "IMMEDIATE_CONTEXT_REMOVAL",
+      "fixtureId": "FX-A-REVOKED",
+      "group": "APPROVALS",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
+        "version": 2
+      },
+      "testId": "PS-A009"
+    },
+    {
+      "composition": [
+        "AP_WORK_MEMBER",
+        "AP_POLICY_DRAFT"
+      ],
+      "expected": "POLICY_DRAFT_NO_PUBLISH",
+      "fixtureId": "FX-A-POLICY-MANAGER",
+      "group": "APPROVALS",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
+        "version": 2
+      },
+      "testId": "PS-A010"
+    },
+    {
+      "composition": [
+        "AP_WORK_MEMBER",
+        "AP_SIGNATURE_READ"
+      ],
+      "expected": "SIGNATURE_READ_ONLY",
+      "fixtureId": "FX-A-SIGNATURE-READER",
+      "group": "APPROVALS",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
+        "version": 2
+      },
+      "testId": "PS-A011"
+    },
+    {
+      "composition": [
+        "TENANT_ADMIN",
+        "AP_LEGACY_OVERSIGHT"
+      ],
+      "expected": "MASKED_READ_ONLY_OVERSIGHT",
+      "fixtureId": "FX-A-LEGACY-OVERSIGHT",
+      "group": "APPROVALS",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
+        "version": 2
+      },
+      "testId": "PS-A012"
+    },
+    {
+      "composition": [
+        "AP_WORK_MEMBER",
+        "AP_POLICY_PUBLISH",
+        "STEPUP_HIGH_POLICY_PUBLISH_1"
+      ],
+      "expected": "BOUND_POLICY_PUBLISH_ONCE",
+      "fixtureId": "FX-A-POLICY-PUBLISHER",
+      "group": "APPROVALS",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
+        "version": 2
+      },
+      "testId": "PS-A013"
+    },
+    {
+      "composition": [
+        "AP_WORK_MEMBER",
+        "AP_DESIGN_PUBLISH",
+        "STEPUP_HIGH_FORM_PUBLISH_1"
+      ],
+      "expected": "BOUND_FORM_PUBLISH_ONCE",
+      "fixtureId": "FX-A-FORM-PUBLISHER",
+      "group": "APPROVALS",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
+        "version": 2
+      },
+      "testId": "PS-A014"
+    },
+    {
+      "composition": [
+        "AP_WORK_MEMBER",
+        "TASK_CLAIM_1"
+      ],
+      "expected": "TASK_CLAIM_ALLOWED",
+      "fixtureId": "FX-A-TASK-CLAIMER",
+      "group": "APPROVALS",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
+        "version": 2
+      },
+      "testId": "PS-A015"
+    },
+    {
+      "composition": [
+        "AP_WORK_MEMBER",
+        "TASK_DECIDE_1"
+      ],
+      "expected": "TASK_DECISION_ALLOWED_CLAIM_DENIED",
+      "fixtureId": "FX-A-TASK-DECIDER",
+      "group": "APPROVALS",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
+        "version": 2
+      },
+      "testId": "PS-A016"
+    },
+    {
+      "composition": [
+        "AP_WORK_MEMBER",
+        "TASK_SELF_1"
+      ],
+      "expected": "SOD_CONFLICT",
+      "fixtureId": "FX-A-TASK-SELF-DECIDER",
+      "group": "APPROVALS",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
+        "version": 2
+      },
+      "testId": "PS-A017"
+    },
+    {
+      "composition": [
+        "AP_WORK_MEMBER",
+        "APPROVAL_HOME_PREF_1",
+        "PAYLOAD_APPROVAL_HOME_PREF_UPDATE_1",
+        "FORM_PUBLISHED_1",
+        "APR_REQUEST_DRAFT_1",
+        "APR_REQUEST_SUBMITTED_1",
+        "APR_REQUEST_NEEDS_INFO_1",
+        "APR_REQUEST_OTHER_1",
+        "DELEGATION_SELF_1",
+        "DELEGATION_OTHER_1"
+      ],
+      "expected": "OWN_STATE_BOUND_ACTIONS_ONLY",
+      "fixtureId": "FX-A-REQUEST-ACTOR",
+      "group": "APPROVALS",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
+        "version": 2
+      },
+      "testId": "PS-A018"
+    },
+    {
+      "composition": [
+        "HCM_EMPLOYEE",
+        "HCM_HOME_PREF_1",
+        "PAYLOAD_HCM_HOME_PREF_UPDATE_1",
+        "TIME_CARD_SELF_1",
+        "ABSENCE_SELF_1",
+        "TALENT_GOAL_SELF_1"
+      ],
+      "expected": "PERSONAL_SELF_ACTIONS_ONLY",
+      "fixtureId": "FX-H-EMPLOYEE",
+      "group": "HCM",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+        "version": 3
+      },
+      "testId": "PS-H001"
+    },
+    {
+      "composition": [
+        "HCM_EMPLOYEE",
+        "HCM_LINE_MANAGER"
+      ],
+      "expected": "PERSONAL_AND_TEAM_A",
+      "fixtureId": "FX-H-LINE-MANAGER",
+      "group": "HCM",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+        "version": 3
+      },
+      "testId": "PS-H002"
+    },
+    {
+      "composition": [
+        "HCM_EMPLOYEE",
+        "HCM_DELEGATED_MANAGER"
+      ],
+      "expected": "DELEGATED_TEAM_B_ONLY",
+      "fixtureId": "FX-H-DELEGATED-MANAGER",
+      "group": "HCM",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+        "version": 3
+      },
+      "testId": "PS-H003"
+    },
+    {
+      "composition": [
+        "HCM_EMPLOYEE",
+        "HCM_TIME_OPERATOR"
+      ],
+      "expected": "PERSONAL_AND_TIME_OPERATIONS",
+      "fixtureId": "FX-H-TIME-ADMIN",
+      "group": "HCM",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+        "version": 3
+      },
+      "testId": "PS-H004"
+    },
+    {
+      "composition": [
+        "HCM_EMPLOYEE",
+        "HCM_WORKFORCE_OPERATOR"
+      ],
+      "expected": "PERSONAL_AND_HR_OPERATIONS_READ",
+      "fixtureId": "FX-H-WORKFORCE-OPERATOR",
+      "group": "HCM",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+        "version": 3
+      },
+      "testId": "PS-H005"
+    },
+    {
+      "composition": [
+        "HCM_ORG_DESIGN_DRAFT",
+        "CASE:NO_PERSON_BINDING"
+      ],
+      "expected": "MANAGEMENT_ONLY",
+      "fixtureId": "FX-H-ORG-CONFIG",
+      "group": "HCM",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+        "version": 3
+      },
+      "testId": "PS-H006"
+    },
+    {
+      "composition": [
+        "HCM_EMPLOYEE",
+        "HCM_REFERENCE_DRAFT",
+        "REF_1"
+      ],
+      "expected": "REFERENCE_DRAFT",
+      "fixtureId": "FX-H-REFERENCE-ADMIN",
+      "group": "HCM",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+        "version": 3
+      },
+      "testId": "PS-H007"
+    },
+    {
+      "composition": [
+        "HCM_EMPLOYEE",
+        "HCM_CONTROLLED_EXPORT",
+        "PAYLOAD_EXPORT_PREVIEW_1",
+        "EXPORT_REQ_CANCEL_1"
+      ],
+      "expected": "PREVIEW_CANCEL_STEPUP_FOR_CREATE_RETRY",
+      "fixtureId": "FX-H-EXPORTER",
+      "group": "HCM",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+        "version": 3
+      },
+      "testId": "PS-H008"
+    },
+    {
+      "activeAccessMode": "PROVIDER_SUPPORT",
+      "composition": [
+        "PROVIDER_ROLE",
+        "HCM_SUPPORT_READ",
+        "CASE:NO_PERSON_BINDING"
+      ],
+      "expected": "OPERATIONS_READ_ONLY_ALLOWLIST",
+      "fixtureId": "FX-H-SUPPORT-READ",
+      "group": "HCM",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+        "version": 3
+      },
+      "testId": "PS-H009"
+    },
+    {
+      "composition": [
+        "HCM_WORKFORCE_OPERATOR",
+        "CASE:NO_PERSON_BINDING"
+      ],
+      "expected": "ROOT_OPERATIONS",
+      "fixtureId": "FX-H-OP-NO-PERSON",
+      "group": "HCM",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+        "version": 3
+      },
+      "testId": "PS-H010"
+    },
+    {
+      "composition": [
+        "HCM_ORG_DESIGN_DRAFT",
+        "CASE:NO_PERSON_BINDING"
+      ],
+      "expected": "ROOT_MANAGEMENT",
+      "fixtureId": "FX-H-MGMT-NO-PERSON",
+      "group": "HCM",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+        "version": 3
+      },
+      "testId": "PS-H011"
+    },
+    {
+      "composition": [
+        "HCM_TIME_OPERATOR",
+        "HCM_TIME_OPERATOR_B"
+      ],
+      "expected": "DEFAULT_A_NO_SCOPE_ESCAPE",
+      "fixtureId": "FX-H-MULTI-SCOPE",
+      "group": "HCM",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+        "version": 3
+      },
+      "testId": "PS-H012"
+    },
+    {
+      "composition": [
+        "HCM_TIME_OPERATOR_EXPIRED",
+        "HCM_TIME_OPERATOR_B"
+      ],
+      "delta": {
+        "contextScopeKey": "S_EXPIRED_TIME"
+      },
+      "expected": "EXPIRED_A_NO_B_FALLBACK",
+      "fixtureId": "FX-H-SCOPE-EXPIRED",
+      "group": "HCM",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+        "version": 3
+      },
+      "testId": "PS-H013"
+    },
+    {
+      "composition": [
+        "TENANT_ADMIN",
+        "WORKSPACE_MEMBER"
+      ],
+      "expected": "NO_HCM_MANAGEMENT_IMPLICATION",
+      "fixtureId": "FX-H-TENANT-ADMIN-ONLY",
+      "group": "HCM",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+        "version": 3
+      },
+      "testId": "PS-H014"
+    },
+    {
+      "composition": [
+        "HCM_LINE_MANAGER",
+        "CASE:DENY_HCM_PERSONAL_POLICY"
+      ],
+      "expected": "ROOT_TEAM",
+      "fixtureId": "FX-H-TEAM-ONLY",
+      "group": "HCM",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+        "version": 3
+      },
+      "testId": "PS-H015"
+    },
+    {
+      "composition": [
+        "HCM_ORG_DESIGN_PUBLISH",
+        "STEPUP_HIGH_ORG_PUBLISH_1",
+        "ORG_1",
+        "CASE:NO_PERSON_BINDING"
+      ],
+      "expected": "BOUND_ORG_PUBLISH_ONCE",
+      "fixtureId": "FX-H-ORG-PUBLISHER",
+      "group": "HCM",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+        "version": 3
+      },
+      "testId": "PS-H016"
+    },
+    {
+      "composition": [
+        "HCM_EMPLOYEE",
+        "HCM_REFERENCE_DRAFT",
+        "CASE:REQUEST_RESERVED_REFERENCE_PUBLISH"
+      ],
+      "expected": "RESERVED_AUTHORITY_UNAVAILABLE",
+      "fixtureId": "FX-H-REFERENCE-PUBLISH-RESERVED",
+      "group": "HCM",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+        "version": 3
+      },
+      "testId": "PS-H017"
+    },
+    {
+      "composition": [
+        "HCM_EMPLOYEE",
+        "HCM_INTEGRATION_ADMIN",
+        "PAYLOAD_HRIS_CONNECTOR_CREATE_SAFE_1"
+      ],
+      "expected": "SAFE_CREATE_UPDATE_EXECUTE_STEPUP_ROTATE_DENIED",
+      "fixtureId": "FX-H-INTEGRATION-ADMIN",
+      "group": "HCM",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+        "version": 3
+      },
+      "testId": "PS-H018"
+    },
+    {
+      "composition": [
+        "HCM_EMPLOYEE",
+        "HCM_CONTROLLED_EXPORT",
+        "STEPUP_CRITICAL_FRESH_1"
+      ],
+      "expected": "BOUND_EXPORT_CREATE_ONCE",
+      "fixtureId": "FX-H-EXPORTER-ACTIVE",
+      "group": "HCM",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+        "version": 3
+      },
+      "testId": "PS-H019"
+    },
+    {
+      "composition": [
+        "HCM_EMPLOYEE",
+        "HCM_INTEGRATION_ADMIN",
+        "PAYLOAD_HRIS_CONNECTOR_CREATE_SAFE_1",
+        "STEPUP_HIGH_INTEGRATION_EXECUTE_1"
+      ],
+      "expected": "BOUND_INTEGRATION_EXECUTE_ONCE",
+      "fixtureId": "FX-H-INTEGRATION-EXECUTOR",
+      "group": "HCM",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+        "version": 3
+      },
+      "testId": "PS-H020"
+    },
+    {
+      "composition": [
+        "HCM_EMPLOYEE",
+        "HCM_INTEGRATION_ADMIN",
+        "CASE:REQUEST_RESERVED_SECRET_ROTATE"
+      ],
+      "expected": "RESERVED_AUTHORITY_UNAVAILABLE",
+      "fixtureId": "FX-H-SECRET-ROTATE-RESERVED",
+      "group": "HCM",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+        "version": 3
+      },
+      "testId": "PS-H021"
+    },
+    {
+      "composition": [
+        "HCM_DIRECTORY_ONLY"
+      ],
+      "expected": "DIRECTORY_ORGANIZATION_ONLY",
+      "fixtureId": "FX-H-DIRECTORY-ONLY",
+      "group": "HCM",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+        "version": 3
+      },
+      "testId": "PS-H022"
+    },
+    {
+      "composition": [
+        "HCM_ORG_DESIGN_APPROVE",
+        "ORG_1",
+        "CASE:NO_PERSON_BINDING"
+      ],
+      "expected": "BOUND_ORG_APPROVAL_ONLY",
+      "fixtureId": "FX-H-ORG-APPROVER",
+      "group": "HCM",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+        "version": 3
+      },
+      "testId": "PS-H023"
+    },
+    {
+      "composition": [
+        "HCM_EMPLOYEE",
+        "HCM_CONTROLLED_EXPORT",
+        "STEPUP_CRITICAL_EXPORT_RETRY_1",
+        "EXPORT_REQ_RETRY_1"
+      ],
+      "expected": "BOUND_EXPORT_RETRY_ONCE",
+      "fixtureId": "FX-H-EXPORT-RETRIER",
+      "group": "HCM",
+      "requiredRegistryRef": {
+        "bundleKey": "product-surfaces",
+        "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+        "version": 3
+      },
+      "testId": "PS-H024"
+    }
+  ]
+}

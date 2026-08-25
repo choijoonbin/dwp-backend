@@ -23,34 +23,41 @@ import java.util.UUID;
 @Service
 public class AppGovernanceService {
 
-    private static final Set<String> TENANT_GOVERNORS =
-            Set.of("ADMIN", "TENANT_ADMIN", "PLATFORM_ADMIN");
     private static final String CATALOG_ADMIN = "APP_CATALOG_ADMIN";
-    private static final Set<String> RESPONSIBILITIES = Set.of(
-            "APP_OWNER", "APP_CONFIG_ADMIN", "APP_ACCESS_MANAGER",
+    private static final Set<String> CONTROL_PLANE_RESPONSIBILITIES = Set.of(
+            "APP_OWNER", "APP_ACCESS_MANAGER",
             "APP_ACCESS_APPROVER", "APP_ACCESS_REVIEWER");
 
     private final JdbcTemplate jdbc;
     private final IdentityAuditService audit;
+    private final AppGovernanceAuthorization authorization;
+    private final AppGovernanceDenialAudit denials;
+    private final AppGovernanceAssignmentStore assignmentStore;
 
     public AppGovernanceService(JdbcTemplate jdbc, IdentityAuditService audit) {
         this.jdbc = jdbc;
         this.audit = audit;
+        this.authorization = new AppGovernanceAuthorization(jdbc);
+        this.denials = new AppGovernanceDenialAudit(audit);
+        this.assignmentStore = new AppGovernanceAssignmentStore(jdbc);
     }
 
     @Transactional(readOnly = true)
     public AppGovernanceDtos.Dashboard dashboard(Long tenantId, Long actorId) {
         Set<String> roles = tenantRoles(tenantId, actorId);
-        boolean tenantGovernor = hasAny(roles, TENANT_GOVERNORS);
         boolean catalogAdmin = roles.contains(CATALOG_ADMIN);
-        List<AppGovernanceDtos.ResourceRole> actorScopes = resourceRoles(tenantId, actorId);
-        if (!tenantGovernor && !catalogAdmin && actorScopes.isEmpty()) {
+        List<AppGovernanceDtos.ResourceRole> actorScopes = resourceRoles(tenantId, actorId)
+                .stream()
+                .filter(scope -> CONTROL_PLANE_RESPONSIBILITIES.contains(
+                        scope.responsibilityCode()))
+                .toList();
+        if (!catalogAdmin && actorScopes.isEmpty()) {
             throw new BaseException(ErrorCode.FORBIDDEN);
         }
 
         List<AppGovernanceDtos.ResourceSet> sets = resourceSets(tenantId);
         List<AppGovernanceDtos.Assignment> assignments = assignments(tenantId);
-        if (!tenantGovernor && !catalogAdmin) {
+        if (!catalogAdmin) {
             Set<UUID> visible = actorScopes.stream()
                     .map(AppGovernanceDtos.ResourceRole::resourceSetId)
                     .collect(LinkedHashSet::new, Set::add, Set::addAll);
@@ -59,9 +66,13 @@ public class AppGovernanceService {
                     .filter(value -> visible.contains(value.resourceSetId()))
                     .toList();
         }
+        boolean canComposeResponsibilities = catalogAdmin || actorScopes.stream()
+                .anyMatch(value -> "APP_OWNER".equals(value.responsibilityCode()));
         return new AppGovernanceDtos.Dashboard(
-                metrics(sets, assignments), responsibilities(),
-                principals(tenantId), sets, assignments);
+                metrics(sets, assignments),
+                canComposeResponsibilities ? responsibilities() : List.of(),
+                canComposeResponsibilities ? principals(tenantId) : List.of(),
+                sets, assignments);
     }
 
     @Transactional(readOnly = true)
@@ -108,7 +119,21 @@ public class AppGovernanceService {
             Long actorId,
             String correlationId,
             AppGovernanceDtos.CreateResourceSetRequest request) {
-        requireCatalogGovernor(tenantId, actorId);
+        return denials.capture(
+                tenantId, actorId, correlationId,
+                "access.app-resource-set.create-denied",
+                "APP_RESOURCE_SET", "CREATE",
+                () -> createResourceSetInternal(
+                        tenantId, actorId, correlationId, request));
+    }
+
+    private AppGovernanceDtos.ResourceSet createResourceSetInternal(
+            Long tenantId,
+            Long actorId,
+            String correlationId,
+            AppGovernanceDtos.CreateResourceSetRequest request) {
+        authorization.requireCatalogAdmin(
+                tenantId, actorId, correlationId, "APP_RESOURCE_SET", "CREATE");
         List<AppGovernanceDtos.ResourceMember> resources =
                 requireAppResources(tenantId, request.resourceKeys());
         UUID id = UUID.randomUUID();
@@ -139,15 +164,31 @@ public class AppGovernanceService {
             String correlationId,
             UUID resourceSetId,
             AppGovernanceDtos.UpdateResourceSetRequest request) {
-        requireCatalogGovernor(tenantId, actorId);
+        return denials.capture(
+                tenantId, actorId, correlationId,
+                "access.app-resource-set.update-denied",
+                "APP_RESOURCE_SET", resourceSetId.toString(),
+                () -> updateResourceSetInternal(
+                        tenantId, actorId, correlationId, resourceSetId, request));
+    }
+
+    private AppGovernanceDtos.ResourceSet updateResourceSetInternal(
+            Long tenantId,
+            Long actorId,
+            String correlationId,
+            UUID resourceSetId,
+            AppGovernanceDtos.UpdateResourceSetRequest request) {
+        authorization.requireCatalogAdmin(
+                tenantId, actorId, correlationId, "APP_RESOURCE_SET",
+                resourceSetId.toString());
         AppGovernanceDtos.ResourceSet before = requireResourceSet(tenantId, resourceSetId);
-        lockResourceSet(tenantId, resourceSetId);
+        assignmentStore.lockResourceSet(tenantId, resourceSetId);
         before = requireResourceSet(tenantId, resourceSetId);
         if (before.version() != request.version()) conflict("The resource set changed. Refresh and retry.");
         Long assignments = jdbc.queryForObject("""
                 SELECT COUNT(*) FROM com_admin_role_assignments
                  WHERE tenant_id = ? AND resource_set_id = ?
-                   AND lifecycle_state IN ('PENDING_APPROVAL', 'ACTIVE')
+                   AND lifecycle_state IN ('PENDING_APPROVAL', 'APPROVED', 'ACTIVE')
                 """, Long.class, tenantId, resourceSetId);
         if (assignments != null && assignments > 0) {
             throw new BaseException(
@@ -182,26 +223,41 @@ public class AppGovernanceService {
             Long actorId,
             String correlationId,
             AppGovernanceDtos.CreateAssignmentRequest request) {
+        return denials.capture(
+                tenantId, actorId, correlationId,
+                "access.app-responsibility.request-denied",
+                "APP_ADMIN_ASSIGNMENT", "CREATE",
+                () -> requestAssignmentInternal(
+                        tenantId, actorId, correlationId, request));
+    }
+
+    private AppGovernanceDtos.Assignment requestAssignmentInternal(
+            Long tenantId,
+            Long actorId,
+            String correlationId,
+            AppGovernanceDtos.CreateAssignmentRequest request) {
         String responsibility = request.responsibilityCode().toUpperCase(Locale.ROOT);
         String principalType = request.principalType().toUpperCase(Locale.ROOT);
         String principalRef = request.principalRef().trim();
-        if (!RESPONSIBILITIES.contains(responsibility)) {
-            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "Unknown application responsibility.");
+        if (!CONTROL_PLANE_RESPONSIBILITIES.contains(responsibility)) {
+            denied(tenantId, actorId, correlationId, "APP_ADMIN_ASSIGNMENT", "CREATE",
+                    "PRESET_WORKFLOW_REQUIRED_FOR_SPECIALIST_RESPONSIBILITY");
         }
         AppGovernanceDtos.ResourceSet resourceSet = requireResourceSet(tenantId, request.resourceSetId());
-        Set<String> actorRoles = tenantRoles(tenantId, actorId);
-        boolean catalogGovernor = hasAny(actorRoles, TENANT_GOVERNORS) || actorRoles.contains(CATALOG_ADMIN);
-        boolean owner = hasResponsibility(tenantId, actorId, "APP_OWNER", request.resourceSetId());
-        if (!catalogGovernor && (!owner || "APP_OWNER".equals(responsibility))) {
-            denied(tenantId, actorId, correlationId, "APP_RESOURCE_SET",
-                    request.resourceSetId().toString(), "OUTSIDE_DELEGATED_APP_SCOPE");
+        if ("APP_OWNER".equals(responsibility)) {
+            authorization.requireCatalogAdmin(
+                    tenantId, actorId, correlationId, "APP_ADMIN_ASSIGNMENT", "CREATE");
+        } else {
+            authorization.requirePresetRequester(
+                    tenantId, actorId, request.resourceSetId(), correlationId);
         }
-        requirePrincipal(tenantId, principalType, principalRef);
+        assignmentStore.requirePrincipal(tenantId, principalType, principalRef);
         validateWindow(request.validTo());
-        lockAssignmentBoundary(tenantId, principalType, principalRef, resourceSet);
-        ensureNoDutyConflict(tenantId, principalType, principalRef,
+        assignmentStore.lockAssignmentBoundary(
+                tenantId, principalType, principalRef, resourceSet);
+        assignmentStore.ensureNoDutyConflict(tenantId, principalType, principalRef,
                 responsibility, request.resourceSetId(), null);
-        if (hasOpenAssignment(tenantId, principalType, principalRef,
+        if (assignmentStore.hasOpenAssignment(tenantId, principalType, principalRef,
                 responsibility, request.resourceSetId())) {
             conflict("An active or pending assignment already exists for this principal and scope.");
         }
@@ -243,24 +299,38 @@ public class AppGovernanceService {
             String correlationId,
             UUID assignmentId,
             AppGovernanceDtos.AssignmentDecisionRequest request) {
+        return denials.capture(
+                tenantId, actorId, correlationId,
+                "access.app-responsibility.decision-denied",
+                "APP_ADMIN_ASSIGNMENT", assignmentId.toString(),
+                () -> decideAssignmentInternal(
+                        tenantId, actorId, correlationId, assignmentId, request));
+    }
+
+    private AppGovernanceDtos.Assignment decideAssignmentInternal(
+            Long tenantId,
+            Long actorId,
+            String correlationId,
+            UUID assignmentId,
+            AppGovernanceDtos.AssignmentDecisionRequest request) {
         AppGovernanceDtos.Assignment before = requireAssignment(tenantId, assignmentId);
+        if (!CONTROL_PLANE_RESPONSIBILITIES.contains(before.responsibilityCode())) {
+            denied(tenantId, actorId, correlationId, "APP_ADMIN_ASSIGNMENT",
+                    assignmentId.toString(),
+                    "PRESET_WORKFLOW_REQUIRED_FOR_SPECIALIST_RESPONSIBILITY");
+        }
+        requireAssignmentDecisionAuthority(
+                tenantId, actorId, correlationId, assignmentId, before);
         AppGovernanceDtos.ResourceSet resourceSet =
                 requireResourceSet(tenantId, before.resourceSetId());
-        lockAssignmentBoundary(
+        assignmentStore.lockAssignmentBoundary(
                 tenantId, before.principalType(), before.principalRef(), resourceSet);
         before = requireAssignment(tenantId, assignmentId);
+        requireAssignmentDecisionAuthority(
+                tenantId, actorId, correlationId, assignmentId, before);
         if (before.version() != request.version()) conflict("The assignment changed. Refresh and retry.");
         if (!"PENDING_APPROVAL".equals(before.lifecycleState())) {
             throw new BaseException(ErrorCode.INVALID_STATE, "Only pending assignments can be decided.");
-        }
-        Set<String> roles = tenantRoles(tenantId, actorId);
-        boolean tenantGovernor = hasAny(roles, TENANT_GOVERNORS);
-        boolean catalogAdmin = roles.contains(CATALOG_ADMIN);
-        if (("APP_OWNER".equals(before.responsibilityCode()) && !tenantGovernor)
-                || (!"APP_OWNER".equals(before.responsibilityCode())
-                    && !tenantGovernor && !catalogAdmin)) {
-            denied(tenantId, actorId, correlationId, "APP_ADMIN_ASSIGNMENT",
-                    assignmentId.toString(), "INDEPENDENT_APPROVER_REQUIRED");
         }
         if (actorId.equals(before.requestedBy())
                 || ("USER".equals(before.principalType())
@@ -271,7 +341,8 @@ public class AppGovernanceService {
         String decision = request.decision().toUpperCase(Locale.ROOT);
         if ("APPROVED".equals(decision)) {
             validateWindow(before.validTo());
-            ensureNoDutyConflict(tenantId, before.principalType(), before.principalRef(),
+            assignmentStore.ensureNoDutyConflict(
+                    tenantId, before.principalType(), before.principalRef(),
                     before.responsibilityCode(), before.resourceSetId(), assignmentId);
         }
         String state = "APPROVED".equals(decision) ? "ACTIVE" : "DENIED";
@@ -289,7 +360,8 @@ public class AppGovernanceService {
                 """, state, state, actorId, request.reason().trim(), actorId,
                 tenantId, assignmentId, request.version());
         if (changed != 1) conflict("The assignment changed. Refresh and retry.");
-        invalidatePrincipal(tenantId, before.principalType(), before.principalRef(), actorId);
+        assignmentStore.invalidatePrincipal(
+                tenantId, before.principalType(), before.principalRef(), actorId);
         audit.success(tenantId, actorId,
                 "APPROVED".equals(decision)
                         ? "access.app-responsibility.approved"
@@ -306,25 +378,37 @@ public class AppGovernanceService {
             String correlationId,
             UUID assignmentId,
             AppGovernanceDtos.RevokeAssignmentRequest request) {
+        return denials.capture(
+                tenantId, actorId, correlationId,
+                "access.app-responsibility.revocation-denied",
+                "APP_ADMIN_ASSIGNMENT", assignmentId.toString(),
+                () -> revokeAssignmentInternal(
+                        tenantId, actorId, correlationId, assignmentId, request));
+    }
+
+    private AppGovernanceDtos.Assignment revokeAssignmentInternal(
+            Long tenantId,
+            Long actorId,
+            String correlationId,
+            UUID assignmentId,
+            AppGovernanceDtos.RevokeAssignmentRequest request) {
         AppGovernanceDtos.Assignment before = requireAssignment(tenantId, assignmentId);
+        requireAssignmentRevocationAuthority(
+                tenantId, actorId, correlationId, assignmentId, before);
         AppGovernanceDtos.ResourceSet resourceSet =
                 requireResourceSet(tenantId, before.resourceSetId());
-        lockAssignmentBoundary(
+        assignmentStore.lockAssignmentBoundary(
                 tenantId, before.principalType(), before.principalRef(), resourceSet);
         before = requireAssignment(tenantId, assignmentId);
+        requireAssignmentRevocationAuthority(
+                tenantId, actorId, correlationId, assignmentId, before);
         if (before.version() != request.version()) conflict("The assignment changed. Refresh and retry.");
         if (!"ACTIVE".equals(before.lifecycleState())) {
             throw new BaseException(ErrorCode.INVALID_STATE, "Only active assignments can be revoked.");
         }
-        Set<String> roles = tenantRoles(tenantId, actorId);
-        boolean catalogGovernor = hasAny(roles, TENANT_GOVERNORS) || roles.contains(CATALOG_ADMIN);
-        boolean owner = hasResponsibility(tenantId, actorId, "APP_OWNER", before.resourceSetId());
-        if (!catalogGovernor && (!owner || "APP_OWNER".equals(before.responsibilityCode()))) {
-            denied(tenantId, actorId, correlationId, "APP_ADMIN_ASSIGNMENT",
-                    assignmentId.toString(), "OUTSIDE_DELEGATED_APP_SCOPE");
-        }
         if ("APP_OWNER".equals(before.responsibilityCode())
-                && activeOwnerCount(tenantId, before.resourceSetId()) <= 1) {
+                && assignmentStore.activeOwnerCount(
+                        tenantId, before.resourceSetId()) <= 1) {
             throw new BaseException(ErrorCode.INVALID_STATE,
                     "Assign and approve a replacement owner before revoking the final owner.");
         }
@@ -338,7 +422,8 @@ public class AppGovernanceService {
                 """, actorId, request.reason().trim(), actorId,
                 tenantId, assignmentId, request.version());
         if (changed != 1) conflict("The assignment changed. Refresh and retry.");
-        invalidatePrincipal(tenantId, before.principalType(), before.principalRef(), actorId);
+        assignmentStore.invalidatePrincipal(
+                tenantId, before.principalType(), before.principalRef(), actorId);
         audit.success(tenantId, actorId, "access.app-responsibility.revoked",
                 "APP_ADMIN_ASSIGNMENT", assignmentId.toString(), correlationId,
                 snapshot("state", "ACTIVE"), snapshot("state", "REVOKED"));
@@ -390,7 +475,7 @@ public class AppGovernanceService {
                     snapshot("state", "ACTIVE", "validTo", assignment.validTo()),
                     snapshot("state", "EXPIRED"));
         }
-        affectedPrincipals.values().forEach(assignment -> invalidatePrincipal(
+        affectedPrincipals.values().forEach(assignment -> assignmentStore.invalidatePrincipal(
                 assignment.tenantId(), assignment.principalType(), assignment.principalRef(), null));
         return expired.size();
     }
@@ -404,7 +489,43 @@ public class AppGovernanceService {
                 """, (result, ignored) -> new AppGovernanceDtos.Responsibility(
                 result.getString("responsibility_code"), result.getString("display_name"),
                 result.getString("description"), result.getString("risk_tier"),
-                result.getInt("sort_order")));
+                result.getInt("sort_order"))).stream()
+                .filter(value -> CONTROL_PLANE_RESPONSIBILITIES.contains(value.code()))
+                .toList();
+    }
+
+    private void requireAssignmentDecisionAuthority(
+            Long tenantId,
+            Long actorId,
+            String correlationId,
+            UUID assignmentId,
+            AppGovernanceDtos.Assignment assignment) {
+        if ("APP_OWNER".equals(assignment.responsibilityCode())) {
+            authorization.requireCatalogAdmin(
+                    tenantId, actorId, correlationId,
+                    "APP_ADMIN_ASSIGNMENT", assignmentId.toString());
+            return;
+        }
+        authorization.requireScopedResponsibility(
+                tenantId, actorId, "APP_ACCESS_APPROVER", assignment.resourceSetId(),
+                correlationId, "APP_ADMIN_ASSIGNMENT", assignmentId.toString());
+    }
+
+    private void requireAssignmentRevocationAuthority(
+            Long tenantId,
+            Long actorId,
+            String correlationId,
+            UUID assignmentId,
+            AppGovernanceDtos.Assignment assignment) {
+        if ("APP_OWNER".equals(assignment.responsibilityCode())) {
+            authorization.requireCatalogAdmin(
+                    tenantId, actorId, correlationId,
+                    "APP_ADMIN_ASSIGNMENT", assignmentId.toString());
+            return;
+        }
+        authorization.requireScopedResponsibility(
+                tenantId, actorId, "APP_ACCESS_MANAGER", assignment.resourceSetId(),
+                correlationId, "APP_ADMIN_ASSIGNMENT", assignmentId.toString());
     }
 
     private List<AppGovernanceDtos.Principal> principals(Long tenantId) {
@@ -498,7 +619,8 @@ public class AppGovernanceService {
                    AND approver.user_id = assignment.approved_by
                  WHERE assignment.tenant_id = ?
                  ORDER BY CASE assignment.lifecycle_state
-                              WHEN 'PENDING_APPROVAL' THEN 0 WHEN 'ACTIVE' THEN 1 ELSE 2 END,
+                          WHEN 'PENDING_APPROVAL' THEN 0
+                          WHEN 'APPROVED' THEN 1 WHEN 'ACTIVE' THEN 2 ELSE 3 END,
                           assignment.updated_at DESC
                 """, this::assignment, tenantId);
     }
@@ -582,40 +704,6 @@ public class AppGovernanceService {
                 resource.resourceKey(), actorId, actorId));
     }
 
-    private void lockAssignmentBoundary(
-            Long tenantId,
-            String principalType,
-            String principalRef,
-            AppGovernanceDtos.ResourceSet resourceSet) {
-        lockResourceSet(tenantId, resourceSet.resourceSetId());
-        resourceSet.resources().stream()
-                .map(AppGovernanceDtos.ResourceMember::resourceKey)
-                .sorted()
-                .forEach(resourceKey -> lockTransactionKey(
-                        tenantId,
-                        "app-admin-duty:" + principalType + ":" + principalRef + ":" + resourceKey));
-    }
-
-    private void lockResourceSet(Long tenantId, UUID resourceSetId) {
-        lockTransactionKey(tenantId, "app-admin-resource-set:" + resourceSetId);
-    }
-
-    private void lockTransactionKey(Long tenantId, String key) {
-        jdbc.query(
-                "SELECT pg_advisory_xact_lock(?, ?)",
-                result -> {
-                    // The row callback intentionally only waits for the transaction-scoped lock.
-                },
-                tenantId.intValue(), key.hashCode());
-    }
-
-    private void requireCatalogGovernor(Long tenantId, Long actorId) {
-        Set<String> roles = tenantRoles(tenantId, actorId);
-        if (!hasAny(roles, TENANT_GOVERNORS) && !roles.contains(CATALOG_ADMIN)) {
-            throw new BaseException(ErrorCode.FORBIDDEN);
-        }
-    }
-
     private Set<String> tenantRoles(Long tenantId, Long userId) {
         return new LinkedHashSet<>(jdbc.query("""
                 SELECT role.code
@@ -646,144 +734,10 @@ public class AppGovernanceService {
                 tenantId, userId, tenantId, userId, tenantId));
     }
 
-    private boolean hasResponsibility(
-            Long tenantId, Long userId, String responsibility, UUID resourceSetId) {
-        Long count = jdbc.queryForObject("""
-                SELECT COUNT(*)
-                  FROM com_admin_role_assignments assignment
-                 WHERE assignment.tenant_id = ?
-                   AND assignment.responsibility_code = ?
-                   AND assignment.resource_set_id = ?
-                   AND assignment.lifecycle_state = 'ACTIVE'
-                   AND (assignment.valid_from IS NULL OR assignment.valid_from <= CURRENT_TIMESTAMP)
-                   AND (assignment.valid_to IS NULL OR assignment.valid_to > CURRENT_TIMESTAMP)
-                   AND ((assignment.principal_type = 'USER' AND assignment.principal_ref = ?)
-                     OR (assignment.principal_type = 'GROUP' AND EXISTS (
-                         SELECT 1 FROM com_group_members membership
-                          WHERE membership.tenant_id = assignment.tenant_id
-                            AND membership.group_id::text = assignment.principal_ref
-                            AND membership.user_id = ?)))
-                """, Long.class, tenantId, responsibility, resourceSetId, userId.toString(), userId);
-        return count != null && count > 0;
-    }
-
-    private void requirePrincipal(Long tenantId, String type, String ref) {
-        String sql = "USER".equals(type)
-                ? "SELECT COUNT(*) FROM com_users WHERE tenant_id = ? AND user_id::text = ? AND status = 'ACTIVE'"
-                : "SELECT COUNT(*) FROM com_groups WHERE tenant_id = ? AND group_id::text = ? AND status = 'ACTIVE'";
-        Long count = jdbc.queryForObject(sql, Long.class, tenantId, ref);
-        if (count == null || count == 0) {
-            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "The principal is not active in this tenant.");
-        }
-    }
-
-    private void ensureNoDutyConflict(
-            Long tenantId,
-            String principalType,
-            String principalRef,
-            String responsibility,
-            UUID resourceSetId,
-            UUID ignoredAssignmentId) {
-        Set<String> conflicts = switch (responsibility) {
-            case "APP_ACCESS_MANAGER" -> Set.of("APP_ACCESS_APPROVER", "APP_ACCESS_REVIEWER");
-            case "APP_ACCESS_APPROVER", "APP_ACCESS_REVIEWER" -> Set.of("APP_ACCESS_MANAGER");
-            default -> Set.of();
-        };
-        if (conflicts.isEmpty()) return;
-        String placeholders = String.join(",", java.util.Collections.nCopies(conflicts.size(), "?"));
-        List<Object> arguments = new ArrayList<>(List.of(
-                tenantId, principalType, principalRef, resourceSetId));
-        arguments.addAll(conflicts);
-        arguments.add(ignoredAssignmentId == null ? new UUID(0, 0) : ignoredAssignmentId);
-        Long count = jdbc.queryForObject("""
-                SELECT COUNT(*)
-                  FROM com_admin_role_assignments existing
-                  JOIN com_admin_resource_set_members existing_member
-                    ON existing_member.tenant_id = existing.tenant_id
-                   AND existing_member.resource_set_id = existing.resource_set_id
-                   AND existing_member.lifecycle_state = 'ACTIVE'
-                  JOIN com_admin_resource_set_members requested_member
-                    ON requested_member.tenant_id = existing_member.tenant_id
-                   AND requested_member.resource_set_id = ?
-                   AND requested_member.resource_type = existing_member.resource_type
-                   AND requested_member.resource_key = existing_member.resource_key
-                   AND requested_member.lifecycle_state = 'ACTIVE'
-                 WHERE existing.tenant_id = ?
-                   AND existing.principal_type = ? AND existing.principal_ref = ?
-                   AND existing.responsibility_code IN (%s)
-                   AND existing.lifecycle_state IN ('PENDING_APPROVAL', 'ACTIVE')
-                   AND existing.admin_role_assignment_id <> ?
-                """.formatted(placeholders), Long.class,
-                reorderConflictArguments(arguments).toArray());
-        if (count != null && count > 0) {
-            throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
-                    "Access fulfilment cannot overlap approval or review for the same application.");
-        }
-    }
-
-    private List<Object> reorderConflictArguments(List<Object> original) {
-        List<Object> ordered = new ArrayList<>();
-        ordered.add(original.get(3));
-        ordered.add(original.get(0));
-        ordered.add(original.get(1));
-        ordered.add(original.get(2));
-        ordered.addAll(original.subList(4, original.size()));
-        return ordered;
-    }
-
-    private boolean hasOpenAssignment(
-            Long tenantId, String principalType, String principalRef,
-            String responsibility, UUID resourceSetId) {
-        Long count = jdbc.queryForObject("""
-                SELECT COUNT(*) FROM com_admin_role_assignments
-                 WHERE tenant_id = ? AND principal_type = ? AND principal_ref = ?
-                   AND responsibility_code = ? AND resource_set_id = ?
-                   AND lifecycle_state IN ('PENDING_APPROVAL', 'ACTIVE')
-                """, Long.class, tenantId, principalType, principalRef, responsibility, resourceSetId);
-        return count != null && count > 0;
-    }
-
-    private long activeOwnerCount(Long tenantId, UUID resourceSetId) {
-        Long count = jdbc.queryForObject("""
-                SELECT COUNT(*) FROM com_admin_role_assignments
-                 WHERE tenant_id = ? AND resource_set_id = ?
-                   AND responsibility_code = 'APP_OWNER' AND lifecycle_state = 'ACTIVE'
-                   AND (valid_to IS NULL OR valid_to > CURRENT_TIMESTAMP)
-                """, Long.class, tenantId, resourceSetId);
-        return count == null ? 0 : count;
-    }
-
-    private void invalidatePrincipal(
-            Long tenantId, String principalType, String principalRef, Long actorId) {
-        if ("USER".equals(principalType)) {
-            jdbc.update("""
-                    UPDATE com_users
-                       SET access_revision = access_revision + 1, version = version + 1,
-                           updated_at = CURRENT_TIMESTAMP, updated_by = ?
-                     WHERE tenant_id = ? AND user_id::text = ?
-                    """, actorId, tenantId, principalRef);
-        } else if ("GROUP".equals(principalType)) {
-            jdbc.update("""
-                    UPDATE com_users user_record
-                       SET access_revision = access_revision + 1, version = version + 1,
-                           updated_at = CURRENT_TIMESTAMP, updated_by = ?
-                      FROM com_group_members membership
-                     WHERE membership.tenant_id = ?
-                       AND membership.group_id::text = ?
-                       AND user_record.tenant_id = membership.tenant_id
-                       AND user_record.user_id = membership.user_id
-                    """, actorId, tenantId, principalRef);
-        }
-    }
-
     private void validateWindow(OffsetDateTime validTo) {
         if (validTo != null && !validTo.isAfter(OffsetDateTime.now(ZoneOffset.UTC))) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "The assignment must end in the future.");
         }
-    }
-
-    private boolean hasAny(Set<String> values, Set<String> candidates) {
-        return values.stream().anyMatch(candidates::contains);
     }
 
     private String normalizeKey(String value) {
@@ -799,9 +753,10 @@ public class AppGovernanceService {
     private void denied(
             Long tenantId, Long actorId, String correlationId,
             String targetType, String targetId, String reason) {
-        audit.denied(tenantId, actorId, "access.app-governance.denied",
-                targetType, targetId, correlationId, reason, null);
-        throw new BaseException(ErrorCode.FORBIDDEN, "The delegated application scope does not permit this action.");
+        String message = reason.startsWith("PRESET_WORKFLOW_REQUIRED")
+                ? "Product specialist access must use the governed app-admin preset workflow."
+                : "The delegated application scope does not permit this action.";
+        throw new BaseException(ErrorCode.FORBIDDEN, message);
     }
 
     private void conflict(String message) {

@@ -151,6 +151,37 @@ class PeopleSecurityFilterTest {
         assertThat(response.getStatus()).isEqualTo(200);
     }
 
+    @Test
+    void protectsProductEligibilityAsAnInternalServiceContract() throws Exception {
+        PeopleSecurityFilter filter = new PeopleSecurityFilter("trusted", objectMapper);
+        MockHttpServletRequest request = regularRequest(
+                "POST", "/internal/people/v1/product-surface-eligibility/evaluate",
+                "WORKSPACE_MEMBER");
+        request.addHeader(PeopleSecurityFilter.SERVICE_IDENTITY_HEADER, "dwp-gateway");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        AtomicReference<PeopleRequestContext.Actor> actor = new AtomicReference<>();
+
+        filter.doFilter(request, response, (ignoredRequest, ignoredResponse) ->
+                actor.set(PeopleRequestContext.require()));
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(actor.get().userId()).isEqualTo(17L);
+
+        for (String identity : new String[] {null, "another-service"}) {
+            MockHttpServletRequest rejected = regularRequest(
+                    "POST", "/internal/people/v1/product-surface-eligibility/evaluate",
+                    "WORKSPACE_MEMBER");
+            if (identity != null) {
+                rejected.addHeader(PeopleSecurityFilter.SERVICE_IDENTITY_HEADER, identity);
+            }
+            MockHttpServletResponse denied = new MockHttpServletResponse();
+
+            filter.doFilter(rejected, denied, new MockFilterChain());
+
+            assertThat(denied.getStatus()).isEqualTo(401);
+        }
+    }
+
     private MockHttpServletRequest request(String method, String path) {
         MockHttpServletRequest request = new MockHttpServletRequest(method, path);
         request.addHeader(PeopleSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");

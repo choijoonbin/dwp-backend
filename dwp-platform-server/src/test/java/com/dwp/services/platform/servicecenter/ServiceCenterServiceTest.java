@@ -3,6 +3,7 @@ package com.dwp.services.platform.servicecenter;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.audit.PlatformAuditService;
+import com.dwp.services.platform.security.PlatformRoutePredicateEvaluator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,6 +29,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -38,13 +40,15 @@ class ServiceCenterServiceTest {
     private ServiceCenterRepository repository;
     @Mock
     private PlatformAuditService audit;
+    @Mock
+    private PlatformRoutePredicateEvaluator predicateEvaluator;
 
     private ServiceCenterService service;
     private JsonNode schema;
 
     @BeforeEach
     void setUp() throws Exception {
-        service = new ServiceCenterService(repository, audit);
+        service = new ServiceCenterService(repository, audit, predicateEvaluator);
         schema = new ObjectMapper().readTree("""
                 {"fields":[
                   {"key":"systemName","type":"TEXT","labelKo":"시스템","labelEn":"System","required":true},
@@ -109,9 +113,13 @@ class ServiceCenterServiceTest {
     @Test
     void operatorCannotSkipFromSubmittedToResolved() {
         UUID requestId = UUID.randomUUID();
-        when(repository.findOperationalRequest(7L, requestId))
-                .thenReturn(Optional.of(request(SUBMITTED, Map.of(
-                        "systemName", "DWP", "issueType", "SIGN_IN"))));
+        doThrow(new BaseException(
+                ErrorCode.RESOURCE_CONFLICT,
+                "The requested service status transition is not allowed."))
+                .when(predicateEvaluator)
+                .requireAssignedServiceRequestTransition(
+                        7L, 22L, requestId,
+                        ServiceCenterTypes.RequestStatus.RESOLVED, 0L);
 
         assertThatThrownBy(() -> service.transition(
                 7L, 22L, "corr", requestId,

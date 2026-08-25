@@ -113,6 +113,10 @@ public class WorkspaceService {
                         tenantId, actorId, workItemId, korean)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         String requestedStatus = request.status().toUpperCase(Locale.ROOT);
+        if ("REVIEW".equals(before.type())
+                || IdentityGovernanceWorkItemProjectionRepository.SOURCE_SYSTEM.equals(before.sourceSystem())) {
+            throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
+        }
         if (before.version() != request.version()) {
             throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
         }
@@ -598,9 +602,7 @@ public class WorkspaceService {
 
     private String sanitizedFailure(Exception exception) {
         String message = exception.getMessage();
-        if (message == null || message.isBlank()) {
-            return "Runtime entitlement synchronization failed.";
-        }
+        if (message == null || message.isBlank()) return "Runtime entitlement synchronization failed.";
         String sanitized = message.replaceAll("[\\r\\n\\t]+", " ").trim();
         return sanitized.length() <= 1000 ? sanitized : sanitized.substring(0, 1000);
     }
@@ -761,8 +763,6 @@ public class WorkspaceService {
     }
 
     private void require(Set<String> authorities, String authority) {
-        if (!authorities.contains(authority)) {
-            throw new BaseException(ErrorCode.FORBIDDEN);
-        }
+        if (!authorities.contains(authority)) throw new BaseException(ErrorCode.FORBIDDEN);
     }
 }

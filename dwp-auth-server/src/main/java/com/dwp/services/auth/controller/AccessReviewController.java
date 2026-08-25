@@ -36,10 +36,10 @@ public class AccessReviewController {
     public ApiResponse<List<AccessReviewDtos.CampaignSummary>> campaigns(
             Authentication authentication,
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader) {
+        AuthenticatedUserResolver.requireTenantAdmin(authentication);
         Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
-        return ApiResponse.success(service.campaigns(
-                tenantId, actorId, AuthenticatedUserResolver.hasTenantAdminRole(authentication)));
+        return ApiResponse.success(service.campaigns(tenantId, actorId, true));
     }
 
     @PostMapping
@@ -60,11 +60,10 @@ public class AccessReviewController {
             Authentication authentication,
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,
             @PathVariable UUID campaignId) {
+        AuthenticatedUserResolver.requireTenantAdmin(authentication);
         Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
-        return ApiResponse.success(service.campaignItems(
-                tenantId, actorId, AuthenticatedUserResolver.hasTenantAdminRole(authentication),
-                campaignId));
+        return ApiResponse.success(service.campaignItems(tenantId, actorId, true, campaignId));
     }
 
     @PostMapping("/{campaignId}/activate")
@@ -89,11 +88,11 @@ public class AccessReviewController {
             @PathVariable UUID campaignId,
             @PathVariable UUID itemId,
             @Valid @RequestBody AccessReviewDtos.DecisionRequest request) {
+        AuthenticatedUserResolver.requireTenantAdmin(authentication);
         Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
         return ApiResponse.success(service.decide(
-                tenantId, actorId, AuthenticatedUserResolver.hasTenantAdminRole(authentication),
-                correlationId, campaignId, itemId, request));
+                tenantId, actorId, true, correlationId, campaignId, itemId, request));
     }
 
     @PostMapping("/{campaignId}/complete")
