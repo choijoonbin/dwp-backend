@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -22,6 +23,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
@@ -508,6 +510,52 @@ class ProductAuthorizationAuthorityAdapterTest {
     }
 
     @Test
+    void permissionRichPilotWorkEntriesRemainValidWhenTheyAggregateMultipleScopes() {
+        evidence(Set.of(
+                "APP.APPROVALS:VIEW",
+                "ACTION.APPROVAL_TASK:VIEW",
+                "ACTION.APPROVAL_TASK:UPDATE",
+                "ACTION.APPROVAL_TASK:APPROVE",
+                "ACTION.APPROVAL_REQUEST:VIEW",
+                "ACTION.APPROVAL_REQUEST:CREATE",
+                "ACTION.APPROVAL_REQUEST:UPDATE",
+                "ACTION.APPROVAL_DELEGATION:VIEW",
+                "ACTION.APPROVAL_DELEGATION:MANAGE",
+                "APP.HCM:VIEW",
+                "DATA.HR_ABSENCE:VIEW",
+                "DATA.HR_ABSENCE:APPROVE",
+                "DATA.HR_TIME:VIEW",
+                "DATA.HR_TIME:APPROVE"), List.of());
+
+        @SuppressWarnings("unchecked")
+        ObjectProvider<ProductSurfaceAuthorityPort> ports =
+                org.mockito.Mockito.mock(ObjectProvider.class);
+        when(ports.orderedStream()).thenAnswer(ignored -> Stream.of(adapter));
+        ProductSurfaceAuthorityService service = new ProductSurfaceAuthorityService(ports);
+
+        ProductSurfaceAuthorityDtos.AuthorityResult approvals = service.evaluate(
+                request("approvals", "approvals.work"));
+        ProductSurfaceAuthorityDtos.AuthorityResult team = service.evaluate(
+                request("hcm", "hcm.team"));
+        ProductSurfaceAuthorityDtos.AuthorityResult approvalInbox = service.evaluate(
+                request("approvals", "approvals.work",
+                        "route.approvals.work.inbox.page"));
+
+        assertThat(approvals.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(team.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(approvals.scopes()).hasSizeGreaterThan(1)
+                .noneMatch(ProductSurfaceAuthorityDtos.EffectiveScope::isDefault);
+        assertThat(team.scopes()).hasSizeGreaterThan(1)
+                .noneMatch(ProductSurfaceAuthorityDtos.EffectiveScope::isDefault);
+        assertThat(approvalInbox.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(approvalInbox.scopes()).singleElement()
+                .matches(ProductSurfaceAuthorityDtos.EffectiveScope::isDefault);
+    }
+
+    @Test
     void exposesEligibleHighGrantWithoutMakingItsScopeMutableUntilElevated() {
         List<AppGovernanceDtos.ResourceRole> scope = List.of(role(
                 "APP_CONFIG_ADMIN", "APP.APPROVALS", "RS_APPROVALS"));
@@ -659,5 +707,21 @@ class ProductAuthorizationAuthorityAdapterTest {
         return adapter.evaluate(new ProductSurfaceAuthorityDtos.EvaluateRequest(
                 10L, 20L, product, surface, mode, route, context, scope,
                 supportSession, supportRevision, supportScopes));
+    }
+
+    private ProductSurfaceAuthorityDtos.EvaluateRequest request(
+            String product,
+            String surface) {
+        return request(product, surface, null);
+    }
+
+    private ProductSurfaceAuthorityDtos.EvaluateRequest request(
+            String product,
+            String surface,
+            String route) {
+        return new ProductSurfaceAuthorityDtos.EvaluateRequest(
+                10L, 20L, product, surface,
+                ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                route, null, null, null, null, List.of());
     }
 }

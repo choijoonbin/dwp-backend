@@ -657,9 +657,11 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
         Map<String, ProductSurfaceAuthorityDtos.EffectiveScope> scopes = new LinkedHashMap<>();
         evaluations.stream().flatMap(value -> value.scopes().stream())
                 .forEach(value -> scopes.putIfAbsent(value.key(), value));
+        // Never select one authority source implicitly when aggregation exposes alternatives.
+        boolean singleScope = scopes.size() == 1;
         List<ProductSurfaceAuthorityDtos.EffectiveScope> effectiveScopes = scopes.values().stream()
                 .map(scope -> new ProductSurfaceAuthorityDtos.EffectiveScope(
-                        scope.key(), scope.kind(), scope.displayName(), scope.isDefault(),
+                        scope.key(), scope.kind(), scope.displayName(), singleScope,
                         !hasActiveMutationGrant(grants, scope.key()), scope.validUntil()))
                 .toList();
         boolean readOnly = effectiveScopes.stream()
