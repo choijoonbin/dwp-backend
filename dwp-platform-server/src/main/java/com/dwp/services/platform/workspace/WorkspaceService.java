@@ -748,7 +748,6 @@ public class WorkspaceService {
     private long count(List<WorkspaceDtos.WorkItem> items, String status) {
         return items.stream().filter(item -> status.equals(item.status())).count();
     }
-
     private boolean korean(String locale) {
         return locale != null && locale.toLowerCase(Locale.ROOT).startsWith("ko");
     }

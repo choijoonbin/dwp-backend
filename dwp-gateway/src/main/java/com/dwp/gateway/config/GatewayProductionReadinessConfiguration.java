@@ -1,5 +1,6 @@
 package com.dwp.gateway.config;
 
+import com.dwp.gateway.productsurface.FeatureRolloutInvalidationConsumer;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,9 +13,6 @@ import java.util.Locale;
 
 @Configuration
 public class GatewayProductionReadinessConfiguration {
-
-    private static final String PRODUCT_SURFACE_ROLLOUT_TOPIC =
-            "dwp.feature-rollout.decision.changed.v1";
 
     @Bean
     ApplicationRunner gatewayProductionReadinessGuard(Environment environment) {
@@ -53,7 +51,7 @@ public class GatewayProductionReadinessConfiguration {
             }
             requireExact(environment, failures,
                     "dwp.gateway.product-surface-rollout.invalidation-topic",
-                    PRODUCT_SURFACE_ROLLOUT_TOPIC);
+                    FeatureRolloutInvalidationConsumer.TOPIC);
             requireProductionKafka(environment, failures);
             if (environment.getProperty("otel.sdk.disabled", Boolean.class, true)) {
                 failures.add("otel.sdk.disabled must be false");

@@ -92,6 +92,133 @@ final class ProductAuthorizationAuthoritySupport {
                         == ProductSurfaceAuthorityDtos.ActivationState.ACTIVE);
     }
 
+    static boolean blockingProfileDenial(Evaluation result) {
+        return result.decision() == ProductSurfaceAuthorityDtos.Decision.SOD_CONFLICT
+                || result.decision() == ProductSurfaceAuthorityDtos.Decision.SCOPE_INVALID
+                || result.decision()
+                == ProductSurfaceAuthorityDtos.Decision.AUTHORITY_UNAVAILABLE;
+    }
+
+    static List<ProductSurfaceAuthorityDtos.EffectiveGrant> capabilityGrants(
+            ProductSurfaceAuthorityDtos.EvaluateRequest request,
+            ProductAuthorizationContractDtos.CapabilityContract capability,
+            List<String> predicates,
+            List<AppGovernanceDtos.ResourceRole> roles,
+            List<ProductSurfaceAuthorityDtos.EffectiveScope> scopes,
+            boolean readOnly,
+            boolean activationEligible) {
+        if (roles.isEmpty()) {
+            return List.of(capabilityGrant(
+                    capability, predicates, null,
+                    scopes.stream().map(ProductSurfaceAuthorityDtos.EffectiveScope::key).toList(),
+                    readOnly, activationEligible, null));
+        }
+        Map<String, AppGovernanceDtos.ResourceRole> byScope = new LinkedHashMap<>();
+        roles.forEach(role -> byScope.putIfAbsent(
+                scopeKey(request, role.resourceSetKey(), "RESOURCE_SET"), role));
+        return byScope.entrySet().stream()
+                .map(entry -> (ProductSurfaceAuthorityDtos.EffectiveGrant) capabilityGrant(
+                        capability, predicates, entry.getValue(), List.of(entry.getKey()),
+                        readOnly, activationEligible, entry.getValue().validTo()))
+                .toList();
+    }
+
+    private static ProductSurfaceAuthorityDtos.CapabilityGrant capabilityGrant(
+            ProductAuthorizationContractDtos.CapabilityContract capability,
+            List<String> predicates,
+            AppGovernanceDtos.ResourceRole responsibility,
+            List<String> scopeKeys,
+            boolean readOnly,
+            boolean activationEligible,
+            OffsetDateTime validUntil) {
+        return new ProductSurfaceAuthorityDtos.CapabilityGrant(
+                capability.contractKey(), capability.resolvedCapabilityCode(),
+                capabilityAuthority(capability.authorityMode()), predicates,
+                responsibilityRequirement(capability.responsibilityRequirement()),
+                responsibility == null ? null : new ProductSurfaceAuthorityDtos.Responsibility(
+                        responsibility.responsibilityCode(), responsibility.resourceSetKey()),
+                scopeKeys, capability.requiresProductEntitlement(), readOnly,
+                activationEligible
+                        ? ProductSurfaceAuthorityDtos.ActivationState.ELIGIBLE
+                        : ProductSurfaceAuthorityDtos.ActivationState.ACTIVE,
+                validUntil);
+    }
+
+    static boolean hasProductEntitlement(
+            ProductSurfaceAuthorityDtos.EvaluateRequest request,
+            Registry registry,
+            ProductAuthorizationIdentityEvidenceService.IdentityEvidence identity) {
+        return registry.policies().stream()
+                .filter(ProductAuthorizationContractDtos.AccessPolicy::requiresProductEntitlement)
+                .filter(policy -> request.productKey().equals(policy.productKey()))
+                .filter(policy -> request.surfaceKey().equals(policy.surfaceKey()))
+                .map(ProductAuthorizationContractDtos.AccessPolicy::entitlementExpressionKey)
+                .filter(Objects::nonNull)
+                .map(registry.expressionsByKey()::get)
+                .filter(Objects::nonNull)
+                .anyMatch(expression -> evaluateEntitlement(expression.expression(), identity));
+    }
+
+    static boolean evaluateEntitlement(
+            JsonNode expression,
+            ProductAuthorizationIdentityEvidenceService.IdentityEvidence identity) {
+        if (expression == null || !expression.isObject()) return false;
+        String type = expression.path("type").asText();
+        if ("LEAF".equals(type)) {
+            String entitlement = expression.path("entitlement").asText();
+            return !entitlement.isBlank() && identity.hasPermission(entitlement);
+        }
+        JsonNode children = expression.has("children")
+                ? expression.get("children")
+                : expression.get("operands");
+        if (children == null || !children.isArray() || children.isEmpty()) return false;
+        return switch (type) {
+            case "ANY" -> {
+                for (JsonNode child : children) {
+                    if (evaluateEntitlement(child, identity)) yield true;
+                }
+                yield false;
+            }
+            case "ALL" -> {
+                for (JsonNode child : children) {
+                    if (!evaluateEntitlement(child, identity)) yield false;
+                }
+                yield true;
+            }
+            default -> false;
+        };
+    }
+
+    static Evaluation combine(List<Evaluation> evaluations) {
+        List<ProductSurfaceAuthorityDtos.EffectiveGrant> grants = evaluations.stream()
+                .flatMap(value -> value.grants().stream())
+                .distinct()
+                .toList();
+        Map<String, ProductSurfaceAuthorityDtos.EffectiveScope> scopes = new LinkedHashMap<>();
+        evaluations.stream().flatMap(value -> value.scopes().stream())
+                .forEach(value -> scopes.putIfAbsent(value.key(), value));
+        // Never select one authority source implicitly when aggregation exposes alternatives.
+        boolean singleScope = scopes.size() == 1;
+        List<ProductSurfaceAuthorityDtos.EffectiveScope> effectiveScopes = scopes.values().stream()
+                .map(scope -> new ProductSurfaceAuthorityDtos.EffectiveScope(
+                        scope.key(), scope.kind(), scope.displayName(), singleScope,
+                        !hasActiveMutationGrant(grants, scope.key()), scope.validUntil()))
+                .toList();
+        boolean readOnly = effectiveScopes.stream()
+                .allMatch(ProductSurfaceAuthorityDtos.EffectiveScope::readOnly);
+        OffsetDateTime validUntil = evaluations.stream()
+                .map(Evaluation::validUntil)
+                .filter(Objects::nonNull)
+                .min(java.util.Comparator.naturalOrder())
+                .orElse(null);
+        return Evaluation.allowed(
+                evaluations.getFirst().accessSource(), grants, effectiveScopes,
+                readOnly, validUntil,
+                evaluations.stream().anyMatch(Evaluation::requiresProductEligibility),
+                evaluations.stream().map(Evaluation::appResourceKey)
+                        .filter(Objects::nonNull).findFirst().orElse(null));
+    }
+
     static boolean staticSodConflict(
             ProductAuthorizationContractDtos.CapabilityContract capability,
             ProductAuthorizationIdentityEvidenceService.IdentityEvidence identity,

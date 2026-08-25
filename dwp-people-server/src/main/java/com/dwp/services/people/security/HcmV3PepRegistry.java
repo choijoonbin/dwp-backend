@@ -24,7 +24,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/** Runtime-only, closed People PEP projection generated from CORE-006 registry v3. */
+/**
+ * Runtime-only, closed People PEP projection generated from CORE-006 registry v3.
+ * Provider-support profiles are parsed to detect contract drift, but they are not a service
+ * readiness signal: {@link HcmProductSurfacePepFilter} denies them until the trusted request
+ * carries the contractual legal-entity population boundary as well as the support session.
+ */
 @Component
 public final class HcmV3PepRegistry {
 
@@ -79,11 +84,14 @@ public final class HcmV3PepRegistry {
         String activationPolicy = capabilityKey == null ? null
                 : descriptor(capabilities, capabilityKey, "capability")
                 .path("activationPolicy").asText(null);
+        ProjectionBinding projection = profile.projections().get(binding.bindingKey());
         return Decision.allowed(new RouteAuthority(
                 binding.routeContractKey(), binding.routeKind(), profile.profileKey(),
                 profile.readOnly(), profile.predicateKeys(), profile.targetBindingKinds(),
                 binding.bindingKey(), capabilityKey, activationPolicy,
-                binding.method(), binding.publicPath(), binding.stepUp()));
+                binding.method(), binding.publicPath(), binding.stepUp(),
+                projection == null ? null : projection.projectionPolicyKey(),
+                projection == null ? null : projection.responseSchemaKey()));
     }
 
     public boolean owns(String method, String path, String rawQuery) {
@@ -267,13 +275,32 @@ public final class HcmV3PepRegistry {
                     : Map.of();
             List<Profile> profiles = new ArrayList<>();
             for (JsonNode value : requiredArray(route, "accessProfiles")) {
+                Map<String, ProjectionBinding> projections = new LinkedHashMap<>();
+                JsonNode projectionValues = value.path("responseProjectionBindings");
+                if (projectionValues.isArray()) projectionValues.forEach(bindingProjection -> {
+                    String bindingKey = bindingProjection.path("apiBindingKey").asText();
+                    String projectionPolicyKey =
+                            bindingProjection.path("projectionPolicyKey").asText();
+                    String responseSchemaKey =
+                            bindingProjection.path("responseSchemaKey").asText();
+                    require(!bindingKey.isBlank()
+                                    && !projectionPolicyKey.isBlank()
+                                    && !responseSchemaKey.isBlank()
+                                    && publicBindings.containsKey(bindingKey)
+                                    && projections.putIfAbsent(
+                                            bindingKey,
+                                            new ProjectionBinding(
+                                                    projectionPolicyKey,
+                                                    responseSchemaKey)) == null,
+                            routeKey + ": invalid response projection binding");
+                });
                 profiles.add(new Profile(
                         value.path("profileKey").asText(), value.path("precedence").asInt(),
                         value.path("readOnly").asBoolean(),
                         textValues(value.path("activeAccessModes")),
                         textValues(value.path("predicatePolicyKeys")),
                         textValues(value.path("targetBindingKinds")),
-                        value.path("requiredAccess")));
+                        value.path("requiredAccess"), Map.copyOf(projections)));
             }
             for (JsonNode service : requiredArray(route, "servicePepBindings")) {
                 require("people".equals(service.path("serviceKey").asText()),
@@ -508,7 +535,29 @@ public final class HcmV3PepRegistry {
             String activationPolicy,
             String method,
             String publicPath,
-            StepUpBinding stepUpBinding) {
+            StepUpBinding stepUpBinding,
+            String projectionPolicyKey,
+            String responseSchemaKey) {
+
+        public RouteAuthority(
+                String routeContractKey,
+                String routeKind,
+                String profileKey,
+                boolean readOnly,
+                Set<String> predicatePolicyKeys,
+                Set<String> targetBindingKinds,
+                String bindingKey,
+                String capabilityContractKey,
+                String activationPolicy,
+                String method,
+                String publicPath,
+                StepUpBinding stepUpBinding) {
+            this(routeContractKey, routeKind, profileKey, readOnly,
+                    predicatePolicyKeys, targetBindingKinds, bindingKey,
+                    capabilityContractKey, activationPolicy, method, publicPath,
+                    stepUpBinding, null, null);
+        }
+
         public boolean highRisk() {
             return stepUpBinding != null;
         }
@@ -536,7 +585,13 @@ public final class HcmV3PepRegistry {
             Set<String> activeModes,
             Set<String> predicateKeys,
             Set<String> targetBindingKinds,
-            JsonNode requiredAccess) {
+            JsonNode requiredAccess,
+            Map<String, ProjectionBinding> projections) {
+    }
+
+    private record ProjectionBinding(
+            String projectionPolicyKey,
+            String responseSchemaKey) {
     }
 
     private record Binding(

@@ -15,6 +15,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class HcmProductSurfaceEligibilityAdapterTest {
@@ -58,6 +59,33 @@ class HcmProductSurfaceEligibilityAdapterTest {
         });
         assertThat(result.productRelationshipRevision()).startsWith("hcm-rel-");
         assertThat(result.targetPopulationRevision()).startsWith("hcm-pop-");
+    }
+
+    @Test
+    void derivesASelfScopeFromTheLivePersonBindingWithoutTargetPopulationEvidence() {
+        PeopleRequestContext.set(ACTOR, TENANT, PERSON, Set.of("WORKSPACE_MEMBER"), Set.of());
+        HcmPopulationRepository.ActorWorkforce actor =
+                new HcmPopulationRepository.ActorWorkforce(
+                        41L, PERSON, "Member", "A-MEMBER", "Engineer", "Platform",
+                        2L, 4L, 7L);
+        when(repository.actor(TENANT, PERSON)).thenReturn(Optional.of(actor));
+        String source = ProductSurfaceScopeKey.key(
+                TENANT, ACTOR, "hcm", "hcm.personal", "SELF", "SELF");
+
+        ProductSurfaceEligibilityDtos.EligibilityResult result = adapter.evaluate(
+                request("hcm.personal", source, "SELF", null));
+
+        assertThat(result.decision()).isEqualTo(ProductSurfaceEligibilityDtos.Decision.ALLOWED);
+        assertThat(result.scopes()).singleElement().satisfies(scope -> {
+            assertThat(scope.sourceScopeKey()).isEqualTo(source);
+            assertThat(scope.key()).startsWith("hcm-scope-");
+            assertThat(scope.kind()).isEqualTo("SELF");
+            assertThat(scope.isDefault()).isTrue();
+            assertThat(scope.readOnly()).isFalse();
+        });
+        assertThat(result.productRelationshipRevision()).startsWith("hcm-rel-");
+        assertThat(result.targetPopulationRevision()).startsWith("hcm-pop-");
+        verifyNoInteractions(populations);
     }
 
     @Test

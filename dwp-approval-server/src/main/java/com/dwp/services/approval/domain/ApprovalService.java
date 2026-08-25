@@ -643,7 +643,6 @@ public class ApprovalService {
     private boolean prior(ApprovalHighRiskCommandGuard.Permit permit) {
         return permit != null && permit.priorResult();
     }
-
     private void completeHighRisk(ApprovalHighRiskCommandGuard.Permit permit) {
         if (highRiskGuard != null) highRiskGuard.complete(permit);
     }
@@ -657,7 +656,6 @@ public class ApprovalService {
             ownerPredicates.lockOwnedRequest(actor, requestId, expectedVersion);
         }
     }
-
     private void requireOwnerPredicates() {
         if (ownerPredicates == null) {
             throw new com.dwp.core.exception.BaseException(

@@ -284,6 +284,39 @@ class AuthSessionVerifierTest {
     }
 
     @Test
+    void requestsEveryHcmPepAuthorityForPeopleWorkforceRoutes() {
+        AtomicReference<ClientRequest> captured = new AtomicReference<>();
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+            captured.set(request);
+            return Mono.just(ClientResponse.create(HttpStatus.OK)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .body("""
+                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            "roles":["HCM_ADMIN"],"permissions":[
+                              {"resourceKey":"DATA.WORKFORCE","permissionCode":"VIEW","effect":"ALLOW"},
+                              {"resourceKey":"DATA.HR_TIME","permissionCode":"VIEW","effect":"ALLOW"},
+                              {"resourceKey":"ACTION.WORKFORCE_DATA_OPERATIONS","permissionCode":"VIEW","effect":"ALLOW"}
+                            ]}}
+                            """)
+                    .build());
+        });
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+
+        VerifiedIdentity identity = verifier.verify(MockServerHttpRequest
+                .get("/api/people/v1/workforce/data-operations/hris/sources")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery())
+                .isEqualTo("permissionPrefix=DATA.WORKFORCE,DATA.HR_,ACTION.WORKFORCE_");
+        assertThat(identity).isNotNull();
+        assertThat(identity.permissions()).containsExactly(
+                "ACTION.WORKFORCE_DATA_OPERATIONS:VIEW",
+                "DATA.HR_TIME:VIEW",
+                "DATA.WORKFORCE:VIEW");
+    }
+
+    @Test
     void requestsAppAuthoritiesForAskRuntimeRoutes() {
         AtomicReference<ClientRequest> captured = new AtomicReference<>();
         WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
@@ -750,7 +783,7 @@ class AuthSessionVerifierTest {
     }
 
     @Test
-    void requestsWorkforceDataAuthoritiesForGovernedExportRoutes() {
+    void requestsTheCompleteHcmPepAuthorityFamilyForGovernedWorkforceRoutes() {
         AtomicReference<ClientRequest> captured = new AtomicReference<>();
         WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
             captured.set(request);
@@ -772,7 +805,7 @@ class AuthSessionVerifierTest {
                 .build()).block();
 
         assertThat(captured.get().url().getQuery())
-                .isEqualTo("permissionPrefix=DATA.WORKFORCE");
+                .isEqualTo("permissionPrefix=DATA.WORKFORCE,DATA.HR_,ACTION.WORKFORCE_");
         assertThat(identity).isNotNull();
         assertThat(identity.permissions()).containsExactly("DATA.WORKFORCE:MANAGE");
     }

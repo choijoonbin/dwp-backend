@@ -6,13 +6,9 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.Comparator;
-import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -21,10 +17,13 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static com.dwp.gateway.productsurface.ProductSurfaceContextAggregationSupport.*;
+
 @Service
 public class ProductSurfaceContextAggregationService {
 
     private static final String CONTRACT_VERSION = "1";
+    private static final String PRODUCT_NOT_REGISTERED = "PRODUCT_NOT_REGISTERED";
 
     private final ProductSurfaceAuthorityClient authorityClient;
     private final GovernedRouteAuthorityClient governedClient;
@@ -103,13 +102,15 @@ public class ProductSurfaceContextAggregationService {
                 .collect(Collectors.toUnmodifiableSet());
         Set<String> nonParticipatingProducts = rollouts.stream()
                 .filter(value -> missingCandidateProducts.contains(value.productKey()))
-                .filter(value -> !value.flags().surfaceUi())
+                .filter(value -> !value.flags().capabilityEnforcement()
+                        && !value.flags().surfaceUi())
                 .map(ProductSurfaceContextDtos.ProductRollout::productKey)
                 .collect(Collectors.toUnmodifiableSet());
-        boolean missingVisibleProductAuthority = rollouts.stream()
+        boolean missingEnforcedProductAuthority = rollouts.stream()
                 .anyMatch(value -> missingCandidateProducts.contains(value.productKey())
-                        && value.flags().surfaceUi());
-        if (missingVisibleProductAuthority) throw new AuthorityUnavailableException();
+                        && (value.flags().capabilityEnforcement()
+                            || value.flags().surfaceUi()));
+        if (missingEnforcedProductAuthority) throw new AuthorityUnavailableException();
         return Flux.fromIterable(candidates)
                 .filter(candidate -> evaluatedProducts.contains(candidate.productKey()))
                 .concatMap(candidate -> resolveCandidate(
@@ -120,6 +121,24 @@ public class ProductSurfaceContextAggregationService {
                                 ignored -> Mono.just(CandidateResolution.unavailable(candidate))))
                 .collectList()
                 .map(results -> {
+                    Set<String> activeBundleAbsentProducts = results.stream()
+                            .collect(Collectors.groupingBy(
+                                    value -> value.candidate().productKey()))
+                            .entrySet().stream()
+                            .filter(entry -> entry.getValue().stream().allMatch(value ->
+                                    value.resolution() != null
+                                            && value.resolution()
+                                                    .authSurfaceProductNotRegistered()))
+                            .map(Map.Entry::getKey)
+                            .collect(Collectors.toUnmodifiableSet());
+                    boolean missingActiveEnforcedProductAuthority = rollouts.stream()
+                            .anyMatch(value -> activeBundleAbsentProducts.contains(
+                                            value.productKey())
+                                    && (value.flags().capabilityEnforcement()
+                                        || value.flags().surfaceUi()));
+                    if (missingActiveEnforcedProductAuthority) {
+                        throw new AuthorityUnavailableException();
+                    }
                     Set<String> resolutionUnavailableProducts = results.stream()
                             .filter(value -> value.resolution() == null)
                             .map(value -> value.candidate().productKey())
@@ -136,9 +155,13 @@ public class ProductSurfaceContextAggregationService {
                                     value.candidate().productKey()))
                             .map(CandidateResolution::resolution)
                             .toList();
+                    Set<String> effectiveNonParticipatingProducts = new LinkedHashSet<>(
+                            nonParticipatingProducts);
+                    effectiveNonParticipatingProducts.addAll(activeBundleAbsentProducts);
                     return contextList(
                             requestContext, resolutions, rollouts,
-                            Set.copyOf(unavailableProducts), nonParticipatingProducts);
+                            Set.copyOf(unavailableProducts),
+                            Set.copyOf(effectiveNonParticipatingProducts));
                 });
     }
 
@@ -223,9 +246,7 @@ public class ProductSurfaceContextAggregationService {
                 }).toList();
         ProductSurfaceContextDtos.RolloutFlags shared = ordered.getFirst().flags();
         if (ordered.stream().map(ProductSurfaceContextDtos.ProductRollout::flags)
-                .anyMatch(flags -> flags.contextShadow() != shared.contextShadow()
-                        || flags.capabilityEnforcement()
-                                != shared.capabilityEnforcement())) {
+                .anyMatch(flags -> flags.contextShadow() != shared.contextShadow())) {
             throw new AuthorityUnavailableException();
         }
         return ordered;
@@ -269,7 +290,11 @@ public class ProductSurfaceContextAggregationService {
                         scope = selectScope(resolution.scopes(), request.contextScopeKey());
                         contextKey = resolution.authority().contextKey();
                     }
-                    return new TrustedProductEvaluation(data, contextKey, scope);
+                    return new TrustedProductEvaluation(
+                            data,
+                            contextKey,
+                            scope,
+                            resolution.authRouteProductNotRegistered());
                 });
     }
 
@@ -503,7 +528,7 @@ public class ProductSurfaceContextAggregationService {
         }
         List<String> rolloutProducts = catalog.rolloutProductKeys();
         if (rolloutProducts == null || rolloutProducts.isEmpty()
-                || rolloutProducts.stream().anyMatch(this::blank)
+                || rolloutProducts.stream().anyMatch(value -> blank(value))
                 || rolloutProducts.size() != new LinkedHashSet<>(rolloutProducts).size()
                 || unique.stream().map(ProductSurfaceContextDtos.ProductCandidate::productKey)
                         .anyMatch(product -> !rolloutProducts.contains(product))) {
@@ -511,75 +536,6 @@ public class ProductSurfaceContextAggregationService {
         }
         return new CatalogProjection(
                 List.copyOf(unique), rolloutProducts.stream().sorted().toList());
-    }
-
-    private ProductSurfaceContextDtos.SourceRevisions aggregateRevisions(
-            ProductSurfaceContextDtos.RequestContext requestContext,
-            List<Resolution> resolutions) {
-        return new ProductSurfaceContextDtos.SourceRevisions(
-                collapse(resolutions.stream().map(value -> value.revisions().auth()).toList()),
-                collapse(resolutions.stream().map(value -> value.revisions().policy()).toList()),
-                collapse(resolutions.stream()
-                        .map(value -> value.revisions().productRelationship()).toList()),
-                collapse(resolutions.stream()
-                        .map(value -> value.revisions().targetPopulation()).toList()),
-                requestContext.supportRevision());
-    }
-
-    private String collapse(List<String> revisions) {
-        List<String> values = revisions.stream()
-                .filter(value -> value != null && !value.isBlank())
-                .distinct()
-                .sorted()
-                .toList();
-        if (values.isEmpty()) return null;
-        if (values.size() == 1) return values.getFirst();
-        return "multi-" + digest(String.join("\n", values));
-    }
-
-    private String compositeRevision(
-            ProductSurfaceContextDtos.RequestContext requestContext,
-            ProductSurfaceContextDtos.SourceRevisions revisions) {
-        return compositeRevision(requestContext, revisions, List.of());
-    }
-
-    private String compositeRevision(
-            ProductSurfaceContextDtos.RequestContext requestContext,
-            ProductSurfaceContextDtos.SourceRevisions revisions,
-            List<ProductSurfaceContextDtos.ProductRollout> rollouts) {
-        StringBuilder material = new StringBuilder(String.join("\n",
-                Long.toString(requestContext.tenantId()),
-                Long.toString(requestContext.actorId()),
-                requestContext.activeAccessMode().name(),
-                Objects.toString(revisions.auth(), ""),
-                Objects.toString(revisions.policy(), ""),
-                Objects.toString(revisions.productRelationship(), ""),
-                Objects.toString(revisions.targetPopulation(), ""),
-                Objects.toString(revisions.support(), "")));
-        rollouts.forEach(value -> material.append('\n')
-                .append(value.productKey()).append(':').append(value.state()).append(':')
-                .append(value.opaqueRevision()).append(':').append(value.authorityStatus()));
-        return "psr-" + digest(material.toString());
-    }
-
-    private String digest(String material) {
-        try {
-            byte[] bytes = MessageDigest.getInstance("SHA-256")
-                    .digest(material.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(bytes);
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 is unavailable.", exception);
-        }
-    }
-
-    private OffsetDateTime earliest(OffsetDateTime left, OffsetDateTime right) {
-        if (left == null) return right;
-        if (right == null) return left;
-        return left.isBefore(right) ? left : right;
-    }
-
-    private boolean blank(String value) {
-        return value == null || value.isBlank();
     }
 
     private record CatalogProjection(
@@ -602,6 +558,7 @@ public class ProductSurfaceContextAggregationService {
         if (authority.decision() != ProductSurfaceContextDtos.Decision.ALLOWED) {
             if (authority.decision() == ProductSurfaceContextDtos.Decision.STEP_UP_REQUIRED) {
                 return authority.accessSource() != null
+                        && !blank(authority.appResourceKey())
                         && !authority.effectiveGrants().isEmpty()
                         && !authority.scopes().isEmpty()
                         && ProductSurfaceScopeIntersection.closed(
@@ -618,6 +575,7 @@ public class ProductSurfaceContextAggregationService {
         return (authority.scopes().size() != 1 || defaults == 1)
                 && !blank(authority.contextKey())
                 && authority.accessSource() != null
+                && !blank(authority.appResourceKey())
                 && !authority.effectiveGrants().isEmpty()
                 && !authority.scopes().isEmpty()
                 && ProductSurfaceScopeIntersection.closed(
@@ -645,6 +603,12 @@ public class ProductSurfaceContextAggregationService {
 
     private boolean validEligibility(ProductSurfaceContextDtos.EligibilityResult result) {
         if (result == null || result.decision() == null
+                || !Set.of(
+                                ProductSurfaceContextDtos.Decision.ALLOWED,
+                                ProductSurfaceContextDtos.Decision.SURFACE_DENIED,
+                                ProductSurfaceContextDtos.Decision.SCOPE_INVALID,
+                                ProductSurfaceContextDtos.Decision.AUTHORITY_UNAVAILABLE)
+                        .contains(result.decision())
                 || blank(result.productRelationshipRevision())
                 || blank(result.targetPopulationRevision())) {
             return false;
@@ -664,7 +628,7 @@ public class ProductSurfaceContextAggregationService {
         return defaults <= 1 && (result.scopes().size() != 1 || defaults == 1);
     }
 
-    private record Resolution(
+    record Resolution(
             ProductSurfaceContextDtos.Decision decision,
             String reasonCode,
             ProductSurfaceContextDtos.AuthorityResult authority,
@@ -672,6 +636,16 @@ public class ProductSurfaceContextAggregationService {
             ProductSurfaceContextDtos.SourceRevisions revisions,
             List<ProductSurfaceContextDtos.EffectiveScope> scopes,
             OffsetDateTime revalidateAt) {
+
+        boolean authSurfaceProductNotRegistered() {
+            return authority.decision() == ProductSurfaceContextDtos.Decision.SURFACE_DENIED
+                    && PRODUCT_NOT_REGISTERED.equals(authority.reasonCode());
+        }
+
+        boolean authRouteProductNotRegistered() {
+            return authority.decision() == ProductSurfaceContextDtos.Decision.ROUTE_DENIED
+                    && PRODUCT_NOT_REGISTERED.equals(authority.reasonCode());
+        }
     }
 
     private record CandidateResolution(
@@ -697,6 +671,7 @@ public class ProductSurfaceContextAggregationService {
     public record TrustedProductEvaluation(
             ProductSurfaceContextDtos.ProductEvaluationData data,
             String contextKey,
-            ProductSurfaceContextDtos.EffectiveScope scope) {
+            ProductSurfaceContextDtos.EffectiveScope scope,
+            boolean authRouteProductNotRegistered) {
     }
 }

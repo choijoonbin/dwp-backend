@@ -1,7 +1,14 @@
 package com.dwp.services.auth.dto;
 
+import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.JsonNode;
+import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -277,5 +284,96 @@ public final class ProductAuthorizationContractDtos {
             String operation,
             long revision,
             String checksum) {
+    }
+
+    public record GovernedBundlePreflight(
+            @NotNull BundleView bundle,
+            @NotNull GovernedApprovalEvidence approvalEvidence) {
+    }
+
+    public record GovernedApprovalEvidence(
+            @NotNull String requestedBy,
+            @NotNull String approvedBy,
+            @NotNull String changeRef,
+            @NotNull OffsetDateTime approvedAt) {
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = false)
+    @Schema(additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    public record ApprovalCommand(
+            @NotBlank
+            @Pattern(regexp = "^[0-9a-f]{64}$")
+            String checksum,
+            @NotBlank
+            @Size(max = 160)
+            @Pattern(regexp = "^[A-Za-z0-9][A-Za-z0-9@._:/+\\-]{0,159}$")
+            String requestedBy,
+            @NotBlank
+            @Size(max = 160)
+            @Pattern(regexp = "^[A-Za-z0-9][A-Za-z0-9@._:/+\\-]{0,159}$")
+            String approvedBy,
+            @NotBlank
+            @Size(min = 3, max = 160)
+            @Pattern(regexp = "^[A-Za-z0-9][A-Za-z0-9@._:/+\\-]{2,159}$")
+            String changeRef) {
+
+        @JsonAnySetter
+        public void rejectUnknownField(String field, Object ignored) {
+            throw new IllegalArgumentException(
+                    "Unknown product authorization approval command field: " + field);
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = false)
+    @Schema(additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    public record ActivationCommand(
+            @NotBlank
+            @Pattern(regexp = "^[0-9a-f]{64}$")
+            String checksum,
+            @NotNull
+            @Min(0)
+            Long expectedRevision,
+            @NotBlank
+            @Size(max = 160)
+            @Pattern(regexp = "^[A-Za-z0-9][A-Za-z0-9@._:/+\\-]{0,159}$")
+            String activatedBy,
+            @NotBlank
+            @Size(min = 3, max = 160)
+            @Pattern(regexp = "^[A-Za-z0-9][A-Za-z0-9@._:/+\\-]{2,159}$")
+            String changeRef) {
+
+        @JsonAnySetter
+        public void rejectUnknownField(String field, Object ignored) {
+            throw new IllegalArgumentException(
+                    "Unknown product authorization activation command field: " + field);
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = false)
+    @Schema(additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    public record RollbackCommand(
+            @NotBlank
+            @Pattern(regexp = "^[0-9a-f]{64}$")
+            String checksum,
+            @NotNull
+            @Min(1)
+            Long expectedRevision,
+            @NotBlank
+            @Size(max = 160)
+            @Pattern(regexp = "^[A-Za-z0-9][A-Za-z0-9@._:/+\\-]{0,159}$")
+            String rolledBackBy,
+            @NotBlank
+            @Size(min = 3, max = 160)
+            @Pattern(regexp = "^[A-Za-z0-9][A-Za-z0-9@._:/+\\-]{2,159}$")
+            String changeRef,
+            @NotBlank
+            @Size(min = 10, max = 1000)
+            String reason) {
+
+        @JsonAnySetter
+        public void rejectUnknownField(String field, Object ignored) {
+            throw new IllegalArgumentException(
+                    "Unknown product authorization rollback command field: " + field);
+        }
     }
 }

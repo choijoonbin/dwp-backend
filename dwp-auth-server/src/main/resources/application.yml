@@ -93,6 +93,9 @@ dwp:
     seed:
       enabled: ${DWP_PRODUCT_AUTHORIZATION_SEED_ENABLED:false}
       index-location: ${DWP_PRODUCT_AUTHORIZATION_SEED_INDEX_LOCATION:classpath:product-authorization/product-surfaces-v1.index.generated.json}
+    operations:
+      provider-approval-token: ${DWP_PRODUCT_AUTHORIZATION_PROVIDER_APPROVAL_TOKEN:}
+      platform-activation-token: ${DWP_PRODUCT_AUTHORIZATION_PLATFORM_ACTIVATION_TOKEN:}
     local-pilot-activation:
       enabled: ${DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_ENABLED:false}
       approval-actor-ref: ${DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_APPROVAL_ACTOR_REF:local-core006-bundle-approver}

@@ -24,16 +24,16 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
-/** Runtime privacy allowlist generated from the immutable W0.5 and W1a v2 registry. */
+/** Runtime privacy allowlist for governed surfaces, anchored to the immutable W1b v3 registry. */
 @Component
 public final class ProductSurfaceTelemetryDimensionRegistry {
 
     static final String RESOURCE =
-            "product-authorization/platform-telemetry-dimensions-v2.generated.json";
-    static final String W1A_V2_REGISTRY_CHECKSUM =
-            "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c";
+            "product-authorization/platform-telemetry-dimensions-v3.generated.json";
+    static final String W1B_V3_REGISTRY_CHECKSUM =
+            "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e";
     static final String PROJECTION_CHECKSUM =
-            "cd272ca955d7449f35ac2880529872f34fa07a41f326375198c76b96f663f367";
+            "21b78a9c98c958e962ce20e356955da920cefb2543b6dd5df26c4d6283b3b15d";
     private static final Pattern PRODUCT_KEY = Pattern.compile("[a-z][a-z0-9-]{0,47}");
     private static final Pattern DIMENSION_KEY =
             Pattern.compile("[a-z][a-z0-9-]{0,47}(\\.[a-z][a-z0-9-]{0,47})+");
@@ -44,10 +44,11 @@ public final class ProductSurfaceTelemetryDimensionRegistry {
     private static final Set<String> REGISTRY_FIELDS =
             Set.of("bundleKey", "sha256", "version");
     private static final Set<String> PRODUCT_FIELDS = Set.of("productKey", "surfaces");
-    private static final Set<String> SURFACE_FIELDS = Set.of("routeIds", "surfaceKey");
+    private static final Set<String> SURFACE_FIELDS =
+            Set.of("routeIds", "scopeKinds", "surfaceKey", "taskKinds");
 
     private final ObjectMapper objectMapper;
-    private final Map<String, Map<String, Set<String>>> products;
+    private final Map<String, Map<String, SurfaceDimensions>> products;
 
     @Autowired
     public ProductSurfaceTelemetryDimensionRegistry(ObjectMapper objectMapper) {
@@ -62,7 +63,7 @@ public final class ProductSurfaceTelemetryDimensionRegistry {
     }
 
     void validate(ProductSurfaceTelemetryDtos.EventRequest request) {
-        Map<String, Set<String>> surfaces = products.get(request.productKey());
+        Map<String, SurfaceDimensions> surfaces = products.get(request.productKey());
         if (surfaces == null) {
             throw new IllegalArgumentException("Unknown telemetry product dimension");
         }
@@ -79,11 +80,24 @@ public final class ProductSurfaceTelemetryDimensionRegistry {
                     }
                 });
         if (request.routeId() != null) {
-            Set<String> routeIds = surfaces.get(request.surfaceKey());
-            if (routeIds == null || !routeIds.contains(request.routeId())) {
+            SurfaceDimensions dimensions = surfaces.get(request.surfaceKey());
+            if (dimensions == null || !dimensions.routeIds().contains(request.routeId())) {
                 throw new IllegalArgumentException(
                         "Telemetry route does not belong to the current surface");
             }
+        }
+        SurfaceDimensions current = request.surfaceKey() == null
+                ? null
+                : surfaces.get(request.surfaceKey());
+        if (request.taskKind() != null
+                && (current == null || !current.taskKinds().contains(request.taskKind()))) {
+            throw new IllegalArgumentException(
+                    "Telemetry task is not allowed for the current surface");
+        }
+        if (request.scopeKind() != null
+                && (current == null || !current.scopeKinds().contains(request.scopeKind()))) {
+            throw new IllegalArgumentException(
+                    "Telemetry scope is not allowed for the current surface");
         }
     }
 
@@ -108,19 +122,19 @@ public final class ProductSurfaceTelemetryDimensionRegistry {
         JsonNode registry = projection.path("registryRef");
         require(registry.isObject() && fields(registry).equals(REGISTRY_FIELDS),
                 "Telemetry dimension registry reference fields changed");
-        require(projection.path("schemaVersion").asInt() == 1
-                        && "platform-telemetry-dimensions-v2".equals(
+        require(projection.path("schemaVersion").asInt() == 2
+                        && "platform-telemetry-dimensions-v3".equals(
                         projection.path("projectionKey").asText())
                         && "platform".equals(projection.path("ownerServiceKey").asText())
                         && "product-surfaces".equals(registry.path("bundleKey").asText())
-                        && registry.path("version").asInt() == 2
-                        && W1A_V2_REGISTRY_CHECKSUM.equals(registry.path("sha256").asText()),
-                "Telemetry dimension projection is not pinned to registry v2");
-        require(projection.path("sourceRegistryRouteCount").asInt() == 76
-                        && projection.path("productCount").asInt() == 3
-                        && projection.path("surfaceCount").asInt() == 6
-                        && projection.path("routeIdCount").asInt() == 33,
-                "Telemetry dimension v2 release counts changed");
+                        && registry.path("version").asInt() == 3
+                        && W1B_V3_REGISTRY_CHECKSUM.equals(registry.path("sha256").asText()),
+                "Telemetry dimension projection is not pinned to registry v3");
+        require(projection.path("sourceRegistryRouteCount").asInt() == 129
+                        && projection.path("productCount").asInt() == 11
+                        && projection.path("surfaceCount").asInt() == 24
+                        && projection.path("routeIdCount").asInt() == 127,
+                "Telemetry dimension v3 release counts changed");
         require("SHA-256".equals(
                         projection.path("projectionChecksumAlgorithm").asText()),
                 "Unsupported telemetry dimension checksum algorithm");
@@ -132,18 +146,18 @@ public final class ProductSurfaceTelemetryDimensionRegistry {
                 "Telemetry dimension projection checksum mismatch");
     }
 
-    private Map<String, Map<String, Set<String>>> compile(ObjectNode projection) {
+    private Map<String, Map<String, SurfaceDimensions>> compile(ObjectNode projection) {
         ArrayNode descriptors = requiredArray(projection, "products");
-        Map<String, Map<String, Set<String>>> result = new LinkedHashMap<>();
+        Map<String, Map<String, SurfaceDimensions>> result = new LinkedHashMap<>();
         Set<String> allSurfaces = new LinkedHashSet<>();
         Set<String> allRoutes = new LinkedHashSet<>();
         for (JsonNode descriptor : descriptors) {
             require(descriptor.isObject() && fields(descriptor).equals(PRODUCT_FIELDS),
                     "Invalid telemetry product descriptor");
             String product = requiredText(descriptor, "productKey", PRODUCT_KEY);
-            require(!"hcm".equals(product) && !result.containsKey(product),
-                    "Duplicate or unavailable telemetry product dimension");
-            Map<String, Set<String>> surfaces = compileSurfaces(
+            require(!result.containsKey(product),
+                    "Duplicate telemetry product dimension");
+            Map<String, SurfaceDimensions> surfaces = compileSurfaces(
                     product, requiredArray(descriptor, "surfaces"), allSurfaces, allRoutes);
             result.put(product, Map.copyOf(surfaces));
         }
@@ -154,12 +168,12 @@ public final class ProductSurfaceTelemetryDimensionRegistry {
         return Map.copyOf(result);
     }
 
-    private Map<String, Set<String>> compileSurfaces(
+    private Map<String, SurfaceDimensions> compileSurfaces(
             String product,
             ArrayNode descriptors,
             Set<String> allSurfaces,
             Set<String> allRoutes) {
-        Map<String, Set<String>> result = new LinkedHashMap<>();
+        Map<String, SurfaceDimensions> result = new LinkedHashMap<>();
         for (JsonNode descriptor : descriptors) {
             require(descriptor.isObject() && fields(descriptor).equals(SURFACE_FIELDS),
                     "Invalid telemetry surface descriptor");
@@ -177,7 +191,12 @@ public final class ProductSurfaceTelemetryDimensionRegistry {
                         "Telemetry route escaped its surface or is duplicated");
             }
             require(!routes.isEmpty(), "Telemetry surface requires a registered UI route");
-            result.put(surface, Set.copyOf(routes));
+            Set<ProductSurfaceTelemetryDtos.TaskKind> taskKinds = enumValues(
+                    descriptor, "taskKinds", ProductSurfaceTelemetryDtos.TaskKind.class);
+            Set<ProductSurfaceTelemetryDtos.ScopeKind> scopeKinds = enumValues(
+                    descriptor, "scopeKinds", ProductSurfaceTelemetryDtos.ScopeKind.class);
+            result.put(surface, new SurfaceDimensions(
+                    Set.copyOf(routes), taskKinds, scopeKinds));
         }
         require(!result.isEmpty(), "Telemetry product requires a registered surface");
         return result;
@@ -188,6 +207,25 @@ public final class ProductSurfaceTelemetryDimensionRegistry {
         require(value.isTextual() && pattern.matcher(value.asText()).matches(),
                 "Invalid telemetry dimension field " + field);
         return value.asText();
+    }
+
+    private <T extends Enum<T>> Set<T> enumValues(
+            JsonNode source,
+            String field,
+            Class<T> type) {
+        Set<T> values = new LinkedHashSet<>();
+        for (JsonNode value : requiredArray(source, field)) {
+            require(value.isTextual(), "Telemetry " + field + " value must be text");
+            try {
+                require(values.add(Enum.valueOf(type, value.asText())),
+                        "Duplicate telemetry " + field + " value");
+            } catch (IllegalArgumentException exception) {
+                throw new IllegalStateException(
+                        "Unknown telemetry " + field + " value", exception);
+            }
+        }
+        require(!values.isEmpty(), "Telemetry surface requires " + field);
+        return Set.copyOf(values);
     }
 
     private Set<String> fields(JsonNode value) {
@@ -231,5 +269,11 @@ public final class ProductSurfaceTelemetryDimensionRegistry {
 
     private static void require(boolean condition, String message) {
         if (!condition) throw new IllegalStateException(message);
+    }
+
+    private record SurfaceDimensions(
+            Set<String> routeIds,
+            Set<ProductSurfaceTelemetryDtos.TaskKind> taskKinds,
+            Set<ProductSurfaceTelemetryDtos.ScopeKind> scopeKinds) {
     }
 }

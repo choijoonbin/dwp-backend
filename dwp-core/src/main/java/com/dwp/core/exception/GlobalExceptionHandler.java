@@ -6,10 +6,12 @@ import com.dwp.core.constant.HeaderConstants;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.validation.ObjectError;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.MissingRequestHeaderException;
@@ -196,6 +198,27 @@ public class GlobalExceptionHandler {
                                 "request.body-invalid",
                                 null,
                                 "The request body format is invalid.",
+                                locale),
+                        correlationId(request)));
+    }
+
+    /**
+     * 지원하지 않는 Content-Type 처리 (415)
+     */
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Object>> handleHttpMediaTypeNotSupported(
+            HttpMediaTypeNotSupportedException e,
+            HttpServletRequest request,
+            Locale locale) {
+        log.warn("Unsupported media type: {}", e.getContentType());
+        return ResponseEntity
+                .status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+                .body(ApiResponse.error(
+                        ErrorCode.INVALID_FORMAT,
+                        message(
+                                "request.unsupported-media-type",
+                                null,
+                                "The request Content-Type is not supported.",
                                 locale),
                         correlationId(request)));
     }

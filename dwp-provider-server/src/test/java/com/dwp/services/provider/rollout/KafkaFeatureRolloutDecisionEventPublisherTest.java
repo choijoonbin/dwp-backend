@@ -11,6 +11,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.kafka.core.KafkaTemplate;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -59,6 +60,13 @@ class KafkaFeatureRolloutDecisionEventPublisherTest {
         ProducerRecord<String, String> record = captor.getValue();
         assertThat(record.topic()).isEqualTo("rollout-topic");
         assertThat(record.key()).isEqualTo("ux.product-surfaces.services.v1");
+        assertThat(new String(
+                record.headers().lastHeader("dwp-event-id").value(),
+                StandardCharsets.UTF_8)).isEqualTo(eventId.toString());
+        assertThat(new String(
+                record.headers().lastHeader("dwp-event-type").value(),
+                StandardCharsets.UTF_8))
+                .isEqualTo(KafkaFeatureRolloutDecisionEventPublisher.EVENT_TYPE);
         JsonNode payload = objectMapper.readTree(record.value());
         assertThat(payload.propertyStream().map(entry -> entry.getKey()).collect(
                 java.util.stream.Collectors.toSet())).containsExactlyInAnyOrderElementsOf(Set.of(
@@ -67,6 +75,8 @@ class KafkaFeatureRolloutDecisionEventPublisherTest {
         assertThat(payload.path("opaqueRevision").asText())
                 .isEqualTo("rev-00000000000000000012");
         assertThat(payload.path("tenantId").isNull()).isTrue();
+        assertThat(payload.path("occurredAt").isTextual()).isTrue();
+        assertThat(payload.path("occurredAt").asText()).isEqualTo(occurredAt.toString());
     }
 
     @Test

@@ -1,5 +1,8 @@
 -- Local-only CORE-006 pilot state. This location is opt-in from devctl and is
 -- rejected by production readiness before the application context starts.
+-- Runtime composition uses global S plus product-scoped E_p/U_p: the four exact
+-- v3 products are 111 and the seven inventory-only products are 100. The legacy
+-- global E row remains enabled only as compatibility history and is composition-inert.
 
 CREATE TEMP TABLE tmp_core006_local_context (
     provider_tenant_id UUID PRIMARY KEY,
@@ -62,6 +65,50 @@ INSERT INTO tmp_core006_local_rollouts VALUES
      'c0061000-0000-4000-8000-000000000102',
      'c0062000-0000-4000-8000-000000000102',
      'c0063000-0000-4000-8000-000000000102', TRUE),
+    ('access.product-surfaces.capability-enforcement.approvals.v1',
+     'c0061000-0000-4000-8000-000000000201',
+     'c0062000-0000-4000-8000-000000000201',
+     'c0063000-0000-4000-8000-000000000201', TRUE),
+    ('access.product-surfaces.capability-enforcement.calendar.v1',
+     'c0061000-0000-4000-8000-000000000202',
+     'c0062000-0000-4000-8000-000000000202',
+     'c0063000-0000-4000-8000-000000000202', FALSE),
+    ('access.product-surfaces.capability-enforcement.communications.v1',
+     'c0061000-0000-4000-8000-000000000203',
+     'c0062000-0000-4000-8000-000000000203',
+     'c0063000-0000-4000-8000-000000000203', TRUE),
+    ('access.product-surfaces.capability-enforcement.dwaion.v1',
+     'c0061000-0000-4000-8000-000000000204',
+     'c0062000-0000-4000-8000-000000000204',
+     'c0063000-0000-4000-8000-000000000204', FALSE),
+    ('access.product-surfaces.capability-enforcement.hcm.v1',
+     'c0061000-0000-4000-8000-000000000205',
+     'c0062000-0000-4000-8000-000000000205',
+     'c0063000-0000-4000-8000-000000000205', TRUE),
+    ('access.product-surfaces.capability-enforcement.mail.v1',
+     'c0061000-0000-4000-8000-000000000206',
+     'c0062000-0000-4000-8000-000000000206',
+     'c0063000-0000-4000-8000-000000000206', FALSE),
+    ('access.product-surfaces.capability-enforcement.messaging.v1',
+     'c0061000-0000-4000-8000-000000000207',
+     'c0062000-0000-4000-8000-000000000207',
+     'c0063000-0000-4000-8000-000000000207', FALSE),
+    ('access.product-surfaces.capability-enforcement.notifications.v1',
+     'c0061000-0000-4000-8000-000000000208',
+     'c0062000-0000-4000-8000-000000000208',
+     'c0063000-0000-4000-8000-000000000208', FALSE),
+    ('access.product-surfaces.capability-enforcement.services.v1',
+     'c0061000-0000-4000-8000-000000000209',
+     'c0062000-0000-4000-8000-000000000209',
+     'c0063000-0000-4000-8000-000000000209', TRUE),
+    ('access.product-surfaces.capability-enforcement.spaces.v1',
+     'c0061000-0000-4000-8000-000000000210',
+     'c0062000-0000-4000-8000-000000000210',
+     'c0063000-0000-4000-8000-000000000210', FALSE),
+    ('access.product-surfaces.capability-enforcement.workplace.v1',
+     'c0061000-0000-4000-8000-000000000211',
+     'c0062000-0000-4000-8000-000000000211',
+     'c0063000-0000-4000-8000-000000000211', FALSE),
     ('ux.product-surfaces.communications.v1',
      'c0061000-0000-4000-8000-000000000103',
      'c0062000-0000-4000-8000-000000000103',
@@ -109,19 +156,19 @@ INSERT INTO tmp_core006_local_rollouts VALUES
 
 DO $$
 BEGIN
-    IF (SELECT COUNT(*) FROM tmp_core006_local_rollouts) <> 13
-       OR (SELECT COUNT(*) FROM tmp_core006_local_rollouts WHERE enabled) <> 6
-       OR (SELECT COUNT(*) FROM tmp_core006_local_rollouts WHERE NOT enabled) <> 7 THEN
-        RAISE EXCEPTION 'CORE-006 local rollout truth table must remain 6 enabled and 7 disabled';
+    IF (SELECT COUNT(*) FROM tmp_core006_local_rollouts) <> 24
+       OR (SELECT COUNT(*) FROM tmp_core006_local_rollouts WHERE enabled) <> 10
+       OR (SELECT COUNT(*) FROM tmp_core006_local_rollouts WHERE NOT enabled) <> 14 THEN
+        RAISE EXCEPTION 'CORE-006 local rollout truth table must remain 10 enabled and 14 disabled';
     END IF;
     IF (SELECT COUNT(*)
           FROM prv_feature_flags flag
           JOIN tmp_core006_local_rollouts seed USING (feature_key)
          WHERE flag.lifecycle_state = 'ACTIVE'
            AND flag.value_type = 'BOOLEAN'
-           AND flag.default_value = 'false'::jsonb) <> 13 THEN
+           AND flag.default_value = 'false'::jsonb) <> 24 THEN
         RAISE EXCEPTION
-            'CORE-006 local rollout seed requires all 13 production defaults to remain false';
+            'CORE-006 local rollout seed requires all 24 production defaults to remain false';
     END IF;
     IF EXISTS (
         SELECT 1
@@ -276,7 +323,7 @@ BEGIN
            AND revision.requested_by <> revision.approved_by
            AND revision.targeting = jsonb_build_object(
                'tenantIds', jsonb_build_array(context.provider_tenant_id::text))
-           AND revision.rollout_value = to_jsonb(seed.enabled)) <> 13 THEN
+           AND revision.rollout_value = to_jsonb(seed.enabled)) <> 24 THEN
         RAISE EXCEPTION 'CORE-006 local rollout revisions are not exactly active';
     END IF;
     IF (SELECT COUNT(*)
@@ -285,7 +332,7 @@ BEGIN
             ON seed.rollout_stage_id = stage.rollout_stage_id
          WHERE stage.stage_order = 1
            AND stage.exposure_percentage = 100.00
-           AND stage.lifecycle_state = 'ACTIVE') <> 13 THEN
+           AND stage.lifecycle_state = 'ACTIVE') <> 24 THEN
         RAISE EXCEPTION 'CORE-006 local rollout stages are not active at 100 percent';
     END IF;
     IF (SELECT COUNT(*)
@@ -293,7 +340,7 @@ BEGIN
           JOIN tmp_core006_local_rollouts seed
             ON seed.rollout_approval_id = approval.rollout_approval_id
          WHERE approval.lifecycle_state = 'APPROVED'
-           AND approval.requested_by <> approval.decided_by) <> 13 THEN
+           AND approval.requested_by <> approval.decided_by) <> 24 THEN
         RAISE EXCEPTION 'CORE-006 local rollout approvals violate maker-checker separation';
     END IF;
 END $$;

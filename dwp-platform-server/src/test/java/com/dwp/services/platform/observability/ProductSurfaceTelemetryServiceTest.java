@@ -10,6 +10,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -93,6 +94,41 @@ class ProductSurfaceTelemetryServiceTest {
     }
 
     @Test
+    void acceptsExactW1bHcmDimensions() {
+        ProductSurfaceTelemetryService service = service(true);
+
+        service.ingest(41L, "internal", routeDenied(
+                "hcm", "hcm.personal", "hcm.personal.home"));
+        service.ingest(41L, "internal", routeDenied(
+                "hcm", "hcm.team", "hcm.team.time"));
+        service.ingest(41L, "internal", routeDenied(
+                "hcm", "hcm.operations", "hcm.operations.people"));
+        service.ingest(41L, "internal", routeDenied(
+                "hcm", "hcm.management", "hcm.management.integration"));
+
+        verify(repository, times(4)).insert(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void acceptsExposureForEveryGovernedCompatibilityManifest() {
+        ProductSurfaceTelemetryService service = service(true);
+
+        for (String product : List.of(
+                "calendar",
+                "dwaion",
+                "mail",
+                "messaging",
+                "notifications",
+                "spaces",
+                "workplace")) {
+            service.ingest(41L, "internal", exposed(product, product + ".work"));
+            service.ingest(41L, "internal", exposed(product, product + ".management"));
+        }
+
+        verify(repository, times(14)).insert(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void rejectsCrossProductAndPiiLikeValuesAcrossEverySurfaceDimension() {
         ProductSurfaceTelemetryService service = service(true);
 
@@ -107,10 +143,9 @@ class ProductSurfaceTelemetryServiceTest {
     }
 
     @Test
-    void rejectsV3HcmAndUnknownOrCrossSurfaceRoutes() {
+    void rejectsUnknownOrCrossSurfaceRoutes() {
         ProductSurfaceTelemetryService service = service(true);
 
-        assertRejected(service, exposed("hcm", "hcm.personal"));
         assertRejected(service, exposed("person-1042", "person-1042.work"));
         assertRejected(service, routeDenied(
                 "communications", "communications.work", "communications.work.person-1042"));

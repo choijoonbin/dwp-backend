@@ -55,7 +55,8 @@ class ProductSurfaceFeatureRolloutContractTest {
                             "approvals",
                             decision(FeatureRolloutEvaluationClient.CONTEXT_SHADOW_FLAG,
                                     state.charAt(0) == '1', 1, "baseline"),
-                            decision(FeatureRolloutEvaluationClient.CAPABILITY_ENFORCEMENT_FLAG,
+                            decision(FeatureRolloutEvaluationClient.productEnforcementFlag(
+                                            "approvals"),
                                     state.charAt(1) == '1', 1, "baseline"),
                             decision(FeatureRolloutEvaluationClient.uiFlag("approvals"),
                                     state.charAt(2) == '1', 1, "eligible-25"));
@@ -68,7 +69,8 @@ class ProductSurfaceFeatureRolloutContractTest {
                     "approvals",
                     decision(FeatureRolloutEvaluationClient.CONTEXT_SHADOW_FLAG,
                             state.charAt(0) == '1', 1, "baseline"),
-                    decision(FeatureRolloutEvaluationClient.CAPABILITY_ENFORCEMENT_FLAG,
+                    decision(FeatureRolloutEvaluationClient.productEnforcementFlag(
+                                    "approvals"),
                             state.charAt(1) == '1', 1, "baseline"),
                     decision(FeatureRolloutEvaluationClient.uiFlag("approvals"),
                             state.charAt(2) == '1', 1, "eligible-25")))
@@ -84,7 +86,7 @@ class ProductSurfaceFeatureRolloutContractTest {
                         "hcm",
                         decision(FeatureRolloutEvaluationClient.CONTEXT_SHADOW_FLAG,
                                 true, 4, "baseline"),
-                        decision(FeatureRolloutEvaluationClient.CAPABILITY_ENFORCEMENT_FLAG,
+                        decision(FeatureRolloutEvaluationClient.productEnforcementFlag("hcm"),
                                 true, 6, "baseline"),
                         unavailable(FeatureRolloutEvaluationClient.uiFlag("hcm")));
 
@@ -100,7 +102,8 @@ class ProductSurfaceFeatureRolloutContractTest {
                 FeatureRolloutEvaluationClient.combine(
                         "services",
                         unavailable(FeatureRolloutEvaluationClient.CONTEXT_SHADOW_FLAG),
-                        unavailable(FeatureRolloutEvaluationClient.CAPABILITY_ENFORCEMENT_FLAG),
+                        unavailable(FeatureRolloutEvaluationClient.productEnforcementFlag(
+                                "services")),
                         unavailable(FeatureRolloutEvaluationClient.uiFlag("services")));
 
         assertThat(rollout.state()).isEqualTo("000");
@@ -326,11 +329,17 @@ class ProductSurfaceFeatureRolloutContractTest {
     @Test
     void providerOutageRestoresDurableEnforcementAndOnlyDisablesTheUxAxis() {
         ProductSurfaceRolloutSafetyLatch latch = mock(ProductSurfaceRolloutSafetyLatch.class);
-        when(latch.load(71L)).thenReturn(Mono.just(
+        when(latch.load(71L, "hcm")).thenReturn(Mono.just(
                 new ProductSurfaceRolloutSafetyLatch.LoadResult(
                         ProductSurfaceRolloutSafetyLatch.LoadStatus.FOUND,
                         snapshot(true, 10, true, 11))));
-        FeatureRolloutEvaluationClient client = outageClient(latch);
+        FeatureRolloutDecisionCache cache =
+                new FeatureRolloutDecisionCache(Duration.ofSeconds(60), 100);
+        cache.put(71L, decision(
+                FeatureRolloutEvaluationClient.uiFlag("hcm"),
+                true, 12, "eligible-25"));
+        FeatureRolloutEvaluationClient client = client(cache, latch, request -> Mono.just(
+                ClientResponse.create(HttpStatus.SERVICE_UNAVAILABLE).build()));
 
         var rollout = client.evaluateProducts(71L, List.of("hcm"), metadata())
                 .block().getFirst();
@@ -338,13 +347,13 @@ class ProductSurfaceFeatureRolloutContractTest {
         assertThat(rollout.state()).isEqualTo("110");
         assertThat(rollout.flags().capabilityEnforcement()).isTrue();
         assertThat(rollout.flags().surfaceUi()).isFalse();
-        verify(latch).load(71L);
+        verify(latch).load(71L, "hcm");
     }
 
     @Test
     void providerOutageForANewTenantIsOffOnlyAfterAConfirmedMissingLatch() {
         ProductSurfaceRolloutSafetyLatch latch = mock(ProductSurfaceRolloutSafetyLatch.class);
-        when(latch.load(72L)).thenReturn(Mono.just(
+        when(latch.load(72L, "approvals")).thenReturn(Mono.just(
                 new ProductSurfaceRolloutSafetyLatch.LoadResult(
                         ProductSurfaceRolloutSafetyLatch.LoadStatus.MISSING, null)));
         FeatureRolloutEvaluationClient client = outageClient(latch);
@@ -360,11 +369,12 @@ class ProductSurfaceFeatureRolloutContractTest {
     @Test
     void providerOutageWithUnavailableOrCorruptLatchFailsClosed() {
         for (ProductSurfaceRolloutSafetyLatch.LoadStatus status : List.of(
+                ProductSurfaceRolloutSafetyLatch.LoadStatus.MIGRATION_REQUIRED,
                 ProductSurfaceRolloutSafetyLatch.LoadStatus.UNAVAILABLE,
                 ProductSurfaceRolloutSafetyLatch.LoadStatus.CORRUPT)) {
             ProductSurfaceRolloutSafetyLatch latch =
                     mock(ProductSurfaceRolloutSafetyLatch.class);
-            when(latch.load(73L)).thenReturn(Mono.just(
+            when(latch.load(73L, "services")).thenReturn(Mono.just(
                     new ProductSurfaceRolloutSafetyLatch.LoadResult(status, null)));
             FeatureRolloutEvaluationClient client = outageClient(latch);
 
@@ -384,14 +394,14 @@ class ProductSurfaceFeatureRolloutContractTest {
                 FeatureRolloutEvaluationClient.CONTEXT_SHADOW_FLAG,
                 true, 21, "full");
         var incomingEnforcement = decision(
-                FeatureRolloutEvaluationClient.CAPABILITY_ENFORCEMENT_FLAG,
+                FeatureRolloutEvaluationClient.productEnforcementFlag("hcm"),
                 false, 29, "baseline");
         cache.put(74L, incomingShadow);
         cache.put(74L, incomingEnforcement);
         cache.put(74L, decision(
                 FeatureRolloutEvaluationClient.uiFlag("hcm"),
                 true, 40, "eligible-25"));
-        when(latch.approve(74L, incomingShadow, incomingEnforcement))
+        when(latch.approve(74L, "hcm", incomingShadow, incomingEnforcement))
                 .thenReturn(Mono.just(new ProductSurfaceRolloutSafetyLatch.ApprovalResult(
                         ProductSurfaceRolloutSafetyLatch.ApprovalStatus.OUT_OF_ORDER,
                         snapshot(true, 20, true, 30))));
@@ -402,7 +412,7 @@ class ProductSurfaceFeatureRolloutContractTest {
                 .block().getFirst();
 
         assertThat(rollout.state()).isEqualTo("111");
-        verify(latch).approve(74L, incomingShadow, incomingEnforcement);
+        verify(latch).approve(74L, "hcm", incomingShadow, incomingEnforcement);
     }
 
     @Test
@@ -414,11 +424,11 @@ class ProductSurfaceFeatureRolloutContractTest {
                 FeatureRolloutEvaluationClient.CONTEXT_SHADOW_FLAG,
                 true, 31, "full");
         var enforcement = decision(
-                FeatureRolloutEvaluationClient.CAPABILITY_ENFORCEMENT_FLAG,
+                FeatureRolloutEvaluationClient.productEnforcementFlag("hcm"),
                 true, 32, "full");
         cache.put(75L, shadow);
         cache.put(75L, enforcement);
-        when(latch.approve(75L, shadow, enforcement))
+        when(latch.approve(75L, "hcm", shadow, enforcement))
                 .thenReturn(Mono.just(new ProductSurfaceRolloutSafetyLatch.ApprovalResult(
                         ProductSurfaceRolloutSafetyLatch.ApprovalStatus.UNAVAILABLE, null)));
         FeatureRolloutEvaluationClient client = client(cache, latch, request ->
@@ -428,6 +438,104 @@ class ProductSurfaceFeatureRolloutContractTest {
                         75L, List.of("hcm"), metadata()).block())
                 .isInstanceOf(FeatureRolloutEvaluationClient
                         .RolloutAuthorityUnavailableException.class);
+    }
+
+    @Test
+    void productScopedEnforcementAllowsPilotAndDraftProductsToCoexist() {
+        ProductSurfaceRolloutSafetyLatch latch = mock(ProductSurfaceRolloutSafetyLatch.class);
+        FeatureRolloutDecisionCache cache =
+                new FeatureRolloutDecisionCache(Duration.ofSeconds(60), 100);
+        var shadow = decision(
+                FeatureRolloutEvaluationClient.CONTEXT_SHADOW_FLAG, true, 41, "full");
+        var approvalsEnforcement = decision(
+                FeatureRolloutEvaluationClient.productEnforcementFlag("approvals"),
+                true, 42, "full");
+        var calendarEnforcement = decision(
+                FeatureRolloutEvaluationClient.productEnforcementFlag("calendar"),
+                false, 43, "baseline");
+        cache.put(76L, shadow);
+        cache.put(76L, approvalsEnforcement);
+        cache.put(76L, calendarEnforcement);
+        cache.put(76L, decision(
+                FeatureRolloutEvaluationClient.uiFlag("approvals"),
+                true, 44, "eligible-25"));
+        cache.put(76L, decision(
+                FeatureRolloutEvaluationClient.uiFlag("calendar"),
+                false, 45, "baseline"));
+        when(latch.approve(76L, "approvals", shadow, approvalsEnforcement))
+                .thenReturn(Mono.just(new ProductSurfaceRolloutSafetyLatch.ApprovalResult(
+                        ProductSurfaceRolloutSafetyLatch.ApprovalStatus.CREATED,
+                        snapshot(true, 41, true, 42))));
+        when(latch.approve(76L, "calendar", shadow, calendarEnforcement))
+                .thenReturn(Mono.just(new ProductSurfaceRolloutSafetyLatch.ApprovalResult(
+                        ProductSurfaceRolloutSafetyLatch.ApprovalStatus.CREATED,
+                        snapshot(true, 41, false, 43))));
+        FeatureRolloutEvaluationClient client = client(cache, latch, request ->
+                Mono.just(ClientResponse.create(HttpStatus.SERVICE_UNAVAILABLE).build()));
+
+        var rollouts = client.evaluateProducts(
+                76L, List.of("calendar", "approvals"), metadata()).block();
+
+        assertThat(rollouts).extracting(
+                        ProductSurfaceContextDtos.ProductRollout::productKey,
+                        ProductSurfaceContextDtos.ProductRollout::state)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("approvals", "111"),
+                        org.assertj.core.groups.Tuple.tuple("calendar", "100"));
+        verify(latch).approve(76L, "approvals", shadow, approvalsEnforcement);
+        verify(latch).approve(76L, "calendar", shadow, calendarEnforcement);
+    }
+
+    @Test
+    void differentResolvedGlobalShadowBitsFailClosedAcrossProducts() {
+        ProductSurfaceRolloutSafetyLatch latch = mock(ProductSurfaceRolloutSafetyLatch.class);
+        when(latch.load(77L, "approvals")).thenReturn(Mono.just(
+                new ProductSurfaceRolloutSafetyLatch.LoadResult(
+                        ProductSurfaceRolloutSafetyLatch.LoadStatus.FOUND,
+                        snapshot(true, 60, true, 61))));
+        when(latch.load(77L, "hcm")).thenReturn(Mono.just(
+                new ProductSurfaceRolloutSafetyLatch.LoadResult(
+                        ProductSurfaceRolloutSafetyLatch.LoadStatus.FOUND,
+                        snapshot(false, 60, false, 62))));
+        FeatureRolloutEvaluationClient client = outageClient(latch);
+
+        assertThatThrownBy(() -> client.evaluateProducts(
+                        77L, List.of("approvals", "hcm"), metadata()).block())
+                .isInstanceOf(FeatureRolloutEvaluationClient
+                        .RolloutAuthorityUnavailableException.class);
+    }
+
+    @Test
+    void sameResolvedGlobalShadowBitWithDifferentRevisionFailsClosed() {
+        ProductSurfaceRolloutSafetyLatch latch = mock(ProductSurfaceRolloutSafetyLatch.class);
+        when(latch.load(78L, "approvals")).thenReturn(Mono.just(
+                new ProductSurfaceRolloutSafetyLatch.LoadResult(
+                        ProductSurfaceRolloutSafetyLatch.LoadStatus.FOUND,
+                        snapshot(true, 70, true, 71))));
+        when(latch.load(78L, "hcm")).thenReturn(Mono.just(
+                new ProductSurfaceRolloutSafetyLatch.LoadResult(
+                        ProductSurfaceRolloutSafetyLatch.LoadStatus.FOUND,
+                        snapshot(true, 72, false, 73))));
+        FeatureRolloutEvaluationClient client = outageClient(latch);
+
+        assertThatThrownBy(() -> client.evaluateProducts(
+                        78L, List.of("approvals", "hcm"), metadata()).block())
+                .isInstanceOf(FeatureRolloutEvaluationClient
+                        .RolloutAuthorityUnavailableException.class);
+    }
+
+    @Test
+    void legacyGlobalEnforcementFlagCannotDriveAProductDecision() {
+        assertThatThrownBy(() -> FeatureRolloutEvaluationClient.combine(
+                "approvals",
+                decision(FeatureRolloutEvaluationClient.CONTEXT_SHADOW_FLAG,
+                        true, 50, "full"),
+                decision(FeatureRolloutEvaluationClient.CAPABILITY_ENFORCEMENT_FLAG,
+                        true, 51, "full"),
+                decision(FeatureRolloutEvaluationClient.uiFlag("approvals"),
+                        true, 52, "eligible-25")))
+                .isInstanceOf(FeatureRolloutEvaluationClient
+                        .InvalidRolloutStateException.class);
     }
 
     @Test

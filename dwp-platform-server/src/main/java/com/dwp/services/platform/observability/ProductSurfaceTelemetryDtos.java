@@ -59,12 +59,15 @@ public final class ProductSurfaceTelemetryDtos {
     }
 
     public enum ScopeKind {
+        TENANT,
         SELF,
+        TEAM,
         ORG_UNIT,
         LEGAL_ENTITY,
         DOMAIN,
-        RESOURCE,
         RESOURCE_SET,
+        RESOURCE,
+        POLICY_NODE,
         TARGET_POPULATION,
         SUPPORT_SESSION
     }

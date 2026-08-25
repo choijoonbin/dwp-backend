@@ -10,7 +10,6 @@ import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -24,6 +23,10 @@ import java.util.concurrent.TimeoutException;
 public class KafkaFeatureRolloutDecisionEventPublisher
         implements FeatureRolloutDecisionEventPublisher {
 
+    public static final String DEFAULT_TOPIC =
+            "dwp.feature-rollout.decision.changed.v1";
+    static final String EVENT_TYPE = "feature-rollout.decision.changed";
+
     private final KafkaTemplate<String, String> kafka;
     private final ObjectMapper objectMapper;
     private final String topic;
@@ -33,7 +36,7 @@ public class KafkaFeatureRolloutDecisionEventPublisher
             KafkaTemplate<String, String> kafka,
             ObjectMapper objectMapper,
             @Value("${dwp.provider.product-surface-rollout.topic:"
-                    + "dwp.feature-rollout.decision.changed.v1}") String topic,
+                    + DEFAULT_TOPIC + "}") String topic,
             @Value("${dwp.provider.product-surface-rollout.publish-timeout:10s}")
                     Duration timeout) {
         if (topic == null || topic.isBlank()) {
@@ -55,7 +58,7 @@ public class KafkaFeatureRolloutDecisionEventPublisher
             ProducerRecord<String, String> record = new ProducerRecord<>(
                     topic, event.flagKey(), serialize(event));
             header(record, "dwp-event-id", event.eventId().toString());
-            header(record, "dwp-event-type", "feature-rollout.decision.changed");
+            header(record, "dwp-event-type", EVENT_TYPE);
             try {
                 kafka.send(record).get(timeout.toMillis(), TimeUnit.MILLISECONDS);
             } catch (InterruptedException exception) {
@@ -73,7 +76,7 @@ public class KafkaFeatureRolloutDecisionEventPublisher
         RolloutDecisionChanged payload = new RolloutDecisionChanged(
                 event.eventId(), event.tenantScope(), event.authTenantId(), event.flagKey(),
                 FeatureRolloutInternalEvaluationService.opaque(event.opaqueRevision()),
-                event.state(), event.createdAt());
+                event.state(), event.createdAt().toString());
         try {
             return objectMapper.writeValueAsString(payload);
         } catch (JsonProcessingException exception) {
@@ -93,6 +96,6 @@ public class KafkaFeatureRolloutDecisionEventPublisher
             String flagKey,
             String opaqueRevision,
             String state,
-            Instant occurredAt) {
+            String occurredAt) {
     }
 }

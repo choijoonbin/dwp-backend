@@ -72,13 +72,195 @@ field values containing the delimiter or line breaks are rejected. A
 `COMMAND_BODY` version must be an integral payload member equal to `targetVersion`;
 a `COMMAND_HEADER` version is forbidden from the signed payload.
 
-Platform telemetry dimensions are generated from the W0.5 + W1a v2 snapshot as
-`platform-telemetry-dimensions-v2.generated.json`. That closed projection binds
-each allowed product to its surfaces and each surface to exact UI route IDs;
-HCM remains absent until W1b runtime enablement.
+Platform telemetry dimensions are generated as
+`platform-telemetry-dimensions-v3.generated.json`. The projection is anchored
+to the W1b registry v3 and covers all 11 governed product manifests, including
+the seven compatibility surfaces whose authorization contracts are not yet
+active. That closed, checksummed projection binds each allowed product to its
+surfaces, each surface to exact UI route IDs, and every surface to canonical
+task and scope-kind allowlists. Telemetry compatibility does not activate
+authorization enforcement, and arbitrary product, surface, route, task or scope
+dimensions remain fail-closed.
+
+Product Surface activation controls are Provider-owned runtime state and are not
+members of the immutable authorization bundle. For product `p`, Gateway composes
+`S/E_p/U_p` from the tenant-global
+`access.product-surfaces.context-shadow.v1`, the product-scoped
+`access.product-surfaces.capability-enforcement.<p>.v1`, and
+`ux.product-surfaces.<p>.v1`. Only `000`, `100`, `110`, and `111` are valid;
+`E_p` implies `S` and `U_p` implies `E_p`. The legacy tenant-global
+`access.product-surfaces.capability-enforcement.v1` remains only as immutable
+rollout/audit compatibility evidence. New Gateway binaries do not read it or use
+it as a master switch, and operators must not create new rollouts for it.
+
+The v3 candidate bundle intentionally covers only Approvals, Communications,
+HCM, and Services while the checksummed rollout inventory covers eleven
+products. Therefore a mixed envelope is required: exact-contract products may
+be `110/111`, while inventory-only products must remain `000/100` with authority
+not evaluated. Turning an inventory-only product to `110/111` remains a global
+fail-closed error; product-scoped activation does not weaken that fence or alter
+any v1-v3 bundle byte/checksum.
+
+Gateway persists the last approved `S/E_p` pair at
+`dwp:gateway:product-surface:se-latch:v2:<tenant>:<product>`. Provider failure
+restores that pair and forces `U_p=0`, so an established `111` can become `110`
+but never implicitly `100`. A missing v2 latch with a legacy v1 tenant latch is
+`MIGRATION_REQUIRED` and returns 503 rather than inferring per-product state;
+corrupt or unavailable durable state also fails closed. A higher approved
+revision with `E_p=false` is the only rollout path from `110` to `100`.
 
 Runtime loaders reject `test.*` keys and never read test registry overrides.
 The checksummed seed index imports only versions 1, 2 and 3 in order, all as
 `DRAFT`. It contains no active version field or pointer. Activation is an
 explicit CAS pointer transition after independent approval; loading a seed does
 not approve or activate it.
+
+## Production/shared approval, activation and rollback runbook
+
+Feature rollout deployment is separately fenced from bundle activation. Deploy
+V37 and the Provider evaluator first with every product `E_p` default-off, then
+replace every old Gateway pod before enabling any `E_p`. Enable only products
+whose exact bundle, owner PEP, readiness evidence, and durable v2 latch are
+verified. Roll back in `U_p -> E_p -> S` order; an old Gateway binary is not a
+safe rollback target until all product `E_p` values and the legacy global E are
+confirmed off. None of the checked-in local rollout values is production
+approval or activation evidence.
+
+The local pilot runner is not an operations interface. It remains opt-in, checks
+the exact `DWP_ENVIRONMENT=local` marker, and must stay disabled in every shared
+or production environment. Production/shared changes use only the dedicated Auth
+internal operations API under:
+
+```text
+/internal/auth/v1/product-authorization/operations/bundles
+```
+
+There are two independently authenticated lanes. Blank secrets fail closed with
+`401`, the two configured secrets must differ, and a generic service token or a
+token from the other lane is rejected.
+
+| Lane | Exact service identity | Secret header | Server configuration |
+| --- | --- | --- | --- |
+| approval | `dwp-provider-server` | `X-DWP-Product-Authorization-Approval-Token` | `DWP_PRODUCT_AUTHORIZATION_PROVIDER_APPROVAL_TOKEN` |
+| release preflight, activation, rollback | `dwp-platform-server` | `X-DWP-Product-Authorization-Activation-Token` | `DWP_PRODUCT_AUTHORIZATION_PLATFORM_ACTIVATION_TOKEN` |
+
+Every call also carries the single exact
+`X-DWP-Service-Identity` header. Provision the secrets from separate secret
+manager entries, grant each only to its named workload, exclude both headers
+from request logging, rotate them independently, and restart Auth after a
+rotation. Never copy either secret into a change ticket, command history, or
+application configuration committed to source control.
+
+### 1. Preflight the immutable artifact
+
+Run the generator check in the reviewed source revision and take `version` and
+`checksum` from the checked-in bundle index. Importing through the seed loader is
+permitted, but the imported row must still be `DRAFT`; the seed loader contains
+no approval or active-pointer configuration.
+
+```sh
+./scripts/generate-product-authorization-contracts.py --check
+```
+
+Record the source revision, bundle key, version, checksum and change reference.
+The requester and security approver must be different actor references.
+
+### 2. Provider approval lane (no activation)
+
+Send `POST` to
+`/{bundleKey}/versions/{version}/approval` with the provider lane headers and:
+
+```json
+{
+  "checksum": "<exact 64-character lowercase SHA-256>",
+  "requestedBy": "<maker actor reference>",
+  "approvedBy": "<independent checker actor reference>",
+  "changeRef": "<approved change reference>"
+}
+```
+
+Success returns the exact immutable bundle with `bundleStatus=APPROVED` and does
+not create or change the active pointer. A retry is accepted only when the same
+actor and change evidence already exists in the governed audit ledger; an older
+local/manual approval cannot be silently adopted as production evidence.
+
+### 3. Platform release preflight and CAS activation
+
+Using only the platform lane, read the exact target with
+`GET /{bundleKey}/versions/{version}` and the pointer with
+`GET /{bundleKey}/active`. The active endpoint is pointer/CAS inspection only;
+it does not prove that any target is release-eligible. Confirm target status,
+checksum and approval evidence only from the exact version preflight.
+The version preflight returns the immutable bundle plus its provider-governed
+`approvalEvidence` (`requestedBy`, `approvedBy`, `changeRef`, `approvedAt`). A
+`DRAFT`, legacy/local approval, mismatched stored approver, duplicate evidence or
+bundle without exact id/key/version/checksum evidence fails closed instead of
+being presented as release-ready.
+If the active read returns `404`, the initial expected revision is `0`; otherwise
+use the returned `activeRevision` without modification.
+
+Send `POST` to `/{bundleKey}/versions/{version}/activation`:
+
+```json
+{
+  "checksum": "<the exact approved checksum>",
+  "expectedRevision": 0,
+  "activatedBy": "<platform release actor, different from requestedBy and approvedBy>",
+  "changeRef": "<the same approved change reference>"
+}
+```
+
+Activation accepts only an `APPROVED` target with the exact single provider
+governance event. `activatedBy` must differ from both `requestedBy` and
+`approvedBy`, and the activation `changeRef` must equal the approval evidence.
+It requires a newer version than the current active bundle and changes the
+pointer with compare-and-swap. A `409`
+means status, checksum, version lineage, approval evidence or pointer revision
+changed: stop, repeat both reads, and reconcile the change; never increment or
+guess a revision. After success, repeat both reads and verify the returned
+version, checksum and resulting revision.
+
+### 4. Atomic rollback to approved evidence
+
+Rollback never deletes a bundle or event. Select only the immediately previous
+`APPROVED` version, read and verify its exact checksum, and take the current
+revision from the active preflight. Send `POST` to
+`/{bundleKey}/versions/{targetVersion}/rollback`:
+
+```json
+{
+  "checksum": "<exact previous approved checksum>",
+  "expectedRevision": 8,
+  "rolledBackBy": "<platform incident actor, different from target requestedBy and approvedBy>",
+  "changeRef": "<incident or emergency change reference>",
+  "reason": "<specific rollback reason of at least ten characters>"
+}
+```
+
+Auth locks the bundle lineage, changes the former active bundle back to
+`APPROVED`, changes the exact target to `ACTIVE`, advances the CAS pointer by one
+and writes both pointer lineage and governance evidence in the same transaction.
+The rollback target must also carry its exact single provider-governed approval,
+and the rollback actor must differ from both its original requester and approver.
+Skipping versions, rolling forward through this endpoint, stale revisions,
+checksum mismatches and unapproved targets fail closed.
+If the incident is resolved, the rolled-back newer bundle can be reactivated
+only through the normal activation endpoint with its original governed approval
+reference and the then-current CAS revision. That creates a new release-ledger
+revision; it does not replace or duplicate the approval.
+
+### 5. Audit and incident evidence
+
+`auth_product_authorization_activation_event` is the immutable from/to pointer
+lineage. `auth_product_authorization_governance_event` is the immutable
+maker-checker ledger containing exact bundle identity/checksum, operation,
+expected/resulting revision, requester, decision actor, change reference, reason
+and caller service identity. Both ledgers prohibit update/delete. Retain the API
+result and the two post-change preflight responses with the change record. Treat
+any mutation without both matching ledger entries as incomplete and block the
+next rollout until reconciled.
+
+The operations security filter also publishes only a successfully verified lane
+identity to API history as `actorType=SERVICE`, `actorId=<exact workload>` and
+`authType=SERVICE`; rejected credentials remain unauthenticated and neither
+purpose token is copied into audit attributes or responses.

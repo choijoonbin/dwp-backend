@@ -41,6 +41,19 @@ record Registry(
                                 && surfaceKey.equals(value.subject().surfaceKey()));
     }
 
+    /**
+     * Product participation is derived from the exact bundle selected by the active pointer.
+     * Keeping this distinct from {@link #hasSurface(String, String)} lets callers distinguish a
+     * pre-contract compatibility product from drift inside a participating product contract.
+     */
+    boolean hasProduct(String productKey) {
+        return capabilities.stream().anyMatch(value -> productKey.equals(value.productKey()))
+                || policies.stream().anyMatch(value -> productKey.equals(value.productKey()))
+                || routesByKey.values().stream().anyMatch(value ->
+                        "PRODUCT".equals(value.subject().type())
+                                && productKey.equals(value.subject().productKey()));
+    }
+
     private static <T> Map<String, T> index(
             List<T> values,
             java.util.function.Function<T, String> key) {

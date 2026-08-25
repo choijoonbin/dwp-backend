@@ -4,7 +4,6 @@ import com.dwp.services.auth.dto.AppGovernanceDtos;
 import com.dwp.services.auth.dto.ProductAuthorizationContractDtos;
 import com.dwp.services.auth.dto.ProductSurfaceAuthorityDtos;
 import com.dwp.services.auth.repository.ProductAuthorizationContractRepository;
-import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +25,9 @@ import static com.dwp.services.auth.service.ProductAuthorizationAuthoritySupport
 public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAuthorityPort {
 
     private static final String BUNDLE_KEY = "product-surfaces";
+    private static final String PRODUCT_NOT_REGISTERED = "PRODUCT_NOT_REGISTERED";
+    private static final String SURFACE_NOT_REGISTERED = "SURFACE_NOT_REGISTERED";
+    private static final String ROUTE_NOT_REGISTERED = "ROUTE_NOT_REGISTERED";
 
     private final ProductAuthorizationContractRepository repository;
     private final ProductAuthorizationIdentityEvidenceService evidenceService;
@@ -103,7 +105,8 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
         if (!registry.hasSurface(request.productKey(), request.surfaceKey())) {
             return Evaluation.denied(
                     ProductSurfaceAuthorityDtos.Decision.SURFACE_DENIED,
-                    "SURFACE_NOT_REGISTERED");
+                    registry.hasProduct(request.productKey())
+                            ? SURFACE_NOT_REGISTERED : PRODUCT_NOT_REGISTERED);
         }
         List<ProductAuthorizationContractDtos.AccessPolicy> policies = entryPolicies(
                 request, registry);
@@ -134,7 +137,12 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
             if (result.allowed()) allowed.add(result);
             else if (typedDeny == null) typedDeny = result;
         }
-        if (!allowed.isEmpty()) return combine(allowed);
+        if (!allowed.isEmpty()) {
+            Evaluation combined = combine(allowed);
+            return combined.withProductEligibility(
+                    combined.requiresProductEligibility()
+                            || surfaceRequiresPeopleEligibility(request, registry));
+        }
         if (typedDeny != null && typedDeny.decision()
                 != ProductSurfaceAuthorityDtos.Decision.ROUTE_DENIED) {
             return typedDeny;
@@ -236,7 +244,8 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                 || !request.surfaceKey().equals(route.subject().surfaceKey())) {
             return Evaluation.denied(
                     ProductSurfaceAuthorityDtos.Decision.ROUTE_DENIED,
-                    "ROUTE_NOT_REGISTERED");
+                    registry.hasProduct(request.productKey())
+                            ? ROUTE_NOT_REGISTERED : PRODUCT_NOT_REGISTERED);
         }
         List<ProductAuthorizationContractDtos.AccessProfile> profiles = route.accessProfiles().stream()
                 .filter(value -> value.activeAccessModes()
@@ -264,7 +273,7 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
             if (blockingProfileDenial(result)) return result.forRoute();
             if (result.allowed() || result.decision()
                     == ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED) {
-                return routed(request, registry, identity, profile, result);
+                return routed(request, registry, identity, route, profile, result);
             }
             if (firstDenial == null) firstDenial = result;
         }
@@ -326,12 +335,10 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
             ProductSurfaceAuthorityDtos.EvaluateRequest request,
             Registry registry,
             ProductAuthorizationIdentityEvidenceService.IdentityEvidence identity,
+            ProductAuthorizationContractDtos.GovernedRoute route,
             ProductAuthorizationContractDtos.AccessProfile profile,
             Evaluation result) {
-        boolean peopleEligibility = profile.predicatePolicyKeys().stream()
-                .map(registry.predicatesByKey()::get)
-                .filter(Objects::nonNull)
-                .anyMatch(value -> "people".equals(value.ownerServiceKey()));
+        boolean peopleEligibility = requiresPeopleEligibility(request, registry, route, profile);
         if (!result.allowed()) {
             Evaluation denial = result.forRoute();
             return denial.decision() == ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED
@@ -347,11 +354,43 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                 result.requiresProductEligibility() || peopleEligibility);
     }
 
-    private boolean blockingProfileDenial(Evaluation result) {
-        return result.decision() == ProductSurfaceAuthorityDtos.Decision.SOD_CONFLICT
-                || result.decision() == ProductSurfaceAuthorityDtos.Decision.SCOPE_INVALID
-                || result.decision()
-                == ProductSurfaceAuthorityDtos.Decision.AUTHORITY_UNAVAILABLE;
+    /**
+     * People is the current owner-service eligibility evaluator. Every normal/elevated route
+     * delegated to the People PEP must intersect Auth's source authority with People-owned scope
+     * evidence. Profile predicates and target bindings are authorization details, not reliable
+     * ownership markers: overview routes can intentionally have neither while still sharing the
+     * same People owner boundary.
+     */
+    private boolean requiresPeopleEligibility(
+            ProductSurfaceAuthorityDtos.EvaluateRequest request,
+            Registry registry,
+            ProductAuthorizationContractDtos.GovernedRoute route,
+            ProductAuthorizationContractDtos.AccessProfile profile) {
+        if (request.activeAccessMode()
+                == ProductSurfaceAuthorityDtos.AccessMode.PROVIDER_SUPPORT) {
+            return false;
+        }
+        return route.servicePepBindings() != null
+                && route.servicePepBindings().stream()
+                        .anyMatch(value -> "people".equals(value.serviceKey()));
+    }
+
+    private boolean surfaceRequiresPeopleEligibility(
+            ProductSurfaceAuthorityDtos.EvaluateRequest request,
+            Registry registry) {
+        if (request.activeAccessMode()
+                == ProductSurfaceAuthorityDtos.AccessMode.PROVIDER_SUPPORT) {
+            return false;
+        }
+        return registry.routesByKey().values().stream()
+                .filter(route -> "PRODUCT".equals(route.subject().type()))
+                .filter(route -> request.productKey().equals(route.subject().productKey()))
+                .filter(route -> request.surfaceKey().equals(route.subject().surfaceKey()))
+                .anyMatch(route -> route.accessProfiles().stream()
+                        .filter(profile -> profile.activeAccessModes().contains(
+                                request.activeAccessMode().name()))
+                        .anyMatch(profile -> requiresPeopleEligibility(
+                                request, registry, route, profile)));
     }
 
     private Evaluation evaluatePolicy(
@@ -383,7 +422,7 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                                         : "SURFACE_CAPABILITY_REQUIRED");
             }
             if ("SUPPORT_SESSION".equals(branch.authorityMode())) {
-                return evaluateSupportBranch(request, policy, branch);
+                return evaluateSupportBranch(request, registry, policy, branch);
             }
             return evaluateCapabilityExpression(
                     request, registry, identity, branch.capabilityMode(),
@@ -423,15 +462,20 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                 policy.relationshipResolver() == null
                         ? ProductSurfaceAuthorityDtos.AccessSource.ENTITLEMENT
                         : ProductSurfaceAuthorityDtos.AccessSource.RELATIONSHIP;
+        String appResourceKey = entitlementResource(expression.expression());
+        if (appResourceKey == null) {
+            appResourceKey = productResourceKey(request, registry);
+        }
         return Evaluation.allowed(
                 source,
                 List.of(grant), scopes, routeReadOnly, null,
                 policy.relationshipResolver() != null,
-                entitlementResource(expression.expression()));
+                appResourceKey);
     }
 
     private Evaluation evaluateSupportBranch(
             ProductSurfaceAuthorityDtos.EvaluateRequest request,
+            Registry registry,
             ProductAuthorizationContractDtos.AccessPolicy policy,
             ProductAuthorizationContractDtos.ModeBranch branch) {
         if (blank(request.supportSessionRef()) || blank(request.supportRevision())) {
@@ -462,7 +506,8 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                         null);
         return Evaluation.allowed(
                 ProductSurfaceAuthorityDtos.AccessSource.SUPPORT,
-                List.of(grant), scopes, true, null, false, null);
+                List.of(grant), scopes, true, null, false,
+                productResourceKey(request, registry));
     }
 
     private Evaluation evaluateCapabilityExpression(
@@ -607,96 +652,6 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                 capability.resourceKey());
     }
 
-    private List<ProductSurfaceAuthorityDtos.EffectiveGrant> capabilityGrants(
-            ProductSurfaceAuthorityDtos.EvaluateRequest request,
-            ProductAuthorizationContractDtos.CapabilityContract capability,
-            List<String> predicates,
-            List<AppGovernanceDtos.ResourceRole> roles,
-            List<ProductSurfaceAuthorityDtos.EffectiveScope> scopes,
-            boolean readOnly,
-            boolean activationEligible) {
-        if (roles.isEmpty()) {
-            return List.of(capabilityGrant(
-                    capability, predicates, null,
-                    scopes.stream().map(ProductSurfaceAuthorityDtos.EffectiveScope::key).toList(),
-                    readOnly, activationEligible, null));
-        }
-        Map<String, AppGovernanceDtos.ResourceRole> byScope = new LinkedHashMap<>();
-        roles.forEach(role -> byScope.putIfAbsent(
-                scopeKey(request, role.resourceSetKey(), "RESOURCE_SET"), role));
-        return byScope.entrySet().stream()
-                .map(entry -> (ProductSurfaceAuthorityDtos.EffectiveGrant) capabilityGrant(
-                        capability, predicates, entry.getValue(), List.of(entry.getKey()),
-                        readOnly, activationEligible, entry.getValue().validTo()))
-                .toList();
-    }
-
-    private ProductSurfaceAuthorityDtos.CapabilityGrant capabilityGrant(
-            ProductAuthorizationContractDtos.CapabilityContract capability,
-            List<String> predicates,
-            AppGovernanceDtos.ResourceRole responsibility,
-            List<String> scopeKeys,
-            boolean readOnly,
-            boolean activationEligible,
-            OffsetDateTime validUntil) {
-        return new ProductSurfaceAuthorityDtos.CapabilityGrant(
-                capability.contractKey(), capability.resolvedCapabilityCode(),
-                capabilityAuthority(capability.authorityMode()), predicates,
-                responsibilityRequirement(capability.responsibilityRequirement()),
-                responsibility == null ? null : new ProductSurfaceAuthorityDtos.Responsibility(
-                        responsibility.responsibilityCode(), responsibility.resourceSetKey()),
-                scopeKeys, capability.requiresProductEntitlement(), readOnly,
-                activationEligible
-                        ? ProductSurfaceAuthorityDtos.ActivationState.ELIGIBLE
-                        : ProductSurfaceAuthorityDtos.ActivationState.ACTIVE,
-                validUntil);
-    }
-
-    private boolean hasProductEntitlement(
-            ProductSurfaceAuthorityDtos.EvaluateRequest request,
-            Registry registry,
-            ProductAuthorizationIdentityEvidenceService.IdentityEvidence identity) {
-        return registry.policies().stream()
-                .filter(ProductAuthorizationContractDtos.AccessPolicy::requiresProductEntitlement)
-                .filter(policy -> request.productKey().equals(policy.productKey()))
-                .filter(policy -> request.surfaceKey().equals(policy.surfaceKey()))
-                .map(ProductAuthorizationContractDtos.AccessPolicy::entitlementExpressionKey)
-                .filter(Objects::nonNull)
-                .map(registry.expressionsByKey()::get)
-                .filter(Objects::nonNull)
-                .anyMatch(expression -> evaluateEntitlement(expression.expression(), identity));
-    }
-
-    private boolean evaluateEntitlement(
-            JsonNode expression,
-            ProductAuthorizationIdentityEvidenceService.IdentityEvidence identity) {
-        if (expression == null || !expression.isObject()) return false;
-        String type = expression.path("type").asText();
-        if ("LEAF".equals(type)) {
-            String entitlement = expression.path("entitlement").asText();
-            return !entitlement.isBlank() && identity.hasPermission(entitlement);
-        }
-        JsonNode children = expression.has("children")
-                ? expression.get("children")
-                : expression.get("operands");
-        if (children == null || !children.isArray() || children.isEmpty()) return false;
-        return switch (type) {
-            case "ANY" -> {
-                for (JsonNode child : children) {
-                    if (evaluateEntitlement(child, identity)) yield true;
-                }
-                yield false;
-            }
-            case "ALL" -> {
-                for (JsonNode child : children) {
-                    if (!evaluateEntitlement(child, identity)) yield false;
-                }
-                yield true;
-            }
-            default -> false;
-        };
-    }
-
     private ProductSurfaceAuthorityDtos.AuthorityResult result(
             ProductSurfaceAuthorityDtos.EvaluateRequest request,
             String authRevision,
@@ -730,36 +685,6 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                 evaluation.requestPolicyRef(),
                 materialized ? revalidateAt : null,
                 "evidence-" + digest(authRevision + policyRevision).substring(0, 24));
-    }
-
-    private Evaluation combine(List<Evaluation> evaluations) {
-        List<ProductSurfaceAuthorityDtos.EffectiveGrant> grants = evaluations.stream()
-                .flatMap(value -> value.grants().stream())
-                .distinct()
-                .toList();
-        Map<String, ProductSurfaceAuthorityDtos.EffectiveScope> scopes = new LinkedHashMap<>();
-        evaluations.stream().flatMap(value -> value.scopes().stream())
-                .forEach(value -> scopes.putIfAbsent(value.key(), value));
-        // Never select one authority source implicitly when aggregation exposes alternatives.
-        boolean singleScope = scopes.size() == 1;
-        List<ProductSurfaceAuthorityDtos.EffectiveScope> effectiveScopes = scopes.values().stream()
-                .map(scope -> new ProductSurfaceAuthorityDtos.EffectiveScope(
-                        scope.key(), scope.kind(), scope.displayName(), singleScope,
-                        !hasActiveMutationGrant(grants, scope.key()), scope.validUntil()))
-                .toList();
-        boolean readOnly = effectiveScopes.stream()
-                .allMatch(ProductSurfaceAuthorityDtos.EffectiveScope::readOnly);
-        OffsetDateTime validUntil = evaluations.stream()
-                .map(Evaluation::validUntil)
-                .filter(Objects::nonNull)
-                .min(Comparator.naturalOrder())
-                .orElse(null);
-        return Evaluation.allowed(
-                evaluations.getFirst().accessSource(), grants, effectiveScopes,
-                readOnly, validUntil,
-                evaluations.stream().anyMatch(Evaluation::requiresProductEligibility),
-                evaluations.stream().map(Evaluation::appResourceKey)
-                        .filter(Objects::nonNull).findFirst().orElse(null));
     }
 
     private record EntryPolicyEvaluation(

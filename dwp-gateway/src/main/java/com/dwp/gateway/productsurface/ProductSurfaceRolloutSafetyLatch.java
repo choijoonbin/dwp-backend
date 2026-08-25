@@ -3,24 +3,26 @@ package com.dwp.gateway.productsurface;
 import reactor.core.publisher.Mono;
 
 /**
- * Durable, tenant-scoped safety latch for the shared Product Surface rollout axes.
+ * Durable, tenant-and-product-scoped safety latch for the Product Surface rollout axes.
  *
  * <p>The latch is deliberately independent of the short-lived evaluation cache. A caller can
- * therefore recover the last authoritative S/E state after a process restart or Provider
- * evaluation failure without turning an already-approved enforcement decision off.
+ * therefore recover the last authoritative S/E_p state after a process restart or Provider
+ * evaluation failure without turning an already-approved product enforcement decision off.
  */
 public interface ProductSurfaceRolloutSafetyLatch {
 
-    Mono<LoadResult> load(long authTenantId);
+    Mono<LoadResult> load(long authTenantId, String productKey);
 
     Mono<ApprovalResult> approve(
             long authTenantId,
+            String productKey,
             FeatureRolloutDecisionCache.FlagDecision shadow,
-            FeatureRolloutDecisionCache.FlagDecision enforcement);
+            FeatureRolloutDecisionCache.FlagDecision productEnforcement);
 
     enum LoadStatus {
         FOUND,
         MISSING,
+        MIGRATION_REQUIRED,
         CORRUPT,
         UNAVAILABLE
     }

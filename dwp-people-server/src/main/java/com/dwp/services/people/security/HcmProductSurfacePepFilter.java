@@ -25,6 +25,8 @@ import java.util.stream.Collectors;
 /**
  * Exact HCM service PEP. The feature switch is a server-readiness latch only;
  * the tenant rollout state remains authoritative for enforcement selection.
+ * Provider-support profiles remain fail-closed because the trusted runtime
+ * evidence does not yet carry the contract's legal-entity population scope.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 30)
@@ -79,6 +81,20 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
         HcmPepContext.clear();
+        boolean supportHeaderPresent =
+                request.getHeader(PeopleSecurityFilter.SUPPORT_SESSION_HEADER) != null;
+        String supportSession = exactHeader(
+                request, PeopleSecurityFilter.SUPPORT_SESSION_HEADER);
+        if (supportHeaderPresent && supportSession == null) {
+            writeError(response, ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "Trusted HCM support-session evidence is invalid.");
+            return;
+        }
+        if (supportSession != null) {
+            writeError(response, ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "Trusted HCM provider-support population evidence is unavailable.");
+            return;
+        }
         String state = exactHeader(request, ROLLOUT_STATE_HEADER);
         if (state == null && !productAuthorizationV3Enabled) {
             filterChain.doFilter(request, response);

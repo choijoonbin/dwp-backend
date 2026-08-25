@@ -25,9 +25,9 @@ import java.util.regex.Pattern;
 public class FeatureRolloutEvaluationClient {
 
     public static final String CONTEXT_SHADOW_FLAG =
-            "access.product-surfaces.context-shadow.v1";
+            ProductSurfaceRolloutFlagCatalog.CONTEXT_SHADOW_FLAG;
     public static final String CAPABILITY_ENFORCEMENT_FLAG =
-            "access.product-surfaces.capability-enforcement.v1";
+            ProductSurfaceRolloutFlagCatalog.LEGACY_GLOBAL_ENFORCEMENT_FLAG;
 
     private static final String INTERNAL_PATH =
             "/internal/provider/v1/feature-rollouts/evaluate";
@@ -37,7 +37,6 @@ public class FeatureRolloutEvaluationClient {
     private static final String CORRELATION_HEADER = "X-Correlation-ID";
     private static final String TRACE_PARENT_HEADER = "traceparent";
     private static final String TRACE_STATE_HEADER = "tracestate";
-    private static final Pattern PRODUCT_KEY = Pattern.compile("^[a-z][a-z0-9-]{0,47}$");
     private static final Pattern FLAG_KEY = Pattern.compile(
             "^(access|ux)\\.product-surfaces\\.[a-z0-9.-]+\\.v1$");
     private static final Set<String> COHORTS = Set.of(
@@ -117,58 +116,93 @@ public class FeatureRolloutEvaluationClient {
             RequestMetadata metadata) {
         List<String> products = normalizeProducts(productKeys);
         if (products.isEmpty()) return Mono.just(List.of());
-        return Mono.zip(
-                        evaluate(authTenantId, CONTEXT_SHADOW_FLAG, metadata),
-                        evaluate(authTenantId, CAPABILITY_ENFORCEMENT_FLAG, metadata))
-                .flatMap(shared -> resolveSharedDecision(
-                        authTenantId, shared.getT1(), shared.getT2()))
-                .flatMapMany(shared -> Flux.fromIterable(products)
-                        .concatMap(productKey -> evaluate(
-                                        authTenantId, uiFlag(productKey), metadata)
-                                .map(ui -> combine(productKey, shared.getT1(), shared.getT2(), ui))))
-                .collectList();
+        return evaluate(authTenantId, CONTEXT_SHADOW_FLAG, metadata)
+                .flatMapMany(shadow -> Flux.fromIterable(products)
+                        .concatMap(productKey -> Mono.zip(
+                                        evaluate(
+                                                authTenantId,
+                                                productEnforcementFlag(productKey),
+                                                metadata),
+                                        evaluate(authTenantId, uiFlag(productKey), metadata))
+                                .flatMap(axes -> resolveProductDecision(
+                                                authTenantId,
+                                                productKey,
+                                                shadow,
+                                                axes.getT1())
+                                        .map(approved -> new ResolvedProductDecision(
+                                                productKey,
+                                                approved,
+                                                axes.getT2())))))
+                .collectList()
+                .map(this::requireGlobalShadowInvariant)
+                .map(values -> values.stream()
+                        .map(value -> combine(
+                                value.productKey(),
+                                value.axes().shadow(),
+                                value.axes().enforcement(),
+                                value.axes().recovered()
+                                        ? unavailableAxis(uiFlag(value.productKey()))
+                                        : value.ui()))
+                        .toList());
     }
 
-    private Mono<reactor.util.function.Tuple2<
-            FeatureRolloutDecisionCache.FlagDecision,
-            FeatureRolloutDecisionCache.FlagDecision>> resolveSharedDecision(
+    private List<ResolvedProductDecision> requireGlobalShadowInvariant(
+            List<ResolvedProductDecision> values) {
+        if (values.isEmpty()) return values;
+        FeatureRolloutDecisionCache.FlagDecision expected =
+                values.getFirst().axes().shadow();
+        boolean inconsistent = values.stream()
+                .map(value -> value.axes().shadow())
+                .anyMatch(shadow -> shadow.enabled() != expected.enabled()
+                        || !Objects.equals(
+                                shadow.opaqueRevision(), expected.opaqueRevision()));
+        if (inconsistent) throw new RolloutAuthorityUnavailableException();
+        return values;
+    }
+
+    private Mono<ResolvedProductAxes> resolveProductDecision(
                     long authTenantId,
+                    String productKey,
                     FeatureRolloutDecisionCache.FlagDecision shadow,
                     FeatureRolloutDecisionCache.FlagDecision enforcement) {
         if (shadow.authoritative() && enforcement.authoritative()) {
-            return safetyLatch.approve(authTenantId, shadow, enforcement)
+            return safetyLatch.approve(authTenantId, productKey, shadow, enforcement)
                     .flatMap(result -> result.hasStoredSnapshot()
-                            ? Mono.just(sharedFrom(result.snapshot()))
+                            ? Mono.just(productAxesFrom(
+                                    productKey, result.snapshot(), false))
                             : Mono.error(new RolloutAuthorityUnavailableException()));
         }
-        return safetyLatch.load(authTenantId)
+        return safetyLatch.load(authTenantId, productKey)
                 .flatMap(result -> switch (result.status()) {
-                    case FOUND -> Mono.just(sharedFrom(result.snapshot()));
-                    case MISSING -> Mono.just(reactor.util.function.Tuples.of(
-                            unavailableShared(CONTEXT_SHADOW_FLAG),
-                            unavailableShared(CAPABILITY_ENFORCEMENT_FLAG)));
-                    case CORRUPT, UNAVAILABLE ->
+                    case FOUND -> Mono.just(productAxesFrom(
+                            productKey, result.snapshot(), true));
+                    case MISSING -> Mono.just(new ResolvedProductAxes(
+                            unavailableAxis(CONTEXT_SHADOW_FLAG),
+                            unavailableAxis(productEnforcementFlag(productKey)),
+                            true));
+                    case MIGRATION_REQUIRED, CORRUPT, UNAVAILABLE ->
                             Mono.error(new RolloutAuthorityUnavailableException());
                 });
     }
 
-    private reactor.util.function.Tuple2<
-            FeatureRolloutDecisionCache.FlagDecision,
-            FeatureRolloutDecisionCache.FlagDecision> sharedFrom(
-                    ProductSurfaceRolloutSafetyLatch.Snapshot snapshot) {
+    private ResolvedProductAxes productAxesFrom(
+                    String productKey,
+                    ProductSurfaceRolloutSafetyLatch.Snapshot snapshot,
+                    boolean recovered) {
         if (snapshot == null) throw new RolloutAuthorityUnavailableException();
-        return reactor.util.function.Tuples.of(
-                restoredShared(
+        return new ResolvedProductAxes(
+                restoredAxis(
                         CONTEXT_SHADOW_FLAG,
                         snapshot.contextShadow(),
                         snapshot.shadowOpaqueRevision()),
-                restoredShared(
-                        CAPABILITY_ENFORCEMENT_FLAG,
+                restoredAxis(
+                        productEnforcementFlag(productKey),
                         snapshot.capabilityEnforcement(),
-                        snapshot.enforcementOpaqueRevision()));
+                        snapshot.enforcementOpaqueRevision()),
+                recovered);
     }
 
-    private FeatureRolloutDecisionCache.FlagDecision restoredShared(
+    private FeatureRolloutDecisionCache.FlagDecision restoredAxis(
             String flagKey,
             boolean enabled,
             String revision) {
@@ -187,15 +221,16 @@ public class FeatureRolloutEvaluationClient {
                 true);
     }
 
-    private FeatureRolloutDecisionCache.FlagDecision unavailableShared(String flagKey) {
+    private FeatureRolloutDecisionCache.FlagDecision unavailableAxis(String flagKey) {
         return FeatureRolloutDecisionCache.FlagDecision.unavailable(flagKey);
     }
 
+    public static String productEnforcementFlag(String productKey) {
+        return ProductSurfaceRolloutFlagCatalog.productEnforcementFlag(productKey);
+    }
+
     public static String uiFlag(String productKey) {
-        if (productKey == null || !PRODUCT_KEY.matcher(productKey).matches()) {
-            throw new IllegalArgumentException("Invalid product rollout key");
-        }
-        return "ux.product-surfaces." + productKey + ".v1";
+        return ProductSurfaceRolloutFlagCatalog.uiFlag(productKey);
     }
 
     public static ProductSurfaceContextDtos.ProductRollout combine(
@@ -203,6 +238,11 @@ public class FeatureRolloutEvaluationClient {
             FeatureRolloutDecisionCache.FlagDecision shadow,
             FeatureRolloutDecisionCache.FlagDecision enforcement,
             FeatureRolloutDecisionCache.FlagDecision ui) {
+        if (!CONTEXT_SHADOW_FLAG.equals(shadow.flagKey())
+                || !productEnforcementFlag(productKey).equals(enforcement.flagKey())
+                || !uiFlag(productKey).equals(ui.flagKey())) {
+            throw new InvalidRolloutStateException();
+        }
         if (shadow.authoritative() && enforcement.authoritative()
                 && enforcement.enabled() && !shadow.enabled()) {
             throw new InvalidRolloutStateException();
@@ -259,7 +299,7 @@ public class FeatureRolloutEvaluationClient {
         if (productKeys == null) return List.of();
         LinkedHashSet<String> unique = new LinkedHashSet<>();
         for (String productKey : productKeys) {
-            if (productKey == null || !PRODUCT_KEY.matcher(productKey).matches()) {
+            if (!ProductSurfaceRolloutFlagCatalog.supportsProduct(productKey)) {
                 throw new InvalidRolloutStateException();
             }
             unique.add(productKey);
@@ -326,6 +366,18 @@ public class FeatureRolloutEvaluationClient {
             String opaqueRevision,
             String cohort,
             Instant evaluatedAt) {
+    }
+
+    private record ResolvedProductAxes(
+            FeatureRolloutDecisionCache.FlagDecision shadow,
+            FeatureRolloutDecisionCache.FlagDecision enforcement,
+            boolean recovered) {
+    }
+
+    private record ResolvedProductDecision(
+            String productKey,
+            ResolvedProductAxes axes,
+            FeatureRolloutDecisionCache.FlagDecision ui) {
     }
 
     public static final class InvalidRolloutStateException extends RuntimeException {

@@ -51,7 +51,7 @@ class Core006LocalPilotRolloutSeedPostgresTest {
     }
 
     @Test
-    void activatesOnlyTheFourPilotUiFlagsWithSharedEnforcementForTheExactTenant() {
+    void activatesTheExactProductScopedPilotTruthTableForTheExactTenant() {
         Map<Boolean, Integer> values = jdbc.query("""
                 SELECT (revision.rollout_value = 'true'::jsonb) AS enabled,
                        COUNT(*) AS count
@@ -66,7 +66,7 @@ class Core006LocalPilotRolloutSeedPostgresTest {
             }
             return counts;
         });
-        assertThat(values).containsEntry(true, 6).containsEntry(false, 7);
+        assertThat(values).containsEntry(true, 10).containsEntry(false, 14);
 
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*)
@@ -81,7 +81,7 @@ class Core006LocalPilotRolloutSeedPostgresTest {
                    AND revision.targeting =
                        '{"tenantIds":["00000000-0000-0000-0000-000000000001"]}'::jsonb
                    AND flag.default_value = 'false'::jsonb
-                """, Integer.class)).isEqualTo(13);
+                """, Integer.class)).isEqualTo(24);
 
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*)
@@ -90,14 +90,14 @@ class Core006LocalPilotRolloutSeedPostgresTest {
                    AND stage.stage_order = 1
                    AND stage.exposure_percentage = 100.00
                    AND stage.lifecycle_state = 'ACTIVE'
-                """, Integer.class)).isEqualTo(13);
+                """, Integer.class)).isEqualTo(24);
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*)
                   FROM prv_feature_rollout_approvals approval
                  WHERE approval.rollout_approval_id::text LIKE 'c0063000-%'
                    AND approval.lifecycle_state = 'APPROVED'
                    AND approval.requested_by <> approval.decided_by
-                """, Integer.class)).isEqualTo(13);
+                """, Integer.class)).isEqualTo(24);
 
         assertThat(jdbc.queryForList("""
                 SELECT flag.feature_key
@@ -108,12 +108,89 @@ class Core006LocalPilotRolloutSeedPostgresTest {
                    AND revision.rollout_value = 'true'::jsonb
                  ORDER BY flag.feature_key
                 """, String.class)).containsExactly(
+                "access.product-surfaces.capability-enforcement.approvals.v1",
+                "access.product-surfaces.capability-enforcement.communications.v1",
+                "access.product-surfaces.capability-enforcement.hcm.v1",
+                "access.product-surfaces.capability-enforcement.services.v1",
                 "access.product-surfaces.capability-enforcement.v1",
                 "access.product-surfaces.context-shadow.v1",
                 "ux.product-surfaces.approvals.v1",
                 "ux.product-surfaces.communications.v1",
                 "ux.product-surfaces.hcm.v1",
                 "ux.product-surfaces.services.v1");
+
+        assertThat(jdbc.queryForList("""
+                WITH decisions AS (
+                    SELECT flag.feature_key,
+                           revision.rollout_value = 'true'::jsonb AS enabled
+                      FROM prv_feature_rollout_revisions revision
+                      JOIN prv_feature_flags flag
+                        ON flag.feature_flag_id = revision.feature_flag_id
+                     WHERE revision.rollout_revision_id::text LIKE 'c0061000-%'
+                       AND revision.lifecycle_state = 'ACTIVE'
+                ), products(product_key) AS (
+                    VALUES ('approvals'), ('calendar'), ('communications'), ('dwaion'),
+                           ('hcm'), ('mail'), ('messaging'), ('notifications'),
+                           ('services'), ('spaces'), ('workplace')
+                )
+                SELECT CONCAT(
+                           products.product_key, '=',
+                           CASE WHEN shadow.enabled THEN '1' ELSE '0' END,
+                           CASE WHEN enforcement.enabled THEN '1' ELSE '0' END,
+                           CASE WHEN ui.enabled THEN '1' ELSE '0' END)
+                  FROM products
+                  JOIN decisions shadow
+                    ON shadow.feature_key = 'access.product-surfaces.context-shadow.v1'
+                  JOIN decisions enforcement
+                    ON enforcement.feature_key = CONCAT(
+                       'access.product-surfaces.capability-enforcement.',
+                       products.product_key, '.v1')
+                  JOIN decisions ui
+                    ON ui.feature_key = CONCAT(
+                       'ux.product-surfaces.', products.product_key, '.v1')
+                 ORDER BY products.product_key
+                """, String.class)).containsExactly(
+                "approvals=111",
+                "calendar=100",
+                "communications=111",
+                "dwaion=100",
+                "hcm=111",
+                "mail=100",
+                "messaging=100",
+                "notifications=100",
+                "services=111",
+                "spaces=100",
+                "workplace=100");
+    }
+
+    @Test
+    void registersEveryProductScopedEnforcementFlagDefaultOffWithDecisionRevision() {
+        assertThat(jdbc.queryForList("""
+                SELECT flag.feature_key
+                  FROM prv_feature_flags flag
+                  JOIN prv_feature_rollout_decision_revision decision
+                    ON decision.feature_flag_id = flag.feature_flag_id
+                 WHERE flag.feature_key LIKE
+                       'access.product-surfaces.capability-enforcement.%.v1'
+                   AND flag.value_type = 'BOOLEAN'
+                   AND flag.default_value = 'false'::jsonb
+                   AND flag.configuration_schema = '{"type":"boolean"}'::jsonb
+                   AND flag.risk_tier = 'L3'
+                   AND flag.lifecycle_state = 'ACTIVE'
+                   AND decision.opaque_revision >= 1
+                 ORDER BY flag.feature_key
+                """, String.class)).containsExactly(
+                "access.product-surfaces.capability-enforcement.approvals.v1",
+                "access.product-surfaces.capability-enforcement.calendar.v1",
+                "access.product-surfaces.capability-enforcement.communications.v1",
+                "access.product-surfaces.capability-enforcement.dwaion.v1",
+                "access.product-surfaces.capability-enforcement.hcm.v1",
+                "access.product-surfaces.capability-enforcement.mail.v1",
+                "access.product-surfaces.capability-enforcement.messaging.v1",
+                "access.product-surfaces.capability-enforcement.notifications.v1",
+                "access.product-surfaces.capability-enforcement.services.v1",
+                "access.product-surfaces.capability-enforcement.spaces.v1",
+                "access.product-surfaces.capability-enforcement.workplace.v1");
     }
 
     @Test
@@ -137,15 +214,15 @@ class Core006LocalPilotRolloutSeedPostgresTest {
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM prv_feature_rollout_revisions
                  WHERE rollout_revision_id::text LIKE 'c0061000-%'
-                """, Integer.class)).isEqualTo(13);
+                """, Integer.class)).isEqualTo(24);
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM prv_feature_rollout_stages
                  WHERE rollout_stage_id::text LIKE 'c0062000-%'
-                """, Integer.class)).isEqualTo(13);
+                """, Integer.class)).isEqualTo(24);
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM prv_feature_rollout_approvals
                  WHERE rollout_approval_id::text LIKE 'c0063000-%'
-                """, Integer.class)).isEqualTo(13);
+                """, Integer.class)).isEqualTo(24);
     }
 
     @Test

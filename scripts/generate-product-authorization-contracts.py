@@ -60,7 +60,7 @@ HCM_PEOPLE_PEP_OUTPUT = (
 PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     ROOT
     / "dwp-platform-server/src/main/resources/product-authorization/"
-    / "platform-telemetry-dimensions-v2.generated.json"
+    / "platform-telemetry-dimensions-v3.generated.json"
 )
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
@@ -103,6 +103,215 @@ EXPECTED_RELEASE_COUNTS = {
         "predicatePolicies": 25, "routes": 129, "PAGE": 58, "DATA": 12, "ACTION": 59},
 }
 PLATFORM_CANARY_PRODUCTS = {"communications", "services"}
+PLATFORM_TELEMETRY_SURFACE_DIMENSIONS = {
+    "approvals.admin": {
+        "scopeKinds": ["RESOURCE_SET"],
+        "taskKinds": ["ADMINISTRATION", "OPERATIONS"],
+    },
+    "approvals.work": {
+        "scopeKinds": ["SELF"],
+        "taskKinds": ["WORK"],
+    },
+    "communications.management": {
+        "scopeKinds": ["RESOURCE_SET", "SUPPORT_SESSION"],
+        "taskKinds": ["OPERATIONS"],
+    },
+    "communications.work": {
+        "scopeKinds": ["SELF"],
+        "taskKinds": ["WORK"],
+    },
+    "calendar.management": {
+        "scopeKinds": ["RESOURCE_SET"],
+        "taskKinds": ["ADMINISTRATION", "OPERATIONS"],
+    },
+    "calendar.work": {
+        "scopeKinds": ["SELF"],
+        "taskKinds": ["WORK"],
+    },
+    "dwaion.management": {
+        "scopeKinds": ["RESOURCE_SET"],
+        "taskKinds": ["ADMINISTRATION", "OPERATIONS"],
+    },
+    "dwaion.work": {
+        "scopeKinds": ["SELF"],
+        "taskKinds": ["WORK"],
+    },
+    "hcm.management": {
+        "scopeKinds": ["LEGAL_ENTITY", "POLICY_NODE", "RESOURCE", "RESOURCE_SET"],
+        "taskKinds": [
+            "ADMINISTRATION",
+            "CONFIGURATION",
+            "DESIGN",
+            "INTEGRATION",
+            "OPERATIONS",
+            "REPORTING",
+        ],
+    },
+    "hcm.operations": {
+        "scopeKinds": [
+            "LEGAL_ENTITY",
+            "ORG_UNIT",
+            "SUPPORT_SESSION",
+            "TARGET_POPULATION",
+        ],
+        "taskKinds": ["OPERATIONS"],
+    },
+    "hcm.personal": {
+        "scopeKinds": ["SELF"],
+        "taskKinds": ["WORK"],
+    },
+    "hcm.team": {
+        "scopeKinds": ["ORG_UNIT", "TARGET_POPULATION", "TEAM"],
+        "taskKinds": ["REVIEW", "WORK"],
+    },
+    "mail.management": {
+        "scopeKinds": ["RESOURCE_SET"],
+        "taskKinds": ["ADMINISTRATION", "OPERATIONS"],
+    },
+    "mail.work": {
+        "scopeKinds": ["SELF"],
+        "taskKinds": ["WORK"],
+    },
+    "messaging.management": {
+        "scopeKinds": ["RESOURCE_SET"],
+        "taskKinds": ["ADMINISTRATION", "OPERATIONS"],
+    },
+    "messaging.work": {
+        "scopeKinds": ["SELF"],
+        "taskKinds": ["WORK"],
+    },
+    "notifications.management": {
+        "scopeKinds": ["RESOURCE_SET"],
+        "taskKinds": ["ADMINISTRATION", "OPERATIONS"],
+    },
+    "notifications.work": {
+        "scopeKinds": ["SELF"],
+        "taskKinds": ["WORK"],
+    },
+    "services.management": {
+        "scopeKinds": ["RESOURCE_SET"],
+        "taskKinds": ["ADMINISTRATION", "OPERATIONS"],
+    },
+    "services.work": {
+        "scopeKinds": ["SELF"],
+        "taskKinds": ["WORK"],
+    },
+    "spaces.management": {
+        "scopeKinds": ["RESOURCE_SET"],
+        "taskKinds": ["ADMINISTRATION", "OPERATIONS"],
+    },
+    "spaces.work": {
+        "scopeKinds": ["SELF"],
+        "taskKinds": ["WORK"],
+    },
+    "workplace.management": {
+        "scopeKinds": ["RESOURCE", "RESOURCE_SET"],
+        "taskKinds": ["ADMINISTRATION", "OPERATIONS"],
+    },
+    "workplace.work": {
+        "scopeKinds": ["SELF"],
+        "taskKinds": ["WORK"],
+    },
+}
+PLATFORM_TELEMETRY_COMPATIBILITY_ROUTE_IDS = {
+    "calendar.management": [
+        "calendar.management.overview",
+        "calendar.management.policies",
+    ],
+    "calendar.work": [
+        "calendar.work.availability",
+        "calendar.work.home",
+        "calendar.work.insights",
+        "calendar.work.schedule",
+    ],
+    "dwaion.management": [
+        "dwaion.management.actions",
+        "dwaion.management.agents",
+        "dwaion.management.audit",
+        "dwaion.management.evaluation",
+        "dwaion.management.gates",
+        "dwaion.management.overview",
+        "dwaion.management.safety",
+        "dwaion.management.sources",
+    ],
+    "dwaion.work": [
+        "dwaion.work.actions",
+        "dwaion.work.agents",
+        "dwaion.work.conversations",
+        "dwaion.work.home",
+        "dwaion.work.new",
+    ],
+    "mail.management": [
+        "mail.management.connections",
+        "mail.management.overview",
+        "mail.management.policies",
+        "mail.management.shared-inboxes",
+    ],
+    "mail.work": [
+        "mail.work.accounts",
+        "mail.work.drafts",
+        "mail.work.home",
+        "mail.work.inbox",
+        "mail.work.sent",
+        "mail.work.shared",
+    ],
+    "messaging.management": [
+        "messaging.management.overview",
+        "messaging.management.policy",
+    ],
+    "messaging.work": [
+        "messaging.work.direct",
+        "messaging.work.home",
+        "messaging.work.inbox",
+        "messaging.work.later",
+        "messaging.work.people",
+        "messaging.work.spaces",
+    ],
+    "notifications.management": [
+        "notifications.management.contracts",
+        "notifications.management.operations",
+        "notifications.management.overview",
+        "notifications.management.policies",
+        "notifications.management.suppressions",
+        "notifications.management.templates",
+    ],
+    "notifications.work": [
+        "notifications.work.center",
+        "notifications.work.home",
+        "notifications.work.settings",
+    ],
+    "spaces.management": [
+        "spaces.management.content-reviews",
+        "spaces.management.directory",
+        "spaces.management.lifecycle",
+        "spaces.management.operations",
+        "spaces.management.overview",
+        "spaces.management.requests",
+        "spaces.management.templates",
+    ],
+    "spaces.work": [
+        "spaces.work.discover",
+        "spaces.work.home",
+        "spaces.work.my-spaces",
+        "spaces.work.requests",
+    ],
+    "workplace.management": [
+        "workplace.management.governance",
+        "workplace.management.locations",
+        "workplace.management.operations",
+        "workplace.management.overview",
+        "workplace.management.policy",
+        "workplace.management.room-operations",
+        "workplace.management.room-policy",
+    ],
+    "workplace.work": [
+        "workplace.work.explore",
+        "workplace.work.find-rooms",
+        "workplace.work.home",
+        "workplace.work.my-bookings",
+        "workplace.work.my-meetings",
+    ],
+}
 PRODUCT_SURFACE_ROLLOUT_PRODUCTS = {
     "approvals",
     "calendar",
@@ -1450,14 +1659,13 @@ def verify_approvals_pep(path: pathlib.Path, projection: dict[str, Any]) -> None
 
 
 def build_platform_telemetry_dimensions(snapshot: dict[str, Any]) -> dict[str, Any]:
-    """Project closed W0.5 + W1a telemetry dimensions from immutable registry v2."""
-    require(snapshot["version"] == 2, "Telemetry dimensions must project registry v2")
+    """Project closed governed-manifest dimensions anchored to registry v3."""
+    require(snapshot["version"] == 3, "Telemetry dimensions must project registry v3")
     surfaces: dict[tuple[str, str], set[str]] = defaultdict(set)
     for policy in snapshot["accessPolicies"]:
         product_key = policy.get("productKey")
         surface_key = policy.get("surfaceKey")
         if product_key is not None:
-            require(product_key != "hcm", "HCM telemetry dimensions are forbidden before W1b")
             surfaces[(product_key, surface_key)]
     for route in snapshot["routes"]:
         subject = route["subject"]
@@ -1465,10 +1673,16 @@ def build_platform_telemetry_dimensions(snapshot: dict[str, Any]) -> dict[str, A
             continue
         product_key = subject.get("productKey")
         surface_key = subject.get("surfaceKey")
-        require(product_key != "hcm", "HCM telemetry dimensions are forbidden before W1b")
         route_ids = surfaces[(product_key, surface_key)]
         if route.get("uiRouteId") is not None:
             route_ids.add(route["uiRouteId"])
+    for surface_key, route_ids in PLATFORM_TELEMETRY_COMPATIBILITY_ROUTE_IDS.items():
+        product_key = surface_key.partition(".")[0]
+        require(
+            (product_key, surface_key) not in surfaces,
+            "Compatibility telemetry surface overlaps the active registry",
+        )
+        surfaces[(product_key, surface_key)].update(route_ids)
 
     product_documents: list[dict[str, Any]] = []
     for product_key in sorted({key[0] for key in surfaces}):
@@ -1478,6 +1692,7 @@ def build_platform_telemetry_dimensions(snapshot: dict[str, Any]) -> dict[str, A
                 {
                     "surfaceKey": surface_key,
                     "routeIds": sorted(surfaces[(product_key, surface_key)]),
+                    **PLATFORM_TELEMETRY_SURFACE_DIMENSIONS[surface_key],
                 }
                 for owner, surface_key in sorted(surfaces)
                 if owner == product_key
@@ -1485,8 +1700,8 @@ def build_platform_telemetry_dimensions(snapshot: dict[str, Any]) -> dict[str, A
         })
 
     projection = {
-        "schemaVersion": 1,
-        "projectionKey": "platform-telemetry-dimensions-v2",
+        "schemaVersion": 2,
+        "projectionKey": "platform-telemetry-dimensions-v3",
         "ownerServiceKey": "platform",
         "registryRef": {
             "bundleKey": snapshot["bundleKey"],
@@ -1506,8 +1721,18 @@ def build_platform_telemetry_dimensions(snapshot: dict[str, Any]) -> dict[str, A
     }
     require(
         (projection["productCount"], projection["surfaceCount"], projection["routeIdCount"])
-        == (3, 6, 33),
+        == (11, 24, 127),
         "Platform telemetry dimension closure drift",
+    )
+    require(
+        {surface[1] for surface in surfaces}
+        == set(PLATFORM_TELEMETRY_SURFACE_DIMENSIONS),
+        "Platform telemetry task/scope allowlist drift",
+    )
+    require(
+        {surface.partition(".")[0] for surface in PLATFORM_TELEMETRY_SURFACE_DIMENSIONS}
+        == PRODUCT_SURFACE_ROLLOUT_PRODUCTS,
+        "Platform telemetry products drifted from rollout inventory",
     )
     projection["projectionChecksum"] = hashlib.sha256(
         stable_json(projection).encode("utf-8")
@@ -1528,15 +1753,15 @@ def verify_platform_telemetry_dimensions(projection: dict[str, Any]) -> None:
     )
     registry = document["registryRef"]
     require(
-        registry["version"] == 2
+        registry["version"] == 3
         and LOWERCASE_SHA256_PATTERN.fullmatch(registry["sha256"]) is not None,
-        "Platform telemetry dimensions must bind exact W1a registry v2",
+        "Platform telemetry dimensions must bind exact W1b registry v3",
     )
     route_ids: set[str] = set()
     for product in document["products"]:
         product_key = product["productKey"]
-        require(product_key in {"communications", "services", "approvals"},
-                "Unknown or pre-W1b telemetry product escaped projection")
+        require(product_key in PRODUCT_SURFACE_ROLLOUT_PRODUCTS,
+                "Unknown telemetry product escaped projection")
         for surface in product["surfaces"]:
             require(
                 surface["surfaceKey"].startswith(product_key + "."),
@@ -1549,6 +1774,14 @@ def verify_platform_telemetry_dimensions(projection: dict[str, Any]) -> None:
                     "Cross-surface or duplicate telemetry route escaped projection",
                 )
                 route_ids.add(route_id)
+            require(
+                {
+                    "scopeKinds": surface["scopeKinds"],
+                    "taskKinds": surface["taskKinds"],
+                }
+                == PLATFORM_TELEMETRY_SURFACE_DIMENSIONS[surface["surfaceKey"]],
+                "Telemetry task/scope allowlist drift",
+            )
 
 
 def write_or_check(path: pathlib.Path, content: str, check: bool) -> bool:
@@ -1664,7 +1897,7 @@ def main() -> int:
             },
         )
         platform_telemetry_dimensions = build_platform_telemetry_dimensions(
-            snapshots[1]
+            snapshots[2]
         )
         hcm_people_pep = build_approvals_pep(
             snapshots[2],

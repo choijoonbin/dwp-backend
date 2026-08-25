@@ -198,6 +198,7 @@ class ProductAuthorizationAuthorityAdapterTest {
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
         assertThat(allowed.accessSource())
                 .isEqualTo(ProductSurfaceAuthorityDtos.AccessSource.SUPPORT);
+        assertThat(allowed.appResourceKey()).isEqualTo("APP.COMMUNICATIONS");
         assertThat(allowed.effectiveReadOnly()).isTrue();
 
         evidence(Set.of("ADMIN.COMMUNICATIONS:VIEW"), List.of(role(
@@ -228,6 +229,7 @@ class ProductAuthorizationAuthorityAdapterTest {
         assertThat(result.decision()).isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
         assertThat(result.accessSource())
                 .isEqualTo(ProductSurfaceAuthorityDtos.AccessSource.SUPPORT);
+        assertThat(result.appResourceKey()).isEqualTo("APP.COMMUNICATIONS");
         assertThat(result.effectiveReadOnly()).isTrue();
         assertThat(result.scopes()).isNotEmpty()
                 .allMatch(ProductSurfaceAuthorityDtos.EffectiveScope::readOnly);
@@ -252,6 +254,13 @@ class ProductAuthorizationAuthorityAdapterTest {
         assertThat(result.accessSource())
                 .isEqualTo(ProductSurfaceAuthorityDtos.AccessSource.RELATIONSHIP);
         assertThat(result.requiresProductEligibility()).isTrue();
+        assertThat(result.appResourceKey()).isEqualTo("APP.HCM");
+
+        ProductSurfaceAuthorityDtos.AuthorityResult direct = evaluate(
+                "hcm", "hcm.team", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.team.home.page", null, null, null, null, List.of());
+        assertThat(direct.decision()).isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(direct.appResourceKey()).isEqualTo("APP.HCM");
     }
 
     @Test
@@ -660,6 +669,7 @@ class ProductAuthorizationAuthorityAdapterTest {
     void hcmTeamAndOperationsKeepModeSpecificEntryAndPageScopeKinds() {
         evidence(Set.of(
                 "APP.HCM:VIEW",
+                "DATA.WORKFORCE:VIEW",
                 "DATA.HR_TIME:VIEW"), List.of());
 
         ProductSurfaceAuthorityDtos.AuthorityResult teamEntry = evaluate(
@@ -674,15 +684,29 @@ class ProductAuthorizationAuthorityAdapterTest {
         ProductSurfaceAuthorityDtos.AuthorityResult operationsTime = evaluate(
                 "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
                 "route.hcm.operations.time.page", null, null, null, null, List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult operationsOverview = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.operations.overview.page", null, null, null, null, List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult operationsPeople = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.operations.people.page", null, null, null, null, List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult operationsAssignments = evaluate(
+                "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.operations.assignments.page", null, null, null, null, List.of());
 
-        assertThat(List.of(teamEntry, teamTime, operationsEntry, operationsTime))
+        assertThat(List.of(
+                teamEntry, teamTime, operationsEntry, operationsTime, operationsOverview,
+                operationsPeople, operationsAssignments))
                 .allSatisfy(result -> {
                     assertThat(result.decision())
                             .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
-                    assertThat(result.scopes()).isNotEmpty()
-                            .extracting(ProductSurfaceAuthorityDtos.EffectiveScope::kind)
-                            .containsOnly("TARGET_POPULATION");
+                    assertThat(result.requiresProductEligibility()).isTrue();
                 });
+        assertThat(List.of(teamEntry, teamTime, operationsEntry, operationsTime,
+                operationsPeople, operationsAssignments))
+                .allSatisfy(result -> assertThat(result.scopes()).isNotEmpty()
+                        .extracting(ProductSurfaceAuthorityDtos.EffectiveScope::kind)
+                        .containsOnly("TARGET_POPULATION"));
 
         evidence(Set.of(), List.of());
         ProductSurfaceAuthorityDtos.AuthorityResult operationsSupportEntry = evaluate(
@@ -699,6 +723,7 @@ class ProductAuthorizationAuthorityAdapterTest {
                 .allSatisfy(result -> {
                     assertThat(result.decision())
                             .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+                    assertThat(result.appResourceKey()).isEqualTo("APP.HCM");
                     assertThat(result.scopes()).singleElement().satisfies(scope -> {
                         assertThat(scope.kind()).isEqualTo("SUPPORT_SESSION");
                         assertThat(scope.readOnly()).isTrue();
@@ -819,12 +844,42 @@ class ProductAuthorizationAuthorityAdapterTest {
                 null, null, null, null, List.of());
         assertThat(unknown.decision())
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ROUTE_DENIED);
+        assertThat(unknown.reasonCode()).isEqualTo("ROUTE_NOT_REGISTERED");
 
         ProductSurfaceAuthorityDtos.AuthorityResult stale = evaluate(
                 "services", "services.work", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
                 null, "stale-context", null, null, null, List.of());
         assertThat(stale.decision())
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.SCOPE_INVALID);
+    }
+
+    @Test
+    void distinguishesActivePointerProductAbsenceFromParticipatingContractDrift() {
+        evidence(Set.of(), List.of());
+
+        ProductSurfaceAuthorityDtos.AuthorityResult absentEntry = evaluate(
+                "calendar", "calendar.work", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                null, null, null, null, null, List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult absentRoute = evaluate(
+                "calendar", "calendar.work", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.calendar.work.home.page",
+                null, null, null, null, List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult driftedSurface = evaluate(
+                "services", "services.future", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                null, null, null, null, null, List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult driftedRoute = evaluate(
+                "services", "services.work", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.services.work.not-registered.page",
+                null, null, null, null, List.of());
+
+        assertThat(absentEntry.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.SURFACE_DENIED);
+        assertThat(absentEntry.reasonCode()).isEqualTo("PRODUCT_NOT_REGISTERED");
+        assertThat(absentRoute.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ROUTE_DENIED);
+        assertThat(absentRoute.reasonCode()).isEqualTo("PRODUCT_NOT_REGISTERED");
+        assertThat(driftedSurface.reasonCode()).isEqualTo("SURFACE_NOT_REGISTERED");
+        assertThat(driftedRoute.reasonCode()).isEqualTo("ROUTE_NOT_REGISTERED");
     }
 
     private void evidence(
@@ -838,6 +893,7 @@ class ProductAuthorizationAuthorityAdapterTest {
             String capabilityContractKey) {
         assertThat(result.decision())
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(result.requiresProductEligibility()).isTrue();
         assertThat(result.scopes()).singleElement().satisfies(scope -> {
             assertThat(scope.kind()).isEqualTo("TARGET_POPULATION");
             assertThat(scope.isDefault()).isTrue();

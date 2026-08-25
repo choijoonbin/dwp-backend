@@ -22,6 +22,7 @@ dependencies {
     runtimeOnly 'io.netty:netty-resolver-dns-native-macos::osx-aarch_64'
     
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation project(':dwp-provider-server')
 }
 
 tasks.named('processResources') {

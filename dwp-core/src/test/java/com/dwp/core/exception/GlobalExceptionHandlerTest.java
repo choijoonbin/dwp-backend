@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.validation.BindException;
 import org.springframework.validation.ObjectError;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -73,5 +74,22 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getMessage())
                 .isEqualTo("The requested resource was not found.");
+    }
+
+    @Test
+    void unsupportedContentTypeReturnsUnsupportedMediaTypeInsteadOfInternalServerError() {
+        StaticMessageSource messages = new StaticMessageSource();
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(messages);
+
+        ResponseEntity<ApiResponse<Object>> response = handler.handleHttpMediaTypeNotSupported(
+                new HttpMediaTypeNotSupportedException("text/plain"),
+                new MockHttpServletRequest(),
+                Locale.ENGLISH);
+
+        assertThat(response.getStatusCode().value()).isEqualTo(415);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getErrorCode()).isEqualTo("E4002");
+        assertThat(response.getBody().getMessage())
+                .isEqualTo("The request Content-Type is not supported.");
     }
 }

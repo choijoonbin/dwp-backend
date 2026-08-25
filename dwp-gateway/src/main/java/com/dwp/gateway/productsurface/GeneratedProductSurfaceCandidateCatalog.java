@@ -38,9 +38,8 @@ public class GeneratedProductSurfaceCandidateCatalog
             "^[a-z][a-z0-9-]{0,47}(\\.[a-z][a-z0-9-]{0,47})+$");
     private static final Set<String> ROUTE_KINDS = Set.of("PAGE", "DATA", "ACTION");
     private static final Set<String> LIFECYCLE_STATES = Set.of("ACTIVE", "RETIRED");
-    private static final Set<String> ROLLOUT_PRODUCTS = Set.of(
-            "approvals", "calendar", "communications", "dwaion", "hcm", "mail",
-            "messaging", "notifications", "services", "spaces", "workplace");
+    private static final Set<String> ROLLOUT_PRODUCTS =
+            ProductSurfaceRolloutFlagCatalog.productSet();
 
     private final List<ProductSurfaceContextDtos.ProductCandidate> candidates;
     private final List<String> rolloutProductKeys;

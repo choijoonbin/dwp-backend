@@ -199,6 +199,95 @@ class ProductSurfaceDecisionContextFilterTest {
     }
 
     @Test
+    void contractLessRaw110RouteFailsClosedWithoutCompatibilityDowngrade() {
+        ProductSurfaceContextAggregationService authority = authority(productNotRegistered());
+        ProductSurfaceDecisionContextFilter filter = filter(authority);
+        MockServerWebExchange exchange = exchange(MockServerHttpRequest.post(
+                        "/api/people/v1/workforce/exports")
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7"));
+        AtomicReference<Boolean> forwarded = new AtomicReference<>(false);
+
+        filter.filter(exchange, filtered -> {
+            forwarded.set(true);
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwarded.get()).isFalse();
+        assertThat(exchange.getResponse().getStatusCode())
+                .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(body(exchange)).contains("AUTHORITY_RESOLUTION_UNAVAILABLE");
+    }
+
+    @Test
+    void ownerFlattenedProductAbsenceCannotDowngradeEnforcement() {
+        ProductSurfaceContextAggregationService authority = authority(
+                productNotRegistered(false));
+        ProductSurfaceDecisionContextFilter filter = filter(authority);
+        MockServerWebExchange exchange = exchange(MockServerHttpRequest.post(
+                        "/api/people/v1/workforce/exports")
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                .header(ProductSurfaceDecisionContextFilter.EXPECTED_REVISION_HEADER,
+                        REVISION));
+        AtomicReference<Boolean> forwarded = new AtomicReference<>(false);
+
+        filter.filter(exchange, ignored -> {
+            forwarded.set(true);
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwarded.get()).isFalse();
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(body(exchange)).contains("PRODUCT_NOT_REGISTERED");
+    }
+
+    @Test
+    void contractLessRaw111RouteFailsClosedAsAuthorityUnavailable() {
+        ProductSurfaceContextAggregationService authority = authority(productNotRegistered());
+        ProductSurfaceDecisionContextFilter filter = filter(authority);
+        MockServerWebExchange exchange = exchange(MockServerHttpRequest.get(
+                        "/api/people/v1/workforce/exports/datasets")
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "111")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7"));
+        AtomicReference<Boolean> forwarded = new AtomicReference<>(false);
+
+        filter.filter(exchange, ignored -> {
+            forwarded.set(true);
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwarded.get()).isFalse();
+        assertThat(exchange.getResponse().getStatusCode())
+                .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(body(exchange)).contains("AUTHORITY_RESOLUTION_UNAVAILABLE");
+    }
+
+    @Test
+    void participatingProductRouteDriftRemainsFailClosedInEnforcement() {
+        ProductSurfaceContextAggregationService authority = authority(routeNotRegistered());
+        ProductSurfaceDecisionContextFilter filter = filter(authority);
+        MockServerWebExchange exchange = exchange(MockServerHttpRequest.get(
+                        "/api/approvals/v1/admin/workflows")
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7"));
+        AtomicReference<Boolean> forwarded = new AtomicReference<>(false);
+
+        filter.filter(exchange, ignored -> {
+            forwarded.set(true);
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwarded.get()).isFalse();
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(body(exchange)).contains("ROUTE_NOT_REGISTERED");
+    }
+
+    @Test
     void activeSupportEvidenceCannotDowngradeToNormalMode() {
         ProductSurfaceContextAggregationService authority = authority(allowed());
         ProductSurfaceDecisionContextFilter filter = filter(authority);
@@ -339,7 +428,7 @@ class ProductSurfaceDecisionContextFilterTest {
                         ProductSurfaceContextDtos.Decision.ALLOWED, "ALLOWED", REVISION,
                         context, "grant-1", scope, false, REVALIDATE_AT, null,
                         null, null, REVALIDATE_AT),
-                "ctx-approval", scope);
+                "ctx-approval", scope, false);
     }
 
     private ProductSurfaceContextAggregationService.TrustedProductEvaluation stepUp() {
@@ -350,7 +439,34 @@ class ProductSurfaceDecisionContextFilterTest {
                         "STEP_UP_REQUIRED", REVISION, null, null, null, null,
                         REVALIDATE_AT, null, "urn:dwp:acr:mfa",
                         "STEPUP-MGMT-HIGH-V1", REVALIDATE_AT),
-                "ctx-approval", scope);
+                "ctx-approval", scope, false);
+    }
+
+    private ProductSurfaceContextAggregationService.TrustedProductEvaluation routeNotRegistered() {
+        return new ProductSurfaceContextAggregationService.TrustedProductEvaluation(
+                new ProductSurfaceContextDtos.ProductEvaluationData(
+                        ProductSurfaceContextDtos.Decision.ROUTE_DENIED,
+                        "ROUTE_NOT_REGISTERED", REVISION, null, null, null, null,
+                        null, null, null, null, null),
+                null,
+                null,
+                false);
+    }
+
+    private ProductSurfaceContextAggregationService.TrustedProductEvaluation productNotRegistered() {
+        return productNotRegistered(true);
+    }
+
+    private ProductSurfaceContextAggregationService.TrustedProductEvaluation productNotRegistered(
+            boolean authRouteProductNotRegistered) {
+        return new ProductSurfaceContextAggregationService.TrustedProductEvaluation(
+                new ProductSurfaceContextDtos.ProductEvaluationData(
+                        ProductSurfaceContextDtos.Decision.ROUTE_DENIED,
+                        "PRODUCT_NOT_REGISTERED", REVISION, null, null, null, null,
+                        null, null, null, null, null),
+                null,
+                null,
+                authRouteProductNotRegistered);
     }
 
     private ProductSurfaceContextDtos.EffectiveScope scope() {

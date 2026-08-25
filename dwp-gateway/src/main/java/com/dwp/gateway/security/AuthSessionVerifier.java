@@ -159,7 +159,7 @@ public class AuthSessionVerifier implements SessionVerifier {
             return "ADMIN.WORKFORCE_ACCESS";
         }
         if (path.startsWith("/api/people/v1/workforce")) {
-            return "DATA.WORKFORCE";
+            return "DATA.WORKFORCE,DATA.HR_,ACTION.WORKFORCE_";
         }
         if (path.startsWith("/api/people/v1/hr")) {
             return "APP.HCM,APP.HRIS,DATA.HR_";

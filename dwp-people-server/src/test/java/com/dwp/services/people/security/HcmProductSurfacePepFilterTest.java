@@ -11,6 +11,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.net.URI;
+import java.util.List;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -123,6 +124,47 @@ class HcmProductSurfacePepFilterTest {
         verify(service, never()).team();
     }
 
+    @Test
+    void providerSupportBindingsRemainFailClosedWithoutPopulationProvenance()
+            throws Exception {
+        List<SupportBinding> bindings = List.of(
+                new SupportBinding(
+                        "/v1/workforce/operations/overview",
+                        "route.hcm.operations.overview.page"),
+                new SupportBinding(
+                        "/v1/workforce/people",
+                        "route.hcm.operations.people.page"),
+                new SupportBinding(
+                        "/v1/workforce/people?view=assignments",
+                        "route.hcm.operations.assignments.page"),
+                new SupportBinding(
+                        "/v1/workforce/organization/chart",
+                        "route.hcm.operations.people.page"));
+
+        for (SupportBinding binding : bindings) {
+            mvc.perform(identity(get(URI.create(binding.uri())), "")
+                            .header(HcmProductSurfacePepFilter.ROLLOUT_STATE_HEADER, "110")
+                            .header(HcmProductSurfacePepFilter.ROLLOUT_REVISION_HEADER,
+                                    ROLLOUT_REVISION)
+                            .header(HcmProductSurfacePepFilter.ROLLOUT_COHORT_HEADER, "full")
+                            .header(HcmProductSurfacePepFilter.ROUTE_CONTRACT_HEADER,
+                                    binding.route())
+                            .header(HcmProductSurfacePepFilter.CURRENT_CONTEXT_HEADER,
+                                    "psc-context")
+                            .header(HcmProductSurfacePepFilter.CURRENT_SCOPE_HEADER,
+                                    "support-session-scope")
+                            .header(PeopleSecurityFilter.SUPPORT_SESSION_HEADER, "support-1")
+                            .header(PeopleSecurityFilter.SUPPORT_SCOPES_HEADER,
+                                    "WORKFORCE_READ")
+                            .header(PeopleSecurityFilter.ACTOR_TENANT_HEADER, "9"))
+                    .andExpect(status().isServiceUnavailable());
+        }
+
+        verify(service, never()).operationsOverview();
+        verify(service, never()).team();
+        verify(validator, never()).validate(org.mockito.ArgumentMatchers.any());
+    }
+
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder exact(
             org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request,
             String route) {
@@ -165,5 +207,8 @@ class HcmProductSurfacePepFilterTest {
                 .header(PeopleSecurityFilter.TENANT_HEADER, "3")
                 .header(PeopleSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER")
                 .header(PeopleSecurityFilter.PERMISSIONS_HEADER, permissions);
+    }
+
+    private record SupportBinding(String uri, String route) {
     }
 }

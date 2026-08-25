@@ -128,7 +128,7 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                     "AUTHENTICATION_REQUIRED", null);
         }
         String expected = expectedRevision(expectedValues);
-        if (route.stateChanging() && expected == null) {
+        if (!expectedValues.isEmpty() && expected == null) {
             return error(sanitizedExchange, HttpStatus.CONFLICT,
                     "DECISION_REVISION_CONFLICT", null);
         }
@@ -183,6 +183,16 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             ProductSurfaceContextAggregationService.TrustedProductEvaluation trustedResult,
             String expected) {
         ProductSurfaceContextDtos.ProductEvaluationData result = trustedResult.data();
+        if (trustedResult.authRouteProductNotRegistered()
+                && result.decision() == ProductSurfaceContextDtos.Decision.ROUTE_DENIED
+                && "PRODUCT_NOT_REGISTERED".equals(result.reasonCode())) {
+            return error(exchange, HttpStatus.SERVICE_UNAVAILABLE,
+                    "AUTHORITY_RESOLUTION_UNAVAILABLE", result.decisionRevision());
+        }
+        if (route.stateChanging() && expected == null) {
+            return error(exchange, HttpStatus.CONFLICT,
+                    "DECISION_REVISION_CONFLICT", result.decisionRevision());
+        }
         boolean allowed = result.decision() == ProductSurfaceContextDtos.Decision.ALLOWED;
         boolean eligibleStepUp = result.decision()
                 == ProductSurfaceContextDtos.Decision.STEP_UP_REQUIRED

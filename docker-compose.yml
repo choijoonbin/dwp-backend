@@ -124,6 +124,13 @@ services:
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092
         --create --if-not-exists --topic dwp.notification-delivery-bulk.v1
         --partitions 12 --replication-factor 1 --config cleanup.policy=delete
+        --config min.insync.replicas=1 &&
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092
+        --create --if-not-exists
+        --topic dwp.feature-rollout.decision.changed.v1
+        --partitions 12
+        --replication-factor 1
+        --config cleanup.policy=delete
         --config min.insync.replicas=1
     networks:
       - dwp-network

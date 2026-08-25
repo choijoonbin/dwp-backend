@@ -3,6 +3,7 @@ package com.dwp.services.people.security;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -147,5 +148,69 @@ class HcmV3PepRegistryTest {
                 "GET", "/v1/hr/team/time", Set.of("APP.HCM:VIEW"), null,
                 "NORMAL", Set.of(), "route.hcm.team.time.page", null);
         assertThat(registry.authorize(missing).allowed()).isFalse();
+    }
+
+    @Test
+    void declaredProviderSupportProfilesCarryClosedProjectionsButNotRuntimeReadiness() {
+        List<SupportBinding> bindings = List.of(
+                new SupportBinding(
+                        "route.hcm.operations.assignments.page",
+                        "/v1/workforce/people",
+                        "view=assignments",
+                        "hcm.support.assignment-list.v1",
+                        "HcmSupportAssignmentListV1"),
+                new SupportBinding(
+                        "route.hcm.operations.overview.page",
+                        "/v1/workforce/operations/overview",
+                        null,
+                        "hcm.support.operations-overview.v1",
+                        "HcmSupportOperationsOverviewV1"),
+                new SupportBinding(
+                        "route.hcm.operations.people.page",
+                        "/v1/workforce/people",
+                        null,
+                        "hcm.support.workforce-list.v1",
+                        "HcmSupportWorkforceListV1"),
+                new SupportBinding(
+                        "route.hcm.operations.people.page",
+                        "/v1/workforce/organization/chart",
+                        null,
+                        "hcm.support.org-summary.v1",
+                        "HcmSupportOrgSummaryV1"));
+
+        bindings.forEach(binding -> {
+            HcmV3PepRegistry.RequestEvidence evidence =
+                    new HcmV3PepRegistry.RequestEvidence(
+                            "GET",
+                            binding.path(),
+                            Set.of(),
+                            null,
+                            "PROVIDER_SUPPORT",
+                            Set.of("WORKFORCE_READ"),
+                            binding.route(),
+                            binding.query());
+
+            HcmV3PepRegistry.Decision decision = registry.authorize(evidence);
+
+            assertThat(decision.allowed()).as(binding.route() + " " + binding.path()).isTrue();
+            assertThat(decision.authority().profileKey()).isEqualTo("provider-support");
+            assertThat(decision.authority().readOnly()).isTrue();
+            assertThat(decision.authority().projectionPolicyKey())
+                    .isEqualTo(binding.projection());
+            assertThat(decision.authority().responseSchemaKey()).isEqualTo(binding.schema());
+
+            assertThat(registry.authorize(new HcmV3PepRegistry.RequestEvidence(
+                            "GET", binding.path(), Set.of(), null,
+                            "PROVIDER_SUPPORT", Set.of(), binding.route(), binding.query()))
+                    .allowed()).isFalse();
+        });
+    }
+
+    private record SupportBinding(
+            String route,
+            String path,
+            String query,
+            String projection,
+            String schema) {
     }
 }

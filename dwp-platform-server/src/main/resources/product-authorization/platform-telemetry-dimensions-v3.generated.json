@@ -1,0 +1,489 @@
+{
+  "ownerServiceKey": "platform",
+  "productCount": 11,
+  "products": [
+    {
+      "productKey": "approvals",
+      "surfaces": [
+        {
+          "routeIds": [
+            "approvals.admin.forms",
+            "approvals.admin.operations",
+            "approvals.admin.overview",
+            "approvals.admin.policies",
+            "approvals.admin.signatures",
+            "approvals.admin.workflows"
+          ],
+          "scopeKinds": [
+            "RESOURCE_SET"
+          ],
+          "surfaceKey": "approvals.admin",
+          "taskKinds": [
+            "ADMINISTRATION",
+            "OPERATIONS"
+          ]
+        },
+        {
+          "routeIds": [
+            "approvals.work.completed",
+            "approvals.work.delegations",
+            "approvals.work.home",
+            "approvals.work.inbox",
+            "approvals.work.request-archive",
+            "approvals.work.request-drafts",
+            "approvals.work.request-needs-info",
+            "approvals.work.request-new",
+            "approvals.work.request-submitted"
+          ],
+          "scopeKinds": [
+            "SELF"
+          ],
+          "surfaceKey": "approvals.work",
+          "taskKinds": [
+            "WORK"
+          ]
+        }
+      ]
+    },
+    {
+      "productKey": "calendar",
+      "surfaces": [
+        {
+          "routeIds": [
+            "calendar.management.overview",
+            "calendar.management.policies"
+          ],
+          "scopeKinds": [
+            "RESOURCE_SET"
+          ],
+          "surfaceKey": "calendar.management",
+          "taskKinds": [
+            "ADMINISTRATION",
+            "OPERATIONS"
+          ]
+        },
+        {
+          "routeIds": [
+            "calendar.work.availability",
+            "calendar.work.home",
+            "calendar.work.insights",
+            "calendar.work.schedule"
+          ],
+          "scopeKinds": [
+            "SELF"
+          ],
+          "surfaceKey": "calendar.work",
+          "taskKinds": [
+            "WORK"
+          ]
+        }
+      ]
+    },
+    {
+      "productKey": "communications",
+      "surfaces": [
+        {
+          "routeIds": [
+            "communications.management.content"
+          ],
+          "scopeKinds": [
+            "RESOURCE_SET",
+            "SUPPORT_SESSION"
+          ],
+          "surfaceKey": "communications.management",
+          "taskKinds": [
+            "OPERATIONS"
+          ]
+        },
+        {
+          "routeIds": [
+            "communications.work.all",
+            "communications.work.all-story",
+            "communications.work.for-you",
+            "communications.work.for-you-story",
+            "communications.work.home",
+            "communications.work.required",
+            "communications.work.required-story",
+            "communications.work.saved",
+            "communications.work.saved-story"
+          ],
+          "scopeKinds": [
+            "SELF"
+          ],
+          "surfaceKey": "communications.work",
+          "taskKinds": [
+            "WORK"
+          ]
+        }
+      ]
+    },
+    {
+      "productKey": "dwaion",
+      "surfaces": [
+        {
+          "routeIds": [
+            "dwaion.management.actions",
+            "dwaion.management.agents",
+            "dwaion.management.audit",
+            "dwaion.management.evaluation",
+            "dwaion.management.gates",
+            "dwaion.management.overview",
+            "dwaion.management.safety",
+            "dwaion.management.sources"
+          ],
+          "scopeKinds": [
+            "RESOURCE_SET"
+          ],
+          "surfaceKey": "dwaion.management",
+          "taskKinds": [
+            "ADMINISTRATION",
+            "OPERATIONS"
+          ]
+        },
+        {
+          "routeIds": [
+            "dwaion.work.actions",
+            "dwaion.work.agents",
+            "dwaion.work.conversations",
+            "dwaion.work.home",
+            "dwaion.work.new"
+          ],
+          "scopeKinds": [
+            "SELF"
+          ],
+          "surfaceKey": "dwaion.work",
+          "taskKinds": [
+            "WORK"
+          ]
+        }
+      ]
+    },
+    {
+      "productKey": "hcm",
+      "surfaces": [
+        {
+          "routeIds": [
+            "hcm.management.controlled-export",
+            "hcm.management.integration",
+            "hcm.management.org-design",
+            "hcm.management.reference"
+          ],
+          "scopeKinds": [
+            "LEGAL_ENTITY",
+            "POLICY_NODE",
+            "RESOURCE",
+            "RESOURCE_SET"
+          ],
+          "surfaceKey": "hcm.management",
+          "taskKinds": [
+            "ADMINISTRATION",
+            "CONFIGURATION",
+            "DESIGN",
+            "INTEGRATION",
+            "OPERATIONS",
+            "REPORTING"
+          ]
+        },
+        {
+          "routeIds": [
+            "hcm.operations.absence",
+            "hcm.operations.assignments",
+            "hcm.operations.benefits",
+            "hcm.operations.overview",
+            "hcm.operations.pay",
+            "hcm.operations.people",
+            "hcm.operations.talent",
+            "hcm.operations.time"
+          ],
+          "scopeKinds": [
+            "LEGAL_ENTITY",
+            "ORG_UNIT",
+            "SUPPORT_SESSION",
+            "TARGET_POPULATION"
+          ],
+          "surfaceKey": "hcm.operations",
+          "taskKinds": [
+            "OPERATIONS"
+          ]
+        },
+        {
+          "routeIds": [
+            "hcm.personal.absence",
+            "hcm.personal.benefits",
+            "hcm.personal.directory",
+            "hcm.personal.home",
+            "hcm.personal.me",
+            "hcm.personal.organization",
+            "hcm.personal.pay",
+            "hcm.personal.services",
+            "hcm.personal.talent",
+            "hcm.personal.time"
+          ],
+          "scopeKinds": [
+            "SELF"
+          ],
+          "surfaceKey": "hcm.personal",
+          "taskKinds": [
+            "WORK"
+          ]
+        },
+        {
+          "routeIds": [
+            "hcm.team.absence",
+            "hcm.team.home",
+            "hcm.team.time"
+          ],
+          "scopeKinds": [
+            "ORG_UNIT",
+            "TARGET_POPULATION",
+            "TEAM"
+          ],
+          "surfaceKey": "hcm.team",
+          "taskKinds": [
+            "REVIEW",
+            "WORK"
+          ]
+        }
+      ]
+    },
+    {
+      "productKey": "mail",
+      "surfaces": [
+        {
+          "routeIds": [
+            "mail.management.connections",
+            "mail.management.overview",
+            "mail.management.policies",
+            "mail.management.shared-inboxes"
+          ],
+          "scopeKinds": [
+            "RESOURCE_SET"
+          ],
+          "surfaceKey": "mail.management",
+          "taskKinds": [
+            "ADMINISTRATION",
+            "OPERATIONS"
+          ]
+        },
+        {
+          "routeIds": [
+            "mail.work.accounts",
+            "mail.work.drafts",
+            "mail.work.home",
+            "mail.work.inbox",
+            "mail.work.sent",
+            "mail.work.shared"
+          ],
+          "scopeKinds": [
+            "SELF"
+          ],
+          "surfaceKey": "mail.work",
+          "taskKinds": [
+            "WORK"
+          ]
+        }
+      ]
+    },
+    {
+      "productKey": "messaging",
+      "surfaces": [
+        {
+          "routeIds": [
+            "messaging.management.overview",
+            "messaging.management.policy"
+          ],
+          "scopeKinds": [
+            "RESOURCE_SET"
+          ],
+          "surfaceKey": "messaging.management",
+          "taskKinds": [
+            "ADMINISTRATION",
+            "OPERATIONS"
+          ]
+        },
+        {
+          "routeIds": [
+            "messaging.work.direct",
+            "messaging.work.home",
+            "messaging.work.inbox",
+            "messaging.work.later",
+            "messaging.work.people",
+            "messaging.work.spaces"
+          ],
+          "scopeKinds": [
+            "SELF"
+          ],
+          "surfaceKey": "messaging.work",
+          "taskKinds": [
+            "WORK"
+          ]
+        }
+      ]
+    },
+    {
+      "productKey": "notifications",
+      "surfaces": [
+        {
+          "routeIds": [
+            "notifications.management.contracts",
+            "notifications.management.operations",
+            "notifications.management.overview",
+            "notifications.management.policies",
+            "notifications.management.suppressions",
+            "notifications.management.templates"
+          ],
+          "scopeKinds": [
+            "RESOURCE_SET"
+          ],
+          "surfaceKey": "notifications.management",
+          "taskKinds": [
+            "ADMINISTRATION",
+            "OPERATIONS"
+          ]
+        },
+        {
+          "routeIds": [
+            "notifications.work.center",
+            "notifications.work.home",
+            "notifications.work.settings"
+          ],
+          "scopeKinds": [
+            "SELF"
+          ],
+          "surfaceKey": "notifications.work",
+          "taskKinds": [
+            "WORK"
+          ]
+        }
+      ]
+    },
+    {
+      "productKey": "services",
+      "surfaces": [
+        {
+          "routeIds": [
+            "services.management.catalog",
+            "services.management.operations"
+          ],
+          "scopeKinds": [
+            "RESOURCE_SET"
+          ],
+          "surfaceKey": "services.management",
+          "taskKinds": [
+            "ADMINISTRATION",
+            "OPERATIONS"
+          ]
+        },
+        {
+          "routeIds": [
+            "services.work.discover",
+            "services.work.draft-detail",
+            "services.work.drafts",
+            "services.work.home",
+            "services.work.my",
+            "services.work.my-detail"
+          ],
+          "scopeKinds": [
+            "SELF"
+          ],
+          "surfaceKey": "services.work",
+          "taskKinds": [
+            "WORK"
+          ]
+        }
+      ]
+    },
+    {
+      "productKey": "spaces",
+      "surfaces": [
+        {
+          "routeIds": [
+            "spaces.management.content-reviews",
+            "spaces.management.directory",
+            "spaces.management.lifecycle",
+            "spaces.management.operations",
+            "spaces.management.overview",
+            "spaces.management.requests",
+            "spaces.management.templates"
+          ],
+          "scopeKinds": [
+            "RESOURCE_SET"
+          ],
+          "surfaceKey": "spaces.management",
+          "taskKinds": [
+            "ADMINISTRATION",
+            "OPERATIONS"
+          ]
+        },
+        {
+          "routeIds": [
+            "spaces.work.discover",
+            "spaces.work.home",
+            "spaces.work.my-spaces",
+            "spaces.work.requests"
+          ],
+          "scopeKinds": [
+            "SELF"
+          ],
+          "surfaceKey": "spaces.work",
+          "taskKinds": [
+            "WORK"
+          ]
+        }
+      ]
+    },
+    {
+      "productKey": "workplace",
+      "surfaces": [
+        {
+          "routeIds": [
+            "workplace.management.governance",
+            "workplace.management.locations",
+            "workplace.management.operations",
+            "workplace.management.overview",
+            "workplace.management.policy",
+            "workplace.management.room-operations",
+            "workplace.management.room-policy"
+          ],
+          "scopeKinds": [
+            "RESOURCE",
+            "RESOURCE_SET"
+          ],
+          "surfaceKey": "workplace.management",
+          "taskKinds": [
+            "ADMINISTRATION",
+            "OPERATIONS"
+          ]
+        },
+        {
+          "routeIds": [
+            "workplace.work.explore",
+            "workplace.work.find-rooms",
+            "workplace.work.home",
+            "workplace.work.my-bookings",
+            "workplace.work.my-meetings"
+          ],
+          "scopeKinds": [
+            "SELF"
+          ],
+          "surfaceKey": "workplace.work",
+          "taskKinds": [
+            "WORK"
+          ]
+        }
+      ]
+    }
+  ],
+  "projectionChecksum": "21b78a9c98c958e962ce20e356955da920cefb2543b6dd5df26c4d6283b3b15d",
+  "projectionChecksumAlgorithm": "SHA-256",
+  "projectionKey": "platform-telemetry-dimensions-v3",
+  "registryRef": {
+    "bundleKey": "product-surfaces",
+    "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+    "version": 3
+  },
+  "routeIdCount": 127,
+  "schemaVersion": 2,
+  "sourceRegistryRouteCount": 129,
+  "surfaceCount": 24
+}
