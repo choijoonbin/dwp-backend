@@ -4,6 +4,9 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -95,7 +98,7 @@ public class FeatureRolloutDecisionOutboxRepository {
                         result.getLong("opaque_revision"),
                         result.getString("state"),
                         result.getInt("attempt_count"),
-                        result.getObject("created_at", Instant.class)),
+                        instant(result, "created_at")),
                 batchSize, workerId, lease.toMillis());
     }
 
@@ -134,6 +137,11 @@ public class FeatureRolloutDecisionOutboxRepository {
                        next_attempt_at = ?, last_error = 'Publisher lease expired'
                  WHERE delivery_status = 'SENDING' AND locked_until < ?
                 """, now, now);
+    }
+
+    private static Instant instant(ResultSet result, String column) throws SQLException {
+        Timestamp value = result.getTimestamp(column);
+        return value == null ? null : value.toInstant();
     }
 
     private static String truncate(String value) {

@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 import java.math.BigDecimal;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -519,11 +520,11 @@ public class FeatureRolloutRepository {
                 result.getString("justification"),
                 result.getLong("requested_by"),
                 result.getObject("approved_by", Long.class),
-                result.getObject("submitted_at", Instant.class),
-                result.getObject("approved_at", Instant.class),
-                result.getObject("activated_at", Instant.class),
-                result.getObject("completed_at", Instant.class),
-                result.getObject("paused_at", Instant.class),
+                instant(result, "submitted_at"),
+                instant(result, "approved_at"),
+                instant(result, "activated_at"),
+                instant(result, "completed_at"),
+                instant(result, "paused_at"),
                 result.getLong("version"));
     }
 
@@ -536,8 +537,8 @@ public class FeatureRolloutRepository {
                 result.getInt("minimum_observation_minutes"),
                 node(result.getString("health_gate")),
                 result.getString("lifecycle_state"),
-                result.getObject("started_at", Instant.class),
-                result.getObject("completed_at", Instant.class));
+                instant(result, "started_at"),
+                instant(result, "completed_at"));
     }
 
     private ApprovalRow approvalRow(ResultSet result, int ignored) throws SQLException {
@@ -545,10 +546,15 @@ public class FeatureRolloutRepository {
                 result.getObject("rollout_approval_id", UUID.class),
                 result.getString("lifecycle_state"),
                 result.getLong("requested_by"),
-                result.getObject("requested_at", Instant.class),
+                instant(result, "requested_at"),
                 result.getObject("decided_by", Long.class),
-                result.getObject("decided_at", Instant.class),
+                instant(result, "decided_at"),
                 result.getString("decision_reason"));
+    }
+
+    private static Instant instant(ResultSet result, String column) throws SQLException {
+        Timestamp value = result.getTimestamp(column);
+        return value == null ? null : value.toInstant();
     }
 
     private String json(JsonNode value) {

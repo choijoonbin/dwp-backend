@@ -1,5 +1,6 @@
 package com.dwp.services.provider.rollout;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -7,12 +8,15 @@ import org.postgresql.ds.PGSimpleDataSource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.support.EncodedResource;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.sql.Connection;
+import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -142,5 +146,47 @@ class Core006LocalPilotRolloutSeedPostgresTest {
                 SELECT COUNT(*) FROM prv_feature_rollout_approvals
                  WHERE rollout_approval_id::text LIKE 'c0063000-%'
                 """, Integer.class)).isEqualTo(13);
+    }
+
+    @Test
+    void mapsPostgresTimestamptzAcrossRolloutStageApprovalAndOutboxRows() {
+        FeatureRolloutRepository repository = new FeatureRolloutRepository(
+                new NamedParameterJdbcTemplate(dataSource), new ObjectMapper());
+        FeatureRolloutRepository.FlagRow flag = repository
+                .flag("ux.product-surfaces.approvals.v1")
+                .orElseThrow();
+
+        FeatureRolloutRepository.RolloutRow rollout = repository
+                .effectiveRollouts(flag.flagId())
+                .getFirst();
+        assertThat(rollout.submittedAt()).isNotNull();
+        assertThat(rollout.approvedAt()).isNotNull();
+        assertThat(rollout.activatedAt()).isNotNull();
+        assertThat(rollout.completedAt()).isNull();
+        assertThat(rollout.pausedAt()).isNull();
+
+        assertThat(repository.stages(rollout.rolloutId()))
+                .singleElement()
+                .satisfies(stage -> {
+                    assertThat(stage.startedAt()).isNotNull();
+                    assertThat(stage.completedAt()).isNull();
+                });
+        assertThat(repository.approval(rollout.rolloutId()))
+                .hasValueSatisfying(approval -> {
+                    assertThat(approval.requestedAt()).isNotNull();
+                    assertThat(approval.decidedAt()).isNotNull();
+                });
+
+        FeatureRolloutDecisionOutboxRepository outbox =
+                new FeatureRolloutDecisionOutboxRepository(new JdbcTemplate(dataSource));
+        long revision = outbox.appendAllTenants(
+                flag.flagId(), flag.featureKey(), "ENABLED");
+        List<FeatureRolloutDecisionOutboxRepository.DecisionEvent> events =
+                outbox.claim("postgres-timestamptz-test", 1, Duration.ofSeconds(30));
+        assertThat(events).singleElement().satisfies(event -> {
+            assertThat(event.flagKey()).isEqualTo(flag.featureKey());
+            assertThat(event.opaqueRevision()).isEqualTo(revision);
+            assertThat(event.createdAt()).isNotNull();
+        });
     }
 }
