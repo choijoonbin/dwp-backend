@@ -1,6 +1,6 @@
 {
   "ownerServiceKey": "platform",
-  "productCount": 11,
+  "productCount": 12,
   "products": [
     {
       "productKey": "approvals",
@@ -285,6 +285,41 @@
       ]
     },
     {
+      "productKey": "meetings",
+      "surfaces": [
+        {
+          "routeIds": [
+            "meetings.management.operations",
+            "meetings.management.policies"
+          ],
+          "scopeKinds": [
+            "RESOURCE_SET"
+          ],
+          "surfaceKey": "meetings.management",
+          "taskKinds": [
+            "ADMINISTRATION",
+            "OPERATIONS"
+          ]
+        },
+        {
+          "routeIds": [
+            "meetings.work.history",
+            "meetings.work.home",
+            "meetings.work.join",
+            "meetings.work.mine",
+            "meetings.work.room"
+          ],
+          "scopeKinds": [
+            "SELF"
+          ],
+          "surfaceKey": "meetings.work",
+          "taskKinds": [
+            "WORK"
+          ]
+        }
+      ]
+    },
+    {
       "productKey": "messaging",
       "surfaces": [
         {
@@ -474,7 +509,7 @@
       ]
     }
   ],
-  "projectionChecksum": "21b78a9c98c958e962ce20e356955da920cefb2543b6dd5df26c4d6283b3b15d",
+  "projectionChecksum": "6cb89661d1c91050a9a8beb6451de9a9a455a4b63b51c9ad47e4e6086c10d8a7",
   "projectionChecksumAlgorithm": "SHA-256",
   "projectionKey": "platform-telemetry-dimensions-v3",
   "registryRef": {
@@ -482,8 +517,8 @@
     "sha256": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
     "version": 3
   },
-  "routeIdCount": 127,
+  "routeIdCount": 134,
   "schemaVersion": 2,
   "sourceRegistryRouteCount": 129,
-  "surfaceCount": 24
+  "surfaceCount": 26
 }

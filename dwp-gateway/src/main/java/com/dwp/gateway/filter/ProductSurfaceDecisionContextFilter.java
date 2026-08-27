@@ -1,11 +1,13 @@
 package com.dwp.gateway.filter;
 
+import com.dwp.gateway.audit.GatewayDenialAuditSink;
 import com.dwp.gateway.productsurface.GeneratedProductRouteCatalog;
 import com.dwp.gateway.productsurface.ProductSurfaceContextAggregationService;
 import com.dwp.gateway.productsurface.ProductSurfaceContextDtos;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -34,24 +36,37 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
     public static final String RESPONSE_REVISION_HEADER = "X-DWP-Decision-Revision";
     public static final String CONTEXT_HEADER = "X-DWP-Context-Key";
     public static final String SCOPE_HEADER = "X-DWP-Context-Scope-Key";
+    public static final String ACTIVE_ACCESS_MODE_HEADER = "X-DWP-Active-Access-Mode";
     public static final String SCOPE_QUERY_PARAMETER = "contextScopeKey";
     private static final Set<String> ROLLOUT_STATES = Set.of("000", "100", "110", "111");
     private static final List<String> INTERNAL_HEADERS = List.of(
             ROUTE_HEADER, CURRENT_REVISION_HEADER, CURRENT_REVALIDATE_AT_HEADER,
-            RESPONSE_REVISION_HEADER, CONTEXT_HEADER, SCOPE_HEADER,
+            RESPONSE_REVISION_HEADER, CONTEXT_HEADER, SCOPE_HEADER, ACTIVE_ACCESS_MODE_HEADER,
             "X-DWP-Current-Decision-Valid-Until");
 
     private final ProductSurfaceContextAggregationService aggregationService;
     private final GeneratedProductRouteCatalog routeCatalog;
     private final ObjectMapper objectMapper;
+    private final GatewayDenialAuditSink denialAudit;
 
+    @Autowired
+    public ProductSurfaceDecisionContextFilter(
+            ProductSurfaceContextAggregationService aggregationService,
+            GeneratedProductRouteCatalog routeCatalog,
+            ObjectMapper objectMapper,
+            GatewayDenialAuditSink denialAudit) {
+        this.aggregationService = aggregationService;
+        this.routeCatalog = routeCatalog;
+        this.objectMapper = objectMapper;
+        this.denialAudit = denialAudit;
+    }
+
+    /** Test-only constructor retaining isolated PRODUCT authority fixtures. */
     public ProductSurfaceDecisionContextFilter(
             ProductSurfaceContextAggregationService aggregationService,
             GeneratedProductRouteCatalog routeCatalog,
             ObjectMapper objectMapper) {
-        this.aggregationService = aggregationService;
-        this.routeCatalog = routeCatalog;
-        this.objectMapper = objectMapper;
+        this(aggregationService, routeCatalog, objectMapper, GatewayDenialAuditSink.NOOP);
     }
 
     @Override
@@ -94,7 +109,9 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
         GeneratedProductRouteCatalog.Match match = routeCatalog.match(
                 sanitized.getMethod() == null ? null : sanitized.getMethod().name(),
                 sanitized.getURI().getPath(), sanitized.getURI().getRawQuery());
-        if (match.status() == GeneratedProductRouteCatalog.MatchStatus.UNGOVERNED) {
+        if (match.status() == GeneratedProductRouteCatalog.MatchStatus.UNGOVERNED
+                || match.status()
+                    == GeneratedProductRouteCatalog.MatchStatus.LEGACY_EXEMPT) {
             if (!scopeSelection.valid() || scopeSelection.present()) {
                 return error(sanitizedExchange, HttpStatus.BAD_REQUEST,
                         "INVALID_SCOPE_SELECTION", null);
@@ -145,7 +162,8 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                         route.routeContractKey(), null, scopeSelection.value());
         return aggregationService.evaluateProductTrusted(requestContext, request)
                 .flatMap(result -> forwardOrDeny(
-                        canonicalExchange, canonical, chain, route, result, expected))
+                        canonicalExchange, canonical, chain, route, result, expected,
+                        requestContext.activeAccessMode()))
                 .onErrorResume(
                         ProductSurfaceContextAggregationService.AuthorityUnavailableException.class,
                         ignored -> error(canonicalExchange, HttpStatus.SERVICE_UNAVAILABLE,
@@ -181,7 +199,8 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             GatewayFilterChain chain,
             GeneratedProductRouteCatalog.Route route,
             ProductSurfaceContextAggregationService.TrustedProductEvaluation trustedResult,
-            String expected) {
+            String expected,
+            ProductSurfaceContextDtos.AccessMode activeAccessMode) {
         ProductSurfaceContextDtos.ProductEvaluationData result = trustedResult.data();
         if (trustedResult.authRouteProductNotRegistered()
                 && result.decision() == ProductSurfaceContextDtos.Decision.ROUTE_DENIED
@@ -205,6 +224,10 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             HttpStatus status = result.decision()
                     == ProductSurfaceContextDtos.Decision.AUTHORITY_UNAVAILABLE
                     ? HttpStatus.SERVICE_UNAVAILABLE : HttpStatus.FORBIDDEN;
+            if (status == HttpStatus.FORBIDDEN) {
+                return deny(exchange, result.reasonCode(), result.decisionRevision(),
+                        route.publicPath());
+            }
             return error(exchange, status, result.reasonCode(), result.decisionRevision());
         }
         if (route.stateChanging() && !result.decisionRevision().equals(expected)) {
@@ -223,11 +246,29 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             headers.set(CURRENT_REVISION_HEADER, result.decisionRevision());
             headers.set(CONTEXT_HEADER, contextKey);
             headers.set(SCOPE_HEADER, scopeKey);
+            headers.set(ACTIVE_ACCESS_MODE_HEADER, activeAccessMode.name());
             if (result.revalidateAt() != null) {
                 headers.set(CURRENT_REVALIDATE_AT_HEADER, result.revalidateAt().toString());
             }
         }).build();
         return chain.filter(exchange.mutate().request(trusted).build());
+    }
+
+    private Mono<Void> deny(
+            ServerWebExchange exchange,
+            String code,
+            String currentRevision,
+            String routeTemplate) {
+        return denialAudit.publish(exchange,
+                        GatewayDenialAuditSink.Denial.productAuthority(
+                                code, routeTemplate))
+                .then(Mono.defer(() -> error(
+                        exchange, HttpStatus.FORBIDDEN, code, currentRevision)))
+                .onErrorResume(ignored -> error(
+                        exchange,
+                        HttpStatus.SERVICE_UNAVAILABLE,
+                        "AUDIT_EVIDENCE_UNAVAILABLE",
+                        currentRevision));
     }
 
     private String expectedRevision(List<String> values) {

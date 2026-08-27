@@ -2,6 +2,7 @@ package com.dwp.services.auth.service;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.core.security.RolePlaneBoundary;
 import com.dwp.core.identity.EmailAddressNormalizer;
 import com.dwp.services.auth.dto.AuthPolicyResponse;
 import com.dwp.services.auth.dto.AppGovernanceDtos;
@@ -290,6 +291,8 @@ public class AuthService {
             Tenant tenant,
             List<PermissionDTO> permissions,
             boolean legacyRoleFallbackAllowed) {
+        List<String> roles = getRoleCodes(user.getUserId(), tenant.getTenantId());
+        boolean providerIdentity = "PROVIDER".equals(user.getIdentityPlane());
         return MeResponse.builder()
                 .userId(user.getUserId())
                 .personPublicId(user.getPersonPublicId())
@@ -301,11 +304,16 @@ public class AuthService {
                 .tenantId(tenant.getTenantId())
                 .tenantCode(tenant.getCode())
                 .tenantName(tenant.getName())
-                .roles(getRoleCodes(user.getUserId(), tenant.getTenantId()))
-                .legacyRoleFallbackAllowed(legacyRoleFallbackAllowed)
-                .groups(getGroupMemberships(user.getUserId(), tenant.getTenantId()))
-                .permissions(permissions)
-                .resourceRoles(resourceRoles(tenant.getTenantId(), user.getUserId()))
+                .identityPlane(user.getIdentityPlane())
+                .roles(roles)
+                .legacyRoleFallbackAllowed(!providerIdentity && legacyRoleFallbackAllowed)
+                .groups(providerIdentity
+                        ? List.of()
+                        : getGroupMemberships(user.getUserId(), tenant.getTenantId()))
+                .permissions(providerIdentity ? List.of() : permissions)
+                .resourceRoles(providerIdentity
+                        ? List.of()
+                        : resourceRoles(tenant.getTenantId(), user.getUserId()))
                 .build();
     }
 
@@ -357,6 +365,14 @@ public class AuthService {
     }
 
     private PermissionResolution resolvePermissions(Long userId, Long tenantId) {
+        User identity = userRepository.findByUserIdAndTenantId(userId, tenantId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        if ("PROVIDER".equals(identity.getIdentityPlane())) {
+            // Provider permissions are owned by the provider control plane. A
+            // stale tenant role grant, resource grant, or scoped duty must never
+            // materialize tenant authority in /me, login, or /permissions.
+            return new PermissionResolution(List.of(), true);
+        }
         List<Long> roleIds = roleMemberRepository.findRoleIds(tenantId, userId);
         List<RolePermission> assignments = roleIds.isEmpty()
                 ? List.of()
@@ -498,12 +514,29 @@ public class AuthService {
 
     @Transactional(readOnly = true)
     public List<String> getRoleCodes(Long userId, Long tenantId) {
+        User identity = userRepository.findByUserIdAndTenantId(userId, tenantId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         List<Long> roleIds = roleMemberRepository.findRoleIds(tenantId, userId);
-        if (roleIds.isEmpty()) return List.of();
-        return roleRepository.findByRoleIdIn(roleIds).stream()
+        List<String> roles = roleIds.isEmpty() ? List.of() : roleRepository.findByRoleIdIn(roleIds).stream()
+                .filter(role -> tenantId.equals(role.getTenantId()))
                 .filter(role -> "ACTIVE".equals(role.getStatus()))
                 .map(Role::getCode)
+                .distinct()
+                .sorted()
                 .toList();
+        if (RolePlaneBoundary.hasConflict(roles)) {
+            throw new BaseException(
+                    ErrorCode.FORBIDDEN,
+                    "Provider control-plane roles cannot coexist with tenant or workspace roles.");
+        }
+        boolean providerPlane = "PROVIDER".equals(identity.getIdentityPlane());
+        if ((providerPlane && roles.stream().anyMatch(role -> !RolePlaneBoundary.isProviderRole(role)))
+                || (!providerPlane && roles.stream().anyMatch(RolePlaneBoundary::isProviderRole))) {
+            throw new BaseException(
+                    ErrorCode.FORBIDDEN,
+                    "The identity plane does not match the assigned role namespace.");
+        }
+        return roles;
     }
 
     private Long resolveTenantId(String value) {

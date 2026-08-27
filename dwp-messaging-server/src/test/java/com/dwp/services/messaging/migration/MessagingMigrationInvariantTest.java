@@ -80,6 +80,32 @@ class MessagingMigrationInvariantTest {
                 .contains("'DEFAULT', 'ALL', 'MENTIONS', 'MUTE'");
     }
 
+    @Test
+    void governsPersonalDisplayPreferencesWithoutSharingPresentationState() throws IOException {
+        String migration = resource(
+                "db/migration/V15__add_governed_messaging_display_preferences.sql");
+
+        assertThat(migration)
+                .contains("CREATE TABLE msg_tenant_appearance_policies")
+                .contains("allow_personal_backgrounds BOOLEAN NOT NULL DEFAULT FALSE")
+                .contains("allow_theme_sharing BOOLEAN NOT NULL DEFAULT FALSE")
+                .contains("CREATE TABLE msg_user_display_preferences")
+                .contains("CREATE TABLE msg_user_conversation_display_preferences")
+                .contains("FOREIGN KEY (tenant_id, conversation_id)")
+                .contains("theme_key IN ('INHERIT', 'DEFAULT', 'MIST', 'SAGE', 'ROSE')");
+    }
+
+    @Test
+    void permitsAttachmentOnlyBodiesAtStorageBoundary() throws IOException {
+        String migration = resource(
+                "db/migration/V15__add_governed_messaging_display_preferences.sql");
+
+        assertThat(migration)
+                .contains("DROP CONSTRAINT ck_msg_body_length")
+                .contains("length(btrim(body)) BETWEEN 0 AND 20000")
+                .contains("Blank text is valid only for attachment-only messages");
+    }
+
     private String resource(String path) throws IOException {
         try (InputStream input = getClass().getClassLoader().getResourceAsStream(path)) {
             if (input == null) throw new IOException("Missing test resource: " + path);

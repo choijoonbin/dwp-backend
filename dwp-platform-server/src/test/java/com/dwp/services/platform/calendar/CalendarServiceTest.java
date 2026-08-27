@@ -6,14 +6,23 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalTime;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.time.Duration;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -34,11 +43,18 @@ class CalendarServiceTest {
     @Mock
     private WorkplaceRoomAccessPort roomAccess;
 
+    @Mock
+    private RoomBookingPolicyService roomBookingPolicy;
+
     private CalendarService service;
+    private CalendarSchedulingHorizon schedulingHorizon;
 
     @BeforeEach
     void setUp() {
-        service = new CalendarService(repository, roomAccess);
+        schedulingHorizon = new CalendarSchedulingHorizon(Clock.fixed(
+                Instant.parse("2026-08-19T00:00:00Z"), ZoneOffset.UTC));
+        service = new CalendarService(
+                repository, roomAccess, schedulingHorizon, roomBookingPolicy);
     }
 
     @Test
@@ -65,6 +81,151 @@ class CalendarServiceTest {
                 .extracting(CalendarDtos.AvailabilitySlot::reason)
                 .allMatch(reason -> !reason.isBlank());
         verify(repository).linkIdentity(1L, 7L, personId);
+    }
+
+    @Test
+    void schedulingEvaluationUsesOneFreshnessEnvelopeForPeopleAndRooms() {
+        UUID personId = UUID.randomUUID();
+        OffsetDateTime from = OffsetDateTime.parse("2026-08-17T09:00:00+09:00");
+        OffsetDateTime to = OffsetDateTime.parse("2026-08-18T18:00:00+09:00");
+        when(repository.policy(1L)).thenReturn(policy());
+        when(repository.busySlots(1L, List.of(personId), from, to)).thenReturn(List.of());
+        OffsetDateTime roomEndsAt = from.plusMinutes(30);
+        when(repository.resources(1L, from, roomEndsAt, false, false)).thenReturn(List.of());
+
+        CalendarDtos.SchedulingEvaluationResponse response = service.evaluateScheduling(
+                1L, 7L, personId, null, "en-US",
+                new CalendarDtos.SchedulingEvaluationRequest(
+                        List.of(), from, to, from, roomEndsAt, 30, "Asia/Seoul"));
+
+        assertThat(response.evaluationId()).isNotNull();
+        assertThat(response.criteriaHash()).hasSize(64);
+        assertThat(response.completeness()).isEqualTo("COMPLETE");
+        assertThat(response.validUntil()).isAfter(response.generatedAt());
+        assertThat(response.availability().generatedAt()).isEqualTo(response.generatedAt());
+        assertThat(response.sources()).singleElement()
+                .extracting(CalendarDtos.SchedulingEvaluationSource::status)
+                .isEqualTo("HEALTHY");
+        assertThat(response.availability().suggestions())
+                .extracting(CalendarDtos.AvailabilitySlot::reasonCode)
+                .containsOnly("ALL_REQUIRED_AVAILABLE_WITHIN_WORKING_HOURS");
+        assertThat(response.rooms()).isEmpty();
+    }
+
+    @Test
+    void availabilityHorizonUsesLocalCalendarDaysAcrossDaylightSavingTime() {
+        UUID personId = UUID.randomUUID();
+        ZoneId zone = ZoneId.of("America/New_York");
+        OffsetDateTime from = OffsetDateTime.parse("2026-10-25T09:00:00-04:00");
+        OffsetDateTime to = from.atZoneSameInstant(zone).plusDays(14).toOffsetDateTime();
+        when(repository.policy(1L)).thenReturn(policy());
+        when(repository.busySlots(1L, List.of(personId), from, to)).thenReturn(List.of());
+
+        CalendarDtos.AvailabilityResponse response = service.availability(
+                1L, 7L, personId, List.of(), from, to, 30,
+                "America/New_York", "en-US");
+
+        assertThat(Duration.between(from, to).toHours()).isEqualTo(337);
+        assertThat(response.suggestions()).isNotEmpty();
+    }
+
+    @Test
+    void eventAdvanceWindowIncludesTheEntireLastLocalDay() {
+        CalendarRepository.PolicyRow policy = policy();
+        when(repository.policy(1L)).thenReturn(policy);
+        OffsetDateTime lastDayLateSlot = OffsetDateTime.parse("2027-08-19T19:00:00+09:00");
+
+        assertThat(service.validateEvent(
+                1L,
+                lastDayLateSlot,
+                lastDayLateSlot.plusMinutes(30),
+                "Asia/Seoul",
+                CalendarTypes.EventType.FOCUS,
+                null,
+                CalendarTypes.RecurrencePattern.NONE,
+                null,
+                List.of())).isSameAs(policy);
+
+        OffsetDateTime nextDay = OffsetDateTime.parse("2027-08-20T09:00:00+09:00");
+        assertThatThrownBy(() -> service.validateEvent(
+                1L,
+                nextDay,
+                nextDay.plusMinutes(30),
+                "Asia/Seoul",
+                CalendarTypes.EventType.FOCUS,
+                null,
+                CalendarTypes.RecurrencePattern.NONE,
+                null,
+                List.of()))
+                .hasMessageContaining("maximum advance");
+    }
+
+    @Test
+    void unknownOrCrossTenantSchedulingParticipantsFailClosed() {
+        UUID currentPersonId = UUID.randomUUID();
+        UUID unknownPersonId = UUID.randomUUID();
+        OffsetDateTime from = OffsetDateTime.parse("2026-08-17T09:00:00+09:00");
+        OffsetDateTime to = from.plusHours(4);
+
+        assertThatThrownBy(() -> service.availability(
+                1L, 7L, currentPersonId, List.of(unknownPersonId),
+                from, to, 30, "Asia/Seoul", "en-US"))
+                .hasMessageContaining("participants are unavailable");
+
+        verify(repository, never()).busySlots(any(), any(), any(), any());
+    }
+
+    @Test
+    void responsibilitySplitPreservesPublicApiAndTransactionBoundaries() {
+        List<String> expected = List.of(
+                "AdminOverview adminOverview(Long,String):true",
+                "AvailabilityResponse availability(Long,Long,UUID,List,OffsetDateTime,OffsetDateTime,int,String,String):true",
+                "AvailabilityResponse availability(Long,Long,UUID,String,List,OffsetDateTime,OffsetDateTime,int,String,String):true",
+                "BookingSummary decideBooking(Long,Long,UUID,String,String,BookingDecisionRequest):false",
+                "EventSummary create(Long,Long,UUID,String,String,String,CreateEventRequest):false",
+                "EventSummary create(Long,Long,UUID,String,String,String,String,CreateEventRequest):false",
+                "EventSummary respond(Long,Long,UUID,UUID,String,String,RespondRequest):false",
+                "EventSummary respond(Long,Long,UUID,UUID,String,String,String,RespondRequest):false",
+                "EventSummary update(Long,Long,UUID,UUID,String,String,UpdateEventRequest):false",
+                "EventSummary update(Long,Long,UUID,UUID,String,String,String,UpdateEventRequest):false",
+                "HomeResponse home(Long,Long,UUID,String,String):true",
+                "HomeResponse home(Long,Long,UUID,String,String,String):true",
+                "List calendars(Long,Long,UUID,String):true",
+                "List calendars(Long,Long,UUID,String,String):true",
+                "List events(Long,Long,UUID,OffsetDateTime,OffsetDateTime,String):true",
+                "List events(Long,Long,UUID,String,OffsetDateTime,OffsetDateTime,String):true",
+                "List pendingBookings(Long,String):true",
+                "List resources(Long,Long,String,OffsetDateTime,OffsetDateTime,String):true",
+                "List resources(Long,OffsetDateTime,OffsetDateTime,String):true",
+                "Policy policy(Long):true",
+                "Policy updatePolicy(Long,Long,String,PolicyRequest):false",
+                "ResourceSummary saveResource(Long,Long,UUID,String,String,ResourceRequest):false",
+                "ResourceSummary saveWorkplaceManagedResource(Long,Long,UUID,String,String,ResourceRequest):false",
+                "SchedulingEvaluationResponse evaluateScheduling(Long,Long,UUID,String,String,SchedulingEvaluationRequest):true",
+                "void cancel(Long,Long,UUID,UUID,String,String,String,VersionRequest):false",
+                "void cancel(Long,Long,UUID,UUID,String,String,VersionRequest):false");
+
+        List<String> actual = Arrays.stream(CalendarService.class.getDeclaredMethods())
+                .filter(method -> Modifier.isPublic(method.getModifiers()))
+                .filter(method -> !method.isSynthetic())
+                .map(CalendarServiceTest::transactionContract)
+                .sorted()
+                .toList();
+
+        assertThat(actual).containsExactlyElementsOf(expected.stream().sorted().toList());
+    }
+
+    private static String transactionContract(Method method) {
+        Transactional transaction = method.getAnnotation(Transactional.class);
+        assertThat(transaction)
+                .as("@Transactional on %s", method.toGenericString())
+                .isNotNull();
+        return method.getReturnType().getSimpleName()
+                + " " + method.getName()
+                + Arrays.stream(method.getParameterTypes())
+                        .map(Class::getSimpleName)
+                        .collect(Collectors.joining(",", "(", ")"))
+                + ":" + transaction.readOnly();
     }
 
     @Test
@@ -235,7 +396,9 @@ class CalendarServiceTest {
         String fingerprint = CalendarRequestFingerprint.create(request);
         when(repository.eventIdempotency(1L, 7L, request.idempotencyKey()))
                 .thenReturn(Optional.of(new CalendarRepository.IdempotencyRow(eventId, fingerprint)));
-        when(repository.event(1L, 7L, personId, eventId, true))
+        when(repository.event(
+                1L, 7L, personId,
+                "a5a5a5a5-1111-2222-3333-444444444444", eventId, true))
                 .thenReturn(Optional.of(existing));
         when(repository.attendees(1L, eventId)).thenReturn(List.of());
 
@@ -246,6 +409,8 @@ class CalendarServiceTest {
         assertThat(replay.eventId()).isEqualTo(eventId);
         verify(roomAccess).requireBook(
                 1L, 7L, "a5a5a5a5-1111-2222-3333-444444444444", resourceId);
+        verify(roomBookingPolicy, never()).validateLockedCreate(
+                any(), any(), any(), any());
         verify(repository, never()).ensurePersonalCalendar(any(), any(), any());
     }
 
@@ -266,6 +431,12 @@ class CalendarServiceTest {
                 "group-ref", request))
                 .hasMessageContaining("denied");
 
+        var ordered = inOrder(repository, roomBookingPolicy, roomAccess);
+        ordered.verify(repository).lockResource(1L, resourceId);
+        ordered.verify(roomBookingPolicy).validateLockedCreate(
+                eq(1L), any(CalendarRepository.ResourceRow.class),
+                any(CalendarRepository.PolicyRow.class), eq(request));
+        ordered.verify(roomAccess).requireBook(1L, 7L, "group-ref", resourceId);
         verify(repository, never()).insertEvent(
                 any(), any(), any(), any(), any(), any(), any());
     }
@@ -277,7 +448,8 @@ class CalendarServiceTest {
         UUID resourceId = UUID.randomUUID();
         OffsetDateTime from = OffsetDateTime.now();
         OffsetDateTime to = from.plusDays(2);
-        when(repository.visibleEvents(1L, 7L, personId, from, to, true))
+        when(repository.visibleEvents(
+                1L, 7L, personId, "groups", from, to, true))
                 .thenReturn(List.of(eventWithResource(eventId, resourceId, personId)));
         when(repository.attendees(1L, eventId)).thenReturn(List.of());
         when(roomAccess.viewableResourceIds(
@@ -293,7 +465,8 @@ class CalendarServiceTest {
         UUID personId = UUID.randomUUID();
         UUID eventId = UUID.randomUUID();
         UUID resourceId = UUID.randomUUID();
-        when(repository.event(1L, 7L, personId, eventId, true))
+        when(repository.event(
+                1L, 7L, personId, "groups", eventId, true))
                 .thenReturn(Optional.of(eventWithResource(eventId, resourceId, personId)));
         org.mockito.Mockito.doThrow(new com.dwp.core.exception.BaseException(
                         com.dwp.core.common.ErrorCode.FORBIDDEN, "denied"))

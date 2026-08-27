@@ -42,6 +42,58 @@ class GatewayProductionReadinessConfigurationTest {
                         "dwp.gateway.product-surface-rollout.invalidation-enabled");
     }
 
+    @Test
+    void rejectsAProductionGatewayWithoutMessagingServiceIdentity() {
+        MockEnvironment environment = validProduction()
+                .withProperty("dwp.messaging.service-token", "");
+
+        var runner = new GatewayProductionReadinessConfiguration()
+                .gatewayProductionReadinessGuard(environment);
+
+        assertThatIllegalStateException().isThrownBy(() -> runner.run(null))
+                .withMessageContaining("dwp.messaging.service-token");
+    }
+
+    @Test
+    void rejectsAProductionGatewayWithoutDenialAuditEvidenceSink() {
+        MockEnvironment environment = validProduction()
+                .withProperty("dwp.audit.ingest-token", "")
+                .withProperty("dwp.audit.privacy-hash-secret", "")
+                .withProperty("dwp.audit.collector-url", "");
+
+        var runner = new GatewayProductionReadinessConfiguration()
+                .gatewayProductionReadinessGuard(environment);
+
+        assertThatIllegalStateException().isThrownBy(() -> runner.run(null))
+                .withMessageContaining("dwp.audit.ingest-token")
+                .withMessageContaining("dwp.audit.privacy-hash-secret")
+                .withMessageContaining("dwp.audit.collector-url");
+    }
+
+    @Test
+    void rejectsAProductionGatewayWithANonCanonicalAuditCollectorPath() {
+        MockEnvironment environment = validProduction()
+                .withProperty("dwp.audit.collector-url", "https://platform.example.test/audit");
+
+        var runner = new GatewayProductionReadinessConfiguration()
+                .gatewayProductionReadinessGuard(environment);
+
+        assertThatIllegalStateException().isThrownBy(() -> runner.run(null))
+                .withMessageContaining("must use exact path /internal/audit/events");
+    }
+
+    @Test
+    void rejectsAProductionGatewayWithoutAgentIdentitySigning() {
+        MockEnvironment environment = validProduction()
+                .withProperty("dwp.agent.identity-signing-secret", "");
+
+        var runner = new GatewayProductionReadinessConfiguration()
+                .gatewayProductionReadinessGuard(environment);
+
+        assertThatIllegalStateException().isThrownBy(() -> runner.run(null))
+                .withMessageContaining("dwp.agent.identity-signing-secret");
+    }
+
     private MockEnvironment validProduction() {
         MockEnvironment environment = new MockEnvironment()
                 .withProperty("DWP_ENVIRONMENT", "production")
@@ -54,6 +106,7 @@ class GatewayProductionReadinessConfigurationTest {
                         "dwp.gateway.product-surface-rollout.invalidation-topic",
                         "dwp.feature-rollout.decision.changed.v1")
                 .withProperty("dwp.agent.service-token", secret("agent"))
+                .withProperty("dwp.agent.identity-signing-secret", secret("agent-identity"))
                 .withProperty("dwp.auth.product-surface-token", secret("product-surface"))
                 .withProperty("dwp.platform.service-token", secret("platform"))
                 .withProperty("dwp.people.service-token", secret("people"))
@@ -62,6 +115,12 @@ class GatewayProductionReadinessConfigurationTest {
                 .withProperty("dwp.approval.service-token", secret("approval"))
                 .withProperty("dwp.space.service-token", secret("space"))
                 .withProperty("dwp.notification.service-token", secret("notification"))
+                .withProperty("dwp.messaging.service-token", secret("messaging"))
+                .withProperty("dwp.meeting.service-token", secret("meeting"))
+                .withProperty("dwp.audit.ingest-token", secret("audit"))
+                .withProperty("dwp.audit.privacy-hash-secret", secret("audit-privacy"))
+                .withProperty("dwp.audit.collector-url",
+                        "http://platform:8002/internal/audit/events")
                 .withProperty("dwp.observability.api-history.enabled", "true")
                 .withProperty("dwp.observability.api-history.ingest-token", secret("history"))
                 .withProperty("dwp.observability.api-history.privacy-hash-secret", secret("privacy"))

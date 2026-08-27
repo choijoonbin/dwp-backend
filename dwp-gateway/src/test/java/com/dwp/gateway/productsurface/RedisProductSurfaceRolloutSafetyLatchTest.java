@@ -29,7 +29,7 @@ class RedisProductSurfaceRolloutSafetyLatchTest {
             Instant.parse("2026-08-24T00:00:00Z");
     private static final Set<String> PRODUCT_KEYS = Set.of(
             "approvals", "calendar", "communications", "dwaion", "hcm", "mail",
-            "messaging", "notifications", "services", "spaces", "workplace");
+            "meetings", "messaging", "notifications", "services", "spaces", "workplace");
 
     @Test
     void restartAndProviderOutageRecoverTheLastDurableProductState() {

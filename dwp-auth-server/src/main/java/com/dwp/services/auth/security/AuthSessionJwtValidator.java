@@ -1,8 +1,10 @@
 package com.dwp.services.auth.security;
 
+import com.dwp.core.security.RolePlaneBoundary;
 import com.dwp.services.auth.repository.AuthSessionRepository;
 import com.dwp.services.auth.repository.RoleMemberRepository;
 import com.dwp.services.auth.repository.RoleRepository;
+import com.dwp.services.auth.repository.UserRepository;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
@@ -27,14 +29,17 @@ public class AuthSessionJwtValidator implements OAuth2TokenValidator<Jwt> {
     private final AuthSessionRepository authSessionRepository;
     private final RoleMemberRepository roleMemberRepository;
     private final RoleRepository roleRepository;
+    private final UserRepository userRepository;
 
     public AuthSessionJwtValidator(
             AuthSessionRepository authSessionRepository,
             RoleMemberRepository roleMemberRepository,
-            RoleRepository roleRepository) {
+            RoleRepository roleRepository,
+            UserRepository userRepository) {
         this.authSessionRepository = authSessionRepository;
         this.roleMemberRepository = roleMemberRepository;
         this.roleRepository = roleRepository;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -93,6 +98,16 @@ public class AuthSessionJwtValidator implements OAuth2TokenValidator<Jwt> {
                 .filter(role -> "ACTIVE".equals(role.getStatus()))
                 .map(role -> role.getCode())
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-        return currentRoles.equals(claimedRoles);
+        String identityPlane = userRepository.findByUserIdAndTenantId(userId, tenantId)
+                .map(com.dwp.services.auth.entity.User::getIdentityPlane)
+                .orElse(null);
+        boolean currentPlaneMatches = "PROVIDER".equals(identityPlane)
+                ? currentRoles.stream().allMatch(RolePlaneBoundary::isProviderRole)
+                : "TENANT".equals(identityPlane)
+                        && currentRoles.stream().noneMatch(RolePlaneBoundary::isProviderRole);
+        return !RolePlaneBoundary.hasConflict(currentRoles)
+                && !RolePlaneBoundary.hasConflict(claimedRoles)
+                && currentPlaneMatches
+                && currentRoles.equals(claimedRoles);
     }
 }

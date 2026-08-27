@@ -35,7 +35,9 @@ public final class MailTypes {
         DONE,
         SNOOZED,
         ARCHIVED,
-        DRAFT
+        DRAFT,
+        TRASHED,
+        SPAM
     }
 
     public enum Importance {

@@ -22,13 +22,30 @@ class TenantMediaCleanupWorkerTest {
         TenantMediaStorage storage = mock(TenantMediaStorage.class);
         TenantMediaCleanupOutbox.CleanupJob job = job(1);
         when(outbox.claim(anyString(), eq(10), eq(30))).thenReturn(List.of(job));
+        when(outbox.beginDelete(eq(job), anyString())).thenReturn(true);
         TenantMediaCleanupWorker worker = worker(outbox, storage, true);
 
         worker.cleanPending();
 
         verify(outbox).releaseExpiredLeases();
         verify(storage).delete(job.tenantId(), job.storageKey());
+        verify(outbox).completeDelete(eq(job), anyString());
+    }
+
+    @Test
+    void completesWithoutDeletingWhenTheAssetWasReferencedAgain() {
+        TenantMediaCleanupOutbox outbox = mock(TenantMediaCleanupOutbox.class);
+        TenantMediaStorage storage = mock(TenantMediaStorage.class);
+        TenantMediaCleanupOutbox.CleanupJob job = job(1);
+        when(outbox.claim(anyString(), eq(10), eq(30))).thenReturn(List.of(job));
+        when(outbox.beginDelete(eq(job), anyString())).thenReturn(false);
+        TenantMediaCleanupWorker worker = worker(outbox, storage, true);
+
+        worker.cleanPending();
+
+        verify(storage, never()).delete(any(), anyString());
         verify(outbox).complete(eq(job), anyString());
+        verify(outbox, never()).completeDelete(any(), anyString());
     }
 
     @Test
@@ -37,6 +54,7 @@ class TenantMediaCleanupWorkerTest {
         TenantMediaStorage storage = mock(TenantMediaStorage.class);
         TenantMediaCleanupOutbox.CleanupJob job = job(2);
         when(outbox.claim(anyString(), eq(10), eq(30))).thenReturn(List.of(job));
+        when(outbox.beginDelete(eq(job), anyString())).thenReturn(true);
         doThrow(new IllegalStateException("offline"))
                 .when(storage).delete(job.tenantId(), job.storageKey());
         TenantMediaCleanupWorker worker = worker(outbox, storage, true);

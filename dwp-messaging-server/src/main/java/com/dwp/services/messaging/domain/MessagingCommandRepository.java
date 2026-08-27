@@ -105,7 +105,7 @@ class MessagingCommandRepository {
             UUID replyToMessageId) {
         return insertMessage(
                 tenantId, userId, conversationId, idempotencyKey, senderName,
-                senderPersonPublicId, body, replyToMessageId, List.of());
+                senderPersonPublicId, body, replyToMessageId, List.of(), List.of());
     }
 
     MessageInsertResult insertMessage(
@@ -118,9 +118,25 @@ class MessagingCommandRepository {
             String body,
             UUID replyToMessageId,
             List<UUID> attachmentIds) {
+        return insertMessage(
+                tenantId, userId, conversationId, idempotencyKey, senderName,
+                senderPersonPublicId, body, replyToMessageId, attachmentIds, List.of());
+    }
+
+    MessageInsertResult insertMessage(
+            long tenantId,
+            long userId,
+            UUID conversationId,
+            UUID idempotencyKey,
+            String senderName,
+            UUID senderPersonPublicId,
+            String body,
+            UUID replyToMessageId,
+            List<UUID> attachmentIds,
+            List<Long> mentionedUserIds) {
         String normalizedBody = normalizeBody(body);
         String requestHash = sendMessageRequestHash(
-                conversationId, normalizedBody, replyToMessageId, attachmentIds);
+                conversationId, normalizedBody, replyToMessageId, attachmentIds, mentionedUserIds);
         jdbc.update("""
                 INSERT INTO msg_idempotency_keys (
                     tenant_id, user_id, operation, idempotency_key, request_hash)
@@ -197,7 +213,7 @@ class MessagingCommandRepository {
             UUID replyToMessageId) {
         return replayMessage(
                 tenantId, userId, conversationId, idempotencyKey, body,
-                replyToMessageId, List.of());
+                replyToMessageId, List.of(), List.of());
     }
 
     Optional<MessageInsertResult> replayMessage(
@@ -208,9 +224,23 @@ class MessagingCommandRepository {
             String body,
             UUID replyToMessageId,
             List<UUID> attachmentIds) {
+        return replayMessage(
+                tenantId, userId, conversationId, idempotencyKey, body,
+                replyToMessageId, attachmentIds, List.of());
+    }
+
+    Optional<MessageInsertResult> replayMessage(
+            long tenantId,
+            long userId,
+            UUID conversationId,
+            UUID idempotencyKey,
+            String body,
+            UUID replyToMessageId,
+            List<UUID> attachmentIds,
+            List<Long> mentionedUserIds) {
         String normalizedBody = normalizeBody(body);
         String requestHash = sendMessageRequestHash(
-                conversationId, normalizedBody, replyToMessageId, attachmentIds);
+                conversationId, normalizedBody, replyToMessageId, attachmentIds, mentionedUserIds);
         List<IdempotencyEntry> entries = jdbc.query("""
                 SELECT request_hash, result_message_id
                   FROM msg_idempotency_keys
@@ -313,6 +343,23 @@ class MessagingCommandRepository {
                 """, tenantId, messageId, userId, emoji.trim());
     }
 
+    void insertMentions(
+            long tenantId,
+            UUID conversationId,
+            UUID messageId,
+            List<MessagingDtos.MentionSummary> mentions) {
+        for (MessagingDtos.MentionSummary mention : mentions) {
+            jdbc.update("""
+                    INSERT INTO msg_message_mentions (
+                        tenant_id, conversation_id, message_id, mentioned_user_id,
+                        display_name_snapshot, mention_kind)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (tenant_id, message_id, mentioned_user_id) DO NOTHING
+                    """, tenantId, conversationId, messageId, mention.userId(),
+                    mention.displayName(), mention.mentionKind());
+        }
+    }
+
     int updatePolicy(long tenantId, long userId, MessagingDtos.TenantPolicyRequest request) {
         return jdbc.update("""
                 UPDATE msg_tenant_policies
@@ -371,7 +418,8 @@ class MessagingCommandRepository {
 
     static String sendMessageRequestHash(
             UUID conversationId, String normalizedBody, UUID replyToMessageId) {
-        return sendMessageRequestHash(conversationId, normalizedBody, replyToMessageId, List.of());
+        return sendMessageRequestHash(
+                conversationId, normalizedBody, replyToMessageId, List.of(), List.of());
     }
 
     static String sendMessageRequestHash(
@@ -379,15 +427,32 @@ class MessagingCommandRepository {
             String normalizedBody,
             UUID replyToMessageId,
             List<UUID> attachmentIds) {
+        return sendMessageRequestHash(
+                conversationId, normalizedBody, replyToMessageId, attachmentIds, List.of());
+    }
+
+    static String sendMessageRequestHash(
+            UUID conversationId,
+            String normalizedBody,
+            UUID replyToMessageId,
+            List<UUID> attachmentIds,
+            List<Long> mentionedUserIds) {
         byte[] bodyBytes = normalizedBody.getBytes(StandardCharsets.UTF_8);
         String attachments = (attachmentIds == null ? List.<UUID>of() : attachmentIds).stream()
                 .sorted()
                 .map(UUID::toString)
                 .reduce((left, right) -> left + "," + right)
                 .orElse("");
+        String mentions = (mentionedUserIds == null ? List.<Long>of() : mentionedUserIds).stream()
+                .distinct()
+                .sorted()
+                .map(String::valueOf)
+                .reduce((left, right) -> left + "," + right)
+                .orElse("");
         String canonical = "conversation=" + conversationId
                 + "\nreply=" + (replyToMessageId == null ? "" : replyToMessageId)
                 + "\nattachments=" + attachments
+                + "\nmentions=" + mentions
                 + "\nbody-bytes=" + bodyBytes.length
                 + "\nbody=" + normalizedBody;
         try {

@@ -1,0 +1,190 @@
+{
+  "schemaVersion": 1,
+  "matrixId": "product-authorization-negative-matrix.v1",
+  "completionState": "PARTIAL",
+  "rolloutInventory": {
+    "reference": "contracts/product-authorization/product-surface-rollout-inventory.v1.generated.json",
+    "checksum": "0385e6c66e1feac42198842bd4f20473405813be3a3f187d46cf7bba39fcd822"
+  },
+  "exactContract": {
+    "reference": "contracts/product-authorization/product-surfaces-v1.bundle-v3.json",
+    "checksum": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+    "products": ["approvals", "communications", "hcm", "services"]
+  },
+  "canonicalNegativeFixtures": {
+    "reference": "contracts/product-authorization/pilot-fixtures.v1.generated.json",
+    "checksum": "0eb143ce3b2b2d3096666f0b473637424dc4e242ffd48aee3567a517ecd95c15",
+    "expectedCount": 46,
+    "catalogIntegrityTestReferences": [
+      "dwp-gateway/src/test/java/com/dwp/gateway/support/PilotAuthorizationFixtureAdapterTest.java#projectsEveryCanonicalNegativeFixtureWithItsSignedDenialExpectation"
+    ]
+  },
+  "missingContractGuard": {
+    "contractStatus": "MISSING",
+    "rolloutCeiling": "100",
+    "testReferences": [
+      "dwp-gateway/src/test/java/com/dwp/gateway/productsurface/ProductSurfaceContractEligibilityIntegrationTest.java#activeV2PointerFailsClosedForRaw110FutureMissingOrIncompleteProducts",
+      "dwp-gateway/src/test/java/com/dwp/gateway/productsurface/ProductSurfaceContractEligibilityIntegrationTest.java#enforcementRunsTwoKindCompletePilotsAndLeavesIncompleteKindsUnevaluated"
+    ]
+  },
+  "attackVectors": [
+    {
+      "id": "CROSS_TENANT",
+      "gatewayTestReferences": [
+        "dwp-gateway/src/test/java/com/dwp/gateway/VerifiedIdentityFilterTest.java#auditsTenantAssertionMismatchBeforeCommittingForbidden"
+      ]
+    },
+    {
+      "id": "SCOPE_ESCAPE",
+      "gatewayTestReferences": [
+        "dwp-gateway/src/test/java/com/dwp/gateway/ProductSurfaceDecisionContextFilterTest.java#duplicateBlankAndOversizedScopeSelectionsFailBeforeAuthority"
+      ]
+    },
+    {
+      "id": "STALE_AUTHORITY_REVISION",
+      "gatewayTestReferences": [
+        "dwp-gateway/src/test/java/com/dwp/gateway/ProductSurfaceDecisionContextFilterTest.java#staleAuthorityRevisionNeverReachesTheOwnerService"
+      ]
+    },
+    {
+      "id": "CONFUSED_DEPUTY",
+      "gatewayTestReferences": [
+        "dwp-gateway/src/test/java/com/dwp/gateway/ProductSurfaceDecisionContextFilterTest.java#activeSupportEvidenceCannotDowngradeToNormalMode"
+      ]
+    },
+    {
+      "id": "INTERNAL_HEADER_SPOOF",
+      "gatewayTestReferences": [
+        "dwp-gateway/src/test/java/com/dwp/gateway/productsurface/ProductSurfaceForwardingGuardFilterTest.java#refusesHeaderSpoofingWithoutVerifiedExchangeIdentity",
+        "dwp-gateway/src/test/java/com/dwp/gateway/productsurface/ProductSurfaceContextHandlerTest.java#refusesDirectInternalUrisEvenWithSpoofedIdentityAndMarkerHeaders"
+      ]
+    }
+  ],
+  "products": [
+    {
+      "productId": "approvals",
+      "contractStatus": "EXACT",
+      "ownerService": "dwp-approval-server",
+      "rolloutCeiling": "111",
+      "attackEvidence": {
+        "SCOPE_ESCAPE": ["dwp-approval-server/src/test/java/com/dwp/services/approval/security/ApprovalManagementScopePostgresTest.java#scopeACannotReadChangeOrHighRiskLockScopeBAndCreatesInheritScopeA"],
+        "STALE_AUTHORITY_REVISION": ["dwp-approval-server/src/test/java/com/dwp/services/approval/security/ApprovalSecurityFilterTest.java#staleAuthorityRevisionFailsClosedBeforeMutation"],
+        "INTERNAL_HEADER_SPOOF": ["dwp-approval-server/src/test/java/com/dwp/services/approval/security/ApprovalSecurityFilterTest.java#spoofedInternalAuthorityHeadersCannotBypassGatewayServiceIdentity"]
+      },
+      "missingAttackIds": ["CROSS_TENANT", "CONFUSED_DEPUTY"],
+      "blocker": "MISSING_APPROVALS_CROSS_TENANT_AND_SUPPORT_MODE_SERVICE_PEP_MATRIX"
+    },
+    {
+      "productId": "communications",
+      "contractStatus": "INCOMPLETE_KINDS",
+      "ownerService": "dwp-platform-server",
+      "rolloutCeiling": "100",
+      "attackEvidence": {
+        "STALE_AUTHORITY_REVISION": ["dwp-platform-server/src/test/java/com/dwp/services/platform/security/PlatformCanarySecurityContractTest.java#staleAuthorityRevisionFailsClosedForEveryCanaryMutationOwner"],
+        "CONFUSED_DEPUTY": ["dwp-platform-server/src/test/java/com/dwp/services/platform/security/PlatformCanarySecurityContractTest.java#supportModeNeverAddsNormalEditorGrantsOrEnablesAWriteProfile"],
+        "INTERNAL_HEADER_SPOOF": ["dwp-platform-server/src/test/java/com/dwp/services/platform/security/PlatformSecurityFilterTest.java#rejectsDirectRequestsWithoutGatewayServiceIdentity"]
+      },
+      "missingAttackIds": ["CROSS_TENANT", "SCOPE_ESCAPE"],
+      "blocker": "MISSING_COMMUNICATIONS_DATA_KIND_CROSS_TENANT_AND_SCOPE_ESCAPE_SERVICE_PEP_MATRIX"
+    },
+    {
+      "productId": "hcm",
+      "contractStatus": "EXACT",
+      "ownerService": "dwp-people-server",
+      "rolloutCeiling": "111",
+      "attackEvidence": {
+        "CROSS_TENANT": ["dwp-people-server/src/test/java/com/dwp/services/people/security/HcmProductSurfaceEligibilityAdapterTest.java#rejectsAnOpaqueScopeIssuedForAnotherTenantOrResolver"],
+        "STALE_AUTHORITY_REVISION": ["dwp-people-server/src/test/java/com/dwp/services/people/security/HcmProductSurfacePepFilterTest.java#staleAuthorityRevisionFailsClosedBeforeTheHcmMutation"],
+        "CONFUSED_DEPUTY": ["dwp-people-server/src/test/java/com/dwp/services/people/security/HcmProductSurfacePepFilterTest.java#providerPeopleBindingsRemainForbiddenAfterSupportScopeRetirement"],
+        "INTERNAL_HEADER_SPOOF": ["dwp-people-server/src/test/java/com/dwp/services/people/security/PeopleSecurityFilterTest.java#protectsProductEligibilityAsAnInternalServiceContract"]
+      },
+      "missingAttackIds": ["SCOPE_ESCAPE"],
+      "blocker": "MISSING_HCM_CANONICAL_SCOPE_ESCAPE_SERVICE_PEP_MATRIX"
+    },
+    {
+      "productId": "services",
+      "contractStatus": "INCOMPLETE_KINDS",
+      "ownerService": "dwp-platform-server",
+      "rolloutCeiling": "100",
+      "attackEvidence": {
+        "STALE_AUTHORITY_REVISION": ["dwp-platform-server/src/test/java/com/dwp/services/platform/security/PlatformCanarySecurityContractTest.java#staleAuthorityRevisionFailsClosedForEveryCanaryMutationOwner"],
+        "CONFUSED_DEPUTY": ["dwp-platform-server/src/test/java/com/dwp/services/platform/security/PlatformCanarySecurityContractTest.java#supportModeNeverAddsNormalEditorGrantsOrEnablesAWriteProfile"],
+        "INTERNAL_HEADER_SPOOF": ["dwp-platform-server/src/test/java/com/dwp/services/platform/security/PlatformSecurityFilterTest.java#rejectsDirectRequestsWithoutGatewayServiceIdentity"]
+      },
+      "missingAttackIds": ["CROSS_TENANT", "SCOPE_ESCAPE"],
+      "blocker": "MISSING_SERVICES_DATA_KIND_CROSS_TENANT_AND_SCOPE_ESCAPE_SERVICE_PEP_MATRIX"
+    },
+    {
+      "productId": "calendar",
+      "contractStatus": "MISSING",
+      "ownerService": "dwp-platform-server",
+      "rolloutCeiling": "100",
+      "attackEvidence": {},
+      "missingAttackIds": ["CROSS_TENANT", "SCOPE_ESCAPE", "STALE_AUTHORITY_REVISION", "CONFUSED_DEPUTY", "INTERNAL_HEADER_SPOOF"],
+      "blocker": "MISSING_CALENDAR_EXACT_AUTHORIZATION_AND_SERVICE_PEP_MATRIX"
+    },
+    {
+      "productId": "dwaion",
+      "contractStatus": "MISSING",
+      "ownerService": "dwp-platform-server",
+      "rolloutCeiling": "100",
+      "attackEvidence": {},
+      "missingAttackIds": ["CROSS_TENANT", "SCOPE_ESCAPE", "STALE_AUTHORITY_REVISION", "CONFUSED_DEPUTY", "INTERNAL_HEADER_SPOOF"],
+      "blocker": "MISSING_DWAION_EXACT_AUTHORIZATION_AND_SERVICE_PEP_MATRIX"
+    },
+    {
+      "productId": "mail",
+      "contractStatus": "MISSING",
+      "ownerService": "dwp-platform-server",
+      "rolloutCeiling": "100",
+      "attackEvidence": {},
+      "missingAttackIds": ["CROSS_TENANT", "SCOPE_ESCAPE", "STALE_AUTHORITY_REVISION", "CONFUSED_DEPUTY", "INTERNAL_HEADER_SPOOF"],
+      "blocker": "MISSING_MAIL_EXACT_AUTHORIZATION_AND_SERVICE_PEP_MATRIX"
+    },
+    {
+      "productId": "meetings",
+      "contractStatus": "MISSING",
+      "ownerService": "dwp-meeting-server",
+      "rolloutCeiling": "100",
+      "attackEvidence": {},
+      "missingAttackIds": ["CROSS_TENANT", "SCOPE_ESCAPE", "STALE_AUTHORITY_REVISION", "CONFUSED_DEPUTY", "INTERNAL_HEADER_SPOOF"],
+      "blocker": "MISSING_MEETINGS_EXACT_AUTHORIZATION_AND_SERVICE_PEP_MATRIX"
+    },
+    {
+      "productId": "messaging",
+      "contractStatus": "MISSING",
+      "ownerService": "dwp-messaging-server",
+      "rolloutCeiling": "100",
+      "attackEvidence": {},
+      "missingAttackIds": ["CROSS_TENANT", "SCOPE_ESCAPE", "STALE_AUTHORITY_REVISION", "CONFUSED_DEPUTY", "INTERNAL_HEADER_SPOOF"],
+      "blocker": "MISSING_MESSAGING_EXACT_AUTHORIZATION_AND_SERVICE_PEP_MATRIX"
+    },
+    {
+      "productId": "notifications",
+      "contractStatus": "MISSING",
+      "ownerService": "dwp-notification-server",
+      "rolloutCeiling": "100",
+      "attackEvidence": {},
+      "missingAttackIds": ["CROSS_TENANT", "SCOPE_ESCAPE", "STALE_AUTHORITY_REVISION", "CONFUSED_DEPUTY", "INTERNAL_HEADER_SPOOF"],
+      "blocker": "MISSING_NOTIFICATIONS_EXACT_AUTHORIZATION_AND_SERVICE_PEP_MATRIX"
+    },
+    {
+      "productId": "spaces",
+      "contractStatus": "MISSING",
+      "ownerService": "dwp-space-server",
+      "rolloutCeiling": "100",
+      "attackEvidence": {},
+      "missingAttackIds": ["CROSS_TENANT", "SCOPE_ESCAPE", "STALE_AUTHORITY_REVISION", "CONFUSED_DEPUTY", "INTERNAL_HEADER_SPOOF"],
+      "blocker": "MISSING_SPACES_EXACT_AUTHORIZATION_AND_SERVICE_PEP_MATRIX"
+    },
+    {
+      "productId": "workplace",
+      "contractStatus": "MISSING",
+      "ownerService": "dwp-platform-server",
+      "rolloutCeiling": "100",
+      "attackEvidence": {},
+      "missingAttackIds": ["CROSS_TENANT", "SCOPE_ESCAPE", "STALE_AUTHORITY_REVISION", "CONFUSED_DEPUTY", "INTERNAL_HEADER_SPOOF"],
+      "blocker": "MISSING_WORKPLACE_EXACT_AUTHORIZATION_AND_SERVICE_PEP_MATRIX"
+    }
+  ]
+}

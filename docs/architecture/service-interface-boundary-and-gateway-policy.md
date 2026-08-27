@@ -24,7 +24,7 @@ The policy is:
 | Exception | Status | Reason | Guard |
 | --- | --- | --- | --- |
 | Gateway `AuthSessionVerifier` -> Auth `/auth/me` | Allowed by policy | Edge session verification before Gateway forwards the request | Session cookie/context forwarding, timeout, trace context propagation, no `X-DWP-Service-Token` |
-| Gateway `ProviderSupportSessionVerifier` -> Provider `/v1/internal/support-access/resolve` | Allowed by policy | Support-session scope resolution for delegated support access | `X-DWP-Service-Token` plus `X-DWP-Support-Validation-Token`, trace context propagation |
+| Gateway `ProviderSupportSessionVerifier` -> Provider `/internal/provider/v1/support-access/resolve` | Allowed by policy | Support-session scope resolution for delegated support access | `X-DWP-Service-Token` plus `X-DWP-Support-Validation-Token`, trace context propagation |
 | Provider provisioning -> Auth/Platform/People `/internal/provider/v1/**` | Allowed by policy | Tenant lifecycle orchestration across service-owned stores | `X-DWP-Provisioning-Token`, `OutboundHttpHeaders.propagateObservability` |
 | Provider code catalog -> Platform `/internal/provider/v1/code-catalog/**` | Allowed by policy | Product code-contract catalog read model owned by Platform | `X-DWP-Provisioning-Token`, `OutboundHttpHeaders.propagateObservability` |
 | Platform -> Auth `/internal/identity/v1/**` | Allowed by policy | Runtime app entitlement and saved-view subject validation | `X-DWP-Identity-Sync-Token`, `OutboundHttpHeaders.propagateObservability` |

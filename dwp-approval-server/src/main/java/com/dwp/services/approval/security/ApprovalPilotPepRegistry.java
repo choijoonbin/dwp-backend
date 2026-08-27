@@ -31,6 +31,12 @@ import java.util.stream.Collectors;
 @Component
 public final class ApprovalPilotPepRegistry {
 
+    public enum ActiveAccessMode {
+        NORMAL,
+        ELEVATED,
+        PROVIDER_SUPPORT
+    }
+
     static final String RESOURCE =
             "product-authorization/approval-pilot-pep-v2.generated.json";
     static final String W1A_V2_CHECKSUM =
@@ -63,6 +69,9 @@ public final class ApprovalPilotPepRegistry {
     }
 
     public Decision authorize(RequestEvidence evidence) {
+        if (evidence.activeAccessMode() == null) {
+            return Decision.denied("TRUSTED_ACCESS_MODE_REQUIRED");
+        }
         if (evidence.trustedRouteContractKey() == null
                 || evidence.trustedRouteContractKey().isBlank()) {
             return Decision.denied("TRUSTED_ROUTE_KEY_REQUIRED");
@@ -118,7 +127,7 @@ public final class ApprovalPilotPepRegistry {
     }
 
     private boolean profileAllows(Profile profile, RequestEvidence evidence) {
-        if (!profile.activeModes().contains("NORMAL")) return false;
+        if (!profile.activeModes().contains(evidence.activeAccessMode())) return false;
         JsonNode access = profile.requiredAccess();
         return switch (access.path("type").asText()) {
             case "CAPABILITY" -> capabilityAllows(
@@ -255,6 +264,8 @@ public final class ApprovalPilotPepRegistry {
             List<Profile> profiles = new ArrayList<>();
             for (JsonNode value : requiredArray(route, "accessProfiles")) {
                 String profileKey = value.path("profileKey").asText();
+                Set<ActiveAccessMode> activeAccessModes = activeAccessModes(
+                        value.path("activeAccessModes"), profileKey);
                 Map<String, ProjectionBinding> projections = new LinkedHashMap<>();
                 JsonNode projectionValues = value.path("responseProjectionBindings");
                 if (projectionValues.isArray()) projectionValues.forEach(bindingProjection -> {
@@ -277,7 +288,7 @@ public final class ApprovalPilotPepRegistry {
                 });
                 profiles.add(new Profile(
                         profileKey, value.path("precedence").asInt(),
-                        value.path("readOnly").asBoolean(), textValues(value.path("activeAccessModes")),
+                        value.path("readOnly").asBoolean(), activeAccessModes,
                         textValues(value.path("predicatePolicyKeys")), value.path("requiredAccess"),
                         Map.copyOf(projections)));
             }
@@ -449,6 +460,24 @@ public final class ApprovalPilotPepRegistry {
         return Set.copyOf(result);
     }
 
+    private Set<ActiveAccessMode> activeAccessModes(JsonNode value, String profileKey) {
+        require(value.isArray(), profileKey + ": active access modes must be an array");
+        Set<ActiveAccessMode> result = new LinkedHashSet<>();
+        for (JsonNode item : value) {
+            require(item.isTextual(), profileKey + ": active access mode must be text");
+            ActiveAccessMode mode;
+            try {
+                mode = ActiveAccessMode.valueOf(item.asText());
+            } catch (IllegalArgumentException exception) {
+                throw new IllegalStateException(
+                        profileKey + ": unknown active access mode " + item.asText(), exception);
+            }
+            require(result.add(mode), profileKey + ": duplicate active access mode " + mode);
+        }
+        require(!result.isEmpty(), profileKey + ": active access modes are required");
+        return Set.copyOf(result);
+    }
+
     private boolean hasResourceRole(String header, JsonNode capability) {
         String prefix = "APP_RESOURCE_SET:";
         String scopeResolver = capability.path("scopeResolver").asText();
@@ -553,12 +582,14 @@ public final class ApprovalPilotPepRegistry {
 
     public record RequestEvidence(
             String method, String path, Set<String> permissions, String resourceRoles,
-            Set<String> roles, String trustedRouteContractKey, String rawQuery) {
+            Set<String> roles, String trustedRouteContractKey, String rawQuery,
+            ActiveAccessMode activeAccessMode) {
         public RequestEvidence(
                 String method, String path, Set<String> permissions, String resourceRoles,
-                Set<String> roles, String trustedRouteContractKey) {
+                Set<String> roles, String trustedRouteContractKey,
+                ActiveAccessMode activeAccessMode) {
             this(method, path, permissions, resourceRoles, roles,
-                    trustedRouteContractKey, null);
+                    trustedRouteContractKey, null, activeAccessMode);
         }
 
         public RequestEvidence {
@@ -629,7 +660,8 @@ public final class ApprovalPilotPepRegistry {
     }
 
     private record Profile(
-            String profileKey, int precedence, boolean readOnly, Set<String> activeModes,
+            String profileKey, int precedence, boolean readOnly,
+            Set<ActiveAccessMode> activeModes,
             Set<String> predicateKeys, JsonNode requiredAccess,
             Map<String, ProjectionBinding> projections) {
     }

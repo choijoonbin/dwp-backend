@@ -1,8 +1,16 @@
 package com.dwp.services.provider;
 
 import com.dwp.core.common.ApiResponse;
+import com.dwp.core.common.ErrorCode;
+import com.dwp.core.exception.BaseException;
 import com.dwp.services.provider.support.ProviderSupportAccessService;
+import com.dwp.services.provider.support.ProviderSupportActivationService;
 import com.dwp.services.provider.support.ProviderSupportCookie;
+import com.dwp.services.provider.support.ProviderSupportDtos;
+import com.dwp.services.provider.support.ProviderSupportLedgerService;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,14 +39,20 @@ public class ProviderControlPlaneController {
 
     private final ProviderControlPlaneService service;
     private final ProviderSupportAccessService supportAccessService;
+    private final ProviderSupportActivationService supportActivationService;
+    private final ProviderSupportLedgerService supportLedgerService;
     private final boolean supportCookieSecure;
 
     public ProviderControlPlaneController(
             ProviderControlPlaneService service,
             ProviderSupportAccessService supportAccessService,
+            ProviderSupportActivationService supportActivationService,
+            ProviderSupportLedgerService supportLedgerService,
             @Value("${dwp.provider.support-cookie-secure:true}") boolean supportCookieSecure) {
         this.service = service;
         this.supportAccessService = supportAccessService;
+        this.supportActivationService = supportActivationService;
+        this.supportLedgerService = supportLedgerService;
         this.supportCookieSecure = supportCookieSecure;
     }
 
@@ -240,19 +254,25 @@ public class ProviderControlPlaneController {
     }
 
     @PostMapping("/tenants/{tenantId}/administrators/{administratorId}/invitations")
-    public ApiResponse<ProviderDtos.AdministratorInvitation> issueAdministratorInvitation(
+    @ApiResponses(@io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "409",
+            description = "Provider-origin administrator invitation issuance is disabled until "
+                    + "customer-owned out-of-band delivery is configured.",
+            content = @Content(schema = @Schema(
+                    implementation = ProviderDtos.AdministratorInvitationConflictError.class))))
+    public ApiResponse<Void> issueAdministratorInvitation(
             @PathVariable UUID tenantId,
             @PathVariable UUID administratorId,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @Valid @RequestBody ProviderDtos.IssueAdministratorInvitationRequest request) {
-        return ApiResponse.success(service.issueAdministratorInvitation(
-                tenantId, administratorId, correlationId, request));
+        service.issueAdministratorInvitation(tenantId, administratorId, correlationId, request);
+        return ApiResponse.success();
     }
 
     @GetMapping("/support-sessions")
-    public ApiResponse<List<ProviderDtos.SupportSessionSummary>> supportSessions(
+    public ApiResponse<List<ProviderSupportDtos.SessionLedgerItem>> supportSessions(
             @RequestParam(required = false) UUID tenantId) {
-        return ApiResponse.success(service.supportSessions(tenantId));
+        return ApiResponse.success(supportLedgerService.sessions(tenantId));
     }
 
     @GetMapping("/support-scopes")
@@ -261,9 +281,9 @@ public class ProviderControlPlaneController {
     }
 
     @GetMapping("/support-access-requests")
-    public ApiResponse<List<ProviderDtos.SupportAccessRequestSummary>> supportAccessRequests(
+    public ApiResponse<List<ProviderSupportDtos.AccessRequestLedgerItem>> supportAccessRequests(
             @RequestParam(required = false) UUID tenantId) {
-        return ApiResponse.success(service.supportAccessRequests(tenantId));
+        return ApiResponse.success(supportLedgerService.accessRequests(tenantId));
     }
 
     @PostMapping("/support-access-requests")
@@ -282,7 +302,7 @@ public class ProviderControlPlaneController {
     }
 
     @PostMapping("/support-access-requests/{requestId}/activate")
-    public ApiResponse<ProviderDtos.SupportAccessRequestSummary> activateSupportAccessRequest(
+    public ApiResponse<ProviderSupportDtos.AccessRequestLedgerItem> activateSupportAccessRequest(
             @PathVariable UUID requestId,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @Valid @RequestBody ProviderDtos.ActivateSupportAccessRequest request,
@@ -292,9 +312,7 @@ public class ProviderControlPlaneController {
         ProviderSupportCookie.issue(
                 grant.sessionToken(), grant.session().expiresAt(), supportCookieSecure)
                 .forEach(cookie -> response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString()));
-        return ApiResponse.success(service.supportAccessRequests(grant.session().tenantId()).stream()
-                .filter(item -> item.supportAccessRequestId().equals(requestId))
-                .findFirst().orElseThrow());
+        return ApiResponse.success(grant.accessRequest());
     }
 
     @PostMapping("/support-access-requests/{requestId}/cancel")
@@ -326,19 +344,37 @@ public class ProviderControlPlaneController {
     }
 
     @GetMapping("/support-session-context")
-    public ApiResponse<ProviderDtos.SupportSessionContext> supportSessionContext(
+    public ApiResponse<ProviderSupportDtos.BrowserSessionContext> supportSessionContext(
             @CookieValue(value = ProviderSupportCookie.NAME, required = false) String supportSessionToken,
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             HttpServletResponse response) {
         if (supportSessionToken == null || supportSessionToken.isBlank()) {
             return ApiResponse.success(null);
         }
         try {
-            return ApiResponse.success(supportAccessService.inspect(supportSessionToken));
-        } catch (com.dwp.core.exception.BaseException exception) {
+            return ApiResponse.success(supportAccessService.inspect(supportSessionToken, correlationId));
+        } catch (BaseException exception) {
+            if (!expectedMissingSupportContext(exception.getErrorCode())) throw exception;
             ProviderSupportCookie.clear(supportCookieSecure)
                     .forEach(cookie -> response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString()));
             return ApiResponse.success(null);
         }
+    }
+
+    private boolean expectedMissingSupportContext(ErrorCode errorCode) {
+        return switch (errorCode) {
+            case FORBIDDEN, UNAUTHORIZED, TOKEN_INVALID, NOT_FOUND,
+                    RESOURCE_NOT_AVAILABLE, INVALID_STATE -> true;
+            default -> false;
+        };
+    }
+
+    @PostMapping("/support-activation/disable")
+    public ApiResponse<Void> disableSupportActivation(
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @Valid @RequestBody ProviderSupportDtos.DisableActivationRequest request) {
+        supportActivationService.disable(correlationId, request);
+        return ApiResponse.success();
     }
 
     @PostMapping("/support-sessions/{sessionId}/revoke")

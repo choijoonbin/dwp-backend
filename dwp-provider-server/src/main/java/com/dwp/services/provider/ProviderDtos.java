@@ -1,6 +1,8 @@
 package com.dwp.services.provider;
 
+import com.dwp.services.provider.support.ProviderSupportDtos;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -10,6 +12,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -155,7 +158,7 @@ public final class ProviderDtos {
             List<EntitlementSummary> entitlements,
             List<ServiceInstanceSummary> services,
             List<TenantDomainSummary> domains,
-            List<TenantAdministratorSummary> administrators) {
+            TenantAdministratorPosture administratorPosture) {
     }
 
     public record EntitlementSummary(
@@ -194,17 +197,12 @@ public final class ProviderDtos {
             long version) {
     }
 
-    public record TenantAdministratorSummary(
-            UUID tenantAdministratorId,
-            Long authUserId,
-            String email,
-            String displayName,
-            String roleCode,
-            String lifecycleState,
-            boolean primaryAdministrator,
-            Instant lastInvitedAt,
-            Instant activatedAt,
-            long version) {
+    public record TenantAdministratorPosture(
+            int configuredCount,
+            int activeCount,
+            int pendingDeliveryCount,
+            boolean primaryConfigured,
+            Instant lastInvitedAt) {
     }
 
     public record RegionSummary(
@@ -532,19 +530,12 @@ public final class ProviderDtos {
     public record SupportSessionGrant(
             SupportSessionSummary session,
             @JsonIgnore
-            String sessionToken) {
-    }
+            String sessionToken,
+            ProviderSupportDtos.AccessRequestLedgerItem accessRequest) {
 
-    public record SupportSessionContext(
-            UUID supportSessionId,
-            UUID tenantId,
-            Long authTenantId,
-            String tenantKey,
-            String tenantName,
-            List<String> scopes,
-            String accessMode,
-            Instant expiresAt,
-            long version) {
+        public SupportSessionGrant(SupportSessionSummary session, String sessionToken) {
+            this(session, sessionToken, null);
+        }
     }
 
     public record SupportAccessRequestSummary(
@@ -594,16 +585,6 @@ public final class ProviderDtos {
             String correlationId,
             String redactedSnapshot,
             Instant occurredAt) {
-    }
-
-    public record AdministratorInvitation(
-            UUID tenantAdministratorId,
-            Long authTenantId,
-            Long authUserId,
-            String email,
-            String activationToken,
-            String activationPath,
-            Instant expiresAt) {
     }
 
     public record DomainChallenge(
@@ -725,7 +706,7 @@ public final class ProviderDtos {
     public record CreateSupportSessionRequest(
             @NotNull UUID tenantId,
             @NotNull @Size(min = 1, max = 20)
-            List<@Pattern(regexp = "[A-Z][A-Z0-9_]{1,79}") String> scopes,
+            List<@NotBlank @Pattern(regexp = "[A-Z][A-Z0-9_]{1,79}") String> scopes,
             @NotNull @Min(5) @Max(60) Integer durationMinutes,
             @NotBlank @Size(max = 1000) String justification,
             @Size(max = 160) String approvalReference,
@@ -736,7 +717,7 @@ public final class ProviderDtos {
     public record CreateSupportAccessRequest(
             @NotNull UUID tenantId,
             @NotNull @Size(min = 1, max = 20)
-            List<@Pattern(regexp = "[A-Z][A-Z0-9_]{1,79}") String> scopes,
+            List<@NotBlank @Pattern(regexp = "[A-Z][A-Z0-9_]{1,79}") String> scopes,
             @NotNull @Min(5) @Max(60) Integer durationMinutes,
             @NotBlank @Size(max = 1000) String justification,
             @Size(max = 160) String approvalReference,
@@ -791,5 +772,17 @@ public final class ProviderDtos {
     public record IssueAdministratorInvitationRequest(
             @NotNull @Min(15) @Max(10080) Integer expiresInMinutes,
             @NotBlank @Size(max = 1000) String justification) {
+    }
+
+    @Schema(
+            name = "AdministratorInvitationConflictError",
+            additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    public record AdministratorInvitationConflictError(
+            @Schema(allowableValues = "ERROR") String status,
+            String message,
+            @Schema(allowableValues = "E1009") String errorCode,
+            LocalDateTime timestamp,
+            Boolean success,
+            String correlationId) {
     }
 }

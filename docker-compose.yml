@@ -44,7 +44,16 @@ services:
     image: livekit/livekit-server:v1.12.0
     container_name: dwp-livekit
     profiles: ["media"]
-    command: ["--dev", "--bind", "0.0.0.0"]
+    command:
+      - --dev
+      - --bind
+      - 0.0.0.0
+      # Docker Desktop must advertise the published host endpoint to local browsers.
+      # Production uses the deployment-specific public node IP and TURN/TLS config.
+      - --node-ip
+      - 127.0.0.1
+      - --udp-port
+      - "7882"
     ports:
       - "7880:7880"
       - "7881:7881"

@@ -5,6 +5,7 @@ import com.dwp.services.auth.security.AuthSessionJwtValidator;
 import com.dwp.services.auth.security.AuthSessionActivityFilter;
 import com.dwp.services.auth.security.AuthenticatedUserResolver;
 import com.dwp.services.auth.security.CookieBearerTokenResolver;
+import com.dwp.services.auth.security.ProviderAuthPlaneBoundaryFilter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -87,7 +88,8 @@ public class JwtConfig {
             JwtDecoder jwtDecoder,
             BearerTokenResolver bearerTokenResolver,
             CookieCsrfTokenRepository csrfTokenRepository,
-            AuthSessionActivityFilter authSessionActivityFilter) throws Exception {
+            AuthSessionActivityFilter authSessionActivityFilter,
+            ProviderAuthPlaneBoundaryFilter providerAuthPlaneBoundaryFilter) throws Exception {
         CsrfTokenRequestAttributeHandler csrfRequestHandler =
                 new CsrfTokenRequestAttributeHandler();
         http
@@ -102,7 +104,6 @@ public class JwtConfig {
                                 "/auth/csrf",
                                 "/auth/policy",
                                 "/auth/activations/**",
-                                "/auth/idp/**",
                                 "/auth/oidc/**",
                                 "/v3/api-docs/**",
                                 "/actuator/health/**",
@@ -123,8 +124,11 @@ public class JwtConfig {
                         .authenticationEntryPoint(securityExceptionHandler)
                         .accessDeniedHandler(securityExceptionHandler))
                 .addFilterAfter(
+                        providerAuthPlaneBoundaryFilter,
+                        BearerTokenAuthenticationFilter.class)
+                .addFilterAfter(
                         authSessionActivityFilter,
-                        BearerTokenAuthenticationFilter.class);
+                        ProviderAuthPlaneBoundaryFilter.class);
         return http.build();
     }
 

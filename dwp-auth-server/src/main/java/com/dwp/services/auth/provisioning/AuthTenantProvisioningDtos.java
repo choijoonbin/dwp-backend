@@ -1,5 +1,6 @@
 package com.dwp.services.auth.provisioning;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -9,6 +10,7 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -52,12 +54,16 @@ public final class AuthTenantProvisioningDtos {
             @NotNull @Min(15) @Max(10080) Integer expiresInMinutes) {
     }
 
-    public record InvitationResponse(
-            Long tenantId,
-            Long administratorUserId,
-            String email,
-            String activationToken,
-            Instant expiresAt) {
+    @Schema(
+            name = "AdministratorInvitationConflictError",
+            additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
+    public record AdministratorInvitationConflictError(
+            @Schema(allowableValues = "ERROR") String status,
+            String message,
+            @Schema(allowableValues = "E1009") String errorCode,
+            LocalDateTime timestamp,
+            Boolean success,
+            String correlationId) {
     }
 
     public record ActivationSummary(

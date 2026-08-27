@@ -34,7 +34,9 @@ public class ProviderEstateRepository {
                 """);
         long support = count("""
                 SELECT COUNT(*) FROM prv_support_sessions
-                 WHERE lifecycle_state = 'ACTIVE' AND expires_at > CURRENT_TIMESTAMP
+                 WHERE lifecycle_state = 'ACTIVE'
+                   AND expires_at > CURRENT_TIMESTAMP
+                   AND last_used_at > CURRENT_TIMESTAMP - INTERVAL '15 minutes'
                 """);
         return new ProviderDtos.EstateOverview(
                 organizations,
@@ -334,15 +336,23 @@ public class ProviderEstateRepository {
                 .stream().findFirst();
     }
 
-    public List<ProviderDtos.TenantAdministratorSummary> administrators(UUID tenantId) {
-        return jdbc.query("""
-                SELECT tenant_administrator_id, auth_user_id, email,
-                       display_name, role_code, lifecycle_state, primary_administrator,
-                       last_invited_at, activated_at, version
+    public ProviderDtos.TenantAdministratorPosture administratorPosture(UUID tenantId) {
+        return jdbc.queryForObject("""
+                SELECT COUNT(*)::INTEGER AS configured_count,
+                       COUNT(*) FILTER (WHERE lifecycle_state = 'ACTIVE')::INTEGER AS active_count,
+                       COUNT(*) FILTER (
+                           WHERE lifecycle_state IN ('PENDING', 'INVITED'))::INTEGER
+                           AS pending_delivery_count,
+                       COALESCE(BOOL_OR(primary_administrator), FALSE) AS primary_configured,
+                       MAX(last_invited_at) AS last_invited_at
                   FROM prv_tenant_administrators
                  WHERE provider_tenant_id = ? AND lifecycle_state <> 'REVOKED'
-                 ORDER BY primary_administrator DESC, display_name
-                """, this::administrator, tenantId);
+                """, (result, ignored) -> new ProviderDtos.TenantAdministratorPosture(
+                result.getInt("configured_count"),
+                result.getInt("active_count"),
+                result.getInt("pending_delivery_count"),
+                result.getBoolean("primary_configured"),
+                instant(result, "last_invited_at")), tenantId);
     }
 
     public List<ProviderDtos.ServiceInstanceSummary> serviceInstances(UUID tenantId) {
@@ -402,143 +412,6 @@ public class ProviderEstateRepository {
                         result.getString("lifecycle_state")));
     }
 
-    public UUID createSupportSession(
-            UUID tenantId,
-            Long operatorId,
-            UUID supportAccessRequestId,
-            String justification,
-            String tokenHash,
-            Instant expiresAt,
-            String accessMode,
-            String approvalReference,
-            boolean customerApprovalRequired,
-            String riskTier) {
-        UUID sessionId = UUID.randomUUID();
-        jdbc.update("""
-                INSERT INTO prv_support_sessions (
-                    support_session_id, provider_tenant_id, provider_operator_id,
-                    support_access_request_id, justification, token_hash, expires_at, access_mode,
-                    approval_reference, customer_approval_required, risk_tier,
-                    created_by, updated_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, sessionId, tenantId, operatorId, supportAccessRequestId, justification, tokenHash,
-                Timestamp.from(expiresAt), accessMode, approvalReference,
-                customerApprovalRequired, riskTier,
-                operatorId, operatorId);
-        return sessionId;
-    }
-
-    public void addSupportScopes(UUID sessionId, List<String> scopes) {
-        jdbc.batchUpdate("""
-                INSERT INTO prv_support_session_scopes (support_session_id, scope_code)
-                VALUES (?, ?)
-                ON CONFLICT (support_session_id, scope_code) DO NOTHING
-                """, scopes, scopes.size(), (statement, scope) -> {
-                    statement.setObject(1, sessionId);
-                    statement.setString(2, scope);
-                });
-    }
-
-    public List<ProviderDtos.SupportSessionSummary> supportSessions(UUID tenantId) {
-        expireSupportSessions();
-        String tenantClause = tenantId == null ? "" : " WHERE session.provider_tenant_id = ?";
-        Object[] arguments = tenantId == null ? new Object[0] : new Object[]{tenantId};
-        return jdbc.query("""
-                SELECT session.support_session_id,
-                       session.support_access_request_id,
-                       session.provider_tenant_id,
-                       tenant.tenant_key,
-                       tenant.display_name AS tenant_name,
-                       session.provider_operator_id,
-                       operator.display_name AS operator_name,
-                       session.lifecycle_state,
-                       session.justification,
-                       session.access_mode,
-                       session.approval_reference,
-                       session.customer_approval_required,
-                       session.risk_tier,
-                       session.started_at,
-                       session.expires_at,
-                       session.last_used_at,
-                       session.revoked_at,
-                       session.version,
-                       COALESCE(array_agg(scope.scope_code ORDER BY scope.scope_code)
-                           FILTER (WHERE scope.scope_code IS NOT NULL), ARRAY[]::varchar[]) AS scopes
-                  FROM prv_support_sessions session
-                  JOIN prv_tenants tenant ON tenant.provider_tenant_id = session.provider_tenant_id
-                  JOIN prv_operators operator ON operator.provider_operator_id = session.provider_operator_id
-                  LEFT JOIN prv_support_session_scopes scope
-                    ON scope.support_session_id = session.support_session_id
-                """ + tenantClause + """
-                 GROUP BY session.support_session_id, tenant.tenant_key, tenant.display_name,
-                          operator.display_name
-                 ORDER BY session.created_at DESC
-                 LIMIT 200
-                """, (RowMapper<ProviderDtos.SupportSessionSummary>) this::supportSession, arguments);
-    }
-
-    public Optional<SupportSessionRecord> supportSession(UUID sessionId) {
-        expireSupportSessions();
-        return supportSessionQuery("support_session_id = ?", sessionId);
-    }
-
-    public Optional<SupportSessionRecord> supportSessionByTokenHash(String tokenHash) {
-        expireSupportSessions();
-        return supportSessionQuery("token_hash = ?", tokenHash);
-    }
-
-    private Optional<SupportSessionRecord> supportSessionQuery(String predicate, Object argument) {
-        String sql = """
-                SELECT support_session_id, provider_tenant_id, provider_operator_id,
-                       lifecycle_state, token_hash, access_mode, expires_at, version
-                  FROM prv_support_sessions
-                 WHERE %s
-                """.formatted(predicate);
-        return jdbc.query(sql, (result, ignored) -> new SupportSessionRecord(
-                        result.getObject("support_session_id", UUID.class),
-                        result.getObject("provider_tenant_id", UUID.class),
-                        result.getLong("provider_operator_id"),
-                        result.getString("lifecycle_state"),
-                        result.getString("token_hash"),
-                        result.getString("access_mode"),
-                        instant(result, "expires_at"),
-                        result.getLong("version")), argument).stream().findFirst();
-    }
-
-    public List<String> supportSessionScopes(UUID sessionId) {
-        return jdbc.queryForList("""
-                SELECT scope_code
-                  FROM prv_support_session_scopes
-                 WHERE support_session_id = ?
-                 ORDER BY scope_code
-                """, String.class, sessionId);
-    }
-
-    public boolean touchSupportSession(UUID sessionId, Long operatorId) {
-        return jdbc.update("""
-                UPDATE prv_support_sessions
-                   SET last_used_at = CURRENT_TIMESTAMP,
-                       updated_at = CURRENT_TIMESTAMP,
-                       updated_by = ?
-                 WHERE support_session_id = ?
-                   AND lifecycle_state = 'ACTIVE'
-                   AND expires_at > CURRENT_TIMESTAMP
-                """, operatorId, sessionId) == 1;
-    }
-
-    public void revokeSupportSession(UUID sessionId, Long operatorId) {
-        jdbc.update("""
-                UPDATE prv_support_sessions
-                   SET lifecycle_state = 'REVOKED',
-                       revoked_at = CURRENT_TIMESTAMP,
-                       revoked_by = ?,
-                       updated_at = CURRENT_TIMESTAMP,
-                       updated_by = ?,
-                       version = version + 1
-                 WHERE support_session_id = ? AND lifecycle_state = 'ACTIVE'
-                """, operatorId, operatorId, sessionId);
-    }
-
     public List<ProviderDtos.AuditEventSummary> auditEvents(UUID tenantId, int limit) {
         String tenantClause = tenantId == null ? "" : " WHERE audit.provider_tenant_id = ?";
         Object[] arguments = tenantId == null ? new Object[0] : new Object[]{tenantId};
@@ -565,14 +438,6 @@ public class ProviderEstateRepository {
                 + " ORDER BY audit.occurred_at DESC LIMIT "
                 + Math.min(500, Math.max(1, limit));
         return jdbc.query(sql, this::auditEvent, arguments);
-    }
-
-    private void expireSupportSessions() {
-        jdbc.update("""
-                UPDATE prv_support_sessions
-                   SET lifecycle_state = 'EXPIRED', updated_at = CURRENT_TIMESTAMP
-                 WHERE lifecycle_state = 'ACTIVE' AND expires_at <= CURRENT_TIMESTAMP
-                """);
     }
 
     private long count(String sql, Object... arguments) {
@@ -641,45 +506,6 @@ public class ProviderEstateRepository {
                 result.getLong("version"));
     }
 
-    private ProviderDtos.TenantAdministratorSummary administrator(ResultSet result, int ignored)
-            throws SQLException {
-        return new ProviderDtos.TenantAdministratorSummary(
-                result.getObject("tenant_administrator_id", UUID.class),
-                nullableLong(result, "auth_user_id"),
-                result.getString("email"),
-                result.getString("display_name"),
-                result.getString("role_code"),
-                result.getString("lifecycle_state"),
-                result.getBoolean("primary_administrator"),
-                instant(result, "last_invited_at"),
-                instant(result, "activated_at"),
-                result.getLong("version"));
-    }
-
-    private ProviderDtos.SupportSessionSummary supportSession(ResultSet result, int ignored)
-            throws SQLException {
-        return new ProviderDtos.SupportSessionSummary(
-                result.getObject("support_session_id", UUID.class),
-                result.getObject("support_access_request_id", UUID.class),
-                result.getObject("provider_tenant_id", UUID.class),
-                result.getString("tenant_key"),
-                result.getString("tenant_name"),
-                result.getLong("provider_operator_id"),
-                result.getString("operator_name"),
-                result.getString("lifecycle_state"),
-                result.getString("justification"),
-                List.of((String[]) result.getArray("scopes").getArray()),
-                result.getString("access_mode"),
-                result.getString("approval_reference"),
-                result.getBoolean("customer_approval_required"),
-                result.getString("risk_tier"),
-                instant(result, "started_at"),
-                instant(result, "expires_at"),
-                instant(result, "last_used_at"),
-                instant(result, "revoked_at"),
-                result.getLong("version"));
-    }
-
     private ProviderDtos.AuditEventSummary auditEvent(ResultSet result, int ignored) throws SQLException {
         return new ProviderDtos.AuditEventSummary(
                 result.getObject("audit_event_id", UUID.class),
@@ -734,14 +560,4 @@ public class ProviderEstateRepository {
             String lifecycleState) {
     }
 
-    public record SupportSessionRecord(
-            UUID supportSessionId,
-            UUID tenantId,
-            Long operatorId,
-            String lifecycleState,
-            String tokenHash,
-            String accessMode,
-            Instant expiresAt,
-            long version) {
-    }
 }

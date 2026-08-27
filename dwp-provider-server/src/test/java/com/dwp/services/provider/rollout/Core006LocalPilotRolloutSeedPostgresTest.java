@@ -66,7 +66,7 @@ class Core006LocalPilotRolloutSeedPostgresTest {
             }
             return counts;
         });
-        assertThat(values).containsEntry(true, 10).containsEntry(false, 14);
+        assertThat(values).containsEntry(true, 10).containsEntry(false, 16);
 
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*)
@@ -81,7 +81,7 @@ class Core006LocalPilotRolloutSeedPostgresTest {
                    AND revision.targeting =
                        '{"tenantIds":["00000000-0000-0000-0000-000000000001"]}'::jsonb
                    AND flag.default_value = 'false'::jsonb
-                """, Integer.class)).isEqualTo(24);
+                """, Integer.class)).isEqualTo(26);
 
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*)
@@ -90,14 +90,14 @@ class Core006LocalPilotRolloutSeedPostgresTest {
                    AND stage.stage_order = 1
                    AND stage.exposure_percentage = 100.00
                    AND stage.lifecycle_state = 'ACTIVE'
-                """, Integer.class)).isEqualTo(24);
+                """, Integer.class)).isEqualTo(26);
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*)
                   FROM prv_feature_rollout_approvals approval
                  WHERE approval.rollout_approval_id::text LIKE 'c0063000-%'
                    AND approval.lifecycle_state = 'APPROVED'
                    AND approval.requested_by <> approval.decided_by
-                """, Integer.class)).isEqualTo(24);
+                """, Integer.class)).isEqualTo(26);
 
         assertThat(jdbc.queryForList("""
                 SELECT flag.feature_key
@@ -130,7 +130,7 @@ class Core006LocalPilotRolloutSeedPostgresTest {
                        AND revision.lifecycle_state = 'ACTIVE'
                 ), products(product_key) AS (
                     VALUES ('approvals'), ('calendar'), ('communications'), ('dwaion'),
-                           ('hcm'), ('mail'), ('messaging'), ('notifications'),
+                           ('hcm'), ('mail'), ('meetings'), ('messaging'), ('notifications'),
                            ('services'), ('spaces'), ('workplace')
                 )
                 SELECT CONCAT(
@@ -156,6 +156,7 @@ class Core006LocalPilotRolloutSeedPostgresTest {
                 "dwaion=100",
                 "hcm=111",
                 "mail=100",
+                "meetings=100",
                 "messaging=100",
                 "notifications=100",
                 "services=111",
@@ -186,6 +187,7 @@ class Core006LocalPilotRolloutSeedPostgresTest {
                 "access.product-surfaces.capability-enforcement.dwaion.v1",
                 "access.product-surfaces.capability-enforcement.hcm.v1",
                 "access.product-surfaces.capability-enforcement.mail.v1",
+                "access.product-surfaces.capability-enforcement.meetings.v1",
                 "access.product-surfaces.capability-enforcement.messaging.v1",
                 "access.product-surfaces.capability-enforcement.notifications.v1",
                 "access.product-surfaces.capability-enforcement.services.v1",
@@ -214,15 +216,15 @@ class Core006LocalPilotRolloutSeedPostgresTest {
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM prv_feature_rollout_revisions
                  WHERE rollout_revision_id::text LIKE 'c0061000-%'
-                """, Integer.class)).isEqualTo(24);
+                """, Integer.class)).isEqualTo(26);
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM prv_feature_rollout_stages
                  WHERE rollout_stage_id::text LIKE 'c0062000-%'
-                """, Integer.class)).isEqualTo(24);
+                """, Integer.class)).isEqualTo(26);
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM prv_feature_rollout_approvals
                  WHERE rollout_approval_id::text LIKE 'c0063000-%'
-                """, Integer.class)).isEqualTo(24);
+                """, Integer.class)).isEqualTo(26);
     }
 
     @Test

@@ -246,6 +246,9 @@ class ApprovalRecoveryRetryRuntimeTruthTableTest {
         if (state.charAt(1) == '1') {
             request.addHeader(ApprovalSecurityFilter.ROUTE_CONTRACT_HEADER, ROUTE_KEY);
             request.addHeader(
+                    ApprovalSecurityFilter.ACTIVE_ACCESS_MODE_HEADER,
+                    ApprovalPilotPepRegistry.ActiveAccessMode.NORMAL.name());
+            request.addHeader(
                     ApprovalSecurityFilter.CURRENT_DECISION_REVISION_HEADER,
                     DECISION_REVISION);
             request.addHeader(

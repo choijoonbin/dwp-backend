@@ -7,11 +7,23 @@ public final class CalendarTypes {
 
     public enum CalendarType { PERSONAL, TEAM, RESOURCE, SYSTEM }
 
+    public enum CalendarAccessLevel {
+        OWNER, MANAGE, EDIT, VIEW_DETAILS, VIEW_FREE_BUSY, EVENT_ATTENDEE, NONE
+    }
+
+    public enum CalendarSourceKind { OWNED, COMPANY, SHARED, TEAM, RESOURCE }
+
+    public enum CalendarSubscriptionPolicy { REQUIRED, DEFAULT_ON, OPTIONAL }
+
     public enum EventType { MEETING, FOCUS, TASK, OUT_OF_OFFICE, REMINDER }
 
     public enum EventStatus { CONFIRMED, TENTATIVE, CANCELLED }
 
     public enum EventVisibility { DEFAULT, PUBLIC, PRIVATE, CONFIDENTIAL }
+
+    public enum EventImportance { LOW, NORMAL, HIGH }
+
+    public enum EventDetailLevel { FULL, FREE_BUSY }
 
     public enum RecurrencePattern { NONE, DAILY, WEEKLY, MONTHLY }
 

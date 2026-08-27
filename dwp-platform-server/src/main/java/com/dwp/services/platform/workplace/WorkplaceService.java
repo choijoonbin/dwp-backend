@@ -33,6 +33,7 @@ public class WorkplaceService {
     private final WorkplaceRuntimeGovernance runtimeGovernance;
     private final WorkplaceCatalogAdminService catalogAdmin;
     private final WorkplaceBookingPolicyService bookingPolicy;
+    private final WorkplaceBookingAccessGuard bookingAccess;
 
     public WorkplaceService(
             WorkplaceCatalogRepository catalog,
@@ -55,6 +56,7 @@ public class WorkplaceService {
                 mediaCleanup, spatialGovernance, runtimeGovernance);
         this.bookingPolicy = new WorkplaceBookingPolicyService(
                 bookings, releaseWindows, runtimeGovernance);
+        this.bookingAccess = new WorkplaceBookingAccessGuard(catalog, runtimeGovernance);
     }
 
     @Transactional(readOnly = true)
@@ -100,8 +102,7 @@ public class WorkplaceService {
                 .resources(tenantId, selected.floorId(), ko).stream()
                 .filter(value -> value.state() != ResourceState.RETIRED)
                 .map(value -> publicResource(
-                        value, selected.siteId(), userId, personPublicId,
-                        policy.showColleagueNames()))
+                        value, selected.siteId(), userId, personPublicId))
                 .toList();
         List<WorkplaceDtos.Occupancy> occupancy = bookings
                 .occupancy(tenantId, userId, selected.floorId(), from, to).stream()
@@ -119,13 +120,16 @@ public class WorkplaceService {
             Long userId,
             OffsetDateTime from,
             OffsetDateTime to,
-            String locale) {
+            String locale,
+            String verifiedGroupRefs) {
         validateRange(
                 from, to, MAX_BOOKING_HISTORY_SPAN,
                 "Workplace booking history is limited to 400 days.");
         WorkplaceCatalogRepository.PolicyRow policy = catalog.policy(tenantId);
         OffsetDateTime now = OffsetDateTime.now();
         return bookings.bookings(tenantId, userId, from, to, korean(locale)).stream()
+                .filter(value -> bookingAccess.canView(
+                        tenantId, userId, verifiedGroupRefs, value))
                 .map(value -> booking(value, policy, now))
                 .toList();
     }
@@ -196,9 +200,11 @@ public class WorkplaceService {
             UUID bookingId,
             String locale,
             String correlationId,
+            String verifiedGroupRefs,
             WorkplaceDtos.VersionRequest request) {
         WorkplaceBookingRepository.BookingRow current = requireBookingRow(
                 tenantId, userId, bookingId, locale);
+        bookingAccess.requireBook(tenantId, userId, verifiedGroupRefs, current);
         OffsetDateTime now = OffsetDateTime.now();
         if (!current.requireCheckIn() || current.status() != BookingStatus.RESERVED) {
             throw invalid("This reservation is not eligible for check-in.");
@@ -233,9 +239,11 @@ public class WorkplaceService {
             UUID bookingId,
             String locale,
             String correlationId,
+            String verifiedGroupRefs,
             WorkplaceDtos.VersionRequest request) {
         WorkplaceBookingRepository.BookingRow current = requireBookingRow(
                 tenantId, userId, bookingId, locale);
+        bookingAccess.requireBook(tenantId, userId, verifiedGroupRefs, current);
         OffsetDateTime now = OffsetDateTime.now();
         if (current.status() != BookingStatus.RESERVED || !now.isBefore(current.startsAt())) {
             throw invalid("Only a future reserved booking can be cancelled.");
@@ -265,9 +273,11 @@ public class WorkplaceService {
             UUID bookingId,
             String locale,
             String correlationId,
+            String verifiedGroupRefs,
             WorkplaceDtos.VersionRequest request) {
         WorkplaceBookingRepository.BookingRow current = requireBookingRow(
                 tenantId, userId, bookingId, locale);
+        bookingAccess.requireBook(tenantId, userId, verifiedGroupRefs, current);
         OffsetDateTime now = OffsetDateTime.now();
         boolean active = current.status() == BookingStatus.RESERVED
                 || current.status() == BookingStatus.CHECKED_IN;
@@ -438,6 +448,14 @@ public class WorkplaceService {
         return bookingPolicy.resolveBookingPolicy(tenantId, resourceId, base);
     }
 
+    void requireBookingBookAccess(
+            Long tenantId,
+            Long userId,
+            String verifiedGroupRefs,
+            WorkplaceBookingRepository.BookingRow booking) {
+        bookingAccess.requireBook(tenantId, userId, verifiedGroupRefs, booking);
+    }
+
     private WorkplaceBookingRepository.BookingRow requireBookingRow(
             Long tenantId, Long userId, UUID bookingId, String locale) {
         return bookings.booking(tenantId, userId, bookingId, korean(locale))
@@ -520,8 +538,7 @@ public class WorkplaceService {
             WorkplaceCatalogRepository.ResourceRow value,
             UUID siteId,
             Long userId,
-            UUID personPublicId,
-            boolean showColleagueNames) {
+            UUID personPublicId) {
         boolean assignedToCurrentUser = userId.equals(value.assignedUserId())
                 || (personPublicId != null
                     && personPublicId.equals(value.assignedPersonPublicId()));
@@ -532,8 +549,7 @@ public class WorkplaceService {
                 value.accessible(), value.approvalRequired(), value.positionX(), value.positionY(),
                 value.widthPercent(), value.heightPercent(), value.rotationDegrees(),
                 assignedToCurrentUser, null, null,
-                assignedToCurrentUser || showColleagueNames
-                        ? value.assignedDisplayName() : null,
+                assignedToCurrentUser ? value.assignedDisplayName() : null,
                 value.version());
     }
 

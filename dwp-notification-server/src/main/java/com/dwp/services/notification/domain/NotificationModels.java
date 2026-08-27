@@ -56,6 +56,7 @@ public final class NotificationModels {
             String preview,
             String actorLabel,
             String priority,
+            String interruptionLevel,
             NotificationReason reason,
             Instant receivedAt,
             Instant lastActivityAt,

@@ -30,7 +30,54 @@ public final class CalendarDtos {
             String color,
             CalendarType type,
             String visibility,
-            boolean selected) {
+            UUID ownerPersonPublicId,
+            String ownerDisplayName,
+            CalendarSourceKind sourceKind,
+            CalendarAccessLevel accessLevel,
+            CalendarSubscriptionPolicy subscriptionPolicy,
+            boolean required,
+            boolean selected,
+            boolean favorite,
+            int displayOrder,
+            long version,
+            long subscriptionVersion,
+            CalendarCapabilities capabilities) {
+
+        public CalendarSummary(
+                UUID calendarId,
+                String calendarKey,
+                String name,
+                String color,
+                CalendarType type,
+                String visibility,
+                boolean selected) {
+            this(calendarId, calendarKey, name, color, type, visibility, null, null,
+                    CalendarSourceKind.OWNED, CalendarAccessLevel.OWNER,
+                    CalendarSubscriptionPolicy.OPTIONAL, false, selected, false, 0,
+                    0, 0, CalendarCapabilities.owner());
+        }
+    }
+
+    public record CalendarCapabilities(
+            boolean canViewDetails,
+            boolean canCreateEvents,
+            boolean canEditCalendar,
+            boolean canManageSharing,
+            boolean canDeleteCalendar,
+            boolean canUnsubscribe) {
+
+        static CalendarCapabilities owner() {
+            return new CalendarCapabilities(true, true, true, true, true, true);
+        }
+    }
+
+    public record EventCapabilities(
+            boolean canViewDetails,
+            boolean canEdit,
+            boolean canDelete,
+            boolean canRestore,
+            boolean canRespond,
+            boolean canStar) {
     }
 
     public record Attendee(
@@ -70,6 +117,171 @@ public final class CalendarDtos {
             List<Attendee> attendees,
             ResourceSummary resource,
             boolean conflict,
+            EventImportance importance,
+            EventDetailLevel detailLevel,
+            boolean redacted,
+            boolean starred,
+            long preferenceVersion,
+            EventCapabilities capabilities,
+            String restrictionReason,
+            long version) {
+
+        public EventSummary(
+                UUID eventId,
+                UUID calendarId,
+                String calendarName,
+                String calendarColor,
+                Long organizerUserId,
+                UUID organizerPersonPublicId,
+                String organizerName,
+                String organizerEmail,
+                String title,
+                String description,
+                EventType type,
+                OffsetDateTime startsAt,
+                OffsetDateTime endsAt,
+                String timeZone,
+                boolean allDay,
+                String location,
+                String conferenceUrl,
+                EventStatus status,
+                EventVisibility visibility,
+                RecurrencePattern recurrence,
+                int recurrenceInterval,
+                LocalDate recurrenceUntil,
+                boolean responseRequired,
+                ResponseStatus myResponse,
+                List<Attendee> attendees,
+                ResourceSummary resource,
+                boolean conflict,
+                long version) {
+            this(eventId, calendarId, calendarName, calendarColor, organizerUserId,
+                    organizerPersonPublicId, organizerName, organizerEmail, title, description,
+                    type, startsAt, endsAt, timeZone, allDay, location, conferenceUrl, status,
+                    visibility, recurrence, recurrenceInterval, recurrenceUntil,
+                    responseRequired, myResponse, attendees, resource, conflict,
+                    EventImportance.NORMAL, EventDetailLevel.FULL, false, false,
+                    0, new EventCapabilities(true, false, false, false,
+                            myResponse != null, true), null, version);
+        }
+    }
+
+    public record CalendarShare(
+            UUID grantId,
+            String principalType,
+            UUID principalPersonPublicId,
+            UUID principalGroupRef,
+            String principalDisplayName,
+            CalendarAccessLevel accessLevel,
+            boolean canViewPrivate,
+            OffsetDateTime validUntil,
+            String lifecycleState,
+            long version) {
+    }
+
+    public record CalendarShareRequest(
+            @NotNull UUID principalPersonPublicId,
+            @NotBlank @Size(max = 160) String principalDisplayName,
+            @NotNull CalendarAccessLevel accessLevel,
+            boolean canViewPrivate,
+            OffsetDateTime validUntil,
+            @NotNull @Min(0) Long version) {
+    }
+
+    public record CalendarSubscriptionRequest(
+            boolean selected,
+            boolean favorite,
+            @Min(0) @Max(10000) int displayOrder,
+            @Pattern(regexp = "^#[0-9A-Fa-f]{6}$") String colorOverride,
+            @NotNull @Min(0) Long version) {
+    }
+
+    public record CalendarSubscriptionResponse(
+            boolean selected,
+            boolean favorite,
+            int displayOrder,
+            String colorOverride,
+            long version) {
+    }
+
+    public record EventPreferenceRequest(
+            boolean starred,
+            boolean hidden,
+            @NotNull @Min(0) Long version) {
+    }
+
+    public record EventPreferenceResponse(
+            boolean starred,
+            boolean hidden,
+            long version) {
+    }
+
+    public record TrashEventRequest(
+            @NotNull @Min(0) Long version,
+            @Size(max = 500) String reason) {
+    }
+
+    public record TrashedEventSummary(
+            UUID eventId,
+            UUID calendarId,
+            String calendarName,
+            String calendarColor,
+            String title,
+            OffsetDateTime startsAt,
+            OffsetDateTime endsAt,
+            OffsetDateTime deletedAt,
+            OffsetDateTime purgeAfter,
+            boolean legalHold,
+            String deletionReason,
+            EventImportance importance,
+            long version,
+            EventCapabilities capabilities) {
+    }
+
+    public record CompanyCalendarRequest(
+            @NotBlank @Pattern(regexp = "[a-z0-9][a-z0-9-]{2,79}") String key,
+            @NotBlank @Size(max = 160) String nameKo,
+            @NotBlank @Size(max = 160) String nameEn,
+            @NotBlank @Pattern(regexp = "^#[0-9A-Fa-f]{6}$") String color,
+            @NotNull @Min(0) Long version) {
+    }
+
+    public record CompanyCalendarSummary(
+            UUID calendarId,
+            String key,
+            String name,
+            String nameKo,
+            String nameEn,
+            String color,
+            int upcomingEventCount,
+            int trashedEventCount,
+            long version) {
+    }
+
+    public record CompanyEventSummary(
+            UUID eventId,
+            UUID calendarId,
+            String title,
+            String description,
+            EventType type,
+            OffsetDateTime startsAt,
+            OffsetDateTime endsAt,
+            String timeZone,
+            boolean allDay,
+            String location,
+            String conferenceUrl,
+            EventStatus status,
+            EventVisibility visibility,
+            RecurrencePattern recurrence,
+            int recurrenceInterval,
+            LocalDate recurrenceUntil,
+            boolean responseRequired,
+            List<Attendee> attendees,
+            EventImportance importance,
+            OffsetDateTime deletedAt,
+            OffsetDateTime purgeAfter,
+            boolean legalHold,
+            EventCapabilities capabilities,
             long version) {
     }
 
@@ -122,6 +334,7 @@ public final class CalendarDtos {
             OffsetDateTime startsAt,
             OffsetDateTime endsAt,
             int score,
+            String reasonCode,
             String reason) {
     }
 
@@ -129,6 +342,33 @@ public final class CalendarDtos {
             List<AvailabilityParticipant> participants,
             List<AvailabilitySlot> suggestions,
             OffsetDateTime generatedAt) {
+    }
+
+    public record SchedulingEvaluationRequest(
+            @NotNull @Size(max = 19) List<@NotNull UUID> personIds,
+            @NotNull OffsetDateTime from,
+            @NotNull OffsetDateTime to,
+            @NotNull OffsetDateTime roomStartsAt,
+            @NotNull OffsetDateTime roomEndsAt,
+            @Min(5) @Max(1440) int durationMinutes,
+            @NotBlank @Size(max = 80) String timeZone) {
+    }
+
+    public record SchedulingEvaluationSource(
+            String sourceType,
+            String status,
+            OffsetDateTime lastSuccessfulSyncAt) {
+    }
+
+    public record SchedulingEvaluationResponse(
+            UUID evaluationId,
+            String criteriaHash,
+            String completeness,
+            List<SchedulingEvaluationSource> sources,
+            AvailabilityResponse availability,
+            List<ResourceSummary> rooms,
+            OffsetDateTime generatedAt,
+            OffsetDateTime validUntil) {
     }
 
     public record AttendeeInput(
@@ -156,7 +396,33 @@ public final class CalendarDtos {
             boolean responseRequired,
             @NotNull @Size(max = 100) List<@Valid AttendeeInput> attendees,
             UUID resourceId,
-            @NotNull UUID idempotencyKey) {
+            @NotNull UUID idempotencyKey,
+            UUID calendarId,
+            EventImportance importance) {
+
+        public CreateEventRequest(
+                String title,
+                String description,
+                EventType type,
+                OffsetDateTime startsAt,
+                OffsetDateTime endsAt,
+                String timeZone,
+                boolean allDay,
+                String location,
+                String conferenceUrl,
+                EventVisibility visibility,
+                RecurrencePattern recurrence,
+                int recurrenceInterval,
+                LocalDate recurrenceUntil,
+                boolean responseRequired,
+                List<AttendeeInput> attendees,
+                UUID resourceId,
+                UUID idempotencyKey) {
+            this(title, description, type, startsAt, endsAt, timeZone, allDay, location,
+                    conferenceUrl, visibility, recurrence, recurrenceInterval,
+                    recurrenceUntil, responseRequired, attendees, resourceId, idempotencyKey,
+                    null, EventImportance.NORMAL);
+        }
     }
 
     public record UpdateEventRequest(
@@ -176,7 +442,32 @@ public final class CalendarDtos {
             boolean responseRequired,
             @NotNull @Size(max = 100) List<@Valid AttendeeInput> attendees,
             UUID resourceId,
-            @NotNull @Min(0) Long version) {
+            @NotNull @Min(0) Long version,
+            EventImportance importance) {
+
+        public UpdateEventRequest(
+                String title,
+                String description,
+                EventType type,
+                OffsetDateTime startsAt,
+                OffsetDateTime endsAt,
+                String timeZone,
+                boolean allDay,
+                String location,
+                String conferenceUrl,
+                EventVisibility visibility,
+                RecurrencePattern recurrence,
+                int recurrenceInterval,
+                LocalDate recurrenceUntil,
+                boolean responseRequired,
+                List<AttendeeInput> attendees,
+                UUID resourceId,
+                Long version) {
+            this(title, description, type, startsAt, endsAt, timeZone, allDay, location,
+                    conferenceUrl, visibility, recurrence, recurrenceInterval,
+                    recurrenceUntil, responseRequired, attendees, resourceId, version,
+                    EventImportance.NORMAL);
+        }
     }
 
     public record RespondRequest(@NotNull ResponseStatus response) {

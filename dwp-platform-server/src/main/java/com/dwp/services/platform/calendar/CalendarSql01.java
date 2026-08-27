@@ -27,20 +27,7 @@ final class CalendarSql01 {
          WHERE tenant_id = ? AND version = ?
         """;
 
-    static final String CALENDARS_SELECT_CAL_CALENDARS = """
-        SELECT calendar_id, calendar_key,
-               CASE WHEN ? THEN name_ko ELSE name_en END AS name,
-               color_hex, calendar_type, visibility, owner_user_id
-          FROM cal_calendars
-         WHERE tenant_id = ? AND lifecycle_state = 'ACTIVE'
-           AND (
-               owner_person_public_id = ?
-               OR (owner_person_public_id IS NULL AND owner_user_id = ?)
-               OR calendar_type IN ('TEAM', 'SYSTEM')
-           )
-         ORDER BY CASE calendar_type WHEN 'PERSONAL' THEN 0 WHEN 'TEAM' THEN 1 ELSE 2 END,
-                  calendar_key
-        """;
+    static final String CALENDARS_SELECT_CAL_CALENDARS = CalendarAccessSql.CALENDARS;
 
     static final String ENSURE_PERSONAL_CALENDAR_INSERT_CAL_CALENDARS = """
         INSERT INTO cal_calendars (
@@ -73,68 +60,7 @@ final class CalendarSql01 {
         RETURNING calendar_id
         """;
 
-    static final String VISIBLE_EVENTS_SELECT_CAL_EVENTS = """
-        SELECT event.event_id, event.calendar_id,
-               CASE WHEN ? THEN calendar.name_ko ELSE calendar.name_en END AS calendar_name,
-               calendar.color_hex, event.organizer_user_id,
-               event.organizer_person_public_id, event.organizer_name,
-               event.organizer_email, event.title, event.description,
-               event.event_type, event.starts_at, event.ends_at, event.time_zone,
-               event.all_day, event.location, event.conference_url, event.status,
-               event.visibility, event.recurrence_pattern, event.recurrence_interval,
-               event.recurrence_until, event.response_required,
-               mine.response_status AS my_response, event.version,
-               resource.resource_id, resource.resource_code,
-               CASE WHEN ? THEN resource.name_ko ELSE resource.name_en END AS resource_name,
-               resource.name_ko AS resource_name_ko,
-               resource.name_en AS resource_name_en,
-               resource.resource_type, resource.site_name, resource.floor_name,
-               resource.capacity, resource.features::text, resource.time_zone,
-               resource.approval_required,
-               resource.lifecycle_state AS resource_state
-          FROM cal_events event
-          JOIN cal_calendars calendar ON calendar.calendar_id = event.calendar_id
-          LEFT JOIN LATERAL (
-              SELECT attendee.event_id, attendee.response_status
-                FROM cal_event_attendees attendee
-               WHERE attendee.event_id = event.event_id
-                 AND attendee.tenant_id = event.tenant_id
-                 AND (
-                     attendee.attendee_person_public_id = ?
-                     OR (attendee.attendee_person_public_id IS NULL
-                         AND attendee.attendee_user_id = ?)
-                 )
-               ORDER BY
-                   CASE WHEN attendee.attendee_person_public_id = ? THEN 0 ELSE 1 END,
-                   attendee.updated_at DESC
-               LIMIT 1
-          ) mine ON TRUE
-          LEFT JOIN LATERAL (
-              SELECT booking.resource_id
-                FROM cal_resource_bookings booking
-               WHERE booking.event_id = event.event_id
-                 AND booking.booking_status IN ('PENDING', 'CONFIRMED')
-               ORDER BY booking.created_at LIMIT 1
-          ) booking ON TRUE
-          LEFT JOIN cal_resources resource ON resource.resource_id = booking.resource_id
-         WHERE event.tenant_id = ? AND event.status <> 'CANCELLED'
-           AND (
-               (event.starts_at < ? AND event.ends_at > ?)
-               OR (event.recurrence_pattern <> 'NONE'
-                   AND event.starts_at < ?
-                   AND (event.recurrence_until IS NULL OR event.recurrence_until >= CAST(? AS date)))
-           )
-           AND (
-               event.organizer_person_public_id = ?
-               OR (event.organizer_person_public_id IS NULL
-                   AND event.organizer_user_id = ?)
-               OR mine.event_id IS NOT NULL
-               OR (calendar.calendar_type IN ('TEAM', 'SYSTEM')
-                   AND calendar.visibility = 'DETAILS'
-                   AND event.visibility IN ('DEFAULT', 'PUBLIC'))
-           )
-         ORDER BY event.starts_at, event.event_id
-        """;
+    static final String VISIBLE_EVENTS_SELECT_CAL_EVENTS = CalendarAccessSql.VISIBLE_EVENTS;
 
     static final String EVENT_IDEMPOTENCY_SELECT_CAL_EVENTS = """
         SELECT event_id, request_fingerprint
@@ -156,9 +82,9 @@ final class CalendarSql01 {
             organizer_person_public_id, organizer_name, title, description, event_type,
             starts_at, ends_at, time_zone, all_day, location,
             conference_url, visibility, recurrence_pattern,
-            recurrence_interval, recurrence_until, response_required,
+            recurrence_interval, recurrence_until, response_required, importance,
             source_type, idempotency_key, request_fingerprint, created_by, updated_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                 'NATIVE', ?, ?, ?, ?)
         """;
 
@@ -208,6 +134,7 @@ final class CalendarSql01 {
                  AND attendee.attendee_person_public_id = ANY (?::uuid[])
           ) subject ON TRUE
          WHERE event.tenant_id = ? AND event.status <> 'CANCELLED'
+           AND event.deleted_at IS NULL
            AND event.starts_at < ?
         ), occurrences AS (
             SELECT event.person_public_id,
@@ -236,6 +163,13 @@ final class CalendarSql01 {
          ORDER BY person_public_id, starts_at
         """;
 
+    static final String KNOWN_PEOPLE_SELECT_CAL_IDENTITY_LINKS = """
+        SELECT person_public_id
+          FROM cal_identity_links
+         WHERE tenant_id = ?
+           AND person_public_id = ANY (?::uuid[])
+        """;
+
     static final String LINK_IDENTITY_DELETE_CAL_IDENTITY_LINKS = """
         DELETE FROM cal_identity_links
          WHERE tenant_id = ? AND person_public_id = ? AND user_id <> ?
@@ -256,12 +190,28 @@ final class CalendarSql01 {
            SET title = ?, description = ?, event_type = ?, starts_at = ?, ends_at = ?,
                time_zone = ?, all_day = ?, location = ?, conference_url = ?,
                visibility = ?, recurrence_pattern = ?, recurrence_interval = ?,
-               recurrence_until = ?, response_required = ?, version = version + 1,
+               recurrence_until = ?, response_required = ?, importance = ?,
+               version = version + 1,
                updated_at = CURRENT_TIMESTAMP, updated_by = ?
          WHERE tenant_id = ? AND event_id = ?
            AND (
                organizer_person_public_id = ?
                OR (organizer_person_public_id IS NULL AND organizer_user_id = ?)
+               OR EXISTS (
+                   SELECT 1
+                     FROM cal_calendar_access_grants grant_row
+                    WHERE grant_row.tenant_id = cal_events.tenant_id
+                      AND grant_row.calendar_id = cal_events.calendar_id
+                      AND grant_row.lifecycle_state = 'ACTIVE'
+                      AND (grant_row.valid_until IS NULL
+                           OR grant_row.valid_until > CURRENT_TIMESTAMP)
+                      AND grant_row.access_level IN ('EDIT', 'MANAGE')
+                      AND (
+                          grant_row.principal_type = 'TENANT'
+                          OR (grant_row.principal_type = 'PERSON'
+                              AND grant_row.principal_person_public_id = ?)
+                          OR (grant_row.principal_type = 'GROUP'
+                              AND grant_row.principal_group_ref = ANY (?::uuid[]))))
            )
            AND status <> 'CANCELLED' AND version = ?
         """;
@@ -273,6 +223,21 @@ final class CalendarSql01 {
            AND (
                organizer_person_public_id = ?
                OR (organizer_person_public_id IS NULL AND organizer_user_id = ?)
+               OR EXISTS (
+                   SELECT 1
+                     FROM cal_calendar_access_grants grant_row
+                    WHERE grant_row.tenant_id = cal_events.tenant_id
+                      AND grant_row.calendar_id = cal_events.calendar_id
+                      AND grant_row.lifecycle_state = 'ACTIVE'
+                      AND (grant_row.valid_until IS NULL
+                           OR grant_row.valid_until > CURRENT_TIMESTAMP)
+                      AND grant_row.access_level = 'MANAGE'
+                      AND (
+                          grant_row.principal_type = 'TENANT'
+                          OR (grant_row.principal_type = 'PERSON'
+                              AND grant_row.principal_person_public_id = ?)
+                          OR (grant_row.principal_type = 'GROUP'
+                              AND grant_row.principal_group_ref = ANY (?::uuid[]))))
            )
            AND status <> 'CANCELLED' AND version = ?
         """;

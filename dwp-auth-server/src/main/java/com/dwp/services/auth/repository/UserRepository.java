@@ -19,6 +19,17 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
 
     Optional<User> findByUserIdAndTenantId(Long userId, Long tenantId);
 
+    @Query("""
+            select user
+            from User user
+            where user.userId = :userId
+              and user.tenantId = :tenantId
+              and user.identityPlane = 'TENANT'
+            """)
+    Optional<User> findTenantIdentityByUserIdAndTenantId(
+            @Param("userId") Long userId,
+            @Param("tenantId") Long tenantId);
+
     Optional<User> findByPublicIdAndTenantId(UUID publicId, Long tenantId);
 
     Optional<User> findByTenantIdAndSourceTypeAndExternalId(
@@ -55,17 +66,29 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
             select user
             from User user
             where user.tenantId = :tenantId
-              and user.status = 'ACTIVE'
+              and user.identityPlane = 'TENANT'
+              and (
+                    (:activeOnly = true and user.status = 'ACTIVE')
+                    or (:activeOnly = false and user.status in ('ACTIVE', 'INACTIVE'))
+                  )
               and (
                     :query = ''
                     or lower(user.displayName) like lower(concat('%', :query, '%'))
                     or lower(coalesce(user.email, '')) like lower(concat('%', :query, '%'))
                   )
-            order by user.displayName, user.userId
+            order by
+              case
+                when user.status = 'INACTIVE' then 0
+                when user.status = 'ACTIVE' then 1
+                else 2
+              end,
+              user.displayName,
+              user.userId
             """)
-    List<User> searchActiveDirectoryUsers(
+    List<User> searchTenantDirectoryUsers(
             @Param("tenantId") Long tenantId,
             @Param("query") String query,
+            @Param("activeOnly") boolean activeOnly,
             Pageable pageable);
 
     @Query("""

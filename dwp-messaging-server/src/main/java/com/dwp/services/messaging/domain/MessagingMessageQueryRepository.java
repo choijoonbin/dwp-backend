@@ -293,6 +293,11 @@ class MessagingMessageQueryRepository {
                         .filter(message -> message.deletedAt() == null)
                         .map(MessagingDtos.MessageSummary::messageId)
                         .toList());
+        Map<UUID, List<MessagingDtos.MentionSummary>> mentionMap = mentions(
+                tenantId, messages.stream()
+                        .filter(message -> message.deletedAt() == null)
+                        .map(MessagingDtos.MessageSummary::messageId)
+                        .toList());
         return messages.stream()
                 .map(message -> new MessagingDtos.MessageSummary(
                         message.messageId(), message.conversationId(), message.sequence(),
@@ -302,8 +307,35 @@ class MessagingMessageQueryRepository {
                         message.editedAt(), message.deletedAt(), message.createdAt(), message.version(),
                         reactions.getOrDefault(message.messageId(), List.of()),
                         message.replyCount(), message.rootPreview(),
-                        attachmentMap.getOrDefault(message.messageId(), List.of())))
+                        attachmentMap.getOrDefault(message.messageId(), List.of()),
+                        mentionMap.getOrDefault(message.messageId(), List.of())))
                 .toList();
+    }
+
+    private Map<UUID, List<MessagingDtos.MentionSummary>> mentions(
+            long tenantId, List<UUID> messageIds) {
+        if (messageIds.isEmpty()) return Map.of();
+        String placeholders = String.join(",", messageIds.stream().map(ignored -> "?").toList());
+        List<Object> arguments = new ArrayList<>();
+        arguments.add(tenantId);
+        arguments.addAll(messageIds);
+        return jdbc.query("""
+                SELECT message_id, mentioned_user_id, display_name_snapshot, mention_kind
+                  FROM msg_message_mentions
+                 WHERE tenant_id = ? AND message_id IN (""" + placeholders + """
+                 ) ORDER BY message_id, created_at, mentioned_user_id
+                """, result -> {
+            Map<UUID, List<MessagingDtos.MentionSummary>> grouped = new LinkedHashMap<>();
+            while (result.next()) {
+                grouped.computeIfAbsent(
+                                result.getObject("message_id", UUID.class), ignored -> new ArrayList<>())
+                        .add(new MessagingDtos.MentionSummary(
+                                result.getLong("mentioned_user_id"),
+                                result.getString("display_name_snapshot"),
+                                result.getString("mention_kind")));
+            }
+            return grouped;
+        }, arguments.toArray());
     }
 
     private Map<UUID, List<MessagingDtos.ReactionSummary>> reactions(

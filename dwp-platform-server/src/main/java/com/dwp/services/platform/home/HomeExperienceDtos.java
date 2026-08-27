@@ -24,6 +24,11 @@ public final class HomeExperienceDtos {
             Map<String, LocalizedCopy> localizedContent,
             @Pattern(regexp = "^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$") String defaultLocale,
             @NotNull @Pattern(regexp = "LEFT|CENTER|RIGHT") String backgroundPosition,
+            @Min(0) @Max(100) Integer backgroundFocalX,
+            @Min(0) @Max(100) Integer backgroundFocalY,
+            @Min(0) @Max(100) Integer mobileBackgroundFocalX,
+            @Min(0) @Max(100) Integer mobileBackgroundFocalY,
+            @Pattern(regexp = "LEFT|CENTER|RIGHT") String contentAlignment,
             @NotNull @Min(0) @Max(70) Integer overlayOpacity,
             @NotNull @Min(0) Long version) {
 
@@ -33,7 +38,22 @@ public final class HomeExperienceDtos {
                 String backgroundPosition,
                 Integer overlayOpacity,
                 Long version) {
-            this(headline, subheadline, null, null, backgroundPosition, overlayOpacity, version);
+            this(
+                    headline, subheadline, null, null, backgroundPosition,
+                    null, null, null, null, null, overlayOpacity, version);
+        }
+
+        public UpdateHomeExperienceRequest(
+                String headline,
+                String subheadline,
+                Map<String, LocalizedCopy> localizedContent,
+                String defaultLocale,
+                String backgroundPosition,
+                Integer overlayOpacity,
+                Long version) {
+            this(
+                    headline, subheadline, localizedContent, defaultLocale, backgroundPosition,
+                    null, null, null, null, null, overlayOpacity, version);
         }
     }
 
@@ -104,7 +124,9 @@ public final class HomeExperienceDtos {
     }
 
     @Schema(requiredProperties = {
-            "backgroundPosition", "overlayOpacity", "launchpadConfiguration",
+            "backgroundPosition", "backgroundFocalX", "backgroundFocalY",
+            "mobileBackgroundFocalX", "mobileBackgroundFocalY", "contentAlignment",
+            "overlayOpacity", "launchpadConfiguration",
             "compositionPolicy", "effectiveExperienceVariant",
             "advancedPersonalizationEnabled", "composerEnabled",
             "homePreferenceStore", "version"
@@ -115,6 +137,11 @@ public final class HomeExperienceDtos {
             Map<String, LocalizedCopy> localizedContent,
             String defaultLocale,
             String backgroundPosition,
+            Integer backgroundFocalX,
+            Integer backgroundFocalY,
+            Integer mobileBackgroundFocalX,
+            Integer mobileBackgroundFocalY,
+            @Schema(allowableValues = {"LEFT", "CENTER", "RIGHT"}) String contentAlignment,
             Integer overlayOpacity,
             String backgroundUrl,
             String backgroundOriginalName,
@@ -132,6 +159,38 @@ public final class HomeExperienceDtos {
             Long version,
             OffsetDateTime updatedAt,
             Long updatedBy) {
+
+        public HomeExperienceResponse(
+                String headline,
+                String subheadline,
+                Map<String, LocalizedCopy> localizedContent,
+                String defaultLocale,
+                String backgroundPosition,
+                Integer overlayOpacity,
+                String backgroundUrl,
+                String backgroundOriginalName,
+                String backgroundContentType,
+                Long backgroundSizeBytes,
+                Integer backgroundWidth,
+                Integer backgroundHeight,
+                HomeLaunchpadConfiguration launchpadConfiguration,
+                HomeCompositionPolicy compositionPolicy,
+                String effectiveExperienceVariant,
+                Boolean advancedPersonalizationEnabled,
+                Boolean composerEnabled,
+                String homePreferenceStore,
+                Long version,
+                OffsetDateTime updatedAt,
+                Long updatedBy) {
+            this(
+                    headline, subheadline, localizedContent, defaultLocale, backgroundPosition,
+                    50, 50, 50, 50, "LEFT", overlayOpacity, backgroundUrl,
+                    backgroundOriginalName, backgroundContentType, backgroundSizeBytes,
+                    backgroundWidth, backgroundHeight, launchpadConfiguration,
+                    compositionPolicy, effectiveExperienceVariant,
+                    advancedPersonalizationEnabled, composerEnabled, homePreferenceStore,
+                    version, updatedAt, updatedBy);
+        }
     }
 
     public record HomeExperienceRevisionResponse(
@@ -143,6 +202,12 @@ public final class HomeExperienceDtos {
             Integer backgroundWidth,
             Integer backgroundHeight,
             int localeCount,
+            @Schema(
+                    description = "Aggregate scopes that a rollback to this revision replaces.",
+                    allowableValues = {
+                            "PRESENTATION", "BACKGROUND_ASSET", "LAUNCHPAD", "COMPOSITION"
+                    })
+            List<String> affectedScopes,
             boolean current,
             OffsetDateTime createdAt,
             Long createdBy) {
@@ -155,6 +220,11 @@ public final class HomeExperienceDtos {
         value.put("localizedContent", experience.getLocalizedContent());
         value.put("defaultLocale", experience.getDefaultLocale());
         value.put("backgroundPosition", experience.getBackgroundPosition());
+        value.put("backgroundFocalX", experience.getBackgroundFocalX());
+        value.put("backgroundFocalY", experience.getBackgroundFocalY());
+        value.put("mobileBackgroundFocalX", experience.getMobileBackgroundFocalX());
+        value.put("mobileBackgroundFocalY", experience.getMobileBackgroundFocalY());
+        value.put("contentAlignment", experience.getContentAlignment());
         value.put("overlayOpacity", experience.getOverlayOpacity());
         value.put("launchpadConfiguration", experience.getLaunchpadConfiguration());
         value.put("compositionPolicy", experience.getCompositionPolicy());

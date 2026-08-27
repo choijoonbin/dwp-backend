@@ -3,6 +3,7 @@ package com.dwp.services.platform.security;
 import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.filter.ApiHistoryServletFilter;
+import com.dwp.core.security.RolePlaneBoundary;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -48,14 +49,8 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
     static final String ROLLOUT_REVISION_HEADER = "X-DWP-Rollout-Revision";
     static final String ROLLOUT_STATE_HEADER = "X-DWP-Rollout-State";
     private static final Set<String> ADMIN_ROLES = Set.of("ADMIN", "TENANT_ADMIN", "PLATFORM_ADMIN");
-    private static final List<String> SUPPORT_CONFIGURATION_PATHS = List.of(
-            "/v1/admin/tenant-branding",
-            "/v1/admin/home-experience",
-            "/v1/admin/announcements");
-    private static final List<String> SUPPORT_CONFIGURATION_ASSET_PATHS = List.of(
-            "/v1/tenant-branding",
-            "/v1/home-experience",
-            "/v1/announcements");
+    private static final String SUPPORT_EXPERIENCE_PREVIEW_PATH =
+            "/v1/admin/tenant-experience-preview";
 
     private final String serviceToken;
     private final String runtimeServiceToken;
@@ -147,6 +142,12 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
         Long tenantId = positiveLong(request.getHeader(TENANT_HEADER));
         if (actorId == null || tenantId == null) {
             writeError(response, ErrorCode.UNAUTHORIZED, "Verified user and tenant identity are required.");
+            return;
+        }
+        if (RolePlaneBoundary.hasConflict(
+                parseValues(request.getHeader(ROLES_HEADER)))) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "Provider control-plane roles cannot coexist with tenant or workspace roles.");
             return;
         }
         String path = request.getRequestURI();
@@ -437,7 +438,9 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         String requiredPermission = switch (request.getMethod()) {
             case "GET", "HEAD" -> "VIEW";
-            case "POST" -> path.endsWith("/decision") ? "MANAGE" : "CREATE";
+            case "POST" -> path.endsWith("/decision")
+                    || path.endsWith("/trash")
+                    || path.endsWith("/restore") ? "MANAGE" : "CREATE";
             case "PUT" -> path.endsWith("/policy") ? "MANAGE" : "UPDATE";
             default -> "MANAGE";
         };
@@ -487,7 +490,9 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         String requiredPermission = switch (request.getMethod()) {
             case "GET", "HEAD" -> "VIEW";
-            case "POST" -> path.endsWith("/decision") ? "MANAGE" : "CREATE";
+            case "POST" -> path.endsWith("/decision")
+                    || path.endsWith("/trash")
+                    || path.endsWith("/restore") ? "MANAGE" : "CREATE";
             case "PUT" -> path.endsWith("/policy") ? "MANAGE" : "UPDATE";
             default -> "MANAGE";
         };
@@ -551,15 +556,11 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
         if (positiveLong(request.getHeader(ACTOR_TENANT_HEADER)) == null) return false;
         Set<String> scopes = parseValues(request.getHeader(SUPPORT_SCOPES_HEADER));
         String path = request.getRequestURI();
-        boolean read = "GET".equals(request.getMethod()) || "HEAD".equals(request.getMethod());
-        if (matches(path, SUPPORT_CONFIGURATION_PATHS)) {
-            return read
-                    ? scopes.contains("TENANT_CONFIGURATION_READ")
-                    : scopes.contains("TENANT_CONFIGURATION_WRITE");
+        if (path.equals(SUPPORT_EXPERIENCE_PREVIEW_PATH)) {
+            return "GET".equals(request.getMethod())
+                    && scopes.contains("TENANT_EXPERIENCE_PREVIEW");
         }
-        return read
-                && matches(path, SUPPORT_CONFIGURATION_ASSET_PATHS)
-                && scopes.contains("TENANT_CONFIGURATION_READ");
+        return false;
     }
 
     private Set<String> parseValues(String header) {

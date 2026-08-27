@@ -8,7 +8,9 @@ import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
@@ -25,10 +27,16 @@ class AuditOutboxRelayTest {
         UUID rejectedId = UUID.randomUUID();
         UUID lastId = UUID.randomUUID();
         List<AuditOutboxRepository.ClaimedEvent> claimed = List.of(
-                new AuditOutboxRepository.ClaimedEvent(firstId, event("valid.first"), 1),
-                new AuditOutboxRepository.ClaimedEvent(rejectedId, event("invalid.event"), 1),
-                new AuditOutboxRepository.ClaimedEvent(lastId, event("valid.last"), 1));
+                new AuditOutboxRepository.ClaimedEvent(
+                        firstId, event("valid.first"), 1, "lease:first"),
+                new AuditOutboxRepository.ClaimedEvent(
+                        rejectedId, event("invalid.event"), 1, "lease:rejected"),
+                new AuditOutboxRepository.ClaimedEvent(
+                        lastId, event("valid.last"), 1, "lease:last"));
         when(repository.claim(anyString(), eq(3), anyInt())).thenReturn(claimed);
+        when(repository.markPublished(anyList())).thenAnswer(invocation ->
+                invocation.<List<?>>getArgument(0).size());
+        when(repository.markFailed(any(), anyInt(), anyInt(), anyString())).thenReturn(true);
 
         AuditEventPublisher publisher = events -> events.stream()
                 .anyMatch(event -> event.action().startsWith("invalid"))
@@ -40,9 +48,9 @@ class AuditOutboxRelayTest {
 
         relay.relayOnce();
 
-        verify(repository).markPublished(List.of(firstId));
-        verify(repository).markPublished(List.of(lastId));
-        verify(repository).markFailed(eq(rejectedId), eq(20), eq(20), contains("rejected"));
+        verify(repository).markPublished(List.of(claimed.get(0)));
+        verify(repository).markPublished(List.of(claimed.get(2)));
+        verify(repository).markFailed(eq(claimed.get(1)), eq(20), eq(20), contains("rejected"));
     }
 
     private static AuditEvent event(String action) {

@@ -105,8 +105,10 @@ Backend 서비스의 환경에서는 제거합니다. 같은 변수가 셸에 �
 ./dev down
 ```
 
-개발용 초기 계정은 `admin@dwp.local` / `admin1234!`이며 배포 환경에서는 반드시
-별도 사용자와 비밀값을 구성해야 합니다.
+로컬 개발 씨드는 공통 비밀번호 `admin1234!`를 사용합니다. 프로바이더 제어 영역은
+`provider.admin@dwp.local`, SKAX 테넌트 관리는 `hyunwoo.park@sk.com`으로 확인합니다.
+두 계정의 역할은 분리되어 있으며 배포 환경에서는 반드시 별도 사용자와 비밀값을
+구성해야 합니다.
 
 ## Database Reset
 

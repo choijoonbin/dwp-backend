@@ -11,14 +11,14 @@ class ProductSurfaceRolloutFlagCatalogTest {
 
     private static final Set<String> PRODUCTS = Set.of(
             "approvals", "calendar", "communications", "dwaion", "hcm", "mail",
-            "messaging", "notifications", "services", "spaces", "workplace");
+            "meetings", "messaging", "notifications", "services", "spaces", "workplace");
 
     @Test
-    void exactInventoryProducesTheTwentyFourActivationControls() {
+    void exactInventoryProducesTheTwentySixActivationControls() {
         assertThat(ProductSurfaceRolloutFlagCatalog.productSet())
                 .containsExactlyInAnyOrderElementsOf(PRODUCTS);
-        assertThat(ProductSurfaceRolloutFlagCatalog.products()).hasSize(11);
-        assertThat(ProductSurfaceRolloutFlagCatalog.flags()).hasSize(24)
+        assertThat(ProductSurfaceRolloutFlagCatalog.products()).hasSize(12);
+        assertThat(ProductSurfaceRolloutFlagCatalog.flags()).hasSize(26)
                 .contains(
                         ProductSurfaceRolloutFlagCatalog.CONTEXT_SHADOW_FLAG,
                         ProductSurfaceRolloutFlagCatalog.LEGACY_GLOBAL_ENFORCEMENT_FLAG);

@@ -13,11 +13,14 @@ import java.security.interfaces.RSAPublicKey;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.RSAPublicKeySpec;
 import java.security.spec.X509EncodedKeySpec;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 @AutoConfiguration
@@ -107,6 +110,8 @@ public class ProductionReadinessAutoConfiguration {
                     requireSecret(environment, failures, "dwp.provider.provisioning-token");
                     requireSecret(environment, failures, "dwp.provider.support-validation-token");
                     requireTrue(environment, failures, "dwp.provider.support-cookie-secure");
+                    requireFalse(environment, failures,
+                            "dwp.provider.local-approval-fixtures-enabled");
                     requireTrue(environment, failures,
                             "dwp.provider.product-surface-rollout.relay-enabled");
                     requireTrue(environment, failures,
@@ -133,6 +138,68 @@ public class ProductionReadinessAutoConfiguration {
                             "dwp.approval.step-up.maximum-authentication-age-seconds", 60, 3600);
                     requireLongRange(environment, failures,
                             "dwp.approval.step-up.maximum-challenge-ttl-seconds", 1, 900);
+                }
+                case "dwp-messaging-server" ->
+                    requireSecret(environment, failures, "dwp.messaging.service-token");
+                case "dwp-space-server" -> {
+                    requireProductionSecret(
+                            environment, failures, "dwp.space.service-token");
+                    requireProductionSecret(
+                            environment, failures, "dwp.space.identity-sync-token");
+                    requireTrue(
+                            environment, failures, "dwp.space.entitlement-sync-enabled");
+                    requireProductionEndpoint(
+                            environment, failures, "dwp.services.auth-url", "https");
+                }
+                case "dwp-notification-server" -> {
+                    requireProductionSecret(
+                            environment, failures, "dwp.notification.service-token");
+                    requireProductionSecret(
+                            environment, failures, "dwp.notification.cursor-secret");
+                    requireExact(
+                            environment, failures,
+                            "dwp.notification.gateway-source", "dwp-gateway");
+                    requireBoundServiceSecrets(
+                            environment,
+                            failures,
+                            "dwp.notification.allowed-producers",
+                            "dwp.notification.producer-tokens",
+                            "dwp.notification.service-token");
+                    requireTrue(
+                            environment, failures,
+                            "dwp.notification.realtime.redis-enabled");
+                    requireProductionHost(environment, failures, "spring.data.redis.host");
+                    requireProductionSecret(
+                            environment, failures, "spring.data.redis.password");
+                    requireTrue(environment, failures, "spring.data.redis.ssl.enabled");
+                    requireTrue(environment, failures, "dwp.notification.outbox.enabled");
+                    requireFalse(
+                            environment, failures,
+                            "dwp.notification.outbox.provision-topic");
+                    requireTrue(
+                            environment, failures,
+                            "dwp.notification.domain-events.enabled");
+                    requireTrue(environment, failures, "dwp.notification.retention.enabled");
+                    requireTrue(
+                            environment, failures,
+                            "dwp.notification.reconciliation.enabled");
+                    requireProductionKafka(environment, failures);
+                }
+                case "dwp-meeting-server" -> {
+                    requireSecret(environment, failures, "dwp.meeting.service-token");
+                    requireExact(environment, failures, "dwp.meeting.provider", "livekit");
+                    requireProductionEndpoint(
+                            environment, failures, "dwp.meeting.livekit.client-url", "wss");
+                    requireProductionEndpoint(
+                            environment, failures, "dwp.meeting.livekit.api-url", "https");
+                    requireCredential(environment, failures, "dwp.meeting.livekit.api-key", 8);
+                    requireSecret(environment, failures, "dwp.meeting.livekit.api-secret");
+                    requireDurationRange(
+                            environment, failures, "dwp.meeting.token-ttl", 60, 600);
+                    requireLongRange(
+                            environment, failures, "dwp.meeting.join-code-length", 10, 16);
+                    requireExact(
+                            environment, failures, "dwp.meeting.recording-policy", "NEVER");
                 }
                 default -> failures.add("unsupported production service identity: " + service);
             }
@@ -171,6 +238,13 @@ public class ProductionReadinessAutoConfiguration {
             List<String> failures,
             String property) {
         String raw = environment.getProperty(property, "");
+        if (!productionSecret(raw)) {
+            failures.add(property
+                    + " must be a strong non-placeholder dedicated secret (32..512 characters)");
+        }
+    }
+
+    private boolean productionSecret(String raw) {
         String value = raw.strip();
         String normalized = value.toLowerCase(Locale.ROOT);
         boolean placeholder = normalized.contains("placeholder")
@@ -186,12 +260,9 @@ public class ProductionReadinessAutoConfiguration {
                 || normalized.equals("recovery-secret");
         boolean invalidCharacter = raw.chars().anyMatch(Character::isWhitespace)
                 || raw.chars().anyMatch(Character::isISOControl);
-        if (value.length() < 32 || value.length() > 512
-                || value.chars().distinct().count() < 8
-                || invalidCharacter || placeholder || !value.equals(raw)) {
-            failures.add(property
-                    + " must be a strong non-placeholder dedicated secret (32..512 characters)");
-        }
+        return value.length() >= 32 && value.length() <= 512
+                && value.chars().distinct().count() >= 8
+                && !invalidCharacter && !placeholder && value.equals(raw);
     }
 
     private void requireTrue(Environment environment, List<String> failures, String property) {
@@ -246,6 +317,63 @@ public class ProductionReadinessAutoConfiguration {
         String brokers = environment.getProperty("spring.kafka.bootstrap-servers", "").trim();
         if (brokers.isBlank() || brokers.equals("localhost:9092")) {
             failures.add("spring.kafka.bootstrap-servers must use an explicit production broker");
+        }
+    }
+
+    private void requireProductionHost(
+            Environment environment,
+            List<String> failures,
+            String property) {
+        String host = environment.getProperty(property, "").trim().toLowerCase(Locale.ROOT);
+        if (!host.matches("[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?")
+                || host.contains("..") || host.equals("localhost")
+                || host.matches("\\d{1,3}(?:\\.\\d{1,3}){3}")
+                || host.endsWith(".local") || host.endsWith(".test")) {
+            failures.add(property + " must be an explicit production DNS host");
+        }
+    }
+
+    private void requireBoundServiceSecrets(
+            Environment environment,
+            List<String> failures,
+            String allowedProperty,
+            String bindingsProperty,
+            String peerSecretProperty) {
+        Set<String> allowed = new HashSet<>();
+        String allowedValue = environment.getProperty(allowedProperty, "").trim();
+        for (String entry : allowedValue.split(",", -1)) {
+            String service = entry.trim();
+            if (!service.matches("dwp-[a-z0-9-]+-server") || !allowed.add(service)) {
+                failures.add(allowedProperty
+                        + " must contain unique DWP service identities");
+                return;
+            }
+        }
+
+        Map<String, String> bindings = new HashMap<>();
+        String bindingsValue = environment.getProperty(bindingsProperty, "").trim();
+        for (String entry : bindingsValue.split(",", -1)) {
+            String[] parts = entry.trim().split("=", 2);
+            if (parts.length != 2 || parts[0].isBlank() || parts[1].isBlank()
+                    || bindings.put(parts[0].trim(), parts[1].trim()) != null) {
+                failures.add(bindingsProperty
+                        + " must use unique service=secret entries");
+                return;
+            }
+        }
+        if (!bindings.keySet().equals(allowed)) {
+            failures.add(bindingsProperty
+                    + " must bind every allowlisted producer exactly once");
+            return;
+        }
+
+        String peerSecret = environment.getProperty(peerSecretProperty, "");
+        Set<String> distinctSecrets = new HashSet<>();
+        if (bindings.values().stream().anyMatch(secret -> !productionSecret(secret))
+                || bindings.values().stream().anyMatch(peerSecret::equals)
+                || !bindings.values().stream().allMatch(distinctSecrets::add)) {
+            failures.add(bindingsProperty
+                    + " must use distinct strong production secrets per producer");
         }
     }
 
@@ -409,6 +537,58 @@ public class ProductionReadinessAutoConfiguration {
             if (number < minimum || number > maximum) throw new NumberFormatException();
         } catch (NumberFormatException exception) {
             failures.add(property + " must be between " + minimum + " and " + maximum);
+        }
+    }
+
+    private void requireDurationRange(
+            Environment environment,
+            List<String> failures,
+            String property,
+            long minimumSeconds,
+            long maximumSeconds) {
+        String value = environment.getProperty(property, "").trim();
+        try {
+            long seconds = Duration.parse(value).toSeconds();
+            if (seconds < minimumSeconds || seconds > maximumSeconds) {
+                throw new IllegalArgumentException();
+            }
+        } catch (RuntimeException exception) {
+            failures.add(property + " must be an ISO-8601 duration between "
+                    + minimumSeconds + " and " + maximumSeconds + " seconds");
+        }
+    }
+
+    private void requireCredential(
+            Environment environment,
+            List<String> failures,
+            String property,
+            int minimumLength) {
+        String value = environment.getProperty(property, "").trim();
+        if (value.length() < minimumLength || fixtureLike(value)) {
+            failures.add(property + " must be a non-placeholder production credential");
+        }
+    }
+
+    private void requireProductionEndpoint(
+            Environment environment,
+            List<String> failures,
+            String property,
+            String requiredScheme) {
+        String value = environment.getProperty(property, "").trim();
+        try {
+            URI uri = URI.create(value);
+            String host = uri.getHost();
+            boolean localHost = host == null || host.equalsIgnoreCase("localhost")
+                    || host.equals("127.0.0.1") || host.equals("::1")
+                    || host.endsWith(".local");
+            if (!requiredScheme.equalsIgnoreCase(uri.getScheme()) || localHost
+                    || uri.getUserInfo() != null || uri.getRawFragment() != null
+                    || fixtureLike(value)) {
+                throw new IllegalArgumentException();
+            }
+        } catch (IllegalArgumentException exception) {
+            failures.add(property + " must be a non-local "
+                    + requiredScheme.toUpperCase(Locale.ROOT) + " endpoint");
         }
     }
 

@@ -12,6 +12,7 @@ import com.dwp.services.auth.entity.UserAccount;
 import com.dwp.services.auth.entity.Permission;
 import com.dwp.services.auth.entity.Resource;
 import com.dwp.services.auth.entity.RolePermission;
+import com.dwp.services.auth.entity.Role;
 import com.dwp.services.auth.repository.PermissionRepository;
 import com.dwp.services.auth.repository.PrincipalResourceGrantRepository;
 import com.dwp.services.auth.repository.DirectoryGroupMemberRepository;
@@ -86,6 +87,14 @@ class AuthServiceTest {
                 .ssoLoginEnabled(true)
                 .build());
         when(roleMembers.findRoleIds(1L, 10L)).thenReturn(List.of());
+        when(users.findByUserIdAndTenantId(10L, 1L)).thenReturn(Optional.of(
+                User.builder()
+                        .userId(10L)
+                        .tenantId(1L)
+                        .displayName("Employee")
+                        .identityPlane("TENANT")
+                        .status("ACTIVE")
+                        .build()));
         when(groupMembers.findByTenantIdAndUserId(1L, 10L)).thenReturn(List.of());
         when(appGovernance.resourceRoles(1L, 10L)).thenReturn(List.of());
         when(scopedDuties.resourceRoles(1L, 10L)).thenReturn(List.of());
@@ -198,6 +207,47 @@ class AuthServiceTest {
             assertThat(permission.getPermissionCode()).isEqualTo("VIEW");
             assertThat(permission.getEffect()).isEqualTo("ALLOW");
         });
+    }
+
+    @Test
+    void providerIdentityNeverProjectsTenantGrantsGroupsOrScopedDuties() {
+        User user = User.builder()
+                .userId(10L)
+                .tenantId(1L)
+                .displayName("Provider operator")
+                .identityPlane("PROVIDER")
+                .status("ACTIVE")
+                .build();
+        when(users.findByUserIdAndTenantId(10L, 1L)).thenReturn(Optional.of(user));
+        when(roleMembers.findRoleIds(1L, 10L)).thenReturn(List.of(99L));
+        when(roles.findByRoleIdIn(List.of(99L))).thenReturn(List.of(Role.builder()
+                .roleId(99L)
+                .tenantId(1L)
+                .code("PROVIDER_FUTURE_OPERATIONS")
+                .status("ACTIVE")
+                .build()));
+        when(principalGrants.findEffective(1L, 10L)).thenReturn(List.of(
+                new PrincipalResourceGrantRepository.EffectiveGrant(
+                        UUID.randomUUID().toString(), "APP", "APP.MAIL",
+                        "Mail", "VIEW", "View", "ALLOW")));
+        when(scopedDuties.capabilityPermissions(1L, 10L)).thenReturn(List.of(
+                PermissionDTO.builder()
+                        .resourceType("ADMIN")
+                        .resourceKey("ADMIN.APPROVAL_DESIGN")
+                        .resourceName("Approval design")
+                        .permissionCode("PUBLISH")
+                        .permissionName("Publish")
+                        .effect("ALLOW")
+                        .build()));
+
+        var response = service.getMe(10L, 1L, "APP.,ADMIN.");
+
+        assertThat(response.getRoles()).containsExactly("PROVIDER_FUTURE_OPERATIONS");
+        assertThat(response.getPermissions()).isEmpty();
+        assertThat(response.getGroups()).isEmpty();
+        assertThat(response.getResourceRoles()).isEmpty();
+        assertThat(response.isLegacyRoleFallbackAllowed()).isFalse();
+        assertThat(service.getPermissions(10L, 1L)).isEmpty();
     }
 
     @Test

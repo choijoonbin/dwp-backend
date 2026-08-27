@@ -4,6 +4,8 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.auth.entity.AuthSession;
 import com.dwp.services.auth.repository.AuthSessionRepository;
+import com.dwp.services.auth.security.AuthSessionJwtTokenEncoder;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -29,7 +31,8 @@ class AuthSessionServiceTest {
     private final AuthSessionRepository repository = mock(AuthSessionRepository.class);
     private final AuthSessionService service = new AuthSessionService(
             repository,
-            SECRET,
+            new AuthSessionJwtTokenEncoder(
+                    SECRET, new ObjectMapper().findAndRegisterModules()),
             28_800,
             1_800,
             600,
@@ -56,6 +59,20 @@ class AuthSessionServiceTest {
         assertThat(saved.getSessionFamilyId()).isNotNull();
         assertThat(saved.getIdleExpiresAt()).isBefore(saved.getExpiresAt());
         assertThat(saved.getUserAgent()).isEqualTo("DWP Test Browser");
+    }
+
+    @Test
+    void rejectsMixedProviderAndTenantRolesBeforeCreatingASession() {
+        assertThatThrownBy(() -> service.create(
+                        7L,
+                        3L,
+                        List.of("PROVIDER_ADMIN", "WORKSPACE_MEMBER"),
+                        new MockHttpServletRequest()))
+                .isInstanceOfSatisfying(
+                        BaseException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+
+        verify(repository, never()).save(org.mockito.ArgumentMatchers.any());
     }
 
     @Test

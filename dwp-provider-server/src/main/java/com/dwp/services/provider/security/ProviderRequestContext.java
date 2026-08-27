@@ -5,6 +5,7 @@ import com.dwp.core.exception.BaseException;
 
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 public final class ProviderRequestContext {
 
@@ -30,6 +31,7 @@ public final class ProviderRequestContext {
                         "ENTITLEMENT_WRITE",
                         "OPERATION_EXECUTE",
                         "SUPPORT_SESSION_WRITE",
+                        "SUPPORT_ACCESS_READ",
                         "SUPPORT_ACCESS_REVIEW",
                         "SUPPORT_POST_REVIEW",
                         "HEALTH_READ",
@@ -48,7 +50,8 @@ public final class ProviderRequestContext {
                         "FEATURE_ROLLOUT_APPROVE",
                         "CHANGE_APPROVE",
                         "BREAK_GLASS_SUPPORT",
-                        "AUDIT_READ")));
+                        "AUDIT_READ"),
+                UUID.fromString("00000000-0000-0000-0000-000000000001")));
     }
 
     public static Actor require() {
@@ -79,11 +82,27 @@ public final class ProviderRequestContext {
             Long authTenantId,
             String displayName,
             Set<String> roles,
-            Set<String> permissions) {
+            Set<String> permissions,
+            UUID authSessionId) {
+
+        public Actor(
+                Long operatorId,
+                Long userId,
+                Long authTenantId,
+                String displayName,
+                Set<String> roles,
+                Set<String> permissions) {
+            this(operatorId, userId, authTenantId, displayName, roles, permissions, null);
+        }
 
         public Actor {
             roles = Set.copyOf(roles);
             permissions = Set.copyOf(permissions);
+        }
+
+        public Actor withAuthSessionId(UUID value) {
+            return new Actor(
+                    operatorId, userId, authTenantId, displayName, roles, permissions, value);
         }
     }
 

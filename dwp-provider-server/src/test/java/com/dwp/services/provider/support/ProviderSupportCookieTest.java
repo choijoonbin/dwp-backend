@@ -25,8 +25,9 @@ class ProviderSupportCookieTest {
                 .contains("SameSite=Strict")
                 .contains("Max-Age="));
         assertThat(cookies)
-                .anyMatch(cookie -> cookie.contains("Path=/api/platform/v1/admin/"))
-                .anyMatch(cookie -> cookie.contains("Path=/api/people/v1"));
+                .anyMatch(cookie -> cookie.contains("Path=/api/auth/"))
+                .anyMatch(cookie -> cookie.contains("Path=/api/platform/v1/admin/"));
+        assertThat(cookies).noneMatch(cookie -> cookie.contains("/api/people/"));
     }
 
     @Test

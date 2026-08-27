@@ -7,6 +7,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.util.Collection;
 import java.util.Set;
+import java.util.UUID;
 
 public final class AuthenticatedUserResolver {
 
@@ -25,6 +26,15 @@ public final class AuthenticatedUserResolver {
         try {
             return Long.parseLong(jwt.getSubject());
         } catch (NumberFormatException exception) {
+            throw new BaseException(ErrorCode.TOKEN_INVALID);
+        }
+    }
+
+    public static UUID requireSessionFamilyId(Authentication authentication) {
+        Jwt jwt = requireJwt(authentication);
+        try {
+            return UUID.fromString(jwt.getClaimAsString("sid"));
+        } catch (IllegalArgumentException | NullPointerException exception) {
             throw new BaseException(ErrorCode.TOKEN_INVALID);
         }
     }

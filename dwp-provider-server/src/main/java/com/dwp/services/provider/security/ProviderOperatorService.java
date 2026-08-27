@@ -24,7 +24,7 @@ public class ProviderOperatorService {
                 SELECT operator.provider_operator_id,
                        operator.display_name,
                        assignment.role_code,
-                       permission.permission_code
+                       permission_catalog.permission_code
                   FROM prv_operators operator
                   JOIN prv_operator_role_assignments assignment
                     ON assignment.provider_operator_id = operator.provider_operator_id
@@ -34,12 +34,17 @@ public class ProviderOperatorService {
                   JOIN prv_operator_roles role
                     ON role.role_code = assignment.role_code
                    AND role.lifecycle_state = 'ACTIVE'
-                  LEFT JOIN prv_operator_role_permissions permission
-                    ON permission.role_code = role.role_code
+                  LEFT JOIN prv_operator_role_permissions role_permission
+                    ON role_permission.role_code = role.role_code
+                  LEFT JOIN prv_operator_permission_catalog permission_catalog
+                    ON permission_catalog.permission_code = role_permission.permission_code
+                   AND permission_catalog.lifecycle_state = 'ACTIVE'
+                   AND (role_permission.permission_code <> 'SUPPORT_SESSION_WRITE'
+                        OR permission_catalog.risk_tier = 'L3')
                  WHERE operator.auth_tenant_id = ?
                    AND operator.auth_user_id = ?
                    AND operator.lifecycle_state = 'ACTIVE'
-                 ORDER BY assignment.role_code, permission.permission_code
+                 ORDER BY assignment.role_code, permission_catalog.permission_code
                 """, this::row, authTenantId, authUserId);
         if (rows.isEmpty()) return Optional.empty();
         Set<String> roles = new LinkedHashSet<>();

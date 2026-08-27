@@ -99,6 +99,121 @@ class ApprovalSecurityFilterTest {
         assertThat(mutations.get()).isZero();
     }
 
+    @ParameterizedTest(name = "accessMode={0}, duplicate={1}")
+    @MethodSource("invalidActiveAccessModes")
+    void invalidActiveAccessModeEvidenceFailsClosedBeforeMutation(
+            String accessMode,
+            boolean duplicate) throws Exception {
+        ApprovalSecurityFilter filter = new ApprovalSecurityFilter(
+                "trusted", "", true, objectMapper);
+        MockHttpServletRequest request = request(
+                "POST", "/v1/admin/workflows", "APPROVAL_DESIGNER",
+                "ADMIN.APPROVAL_DESIGN:CREATE");
+        request.addHeader(ApprovalSecurityFilter.RESOURCE_ROLES_HEADER,
+                scopedRole("approvals.design.create", "ADMIN.APPROVAL_DESIGN:CREATE"));
+        rollout(request, "110");
+        trustedAuthority(request, "route.approvals.admin.workflow-create.action");
+        request.removeHeader(ApprovalSecurityFilter.ACTIVE_ACCESS_MODE_HEADER);
+        if (accessMode != null) {
+            request.addHeader(ApprovalSecurityFilter.ACTIVE_ACCESS_MODE_HEADER, accessMode);
+            if (duplicate) {
+                request.addHeader(ApprovalSecurityFilter.ACTIVE_ACCESS_MODE_HEADER, accessMode);
+            }
+        }
+        request.addHeader(ApprovalSecurityFilter.EXPECTED_DECISION_REVISION_HEADER,
+                "psr-" + "0123456789abcdef".repeat(4));
+        AtomicInteger mutations = new AtomicInteger();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (ignoredRequest, ignoredResponse) ->
+                mutations.incrementAndGet());
+
+        assertThat(response.getStatus()).isEqualTo(503);
+        assertThat(mutations.get()).isZero();
+    }
+
+    private static Stream<Arguments> invalidActiveAccessModes() {
+        return Stream.of(
+                Arguments.of((String) null, false),
+                Arguments.of("NORMAL", true),
+                Arguments.of("normal", false),
+                Arguments.of("UNKNOWN", false));
+    }
+
+    @Test
+    void providerSupportCannotReuseNormalApprovalCapabilityProfiles() throws Exception {
+        ApprovalSecurityFilter filter = new ApprovalSecurityFilter(
+                "trusted", "", true, objectMapper);
+        MockHttpServletRequest request = request(
+                "POST", "/v1/admin/workflows", "APPROVAL_DESIGNER",
+                "ADMIN.APPROVAL_DESIGN:CREATE");
+        request.addHeader(ApprovalSecurityFilter.RESOURCE_ROLES_HEADER,
+                scopedRole("approvals.design.create", "ADMIN.APPROVAL_DESIGN:CREATE"));
+        rollout(request, "110");
+        trustedAuthority(request, "route.approvals.admin.workflow-create.action");
+        request.removeHeader(ApprovalSecurityFilter.ACTIVE_ACCESS_MODE_HEADER);
+        request.addHeader(ApprovalSecurityFilter.ACTIVE_ACCESS_MODE_HEADER,
+                "PROVIDER_SUPPORT");
+        request.addHeader(ApprovalSecurityFilter.EXPECTED_DECISION_REVISION_HEADER,
+                "psr-" + "0123456789abcdef".repeat(4));
+        AtomicInteger mutations = new AtomicInteger();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (ignoredRequest, ignoredResponse) ->
+                mutations.incrementAndGet());
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(mutations.get()).isZero();
+    }
+
+    @Test
+    void elevatedModeUsesTheExplicitElevatedApprovalProfile() throws Exception {
+        ApprovalSecurityFilter filter = new ApprovalSecurityFilter(
+                "trusted", "", true, objectMapper);
+        MockHttpServletRequest request = request(
+                "POST", "/v1/admin/workflows", "APPROVAL_DESIGNER",
+                "ADMIN.APPROVAL_DESIGN:CREATE");
+        request.addHeader(ApprovalSecurityFilter.RESOURCE_ROLES_HEADER,
+                scopedRole("approvals.design.create", "ADMIN.APPROVAL_DESIGN:CREATE"));
+        rollout(request, "110");
+        trustedAuthority(request, "route.approvals.admin.workflow-create.action");
+        request.removeHeader(ApprovalSecurityFilter.ACTIVE_ACCESS_MODE_HEADER);
+        request.addHeader(ApprovalSecurityFilter.ACTIVE_ACCESS_MODE_HEADER, "ELEVATED");
+        request.addHeader(ApprovalSecurityFilter.EXPECTED_DECISION_REVISION_HEADER,
+                "psr-" + "0123456789abcdef".repeat(4));
+        AtomicInteger mutations = new AtomicInteger();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (ignoredRequest, ignoredResponse) ->
+                mutations.incrementAndGet());
+
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(mutations.get()).isOne();
+    }
+
+    @Test
+    void staleAuthorityRevisionFailsClosedBeforeMutation() throws Exception {
+        ApprovalSecurityFilter filter = new ApprovalSecurityFilter(
+                "trusted", "", true, objectMapper);
+        MockHttpServletRequest request = request(
+                "POST", "/v1/admin/workflows", "APPROVAL_DESIGNER",
+                "ADMIN.APPROVAL_DESIGN:CREATE");
+        request.addHeader(ApprovalSecurityFilter.RESOURCE_ROLES_HEADER,
+                scopedRole("approvals.design.create", "ADMIN.APPROVAL_DESIGN:CREATE"));
+        rollout(request, "110");
+        trustedAuthority(request, "route.approvals.admin.workflow-create.action");
+        request.addHeader(ApprovalSecurityFilter.EXPECTED_DECISION_REVISION_HEADER,
+                "psr-" + "f".repeat(64));
+        AtomicInteger mutations = new AtomicInteger();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (ignoredRequest, ignoredResponse) ->
+                mutations.incrementAndGet());
+
+        assertThat(response.getStatus()).isEqualTo(409);
+        assertThat(mutations.get()).isZero();
+    }
+
     @Test
     void requiresAnExplicitApplicationPermissionEvenForReads() throws Exception {
         ApprovalSecurityFilter filter = new ApprovalSecurityFilter("trusted", objectMapper);
@@ -645,6 +760,28 @@ class ApprovalSecurityFilterTest {
         assertContextsCleared();
     }
 
+    @Test
+    void spoofedInternalAuthorityHeadersCannotBypassGatewayServiceIdentity()
+            throws Exception {
+        ApprovalSecurityFilter filter = new ApprovalSecurityFilter(
+                "trusted", "", true, objectMapper);
+        MockHttpServletRequest request = request(
+                "GET", "/v1/admin/workflows", "WORKSPACE_MEMBER",
+                "ADMIN.APPROVAL_DESIGN:VIEW");
+        request.removeHeader(ApprovalSecurityFilter.SERVICE_TOKEN_HEADER);
+        request.addHeader(ApprovalSecurityFilter.SERVICE_TOKEN_HEADER, "spoofed");
+        request.addHeader(ApprovalSecurityFilter.RESOURCE_ROLES_HEADER,
+                scopedRole("approvals.design.read", "ADMIN.APPROVAL_DESIGN:VIEW"));
+        rollout(request, "110");
+        trustedAuthority(request, "route.approvals.admin.workflows.page");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertThat(response.getStatus()).isEqualTo(401);
+        assertContextsCleared();
+    }
+
     private MockHttpServletRequest request(
             String method,
             String path,
@@ -692,6 +829,7 @@ class ApprovalSecurityFilterTest {
 
     private void trustedAuthority(MockHttpServletRequest request, String routeKey) {
         request.addHeader(ApprovalSecurityFilter.ROUTE_CONTRACT_HEADER, routeKey);
+        request.addHeader(ApprovalSecurityFilter.ACTIVE_ACCESS_MODE_HEADER, "NORMAL");
         request.addHeader(ApprovalSecurityFilter.CURRENT_DECISION_REVISION_HEADER,
                 "psr-" + "0123456789abcdef".repeat(4));
         request.addHeader(ApprovalSecurityFilter.CURRENT_DECISION_REVALIDATE_AT_HEADER,

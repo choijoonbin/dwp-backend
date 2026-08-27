@@ -33,7 +33,7 @@ public final class ProductSurfaceTelemetryDimensionRegistry {
     static final String W1B_V3_REGISTRY_CHECKSUM =
             "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e";
     static final String PROJECTION_CHECKSUM =
-            "21b78a9c98c958e962ce20e356955da920cefb2543b6dd5df26c4d6283b3b15d";
+            "6cb89661d1c91050a9a8beb6451de9a9a455a4b63b51c9ad47e4e6086c10d8a7";
     private static final Pattern PRODUCT_KEY = Pattern.compile("[a-z][a-z0-9-]{0,47}");
     private static final Pattern DIMENSION_KEY =
             Pattern.compile("[a-z][a-z0-9-]{0,47}(\\.[a-z][a-z0-9-]{0,47})+");
@@ -131,9 +131,9 @@ public final class ProductSurfaceTelemetryDimensionRegistry {
                         && W1B_V3_REGISTRY_CHECKSUM.equals(registry.path("sha256").asText()),
                 "Telemetry dimension projection is not pinned to registry v3");
         require(projection.path("sourceRegistryRouteCount").asInt() == 129
-                        && projection.path("productCount").asInt() == 11
-                        && projection.path("surfaceCount").asInt() == 24
-                        && projection.path("routeIdCount").asInt() == 127,
+                        && projection.path("productCount").asInt() == 12
+                        && projection.path("surfaceCount").asInt() == 26
+                        && projection.path("routeIdCount").asInt() == 134,
                 "Telemetry dimension v3 release counts changed");
         require("SHA-256".equals(
                         projection.path("projectionChecksumAlgorithm").asText()),

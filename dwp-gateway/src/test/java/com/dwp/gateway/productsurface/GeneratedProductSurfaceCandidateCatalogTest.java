@@ -20,23 +20,23 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class GeneratedProductSurfaceCandidateCatalogTest {
 
     @Test
-    void projectsTheExactSortedProductPageSupersetFromTheGeneratedBundle() {
+    void projectsOnlySortedPagesFromProductsWithEveryRequiredActiveRouteKind() {
         GeneratedProductSurfaceCandidateCatalog catalog = catalog();
 
         assertThat(catalog.activeCandidates()).containsExactly(
                 candidate("approvals", "approvals.admin"),
                 candidate("approvals", "approvals.work"),
-                candidate("communications", "communications.management"),
-                candidate("communications", "communications.work"),
                 candidate("hcm", "hcm.management"),
                 candidate("hcm", "hcm.operations"),
                 candidate("hcm", "hcm.personal"),
-                candidate("hcm", "hcm.team"),
-                candidate("services", "services.management"),
-                candidate("services", "services.work"));
+                candidate("hcm", "hcm.team"));
+        assertThat(catalog.activeCandidates().stream()
+                        .map(ProductSurfaceContextDtos.ProductCandidate::productKey)
+                        .collect(java.util.stream.Collectors.toSet()))
+                .containsExactlyInAnyOrder("approvals", "hcm");
         assertThat(catalog.rolloutProductKeys()).containsExactly(
                 "approvals", "calendar", "communications", "dwaion", "hcm", "mail",
-                "messaging", "notifications", "services", "spaces", "workplace");
+                "meetings", "messaging", "notifications", "services", "spaces", "workplace");
     }
 
     @Test

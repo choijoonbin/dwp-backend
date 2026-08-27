@@ -35,5 +35,14 @@ class WorkplaceLifecycleHardeningMigrationTest {
                 .contains("digest(policy_snapshot::TEXT, 'sha256')")
                 .contains("ck_wp_bookings_policy_snapshot_hash_matches")
                 .contains("idx_wp_floor_plan_media_reconciliation");
+
+        String cleanupFenceSql = Files.readString(Path.of(
+                "src/main/resources/db/migration/"
+                        + "V185__fence_workplace_media_cleanup.sql"));
+        assertThat(cleanupFenceSql)
+                .contains("'DELETING', 'DELETED'")
+                .contains("FOR UPDATE")
+                .contains("CLEANUP_CANCELLED_BY_REFERENCE")
+                .contains("is no longer referenceable");
     }
 }

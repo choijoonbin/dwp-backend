@@ -20,6 +20,7 @@ public class ServiceIdentitySanitizingFilter implements GlobalFilter, Ordered {
                 .headers(headers -> {
                     headers.remove(SERVICE_TOKEN_HEADER);
                     headers.remove(SERVICE_IDENTITY_HEADER);
+                    headers.remove(DelegatedIdentityAssertionIssuer.HEADER);
                 })
                 .build();
         return chain.filter(exchange.mutate().request(sanitizedRequest).build());

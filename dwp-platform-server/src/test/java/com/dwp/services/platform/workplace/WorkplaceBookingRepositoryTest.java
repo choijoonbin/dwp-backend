@@ -39,6 +39,15 @@ class WorkplaceBookingRepositoryTest {
     }
 
     @Test
+    void calendarOccupancyOnlyReturnsOrganizerIdentityToTheOrganizer() {
+        String sql = WorkplaceBookingRepository.OCCUPANCY_SQL;
+
+        assertThat(sql)
+                .contains("CASE WHEN event.organizer_user_id = ?")
+                .doesNotContain("event.visibility = 'PUBLIC' OR event.organizer_user_id = ?");
+    }
+
+    @Test
     void noShowReleaseQualifiesTheVersionColumnInUpdateFromStatement() {
         OffsetDateTime now = OffsetDateTime.now();
         WorkplaceBookingRepository repository =

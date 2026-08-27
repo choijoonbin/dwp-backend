@@ -3,6 +3,7 @@ package com.dwp.services.provider.provisioning;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.core.http.OutboundHttpHeaders;
+import com.dwp.core.provisioning.ProviderTenantCommand;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.github.resilience4j.bulkhead.annotation.Bulkhead;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
@@ -11,7 +12,6 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -137,30 +137,48 @@ public class DownstreamProvisioningClient {
 
     @Bulkhead(name = "tenantProvisioning", type = Bulkhead.Type.SEMAPHORE)
     @CircuitBreaker(name = "tenantProvisioning")
-    public InvitationResult issueAdministratorInvitation(
-            UUID tenantId,
-            Long administratorUserId,
-            int expiresInMinutes) {
-        requireConfigured();
-        InvitationResult result = auth.post()
-                .uri("/internal/provider/v1/tenants/{tenantId}/administrator-invitations", tenantId)
-                .headers(headers -> OutboundHttpHeaders.propagateObservability(headers))
-                .header(TOKEN_HEADER, provisioningToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(new InvitationRequest(administratorUserId, expiresInMinutes))
-                .retrieve()
-                .body(InvitationResult.class);
-        if (result == null) throw unavailable("Administrator invitation returned no result.");
-        return result;
-    }
-
-    @Bulkhead(name = "tenantProvisioning", type = Bulkhead.Type.SEMAPHORE)
-    @CircuitBreaker(name = "tenantProvisioning")
     public void replaceEntitlements(UUID tenantId, List<String> entitlementKeys) {
         requireConfigured();
         EntitlementsRequest request = new EntitlementsRequest(List.copyOf(entitlementKeys));
         replaceEntitlements(auth, tenantId, request);
         replaceEntitlements(platform, tenantId, request);
+    }
+
+    @Bulkhead(name = "tenantProvisioning", type = Bulkhead.Type.SEMAPHORE)
+    @CircuitBreaker(name = "tenantProvisioning")
+    public ProviderTenantCommand.Receipt executeTenantCommand(
+            String targetService,
+            UUID tenantId,
+            ProviderTenantCommand.Request command) {
+        requireConfigured();
+        RestClient client = switch (targetService) {
+            case "AUTH" -> auth;
+            case "PLATFORM" -> platform;
+            case "PEOPLE" -> people;
+            default -> throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE, "Unknown tenant command target service.");
+        };
+        ProviderTenantCommand.Receipt receipt = client.post()
+                .uri("/internal/provider/v1/tenants/{tenantId}/commands", tenantId)
+                .headers(headers -> OutboundHttpHeaders.propagateObservability(headers))
+                .header(TOKEN_HEADER, provisioningToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(command)
+                .retrieve()
+                .body(ProviderTenantCommand.Receipt.class);
+        if (receipt == null) throw unavailable(targetService + " returned no tenant command receipt.");
+        if (!command.commandId().equals(receipt.commandId())
+                || !tenantId.equals(receipt.providerTenantId())
+                || !command.commandType().equals(receipt.commandType())
+                || command.expectedRevision() != receipt.expectedRevision()
+                || command.targetRevision() != receipt.targetRevision()
+                || !command.payloadSha256().equals(receipt.payloadSha256())
+                || receipt.appliedAt() == null
+                || receipt.result() == null
+                || !receipt.result().isObject()) {
+            throw unavailable(targetService + " returned an invalid tenant command receipt.");
+        }
+        return receipt;
     }
 
     private void updateLifecycle(RestClient client, UUID tenantId, LifecycleRequest request) {
@@ -237,9 +255,6 @@ public class DownstreamProvisioningClient {
     private record LifecycleRequest(String lifecycleState) {
     }
 
-    private record InvitationRequest(Long administratorUserId, Integer expiresInMinutes) {
-    }
-
     private record EntitlementsRequest(List<String> entitlementKeys) {
     }
 
@@ -260,11 +275,4 @@ public class DownstreamProvisioningClient {
             String externalReference) {
     }
 
-    public record InvitationResult(
-            Long tenantId,
-            Long administratorUserId,
-            String email,
-            String activationToken,
-            Instant expiresAt) {
-    }
 }

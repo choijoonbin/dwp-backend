@@ -32,7 +32,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +40,10 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static com.dwp.services.auth.service.PrivilegedAccessEvidenceSnapshots.eligibilitySnapshot;
+import static com.dwp.services.auth.service.PrivilegedAccessEvidenceSnapshots.policySnapshot;
+import static com.dwp.services.auth.service.PrivilegedAccessEvidenceSnapshots.requestSnapshot;
 
 @Service
 public class PrivilegedAccessService {
@@ -60,6 +63,7 @@ public class PrivilegedAccessService {
     private final AuthSessionRepository sessionRepository;
     private final RoleDelegationPolicyService delegationPolicyService;
     private final IdentityAuditService auditService;
+    private final PrivilegedAccessRolloutGate rolloutGate;
 
     public PrivilegedAccessService(
             PrivilegedAccessPolicyRepository policyRepository,
@@ -74,7 +78,8 @@ public class PrivilegedAccessService {
             DirectoryGroupRepository groupRepository,
             AuthSessionRepository sessionRepository,
             RoleDelegationPolicyService delegationPolicyService,
-            IdentityAuditService auditService) {
+            IdentityAuditService auditService,
+            PrivilegedAccessRolloutGate rolloutGate) {
         this.policyRepository = policyRepository;
         this.eligibilityRepository = eligibilityRepository;
         this.requestRepository = requestRepository;
@@ -88,6 +93,7 @@ public class PrivilegedAccessService {
         this.sessionRepository = sessionRepository;
         this.delegationPolicyService = delegationPolicyService;
         this.auditService = auditService;
+        this.rolloutGate = rolloutGate;
     }
 
     @Transactional(readOnly = true)
@@ -109,6 +115,8 @@ public class PrivilegedAccessService {
             String correlationId,
             Long policyId,
             PrivilegedAccessDtos.UpdatePolicyRequest request) {
+        rolloutGate.requirePolicyRemainsDisabled(
+                request.activationMode(), request.emergencyMode());
         PrivilegedAccessPolicy policy = policyRepository.findById(policyId)
                 .filter(value -> tenantId.equals(value.getTenantId()))
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
@@ -243,6 +251,7 @@ public class PrivilegedAccessService {
             String callerAssurance,
             String correlationId,
             PrivilegedAccessDtos.ActivationRequest request) {
+        rolloutGate.requireActivationEnabled();
         Instant now = Instant.now();
         PrivilegedRoleEligibility eligibility = null;
         Role role;
@@ -343,6 +352,7 @@ public class PrivilegedAccessService {
             String correlationId,
             UUID requestId,
             PrivilegedAccessDtos.ApprovalDecisionRequest decision) {
+        rolloutGate.requireActivationEnabled();
         PrivilegedAccessRequest accessRequest = requireRequest(tenantId, requestId);
         requireVersion(accessRequest.getVersion(), decision.version());
         if (!"PENDING_APPROVAL".equals(accessRequest.getLifecycleState())) {
@@ -535,6 +545,7 @@ public class PrivilegedAccessService {
             Long actorId,
             String correlationId,
             Instant now) {
+        rolloutGate.requireActivationEnabled();
         Role role = requireRole(request.getTenantId(), request.getRoleId());
         Set<String> effective = effectiveRoleCodes(request.getTenantId(), request.getRequesterUserId());
         Set<String> requested = new LinkedHashSet<>(effective);
@@ -869,51 +880,6 @@ public class PrivilegedAccessService {
         if (principal instanceof User user) return user.getDisplayName();
         if (principal instanceof DirectoryGroup group) return group.getDisplayName();
         return null;
-    }
-
-    private Map<String, Object> policySnapshot(PrivilegedAccessPolicy policy) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("roleId", policy.getRoleId());
-        result.put("activationMode", policy.getActivationMode());
-        result.put("maximumDurationMinutes", policy.getMaximumDurationMinutes());
-        result.put("assuranceLevel", policy.getAssuranceLevel());
-        result.put("approvalQuorum", policy.getApprovalQuorum());
-        result.put("emergencyMode", policy.getEmergencyMode());
-        result.put("ticketRequired", policy.getTicketRequired());
-        result.put("lifecycleState", policy.getLifecycleState());
-        result.put("version", valueOrZero(policy.getVersion()));
-        return result;
-    }
-
-    private Map<String, Object> eligibilitySnapshot(PrivilegedRoleEligibility eligibility) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("principalType", eligibility.getPrincipalType());
-        result.put("principalId", eligibility.getPrincipalId());
-        result.put("roleId", eligibility.getRoleId());
-        result.put("scopeType", eligibility.getScopeType());
-        result.put("scopeRef", eligibility.getScopeRef());
-        result.put("validFrom", eligibility.getValidFrom());
-        result.put("validTo", eligibility.getValidTo());
-        result.put("lifecycleState", eligibility.getLifecycleState());
-        result.put("version", valueOrZero(eligibility.getVersion()));
-        return result;
-    }
-
-    private Map<String, Object> requestSnapshot(PrivilegedAccessRequest request) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("requesterUserId", request.getRequesterUserId());
-        result.put("roleId", request.getRoleId());
-        result.put("requestType", request.getRequestType());
-        result.put("scopeType", request.getScopeType());
-        result.put("scopeRef", request.getScopeRef());
-        result.put("durationMinutes", request.getDurationMinutes());
-        result.put("approvalQuorum", request.getApprovalQuorum());
-        result.put("lifecycleState", request.getLifecycleState());
-        result.put("activatedAt", request.getActivatedAt());
-        result.put("expiresAt", request.getExpiresAt());
-        result.put("revokedAt", request.getRevokedAt());
-        result.put("version", valueOrZero(request.getVersion()));
-        return result;
     }
 
     private void denied(

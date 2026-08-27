@@ -3,6 +3,11 @@ package com.dwp.services.auth.provisioning;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.core.identity.EmailAddressNormalizer;
+import com.dwp.core.provisioning.ProviderTenantCommand;
+import com.dwp.core.provisioning.ProviderTenantCommandReceiptStore;
+import com.dwp.core.security.RolePlaneBoundary;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -13,13 +18,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Timestamp;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
@@ -28,14 +29,53 @@ import java.util.UUID;
 @Service
 public class AuthTenantProvisioningService {
 
-    private static final SecureRandom RANDOM = new SecureRandom();
-
     private final JdbcTemplate jdbc;
     private final PasswordEncoder passwordEncoder;
+    private final ObjectMapper objectMapper;
+    private final ProviderTenantCommandReceiptStore commandReceipts;
 
     public AuthTenantProvisioningService(JdbcTemplate jdbc, PasswordEncoder passwordEncoder) {
+        this(jdbc, passwordEncoder, new ObjectMapper());
+    }
+
+    @Autowired
+    public AuthTenantProvisioningService(
+            JdbcTemplate jdbc,
+            PasswordEncoder passwordEncoder,
+            ObjectMapper objectMapper) {
         this.jdbc = jdbc;
         this.passwordEncoder = passwordEncoder;
+        this.objectMapper = objectMapper;
+        this.commandReceipts = new ProviderTenantCommandReceiptStore(jdbc, objectMapper, "auth");
+    }
+
+    @Transactional
+    public ProviderTenantCommand.Receipt command(
+            UUID providerTenantId,
+            ProviderTenantCommand.Request command) {
+        return commandReceipts.execute(providerTenantId, command, () -> {
+            if ("LIFECYCLE".equals(command.commandType())) {
+                String state = command.payload().path("lifecycleState").asText("");
+                if (!Set.of("ACTIVE", "SUSPENDED", "RETIRED").contains(state)) {
+                    throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "Invalid lifecycle command payload.");
+                }
+                return objectMapper.valueToTree(updateLifecycle(
+                        providerTenantId,
+                        new AuthTenantProvisioningDtos.UpdateLifecycleRequest(state)));
+            }
+            if ("ENTITLEMENTS".equals(command.commandType())) {
+                List<String> keys = new java.util.ArrayList<>();
+                command.payload().path("entitlementKeys").forEach(value -> keys.add(value.asText()));
+                if (!command.payload().path("entitlementKeys").isArray()
+                        || keys.stream().anyMatch(String::isBlank)) {
+                    throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "Invalid entitlement command payload.");
+                }
+                return objectMapper.valueToTree(replaceEntitlements(
+                        providerTenantId,
+                        new AuthTenantProvisioningDtos.ReplaceEntitlementsRequest(List.copyOf(keys))));
+            }
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "Unsupported provider command type.");
+        });
     }
 
     @Transactional
@@ -85,9 +125,9 @@ public class AuthTenantProvisioningService {
         if ("SUSPENDED".equals(request.lifecycleState()) || "RETIRED".equals(request.lifecycleState())) {
             jdbc.update("""
                     UPDATE sys_auth_sessions
-                       SET lifecycle_state = 'REVOKED', revoked_at = CURRENT_TIMESTAMP,
-                           updated_at = CURRENT_TIMESTAMP
-                     WHERE tenant_id = ? AND lifecycle_state = 'ACTIVE'
+                       SET revoked_at = COALESCE(revoked_at, CURRENT_TIMESTAMP),
+                           updated_at = CURRENT_TIMESTAMP, updated_by = NULL
+                     WHERE tenant_id = ? AND revoked_at IS NULL
                     """, tenant.tenantId());
         }
         AdministratorRecord administrator = primaryAdministrator(tenant.tenantId());
@@ -117,36 +157,24 @@ public class AuthTenantProvisioningService {
     }
 
     @Transactional
-    public AuthTenantProvisioningDtos.InvitationResponse issueInvitation(
+    public void issueInvitation(
             UUID providerTenantId,
             AuthTenantProvisioningDtos.IssueInvitationRequest request) {
         TenantRecord tenant = requireTenant(providerTenantId);
         AdministratorRecord administrator = administrator(tenant.tenantId(), request.administratorUserId());
         if (administrator == null) throw new BaseException(ErrorCode.NOT_FOUND);
-        jdbc.update("""
-                UPDATE sys_account_activation_tokens
-                   SET lifecycle_state = 'REVOKED', revoked_at = CURRENT_TIMESTAMP
-                 WHERE tenant_id = ? AND user_account_id = ? AND lifecycle_state = 'ACTIVE'
-                """, tenant.tenantId(), administrator.accountId());
-        String token = randomToken();
-        String tokenHash = sha256(token);
-        Instant expiresAt = Instant.now().plus(request.expiresInMinutes(), ChronoUnit.MINUTES);
-        jdbc.update("""
-                INSERT INTO sys_account_activation_tokens (
-                    tenant_id, user_id, user_account_id, token_hash, expires_at)
-                VALUES (?, ?, ?, ?, ?)
-                """, tenant.tenantId(), administrator.userId(), administrator.accountId(),
-                tokenHash, Timestamp.from(expiresAt));
-        jdbc.update("""
-                UPDATE com_users SET status = 'INVITED', updated_at = CURRENT_TIMESTAMP
-                 WHERE tenant_id = ? AND user_id = ? AND status <> 'ACTIVE'
-                """, tenant.tenantId(), administrator.userId());
-        jdbc.update("""
-                UPDATE com_user_accounts SET status = 'INVITED', updated_at = CURRENT_TIMESTAMP
-                 WHERE tenant_id = ? AND user_account_id = ? AND status <> 'ACTIVE'
-                """, tenant.tenantId(), administrator.accountId());
-        return new AuthTenantProvisioningDtos.InvitationResponse(
-                tenant.tenantId(), administrator.userId(), administrator.email(), token, expiresAt);
+        if ("ACTIVE".equals(administrator.accountStatus())) {
+            throw new BaseException(
+                    ErrorCode.RESOURCE_CONFLICT,
+                    "An active tenant administrator cannot be issued an activation invitation.");
+        }
+        // Activation capabilities must be delivered through a customer-owned,
+        // out-of-band channel. Until that channel is bound, provider-origin
+        // issuance is disabled rather than returning a bearer capability to an
+        // operator who could use it to become the tenant administrator.
+        throw new BaseException(
+                ErrorCode.RESOURCE_CONFLICT,
+                "Tenant administrator activation is disabled until customer-owned out-of-band delivery is configured.");
     }
 
     @Transactional
@@ -194,6 +222,7 @@ public class AuthTenantProvisioningService {
         ensureTenantRoles(tenant.tenantId());
         Long userId = ensureAdministrator(tenant.tenantId(), request);
         grantFoundationRoles(tenant.tenantId(), userId);
+        requireTenantPlaneAdministrator(tenant.tenantId(), userId);
         syncResources(tenant.tenantId(), request.entitlementKeys());
         ensureInitialAppOwners(tenant.tenantId(), userId);
         AdministratorRecord administrator = administrator(tenant.tenantId(), userId);
@@ -270,6 +299,51 @@ public class AuthTenantProvisioningService {
                    AND role.code IN ('TENANT_ADMIN', 'WORKSPACE_MEMBER')
                 ON CONFLICT (tenant_id, role_id, user_id) DO NOTHING
                 """, userId, tenantId);
+    }
+
+    private void requireTenantPlaneAdministrator(Long tenantId, Long userId) {
+        List<String> effectiveRoles = jdbc.queryForList("""
+                SELECT role.code
+                  FROM com_roles role
+                 WHERE role.tenant_id = ?
+                   AND role.status = 'ACTIVE'
+                   AND role.role_id IN (
+                       SELECT membership.role_id
+                         FROM com_role_members membership
+                        WHERE membership.tenant_id = ? AND membership.user_id = ?
+                       UNION
+                       SELECT assignment.role_id
+                         FROM com_group_role_assignments assignment
+                         JOIN com_group_members membership
+                           ON membership.tenant_id = assignment.tenant_id
+                          AND membership.group_id = assignment.group_id
+                        WHERE assignment.tenant_id = ? AND membership.user_id = ?
+                          AND assignment.lifecycle_state = 'ACTIVE'
+                          AND assignment.assignment_type = 'ACTIVE'
+                          AND assignment.scope_type = 'TENANT'
+                          AND (assignment.valid_from IS NULL
+                               OR assignment.valid_from <= CURRENT_TIMESTAMP)
+                          AND (assignment.valid_to IS NULL
+                               OR assignment.valid_to > CURRENT_TIMESTAMP)
+                       UNION
+                       SELECT active_grant.role_id
+                         FROM com_active_privileged_grants active_grant
+                        WHERE active_grant.tenant_id = ? AND active_grant.user_id = ?
+                          AND active_grant.scope_type = 'TENANT'
+                          AND active_grant.revoked_at IS NULL
+                          AND active_grant.activated_at <= CURRENT_TIMESTAMP
+                          AND active_grant.expires_at > CURRENT_TIMESTAMP)
+                 ORDER BY role.code
+                """, String.class,
+                tenantId, tenantId, userId, tenantId, userId, tenantId, userId);
+        if (!effectiveRoles.contains("TENANT_ADMIN")
+                || !effectiveRoles.contains("WORKSPACE_MEMBER")
+                || RolePlaneBoundary.hasConflict(effectiveRoles)
+                || RolePlaneBoundary.isProviderIdentity(effectiveRoles)) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "The initial administrator must be isolated to the tenant identity plane.");
+        }
     }
 
     private void syncBuiltInRolePermissions(Long tenantId) {
@@ -474,7 +548,8 @@ public class AuthTenantProvisioningService {
 
     private AdministratorRecord primaryAdministrator(Long tenantId) {
         return jdbc.query("""
-                SELECT account.user_account_id, account.user_id, user_record.email
+                SELECT account.user_account_id, account.user_id, user_record.email,
+                       account.status AS account_status
                   FROM com_user_accounts account
                   JOIN com_users user_record
                     ON user_record.tenant_id = account.tenant_id
@@ -491,7 +566,8 @@ public class AuthTenantProvisioningService {
 
     private AdministratorRecord administrator(Long tenantId, Long userId) {
         return jdbc.query("""
-                SELECT account.user_account_id, account.user_id, user_record.email
+                SELECT account.user_account_id, account.user_id, user_record.email,
+                       account.status AS account_status
                   FROM com_user_accounts account
                   JOIN com_users user_record
                     ON user_record.tenant_id = account.tenant_id
@@ -527,6 +603,8 @@ public class AuthTenantProvisioningService {
                    AND activation.lifecycle_state = 'ACTIVE'
                    AND activation.expires_at > CURRENT_TIMESTAMP
                    AND tenant.status = 'ACTIVE'
+                   AND user_record.status = 'INVITED'
+                   AND account.status = 'INVITED'
                 """, (RowMapper<ActivationRecord>) this::activation, hash).stream().findFirst()
                 .orElseThrow(() -> new BaseException(ErrorCode.TOKEN_INVALID));
     }
@@ -541,12 +619,6 @@ public class AuthTenantProvisioningService {
                     ErrorCode.VALIDATION_ERROR,
                     "The password must contain upper-case, lower-case, numeric and special characters.");
         }
-    }
-
-    private String randomToken() {
-        byte[] bytes = new byte[32];
-        RANDOM.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
     private String sha256(String value) {
@@ -570,7 +642,8 @@ public class AuthTenantProvisioningService {
         return new AdministratorRecord(
                 result.getLong("user_account_id"),
                 result.getLong("user_id"),
-                result.getString("email"));
+                result.getString("email"),
+                result.getString("account_status"));
     }
 
     private ActivationRecord activation(ResultSet result, int ignored) throws SQLException {
@@ -593,7 +666,11 @@ public class AuthTenantProvisioningService {
             String lifecycleState) {
     }
 
-    private record AdministratorRecord(Long accountId, Long userId, String email) {
+    private record AdministratorRecord(
+            Long accountId,
+            Long userId,
+            String email,
+            String accountStatus) {
     }
 
     private record ResourceTemplate(

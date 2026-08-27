@@ -30,13 +30,19 @@ class MailCommandRepository {
             UUID threadId,
             ThreadAction action,
             long version) {
+        if (action == ThreadAction.ARCHIVE) {
+            return moveToArchive(tenantId, userId, threadId, version);
+        }
+        if (action == ThreadAction.RESTORE) {
+            return restoreFromLifecycleFolder(tenantId, userId, threadId, version);
+        }
         String assignment = switch (action) {
             case MARK_READ -> "unread = FALSE";
             case MARK_UNREAD -> "unread = TRUE";
             case STAR -> "starred = TRUE";
             case UNSTAR -> "starred = FALSE";
-            case ARCHIVE -> "workflow_state = 'ARCHIVED', snoozed_until = NULL";
-            case RESTORE, REOPEN -> "workflow_state = 'OPEN', snoozed_until = NULL";
+            case ARCHIVE, RESTORE -> throw new IllegalStateException("Lifecycle action was not routed.");
+            case REOPEN -> "workflow_state = 'OPEN', snoozed_until = NULL";
             case COMPLETE -> "workflow_state = 'DONE', snoozed_until = NULL";
         };
         return jdbc.update("""
@@ -45,6 +51,53 @@ class MailCommandRepository {
                        updated_at = CURRENT_TIMESTAMP, updated_by = ?
                  WHERE tenant_id = ? AND thread_id = ? AND version = ?
                 """.formatted(assignment), userId, tenantId, threadId, version);
+    }
+
+    private int moveToArchive(
+            Long tenantId, Long userId, UUID threadId, long version) {
+        return jdbc.update("""
+                UPDATE mail_threads thread
+                   SET previous_folder_id = CASE
+                           WHEN current_folder.folder_type IN ('ARCHIVE', 'TRASH', 'SPAM')
+                           THEN thread.previous_folder_id ELSE thread.folder_id END,
+                       folder_id = archive_folder.folder_id,
+                       workflow_state = 'ARCHIVED', snoozed_until = NULL,
+                       trashed_at = NULL, spam_reported_at = NULL,
+                       version = thread.version + 1,
+                       updated_at = CURRENT_TIMESTAMP, updated_by = ?
+                  FROM mail_folders current_folder, mail_folders archive_folder
+                 WHERE thread.tenant_id = ? AND thread.thread_id = ? AND thread.version = ?
+                   AND current_folder.folder_id = thread.folder_id
+                   AND archive_folder.account_id = thread.account_id
+                   AND archive_folder.folder_type = 'ARCHIVE'
+                   AND archive_folder.lifecycle_state = 'ACTIVE'
+                """, userId, tenantId, threadId, version);
+    }
+
+    private int restoreFromLifecycleFolder(
+            Long tenantId, Long userId, UUID threadId, long version) {
+        return jdbc.update("""
+                UPDATE mail_threads thread
+                   SET folder_id = COALESCE(previous_folder.folder_id, inbox_folder.folder_id),
+                       previous_folder_id = NULL, workflow_state = 'OPEN',
+                       snoozed_until = NULL, trashed_at = NULL, spam_reported_at = NULL,
+                       version = thread.version + 1,
+                       updated_at = CURRENT_TIMESTAMP, updated_by = ?
+                  FROM mail_folders current_folder
+                  JOIN mail_folders inbox_folder
+                    ON inbox_folder.account_id = current_folder.account_id
+                   AND inbox_folder.folder_type = 'INBOX'
+                   AND inbox_folder.lifecycle_state = 'ACTIVE'
+                  LEFT JOIN mail_folders previous_folder
+                    ON previous_folder.folder_id = (
+                        SELECT previous_folder_id FROM mail_threads WHERE thread_id = ?)
+                   AND previous_folder.account_id = current_folder.account_id
+                   AND previous_folder.lifecycle_state = 'ACTIVE'
+                   AND previous_folder.folder_type IN ('INBOX', 'SENT', 'CUSTOM')
+                 WHERE thread.tenant_id = ? AND thread.thread_id = ? AND thread.version = ?
+                   AND current_folder.folder_id = thread.folder_id
+                   AND current_folder.folder_type IN ('ARCHIVE', 'TRASH', 'SPAM')
+                """, userId, threadId, tenantId, threadId, version);
     }
 
     int snooze(

@@ -47,7 +47,7 @@ final class CalendarRowMapper {
                 result.getObject("calendar_id", UUID.class),
                 result.getString("calendar_name"),
                 result.getString("color_hex"),
-                result.getLong("organizer_user_id"),
+                nullableLong(result, "organizer_user_id"),
                 result.getObject("organizer_person_public_id", UUID.class),
                 result.getString("organizer_name"),
                 result.getString("organizer_email"),
@@ -68,6 +68,11 @@ final class CalendarRowMapper {
                 result.getBoolean("response_required"),
                 response == null ? null : ResponseStatus.valueOf(response),
                 resource,
+                EventImportance.valueOf(result.getString("importance")),
+                EventDetailLevel.valueOf(result.getString("detail_level")),
+                result.getBoolean("starred"),
+                result.getLong("preference_version"),
+                CalendarAccessLevel.valueOf(result.getString("access_level")),
                 result.getLong("version"));
     }
 
@@ -120,5 +125,10 @@ final class CalendarRowMapper {
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Calendar JSON data is invalid.", exception);
         }
+    }
+
+    private static Long nullableLong(ResultSet result, String column) throws SQLException {
+        long value = result.getLong(column);
+        return result.wasNull() ? null : value;
     }
 }

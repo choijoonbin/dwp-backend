@@ -10,6 +10,7 @@ dependencies {
     implementation 'org.springframework.kafka:spring-kafka'
     implementation 'software.amazon.awssdk:s3:2.53.3'
     implementation 'software.amazon.awssdk:url-connection-client:2.53.3'
+    implementation 'io.github.erdtman:java-json-canonicalization:1.1'
 
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'
@@ -24,4 +25,7 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:postgresql'
+    testImplementation 'org.postgresql:postgresql'
 }

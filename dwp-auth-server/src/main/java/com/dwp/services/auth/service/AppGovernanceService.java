@@ -66,10 +66,17 @@ public class AppGovernanceService {
                     .filter(value -> visible.contains(value.resourceSetId()))
                     .toList();
         }
+        Set<UUID> firstApproverBootstrapEligibleIds =
+                assignmentStore.firstApproverBootstrapEligibleAssignmentIds(
+                        tenantId, actorId, catalogAdmin);
+        assignments = assignments.stream()
+                .map(value -> value.withFirstApproverBootstrapEligible(
+                        firstApproverBootstrapEligibleIds.contains(value.assignmentId())))
+                .toList();
         boolean canComposeResponsibilities = catalogAdmin || actorScopes.stream()
                 .anyMatch(value -> "APP_OWNER".equals(value.responsibilityCode()));
         return new AppGovernanceDtos.Dashboard(
-                metrics(sets, assignments),
+                metrics(tenantId, sets, assignments),
                 canComposeResponsibilities ? responsibilities() : List.of(),
                 canComposeResponsibilities ? principals(tenantId) : List.of(),
                 sets, assignments);
@@ -244,19 +251,19 @@ public class AppGovernanceService {
                     "PRESET_WORKFLOW_REQUIRED_FOR_SPECIALIST_RESPONSIBILITY");
         }
         AppGovernanceDtos.ResourceSet resourceSet = requireResourceSet(tenantId, request.resourceSetId());
-        if ("APP_OWNER".equals(responsibility)) {
-            authorization.requireCatalogAdmin(
-                    tenantId, actorId, correlationId, "APP_ADMIN_ASSIGNMENT", "CREATE");
-        } else {
-            authorization.requirePresetRequester(
-                    tenantId, actorId, request.resourceSetId(), correlationId);
-        }
+        requireAssignmentRequestAuthority(
+                tenantId, actorId, correlationId, responsibility, request.resourceSetId());
         assignmentStore.requirePrincipal(tenantId, principalType, principalRef);
         validateWindow(request.validTo());
         assignmentStore.lockAssignmentBoundary(
                 tenantId, principalType, principalRef, resourceSet);
+        resourceSet = requireResourceSet(tenantId, request.resourceSetId());
+        assignmentStore.lockAssignmentBoundary(
+                tenantId, principalType, principalRef, resourceSet);
+        requireAssignmentRequestAuthority(
+                tenantId, actorId, correlationId, responsibility, request.resourceSetId());
         assignmentStore.ensureNoDutyConflict(tenantId, principalType, principalRef,
-                responsibility, request.resourceSetId(), null);
+                responsibility, request.resourceSetId(), null, request.validTo(), null);
         if (assignmentStore.hasOpenAssignment(tenantId, principalType, principalRef,
                 responsibility, request.resourceSetId())) {
             conflict("An active or pending assignment already exists for this principal and scope.");
@@ -290,6 +297,21 @@ public class AppGovernanceService {
                 snapshot("responsibility", responsibility, "resourceSet", resourceSet.key(),
                         "principalType", principalType, "principalRef", principalRef));
         return requireAssignment(tenantId, assignmentId);
+    }
+
+    private void requireAssignmentRequestAuthority(
+            Long tenantId,
+            Long actorId,
+            String correlationId,
+            String responsibility,
+            UUID resourceSetId) {
+        if ("APP_OWNER".equals(responsibility)) {
+            authorization.requireCatalogAdmin(
+                    tenantId, actorId, correlationId, "APP_ADMIN_ASSIGNMENT", "CREATE");
+            return;
+        }
+        authorization.requirePresetRequester(
+                tenantId, actorId, resourceSetId, correlationId);
     }
 
     @Transactional
@@ -343,7 +365,8 @@ public class AppGovernanceService {
             validateWindow(before.validTo());
             assignmentStore.ensureNoDutyConflict(
                     tenantId, before.principalType(), before.principalRef(),
-                    before.responsibilityCode(), before.resourceSetId(), assignmentId);
+                    before.responsibilityCode(), before.resourceSetId(),
+                    before.validFrom(), before.validTo(), assignmentId);
         }
         String state = "APPROVED".equals(decision) ? "ACTIVE" : "DENIED";
         int changed = jdbc.update("""
@@ -407,8 +430,8 @@ public class AppGovernanceService {
             throw new BaseException(ErrorCode.INVALID_STATE, "Only active assignments can be revoked.");
         }
         if ("APP_OWNER".equals(before.responsibilityCode())
-                && assignmentStore.activeOwnerCount(
-                        tenantId, before.resourceSetId()) <= 1) {
+                && assignmentStore.wouldRemoveFinalEffectiveOwner(
+                        tenantId, before.resourceSetId(), assignmentId)) {
             throw new BaseException(ErrorCode.INVALID_STATE,
                     "Assign and approve a replacement owner before revoking the final owner.");
         }
@@ -506,7 +529,9 @@ public class AppGovernanceService {
                     "APP_ADMIN_ASSIGNMENT", assignmentId.toString());
             return;
         }
-        if (isFirstApproverBootstrap(tenantId, actorId, assignment)) {
+        if (assignmentStore.isFirstApproverBootstrapEligible(
+                tenantId, actorId,
+                tenantRoles(tenantId, actorId).contains(CATALOG_ADMIN), assignmentId)) {
             authorization.requireCatalogAdmin(
                     tenantId, actorId, correlationId,
                     "APP_ADMIN_ASSIGNMENT", assignmentId.toString());
@@ -515,25 +540,6 @@ public class AppGovernanceService {
         authorization.requireScopedResponsibility(
                 tenantId, actorId, "APP_ACCESS_APPROVER", assignment.resourceSetId(),
                 correlationId, "APP_ADMIN_ASSIGNMENT", assignmentId.toString());
-    }
-
-    private boolean isFirstApproverBootstrap(
-            Long tenantId, Long actorId, AppGovernanceDtos.Assignment assignment) {
-        return "APP_ACCESS_APPROVER".equals(assignment.responsibilityCode())
-                && "PENDING_APPROVAL".equals(assignment.lifecycleState())
-                && "MANUAL".equals(assignment.assignmentSource())
-                && "USER".equals(assignment.principalType())
-                && assignment.requestedBy() != null
-                && assignmentStore.isActiveUser(tenantId, actorId)
-                && assignmentStore.isActivePrincipal(
-                        tenantId, assignment.principalType(), assignment.principalRef())
-                && assignmentStore.hasEffectiveResponsibilityForUser(
-                        tenantId, assignment.requestedBy(), assignment.resourceSetId(),
-                        "APP_OWNER")
-                && assignmentStore.effectiveResponsibilityCount(
-                        tenantId, assignment.resourceSetId(), "APP_OWNER") > 0
-                && assignmentStore.effectiveResponsibilityCount(
-                        tenantId, assignment.resourceSetId(), "APP_ACCESS_APPROVER") == 0;
     }
 
     private void requireAssignmentRevocationAuthority(
@@ -651,6 +657,7 @@ public class AppGovernanceService {
     }
 
     private AppGovernanceDtos.Metrics metrics(
+            Long tenantId,
             List<AppGovernanceDtos.ResourceSet> sets,
             List<AppGovernanceDtos.Assignment> assignments) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
@@ -661,10 +668,10 @@ public class AppGovernanceService {
         long reviews = assignments.stream()
                 .filter(value -> isEffectivelyActive(value, now))
                 .filter(value -> !value.reviewDueAt().isAfter(due)).count();
-        long withoutOwner = sets.stream().filter(set -> assignments.stream().noneMatch(assignment ->
-                set.resourceSetId().equals(assignment.resourceSetId())
-                        && "APP_OWNER".equals(assignment.responsibilityCode())
-                        && isEffectivelyActive(assignment, now))).count();
+        Set<UUID> effectiveOwnerSets = assignmentStore.effectiveOwnerResourceSetIds(tenantId);
+        long withoutOwner = sets.stream()
+                .filter(set -> !effectiveOwnerSets.contains(set.resourceSetId()))
+                .count();
         return new AppGovernanceDtos.Metrics(active, pending, reviews, withoutOwner);
     }
 
@@ -824,7 +831,7 @@ public class AppGovernanceService {
                 result.getObject("approved_at", OffsetDateTime.class),
                 result.getString("decision_reason"), result.getLong("version"),
                 result.getObject("created_at", OffsetDateTime.class),
-                result.getObject("updated_at", OffsetDateTime.class));
+                result.getObject("updated_at", OffsetDateTime.class), false);
     }
 
     private record ExpiredAssignment(

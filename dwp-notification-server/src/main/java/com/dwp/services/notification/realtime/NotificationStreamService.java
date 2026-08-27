@@ -29,23 +29,72 @@ public class NotificationStreamService {
     private final Map<UserKey, Set<Client>> clients = new ConcurrentHashMap<>();
     private final long timeoutMillis;
     private final Counter sendFailures;
+    private final Counter connectionRejections;
+    private final Counter catchUpOverflows;
     private final LongFunction<SseEmitter> emitterFactory;
+    private final int maximumConnections;
+    private final int maximumTenantConnections;
+    private final int maximumUserConnections;
+    private final int maximumCatchUpBuffer;
+    private final Object connectionLock = new Object();
 
     @Autowired
     public NotificationStreamService(
             @Value("${dwp.notification.sse-timeout:30m}") Duration timeout,
+            @Value("${dwp.notification.sse-max-connections:5000}") int maximumConnections,
+            @Value("${dwp.notification.sse-max-connections-per-tenant:1000}")
+            int maximumTenantConnections,
+            @Value("${dwp.notification.sse-max-connections-per-user:4}")
+            int maximumUserConnections,
+            @Value("${dwp.notification.sse-catch-up-buffer-capacity:100}")
+            int maximumCatchUpBuffer,
             MeterRegistry meterRegistry) {
-        this(timeout.toMillis(), meterRegistry, SseEmitter::new);
+        this(
+                timeout.toMillis(),
+                meterRegistry,
+                SseEmitter::new,
+                maximumConnections,
+                maximumTenantConnections,
+                maximumUserConnections,
+                maximumCatchUpBuffer);
     }
 
     NotificationStreamService(
             long timeoutMillis,
             MeterRegistry meterRegistry,
             LongFunction<SseEmitter> emitterFactory) {
+        this(timeoutMillis, meterRegistry, emitterFactory, 5000, 1000, 4, 100);
+    }
+
+    NotificationStreamService(
+            long timeoutMillis,
+            MeterRegistry meterRegistry,
+            LongFunction<SseEmitter> emitterFactory,
+            int maximumConnections,
+            int maximumTenantConnections,
+            int maximumUserConnections,
+            int maximumCatchUpBuffer) {
         this.timeoutMillis = timeoutMillis;
         this.emitterFactory = emitterFactory;
+        this.maximumConnections = positive(maximumConnections, "maximumConnections");
+        this.maximumTenantConnections = positive(
+                maximumTenantConnections, "maximumTenantConnections");
+        this.maximumUserConnections = positive(
+                maximumUserConnections, "maximumUserConnections");
+        this.maximumCatchUpBuffer = positive(maximumCatchUpBuffer, "maximumCatchUpBuffer");
+        if (this.maximumTenantConnections > this.maximumConnections
+                || this.maximumUserConnections > this.maximumTenantConnections) {
+            throw new IllegalArgumentException(
+                    "Notification SSE connection limits must narrow from global to tenant to user.");
+        }
         this.sendFailures = Counter.builder("dwp.notification.sse.send.failures")
                 .description("SSE sends that failed because a client connection was unavailable")
+                .register(meterRegistry);
+        this.connectionRejections = Counter.builder("dwp.notification.sse.connection.rejections")
+                .description("Notification SSE connections rejected by capacity limits")
+                .register(meterRegistry);
+        this.catchUpOverflows = Counter.builder("dwp.notification.sse.catchup.overflows")
+                .description("Notification SSE initial catch-up buffers that required resynchronization")
                 .register(meterRegistry);
         Gauge.builder(
                         "dwp.notification.sse.connections",
@@ -61,14 +110,27 @@ public class NotificationStreamService {
             NotificationRequestContext.Actor actor,
             String after,
             CatchUpSource catchUpSource) {
+        return open(actor, after, null, catchUpSource);
+    }
+
+    public SseEmitter open(
+            NotificationRequestContext.Actor actor,
+            String after,
+            UUID clientInstanceId,
+            CatchUpSource catchUpSource) {
         SseEmitter emitter = emitterFactory.apply(timeoutMillis);
         UserKey key = new UserKey(actor.tenantId(), actor.userId());
-        Client client = new Client(UUID.randomUUID(), actor, emitter);
-        clients.computeIfAbsent(key, ignored -> ConcurrentHashMap.newKeySet()).add(client);
+        Client client = new Client(
+                clientInstanceId == null ? UUID.randomUUID() : clientInstanceId,
+                actor,
+                emitter,
+                maximumCatchUpBuffer);
+        List<Client> superseded = register(key, client);
         Runnable cleanup = () -> remove(key, client);
         emitter.onCompletion(cleanup);
         emitter.onTimeout(cleanup);
         emitter.onError(error -> cleanup.run());
+        superseded.forEach(Client::supersede);
         try {
             String cursor = after == null || after.isBlank() ? "0" : after.trim();
             sendConnected(client, cursor);
@@ -78,7 +140,10 @@ public class NotificationStreamService {
                 if (!page.changedIds().isEmpty()) sendChanged(client, page);
                 cursor = page.changeVersion();
             } while (page.hasMore());
-            completeInitialization(client);
+            if (!completeInitialization(client)) {
+                remove(key, client);
+                emitter.complete();
+            }
         } catch (RuntimeException | IOException exception) {
             remove(key, client);
             sendFailures.increment();
@@ -139,15 +204,22 @@ public class NotificationStreamService {
             NotificationRealtimeEnvelope envelope) throws IOException {
         synchronized (client) {
             if (client.initializing) {
-                client.pending.add(envelope);
+                client.buffer(envelope);
                 return;
             }
             sendEnvelope(client, envelope);
         }
     }
 
-    private void completeInitialization(Client client) throws IOException {
+    private boolean completeInitialization(Client client) throws IOException {
         synchronized (client) {
+            if (client.overflowed) {
+                sendSyncReset(client);
+                client.pending.clear();
+                client.initializing = false;
+                catchUpOverflows.increment();
+                return false;
+            }
             client.pending.sort(Comparator.comparingLong(envelope ->
                     NotificationVersionCodec.nonNegative(
                             envelope.changeVersion(), "changeVersion")));
@@ -156,7 +228,14 @@ public class NotificationStreamService {
             }
             client.pending.clear();
             client.initializing = false;
+            return true;
         }
+    }
+
+    private void sendSyncReset(Client client) throws IOException {
+        client.emitter().send(SseEmitter.event()
+                .name("notification.sync-reset")
+                .data(Map.of("errorCode", "NOTIFICATION_SYNC_RESET_REQUIRED")));
     }
 
     private void sendEnvelope(
@@ -187,14 +266,57 @@ public class NotificationStreamService {
     }
 
     int connectionCount() {
-        return clients.values().stream().mapToInt(Set::size).sum();
+        synchronized (connectionLock) {
+            return connectionCountUnsafe();
+        }
     }
 
     private void remove(UserKey key, Client client) {
-        Set<Client> connected = clients.get(key);
-        if (connected == null) return;
-        connected.remove(client);
-        if (connected.isEmpty()) clients.remove(key, connected);
+        synchronized (connectionLock) {
+            Set<Client> connected = clients.get(key);
+            if (connected == null) return;
+            connected.remove(client);
+            if (connected.isEmpty()) clients.remove(key, connected);
+        }
+    }
+
+    private List<Client> register(UserKey key, Client client) {
+        synchronized (connectionLock) {
+            Set<Client> userConnections = clients.get(key);
+            List<Client> superseded = userConnections == null
+                    ? List.of()
+                    : userConnections.stream()
+                            .filter(existing -> existing.id().equals(client.id()))
+                            .toList();
+            int userCount = (userConnections == null ? 0 : userConnections.size())
+                    - superseded.size();
+            int tenantCount = clients.entrySet().stream()
+                    .filter(entry -> entry.getKey().tenantId() == key.tenantId())
+                    .mapToInt(entry -> entry.getValue().size())
+                    .sum()
+                    - superseded.size();
+            int globalCount = connectionCountUnsafe() - superseded.size();
+            if (globalCount >= maximumConnections
+                    || tenantCount >= maximumTenantConnections
+                    || userCount >= maximumUserConnections) {
+                connectionRejections.increment();
+                throw new NotificationStreamCapacityException();
+            }
+            Set<Client> registered = clients.computeIfAbsent(
+                    key, ignored -> ConcurrentHashMap.newKeySet());
+            registered.removeAll(superseded);
+            registered.add(client);
+            return superseded;
+        }
+    }
+
+    private int connectionCountUnsafe() {
+        return clients.values().stream().mapToInt(Set::size).sum();
+    }
+
+    private static int positive(int value, String name) {
+        if (value < 1) throw new IllegalArgumentException(name + " must be positive.");
+        return value;
     }
 
     private record UserKey(long tenantId, long userId) {
@@ -210,19 +332,41 @@ public class NotificationStreamService {
         private final NotificationRequestContext.Actor actor;
         private final SseEmitter emitter;
         private final List<NotificationRealtimeEnvelope> pending = new ArrayList<>();
+        private final int maximumPending;
         private boolean initializing = true;
+        private boolean overflowed;
 
         private Client(
                 UUID id,
                 NotificationRequestContext.Actor actor,
-                SseEmitter emitter) {
+                SseEmitter emitter,
+                int maximumPending) {
             this.id = id;
             this.actor = actor;
             this.emitter = emitter;
+            this.maximumPending = maximumPending;
         }
 
         SseEmitter emitter() {
             return emitter;
+        }
+
+        UUID id() {
+            return id;
+        }
+
+        void supersede() {
+            emitter.complete();
+        }
+
+        void buffer(NotificationRealtimeEnvelope envelope) {
+            if (overflowed) return;
+            if (pending.size() >= maximumPending) {
+                overflowed = true;
+                pending.clear();
+                return;
+            }
+            pending.add(envelope);
         }
     }
 }

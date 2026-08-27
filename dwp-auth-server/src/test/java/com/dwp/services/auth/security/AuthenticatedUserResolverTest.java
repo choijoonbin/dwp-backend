@@ -8,6 +8,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -49,12 +50,20 @@ class AuthenticatedUserResolverTest {
                                 .isEqualTo(ErrorCode.FORBIDDEN));
     }
 
+    @Test
+    void resolvesTheAuthenticatedSessionFamilyBinding() {
+        assertThat(AuthenticatedUserResolver.requireSessionFamilyId(
+                authentication(List.of("PROVIDER_SUPPORT"))))
+                .isEqualTo(UUID.fromString("40000000-0000-0000-0000-000000000001"));
+    }
+
     private UsernamePasswordAuthenticationToken authentication(List<String> roles) {
         Instant now = Instant.now();
         Jwt jwt = Jwt.withTokenValue("token")
                 .header("alg", "HS256")
                 .subject("7")
                 .claim("roles", roles)
+                .claim("sid", "40000000-0000-0000-0000-000000000001")
                 .issuedAt(now)
                 .expiresAt(now.plusSeconds(60))
                 .build();

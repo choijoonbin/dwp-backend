@@ -5,6 +5,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Comparator;
 import java.util.HexFormat;
+import java.util.UUID;
 
 final class CalendarRequestFingerprint {
 
@@ -28,6 +29,10 @@ final class CalendarRequestFingerprint {
         append(canonical, request.recurrenceUntil() == null
                 ? null : request.recurrenceUntil().toString());
         append(canonical, Boolean.toString(request.responseRequired()));
+        append(canonical, request.calendarId() == null
+                ? null : request.calendarId().toString());
+        append(canonical, (request.importance() == null
+                ? CalendarTypes.EventImportance.NORMAL : request.importance()).name());
         request.attendees().stream()
                 .sorted(Comparator
                         .comparing((CalendarDtos.AttendeeInput value) ->
@@ -45,12 +50,27 @@ final class CalendarRequestFingerprint {
                     append(canonical, value.type().name());
                 });
         append(canonical, request.resourceId() == null ? null : request.resourceId().toString());
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(canonical.toString().getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 is unavailable", exception);
-        }
+        return sha256(canonical);
+    }
+
+    static String scheduling(
+            UUID currentPersonPublicId,
+            CalendarDtos.SchedulingEvaluationRequest request) {
+        StringBuilder canonical = new StringBuilder(512);
+        append(canonical, currentPersonPublicId == null
+                ? null : currentPersonPublicId.toString());
+        request.personIds().stream()
+                .filter(personId -> !personId.equals(currentPersonPublicId))
+                .distinct()
+                .sorted()
+                .forEach(personId -> append(canonical, personId.toString()));
+        append(canonical, request.from().toInstant().toString());
+        append(canonical, request.to().toInstant().toString());
+        append(canonical, request.roomStartsAt().toInstant().toString());
+        append(canonical, request.roomEndsAt().toInstant().toString());
+        append(canonical, Integer.toString(request.durationMinutes()));
+        append(canonical, request.timeZone().trim());
+        return sha256(canonical);
     }
 
     private static void append(StringBuilder value, String item) {
@@ -68,5 +88,14 @@ final class CalendarRequestFingerprint {
 
     private static String normalizedNullable(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private static String sha256(StringBuilder canonical) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(canonical.toString().getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
+        }
     }
 }

@@ -6,6 +6,8 @@ import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class PlatformSecurityFilterTest {
@@ -275,6 +277,39 @@ class PlatformSecurityFilterTest {
         filter.doFilter(allowed, allowedResponse, new MockFilterChain());
 
         assertThat(allowedResponse.getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void requiresCalendarManagePermissionForCompanyEventTrashAndRestore() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+        for (String suffix : new String[]{"trash", "restore"}) {
+            String path = "/v1/admin/calendar/company-calendars/calendar-1/events/event-1/" + suffix;
+            MockHttpServletRequest denied = new MockHttpServletRequest("POST", path);
+            denied.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+            denied.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+            denied.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+            denied.addHeader(PlatformSecurityFilter.ROLES_HEADER, "CALENDAR_ADMIN");
+            denied.addHeader(
+                    PlatformSecurityFilter.PERMISSIONS_HEADER, "ADMIN.CALENDAR:CREATE");
+            MockHttpServletResponse deniedResponse = new MockHttpServletResponse();
+
+            filter.doFilter(denied, deniedResponse, new MockFilterChain());
+
+            assertThat(deniedResponse.getStatus()).isEqualTo(403);
+
+            MockHttpServletRequest allowed = new MockHttpServletRequest("POST", path);
+            allowed.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+            allowed.addHeader(PlatformSecurityFilter.USER_HEADER, "18");
+            allowed.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+            allowed.addHeader(PlatformSecurityFilter.ROLES_HEADER, "CALENDAR_ADMIN");
+            allowed.addHeader(
+                    PlatformSecurityFilter.PERMISSIONS_HEADER, "ADMIN.CALENDAR:MANAGE");
+            MockHttpServletResponse allowedResponse = new MockHttpServletResponse();
+
+            filter.doFilter(allowed, allowedResponse, new MockFilterChain());
+
+            assertThat(allowedResponse.getStatus()).isEqualTo(200);
+        }
     }
 
     @Test
@@ -783,7 +818,7 @@ class PlatformSecurityFilterTest {
     }
 
     @Test
-    void acceptsOnlyThePlatformResourcesGrantedByAResolvedSupportSession() throws Exception {
+    void broadConfigurationScopeIsRetiredAtThePlatformBoundary() throws Exception {
         PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
         MockHttpServletRequest request = request("/v1/admin/tenant-branding");
         request.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
@@ -797,7 +832,81 @@ class PlatformSecurityFilterTest {
 
         filter.doFilter(request, response, new MockFilterChain());
 
-        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(response.getStatus()).isEqualTo(403);
+    }
+
+    @Test
+    void supportConfigurationScopeCannotReadAnnouncementContent() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+        for (String path : List.of("/v1/admin/announcements", "/v1/announcements")) {
+            MockHttpServletRequest request = request(path);
+            legacyProduct(request);
+            request.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+            request.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+            request.addHeader(PlatformSecurityFilter.TENANT_HEADER, "42");
+            request.addHeader(PlatformSecurityFilter.ROLES_HEADER, "PROVIDER_SUPPORT");
+            request.addHeader(PlatformSecurityFilter.SUPPORT_SESSION_HEADER, "session-1");
+            request.addHeader(
+                    PlatformSecurityFilter.SUPPORT_SCOPES_HEADER,
+                    "TENANT_CONFIGURATION_READ");
+            request.addHeader(PlatformSecurityFilter.ACTOR_TENANT_HEADER, "3");
+            MockHttpServletResponse response = new MockHttpServletResponse();
+
+            filter.doFilter(request, response, new MockFilterChain());
+
+            assertThat(response.getStatus()).as(path).isEqualTo(403);
+        }
+    }
+
+    @Test
+    void safeExperiencePreviewRequiresItsDedicatedReadOnlyScope() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+        MockHttpServletRequest allowed = request("/v1/admin/tenant-experience-preview");
+        allowed.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        allowed.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        allowed.addHeader(PlatformSecurityFilter.TENANT_HEADER, "42");
+        allowed.addHeader(PlatformSecurityFilter.ROLES_HEADER, "PROVIDER_SUPPORT");
+        allowed.addHeader(PlatformSecurityFilter.SUPPORT_SESSION_HEADER, "session-preview");
+        allowed.addHeader(
+                PlatformSecurityFilter.SUPPORT_SCOPES_HEADER, "TENANT_EXPERIENCE_PREVIEW");
+        allowed.addHeader(PlatformSecurityFilter.ACTOR_TENANT_HEADER, "3");
+        MockHttpServletResponse allowedResponse = new MockHttpServletResponse();
+
+        filter.doFilter(allowed, allowedResponse, new MockFilterChain());
+
+        assertThat(allowedResponse.getStatus()).isEqualTo(200);
+
+        MockHttpServletRequest wrongScope = request("/v1/admin/tenant-experience-preview");
+        wrongScope.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        wrongScope.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        wrongScope.addHeader(PlatformSecurityFilter.TENANT_HEADER, "42");
+        wrongScope.addHeader(PlatformSecurityFilter.ROLES_HEADER, "PROVIDER_SUPPORT");
+        wrongScope.addHeader(PlatformSecurityFilter.SUPPORT_SESSION_HEADER, "session-config");
+        wrongScope.addHeader(
+                PlatformSecurityFilter.SUPPORT_SCOPES_HEADER, "TENANT_CONFIGURATION_READ");
+        wrongScope.addHeader(PlatformSecurityFilter.ACTOR_TENANT_HEADER, "3");
+        MockHttpServletResponse wrongScopeResponse = new MockHttpServletResponse();
+
+        filter.doFilter(wrongScope, wrongScopeResponse, new MockFilterChain());
+
+        assertThat(wrongScopeResponse.getStatus()).isEqualTo(403);
+
+        MockHttpServletRequest head = new MockHttpServletRequest(
+                "HEAD", "/v1/admin/tenant-experience-preview");
+        head.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        head.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        head.addHeader(PlatformSecurityFilter.TENANT_HEADER, "42");
+        head.addHeader(PlatformSecurityFilter.ROLES_HEADER, "PROVIDER_SUPPORT");
+        head.addHeader(PlatformSecurityFilter.SUPPORT_SESSION_HEADER, "session-preview");
+        head.addHeader(
+                PlatformSecurityFilter.SUPPORT_SCOPES_HEADER,
+                "TENANT_EXPERIENCE_PREVIEW");
+        head.addHeader(PlatformSecurityFilter.ACTOR_TENANT_HEADER, "3");
+        MockHttpServletResponse headResponse = new MockHttpServletResponse();
+
+        filter.doFilter(head, headResponse, new MockFilterChain());
+
+        assertThat(headResponse.getStatus()).isEqualTo(403);
     }
 
     @Test

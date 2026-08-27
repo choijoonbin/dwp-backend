@@ -128,6 +128,21 @@ class PlatformCanarySecurityContractTest {
     }
 
     @Test
+    void staleAuthorityRevisionFailsClosedForEveryCanaryMutationOwner() throws Exception {
+        for (String testId : Set.of("PS-C009", "PS-C012")) {
+            FixtureEvidence fixture = FixtureEvidence.from(testId, fixtureAdapter, registry);
+            String path = "PS-C009".equals(testId)
+                    ? "/v1/admin/announcements"
+                    : "/v1/admin/services/requests/00000000-0000-0000-0000-000000000001/transition";
+
+            MockHttpServletResponse response = invoke(
+                    fixture, "POST", path, null, true);
+
+            assertThat(response.getStatus()).isEqualTo(409);
+        }
+    }
+
+    @Test
     void generatedProjectionBindsEveryPlatformOwnedCanaryRouteToBothOpenApiHops() {
         assertThat(registry.bindingContracts()).hasSize(36);
         assertThat(registry.bindingContracts().stream()
@@ -149,11 +164,22 @@ class PlatformCanarySecurityContractTest {
             String method,
             String path,
             String suppliedRouteKey) throws Exception {
+        return invoke(evidence, method, path, suppliedRouteKey, false);
+    }
+
+    private MockHttpServletResponse invoke(
+            FixtureEvidence evidence,
+            String method,
+            String path,
+            String suppliedRouteKey,
+            boolean staleExpectedRevision) throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest(method, path);
         request.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
         request.addHeader(PlatformSecurityFilter.USER_HEADER, "101");
         request.addHeader(PlatformSecurityFilter.TENANT_HEADER, "7");
-        request.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
+        request.addHeader(
+                PlatformSecurityFilter.ROLES_HEADER,
+                evidence.providerIdentity() ? "PROVIDER_SUPPORT" : "WORKSPACE_MEMBER");
         if (!evidence.permissions().isEmpty()) {
             request.addHeader(
                     PlatformSecurityFilter.PERMISSIONS_HEADER,
@@ -179,6 +205,11 @@ class PlatformCanarySecurityContractTest {
                 .anyMatch(binding -> routeKey.equals(binding.routeContractKey())
                         && "ACTION".equals(binding.routeKind()));
         trustedProductEvidence(request, routeKey, stateChanging);
+        if (staleExpectedRevision) {
+            request.removeHeader(PlatformSecurityFilter.EXPECTED_DECISION_REVISION_HEADER);
+            request.addHeader(PlatformSecurityFilter.EXPECTED_DECISION_REVISION_HEADER,
+                    "psr-" + "f".repeat(64));
+        }
         MockHttpServletResponse response = new MockHttpServletResponse();
         filter.doFilter(request, response, new MockFilterChain());
         return response;
@@ -233,7 +264,7 @@ class PlatformCanarySecurityContractTest {
                 Arguments.of("PS-C001", "GET", "/v1/services/catalog", 403),
                 Arguments.of("PS-C002", "GET", "/v1/admin/announcements", 200),
                 Arguments.of("PS-C002", "GET", "/v1/communications", 403),
-                Arguments.of("PS-C003", "GET", "/v1/admin/announcements", 200),
+                Arguments.of("PS-C003", "GET", "/v1/admin/announcements", 403),
                 Arguments.of("PS-C003", "POST", "/v1/admin/announcements", 403),
                 Arguments.of("PS-C004", "GET", "/v1/admin/announcements", 403),
                 Arguments.of("PS-C005", "GET", "/v1/services/requests", 200),
@@ -269,7 +300,8 @@ class PlatformCanarySecurityContractTest {
             Set<String> permissions,
             String resourceRoles,
             String supportSessionId,
-            Set<String> supportScopes) {
+            Set<String> supportScopes,
+            boolean providerIdentity) {
 
         static FixtureEvidence from(
                 String testId,
@@ -283,8 +315,10 @@ class PlatformCanarySecurityContractTest {
             Set<String> resourceRoles = new LinkedHashSet<>();
             Set<String> supportScopes = new LinkedHashSet<>();
             String supportSession = null;
+            boolean providerIdentity = false;
             ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
             for (PilotAuthorizationFixtureAdapter.SourceRecord source : fixture.composition()) {
+                if ("PROVIDER_ROLE".equals(source.reference())) providerIdentity = true;
                 if (source.canonicalJson() == null) continue;
                 JsonNode component = mapper.readTree(source.canonicalJson());
                 component.path("appEntitlements").forEach(value ->
@@ -307,22 +341,25 @@ class PlatformCanarySecurityContractTest {
                     Set.copyOf(permissions),
                     String.join(",", resourceRoles),
                     supportSession,
-                    Set.copyOf(supportScopes));
+                    Set.copyOf(supportScopes),
+                    providerIdentity);
         }
 
         FixtureEvidence withPermissions(Set<String> values) {
             return new FixtureEvidence(
-                    Set.copyOf(values), resourceRoles, supportSessionId, supportScopes);
+                    Set.copyOf(values), resourceRoles, supportSessionId, supportScopes,
+                    providerIdentity);
         }
 
         FixtureEvidence withResourceRoles(String values) {
             return new FixtureEvidence(
-                    permissions, values, supportSessionId, supportScopes);
+                    permissions, values, supportSessionId, supportScopes, providerIdentity);
         }
 
         FixtureEvidence withSupport(String sessionId, Set<String> scopes) {
             return new FixtureEvidence(
-                    permissions, resourceRoles, sessionId, Set.copyOf(scopes));
+                    permissions, resourceRoles, sessionId, Set.copyOf(scopes),
+                    providerIdentity);
         }
     }
 }

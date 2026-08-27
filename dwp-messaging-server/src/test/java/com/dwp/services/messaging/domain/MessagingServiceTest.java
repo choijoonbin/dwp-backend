@@ -165,7 +165,7 @@ class MessagingServiceTest {
         UUID changedReply = UUID.randomUUID();
         allowConversation(conversationId);
         when(commands.replayMessage(
-                1, 100, conversationId, key, "reply", changedReply))
+                1, 100, conversationId, key, "reply", changedReply, List.of(), List.of()))
                 .thenThrow(new BaseException(
                         ErrorCode.RESOURCE_CONFLICT, "Idempotency key payload changed."));
 
@@ -279,7 +279,7 @@ class MessagingServiceTest {
         UUID idempotencyKey = UUID.randomUUID();
         allowConversation(conversationId);
         when(commands.replayMessage(
-                1, 100, conversationId, idempotencyKey, "hello", null))
+                1, 100, conversationId, idempotencyKey, "hello", null, List.of(), List.of()))
                 .thenReturn(Optional.empty());
         when(commands.insertMessage(
                 org.mockito.ArgumentMatchers.eq(1L),
@@ -289,7 +289,9 @@ class MessagingServiceTest {
                 org.mockito.ArgumentMatchers.eq("Test User"),
                 org.mockito.ArgumentMatchers.any(UUID.class),
                 org.mockito.ArgumentMatchers.eq("hello"),
-                org.mockito.ArgumentMatchers.isNull()))
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.eq(List.of()),
+                org.mockito.ArgumentMatchers.eq(List.of())))
                 .thenReturn(new MessagingCommandRepository.MessageInsertResult(messageId, true, 12));
         MessagingDtos.MessageSummary delta = message(messageId, conversationId, 0, null);
         when(messageQueries.message(1, conversationId, 100, messageId))
@@ -322,7 +324,7 @@ class MessagingServiceTest {
         UUID idempotencyKey = UUID.randomUUID();
         allowConversation(conversationId);
         when(commands.replayMessage(
-                1, 100, conversationId, idempotencyKey, "hello", null))
+                1, 100, conversationId, idempotencyKey, "hello", null, List.of(), List.of()))
                 .thenReturn(Optional.of(
                         new MessagingCommandRepository.MessageInsertResult(messageId, false, 7)));
         MessagingDtos.MessageSummary delta = message(messageId, conversationId, 0, null);
@@ -433,6 +435,83 @@ class MessagingServiceTest {
         assertThat(changedConversation).isNotEqualTo(first);
     }
 
+    @Test
+    void messageRequestFingerprintIncludesMentionRecipients() {
+        UUID conversationId = UUID.randomUUID();
+        String first = MessagingCommandRepository.sendMessageRequestHash(
+                conversationId, "hello", null, List.of(), List.of(200L));
+        String reordered = MessagingCommandRepository.sendMessageRequestHash(
+                conversationId, "hello", null, List.of(), List.of(300L, 200L));
+        String sameReordered = MessagingCommandRepository.sendMessageRequestHash(
+                conversationId, "hello", null, List.of(), List.of(200L, 300L));
+
+        assertThat(reordered).isEqualTo(sameReordered);
+        assertThat(first).isNotEqualTo(reordered);
+    }
+
+    @Test
+    void structuredMentionsAreValidatedAndPersistedWithTheMessage() {
+        MessagingRequestContext.set(subject(100));
+        UUID conversationId = UUID.randomUUID();
+        UUID messageId = UUID.randomUUID();
+        UUID idempotencyKey = UUID.randomUUID();
+        allowConversation(conversationId);
+        when(commands.replayMessage(
+                1, 100, conversationId, idempotencyKey, "@Person 확인 부탁드립니다", null,
+                List.of(), List.of(200L))).thenReturn(Optional.empty());
+        when(queries.members(1, conversationId)).thenReturn(List.of(
+                member(100, "Test User", "MEMBER"), member(200, "Person", "MEMBER")));
+        when(commands.insertMessage(
+                org.mockito.ArgumentMatchers.eq(1L), org.mockito.ArgumentMatchers.eq(100L),
+                org.mockito.ArgumentMatchers.eq(conversationId),
+                org.mockito.ArgumentMatchers.eq(idempotencyKey),
+                org.mockito.ArgumentMatchers.eq("Test User"),
+                org.mockito.ArgumentMatchers.any(UUID.class),
+                org.mockito.ArgumentMatchers.eq("@Person 확인 부탁드립니다"),
+                org.mockito.ArgumentMatchers.isNull(),
+                org.mockito.ArgumentMatchers.eq(List.of()),
+                org.mockito.ArgumentMatchers.eq(List.of(200L))))
+                .thenReturn(new MessagingCommandRepository.MessageInsertResult(messageId, true, 15));
+        when(messageQueries.message(1, conversationId, 100, messageId))
+                .thenReturn(Optional.of(message(messageId, conversationId, 0, null)));
+
+        service().sendMessage(
+                conversationId,
+                new MessagingDtos.SendMessageRequest(
+                        "@Person 확인 부탁드립니다", idempotencyKey, null,
+                        List.of(), List.of(200L)),
+                "corr-mention");
+
+        verify(commands).insertMentions(
+                1, conversationId, messageId,
+                List.of(new MessagingDtos.MentionSummary(200, "Person", "USER")));
+    }
+
+    @Test
+    void ordinaryMembersCannotNotifyEveryone() {
+        MessagingRequestContext.set(subject(100));
+        UUID conversationId = UUID.randomUUID();
+        UUID idempotencyKey = UUID.randomUUID();
+        allowConversation(conversationId);
+        when(commands.replayMessage(
+                1, 100, conversationId, idempotencyKey, "@모두 확인", null,
+                List.of(), List.of(200L, 300L, 400L))).thenReturn(Optional.empty());
+        when(queries.members(1, conversationId)).thenReturn(List.of(
+                member(100, "Test User", "MEMBER"),
+                member(200, "Person A", "MEMBER"),
+                member(300, "Person B", "MEMBER"),
+                member(400, "Person C", "MEMBER")));
+
+        assertThatThrownBy(() -> service().sendMessage(
+                conversationId,
+                new MessagingDtos.SendMessageRequest(
+                        "@모두 확인", idempotencyKey, null,
+                        List.of(), List.of(200L, 300L, 400L)),
+                null))
+                .isInstanceOfSatisfying(BaseException.class,
+                        exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+    }
+
     private MessagingService service() {
         return new MessagingService(queries, commands, messageQueries, interactions, events);
     }
@@ -453,6 +532,13 @@ class MessagingServiceTest {
                 conversationId, "channel:test", "CHANNEL", "Test", null,
                 "PRIVATE", "INTERNAL", null, null, "ACTIVE", 2, 0,
                 false, false, null, OffsetDateTime.now(), 0);
+    }
+
+    private MessagingDtos.MemberSummary member(long userId, String name, String role) {
+        return new MessagingDtos.MemberSummary(
+                userId, UUID.randomUUID(), name, name.toLowerCase().replace(' ', '.') + "@example.com",
+                "Engineer", "DWP", "AVAILABLE", role, "DIRECT", "DEFAULT",
+                false, false, null, 0, null);
     }
 
     private MessagingMessageAccess access(

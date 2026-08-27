@@ -341,7 +341,8 @@ class ApprovalHighRiskCommandPostgresIntegrationTest {
                                 "ADMIN.APPROVAL_OPERATIONS:EXECUTE",
                                 "RS_APPROVALS"),
                         Set.of("APPROVAL_OPERATOR"),
-                        ROUTE_KEY));
+                        ROUTE_KEY,
+                        ApprovalPilotPepRegistry.ActiveAccessMode.NORMAL));
         assertThat(decision.allowed()).isTrue();
         assertThat(decision.authorities()).singleElement().satisfies(authority -> {
             assertThat(authority.routeContractKey()).isEqualTo(ROUTE_KEY);

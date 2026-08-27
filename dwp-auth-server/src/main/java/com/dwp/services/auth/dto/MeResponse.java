@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Getter
-@Builder
+@Builder(toBuilder = true)
 public class MeResponse {
 
     private Long userId;
@@ -19,6 +19,8 @@ public class MeResponse {
     private String preferredLocale;
     private String tenantDefaultLocale;
     private Long tenantId;
+    private String identityPlane;
+    private UUID sessionFamilyId;
     private String tenantCode;
     private String tenantName;
     private List<String> roles;

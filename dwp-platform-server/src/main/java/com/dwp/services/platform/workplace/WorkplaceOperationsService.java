@@ -58,12 +58,6 @@ public class WorkplaceOperationsService {
             String verifiedGroupRefs,
             WorkplaceDtos.BookingRequest request) {
         String key = normalizeIdempotencyKey(idempotencyKey);
-        if (key == null) {
-            return workplace.createBooking(
-                    tenantId, userId, personPublicId, displayName,
-                    locale, correlationId, verifiedGroupRefs, request);
-        }
-
         String fingerprint = fingerprint(request);
         operations.lockUserBookingScope(tenantId, userId);
         WorkplaceOperationsRepository.IdempotencyRow existing = operations
@@ -99,6 +93,8 @@ public class WorkplaceOperationsService {
         WorkplaceBookingRepository.BookingRow current = bookings
                 .booking(tenantId, userId, bookingId, korean(locale))
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        workplace.requireBookingBookAccess(
+                tenantId, userId, verifiedGroupRefs, current);
         OffsetDateTime now = OffsetDateTime.now();
         if (current.version() != request.version()) {
             throw conflict("The reservation changed. Refresh and try again.");
@@ -121,6 +117,9 @@ public class WorkplaceOperationsService {
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         if (target.type() == ResourceType.ROOM) {
             throw invalid("Meeting rooms must be reserved with the calendar-aware room flow.");
+        }
+        if (target.type() != current.resourceType()) {
+            throw invalid("A Workplace reservation can only move to the same resource type.");
         }
         WorkplaceCatalogRepository.FloorRow floor = catalog
                 .floor(tenantId, target.floorId(), ko)
@@ -353,7 +352,7 @@ public class WorkplaceOperationsService {
 
     private String normalizeIdempotencyKey(String value) {
         String key = blank(value);
-        if (key == null) return null;
+        if (key == null) throw invalid("Idempotency-Key is required.");
         if (key.length() > 160 || key.chars().anyMatch(character ->
                 character < 0x21 || character > 0x7e)) {
             throw invalid("Idempotency-Key must contain 1 to 160 visible ASCII characters.");

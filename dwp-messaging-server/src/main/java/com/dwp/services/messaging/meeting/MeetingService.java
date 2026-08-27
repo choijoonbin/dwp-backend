@@ -47,6 +47,17 @@ public class MeetingService {
                         .orElse(null));
     }
 
+    @Transactional(readOnly = true)
+    public MeetingDtos.HistoryResponse history(UUID conversationId, int limit) {
+        MessagingRequestContext.Subject subject = MessagingRequestContext.get();
+        requireAccess(subject, conversationId);
+        int resolvedLimit = Math.max(1, Math.min(20, limit));
+        return new MeetingDtos.HistoryResponse(
+                repository.history(subject.tenantId(), conversationId, resolvedLimit).stream()
+                        .map(MeetingDtos.HistoryItemResponse::from)
+                        .toList());
+    }
+
     @Transactional
     public MeetingDtos.SessionResponse start(UUID conversationId, String correlationId) {
         MessagingRequestContext.Subject subject = MessagingRequestContext.get();

@@ -13,10 +13,17 @@ import com.dwp.services.provider.operation.ProviderOperationRepository;
 import com.dwp.services.provider.operation.ProviderOperationStep;
 import com.dwp.services.provider.operation.ProviderOperationStepAttemptRepository;
 import com.dwp.services.provider.operation.ProviderOperationStepRepository;
-import com.dwp.services.provider.provisioning.DownstreamProvisioningClient;
 import com.dwp.services.provider.provisioning.ProviderProvisioningOrchestrator;
+import com.dwp.services.provider.provisioning.TenantMutationOrchestrator;
 import com.dwp.services.provider.security.ProviderRequestContext;
+import com.dwp.services.provider.support.ProviderSupportAccessPolicy;
+import com.dwp.services.provider.support.ProviderSupportActivationGate;
+import com.dwp.services.provider.support.ProviderSupportDtos;
 import com.dwp.services.provider.support.ProviderSupportRequestRepository;
+import com.dwp.services.provider.support.ProviderSupportRequestSecurityPolicy;
+import com.dwp.services.provider.support.ProviderSupportSessionRepository;
+import com.dwp.services.provider.support.ProviderSupportSessionLifecycleService;
+import com.dwp.services.provider.support.CustomerApprovalEvidencePolicy;
 import com.dwp.services.provider.tenant.ProviderTenant;
 import com.dwp.services.provider.tenant.ProviderTenantRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -70,8 +77,13 @@ public class ProviderControlPlaneService {
     private final ProviderOperationsRepository operationsRepository;
     private final ProviderCommercialRenewalRepository commercialRenewalRepository;
     private final ProviderSupportRequestRepository supportRequestRepository;
+    private final ProviderSupportRequestSecurityPolicy supportRequestSecurityPolicy;
+    private final ProviderSupportSessionRepository supportSessionRepository;
+    private final ProviderSupportSessionLifecycleService supportSessionLifecycleService;
+    private final ProviderSupportActivationGate supportActivationGate;
+    private final CustomerApprovalEvidencePolicy customerApprovalEvidencePolicy;
     private final ProviderProvisioningOrchestrator orchestrator;
-    private final DownstreamProvisioningClient provisioningClient;
+    private final TenantMutationOrchestrator tenantMutationOrchestrator;
     private final ProviderAuditService auditService;
     private final ObjectMapper objectMapper;
 
@@ -86,8 +98,13 @@ public class ProviderControlPlaneService {
             ProviderOperationsRepository operationsRepository,
             ProviderCommercialRenewalRepository commercialRenewalRepository,
             ProviderSupportRequestRepository supportRequestRepository,
+            ProviderSupportRequestSecurityPolicy supportRequestSecurityPolicy,
+            ProviderSupportSessionRepository supportSessionRepository,
+            ProviderSupportSessionLifecycleService supportSessionLifecycleService,
+            ProviderSupportActivationGate supportActivationGate,
+            CustomerApprovalEvidencePolicy customerApprovalEvidencePolicy,
             ProviderProvisioningOrchestrator orchestrator,
-            DownstreamProvisioningClient provisioningClient,
+            TenantMutationOrchestrator tenantMutationOrchestrator,
             ProviderAuditService auditService,
             ObjectMapper objectMapper) {
         this.tenantRepository = tenantRepository;
@@ -100,8 +117,13 @@ public class ProviderControlPlaneService {
         this.operationsRepository = operationsRepository;
         this.commercialRenewalRepository = commercialRenewalRepository;
         this.supportRequestRepository = supportRequestRepository;
+        this.supportRequestSecurityPolicy = supportRequestSecurityPolicy;
+        this.supportSessionRepository = supportSessionRepository;
+        this.supportSessionLifecycleService = supportSessionLifecycleService;
+        this.supportActivationGate = supportActivationGate;
+        this.customerApprovalEvidencePolicy = customerApprovalEvidencePolicy;
         this.orchestrator = orchestrator;
-        this.provisioningClient = provisioningClient;
+        this.tenantMutationOrchestrator = tenantMutationOrchestrator;
         this.auditService = auditService;
         this.objectMapper = objectMapper;
     }
@@ -655,20 +677,14 @@ public class ProviderControlPlaneService {
             ProviderDtos.LifecycleRequest request) {
         ProviderRequestContext.requirePermission("TENANT_WRITE");
         ProviderTenant tenant = requireTenant(tenantId);
-        requireVersion(tenant.getVersion(), request.version());
         if ("ACTIVE".equals(request.state()) && !"READY".equals(tenant.getOnboardingState())) {
             throw new BaseException(
                     ErrorCode.INVALID_STATE,
                     "A tenant cannot be activated until downstream onboarding is ready.");
         }
-        provisioningClient.updateLifecycle(tenantId, request.state());
-        tenant.setLifecycleState(request.state());
-        tenant = tenantRepository.saveAndFlush(tenant);
-        auditService.success(
-                "provider.tenant.lifecycle-changed", "PROVIDER_TENANT", tenantId.toString(),
-                tenantId, tenant.getOrganizationId(), correlationId,
-                Map.of("state", request.state(), "justification", request.justification()));
-        return tenantSummary(tenant);
+        tenantMutationOrchestrator.lifecycle(
+                tenant, request.version(), request.state(), request.justification(), correlationId);
+        return tenantSummary(requireTenant(tenantId));
     }
 
     public ProviderDtos.TenantSummary replaceEntitlements(
@@ -677,20 +693,12 @@ public class ProviderControlPlaneService {
             ProviderDtos.ReplaceEntitlementsRequest request) {
         ProviderRequestContext.requirePermission("ENTITLEMENT_WRITE");
         ProviderTenant tenant = requireTenant(tenantId);
-        requireVersion(tenant.getVersion(), request.version());
         List<Entitlement> entitlements = requireEntitlements(request.entitlementKeys());
-        provisioningClient.replaceEntitlements(
-                tenantId, entitlements.stream().map(Entitlement::getEntitlementKey).toList());
-        replaceTenantEntitlements(tenant, entitlements);
-        tenant.setEntitlementRevision(valueOrZero(tenant.getEntitlementRevision()) + 1L);
-        tenant = tenantRepository.saveAndFlush(tenant);
-        auditService.success(
-                "provider.tenant-entitlements.replaced", "PROVIDER_TENANT", tenantId.toString(),
-                tenantId, tenant.getOrganizationId(), correlationId,
-                Map.of(
-                        "entitlements", entitlements.stream().map(Entitlement::getEntitlementKey).toList(),
-                        "justification", request.justification()));
-        return tenantSummary(tenant);
+        tenantMutationOrchestrator.replaceEntitlements(
+                tenant, request.version(),
+                entitlements.stream().map(Entitlement::getEntitlementKey).toList(),
+                request.justification(), correlationId);
+        return tenantSummary(requireTenant(tenantId));
     }
 
     @Transactional
@@ -766,7 +774,7 @@ public class ProviderControlPlaneService {
                 .findFirst().orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
     }
 
-    public ProviderDtos.AdministratorInvitation issueAdministratorInvitation(
+    public void issueAdministratorInvitation(
             UUID tenantId,
             UUID administratorId,
             String correlationId,
@@ -782,26 +790,18 @@ public class ProviderControlPlaneService {
         if (administrator.authUserId() == null) {
             throw new BaseException(ErrorCode.INVALID_STATE, "The administrator is not linked to auth.");
         }
-        DownstreamProvisioningClient.InvitationResult result =
-                provisioningClient.issueAdministratorInvitation(
-                        tenantId, administrator.authUserId(), request.expiresInMinutes());
-        estateRepository.markAdministratorInvited(
-                administratorId, ProviderRequestContext.require().operatorId());
-        auditService.success(
-                "provider.tenant-administrator.invited", "TENANT_ADMINISTRATOR",
+        auditService.denied(
+                "provider.tenant-administrator.invitation-blocked", "TENANT_ADMINISTRATOR",
                 administratorId.toString(), tenantId, tenant.getOrganizationId(), correlationId,
                 Map.of(
-                        "email", administrator.email(),
-                        "expiresAt", result.expiresAt(),
-                        "justification", request.justification()));
-        return new ProviderDtos.AdministratorInvitation(
-                administratorId,
-                result.tenantId(),
-                result.administratorUserId(),
-                result.email(),
-                result.activationToken(),
-                "/activate?token=" + result.activationToken(),
-                result.expiresAt());
+                        "decision", "DENY",
+                        "policyId", "CUSTOMER_OWNED_ADMIN_INVITATION_BOUNDARY_V1",
+                        "reasonCode", "CUSTOMER_OWNED_DELIVERY_UNAVAILABLE",
+                        "deliveryChannelConfigured", false,
+                        "administratorLinkedToAuth", administrator.authUserId() != null));
+        throw new BaseException(
+                ErrorCode.RESOURCE_CONFLICT,
+                "Tenant administrator activation is disabled until customer-owned out-of-band delivery is configured.");
     }
 
     @Transactional
@@ -823,64 +823,10 @@ public class ProviderControlPlaneService {
                     "Standard support access must be requested and independently approved before activation.");
         }
         ProviderRequestContext.requirePermission("BREAK_GLASS_SUPPORT");
-        ProviderRequestContext.Actor actor = ProviderRequestContext.require();
-        String requestKey = normalizeIdempotencyKey(request.requestKey());
-        LinkedHashMap<String, Object> fingerprintFields = new LinkedHashMap<>();
-        fingerprintFields.put("tenantId", tenant.getProviderTenantId());
-        fingerprintFields.put("scopes", policy.scopes());
-        fingerprintFields.put("durationMinutes", request.durationMinutes());
-        fingerprintFields.put("justification", request.justification().trim());
-        fingerprintFields.put("accessMode", "BREAK_GLASS");
-        String fingerprint = sha256(json(fingerprintFields));
-        ProviderSupportRequestRepository.CreateResult creation = supportRequestRepository.createBreakGlass(
-                tenant.getProviderTenantId(), actor.operatorId(), request.justification().trim(),
-                request.durationMinutes(), requestKey, fingerprint,
-                Instant.now().plus(Duration.ofMinutes(5)));
-        ProviderSupportRequestRepository.SupportAccessRequestRecord accessRequest =
-                supportRequestRepository.byId(creation.requestId())
-                        .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        if (!constantTimeEquals(fingerprint, accessRequest.requestFingerprint())) {
-            throw new BaseException(
-                    ErrorCode.RESOURCE_CONFLICT,
-                    "The emergency access key was already used for different access details.");
-        }
-        if (!creation.created()) {
-            if (accessRequest.supportSessionId() == null) {
-                throw new BaseException(
-                        ErrorCode.RESOURCE_CONFLICT,
-                        "Emergency access activation is already in progress. Refresh before retrying.");
-            }
-            throw new BaseException(
-                    ErrorCode.RESOURCE_CONFLICT,
-                    "Emergency access was already activated and its token cannot be reissued.");
-        }
-        supportRequestRepository.addScopes(creation.requestId(), policy.scopes());
-        String token = randomToken();
-        Instant expiresAt = Instant.now().plusSeconds(request.durationMinutes() * 60L);
-        UUID sessionId = estateRepository.createSupportSession(
-                tenant.getProviderTenantId(), actor.operatorId(), creation.requestId(), request.justification(),
-                sha256(token), expiresAt, "BREAK_GLASS", approvalReference,
-                false, "L3");
-        estateRepository.addSupportScopes(sessionId, policy.scopes());
-        if (!supportRequestRepository.activate(
-                creation.requestId(), sessionId, accessRequest.version(), actor.operatorId())) {
-            throw new BaseException(ErrorCode.RESOURCE_CONFLICT, "Emergency access activation failed safely.");
-        }
-        ProviderDtos.SupportSessionSummary session = estateRepository.supportSessions(tenant.getProviderTenantId())
-                .stream().filter(item -> item.supportSessionId().equals(sessionId))
-                .findFirst().orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        auditService.success(
-                "provider.support-session.created", "SUPPORT_SESSION", sessionId.toString(),
-                tenant.getProviderTenantId(), tenant.getOrganizationId(), correlationId,
-                Map.of(
-                        "scopes", policy.scopes(),
-                        "expiresAt", expiresAt,
-                        "accessMode", "BREAK_GLASS",
-                        "customerApprovalRequired", false,
-                        "riskTier", "L3",
-                        "requestId", creation.requestId(),
-                        "justification", request.justification()));
-        return new ProviderDtos.SupportSessionGrant(session, token);
+        throw new BaseException(
+                ErrorCode.INVALID_STATE,
+                "Break-glass support is disabled until incident binding, fresh MFA, alerting, "
+                        + "and customer notification controls are available.");
     }
 
     @Transactional
@@ -897,14 +843,16 @@ public class ProviderControlPlaneService {
                     "A customer approval reference is required for this support scope.");
         }
         String requestKey = normalizeIdempotencyKey(request.requestKey());
+        ProviderRequestContext.Actor actor = ProviderRequestContext.require();
+        UUID requesterAuthSessionId = supportRequestSecurityPolicy.requireCreationAuthSession(actor);
         LinkedHashMap<String, Object> fingerprintFields = new LinkedHashMap<>();
         fingerprintFields.put("tenantId", tenant.getProviderTenantId());
         fingerprintFields.put("scopes", policy.scopes());
         fingerprintFields.put("durationMinutes", request.durationMinutes());
         fingerprintFields.put("justification", request.justification().trim());
         fingerprintFields.put("approvalReference", approvalReference);
+        fingerprintFields.put("requesterAuthSessionId", requesterAuthSessionId);
         String fingerprint = sha256(json(fingerprintFields));
-        ProviderRequestContext.Actor actor = ProviderRequestContext.require();
         ProviderSupportRequestRepository.SupportAccessRequestRecord existing =
                 supportRequestRepository.byKey(actor.operatorId(), requestKey).orElse(null);
         if (existing != null) {
@@ -916,9 +864,10 @@ public class ProviderControlPlaneService {
             return supportRequestRepository.summary(existing.requestId());
         }
         ProviderSupportRequestRepository.CreateResult creation = supportRequestRepository.create(
-                tenant.getProviderTenantId(), actor.operatorId(), request.justification().trim(),
+                tenant.getProviderTenantId(), actor.operatorId(), requesterAuthSessionId,
+                request.justification().trim(),
                 request.durationMinutes(), approvalReference, policy.customerApprovalRequired(),
-                policy.riskTier(), requestKey, fingerprint, Instant.now().plus(Duration.ofHours(24)));
+                policy.riskTier(), requestKey, fingerprint);
         UUID requestId = creation.requestId();
         ProviderSupportRequestRepository.SupportAccessRequestRecord stored =
                 supportRequestRepository.byId(requestId)
@@ -942,12 +891,6 @@ public class ProviderControlPlaneService {
         return supportRequestRepository.summary(requestId);
     }
 
-    public List<ProviderDtos.SupportAccessRequestSummary> supportAccessRequests(UUID tenantId) {
-        ProviderRequestContext.requirePermission("ESTATE_READ");
-        if (tenantId != null) requireTenant(tenantId);
-        return supportRequestRepository.list(tenantId);
-    }
-
     @Transactional
     public ProviderDtos.SupportAccessRequestSummary decideSupportAccessRequest(
             UUID requestId,
@@ -958,14 +901,13 @@ public class ProviderControlPlaneService {
                 requireSupportAccessRequest(requestId);
         requireVersion(record.version(), request.version());
         ProviderRequestContext.Actor actor = ProviderRequestContext.require();
-        if (Objects.equals(record.requesterOperatorId(), actor.operatorId())) {
-            throw new BaseException(ErrorCode.FORBIDDEN, "Support access requests cannot be self-approved.");
-        }
+        supportRequestSecurityPolicy.requireIndependentApproval(record, actor, correlationId);
         if (!"PENDING_APPROVAL".equals(record.lifecycleState())) {
             throw new BaseException(ErrorCode.INVALID_STATE, "The support access request is not awaiting approval.");
         }
         if (!supportRequestRepository.decide(
-                requestId, request.version(), actor.operatorId(), request.decision(), request.reason().trim())) {
+                requestId, request.version(), actor.operatorId(), record.requesterOperatorId(),
+                record.requesterAuthSessionId(), request.decision(), request.reason().trim())) {
             throw new BaseException(ErrorCode.RESOURCE_CONFLICT, "The support access request changed or expired.");
         }
         ProviderTenant tenant = requireTenant(record.tenantId());
@@ -983,55 +925,75 @@ public class ProviderControlPlaneService {
             String correlationId,
             ProviderDtos.ActivateSupportAccessRequest request) {
         ProviderRequestContext.requirePermission("SUPPORT_SESSION_WRITE");
-        ProviderSupportRequestRepository.SupportAccessRequestRecord record =
-                requireSupportAccessRequest(requestId);
-        requireVersion(record.version(), request.version());
         ProviderRequestContext.Actor actor = ProviderRequestContext.require();
-        if (!Objects.equals(record.requesterOperatorId(), actor.operatorId())) {
-            throw new BaseException(
-                    ErrorCode.FORBIDDEN,
-                    "Only the approved requester can activate this support access.");
-        }
+        supportSessionLifecycleService.expireElapsedSessions();
+        ProviderSupportRequestRepository.SupportAccessRequestRecord record =
+                supportRequestSecurityPolicy.requireActivationTarget(
+                        supportRequestRepository.byId(requestId), requestId, actor, correlationId);
+        requireVersion(record.version(), request.version());
+        supportRequestSecurityPolicy.requireActivationPrincipal(record, actor, correlationId);
         if (!"APPROVED".equals(record.lifecycleState())
                 || !record.decisionDueAt().isAfter(Instant.now())) {
             throw new BaseException(ErrorCode.INVALID_STATE, "The support access approval is not active.");
         }
-        ProviderTenant tenant = requireTenant(record.tenantId());
-        String token = randomToken();
-        Instant expiresAt = Instant.now().plusSeconds(record.durationMinutes() * 60L);
-        UUID sessionId = estateRepository.createSupportSession(
-                tenant.getProviderTenantId(), actor.operatorId(), requestId,
-                record.justification(), sha256(token), expiresAt, "STANDARD",
-                record.approvalReference(), record.customerApprovalRequired(), record.riskTier());
-        estateRepository.addSupportScopes(sessionId, record.scopes());
-        if (!supportRequestRepository.activate(
-                requestId, sessionId, request.version(), actor.operatorId())) {
-            throw new BaseException(ErrorCode.RESOURCE_CONFLICT, "The support access approval changed or expired.");
+        // Approval does not freeze a scope forever. Re-evaluate the active
+        // catalog at activation so a retired scope cannot create a zombie JIT
+        // session from an older approved request.
+        supportRequestPolicy(record.scopes());
+        if (!"STANDARD".equals(record.accessMode())
+                || !"L1".equals(record.riskTier())
+                || !record.customerApprovalRequired()) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "The approved support request does not match the executable JIT policy.");
         }
-        ProviderDtos.SupportSessionSummary session = estateRepository.supportSessions(record.tenantId())
-                .stream().filter(item -> item.supportSessionId().equals(sessionId))
-                .findFirst().orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        String customerApprovalEvidenceMode = record.customerApprovalRequired()
+                ? customerApprovalEvidencePolicy.requireVerified(record.approvalReference())
+                : "NOT_REQUIRED";
+        ProviderTenant tenant = requireTenant(record.tenantId());
+        requireSupportReadyTenant(tenant);
+        supportActivationGate.requireEnabled();
+        String token = randomToken();
+        ProviderSupportSessionRepository.ActivatedSupportSession activation =
+                supportSessionRepository.activateApprovedRequest(
+                        requestId, request.version(), actor.operatorId(),
+                        actor.authSessionId(), sha256(token))
+                        .orElseThrow(() -> new BaseException(
+                                ErrorCode.RESOURCE_CONFLICT,
+                                "The support access approval changed or expired."));
+        UUID sessionId = activation.supportSessionId();
+        Instant expiresAt = activation.expiresAt();
+        ProviderDtos.SupportSessionSummary session = supportSessionRepository.summary(sessionId);
         auditService.success(
                 "provider.support-access.activated", "SUPPORT_SESSION", sessionId.toString(),
                 tenant.getProviderTenantId(), tenant.getOrganizationId(), correlationId,
-                Map.of("requestId", requestId, "scopes", record.scopes(), "expiresAt", expiresAt));
-        return new ProviderDtos.SupportSessionGrant(session, token);
+                Map.of(
+                        "requestId", requestId,
+                        "scopes", record.scopes(),
+                        "expiresAt", expiresAt,
+                        "customerApprovalEvidenceMode", customerApprovalEvidenceMode,
+                        "approvalReferenceHash", sha256(record.approvalReference() == null
+                                ? "NOT_REQUIRED"
+                                : record.approvalReference())));
+        ProviderDtos.SupportAccessRequestSummary activatedRequest =
+                supportRequestRepository.summary(requestId);
+        return new ProviderDtos.SupportSessionGrant(
+                session,
+                token,
+                ProviderSupportDtos.accessRequestLedgerItem(activatedRequest, true));
     }
-
     @Transactional
     public ProviderDtos.SupportAccessRequestSummary cancelSupportAccessRequest(
             UUID requestId,
             String correlationId,
             ProviderDtos.CancelSupportAccessRequest request) {
         ProviderRequestContext.requirePermission("SUPPORT_SESSION_WRITE");
-        ProviderSupportRequestRepository.SupportAccessRequestRecord record =
-                requireSupportAccessRequest(requestId);
-        requireVersion(record.version(), request.version());
         ProviderRequestContext.Actor actor = ProviderRequestContext.require();
-        if (!Objects.equals(record.requesterOperatorId(), actor.operatorId())
-                && !actor.permissions().contains("SUPPORT_ACCESS_REVIEW")) {
-            throw new BaseException(ErrorCode.FORBIDDEN, "Only the requester or a reviewer can cancel access.");
-        }
+        supportSessionLifecycleService.expireElapsedSessions();
+        ProviderSupportRequestRepository.SupportAccessRequestRecord record =
+                supportRequestSecurityPolicy.requireCancellationTarget(
+                        supportRequestRepository.byId(requestId), requestId, actor, correlationId);
+        requireVersion(record.version(), request.version());
         if (!supportRequestRepository.cancel(
                 requestId, request.version(), actor.operatorId(), request.reason().trim())) {
             throw new BaseException(ErrorCode.RESOURCE_CONFLICT, "The support access request changed.");
@@ -1054,9 +1016,7 @@ public class ProviderControlPlaneService {
                 requireSupportAccessRequest(requestId);
         requireVersion(record.version(), request.version());
         ProviderRequestContext.Actor actor = ProviderRequestContext.require();
-        if (Objects.equals(record.requesterOperatorId(), actor.operatorId())) {
-            throw new BaseException(ErrorCode.FORBIDDEN, "Requesters cannot complete their own post-access review.");
-        }
+        supportRequestSecurityPolicy.requireIndependentPostReview(record, actor, correlationId);
         if (!supportRequestRepository.review(
                 requestId, request.version(), actor.operatorId(), request.summary().trim())) {
             throw new BaseException(ErrorCode.RESOURCE_CONFLICT, "The support access review state changed.");
@@ -1070,35 +1030,33 @@ public class ProviderControlPlaneService {
         return supportRequestRepository.summary(requestId);
     }
 
-    public List<ProviderDtos.SupportSessionSummary> supportSessions(UUID tenantId) {
-        ProviderRequestContext.requirePermission("ESTATE_READ");
-        if (tenantId != null) requireTenant(tenantId);
-        return estateRepository.supportSessions(tenantId);
-    }
-
     @Transactional
     public ProviderDtos.SupportSessionSummary revokeSupportSession(
             UUID sessionId,
             String correlationId,
             ProviderDtos.RevokeSupportSessionRequest request) {
         ProviderRequestContext.requirePermission("SUPPORT_SESSION_WRITE");
-        ProviderEstateRepository.SupportSessionRecord record = estateRepository.supportSession(sessionId)
-                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        supportSessionLifecycleService.expireElapsedSessions();
+        ProviderRequestContext.Actor actor = ProviderRequestContext.require();
+        ProviderSupportSessionRepository.SupportSessionRecord record =
+                supportRequestSecurityPolicy.requireRevocationTarget(
+                        supportSessionRepository.session(sessionId), sessionId, actor, correlationId);
         requireVersion(record.version(), request.version());
         if (!"ACTIVE".equals(record.lifecycleState())) {
             throw new BaseException(ErrorCode.INVALID_STATE, "The support session is not active.");
         }
         ProviderTenant tenant = requireTenant(record.tenantId());
-        estateRepository.revokeSupportSession(sessionId, ProviderRequestContext.require().operatorId());
-        supportRequestRepository.completeForSession(
-                sessionId, ProviderRequestContext.require().operatorId());
+        if (!supportSessionRepository.revoke(
+                sessionId, actor.operatorId(), record.version())) {
+            throw new BaseException(
+                    ErrorCode.RESOURCE_CONFLICT,
+                    "The support session changed before it could be revoked.");
+        }
         auditService.success(
                 "provider.support-session.revoked", "SUPPORT_SESSION", sessionId.toString(),
                 tenant.getProviderTenantId(), tenant.getOrganizationId(), correlationId,
                 Map.of("justification", request.justification()));
-        return estateRepository.supportSessions(record.tenantId()).stream()
-                .filter(item -> item.supportSessionId().equals(sessionId))
-                .findFirst().orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        return supportSessionRepository.summary(sessionId);
     }
 
     public List<ProviderDtos.AuditEventSummary> auditEvents(UUID tenantId, int limit) {
@@ -1386,7 +1344,7 @@ public class ProviderControlPlaneService {
                 entitlements,
                 estateRepository.serviceInstances(tenant.getProviderTenantId()),
                 estateRepository.domains(tenant.getProviderTenantId()),
-                estateRepository.administrators(tenant.getProviderTenantId()));
+                estateRepository.administratorPosture(tenant.getProviderTenantId()));
     }
 
     private ProviderDtos.EntitlementSummary entitlementSummary(
@@ -1446,8 +1404,19 @@ public class ProviderControlPlaneService {
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
     }
 
+    private void requireSupportReadyTenant(ProviderTenant tenant) {
+        if (!"ACTIVE".equals(tenant.getLifecycleState())
+                || !"READY".equals(tenant.getOnboardingState())
+                || tenant.getAuthTenantId() == null) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "The target tenant must be ACTIVE, READY, and linked to auth before support activation.");
+        }
+    }
+
     private ProviderSupportRequestRepository.SupportAccessRequestRecord requireSupportAccessRequest(
             UUID requestId) {
+        supportSessionLifecycleService.expireElapsedSessions();
         return supportRequestRepository.byId(requestId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
     }
@@ -1461,14 +1430,14 @@ public class ProviderControlPlaneService {
     private SupportRequestPolicy supportRequestPolicy(List<String> requestedScopes) {
         LinkedHashSet<String> scopeSet = requestedScopes.stream()
                 .map(String::trim).collect(Collectors.toCollection(LinkedHashSet::new));
-        if (scopeSet.contains("TENANT_CONFIGURATION_WRITE")) {
-            scopeSet.add("TENANT_CONFIGURATION_READ");
-        }
         ProviderOperationsRepository.SupportPolicy policy = operationsRepository.supportPolicy(scopeSet);
-        if (policy.matchedScopes() != scopeSet.size()) {
+        if (!scopeSet.equals(Set.of(ProviderSupportAccessPolicy.EXECUTABLE_SCOPE))
+                || policy.matchedScopes() != 1
+                || !"L1".equals(policy.riskTier())
+                || !policy.requiresCustomerApproval()) {
             throw new BaseException(
                     ErrorCode.INVALID_INPUT_VALUE,
-                    "One or more support scopes are unknown or inactive.");
+                    "Only the active L1 customer-approved tenant experience preview scope is executable.");
         }
         return new SupportRequestPolicy(
                 scopeSet.stream().sorted().toList(),

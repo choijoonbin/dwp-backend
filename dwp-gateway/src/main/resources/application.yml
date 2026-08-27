@@ -244,6 +244,37 @@ spring:
                   args:
                     name: messagingServer
                     fallbackUri: forward:/_gateway/fallback
+            - id: meeting-code-resolution
+              uri: ${SERVICE_MEETING_URL:http://localhost:8009}
+              predicates:
+                - Path=/api/meetings/v1/join-codes/**
+                - Method=GET
+              filters:
+                - RewritePath=/api/meetings/?(?<remaining>.*), /$\{remaining}
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 5
+                    redis-rate-limiter.burstCapacity: 10
+                    key-resolver: "#{@enterpriseKeyResolver}"
+                - name: CircuitBreaker
+                  args:
+                    name: meetingServer
+                    fallbackUri: forward:/_gateway/fallback
+            - id: meeting-server
+              uri: ${SERVICE_MEETING_URL:http://localhost:8009}
+              predicates:
+                - Path=/api/meetings/**
+              filters:
+                - RewritePath=/api/meetings/?(?<remaining>.*), /$\{remaining}
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 100
+                    redis-rate-limiter.burstCapacity: 200
+                    key-resolver: "#{@enterpriseKeyResolver}"
+                - name: CircuitBreaker
+                  args:
+                    name: meetingServer
+                    fallbackUri: forward:/_gateway/fallback
           globalcors:
             add-to-simple-url-handler-mapping: true
             cors-configurations:
@@ -308,10 +339,18 @@ resilience4j:
 
 dwp:
   gateway:
+    denial-audit:
+      timeout: ${DWP_GATEWAY_DENIAL_AUDIT_TIMEOUT:1s}
     product-surface-rollout:
       invalidation-enabled: ${DWP_PRODUCT_SURFACE_ROLLOUT_INVALIDATION_ENABLED:false}
       invalidation-topic: ${DWP_PRODUCT_SURFACE_ROLLOUT_INVALIDATION_TOPIC:dwp.feature-rollout.decision.changed.v1}
       invalidation-group-id: ${DWP_PRODUCT_SURFACE_ROLLOUT_INVALIDATION_GROUP_ID:dwp-gateway-product-surface-rollout}
+  audit:
+    collector-url: ${DWP_AUDIT_COLLECTOR_URL:}
+    ingest-token: ${DWP_AUDIT_INGEST_TOKEN:}
+    privacy-hash-secret: ${DWP_AUDIT_PRIVACY_HASH_SECRET:}
+    environment: ${DWP_ENVIRONMENT:local}
+    service-instance: ${DWP_SERVICE_INSTANCE:${HOSTNAME:local}}
   auth:
     product-surface-token: ${DWP_PRODUCT_SURFACE_TOKEN:}
   product-surface:
@@ -334,6 +373,8 @@ dwp:
       flush-interval: ${DWP_API_HISTORY_FLUSH_INTERVAL:PT1S}
   agent:
     service-token: ${DWP_AGENT_SERVICE_TOKEN:}
+    identity-signing-secret: ${DWP_AGENT_IDENTITY_SIGNING_SECRET:}
+    identity-key-id: ${DWP_AGENT_IDENTITY_KEY_ID:gateway-agent-v1}
   platform:
     service-token: ${DWP_PLATFORM_SERVICE_TOKEN:}
   people:
@@ -350,3 +391,7 @@ dwp:
     service-token: ${DWP_NOTIFICATION_SERVICE_TOKEN:}
   messaging:
     service-token: ${DWP_MESSAGING_SERVICE_TOKEN:}
+  meeting:
+    service-token: ${DWP_MEETING_SERVICE_TOKEN:}
+    livekit:
+      client-url: ${LIVEKIT_URL:}

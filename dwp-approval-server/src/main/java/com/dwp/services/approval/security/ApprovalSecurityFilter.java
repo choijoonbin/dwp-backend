@@ -45,6 +45,7 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
             "X-DWP-Current-Revalidate-At";
     static final String CURRENT_CONTEXT_HEADER = "X-DWP-Context-Key";
     static final String CURRENT_SCOPE_HEADER = "X-DWP-Context-Scope-Key";
+    static final String ACTIVE_ACCESS_MODE_HEADER = "X-DWP-Active-Access-Mode";
     static final String EXPECTED_DECISION_REVISION_HEADER =
             "X-DWP-Expected-Decision-Revision";
     static final String RESPONSE_DECISION_REVISION_HEADER = "X-DWP-Decision-Revision";
@@ -180,10 +181,13 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
             String trustedRoute = exactHeader(request, ROUTE_CONTRACT_HEADER);
             String trustedContext = exactHeader(request, CURRENT_CONTEXT_HEADER);
             String trustedScope = exactHeader(request, CURRENT_SCOPE_HEADER);
+            ApprovalPilotPepRegistry.ActiveAccessMode activeAccessMode = activeAccessMode(
+                    exactHeader(request, ACTIVE_ACCESS_MODE_HEADER));
             if (!trustedText(trustedRoute) || !trustedText(trustedContext)
-                    || !trustedText(trustedScope)) {
+                    || !trustedText(trustedScope) || activeAccessMode == null) {
                 writeError(response, ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
-                        "Trusted Approval route, context, and scope evidence is missing or invalid.");
+                        "Trusted Approval route, context, scope, and access mode evidence "
+                                + "is missing or invalid.");
                 return;
             }
             trustedRouteKey = trustedRoute;
@@ -193,7 +197,7 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
             pilotDecision = pilotPepRegistry.authorize(new ApprovalPilotPepRegistry.RequestEvidence(
                     request.getMethod(), request.getRequestURI(), permissions,
                     request.getHeader(RESOURCE_ROLES_HEADER), roles,
-                    trustedRoute, request.getQueryString()));
+                    trustedRoute, request.getQueryString(), activeAccessMode));
             if (pilotDecision.allowed()
                     && trustedRoute.startsWith("route.approvals.admin.")) {
                 selectedManagementSet = managementScopeResolver.resolve(
@@ -295,6 +299,16 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
         String value = values.nextElement();
         if (values.hasMoreElements() || !trustedText(value)) return null;
         return value.trim();
+    }
+
+    private ApprovalPilotPepRegistry.ActiveAccessMode activeAccessMode(String value) {
+        try {
+            return value == null
+                    ? null
+                    : ApprovalPilotPepRegistry.ActiveAccessMode.valueOf(value);
+        } catch (IllegalArgumentException exception) {
+            return null;
+        }
     }
 
     private OffsetDateTime validUntil(String value) {

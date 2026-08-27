@@ -36,6 +36,24 @@ class CalendarRequestFingerprintTest {
                 .isNotEqualTo(CalendarRequestFingerprint.create(right));
     }
 
+    @Test
+    void schedulingCriteriaHashIsStableAcrossParticipantOrder() {
+        UUID current = UUID.randomUUID();
+        UUID first = UUID.randomUUID();
+        UUID second = UUID.randomUUID();
+        OffsetDateTime from = OffsetDateTime.parse("2026-08-20T09:00:00+09:00");
+        CalendarDtos.SchedulingEvaluationRequest left = new CalendarDtos.SchedulingEvaluationRequest(
+                List.of(first, second), from, from.plusDays(14),
+                from, from.plusMinutes(30), 30, "Asia/Seoul");
+        CalendarDtos.SchedulingEvaluationRequest right = new CalendarDtos.SchedulingEvaluationRequest(
+                List.of(second, first), from, from.plusDays(14),
+                from, from.plusMinutes(30), 30, "Asia/Seoul");
+
+        assertThat(CalendarRequestFingerprint.scheduling(current, left))
+                .isEqualTo(CalendarRequestFingerprint.scheduling(current, right))
+                .matches("[0-9a-f]{64}");
+    }
+
     private CalendarDtos.CreateEventRequest request(
             UUID key,
             String title,

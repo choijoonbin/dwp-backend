@@ -26,6 +26,20 @@ public final class GeneratedProductRouteCatalog {
             "endpointKey", "method", "publicPath", "serviceKey", "servicePath",
             "requiresAuthentication", "requiresCsrf",
             "expectedDecisionRevisionHeader");
+    /**
+     * Temporary, code-owned compatibility boundary for legacy People APIs that predate the
+     * immutable PRODUCT v3 registry. Keep this list exact and non-configurable: an operator must
+     * not be able to widen a claimed PRODUCT namespace at runtime.
+     */
+    private static final List<LegacyExemptBinding> LEGACY_EXEMPT_BINDINGS = List.of(
+            LegacyExemptBinding.exact(
+                    "GET", "/api/people/v1/admin/workforce/access-policies"),
+            LegacyExemptBinding.exact(
+                    "GET", "/api/people/v1/admin/workforce/access-policies/organizations"),
+            LegacyExemptBinding.exact(
+                    "POST", "/api/people/v1/admin/workforce/access-policies"),
+            LegacyExemptBinding.singleSegment(
+                    "PATCH", "/api/people/v1/admin/workforce/access-policies/", "/revoke"));
 
     private final List<Route> routes;
     private final Map<String, Set<String>> ownedNamespaces;
@@ -68,6 +82,9 @@ public final class GeneratedProductRouteCatalog {
                 .filter(route -> queryMatches(route.queryConstraints(), query))
                 .toList();
         if (exact.isEmpty()) {
+            if (legacyExempt(normalizedMethod, normalizedPath)) {
+                return new Match(MatchStatus.LEGACY_EXEMPT, List.of());
+            }
             return new Match(
                     structural.isEmpty() && !claimedNamespace(normalizedPath)
                             ? MatchStatus.UNGOVERNED : MatchStatus.INVALID,
@@ -100,6 +117,11 @@ public final class GeneratedProductRouteCatalog {
         return ownedNamespaces.entrySet().stream()
                 .filter(entry -> entry.getValue().size() == 1)
                 .anyMatch(entry -> path.startsWith(entry.getKey()));
+    }
+
+    private boolean legacyExempt(String method, String path) {
+        return LEGACY_EXEMPT_BINDINGS.stream()
+                .anyMatch(binding -> binding.matches(method, path));
     }
 
     private Loaded load(ObjectMapper objectMapper, Resource resource) {
@@ -349,6 +371,7 @@ public final class GeneratedProductRouteCatalog {
 
     public enum MatchStatus {
         GOVERNED,
+        LEGACY_EXEMPT,
         UNGOVERNED,
         INVALID,
         AMBIGUOUS
@@ -393,6 +416,27 @@ public final class GeneratedProductRouteCatalog {
     }
 
     public record QueryConstraint(String kind, Set<String> values) {
+    }
+
+    private record LegacyExemptBinding(String method, Pattern pathPattern) {
+
+        private static LegacyExemptBinding exact(String method, String path) {
+            return new LegacyExemptBinding(method, Pattern.compile("^" + Pattern.quote(path) + "$"));
+        }
+
+        private static LegacyExemptBinding singleSegment(
+                String method,
+                String prefix,
+                String suffix) {
+            return new LegacyExemptBinding(
+                    method,
+                    Pattern.compile("^" + Pattern.quote(prefix) + "[^/]+"
+                            + Pattern.quote(suffix) + "$"));
+        }
+
+        private boolean matches(String requestMethod, String requestPath) {
+            return method.equals(requestMethod) && pathPattern.matcher(requestPath).matches();
+        }
     }
 
     public record AuthorityEndpoint(

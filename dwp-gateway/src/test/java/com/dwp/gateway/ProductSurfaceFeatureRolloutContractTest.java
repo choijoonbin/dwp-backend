@@ -642,6 +642,72 @@ class ProductSurfaceFeatureRolloutContractTest {
     }
 
     @Test
+    void exactLegacyWorkforceAccessRequestsBypassRolloutAndStripSpoofedEvidence() {
+        FeatureRolloutEvaluationClient client = mock(FeatureRolloutEvaluationClient.class);
+        ProductSurfaceRolloutHeaderFilter filter =
+                new ProductSurfaceRolloutHeaderFilter(
+                        client, productRouteCatalog(), new ObjectMapper());
+        List<MockServerHttpRequest.BaseBuilder<?>> requests = List.of(
+                MockServerHttpRequest.get(
+                        "/api/people/v1/admin/workforce/access-policies"),
+                MockServerHttpRequest.get(
+                        "/api/people/v1/admin/workforce/access-policies/organizations"),
+                MockServerHttpRequest.post(
+                        "/api/people/v1/admin/workforce/access-policies"),
+                MockServerHttpRequest.patch(
+                        "/api/people/v1/admin/workforce/access-policies/policy-7/revoke"));
+
+        for (MockServerHttpRequest.BaseBuilder<?> request : requests) {
+            MockServerWebExchange exchange = MockServerWebExchange.from(request
+                    .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "111")
+                    .header(ProductSurfaceRolloutHeaderFilter.COHORT_HEADER, "attacker")
+                    .header(ProductSurfaceRolloutHeaderFilter.REVISION_HEADER, "attacker"));
+            AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                    new AtomicReference<>();
+
+            filter.filter(exchange, filtered -> {
+                forwarded.set(filtered.getRequest());
+                return Mono.empty();
+            }).block();
+
+            assertThat(forwarded.get()).isNotNull();
+            assertThat(forwarded.get().getHeaders().containsKey(
+                    ProductSurfaceRolloutHeaderFilter.STATE_HEADER)).isFalse();
+            assertThat(forwarded.get().getHeaders().containsKey(
+                    ProductSurfaceRolloutHeaderFilter.COHORT_HEADER)).isFalse();
+            assertThat(forwarded.get().getHeaders().containsKey(
+                    ProductSurfaceRolloutHeaderFilter.REVISION_HEADER)).isFalse();
+        }
+        verify(client, org.mockito.Mockito.never())
+                .evaluateProducts(anyLong(), any(), any());
+    }
+
+    @Test
+    void legacyWorkforceAccessPathDriftStillFailsClosedBeforeRolloutEvaluation() {
+        FeatureRolloutEvaluationClient client = mock(FeatureRolloutEvaluationClient.class);
+        ProductSurfaceRolloutHeaderFilter filter =
+                new ProductSurfaceRolloutHeaderFilter(
+                        client, productRouteCatalog(), new ObjectMapper());
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get(
+                                "/api/people/v1/admin/workforce/access-policies/policy-7/revoke/")
+                        .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                        .build());
+        AtomicBoolean forwarded = new AtomicBoolean();
+
+        filter.filter(exchange, ignored -> {
+            forwarded.set(true);
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwarded).isFalse();
+        assertThat(exchange.getResponse().getStatusCode())
+                .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        verify(client, org.mockito.Mockito.never())
+                .evaluateProducts(anyLong(), any(), any());
+    }
+
+    @Test
     void approvalRequestsFailClosedWithoutVerifiedTenantOrRolloutAuthority() {
         FeatureRolloutEvaluationClient client = mock(FeatureRolloutEvaluationClient.class);
         ProductSurfaceRolloutHeaderFilter filter =

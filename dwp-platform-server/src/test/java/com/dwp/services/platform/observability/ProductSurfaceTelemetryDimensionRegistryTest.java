@@ -36,16 +36,20 @@ class ProductSurfaceTelemetryDimensionRegistryTest {
                 ProductSurfaceTelemetryServiceTest.routeDenied(
                         "hcm", "hcm.management", "hcm.management.integration")))
                 .doesNotThrowAnyException();
+        assertThatCode(() -> registry.validate(
+                ProductSurfaceTelemetryServiceTest.routeDenied(
+                        "meetings", "meetings.work", "meetings.work.room")))
+                .doesNotThrowAnyException();
     }
 
     @Test
-    void acceptsAllOneHundredTwentySevenGeneratedRoutesAndRejectsEveryCrossMapping()
+    void acceptsAllOneHundredThirtyFourGeneratedRoutesAndRejectsEveryCrossMapping()
             throws Exception {
         ProductSurfaceTelemetryDimensionRegistry registry =
                 new ProductSurfaceTelemetryDimensionRegistry(objectMapper);
         List<RouteMapping> mappings = mappings(projection());
 
-        assertThat(mappings).hasSize(127);
+        assertThat(mappings).hasSize(134);
         mappings.forEach(mapping -> assertThatCode(() -> registry.validate(
                 ProductSurfaceTelemetryServiceTest.routeDenied(
                         mapping.product(), mapping.surface(), mapping.route())))

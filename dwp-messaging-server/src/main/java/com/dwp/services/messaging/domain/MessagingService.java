@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -159,16 +160,20 @@ public class MessagingService {
                     "Only moderators can post to announcement conversations.");
         }
         List<UUID> attachmentIds = request.attachmentIds();
-        var replay = attachmentIds.isEmpty()
-                ? commands.replayMessage(
-                        subject.tenantId(), subject.userId(), conversationId,
-                        request.idempotencyKey(), request.body(), request.replyToMessageId())
-                : commands.replayMessage(
-                        subject.tenantId(), subject.userId(), conversationId,
-                        request.idempotencyKey(), request.body(), request.replyToMessageId(), attachmentIds);
+        if (request.body().isBlank() && attachmentIds.isEmpty()) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "A message requires text or at least one governed attachment.");
+        }
+        var replay = commands.replayMessage(
+                subject.tenantId(), subject.userId(), conversationId,
+                request.idempotencyKey(), request.body(), request.replyToMessageId(),
+                attachmentIds, request.mentionedUserIds());
         if (replay.isPresent()) {
             return message(subject, conversationId, replay.orElseThrow().messageId());
         }
+        List<MessagingDtos.MentionSummary> mentions = resolveMentions(
+                subject, conversation, request.body(), request.mentionedUserIds());
         MessagingMessageAccess replyParent = validateReplyParent(
                 subject, conversationId, request.replyToMessageId());
         if (!attachmentIds.isEmpty()) {
@@ -176,25 +181,25 @@ public class MessagingService {
                     ErrorCode.INTERNAL_SERVER_ERROR, "Attachment support is unavailable.");
             attachments.requireAttachable(conversationId, subject.userId(), attachmentIds);
         }
-        MessagingCommandRepository.MessageInsertResult result = attachmentIds.isEmpty()
-                ? commands.insertMessage(
-                        subject.tenantId(), subject.userId(), conversationId,
-                        request.idempotencyKey(), senderName(subject), subject.personPublicId(),
-                        request.body(), request.replyToMessageId())
-                : commands.insertMessage(
-                        subject.tenantId(), subject.userId(), conversationId,
-                        request.idempotencyKey(), senderName(subject), subject.personPublicId(),
-                        request.body(), request.replyToMessageId(), attachmentIds);
+        MessagingCommandRepository.MessageInsertResult result = commands.insertMessage(
+                subject.tenantId(), subject.userId(), conversationId,
+                request.idempotencyKey(), senderName(subject), subject.personPublicId(),
+                request.body(), request.replyToMessageId(), attachmentIds,
+                request.mentionedUserIds());
         if (result.created()) {
             if (!attachmentIds.isEmpty()) {
                 attachments.attachToMessage(
                         subject.tenantId(), conversationId, subject.userId(),
                         result.messageId(), attachmentIds);
             }
+            commands.insertMentions(
+                    subject.tenantId(), conversationId, result.messageId(), mentions);
             commands.audit(
                     subject.tenantId(), subject.userId(), "messaging.message.created",
                     "MSG_MESSAGE", result.messageId().toString(), correlationId,
-                    Map.of("conversationId", conversationId));
+                    Map.of(
+                            "conversationId", conversationId,
+                            "mentionCount", mentions.size()));
             events.conversationEvent(
                     subject, "messaging.message.created", conversationId, result.messageId(),
                     messagePayload(0, result.sequence(), request.replyToMessageId()));
@@ -489,6 +494,50 @@ public class MessagingService {
                 .anyMatch(member -> member.userId() == userId
                         && ("OWNER".equals(member.memberRole())
                         || "MODERATOR".equals(member.memberRole())));
+    }
+
+    private List<MessagingDtos.MentionSummary> resolveMentions(
+            MessagingRequestContext.Subject subject,
+            MessagingDtos.ConversationSummary conversation,
+            String body,
+            List<Long> requestedUserIds) {
+        if (requestedUserIds.isEmpty()) return List.of();
+        List<MessagingDtos.MemberSummary> members = queries.members(
+                subject.tenantId(), conversation.conversationId());
+        Map<Long, MessagingDtos.MemberSummary> membersById = members.stream()
+                .collect(LinkedHashMap::new, (map, member) -> map.put(member.userId(), member), Map::putAll);
+        if (requestedUserIds.contains(subject.userId())
+                || !membersById.keySet().containsAll(requestedUserIds)) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "Every mentioned user must be another active conversation member.");
+        }
+
+        Set<Long> recipients = members.stream()
+                .map(MessagingDtos.MemberSummary::userId)
+                .filter(userId -> userId != subject.userId())
+                .collect(LinkedHashSet::new, Set::add, Set::addAll);
+        Set<Long> requested = new LinkedHashSet<>(requestedUserIds);
+        String normalizedBody = body.toLowerCase(Locale.ROOT);
+        boolean explicitAll = normalizedBody.contains("@모두")
+                || normalizedBody.contains("@everyone")
+                || normalizedBody.contains("@all");
+        boolean massMention = !"DIRECT".equals(conversation.conversationType())
+                && recipients.size() > 2
+                && requested.equals(recipients)
+                && explicitAll;
+        if (massMention && !canModerate(
+                subject.tenantId(), conversation.conversationId(), subject.userId())) {
+            throw new BaseException(
+                    ErrorCode.FORBIDDEN,
+                    "Only conversation owners and moderators can notify every member.");
+        }
+        String mentionKind = massMention ? "ALL" : "USER";
+        return requestedUserIds.stream()
+                .map(membersById::get)
+                .map(member -> new MessagingDtos.MentionSummary(
+                        member.userId(), member.displayName(), mentionKind))
+                .toList();
     }
 
     private MessagingMessageAccess validateReplyParent(

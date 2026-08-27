@@ -3,6 +3,7 @@ package com.dwp.gateway.support;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
+import java.util.HashSet;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -94,5 +95,25 @@ class PilotAuthorizationFixtureAdapterTest {
         assertThatThrownBy(() -> adapter.project("PS-A999"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("resolved 0 records");
+    }
+
+    @Test
+    void projectsEveryCanonicalNegativeFixtureWithItsSignedDenialExpectation() {
+        var negatives = adapter.negativeFixtures();
+
+        assertThat(negatives).hasSize(46).allSatisfy(fixture -> {
+            assertThat(fixture.fixtureChecksum())
+                    .isEqualTo(PilotAuthorizationFixtureAdapter.EXPECTED_FIXTURE_CHECKSUM);
+            assertThat(fixture.fixtureId()).startsWith("FX-N-");
+            assertThat(fixture.input()).isNotBlank();
+            assertThat(fixture.expectedOutcome()).isNotBlank();
+        });
+        assertThat(new HashSet<>(negatives.stream()
+                .map(PilotAuthorizationFixtureAdapter.NegativeFixture::fixtureId)
+                .toList())).hasSize(46);
+        assertThat(negatives)
+                .extracting(PilotAuthorizationFixtureAdapter.NegativeFixture::fixtureId)
+                .contains("FX-N-FOREIGN-SCOPE", "FX-N-STALE-REVISION",
+                        "FX-N-SUPPORT-NORMAL-UNION", "FX-N-ROUTE-KEY-CROSS-SURFACE");
     }
 }

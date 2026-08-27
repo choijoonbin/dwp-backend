@@ -1,5 +1,6 @@
 package com.dwp.gateway.filter;
 
+import com.dwp.gateway.audit.GatewayDenialAuditSink;
 import com.dwp.observability.api.ApiHistoryAttributes;
 import com.dwp.gateway.security.SessionVerifier;
 import com.dwp.gateway.security.VerifiedIdentity;
@@ -7,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
@@ -31,13 +33,25 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
     public static final String RESOURCE_ROLES_HEADER = "X-DWP-Resource-Roles";
     public static final String PERSON_PUBLIC_ID_HEADER = "X-DWP-Person-Public-ID";
     public static final String DISPLAY_NAME_HEADER = "X-DWP-Display-Name-B64";
+    public static final String AUTH_SESSION_ID_HEADER = "X-DWP-Auth-Session-ID";
+    public static final String IDENTITY_PLANE_HEADER = "X-DWP-Identity-Plane";
     public static final String LEGACY_ROLE_FALLBACK_HEADER =
             "X-DWP-Legacy-Role-Fallback-Allowed";
 
     private final SessionVerifier sessionVerifier;
+    private final GatewayDenialAuditSink denialAudit;
 
-    public VerifiedIdentityFilter(SessionVerifier sessionVerifier) {
+    @Autowired
+    public VerifiedIdentityFilter(
+            SessionVerifier sessionVerifier,
+            GatewayDenialAuditSink denialAudit) {
         this.sessionVerifier = sessionVerifier;
+        this.denialAudit = denialAudit;
+    }
+
+    /** Test-only constructor retaining isolated identity filter fixtures. */
+    public VerifiedIdentityFilter(SessionVerifier sessionVerifier) {
+        this(sessionVerifier, GatewayDenialAuditSink.NOOP);
     }
 
     @Override
@@ -52,6 +66,8 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
                     headers.remove(RESOURCE_ROLES_HEADER);
                     headers.remove(PERSON_PUBLIC_ID_HEADER);
                     headers.remove(DISPLAY_NAME_HEADER);
+                    headers.remove(AUTH_SESSION_ID_HEADER);
+                    headers.remove(IDENTITY_PLANE_HEADER);
                     headers.remove(LEGACY_ROLE_FALLBACK_HEADER);
                 })
                 .build();
@@ -76,7 +92,7 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
                     if (isStepUpIssuer(sanitizedRequest.getURI().getPath())
                             && clientTenant != null
                             && !clientTenant.equals(identity.tenantId())) {
-                        return complete(exchange, HttpStatus.FORBIDDEN);
+                        return denyTenantAssertion(sanitizedExchange, sanitizedRequest, identity);
                     }
                     exchange.getAttributes().put(ApiHistoryAttributes.ACTOR_TYPE, "USER");
                     exchange.getAttributes().put(ApiHistoryAttributes.ACTOR_ID, identity.userId());
@@ -108,6 +124,10 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
                                             .encodeToString(identity.displayName()
                                                 .getBytes(StandardCharsets.UTF_8)));
                                 }
+                                if (identity.sessionFamilyId() != null) {
+                                    headers.set(AUTH_SESSION_ID_HEADER, identity.sessionFamilyId());
+                                }
+                                headers.set(IDENTITY_PLANE_HEADER, identity.identityPlane());
                                 headers.set(
                                         LEGACY_ROLE_FALLBACK_HEADER,
                                         Boolean.toString(identity.legacyRoleFallbackAllowed()));
@@ -125,18 +145,56 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
                         ignored -> complete(exchange, HttpStatus.SERVICE_UNAVAILABLE));
     }
 
+    private Mono<Void> denyTenantAssertion(
+            ServerWebExchange exchange,
+            ServerHttpRequest request,
+            VerifiedIdentity identity) {
+        ServerHttpRequest evidenceRequest = request.mutate().headers(headers -> {
+            headers.set(USER_HEADER, identity.userId());
+            headers.set(TENANT_HEADER, identity.tenantId());
+            if (identity.sessionFamilyId() != null) {
+                headers.set(AUTH_SESSION_ID_HEADER, identity.sessionFamilyId());
+            }
+            headers.set(IDENTITY_PLANE_HEADER, identity.identityPlane());
+        }).build();
+        ServerWebExchange evidenceExchange = exchange.mutate().request(evidenceRequest).build();
+        return denialAudit.publish(evidenceExchange,
+                        GatewayDenialAuditSink.Denial.tenantAssertion(
+                                "/api/auth/product-surface-step-up-challenges"))
+                .then(Mono.defer(() -> complete(exchange, HttpStatus.FORBIDDEN)))
+                .onErrorResume(ignored -> complete(exchange, HttpStatus.SERVICE_UNAVAILABLE));
+    }
+
     private boolean requiresIdentity(ServerHttpRequest request) {
         String path = request.getURI().getPath();
         return request.getMethod() != HttpMethod.OPTIONS
                 && path.startsWith("/api/")
-                && (!path.startsWith("/api/auth/") || isProductSurfaceAuthorityPath(path));
+                && (!path.startsWith("/api/auth/") || !publicAuthRequest(request));
     }
 
-    private boolean isProductSurfaceAuthorityPath(String path) {
-        return path.equals("/api/auth/product-surface-contexts")
-                || path.equals("/api/auth/product-surface-access/evaluate")
-                || path.equals("/api/auth/governed-route-access/evaluate")
-                || path.equals("/api/auth/product-surface-step-up-challenges");
+    private boolean publicAuthRequest(ServerHttpRequest request) {
+        String path = request.getURI().getPath();
+        HttpMethod method = request.getMethod();
+        if (method == HttpMethod.GET && (path.equals("/api/auth/policy")
+                || path.equals("/api/auth/csrf")
+                || path.equals("/api/auth/oidc/login")
+                || path.equals("/api/auth/oidc/callback"))) {
+            return true;
+        }
+        if (method == HttpMethod.POST
+                && (path.equals("/api/auth/login")
+                    || path.equals("/api/auth/logout")
+                    || path.equals("/api/auth/session/refresh"))) {
+            return true;
+        }
+        return (method == HttpMethod.GET || method == HttpMethod.POST)
+                && singleChildPath(path, "/api/auth/activations/");
+    }
+
+    private boolean singleChildPath(String path, String prefix) {
+        return path.startsWith(prefix)
+                && path.length() > prefix.length()
+                && path.indexOf('/', prefix.length()) < 0;
     }
 
     private boolean isStepUpIssuer(String path) {

@@ -83,6 +83,13 @@ public class AccessReviewWorkService {
                    AND item.work_item_ref = ?
                    AND item.reviewer_user_id = ?
                    AND item.reviewer_assignment_state = 'ACTIVE'
+                   AND EXISTS (
+                       SELECT 1
+                         FROM com_users reviewer
+                        WHERE reviewer.tenant_id = item.tenant_id
+                          AND reviewer.user_id = item.reviewer_user_id
+                          AND reviewer.identity_plane = 'TENANT'
+                   )
                    AND item.decision = 'PENDING'
                    AND item.version = ?
                    AND campaign.tenant_id = item.tenant_id
@@ -288,6 +295,10 @@ public class AccessReviewWorkService {
               JOIN com_users subject
                 ON subject.tenant_id = item.tenant_id
                AND subject.user_id = item.subject_user_id
+              JOIN com_users reviewer
+                ON reviewer.tenant_id = item.tenant_id
+               AND reviewer.user_id = item.reviewer_user_id
+               AND reviewer.identity_plane = 'TENANT'
               JOIN com_roles role
                 ON role.tenant_id = item.tenant_id
                AND role.role_id = item.role_id

@@ -9,6 +9,7 @@ import com.dwp.services.auth.service.AuthenticatedSession;
 import com.dwp.services.auth.service.AuthService;
 import com.dwp.services.auth.service.OidcService;
 import com.dwp.services.auth.service.OidcStateStore;
+import com.dwp.services.auth.service.LoginDiscoveryService;
 import com.dwp.services.auth.service.SessionCookieService;
 import com.dwp.services.auth.service.StepUpBrowserBindingService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -34,16 +35,19 @@ public class LoginController {
 
     private final AuthService authService;
     private final OidcService oidcService;
+    private final LoginDiscoveryService loginDiscoveryService;
     private final SessionCookieService sessionCookieService;
     private final StepUpBrowserBindingService stepUpBrowserBindingService;
 
     public LoginController(
             AuthService authService,
             OidcService oidcService,
+            LoginDiscoveryService loginDiscoveryService,
             SessionCookieService sessionCookieService,
             StepUpBrowserBindingService stepUpBrowserBindingService) {
         this.authService = authService;
         this.oidcService = oidcService;
+        this.loginDiscoveryService = loginDiscoveryService;
         this.sessionCookieService = sessionCookieService;
         this.stepUpBrowserBindingService = stepUpBrowserBindingService;
     }
@@ -64,11 +68,16 @@ public class LoginController {
     @GetMapping("/oidc/login")
     public RedirectView oidcLogin(
             @RequestHeader(value = "X-Tenant-ID", required = false) Long tenantHeader,
-            @RequestParam(value = "tenantId", required = false) Long tenantParameter,
-            @RequestParam("providerKey") String providerKey) {
+            @RequestParam(value = "tenantId", required = false) Long tenantParameter) {
         Long tenantId = tenantHeader != null ? tenantHeader : tenantParameter;
         if (tenantId == null) throw new BaseException(ErrorCode.TENANT_MISSING);
-        return new RedirectView(oidcService.getAuthorizationUrl(tenantId, providerKey));
+        String providerKey = loginDiscoveryService.requireSsoProviderKey(tenantId);
+        try {
+            return new RedirectView(oidcService.getAuthorizationUrl(tenantId, providerKey));
+        } catch (BaseException exception) {
+            // Keep unavailable, unknown, and incomplete tenant IdP configurations indistinguishable.
+            throw new BaseException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+        }
     }
 
     @GetMapping("/oidc/callback")

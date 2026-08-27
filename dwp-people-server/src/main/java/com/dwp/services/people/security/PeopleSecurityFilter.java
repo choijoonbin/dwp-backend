@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -45,9 +44,6 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
             Set.of("ADMIN", "TENANT_ADMIN", "PLATFORM_ADMIN", "HR_ADMIN", "PEOPLE_ADMIN");
     private static final Set<String> WORKFORCE_ROLES =
             Set.of("ADMIN", "HR_ADMIN", "PEOPLE_ADMIN");
-    private static final List<String> SUPPORT_WORKFORCE_PATHS =
-            List.of("/v1/people", "/v1/org-chart", "/v1/workforce");
-
     private final String serviceToken;
     private final ObjectMapper objectMapper;
 
@@ -196,9 +192,10 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
         if (!parseRoles(request.getHeader(SUPPORT_SCOPES_HEADER)).contains("WORKFORCE_READ")) {
             return false;
         }
-        String path = request.getRequestURI();
-        return SUPPORT_WORKFORCE_PATHS.stream()
-                .anyMatch(prefix -> path.equals(prefix) || path.startsWith(prefix + "/"));
+        // The generated HCM contract declares future support projections, but the
+        // service does not yet carry a trusted population boundary or execute a
+        // response field mask. No People endpoint is therefore safe to expose.
+        return false;
     }
 
     private Long positiveLong(String value) {

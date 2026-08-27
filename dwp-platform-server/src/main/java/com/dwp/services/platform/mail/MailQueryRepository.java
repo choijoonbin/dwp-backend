@@ -83,9 +83,25 @@ class MailQueryRepository {
             String search,
             int page,
             int pageSize) {
+        return threads(
+                tenantId, userId, lane, state, folder, null,
+                sharedOnly, search, page, pageSize);
+    }
+
+    List<MailDtos.ThreadSummary> threads(
+            Long tenantId,
+            Long userId,
+            String lane,
+            String state,
+            String folder,
+            UUID folderId,
+            boolean sharedOnly,
+            String search,
+            int page,
+            int pageSize) {
         return jdbc.query(threadSelect() + VISIBLE_THREAD_PREDICATE + """
                    AND (? = '' OR thread.triage_lane = ?)
-                   AND ((? = '' AND thread.workflow_state <> 'ARCHIVED')
+                   AND ((? = '' AND thread.workflow_state NOT IN ('ARCHIVED', 'TRASHED', 'SPAM'))
                         OR (? <> '' AND thread.workflow_state = ?))
                    AND (? = '' OR EXISTS (
                        SELECT 1
@@ -95,6 +111,13 @@ class MailQueryRepository {
                         WHERE membership.tenant_id = thread.tenant_id
                           AND membership.thread_id = thread.thread_id
                           AND member_folder.folder_type = ?
+                   ))
+                   AND (?::uuid IS NULL OR EXISTS (
+                       SELECT 1
+                         FROM mail_thread_folders selected_membership
+                        WHERE selected_membership.tenant_id = thread.tenant_id
+                          AND selected_membership.thread_id = thread.thread_id
+                          AND selected_membership.folder_id = ?::uuid
                    ))
                    AND (? = FALSE OR thread.shared_inbox_id IS NOT NULL)
                    AND (? = '' OR LOWER(thread.subject) LIKE ? OR LOWER(thread.preview) LIKE ?
@@ -110,6 +133,7 @@ class MailQueryRepository {
                 lane, lane,
                 state, state, state,
                 folder, folder,
+                folderId, folderId,
                 sharedOnly,
                 search, pattern(search), pattern(search), pattern(search),
                 pageSize, page * pageSize);
@@ -123,6 +147,19 @@ class MailQueryRepository {
             String folder,
             boolean sharedOnly,
             String search) {
+        return threadCount(
+                tenantId, userId, lane, state, folder, null, sharedOnly, search);
+    }
+
+    long threadCount(
+            Long tenantId,
+            Long userId,
+            String lane,
+            String state,
+            String folder,
+            UUID folderId,
+            boolean sharedOnly,
+            String search) {
         Long value = jdbc.queryForObject("""
                 SELECT COUNT(*)
                   FROM mail_threads thread
@@ -131,7 +168,7 @@ class MailQueryRepository {
                  WHERE thread.tenant_id = ?
                 """ + VISIBLE_THREAD_PREDICATE + """
                    AND (? = '' OR thread.triage_lane = ?)
-                   AND ((? = '' AND thread.workflow_state <> 'ARCHIVED')
+                   AND ((? = '' AND thread.workflow_state NOT IN ('ARCHIVED', 'TRASHED', 'SPAM'))
                         OR (? <> '' AND thread.workflow_state = ?))
                    AND (? = '' OR EXISTS (
                        SELECT 1
@@ -142,6 +179,13 @@ class MailQueryRepository {
                           AND membership.thread_id = thread.thread_id
                           AND member_folder.folder_type = ?
                    ))
+                   AND (?::uuid IS NULL OR EXISTS (
+                       SELECT 1
+                         FROM mail_thread_folders selected_membership
+                        WHERE selected_membership.tenant_id = thread.tenant_id
+                          AND selected_membership.thread_id = thread.thread_id
+                          AND selected_membership.folder_id = ?::uuid
+                   ))
                    AND (? = FALSE OR thread.shared_inbox_id IS NOT NULL)
                    AND (? = '' OR LOWER(thread.subject) LIKE ? OR LOWER(thread.preview) LIKE ?
                         OR LOWER(thread.participants::text) LIKE ?)
@@ -150,6 +194,7 @@ class MailQueryRepository {
                 lane, lane,
                 state, state, state,
                 folder, folder,
+                folderId, folderId,
                 sharedOnly,
                 search, pattern(search), pattern(search), pattern(search));
         return value == null ? 0 : value;

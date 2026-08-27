@@ -12,6 +12,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
+import java.util.Arrays;
+import java.util.List;
+
 @Component
 public class AuthSavedViewSubjectDirectory implements SavedViewSubjectDirectory {
 
@@ -44,7 +47,7 @@ public class AuthSavedViewSubjectDirectory implements SavedViewSubjectDirectory 
                     .retrieve()
                     .body(Subject.class);
             if (subject == null || !tenantId.equals(subject.tenantId())
-                    || !userId.equals(subject.userId())) {
+                    || !userId.equals(subject.userId()) || !subject.tenantPlane()) {
                 throw unavailable("Identity subject validation returned an invalid response.");
             }
             return subject;
@@ -53,6 +56,38 @@ public class AuthSavedViewSubjectDirectory implements SavedViewSubjectDirectory 
                 throw new BaseException(ErrorCode.NOT_FOUND, "The tenant user does not exist.");
             }
             throw unavailable("Identity subject validation is unavailable.", exception);
+        }
+    }
+
+    @Override
+    @Bulkhead(name = "authSubjectDirectory", type = Bulkhead.Type.SEMAPHORE)
+    @CircuitBreaker(name = "authSubjectDirectory")
+    @Retry(name = "idempotentInternal")
+    public List<DirectorySubject> search(
+            Long tenantId, String query, boolean activeOnly, int limit) {
+        if (token.isBlank()) {
+            throw unavailable("Identity subject search is not configured.");
+        }
+        try {
+            DirectorySubject[] subjects = auth.get()
+                    .uri(builder -> builder
+                            .path("/internal/identity/v1/tenants/{tenantId}/users")
+                            .queryParam("query", query == null ? "" : query.strip())
+                            .queryParam("limit", Math.max(1, Math.min(limit, 30)))
+                            .queryParam("activeOnly", activeOnly)
+                            .build(tenantId))
+                    .headers(headers -> OutboundHttpHeaders.propagateObservability(headers))
+                    .header(TOKEN_HEADER, token)
+                    .retrieve()
+                    .body(DirectorySubject[].class);
+            if (subjects == null || Arrays.stream(subjects).anyMatch(
+                    subject -> subject == null || !tenantId.equals(subject.tenantId())
+                            || !"TENANT".equalsIgnoreCase(subject.identityPlane()))) {
+                throw unavailable("Identity subject search returned an invalid response.");
+            }
+            return List.copyOf(Arrays.asList(subjects));
+        } catch (RestClientResponseException exception) {
+            throw unavailable("Identity subject search is unavailable.", exception);
         }
     }
 

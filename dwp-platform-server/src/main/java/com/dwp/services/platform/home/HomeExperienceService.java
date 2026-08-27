@@ -8,7 +8,6 @@ import com.dwp.services.platform.media.TenantMediaStorage;
 import com.dwp.services.platform.home.personalization.HomeViewCompatibilityBridge;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.Resource;
@@ -19,11 +18,8 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.Locale;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 import java.time.ZoneId;
 
 import static com.dwp.services.platform.experience.ExperienceRevisionStore.HOME;
@@ -35,9 +31,11 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
 
     private static final Logger log = LoggerFactory.getLogger(HomeExperienceService.class);
     private static final String BACKGROUND_URL = "/api/platform/v1/home-experience/background";
-    private static final Pattern LOCALE_PATTERN =
-            Pattern.compile("^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$");
-
+    private static final List<String> ROLLBACK_AFFECTED_SCOPES = List.of(
+            "PRESENTATION",
+            "BACKGROUND_ASSET",
+            "LAUNCHPAD",
+            "COMPOSITION");
     private final HomeExperienceRepository repository;
     private final TenantMediaStorage assetStorage;
     private final HomeBackgroundValidator validator;
@@ -47,6 +45,7 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
     private final HomeLaunchpadPolicy launchpadPolicy;
     private final HomeCompositionPolicyRegistry compositionPolicyRegistry;
     private final HomeViewCompatibilityBridge compatibilityBridge;
+    private final HomeExperiencePresentationPolicy presentationPolicy;
 
     @Value("${dwp.platform.home.flow-enabled:false}")
     private boolean homeFlowEnabled;
@@ -75,7 +74,8 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
             ObjectMapper objectMapper,
             HomeLaunchpadPolicy launchpadPolicy,
             HomeCompositionPolicyRegistry compositionPolicyRegistry,
-            HomeViewCompatibilityBridge compatibilityBridge) {
+            HomeViewCompatibilityBridge compatibilityBridge,
+            HomeExperiencePresentationPolicy presentationPolicy) {
         this.repository = repository;
         this.assetStorage = assetStorage;
         this.validator = validator;
@@ -85,6 +85,7 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
         this.launchpadPolicy = launchpadPolicy;
         this.compositionPolicyRegistry = compositionPolicyRegistry;
         this.compatibilityBridge = compatibilityBridge;
+        this.presentationPolicy = presentationPolicy;
     }
 
     @Transactional(readOnly = true)
@@ -117,21 +118,7 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
         Object before = snapshot(experience);
         ensureBaseline(tenantId, actorId, correlationId, experience);
 
-        experience.setHeadline(trimToNull(request.headline()));
-        experience.setSubheadline(trimToNull(request.subheadline()));
-        if (request.localizedContent() != null) {
-            experience.setLocalizedContent(normalizeLocalizedContent(request.localizedContent()));
-        }
-        if (request.defaultLocale() != null) {
-            String defaultLocale = request.defaultLocale().toLowerCase(Locale.ROOT);
-            if (!LOCALE_PATTERN.matcher(defaultLocale).matches()) {
-                throw invalid("Home experience default locale is invalid.");
-            }
-            experience.setDefaultLocale(defaultLocale);
-        }
-        validateDefaultLocalizedCopy(experience);
-        experience.setBackgroundPosition(request.backgroundPosition().toUpperCase(Locale.ROOT));
-        experience.setOverlayOpacity(request.overlayOpacity());
+        presentationPolicy.applySettings(experience, request);
         HomeExperience saved = repository.saveAndFlush(experience);
         appendRevision(tenantId, actorId, correlationId, "SETTINGS_PUBLISHED", saved);
         auditService.success(
@@ -144,6 +131,66 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
                 before,
                 snapshot(saved));
         return response(saved);
+    }
+
+    /**
+     * Publishes presentation settings and an optional replacement background as one aggregate
+     * revision. The stored object is deleted if the surrounding database transaction does not
+     * commit; prior objects remain available because published revisions may reference them.
+     */
+    @Transactional
+    public HomeExperienceDtos.HomeExperienceResponse publish(
+            Long tenantId,
+            Long actorId,
+            String correlationId,
+            HomeExperienceDtos.UpdateHomeExperienceRequest request,
+            MultipartFile file,
+            boolean resetBackground) {
+        HomeExperience experience = findOrCreate(tenantId, request.version());
+        requireVersion(experience, request.version());
+        if (file != null && resetBackground) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "A home background cannot be replaced and reset in the same publication.");
+        }
+        HomeBackgroundValidator.ValidatedBackground background =
+                file == null ? null : validator.validate(file);
+        Object before = snapshot(experience);
+        ensureBaseline(tenantId, actorId, correlationId, experience);
+
+        String replacementKey = null;
+        boolean synchronizedCleanup = false;
+        try {
+            presentationPolicy.applySettings(experience, request);
+            if (background != null) {
+                replacementKey = assetStorage.store(
+                        tenantId,
+                        "home/backgrounds",
+                        background.extension(),
+                        background.content());
+                synchronizedCleanup = scheduleNewAssetRollbackCleanup(tenantId, replacementKey);
+                presentationPolicy.applyBackground(experience, replacementKey, background);
+            } else if (resetBackground) {
+                clearBackground(experience);
+            }
+            HomeExperience saved = repository.saveAndFlush(experience);
+            appendRevision(tenantId, actorId, correlationId, "EXPERIENCE_PUBLISHED", saved);
+            auditService.success(
+                    tenantId,
+                    actorId,
+                    "home-experience.published",
+                    "HOME_EXPERIENCE",
+                    String.valueOf(tenantId),
+                    correlationId,
+                    before,
+                    snapshot(saved));
+            return response(saved);
+        } catch (RuntimeException exception) {
+            if (replacementKey != null && !synchronizedCleanup) {
+                deleteQuietly(tenantId, replacementKey);
+            }
+            throw exception;
+        }
     }
 
     @Transactional
@@ -246,13 +293,7 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
         boolean synchronizedCleanup = scheduleNewAssetRollbackCleanup(tenantId, storageKey);
 
         try {
-            experience.setBackgroundAssetKey(storageKey);
-            experience.setBackgroundOriginalName(background.originalName());
-            experience.setBackgroundContentType(background.contentType());
-            experience.setBackgroundSizeBytes(background.sizeBytes());
-            experience.setBackgroundSha256(background.sha256());
-            experience.setBackgroundWidth(background.width());
-            experience.setBackgroundHeight(background.height());
+            presentationPolicy.applyBackground(experience, storageKey, background);
             HomeExperience saved = repository.saveAndFlush(experience);
             appendRevision(tenantId, actorId, correlationId, "ASSET_PUBLISHED", saved);
             auditService.success(
@@ -345,6 +386,11 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
             return HomeExperience.builder()
                     .tenantId(tenantId)
                     .backgroundPosition("RIGHT")
+                    .backgroundFocalX(50)
+                    .backgroundFocalY(50)
+                    .mobileBackgroundFocalX(50)
+                    .mobileBackgroundFocalY(50)
+                    .contentAlignment("LEFT")
                     .overlayOpacity(18)
                     .launchpadConfiguration(
                             objectMapper.valueToTree(launchpadPolicy.defaultConfiguration()))
@@ -371,9 +417,14 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
         return new HomeExperienceDtos.HomeExperienceResponse(
                 experience.getHeadline(),
                 experience.getSubheadline(),
-                localizedContent(experience.getLocalizedContent()),
+                presentationPolicy.localizedContent(experience.getLocalizedContent()),
                 experience.getDefaultLocale(),
                 experience.getBackgroundPosition(),
+                presentationPolicy.percentOrDefault(experience.getBackgroundFocalX()),
+                presentationPolicy.percentOrDefault(experience.getBackgroundFocalY()),
+                presentationPolicy.percentOrDefault(experience.getMobileBackgroundFocalX()),
+                presentationPolicy.percentOrDefault(experience.getMobileBackgroundFocalY()),
+                presentationPolicy.alignmentOrDefault(experience.getContentAlignment()),
                 experience.getOverlayOpacity(),
                 url,
                 experience.getBackgroundOriginalName(),
@@ -404,6 +455,11 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
                 Map.of(),
                 "ko",
                 "RIGHT",
+                50,
+                50,
+                50,
+                50,
+                "LEFT",
                 18,
                 null,
                 null,
@@ -460,11 +516,6 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
         experience.setBackgroundHeight(null);
     }
 
-    private String trimToNull(String value) {
-        if (value == null || value.isBlank()) return null;
-        return value.trim();
-    }
-
     private void deleteQuietly(Long tenantId, String storageKey) {
         if (storageKey == null) return;
         try {
@@ -489,59 +540,6 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
             }
         });
         return true;
-    }
-
-    private ObjectNode normalizeLocalizedContent(
-            Map<String, HomeExperienceDtos.LocalizedCopy> requested) {
-        if (requested.size() > 20) {
-            throw invalid("Home experience supports up to 20 locales.");
-        }
-        ObjectNode result = objectMapper.createObjectNode();
-        requested.forEach((rawLocale, copy) -> {
-            if (rawLocale == null || !LOCALE_PATTERN.matcher(rawLocale).matches()) {
-                throw invalid("Home experience locale is invalid.");
-            }
-            if (copy == null) {
-                throw invalid("Localized home copy is required.");
-            }
-            String headline = trimToNull(copy.headline());
-            String subheadline = trimToNull(copy.subheadline());
-            if (headline != null && headline.length() > 160) {
-                throw invalid("Localized home headline is too long.");
-            }
-            if (subheadline != null && subheadline.length() > 500) {
-                throw invalid("Localized home supporting message is too long.");
-            }
-            ObjectNode localeValue = result.putObject(rawLocale.toLowerCase(Locale.ROOT));
-            if (headline != null) localeValue.put("headline", headline);
-            if (subheadline != null) localeValue.put("subheadline", subheadline);
-        });
-        return result;
-    }
-
-    private Map<String, HomeExperienceDtos.LocalizedCopy> localizedContent(JsonNode value) {
-        if (value == null || !value.isObject()) return Map.of();
-        Map<String, HomeExperienceDtos.LocalizedCopy> result = new LinkedHashMap<>();
-        value.properties().forEach(entry -> result.put(
-                entry.getKey(),
-                new HomeExperienceDtos.LocalizedCopy(
-                        text(entry.getValue(), "headline"),
-                        text(entry.getValue(), "subheadline"))));
-        return result;
-    }
-
-    private void validateDefaultLocalizedCopy(HomeExperience experience) {
-        JsonNode localized = experience.getLocalizedContent();
-        if (localized == null || !localized.isObject() || localized.isEmpty()) return;
-        String defaultLocale = experience.getDefaultLocale();
-        JsonNode defaultCopy = defaultLocale == null ? null : localized.get(defaultLocale);
-        if (defaultCopy == null || !defaultCopy.isObject()) {
-            throw invalid("Home experience default locale must have localized content.");
-        }
-        if (trimToNull(text(defaultCopy, "headline")) == null
-                || trimToNull(text(defaultCopy, "subheadline")) == null) {
-            throw invalid("Home experience default locale copy must be complete.");
-        }
     }
 
     private void ensureBaseline(
@@ -588,6 +586,7 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
                 integer(value, "backgroundWidth"),
                 integer(value, "backgroundHeight"),
                 localized != null && localized.isObject() ? localized.size() : 0,
+                ROLLBACK_AFFECTED_SCOPES,
                 revision.sourceVersion() == currentVersion && !"BASELINE".equals(revision.changeType()),
                 revision.createdAt(),
                 revision.createdBy());
@@ -598,21 +597,7 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
         if (assetKey != null) {
             assetStorage.load(tenantId, assetKey);
         }
-        experience.setHeadline(text(value, "headline"));
-        experience.setSubheadline(text(value, "subheadline"));
-        JsonNode localized = value.get("localizedContent");
-        experience.setLocalizedContent(
-                localized != null && localized.isObject()
-                        ? localized.deepCopy()
-                        : objectMapper.createObjectNode());
-        experience.setDefaultLocale(
-                text(value, "defaultLocale") == null ? "ko" : text(value, "defaultLocale"));
-        experience.setBackgroundPosition(
-                text(value, "backgroundPosition") == null
-                        ? "CENTER"
-                        : text(value, "backgroundPosition"));
-        Integer overlay = integer(value, "overlayOpacity");
-        experience.setOverlayOpacity(overlay == null ? 18 : overlay);
+        presentationPolicy.restorePresentation(experience, value);
         experience.setLaunchpadConfiguration(
                 objectMapper.valueToTree(
                         launchpadConfiguration(value.get("launchpadConfiguration"))));
@@ -680,10 +665,6 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
                     exception);
             return compositionPolicyRegistry.failClosedPolicy();
         }
-    }
-
-    private BaseException invalid(String message) {
-        return new BaseException(ErrorCode.INVALID_INPUT_VALUE, message);
     }
 
     public record BackgroundContent(

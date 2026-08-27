@@ -17,8 +17,10 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -36,7 +38,8 @@ public class GeneratedProductSurfaceCandidateCatalog
     private static final Pattern PRODUCT_KEY = Pattern.compile("^[a-z][a-z0-9-]{0,47}$");
     private static final Pattern SURFACE_KEY = Pattern.compile(
             "^[a-z][a-z0-9-]{0,47}(\\.[a-z][a-z0-9-]{0,47})+$");
-    private static final Set<String> ROUTE_KINDS = Set.of("PAGE", "DATA", "ACTION");
+    private static final Set<String> REQUIRED_ROUTE_KINDS =
+            Set.of("PAGE", "DATA", "ACTION");
     private static final Set<String> LIFECYCLE_STATES = Set.of("ACTIVE", "RETIRED");
     private static final Set<String> ROLLOUT_PRODUCTS =
             ProductSurfaceRolloutFlagCatalog.productSet();
@@ -105,7 +108,7 @@ public class GeneratedProductSurfaceCandidateCatalog
                 || !CHECKSUM.matcher(checksum).matches()
                 || !checksum.equals(documentChecksum(
                         objectMapper, inventory, Set.of("checksum")))
-                || products == null || !products.isArray() || products.size() != 11) {
+                || products == null || !products.isArray() || products.size() != 12) {
             throw invalid("Generated candidate catalog has no complete rollout inventory");
         }
         LinkedHashSet<String> values = new LinkedHashSet<>();
@@ -193,12 +196,28 @@ public class GeneratedProductSurfaceCandidateCatalog
             throw invalid("Generated candidate catalog has no routes");
         }
         Set<String> routeKeys = new HashSet<>();
+        List<ActiveProductRoute> activeProductRoutes = new ArrayList<>();
+        for (JsonNode route : routes) {
+            validateRoute(route, routeKeys, activeProductRoutes);
+        }
+        Map<String, Set<String>> activeKindsByProduct = new LinkedHashMap<>();
+        for (ActiveProductRoute route : activeProductRoutes) {
+            activeKindsByProduct.computeIfAbsent(route.productKey(), ignored -> new HashSet<>())
+                    .add(route.routeKind());
+        }
         LinkedHashSet<ProductSurfaceContextDtos.ProductCandidate> values =
                 new LinkedHashSet<>();
-        for (JsonNode route : routes) {
-            validateRoute(route, routeKeys, values);
+        for (ActiveProductRoute route : activeProductRoutes) {
+            if ("PAGE".equals(route.routeKind())
+                    && activeKindsByProduct.getOrDefault(route.productKey(), Set.of())
+                            .containsAll(REQUIRED_ROUTE_KINDS)) {
+                values.add(new ProductSurfaceContextDtos.ProductCandidate(
+                        route.productKey(), route.surfaceKey()));
+            }
         }
-        if (values.isEmpty()) throw invalid("Generated candidate catalog has no product pages");
+        if (values.isEmpty()) {
+            throw invalid("Generated candidate catalog has no kind-complete product pages");
+        }
         List<ProductSurfaceContextDtos.ProductCandidate> sorted = new ArrayList<>(values);
         sorted.sort(Comparator
                 .comparing(ProductSurfaceContextDtos.ProductCandidate::productKey)
@@ -209,14 +228,14 @@ public class GeneratedProductSurfaceCandidateCatalog
     private void validateRoute(
             JsonNode route,
             Set<String> routeKeys,
-            Set<ProductSurfaceContextDtos.ProductCandidate> values) {
+            List<ActiveProductRoute> activeProductRoutes) {
         if (route == null || !route.isObject()) throw invalid("Generated route is invalid");
         String routeKey = requiredText(route, "routeContractKey");
         String kind = requiredText(route, "routeKind");
         String lifecycle = requiredText(route, "lifecycleState");
         JsonNode subject = route.get("subject");
         if (!routeKeys.add(routeKey)
-                || !ROUTE_KINDS.contains(kind)
+                || !REQUIRED_ROUTE_KINDS.contains(kind)
                 || !LIFECYCLE_STATES.contains(lifecycle)
                 || subject == null || !subject.isObject()) {
             throw invalid("Generated route projection is invalid");
@@ -237,9 +256,12 @@ public class GeneratedProductSurfaceCandidateCatalog
                 || !surfaceKey.startsWith(productKey + '.')) {
             throw invalid("Generated product route subject is invalid");
         }
-        if ("ACTIVE".equals(lifecycle) && "PAGE".equals(kind)) {
-            values.add(new ProductSurfaceContextDtos.ProductCandidate(productKey, surfaceKey));
+        if ("ACTIVE".equals(lifecycle)) {
+            activeProductRoutes.add(new ActiveProductRoute(productKey, surfaceKey, kind));
         }
+    }
+
+    private record ActiveProductRoute(String productKey, String surfaceKey, String routeKind) {
     }
 
     private String requiredText(JsonNode document, String field) {

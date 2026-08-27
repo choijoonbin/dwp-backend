@@ -1,0 +1,70 @@
+server:
+  port: 8009
+
+otel:
+  sdk:
+    disabled: ${OTEL_SDK_DISABLED:true}
+  exporter:
+    otlp:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318}
+  traces:
+    sampler: ${OTEL_TRACES_SAMPLER:parentbased_traceidratio}
+    sampler-arg: ${OTEL_TRACES_SAMPLER_ARG:0.1}
+
+springdoc:
+  api-docs:
+    enabled: ${DWP_OPENAPI_ENABLED:false}
+
+spring:
+  application:
+    name: dwp-meeting-server
+  jpa:
+    open-in-view: false
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${MEETING_DB_NAME:dwp_meetings}
+    username: ${DB_USERNAME:dwp_user}
+    password: ${DB_PASSWORD:dwp_password}
+  flyway:
+    enabled: true
+    locations: ${DWP_MEETING_FLYWAY_LOCATIONS:classpath:db/migration}
+    baseline-on-migrate: true
+    baseline-version: 0
+    validate-on-migrate: true
+
+dwp:
+  observability:
+    api-history:
+      enabled: ${DWP_API_HISTORY_ENABLED:true}
+      collector-url: ${DWP_API_HISTORY_COLLECTOR_URL:}
+      ingest-token: ${DWP_API_HISTORY_INGEST_TOKEN:}
+      privacy-hash-secret: ${DWP_API_HISTORY_PRIVACY_HASH_SECRET:}
+      environment: ${DWP_ENVIRONMENT:local}
+      service-instance: ${DWP_SERVICE_INSTANCE:${HOSTNAME:local}}
+      queue-capacity: ${DWP_API_HISTORY_QUEUE_CAPACITY:2048}
+      batch-size: ${DWP_API_HISTORY_BATCH_SIZE:100}
+      flush-interval: ${DWP_API_HISTORY_FLUSH_INTERVAL:PT1S}
+  meeting:
+    service-token: ${DWP_MEETING_SERVICE_TOKEN:}
+    provider: ${DWP_MEETING_PROVIDER:disabled}
+    token-ttl: ${DWP_MEETING_TOKEN_TTL:PT5M}
+    join-code-length: ${DWP_MEETING_JOIN_CODE_LENGTH:12}
+    recording-policy: ${DWP_MEETING_RECORDING_POLICY:NEVER}
+    livekit:
+      api-url: ${LIVEKIT_API_URL:}
+      client-url: ${LIVEKIT_URL:}
+      api-key: ${LIVEKIT_API_KEY:}
+      api-secret: ${LIVEKIT_API_SECRET:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+logging:
+  level:
+    com.dwp.services.meeting: ${LOG_LEVEL_MEETING:INFO}

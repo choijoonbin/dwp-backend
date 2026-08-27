@@ -58,6 +58,55 @@ class AuditControlServiceTest {
     }
 
     @Test
+    void defaultServiceRegistryAcceptsVideoMeetingAuditEvents() {
+        AuditControlService defaultRegistry = new AuditControlService(
+                repository,
+                new AuditRiskEngine(),
+                mock(AuditIntegrityService.class),
+                mock(AuditOutboxRecorder.class),
+                new ObjectMapper().findAndRegisterModules(),
+                AuditControlService.DEFAULT_ALLOWED_SERVICES);
+        AuditEvent event = AuditEvent.builder()
+                .tenantId(1L)
+                .category("AUTHORIZATION")
+                .action("meeting.participant.admitted")
+                .sourceService("dwp-meeting-server")
+                .targetType("VIDEO_MEETING")
+                .targetId(UUID.randomUUID().toString())
+                .build();
+
+        int accepted = defaultRegistry.ingest("dwp-meeting-server", List.of(event));
+
+        assertThat(accepted).isZero();
+    }
+
+    @Test
+    void defaultServiceRegistryAcceptsGatewayAuthorizationDenials() {
+        AuditControlService defaultRegistry = new AuditControlService(
+                repository,
+                new AuditRiskEngine(),
+                mock(AuditIntegrityService.class),
+                mock(AuditOutboxRecorder.class),
+                new ObjectMapper().findAndRegisterModules(),
+                AuditControlService.DEFAULT_ALLOWED_SERVICES);
+        AuditEvent event = AuditEvent.builder()
+                .tenantId(1L)
+                .category("AUTHORIZATION")
+                .action("gateway.provider-data-plane.denied")
+                .outcome("DENIED")
+                .sourceService("dwp-gateway")
+                .targetType("GATEWAY_ROUTE")
+                .targetId("/api/platform/**")
+                .policyId("PROVIDER_DATA_PLANE_BOUNDARY_V1")
+                .policyDecision("DENY")
+                .build();
+
+        int accepted = defaultRegistry.ingest("dwp-gateway", List.of(event));
+
+        assertThat(accepted).isZero();
+    }
+
+    @Test
     void assemblesCaseWorkspaceWithRiskAndTaskPressure() {
         Long tenantId = 1L;
         UUID caseId = UUID.randomUUID();

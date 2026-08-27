@@ -81,23 +81,21 @@ class WorkplaceReleaseWindowService {
             WorkplaceReleaseWindowDtos.CreateRequest request) {
         String key = normalizeIdempotencyKey(idempotencyKey);
         String fingerprint = fingerprint(request);
-        if (key != null) {
-            releases.lockUserReleaseScope(tenantId, userId);
-            WorkplaceReleaseWindowRepository.IdempotencyRow existing = releases
-                    .idempotency(tenantId, userId, key).orElse(null);
-            if (existing != null) {
-                if (!fingerprint.equals(existing.requestFingerprint())) {
-                    throw conflict("The idempotency key was already used with a different request.");
-                }
-                return dto(releases.ownedWindow(
-                        tenantId,
-                        userId,
-                        personPublicId,
-                        existing.releaseWindowId(),
-                        korean(locale)).orElseThrow(() -> conflict(
-                                "The release-window idempotency state is unavailable.")),
-                        OffsetDateTime.now());
+        releases.lockUserReleaseScope(tenantId, userId);
+        WorkplaceReleaseWindowRepository.IdempotencyRow existing = releases
+                .idempotency(tenantId, userId, key).orElse(null);
+        if (existing != null) {
+            if (!fingerprint.equals(existing.requestFingerprint())) {
+                throw conflict("The idempotency key was already used with a different request.");
             }
+            return dto(releases.ownedWindow(
+                    tenantId,
+                    userId,
+                    personPublicId,
+                    existing.releaseWindowId(),
+                    korean(locale)).orElseThrow(() -> conflict(
+                            "The release-window idempotency state is unavailable.")),
+                    OffsetDateTime.now());
         }
         OffsetDateTime now = OffsetDateTime.now();
         WorkplaceCatalogRepository.ResourceRow resource = catalog
@@ -278,7 +276,7 @@ class WorkplaceReleaseWindowService {
     }
 
     private String normalizeIdempotencyKey(String value) {
-        if (value == null || value.isBlank()) return null;
+        if (value == null || value.isBlank()) throw invalid("Idempotency-Key is required.");
         String key = value.trim();
         if (key.length() > 160 || key.chars().anyMatch(character -> character < 33 || character > 126)) {
             throw invalid("Idempotency-Key must contain 1 to 160 visible ASCII characters.");

@@ -74,8 +74,8 @@ a `COMMAND_HEADER` version is forbidden from the signed payload.
 
 Platform telemetry dimensions are generated as
 `platform-telemetry-dimensions-v3.generated.json`. The projection is anchored
-to the W1b registry v3 and covers all 11 governed product manifests, including
-the seven compatibility surfaces whose authorization contracts are not yet
+to the W1b registry v3 and covers all 12 governed product manifests, including
+the eight compatibility products whose authorization contracts are not yet
 active. That closed, checksummed projection binds each allowed product to its
 surfaces, each surface to exact UI route IDs, and every surface to canonical
 task and scope-kind allowlists. Telemetry compatibility does not activate
@@ -93,13 +93,41 @@ members of the immutable authorization bundle. For product `p`, Gateway composes
 rollout/audit compatibility evidence. New Gateway binaries do not read it or use
 it as a master switch, and operators must not create new rollouts for it.
 
-The v3 candidate bundle intentionally covers only Approvals, Communications,
-HCM, and Services while the checksummed rollout inventory covers eleven
-products. Therefore a mixed envelope is required: exact-contract products may
-be `110/111`, while inventory-only products must remain `000/100` with authority
-not evaluated. Turning an inventory-only product to `110/111` remains a global
-fail-closed error; product-scoped activation does not weaken that fence or alter
-any v1-v3 bundle byte/checksum.
+The v3 candidate bundle contains product routes for Approvals, Communications,
+HCM, and Services while the checksummed rollout inventory covers twelve
+products. X-03 treats a product contract as `EXACT` only when the bundle has at
+least one `PAGE`, `DATA`, and `ACTION` route for that product. Approvals and HCM
+currently meet that contract; Communications and Services are
+`INCOMPLETE_KINDS` because they have no `DATA` route. The other eight products
+are `MISSING`. Therefore only `EXACT` products may use the explicit pilot
+ceiling `111`; `INCOMPLETE_KINDS` and `MISSING` products remain capped at `100`
+with authority not evaluated. Product-scoped activation does not weaken that
+fence or alter any v1-v3 bundle byte/checksum. `MISSING` describes the
+authorization contract, not the product's UI inventory or telemetry.
+
+The 46-case canonical negative fixture binding proves only catalog integrity:
+the checksum, record count, unique fixture IDs and non-empty signed input and
+expected-outcome fields. Its referenced adapter test projects fixture records;
+it does not call a Gateway or owner-service PEP. X-03 release completion still
+requires separately recorded automated execution evidence and owner approval.
+
+X-03 `ownerService` identifies the service that receives the product's public
+Gateway route and owns its independent policy-enforcement filter; it is not a
+generic Platform fallback. The matrix checker derives Notifications from the
+Gateway `SERVICE_NOTIFICATION_URL` routes and `NotificationSecurityFilter`, and
+Spaces from the `SERVICE_SPACE_URL` route and `SpaceSecurityFilter`. Therefore
+their owners are respectively `dwp-notification-server` and
+`dwp-space-server`. Evidence under `dwp-platform-server/src/test` is rejected
+for both products; only a test method below the routed owner module's
+`src/test` tree can become owner-service evidence. This ownership correction
+does not claim missing PEP coverage: both products retain all five `MISSING`
+cells. Three former `SCOPE_ESCAPE` references for Communications, HCM and
+Services exercised route or query alteration rather than canonical opaque-scope
+escape, so they remain missing. The complete matrix is calculation-derived as
+`PARTIAL` with 47 of 60 product/vector cells missing. A future `COMPLETE` state
+is valid only when all twelve products are `EXACT`, all 60 owner-service vector
+cells are classified as evidence, and no product blocker remains. That local
+state does not replace recorded test-run evidence or release approval.
 
 Gateway persists the last approved `S/E_p` pair at
 `dwp:gateway:product-surface:se-latch:v2:<tenant>:<product>`. Provider failure

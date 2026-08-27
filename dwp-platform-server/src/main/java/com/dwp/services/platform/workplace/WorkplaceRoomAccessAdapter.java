@@ -1,5 +1,7 @@
 package com.dwp.services.platform.workplace;
 
+import com.dwp.core.common.ErrorCode;
+import com.dwp.core.exception.BaseException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -49,7 +51,7 @@ class WorkplaceRoomAccessAdapter implements WorkplaceRoomAccessPort {
         return requested.stream()
                 .filter(resourceId -> {
                     UUID siteId = sitesByResource.get(resourceId);
-                    return siteId == null || allowedSites.contains(siteId);
+                    return siteId != null && allowedSites.contains(siteId);
                 })
                 .collect(Collectors.toUnmodifiableSet());
     }
@@ -60,8 +62,11 @@ class WorkplaceRoomAccessAdapter implements WorkplaceRoomAccessPort {
             Long userId,
             String verifiedGroupRefs,
             UUID calendarResourceId) {
-        siteId(tenantId, calendarResourceId).ifPresent(siteId ->
-                governance.requireBookAccess(tenantId, userId, verifiedGroupRefs, siteId));
+        UUID siteId = siteId(tenantId, calendarResourceId)
+                .orElseThrow(() -> new BaseException(
+                        ErrorCode.FORBIDDEN,
+                        "This meeting room is not mapped to an authorized Workplace location."));
+        governance.requireBookAccess(tenantId, userId, verifiedGroupRefs, siteId);
     }
 
     private Optional<UUID> siteId(Long tenantId, UUID calendarResourceId) {

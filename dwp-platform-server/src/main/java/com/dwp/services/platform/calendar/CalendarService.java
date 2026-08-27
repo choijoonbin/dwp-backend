@@ -16,9 +16,7 @@ import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -35,23 +33,45 @@ public class CalendarService {
     private final CalendarRepository repository;
     private final CalendarOccurrenceProjector occurrenceProjector;
     private final CalendarRoomAccessGuard roomAccessGuard;
+    private final CalendarSchedulingEvaluator schedulingEvaluator;
+    private final CalendarSchedulingHorizon schedulingHorizon;
+    private final RoomBookingPolicyService roomBookingPolicy;
 
     public CalendarService(
             CalendarRepository repository,
-            WorkplaceRoomAccessPort roomAccess) {
+            WorkplaceRoomAccessPort roomAccess,
+            CalendarSchedulingHorizon schedulingHorizon,
+            RoomBookingPolicyService roomBookingPolicy) {
         this.repository = repository;
         this.occurrenceProjector = new CalendarOccurrenceProjector(repository);
         this.roomAccessGuard = new CalendarRoomAccessGuard(roomAccess);
+        this.schedulingEvaluator = new CalendarSchedulingEvaluator(repository, roomAccessGuard);
+        this.schedulingHorizon = schedulingHorizon;
+        this.roomBookingPolicy = roomBookingPolicy;
     }
 
     @Transactional(readOnly = true)
     public List<CalendarDtos.CalendarSummary> calendars(
             Long tenantId, Long userId, UUID personPublicId, String locale) {
+        return calendars(tenantId, userId, personPublicId, null, locale);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CalendarDtos.CalendarSummary> calendars(
+            Long tenantId, Long userId, UUID personPublicId,
+            String verifiedGroupRefs, String locale) {
         repository.linkIdentity(tenantId, userId, personPublicId);
-        return repository.calendars(tenantId, userId, personPublicId, korean(locale)).stream()
+        return repository.calendars(
+                tenantId, userId, personPublicId, verifiedGroupRefs, korean(locale)).stream()
                 .map(value -> new CalendarDtos.CalendarSummary(
                         value.calendarId(), value.calendarKey(), value.name(), value.color(),
-                        value.type(), value.visibility(), true))
+                        value.type(), value.visibility(), value.ownerPersonPublicId(),
+                        value.ownerDisplayName(), value.sourceKind(), value.accessLevel(),
+                        value.subscriptionPolicy(),
+                        value.subscriptionPolicy() == CalendarSubscriptionPolicy.REQUIRED,
+                        value.selected(), value.favorite(), value.displayOrder(),
+                        value.calendarVersion(), value.subscriptionVersion(),
+                        CalendarAccessPolicy.calendarCapabilities(value)))
                 .toList();
     }
 
@@ -80,7 +100,8 @@ public class CalendarService {
         return roomAccessGuard.filterViewableEvents(
                 tenantId, userId, verifiedGroupRefs,
                 occurrenceProjector.summaries(
-                        tenantId, userId, personPublicId, from, to, locale));
+                        tenantId, userId, personPublicId, verifiedGroupRefs,
+                        from, to, locale));
     }
 
     @Transactional(readOnly = true)
@@ -114,7 +135,8 @@ public class CalendarService {
         List<CalendarDtos.EventSummary> horizonEvents = roomAccessGuard.filterViewableEvents(
                 tenantId, userId, verifiedGroupRefs,
                 occurrenceProjector.summaries(
-                        tenantId, userId, personPublicId, weekStart, horizonEnd, locale));
+                        tenantId, userId, personPublicId, verifiedGroupRefs,
+                        weekStart, horizonEnd, locale));
         List<CalendarDtos.EventSummary> weekEvents = horizonEvents.stream()
                 .filter(event -> event.startsAt().isBefore(weekEnd)
                         && event.endsAt().isAfter(weekStart))
@@ -199,8 +221,8 @@ public class CalendarService {
             if (!requestFingerprint.equals(idempotency.requestFingerprint())) {
                 throw conflict("The idempotency key was already used with a different request.");
             }
-            CalendarRepository.EventRow existing = repository.event(
-                            tenantId, userId, personPublicId,
+            CalendarRepository.EventRow existing = CalendarRepositoryRouting.event(
+                            repository, tenantId, userId, personPublicId, verifiedGroupRefs,
                             idempotency.eventId(), korean(locale))
                     .orElseThrow(() -> conflict(
                             "The calendar idempotency state is unavailable."));
@@ -216,9 +238,14 @@ public class CalendarService {
         CalendarRepository.ResourceRow resource = validateResource(
                 tenantId, request.resourceId(), request.startsAt(), request.endsAt(), null,
                 request.timeZone(), request.recurrence(), request.recurrenceInterval(),
-                request.recurrenceUntil(), policy, locale);
+                request.recurrenceUntil(), locale);
+        roomBookingPolicy.validateLockedCreate(tenantId, resource, policy, request);
         roomAccessGuard.requireBook(tenantId, userId, verifiedGroupRefs, resource);
-        UUID calendarId = repository.ensurePersonalCalendar(tenantId, userId, personPublicId);
+        UUID calendarId = request.calendarId() == null
+                ? repository.ensurePersonalCalendar(tenantId, userId, personPublicId)
+                : CalendarAccessPolicy.writableCalendar(
+                        repository, tenantId, userId, personPublicId,
+                        verifiedGroupRefs, request.calendarId());
         UUID eventId = repository.insertEvent(
                 tenantId, userId, personPublicId, organizerName,
                 calendarId, requestFingerprint, request);
@@ -233,8 +260,9 @@ public class CalendarService {
                         "endsAt", request.endsAt(),
                         "type", request.type().name(),
                         "resourceId", request.resourceId() == null ? "" : request.resourceId()));
-        CalendarRepository.EventRow created = repository.event(
-                        tenantId, userId, personPublicId, eventId, korean(locale))
+        CalendarRepository.EventRow created = CalendarRepositoryRouting.event(
+                        repository, tenantId, userId, personPublicId, verifiedGroupRefs,
+                        eventId, korean(locale))
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         return occurrenceProjector.summary(
                 tenantId, userId, personPublicId, created, false, locale);
@@ -264,11 +292,12 @@ public class CalendarService {
             String correlationId,
             String verifiedGroupRefs,
             CalendarDtos.UpdateEventRequest request) {
-        CalendarRepository.EventRow before = repository.event(
-                        tenantId, userId, personPublicId, eventId, korean(locale))
+        CalendarRepository.EventRow before = CalendarRepositoryRouting.event(
+                        repository, tenantId, userId, personPublicId, verifiedGroupRefs,
+                        eventId, korean(locale))
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        if (!occurrenceProjector.isOrganizer(before, userId, personPublicId)) {
-            throw new BaseException(ErrorCode.FORBIDDEN, "Only the organizer can update this event.");
+        if (!CalendarAccessPolicy.canEdit(before)) {
+            throw new BaseException(ErrorCode.FORBIDDEN, "This event is read-only.");
         }
         roomAccessGuard.requireBook(tenantId, userId, verifiedGroupRefs, before.resource());
         CalendarRepository.PolicyRow policy = validateEvent(
@@ -278,13 +307,16 @@ public class CalendarService {
         CalendarRepository.ResourceRow resource = validateResource(
                 tenantId, request.resourceId(), request.startsAt(), request.endsAt(), eventId,
                 request.timeZone(), request.recurrence(), request.recurrenceInterval(),
-                request.recurrenceUntil(), policy, locale);
+                request.recurrenceUntil(), locale);
+        roomBookingPolicy.validateLockedUpdate(tenantId, resource, policy, eventId, request);
         if (before.resource() == null
                 || resource == null
                 || !before.resource().resourceId().equals(resource.resourceId())) {
             roomAccessGuard.requireBook(tenantId, userId, verifiedGroupRefs, resource);
         }
-        if (repository.updateEvent(tenantId, userId, personPublicId, eventId, request) == 0) {
+        if (CalendarRepositoryRouting.updateEvent(
+                repository, tenantId, userId, personPublicId,
+                verifiedGroupRefs, eventId, request) == 0) {
             throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
                     "The event changed. Refresh and try again.");
         }
@@ -315,8 +347,9 @@ public class CalendarService {
                         "startsAt", request.startsAt(),
                         "endsAt", request.endsAt(),
                         "type", request.type().name()));
-        CalendarRepository.EventRow updated = repository.event(
-                        tenantId, userId, personPublicId, eventId, korean(locale))
+        CalendarRepository.EventRow updated = CalendarRepositoryRouting.event(
+                        repository, tenantId, userId, personPublicId, verifiedGroupRefs,
+                        eventId, korean(locale))
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         return occurrenceProjector.summary(
                 tenantId, userId, personPublicId, updated, false, locale);
@@ -346,15 +379,17 @@ public class CalendarService {
             String correlationId,
             String verifiedGroupRefs,
             CalendarDtos.VersionRequest request) {
-        CalendarRepository.EventRow before = repository.event(
-                        tenantId, userId, personPublicId, eventId, korean(locale))
+        CalendarRepository.EventRow before = CalendarRepositoryRouting.event(
+                        repository, tenantId, userId, personPublicId, verifiedGroupRefs,
+                        eventId, korean(locale))
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        if (!occurrenceProjector.isOrganizer(before, userId, personPublicId)) {
-            throw new BaseException(ErrorCode.FORBIDDEN, "Only the organizer can cancel this event.");
+        if (!CalendarAccessPolicy.canDelete(before)) {
+            throw new BaseException(ErrorCode.FORBIDDEN, "This event cannot be cancelled.");
         }
         roomAccessGuard.requireBook(tenantId, userId, verifiedGroupRefs, before.resource());
-        if (repository.cancelEvent(
-                tenantId, userId, personPublicId, eventId, request.version()) == 0) {
+        if (CalendarRepositoryRouting.cancelEvent(
+                repository, tenantId, userId, personPublicId, verifiedGroupRefs,
+                eventId, request.version()) == 0) {
             throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
                     "The event changed. Refresh and try again.");
         }
@@ -390,8 +425,9 @@ public class CalendarService {
         if (request.response() == ResponseStatus.NEEDS_ACTION) {
             throw invalid("A final attendance response is required.");
         }
-        CalendarRepository.EventRow before = repository.event(
-                        tenantId, userId, personPublicId, eventId, korean(locale))
+        CalendarRepository.EventRow before = CalendarRepositoryRouting.event(
+                        repository, tenantId, userId, personPublicId, verifiedGroupRefs,
+                        eventId, korean(locale))
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         roomAccessGuard.requireView(tenantId, userId, verifiedGroupRefs, before.resource());
         if (repository.respond(tenantId, userId, personPublicId, eventId, request.response()) == 0) {
@@ -400,8 +436,9 @@ public class CalendarService {
         repository.audit(tenantId, userId, eventId, "calendar.attendee.responded", correlationId,
                 Map.of("response", before.myResponse() == null ? "" : before.myResponse().name()),
                 Map.of("response", request.response().name()));
-        CalendarRepository.EventRow updated = repository.event(
-                        tenantId, userId, personPublicId, eventId, korean(locale))
+        CalendarRepository.EventRow updated = CalendarRepositoryRouting.event(
+                        repository, tenantId, userId, personPublicId, verifiedGroupRefs,
+                        eventId, korean(locale))
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         return occurrenceProjector.summary(
                 tenantId, userId, personPublicId, updated, false, locale);
@@ -447,72 +484,36 @@ public class CalendarService {
             String timeZone,
             String locale) {
         validateRange(from, to);
-        repository.linkIdentity(tenantId, currentUserId, currentPersonPublicId);
-        if (Duration.between(from, to).compareTo(Duration.ofDays(14)) > 0) {
-            throw invalid("Availability searches are limited to 14 days.");
-        }
-        LinkedHashSet<UUID> subjects = new LinkedHashSet<>();
-        if (currentPersonPublicId != null) subjects.add(currentPersonPublicId);
-        if (requestedPeople != null) subjects.addAll(requestedPeople);
-        if (subjects.isEmpty() || subjects.size() > 20) {
-            throw invalid("Select between 1 and 20 participants.");
-        }
-        CalendarRepository.PolicyRow policy = repository.policy(tenantId);
-        if (durationMinutes < policy.minimumEventMinutes()
-                || durationMinutes > policy.maximumEventMinutes()) {
-            throw invalid("The requested duration is outside the scheduling policy.");
-        }
-        ZoneId zone = zone(timeZone);
-        Map<UUID, List<CalendarRepository.BusyRow>> busyByPerson = new HashMap<>();
-        repository.busySlots(tenantId, List.copyOf(subjects), from, to).forEach(busy ->
-                busyByPerson.computeIfAbsent(busy.personPublicId(), ignored -> new ArrayList<>())
-                        .add(busy));
-        List<CalendarDtos.AvailabilitySlot> suggestions = new ArrayList<>();
-        LocalDate date = from.atZoneSameInstant(zone).toLocalDate();
-        LocalDate lastDate = to.atZoneSameInstant(zone).toLocalDate();
-        boolean ko = korean(locale);
-        while (!date.isAfter(lastDate) && suggestions.size() < 24) {
-            if (date.getDayOfWeek() != DayOfWeek.SATURDAY
-                    && date.getDayOfWeek() != DayOfWeek.SUNDAY) {
-                OffsetDateTime candidate = date.atTime(policy.workingDayStart())
-                        .atZone(zone).toOffsetDateTime();
-                OffsetDateTime dayEnd = date.atTime(policy.workingDayEnd())
-                        .atZone(zone).toOffsetDateTime();
-                while (!candidate.plusMinutes(durationMinutes).isAfter(dayEnd)) {
-                    OffsetDateTime candidateEnd = candidate.plusMinutes(durationMinutes);
-                    OffsetDateTime slotStart = candidate;
-                    boolean allFree = subjects.stream().allMatch(subject ->
-                            busyByPerson.getOrDefault(subject, List.of()).stream().noneMatch(busy ->
-                                    busy.startsAt().isBefore(candidateEnd)
-                                            && busy.endsAt().isAfter(slotStart)));
-                    if (allFree && !candidate.isBefore(from) && !candidateEnd.isAfter(to)) {
-                        int hour = candidate.atZoneSameInstant(zone).getHour();
-                        int score = hour >= 10 && hour < 16 ? 98 : 90;
-                        suggestions.add(new CalendarDtos.AvailabilitySlot(
-                                candidate, candidateEnd, score,
-                                ko ? "모든 참석자가 가능하며 근무시간 안입니다."
-                                        : "Everyone is available within working hours."));
-                    }
-                    candidate = candidate.plusMinutes(30);
-                }
-            }
-            date = date.plusDays(1);
-        }
-        List<CalendarDtos.AvailabilitySlot> top = suggestions.stream()
-                .sorted(Comparator.comparingInt(CalendarDtos.AvailabilitySlot::score).reversed()
-                        .thenComparing(CalendarDtos.AvailabilitySlot::startsAt))
-                .limit(8)
-                .toList();
-        List<CalendarDtos.AvailabilityParticipant> participants = subjects.stream()
-                .map(subject -> new CalendarDtos.AvailabilityParticipant(
-                        subject,
-                        busyByPerson.getOrDefault(subject, List.of()).stream()
-                                .mapToInt(busy -> (int) Duration.between(
-                                        busy.startsAt(), busy.endsAt()).toMinutes()).sum(),
-                        top.size()))
-                .toList();
-        return new CalendarDtos.AvailabilityResponse(
-                participants, top, OffsetDateTime.now());
+        return schedulingEvaluator.availability(
+                tenantId, currentUserId, currentPersonPublicId, requestedPeople,
+                from, to, durationMinutes, timeZone, locale);
+    }
+
+    @Transactional(readOnly = true)
+    public CalendarDtos.AvailabilityResponse availability(
+            Long tenantId, Long currentUserId, UUID currentPersonPublicId,
+            String verifiedGroupRefs, List<UUID> requestedPeople,
+            OffsetDateTime from, OffsetDateTime to, int durationMinutes,
+            String timeZone, String locale) {
+        validateRange(from, to);
+        return schedulingEvaluator.availability(
+                tenantId, currentUserId, currentPersonPublicId, verifiedGroupRefs,
+                requestedPeople, from, to, durationMinutes, timeZone, locale);
+    }
+
+    @Transactional(readOnly = true)
+    public CalendarDtos.SchedulingEvaluationResponse evaluateScheduling(
+            Long tenantId,
+            Long currentUserId,
+            UUID currentPersonPublicId,
+            String verifiedGroupRefs,
+            String locale,
+            CalendarDtos.SchedulingEvaluationRequest request) {
+        validateRange(request.from(), request.to());
+        validateRange(request.roomStartsAt(), request.roomEndsAt());
+        return schedulingEvaluator.evaluate(
+                tenantId, currentUserId, currentPersonPublicId,
+                verifiedGroupRefs, locale, request);
     }
 
     @Transactional(readOnly = true)
@@ -655,7 +656,6 @@ public class CalendarService {
             RecurrencePattern recurrence,
             int recurrenceInterval,
             LocalDate recurrenceUntil,
-            CalendarRepository.PolicyRow policy,
             String locale) {
         if (resourceId == null) return null;
         CalendarRepository.ResourceRow resource = repository.resource(
@@ -675,7 +675,7 @@ public class CalendarService {
         }
         repository.lockResource(tenantId, resourceId);
         for (BookingWindow occurrence : bookingWindows(
-                startsAt, endsAt, timeZone, recurrence, recurrenceInterval, recurrenceUntil, policy)) {
+                startsAt, endsAt, timeZone, recurrence, recurrenceInterval, recurrenceUntil)) {
             if (repository.resourceConflict(
                     tenantId, resourceId, occurrence.startsAt(), occurrence.endsAt(),
                     excludingEventId)) {
@@ -686,7 +686,7 @@ public class CalendarService {
         return resource;
     }
 
-    private CalendarRepository.PolicyRow validateEvent(
+    CalendarRepository.PolicyRow validateEvent(
             Long tenantId,
             OffsetDateTime startsAt,
             OffsetDateTime endsAt,
@@ -703,7 +703,9 @@ public class CalendarService {
         if (minutes < policy.minimumEventMinutes() || minutes > policy.maximumEventMinutes()) {
             throw invalid("The event duration is outside the tenant scheduling policy.");
         }
-        if (startsAt.isAfter(OffsetDateTime.now().plusDays(policy.maximumAdvanceDays()))) {
+        CalendarSchedulingHorizon.Horizon horizon = schedulingHorizon.evaluate(
+                eventZone, policy.maximumAdvanceDays());
+        if (!horizon.contains(startsAt, eventZone)) {
             throw invalid("The event is beyond the maximum advance booking window.");
         }
         if (policy.enforceMeetingAgenda() && type == EventType.MEETING
@@ -721,8 +723,7 @@ public class CalendarService {
         if (recurrenceUntil != null && recurrenceUntil.isBefore(localStart)) {
             throw invalid("The recurrence end date cannot precede the first event.");
         }
-        if (recurrenceUntil != null
-                && recurrenceUntil.isAfter(localStart.plusDays(policy.maximumAdvanceDays()))) {
+        if (!horizon.contains(recurrenceUntil)) {
             throw invalid("The recurrence end date exceeds the advance booking policy.");
         }
         return policy;
@@ -734,8 +735,7 @@ public class CalendarService {
             String timeZone,
             RecurrencePattern recurrence,
             int recurrenceInterval,
-            LocalDate recurrenceUntil,
-            CalendarRepository.PolicyRow policy) {
+            LocalDate recurrenceUntil) {
         List<BookingWindow> result = new ArrayList<>();
         Duration duration = Duration.between(startsAt, endsAt);
         OffsetDateTime current = startsAt;
@@ -750,9 +750,7 @@ public class CalendarService {
             current = occurrenceProjector.increment(
                     current, recurrence, recurrenceInterval, timeZone);
         }
-        if (result.size() >= MAX_OCCURRENCES
-                || result.stream().anyMatch(value -> value.startsAt().isAfter(
-                        startsAt.plusDays(policy.maximumAdvanceDays())))) {
+        if (result.size() >= MAX_OCCURRENCES) {
             throw invalid("The recurring reservation exceeds the scheduling policy.");
         }
         return result;

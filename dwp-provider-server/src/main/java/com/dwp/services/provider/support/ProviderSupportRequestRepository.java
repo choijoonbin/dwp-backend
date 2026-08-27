@@ -21,6 +21,7 @@ public class ProviderSupportRequestRepository {
                    tenant.tenant_key,
                    tenant.display_name AS tenant_name,
                    request.requester_operator_id,
+                   request.requester_auth_session_id,
                    requester.display_name AS requester_name,
                    request.lifecycle_state,
                    request.access_mode,
@@ -73,59 +74,32 @@ public class ProviderSupportRequestRepository {
     public CreateResult create(
             UUID tenantId,
             Long requesterOperatorId,
+            UUID requesterAuthSessionId,
             String justification,
             int durationMinutes,
             String approvalReference,
             boolean customerApprovalRequired,
             String riskTier,
             String requestKey,
-            String requestFingerprint,
-            Instant decisionDueAt) {
+            String requestFingerprint) {
         UUID requestId = UUID.randomUUID();
         int inserted = jdbc.update("""
                 INSERT INTO prv_support_access_requests (
                     support_access_request_id, provider_tenant_id, requester_operator_id,
-                    justification, duration_minutes, approval_reference,
+                    requester_auth_session_id, justification, duration_minutes, approval_reference,
                     customer_approval_required, risk_tier, request_key, access_mode,
                     request_fingerprint, decision_due_at, created_by, updated_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'STANDARD', ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'STANDARD', ?,
+                        statement_timestamp() + INTERVAL '24 hours', ?, ?)
                 ON CONFLICT (requester_operator_id, request_key) DO NOTHING
-                """, requestId, tenantId, requesterOperatorId, justification, durationMinutes,
+                """, requestId, tenantId, requesterOperatorId, requesterAuthSessionId,
+                justification, durationMinutes,
                 approvalReference, customerApprovalRequired, riskTier, requestKey,
-                requestFingerprint, Timestamp.from(decisionDueAt), requesterOperatorId,
-                requesterOperatorId);
+                requestFingerprint, requesterOperatorId, requesterOperatorId);
         if (inserted == 1) return new CreateResult(requestId, true);
         return byKey(requesterOperatorId, requestKey)
                 .map(record -> new CreateResult(record.requestId(), false))
                 .orElseThrow(() -> new IllegalStateException("Support request idempotency lookup failed."));
-    }
-
-    public CreateResult createBreakGlass(
-            UUID tenantId,
-            Long requesterOperatorId,
-            String justification,
-            int durationMinutes,
-            String requestKey,
-            String requestFingerprint,
-            Instant activationDueAt) {
-        UUID requestId = UUID.randomUUID();
-        int inserted = jdbc.update("""
-                INSERT INTO prv_support_access_requests (
-                    support_access_request_id, provider_tenant_id, requester_operator_id,
-                    lifecycle_state, access_mode, justification, duration_minutes,
-                    customer_approval_required, risk_tier, request_key, request_fingerprint,
-                    decision_due_at, decided_at, decided_by, decision_reason,
-                    created_by, updated_by)
-                VALUES (?, ?, ?, 'APPROVED', 'BREAK_GLASS', ?, ?, FALSE, 'L3', ?, ?, ?,
-                        CURRENT_TIMESTAMP, ?, 'Emergency access policy exception', ?, ?)
-                ON CONFLICT (requester_operator_id, request_key) DO NOTHING
-                """, requestId, tenantId, requesterOperatorId, justification, durationMinutes,
-                requestKey, requestFingerprint, Timestamp.from(activationDueAt),
-                requesterOperatorId, requesterOperatorId, requesterOperatorId);
-        if (inserted == 1) return new CreateResult(requestId, true);
-        return byKey(requesterOperatorId, requestKey)
-                .map(record -> new CreateResult(record.requestId(), false))
-                .orElseThrow(() -> new IllegalStateException("Break-glass idempotency lookup failed."));
     }
 
     public void addScopes(UUID requestId, List<String> scopes) {
@@ -141,18 +115,15 @@ public class ProviderSupportRequestRepository {
     }
 
     public Optional<SupportAccessRequestRecord> byId(UUID requestId) {
-        reconcile();
         return records("request.support_access_request_id = ?", requestId).stream().findFirst();
     }
 
     public Optional<SupportAccessRequestRecord> byKey(Long requesterOperatorId, String requestKey) {
-        reconcile();
         return records("request.requester_operator_id = ? AND request.request_key = ?",
                 requesterOperatorId, requestKey).stream().findFirst();
     }
 
     public List<ProviderDtos.SupportAccessRequestSummary> list(UUID tenantId) {
-        reconcile();
         String predicate = tenantId == null ? "TRUE" : "request.provider_tenant_id = ?";
         Object[] arguments = tenantId == null ? new Object[0] : new Object[]{tenantId};
         return jdbc.query(REQUEST_SELECT + " WHERE " + predicate
@@ -161,7 +132,6 @@ public class ProviderSupportRequestRepository {
     }
 
     public ProviderDtos.SupportAccessRequestSummary summary(UUID requestId) {
-        reconcile();
         return jdbc.query(REQUEST_SELECT + " WHERE request.support_access_request_id = ?",
                 this::mapSummary, requestId).stream().findFirst()
                 .orElseThrow(() -> new IllegalStateException("Support access request disappeared."));
@@ -171,49 +141,29 @@ public class ProviderSupportRequestRepository {
             UUID requestId,
             long version,
             Long reviewerOperatorId,
+            Long requesterOperatorId,
+            UUID requesterAuthSessionId,
             String decision,
             String reason) {
         return jdbc.update("""
                 UPDATE prv_support_access_requests request
                    SET lifecycle_state = ?,
-                       decided_at = CURRENT_TIMESTAMP,
+                       decided_at = statement_timestamp(),
                        decided_by = ?,
                        decision_reason = ?,
-                       updated_at = CURRENT_TIMESTAMP,
+                       updated_at = statement_timestamp(),
                        updated_by = ?,
                        version = version + 1
                  WHERE support_access_request_id = ?
                    AND lifecycle_state = 'PENDING_APPROVAL'
-                   AND decision_due_at > CURRENT_TIMESTAMP
+                   AND decision_due_at > statement_timestamp()
+                   AND requester_operator_id = ?
+                   AND requester_auth_session_id = ?
                    AND requester_operator_id <> ?
                    AND version = ?
                 """, decision, reviewerOperatorId, reason, reviewerOperatorId,
-                requestId, reviewerOperatorId, version) == 1;
-    }
-
-    public boolean activate(
-            UUID requestId,
-            UUID sessionId,
-            long version,
-            Long requesterOperatorId) {
-        return jdbc.update("""
-                UPDATE prv_support_access_requests request
-                   SET lifecycle_state = 'ACTIVATED',
-                       activated_at = CURRENT_TIMESTAMP,
-                       updated_at = CURRENT_TIMESTAMP,
-                       updated_by = ?,
-                       version = version + 1
-                 WHERE support_access_request_id = ?
-                   AND requester_operator_id = ?
-                   AND lifecycle_state = 'APPROVED'
-                   AND decision_due_at > CURRENT_TIMESTAMP
-                   AND version = ?
-                   AND EXISTS (
-                       SELECT 1 FROM prv_support_sessions session
-                        WHERE session.support_session_id = ?
-                          AND session.support_access_request_id = request.support_access_request_id
-                   )
-                """, requesterOperatorId, requestId, requesterOperatorId, version, sessionId) == 1;
+                requestId, requesterOperatorId, requesterAuthSessionId,
+                reviewerOperatorId, version) == 1;
     }
 
     public boolean cancel(
@@ -224,10 +174,10 @@ public class ProviderSupportRequestRepository {
         return jdbc.update("""
                 UPDATE prv_support_access_requests
                    SET lifecycle_state = 'CANCELLED',
-                       cancelled_at = CURRENT_TIMESTAMP,
+                       cancelled_at = statement_timestamp(),
                        cancelled_by = ?,
                        cancellation_reason = ?,
-                       updated_at = CURRENT_TIMESTAMP,
+                       updated_at = statement_timestamp(),
                        updated_by = ?,
                        version = version + 1
                  WHERE support_access_request_id = ?
@@ -236,74 +186,109 @@ public class ProviderSupportRequestRepository {
                 """, operatorId, reason, operatorId, requestId, version) == 1;
     }
 
-    public void completeForSession(UUID sessionId, Long operatorId) {
-        jdbc.update("""
-                UPDATE prv_support_access_requests request
-                   SET lifecycle_state = 'COMPLETED',
-                       completed_at = CURRENT_TIMESTAMP,
-                       post_review_state = 'PENDING',
-                       updated_at = CURRENT_TIMESTAMP,
-                       updated_by = ?,
-                       version = version + 1
-                  FROM prv_support_sessions session
-                 WHERE session.support_session_id = ?
-                   AND session.support_access_request_id = request.support_access_request_id
-                   AND request.lifecycle_state = 'ACTIVATED'
-                """, operatorId, sessionId);
-    }
-
     public boolean review(
             UUID requestId,
             long version,
             Long reviewerOperatorId,
             String summary) {
         return jdbc.update("""
-                UPDATE prv_support_access_requests
+                UPDATE prv_support_access_requests request
                    SET lifecycle_state = 'REVIEWED',
                        post_review_state = 'COMPLETED',
-                       post_reviewed_at = CURRENT_TIMESTAMP,
+                       post_reviewed_at = statement_timestamp(),
                        post_reviewed_by = ?,
                        post_review_summary = ?,
-                       updated_at = CURRENT_TIMESTAMP,
+                       updated_at = statement_timestamp(),
                        updated_by = ?,
                        version = version + 1
-                 WHERE support_access_request_id = ?
-                   AND lifecycle_state = 'COMPLETED'
-                   AND requester_operator_id <> ?
-                   AND version = ?
+                 WHERE request.support_access_request_id = ?
+                   AND request.lifecycle_state = 'COMPLETED'
+                   AND request.requester_operator_id <> ?
+                   AND request.version = ?
+                   AND request.completed_at IS NOT NULL
+                   AND EXISTS (
+                       SELECT 1
+                         FROM prv_support_sessions session
+                        WHERE session.support_access_request_id =
+                              request.support_access_request_id
+                          AND session.provider_tenant_id = request.provider_tenant_id
+                          AND session.lifecycle_state IN ('REVOKED', 'EXPIRED')
+                          AND NOT EXISTS (
+                              SELECT 1
+                                FROM prv_audit_events audit
+                               WHERE audit.target_type = 'SUPPORT_SESSION'
+                                 AND audit.target_id = session.support_session_id::text
+                                 AND audit.action IN (
+                                     'provider.support-session.used',
+                                     'provider.support-session.access-denied')
+                                 AND audit.occurred_at >= session.started_at
+                                 AND audit.occurred_at <= request.completed_at
+                                 AND (
+                                     audit.provider_tenant_id IS DISTINCT FROM
+                                         request.provider_tenant_id
+                                     OR (
+                                         audit.action = 'provider.support-session.used'
+                                         AND (
+                                             audit.outcome = 'SUCCESS'
+                                             AND audit.correlation_id ~ ?
+                                             AND UPPER(COALESCE(
+                                                 audit.redacted_snapshot ->> 'method', '')) = 'GET'
+                                             AND COALESCE(
+                                                 audit.redacted_snapshot ->> 'routeTemplate',
+                                                 audit.redacted_snapshot ->> 'resourcePath') =
+                                                 ?
+                                             AND EXISTS (
+                                                 SELECT 1
+                                                   FROM prv_support_session_scopes scope
+                                                  WHERE scope.support_session_id =
+                                                        session.support_session_id
+                                                    AND scope.scope_code =
+                                                        audit.redacted_snapshot ->> 'scope')
+                                         ) IS NOT TRUE
+                                     )
+                                     OR (
+                                         audit.action = 'provider.support-session.access-denied'
+                                         AND (
+                                             audit.outcome = 'DENIED'
+                                             AND audit.correlation_id ~ ?
+                                             AND UPPER(COALESCE(
+                                                 audit.redacted_snapshot ->> 'method', ''))
+                                                 ~ '^[A-Z]{3,12}$'
+                                             AND (
+                                                 COALESCE(
+                                                     audit.redacted_snapshot ->> 'routeTemplate',
+                                                     audit.redacted_snapshot ->> 'resourcePath') = ?
+                                                 OR audit.redacted_snapshot ->> 'routeTemplate' ~ ?
+                                             )
+                                             AND NULLIF(
+                                                 audit.redacted_snapshot ->> 'reasonCode', '')
+                                                 IS NOT NULL
+                                         ) IS NOT TRUE
+                                     )
+                                 )
+                          )
+                   )
                 """, reviewerOperatorId, summary, reviewerOperatorId,
-                requestId, reviewerOperatorId, version) == 1;
+                requestId, reviewerOperatorId, version,
+                ProviderSupportPostReviewEvidencePolicy.CANONICAL_CORRELATION_PATTERN,
+                ProviderSupportPostReviewEvidencePolicy.PREVIEW_ROUTE,
+                ProviderSupportPostReviewEvidencePolicy.CANONICAL_CORRELATION_PATTERN,
+                ProviderSupportPostReviewEvidencePolicy.PREVIEW_ROUTE,
+                ProviderSupportPostReviewEvidencePolicy.SAFE_DENIAL_ROUTE_PATTERN) == 1;
     }
 
     private List<SupportAccessRequestRecord> records(String predicate, Object... arguments) {
         return jdbc.query(REQUEST_SELECT + " WHERE " + predicate, this::record, arguments);
     }
 
-    private void reconcile() {
-        jdbc.update("""
-                UPDATE prv_support_sessions
-                   SET lifecycle_state = 'EXPIRED', updated_at = CURRENT_TIMESTAMP
-                 WHERE lifecycle_state = 'ACTIVE' AND expires_at <= CURRENT_TIMESTAMP
-                """);
-        jdbc.update("""
+    int expireElapsedRequests() {
+        return jdbc.update("""
                 UPDATE prv_support_access_requests
                    SET lifecycle_state = 'EXPIRED',
-                       updated_at = CURRENT_TIMESTAMP,
+                       updated_at = statement_timestamp(),
                        version = version + 1
                  WHERE lifecycle_state IN ('PENDING_APPROVAL', 'APPROVED')
-                   AND decision_due_at <= CURRENT_TIMESTAMP
-                """);
-        jdbc.update("""
-                UPDATE prv_support_access_requests request
-                   SET lifecycle_state = 'COMPLETED',
-                       completed_at = COALESCE(session.revoked_at, session.expires_at, CURRENT_TIMESTAMP),
-                       post_review_state = 'PENDING',
-                       updated_at = CURRENT_TIMESTAMP,
-                       version = version + 1
-                  FROM prv_support_sessions session
-                 WHERE session.support_access_request_id = request.support_access_request_id
-                   AND request.lifecycle_state = 'ACTIVATED'
-                   AND session.lifecycle_state IN ('REVOKED', 'EXPIRED')
+                   AND decision_due_at <= statement_timestamp()
                 """);
     }
 
@@ -347,6 +332,7 @@ public class ProviderSupportRequestRepository {
                 result.getObject("support_access_request_id", UUID.class),
                 result.getObject("provider_tenant_id", UUID.class),
                 result.getLong("requester_operator_id"),
+                result.getObject("requester_auth_session_id", UUID.class),
                 result.getString("lifecycle_state"),
                 result.getString("access_mode"),
                 result.getString("justification"),
@@ -382,6 +368,7 @@ public class ProviderSupportRequestRepository {
             UUID requestId,
             UUID tenantId,
             Long requesterOperatorId,
+            UUID requesterAuthSessionId,
             String lifecycleState,
             String accessMode,
             String justification,

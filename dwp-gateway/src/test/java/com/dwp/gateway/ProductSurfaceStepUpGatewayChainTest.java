@@ -39,7 +39,8 @@ class ProductSurfaceStepUpGatewayChainTest {
         AtomicInteger verifications = new AtomicInteger();
         SessionVerifier verifier = ignored -> {
             verifications.incrementAndGet();
-            return Mono.just(new VerifiedIdentity("41", "7", List.of("WORKSPACE_MEMBER")));
+            return Mono.just(new VerifiedIdentity(
+                    "41", "7", List.of("WORKSPACE_MEMBER"), "TENANT"));
         };
         List<GlobalFilter> filters = filters(verifier, bundleVersion);
         MockServerWebExchange exchange = MockServerWebExchange.from(
@@ -90,7 +91,8 @@ class ProductSurfaceStepUpGatewayChainTest {
         AtomicInteger verifierCalls = new AtomicInteger();
         SessionVerifier counted = ignored -> {
             verifierCalls.incrementAndGet();
-            return Mono.just(new VerifiedIdentity("41", "7", List.of("WORKSPACE_MEMBER")));
+            return Mono.just(new VerifiedIdentity(
+                    "41", "7", List.of("WORKSPACE_MEMBER"), "TENANT"));
         };
         MockServerWebExchange noCsrf = MockServerWebExchange.from(
                 issuerRequest()

@@ -156,6 +156,13 @@ SERVICES = {
         8008,
         "/actuator/health",
     ),
+    "meeting": Service(
+        "meeting",
+        BACKEND_ROOT,
+        ("./gradlew", "--no-daemon", ":dwp-meeting-server:bootRun"),
+        8009,
+        "/actuator/health",
+    ),
     "agent": Service(
         "agent",
         AGENT_ROOT,
@@ -197,6 +204,7 @@ OPTIONAL_RUNTIME_SERVICES = {
     for service_name, module_name in {
         "messaging": "dwp-messaging-server",
         "notification": "dwp-notification-server",
+        "meeting": "dwp-meeting-server",
     }.items()
     if spring_boot_module_ready(module_name)
 }
@@ -228,13 +236,14 @@ START_ORDER = (
     "space",
     "messaging",
     "notification",
+    "meeting",
     "agent",
     "gateway",
     "frontend",
 )
 START_PHASES = (
     ("platform",),
-    ("auth", "people", "provider", "approval", "space", "messaging", "notification", "agent"),
+    ("auth", "people", "provider", "approval", "space", "messaging", "notification", "meeting", "agent"),
     ("gateway",),
     ("frontend",),
 )
@@ -352,19 +361,26 @@ def local_environment() -> dict[str, str]:
         "SERVICE_SPACE_URL": "http://localhost:8006",
         "SERVICE_MESSAGING_URL": "http://localhost:8007",
         "SERVICE_NOTIFICATION_URL": "http://localhost:8008",
+        "SERVICE_MEETING_URL": "http://localhost:8009",
         "DWP_PRODUCT_SURFACE_TOKEN": (
             "dwp-local-product-surface-token-change-outside-local"
         ),
         "DWP_PRODUCT_AUTHORIZATION_SEED_ENABLED": "true",
         "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_ENABLED": "true",
         "DWP_AGENT_SERVICE_TOKEN": "dwp-local-agent-service-token",
+        "DWP_AGENT_IDENTITY_SIGNING_SECRET": (
+            "dwp-local-agent-identity-signing-secret-v1"
+        ),
+        "DWP_AGENT_IDENTITY_KEY_ID": "gateway-agent-v1",
         "DWP_AGENT_DATABASE_URL": (
             "postgresql://dwp_user:dwp_password@localhost:5432/dwp_agent"
         ),
         "DWP_AGENT_DATABASE_REQUIRED": "true",
+        "DWP_AGENT_KEY_PROVIDER": "local-inline",
         "DWP_AGENT_DATA_KEY": (
             "ZHdwLWxvY2FsLWFnZW50LWRhdGEta2V5LTMyYnl0ZSE="
         ),
+        "DWP_AGENT_DATA_KEY_VERSION": "local-v1",
         "DWP_AGENT_PRIVACY_HASH_SECRET": (
             "dwp-local-agent-privacy-secret-change-outside-local"
         ),
@@ -410,6 +426,9 @@ def local_environment() -> dict[str, str]:
         "LIVEKIT_API_KEY": "devkey",
         "LIVEKIT_API_SECRET": "secret",
         "DWP_NOTIFICATION_SERVICE_TOKEN": "dwp-local-notification-service-token",
+        "DWP_MEETING_SERVICE_TOKEN": "dwp-local-meeting-service-token",
+        "DWP_MEETING_PROVIDER": "livekit",
+        "DWP_MEETING_TOKEN_TTL": "PT5M",
         "DWP_NOTIFICATION_CURSOR_SECRET": (
             "dwp-local-notification-cursor-secret-change-outside-local"
         ),
@@ -429,6 +448,8 @@ def local_environment() -> dict[str, str]:
             "dwp-local-provider-support-validation-token"
         ),
         "DWP_PROVIDER_SUPPORT_COOKIE_SECURE": "false",
+        "DWP_PROVIDER_SUPPORT_ACTIVATION_ENABLED": "true",
+        "DWP_PROVIDER_LOCAL_APPROVAL_FIXTURES_ENABLED": "true",
         "DWP_PROVIDER_PROVISIONING_TOKEN": (
             "dwp-local-provider-provisioning-token-change-outside-local"
         ),
@@ -452,6 +473,9 @@ def local_environment() -> dict[str, str]:
         "DWP_AUDIT_COLLECTOR_URL": "http://localhost:8002/internal/audit/events",
         "DWP_AUDIT_INGEST_TOKEN": (
             "dwp-local-audit-ingest-token-change-outside-local"
+        ),
+        "DWP_AUDIT_PRIVACY_HASH_SECRET": (
+            "dwp-local-audit-privacy-secret-change-outside-local"
         ),
         "DWP_AUDIT_INTEGRITY_SECRET": (
             "dwp-local-audit-integrity-secret-change-outside-local"
@@ -490,6 +514,8 @@ def service_environment(service_name: str) -> dict[str, str]:
         )
     if service_name not in {"agent", "gateway"}:
         environment.pop("DWP_AGENT_SERVICE_TOKEN", None)
+        environment.pop("DWP_AGENT_IDENTITY_SIGNING_SECRET", None)
+        environment.pop("DWP_AGENT_IDENTITY_KEY_ID", None)
     if service_name == "agent":
         environment.pop("DWP_PLATFORM_SERVICE_TOKEN", None)
     elif service_name == "gateway":
@@ -504,7 +530,9 @@ def service_environment(service_name: str) -> dict[str, str]:
     if service_name != "agent":
         environment.pop("DWP_AGENT_DATABASE_URL", None)
         environment.pop("DWP_AGENT_DATABASE_REQUIRED", None)
+        environment.pop("DWP_AGENT_KEY_PROVIDER", None)
         environment.pop("DWP_AGENT_DATA_KEY", None)
+        environment.pop("DWP_AGENT_DATA_KEY_VERSION", None)
         environment.pop("DWP_AGENT_PRIVACY_HASH_SECRET", None)
         environment.pop("DWP_AGENT_SAFETY_SECRET", None)
         environment.pop("DWP_AGENT_REGISTRY_MODE", None)
@@ -532,6 +560,8 @@ def service_environment(service_name: str) -> dict[str, str]:
         environment.pop("DWP_APPROVAL_INTEGRATION_RELAY_ENABLED", None)
     if service_name != "provider":
         environment.pop("DWP_PROVIDER_SUPPORT_COOKIE_SECURE", None)
+        environment.pop("DWP_PROVIDER_SUPPORT_ACTIVATION_ENABLED", None)
+        environment.pop("DWP_PROVIDER_LOCAL_APPROVAL_FIXTURES_ENABLED", None)
     if service_name not in {"auth", "platform", "people", "provider"}:
         environment.pop("DWP_PROVIDER_PROVISIONING_TOKEN", None)
     if service_name not in {"auth", "platform", "people", "space"}:
@@ -543,6 +573,7 @@ def service_environment(service_name: str) -> dict[str, str]:
         environment.pop("DWP_MESSAGING_EVENT_TRANSPORT_ENABLED", None)
         environment.pop("DWP_MESSAGING_MEETING_PROVIDER", None)
         environment.pop("DWP_MESSAGING_MEETING_TOKEN_TTL", None)
+    if service_name not in {"messaging", "meeting"}:
         environment.pop("LIVEKIT_API_URL", None)
         environment.pop("LIVEKIT_URL", None)
         environment.pop("LIVEKIT_API_KEY", None)
@@ -559,6 +590,11 @@ def service_environment(service_name: str) -> dict[str, str]:
         environment.pop("NOTIFICATION_DB_PASSWORD", None)
         environment.pop("NOTIFICATION_MIGRATION_DB_USERNAME", None)
         environment.pop("NOTIFICATION_MIGRATION_DB_PASSWORD", None)
+    if service_name not in {"gateway", "meeting"}:
+        environment.pop("DWP_MEETING_SERVICE_TOKEN", None)
+    if service_name != "meeting":
+        environment.pop("DWP_MEETING_PROVIDER", None)
+        environment.pop("DWP_MEETING_TOKEN_TTL", None)
     if service_name != "people":
         environment.pop("DWP_IDENTITY_SYNC_ENABLED", None)
     return environment
@@ -590,7 +626,7 @@ def doctor(required_services: Iterable[Service] | None = None) -> None:
         else {service.name for service in required_services}
     )
     commands = {"docker", "python3"}
-    if selected.intersection({"auth", "platform", "people", "provider", "approval", "space", "messaging", "notification", "gateway"}):
+    if selected.intersection({"auth", "platform", "people", "provider", "approval", "space", "messaging", "notification", "meeting", "gateway"}):
         commands.add("java")
     if "frontend" in selected:
         commands.add("corepack")
@@ -698,6 +734,7 @@ def start_infrastructure(
             ensure_database("dwp_space")
             ensure_database("dwp_messaging")
             ensure_database("dwp_notification")
+            ensure_database("dwp_meetings")
             ensure_notification_runtime_role()
             ensure_database("dwp_agent")
             print("postgres   ready at localhost:5432")
@@ -971,7 +1008,7 @@ def main() -> None:
                 service.name == "notification" for service in services
             ),
             include_media=any(
-                service.name == "messaging" for service in services
+                service.name in {"messaging", "meeting"} for service in services
             ),
         )
         state = load_state()

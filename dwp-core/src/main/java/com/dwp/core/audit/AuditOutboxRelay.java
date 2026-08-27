@@ -101,9 +101,11 @@ public class AuditOutboxRelay implements SmartLifecycle {
                 .toList();
         DeliveryResult result = publisher.publish(events);
         if (result == DeliveryResult.ACCEPTED) {
-            repository.markPublished(claimed.stream()
-                    .map(AuditOutboxRepository.ClaimedEvent::outboxId)
-                    .toList());
+            int published = repository.markPublished(claimed);
+            if (published != claimed.size()) {
+                log.warn("Audit outbox publish completion lost lease ownership; worker={} expected={} updated={}",
+                        workerId, claimed.size(), published);
+            }
             return;
         }
         if (result == DeliveryResult.REJECTED && claimed.size() > 1) {
@@ -116,11 +118,15 @@ public class AuditOutboxRelay implements SmartLifecycle {
                 ? "Audit event rejected by collector after batch isolation"
                 : "Audit collector delivery is temporarily unavailable";
         for (AuditOutboxRepository.ClaimedEvent item : claimed) {
-            repository.markFailed(
-                    item.outboxId(),
+            boolean marked = repository.markFailed(
+                    item,
                     result == DeliveryResult.REJECTED ? maximumAttempts : item.attempts(),
                     maximumAttempts,
                     error);
+            if (!marked) {
+                log.warn("Audit outbox failure completion lost lease ownership; worker={} outbox={}",
+                        workerId, item.outboxId());
+            }
         }
     }
 

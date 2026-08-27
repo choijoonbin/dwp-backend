@@ -1213,6 +1213,9 @@
             "format": "date-time",
             "type": "string"
           },
+          "interruptionLevel": {
+            "type": "string"
+          },
           "lastActivityAt": {
             "format": "date-time",
             "type": "string"
@@ -4020,6 +4023,15 @@
             "name": "Last-Event-ID",
             "required": false,
             "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "clientId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }

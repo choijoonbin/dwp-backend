@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReadParam;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
 import java.awt.image.BufferedImage;
@@ -21,6 +22,7 @@ import java.util.Iterator;
 class WorkplaceFloorPlanValidator {
 
     private static final long MAX_PIXELS = 40_000_000L;
+    private static final long MAX_DECODED_PIXELS = 4_000_000L;
     private final long maxBytes;
 
     WorkplaceFloorPlanValidator(
@@ -61,8 +63,15 @@ class WorkplaceFloorPlanValidator {
                 if (width <= 0 || height <= 0 || (long) width * height > MAX_PIXELS) {
                     throw invalid("The floor plan image dimensions are invalid or too large.");
                 }
-                BufferedImage decoded = reader.read(0);
-                if (decoded == null || decoded.getWidth() != width || decoded.getHeight() != height) {
+                int sample = decodeSample(width, height);
+                ImageReadParam parameters = reader.getDefaultReadParam();
+                parameters.setSourceSubsampling(sample, sample, 0, 0);
+                BufferedImage decoded = reader.read(0, parameters);
+                int decodedWidth = Math.ceilDiv(width, sample);
+                int decodedHeight = Math.ceilDiv(height, sample);
+                if (decoded == null
+                        || decoded.getWidth() != decodedWidth
+                        || decoded.getHeight() != decodedHeight) {
                     throw invalid("The uploaded file is not a readable image.");
                 }
                 return new Dimensions(width, height);
@@ -70,6 +79,11 @@ class WorkplaceFloorPlanValidator {
                 reader.dispose();
             }
         }
+    }
+
+    private int decodeSample(int width, int height) {
+        double ratio = ((double) width * height) / MAX_DECODED_PIXELS;
+        return Math.max(1, (int) Math.ceil(Math.sqrt(ratio)));
     }
 
     private ImageFormat detectFormat(byte[] content) {

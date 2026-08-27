@@ -32,6 +32,12 @@ public final class MessagingDtos {
             boolean mine) {
     }
 
+    public record MentionSummary(
+            long userId,
+            String displayName,
+            String mentionKind) {
+    }
+
     public record ThreadRootPreview(
             UUID messageId,
             String senderName,
@@ -58,7 +64,8 @@ public final class MessagingDtos {
             List<ReactionSummary> reactions,
             int replyCount,
             ThreadRootPreview rootPreview,
-            List<AttachmentDtos.AttachmentSummary> attachments) {
+            List<AttachmentDtos.AttachmentSummary> attachments,
+            List<MentionSummary> mentions) {
 
         public MessageSummary(
                 UUID messageId,
@@ -80,7 +87,33 @@ public final class MessagingDtos {
                 ThreadRootPreview rootPreview) {
             this(messageId, conversationId, sequence, senderUserId, senderPersonPublicId,
                     senderName, body, contentType, messageKind, replyToMessageId, editedAt,
-                    deletedAt, createdAt, version, reactions, replyCount, rootPreview, List.of());
+                    deletedAt, createdAt, version, reactions, replyCount, rootPreview,
+                    List.of(), List.of());
+        }
+
+        public MessageSummary(
+                UUID messageId,
+                UUID conversationId,
+                long sequence,
+                long senderUserId,
+                UUID senderPersonPublicId,
+                String senderName,
+                String body,
+                String contentType,
+                String messageKind,
+                UUID replyToMessageId,
+                OffsetDateTime editedAt,
+                OffsetDateTime deletedAt,
+                OffsetDateTime createdAt,
+                long version,
+                List<ReactionSummary> reactions,
+                int replyCount,
+                ThreadRootPreview rootPreview,
+                List<AttachmentDtos.AttachmentSummary> attachments) {
+            this(messageId, conversationId, sequence, senderUserId, senderPersonPublicId,
+                    senderName, body, contentType, messageKind, replyToMessageId, editedAt,
+                    deletedAt, createdAt, version, reactions, replyCount, rootPreview,
+                    attachments, List.of());
         }
     }
 
@@ -194,7 +227,7 @@ public final class MessagingDtos {
     }
 
     public record SendMessageRequest(
-            @NotBlank @Size(max = 20_000) String body,
+            @NotNull @Size(max = 20_000) String body,
             @NotNull UUID idempotencyKey,
             UUID replyToMessageId,
             @Size(max = 10) List<@NotNull UUID> attachmentIds,

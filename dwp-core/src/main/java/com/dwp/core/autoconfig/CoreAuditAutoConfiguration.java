@@ -33,8 +33,9 @@ public class CoreAuditAutoConfiguration {
     @ConditionalOnMissingBean
     public AuditOutboxRepository auditOutboxRepository(
             NamedParameterJdbcTemplate jdbc,
-            ObjectMapper objectMapper) {
-        return new AuditOutboxRepository(jdbc, objectMapper);
+            ObjectMapper objectMapper,
+            @Value("${dwp.audit.relay-database-role:}") String relayDatabaseRole) {
+        return new AuditOutboxRepository(jdbc, objectMapper, relayDatabaseRole);
     }
 
     @Bean

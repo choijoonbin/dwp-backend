@@ -96,6 +96,10 @@ assigns `APP_OWNER` to an application resource set. An owner can delegate
 
 ## Enforcement Invariants
 
+- Keep provider control-plane roles and every tenant/workspace role mutually
+  exclusive across direct, group-derived, and privileged effective access. A
+  provider accesses customer configuration only through the separately verified
+  [Provider and Tenant Support Access Boundary](provider-tenant-support-access-boundary.md).
 - Re-resolve the actor's active effective roles from persistent data for every mutation.
 - Reject self-management and targets that hold any peer, higher, custom, governed, or control-plane role.
 - Permit assignment only to `ACTIVE` or onboarding `INVITED` identities; lifecycle workflows own suspended and inactive identities.

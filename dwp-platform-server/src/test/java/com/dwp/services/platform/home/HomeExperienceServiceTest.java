@@ -15,6 +15,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.Map;
 
@@ -48,16 +50,18 @@ class HomeExperienceServiceTest {
 
     @BeforeEach
     void setUp() {
+        ObjectMapper objectMapper = new ObjectMapper();
         service = new HomeExperienceService(
                 repository,
                 storage,
                 validator,
                 auditService,
                 revisionStore,
-                new ObjectMapper(),
+                objectMapper,
                 new HomeLaunchpadPolicy(),
                 new HomeCompositionPolicyRegistry(),
-                compatibilityBridge);
+                compatibilityBridge,
+                new HomeExperiencePresentationPolicy(objectMapper));
         lenient().when(compatibilityBridge.readCutoverReady(any())).thenReturn(true);
     }
 
@@ -69,6 +73,11 @@ class HomeExperienceServiceTest {
 
         assertThat(result.backgroundUrl()).isNull();
         assertThat(result.backgroundPosition()).isEqualTo("RIGHT");
+        assertThat(result.backgroundFocalX()).isEqualTo(50);
+        assertThat(result.backgroundFocalY()).isEqualTo(50);
+        assertThat(result.mobileBackgroundFocalX()).isEqualTo(50);
+        assertThat(result.mobileBackgroundFocalY()).isEqualTo(50);
+        assertThat(result.contentAlignment()).isEqualTo("LEFT");
         assertThat(result.overlayOpacity()).isEqualTo(18);
         assertThat(result.compositionPolicy().personalCustomizationEnabled()).isTrue();
         assertThat(result.compositionPolicy().governedZones())
@@ -199,6 +208,88 @@ class HomeExperienceServiceTest {
                 eq("corr-1"),
                 anyMap(),
                 anyMap());
+    }
+
+    @Test
+    void publishesIndependentDesktopAndMobileFocalPointsAndContentAlignment() {
+        HomeExperience experience = experience(7L, 2L, null);
+        when(repository.findById(7L)).thenReturn(Optional.of(experience));
+        when(repository.saveAndFlush(experience)).thenAnswer(invocation -> {
+            experience.setVersion(3L);
+            return experience;
+        });
+
+        HomeExperienceDtos.HomeExperienceResponse result = service.update(
+                7L,
+                11L,
+                "corr-focal",
+                new HomeExperienceDtos.UpdateHomeExperienceRequest(
+                        "Welcome",
+                        "Start work",
+                        null,
+                        null,
+                        "RIGHT",
+                        72,
+                        31,
+                        18,
+                        64,
+                        "CENTER",
+                        24,
+                        2L));
+
+        assertThat(result.backgroundPosition()).isEqualTo("RIGHT");
+        assertThat(result.backgroundFocalX()).isEqualTo(72);
+        assertThat(result.backgroundFocalY()).isEqualTo(31);
+        assertThat(result.mobileBackgroundFocalX()).isEqualTo(18);
+        assertThat(result.mobileBackgroundFocalY()).isEqualTo(64);
+        assertThat(result.contentAlignment()).isEqualTo("CENTER");
+    }
+
+    @Test
+    void legacySettingsRequestPreservesFocalPointsAndContentAlignment() {
+        HomeExperience experience = experience(7L, 2L, null);
+        experience.setBackgroundFocalX(70);
+        experience.setBackgroundFocalY(25);
+        experience.setMobileBackgroundFocalX(20);
+        experience.setMobileBackgroundFocalY(80);
+        experience.setContentAlignment("RIGHT");
+        when(repository.findById(7L)).thenReturn(Optional.of(experience));
+        when(repository.saveAndFlush(experience)).thenAnswer(invocation -> {
+            experience.setVersion(3L);
+            return experience;
+        });
+
+        HomeExperienceDtos.HomeExperienceResponse result = service.update(
+                7L,
+                11L,
+                "corr-legacy",
+                new HomeExperienceDtos.UpdateHomeExperienceRequest(
+                        "Welcome", "Start work", "LEFT", 20, 2L));
+
+        assertThat(result.backgroundFocalX()).isEqualTo(70);
+        assertThat(result.backgroundFocalY()).isEqualTo(25);
+        assertThat(result.mobileBackgroundFocalX()).isEqualTo(20);
+        assertThat(result.mobileBackgroundFocalY()).isEqualTo(80);
+        assertThat(result.contentAlignment()).isEqualTo("RIGHT");
+    }
+
+    @Test
+    void rejectsOutOfRangeFocalPointWhenServiceIsCalledDirectly() {
+        HomeExperience experience = experience(7L, 2L, null);
+        when(repository.findById(7L)).thenReturn(Optional.of(experience));
+
+        assertThatThrownBy(() -> service.update(
+                        7L,
+                        11L,
+                        "corr-invalid-focal",
+                        new HomeExperienceDtos.UpdateHomeExperienceRequest(
+                                "Welcome", "Start work", null, null, "RIGHT",
+                                101, 50, 50, 50, "LEFT", 24, 2L)))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(
+                                ErrorCode.INVALID_INPUT_VALUE));
+
+        verify(repository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -380,6 +471,175 @@ class HomeExperienceServiceTest {
                 eq("corr-2"),
                 anyMap(),
                 anyMap());
+    }
+
+    @Test
+    void atomicallyPublishesSettingsAndOptionalBackgroundAsOneRevision() {
+        HomeExperience experience = experience(7L, 1L, "7/old.png");
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "new.png", "image/png", new byte[]{1, 2, 3});
+        HomeBackgroundValidator.ValidatedBackground validated =
+                new HomeBackgroundValidator.ValidatedBackground(
+                        new byte[]{1, 2, 3}, "image/png", "png", "new.png", 3,
+                        "a".repeat(64), 1909, 494);
+        when(repository.findById(7L)).thenReturn(Optional.of(experience));
+        when(validator.validate(file)).thenReturn(validated);
+        when(storage.store(7L, "home/backgrounds", "png", validated.content()))
+                .thenReturn("7/home/backgrounds/new.png");
+        when(repository.saveAndFlush(experience)).thenAnswer(invocation -> {
+            experience.setVersion(2L);
+            return experience;
+        });
+
+        HomeExperienceDtos.HomeExperienceResponse result = service.publish(
+                7L,
+                11L,
+                "corr-atomic",
+                new HomeExperienceDtos.UpdateHomeExperienceRequest(
+                        "Atomic welcome", "One publish", null, null, "RIGHT",
+                        65, 40, 22, 75, "LEFT", 26, 1L),
+                file,
+                false);
+
+        assertThat(result.headline()).isEqualTo("Atomic welcome");
+        assertThat(result.backgroundOriginalName()).isEqualTo("new.png");
+        assertThat(result.backgroundFocalX()).isEqualTo(65);
+        assertThat(result.mobileBackgroundFocalY()).isEqualTo(75);
+        assertThat(result.version()).isEqualTo(2L);
+        verify(revisionStore).append(
+                eq(7L), eq("HOME"), eq(2L), eq("EXPERIENCE_PUBLISHED"),
+                anyMap(), eq(11L), eq("corr-atomic"));
+        verify(auditService).success(
+                eq(7L), eq(11L), eq("home-experience.published"),
+                eq("HOME_EXPERIENCE"), eq("7"), eq("corr-atomic"),
+                anyMap(), anyMap());
+    }
+
+    @Test
+    void atomicallyPublishesSettingsAndBackgroundReset() {
+        HomeExperience experience = experience(7L, 2L, "7/current.png");
+        when(repository.findById(7L)).thenReturn(Optional.of(experience));
+        when(repository.saveAndFlush(experience)).thenAnswer(invocation -> {
+            experience.setVersion(3L);
+            return experience;
+        });
+
+        HomeExperienceDtos.HomeExperienceResponse result = service.publish(
+                7L,
+                11L,
+                "corr-atomic-reset",
+                new HomeExperienceDtos.UpdateHomeExperienceRequest(
+                        "Reset welcome", "One publish", "RIGHT", 20, 2L),
+                null,
+                true);
+
+        assertThat(result.headline()).isEqualTo("Reset welcome");
+        assertThat(result.backgroundUrl()).isNull();
+        assertThat(result.backgroundOriginalName()).isNull();
+        assertThat(result.version()).isEqualTo(3L);
+        verify(storage, never()).delete(7L, "7/current.png");
+        verify(revisionStore).append(
+                eq(7L), eq("HOME"), eq(3L), eq("EXPERIENCE_PUBLISHED"),
+                anyMap(), eq(11L), eq("corr-atomic-reset"));
+    }
+
+    @Test
+    void rejectsReplacingAndResettingBackgroundInOnePublication() {
+        HomeExperience experience = experience(7L, 2L, "7/current.png");
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "new.png", "image/png", new byte[]{1, 2, 3});
+        when(repository.findById(7L)).thenReturn(Optional.of(experience));
+
+        assertThatThrownBy(() -> service.publish(
+                        7L,
+                        11L,
+                        "corr-conflict",
+                        new HomeExperienceDtos.UpdateHomeExperienceRequest(
+                                "Welcome", "Start work", "RIGHT", 20, 2L),
+                        file,
+                        true))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(
+                                ErrorCode.INVALID_INPUT_VALUE));
+
+        verify(validator, never()).validate(file);
+        verify(repository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void revisionHistoryDisclosesWholeAggregateRollbackImpact() throws Exception {
+        HomeExperience experience = experience(7L, 4L, null);
+        when(repository.findById(7L)).thenReturn(Optional.of(experience));
+        when(revisionStore.list(7L, "HOME", 20)).thenReturn(List.of(
+                new ExperienceRevisionStore.ExperienceRevision(
+                        91L,
+                        7L,
+                        "HOME",
+                        3L,
+                        "SETTINGS_PUBLISHED",
+                        new ObjectMapper().readTree("""
+                                {"headline":"Earlier","localizedContent":{}}
+                                """),
+                        "corr-history",
+                        OffsetDateTime.now(),
+                        11L)));
+
+        HomeExperienceDtos.HomeExperienceRevisionResponse revision =
+                service.history(7L, 20).getFirst();
+
+        assertThat(revision.affectedScopes()).containsExactly(
+                "PRESENTATION", "BACKGROUND_ASSET", "LAUNCHPAD", "COMPOSITION");
+    }
+
+    @Test
+    void rollbackRestoresFocalPointsAndContentAlignmentFromRevision() throws Exception {
+        HomeExperience current = experience(7L, 4L, null);
+        HomeExperience target = experience(7L, 2L, null);
+        target.setBackgroundFocalX(82);
+        target.setBackgroundFocalY(19);
+        target.setMobileBackgroundFocalX(27);
+        target.setMobileBackgroundFocalY(73);
+        target.setContentAlignment("CENTER");
+        target.setLaunchpadConfiguration(new ObjectMapper().valueToTree(
+                new HomeLaunchpadPolicy().defaultConfiguration()));
+        target.setCompositionPolicy(new ObjectMapper().valueToTree(
+                new HomeExperienceDtos.HomeCompositionPolicy(
+                        3,
+                        "CLASSIC",
+                        false,
+                        List.of(new HomeExperienceDtos.GovernedHomeZone(
+                                "announcements", "CANVAS", true,
+                                "medium", "standard", 30)))));
+        when(repository.findById(7L)).thenReturn(Optional.of(current));
+        when(revisionStore.require(7L, "HOME", 91L)).thenReturn(
+                new ExperienceRevisionStore.ExperienceRevision(
+                        91L,
+                        7L,
+                        "HOME",
+                        2L,
+                        "SETTINGS_PUBLISHED",
+                        new ObjectMapper().valueToTree(
+                                HomeExperienceDtos.revisionSnapshot(target)),
+                        "corr-source",
+                        OffsetDateTime.now(),
+                        11L));
+        when(repository.saveAndFlush(current)).thenAnswer(invocation -> {
+            current.setVersion(5L);
+            return current;
+        });
+
+        HomeExperienceDtos.HomeExperienceResponse result = service.rollback(
+                7L, 12L, "corr-rollback", 91L, 4L);
+
+        assertThat(result.backgroundFocalX()).isEqualTo(82);
+        assertThat(result.backgroundFocalY()).isEqualTo(19);
+        assertThat(result.mobileBackgroundFocalX()).isEqualTo(27);
+        assertThat(result.mobileBackgroundFocalY()).isEqualTo(73);
+        assertThat(result.contentAlignment()).isEqualTo("CENTER");
+        assertThat(result.launchpadConfiguration().groups()).hasSize(4);
+        assertThat(result.compositionPolicy().personalCustomizationEnabled()).isFalse();
+        assertThat(result.compositionPolicy().governedZones().getFirst().size())
+                .isEqualTo("medium");
     }
 
     @Test

@@ -17,6 +17,7 @@ final class ProductSurfaceRolloutFlagCatalog {
             "dwaion",
             "hcm",
             "mail",
+            "meetings",
             "messaging",
             "notifications",
             "services",
@@ -60,7 +61,7 @@ final class ProductSurfaceRolloutFlagCatalog {
         PRODUCT_KEYS.stream().sorted()
                 .map(ProductSurfaceRolloutFlagCatalog::uiFlag)
                 .forEach(flags::add);
-        if (flags.size() != 24) {
+        if (flags.size() != 26) {
             throw new IllegalStateException("Product-surface rollout flag catalog is incomplete");
         }
         return Set.copyOf(flags);

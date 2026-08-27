@@ -20,6 +20,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class HcmProductSurfacePepFilterTest {
@@ -84,6 +85,23 @@ class HcmProductSurfacePepFilterTest {
     }
 
     @Test
+    void staleAuthorityRevisionFailsClosedBeforeTheHcmMutation() throws Exception {
+        String cardId = "11111111-1111-1111-1111-111111111111";
+        var request = exact(
+                post("/v1/hr/time/" + cardId + "/submit").queryParam("version", "1"),
+                "route.hcm.personal.time-submit.action");
+        request.header(HcmProductSurfacePepFilter.EXPECTED_DECISION_REVISION_HEADER,
+                "psr-" + "c".repeat(64));
+
+        mvc.perform(request)
+                .andExpect(status().isConflict());
+        verify(service, never()).submitTimeCard(
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void nonAllowlistedQueryOnClaimedWorkforcePathIsDeniedBeforeControllerMapping()
             throws Exception {
         mvc.perform(exact(get("/v1/workforce/people").queryParam("view", "other"),
@@ -125,7 +143,7 @@ class HcmProductSurfacePepFilterTest {
     }
 
     @Test
-    void providerSupportBindingsRemainFailClosedWithoutPopulationProvenance()
+    void providerPeopleBindingsRemainForbiddenAfterSupportScopeRetirement()
             throws Exception {
         List<SupportBinding> bindings = List.of(
                 new SupportBinding(
@@ -142,7 +160,7 @@ class HcmProductSurfacePepFilterTest {
                         "route.hcm.operations.people.page"));
 
         for (SupportBinding binding : bindings) {
-            mvc.perform(identity(get(URI.create(binding.uri())), "")
+            mvc.perform(providerSupportIdentity(get(URI.create(binding.uri())))
                             .header(HcmProductSurfacePepFilter.ROLLOUT_STATE_HEADER, "110")
                             .header(HcmProductSurfacePepFilter.ROLLOUT_REVISION_HEADER,
                                     ROLLOUT_REVISION)
@@ -157,7 +175,7 @@ class HcmProductSurfacePepFilterTest {
                             .header(PeopleSecurityFilter.SUPPORT_SCOPES_HEADER,
                                     "WORKFORCE_READ")
                             .header(PeopleSecurityFilter.ACTOR_TENANT_HEADER, "9"))
-                    .andExpect(status().isServiceUnavailable());
+                    .andExpect(status().isForbidden());
         }
 
         verify(service, never()).operationsOverview();
@@ -201,11 +219,25 @@ class HcmProductSurfacePepFilterTest {
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder identity(
             org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request,
             String permissions) {
+        return identity(request, "WORKSPACE_MEMBER", permissions);
+    }
+
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
+            providerSupportIdentity(
+                    org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
+                            request) {
+        return identity(request, "PROVIDER_SUPPORT", "");
+    }
+
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder identity(
+            org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request,
+            String roles,
+            String permissions) {
         return request
                 .header(PeopleSecurityFilter.SERVICE_TOKEN_HEADER, "people-token")
                 .header(PeopleSecurityFilter.USER_HEADER, "17")
                 .header(PeopleSecurityFilter.TENANT_HEADER, "3")
-                .header(PeopleSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER")
+                .header(PeopleSecurityFilter.ROLES_HEADER, roles)
                 .header(PeopleSecurityFilter.PERMISSIONS_HEADER, permissions);
     }
 

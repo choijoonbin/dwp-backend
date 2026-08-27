@@ -6,6 +6,7 @@ configurations.all {
 }
 
 dependencies {
+    implementation project(':dwp-audit')
     implementation project(':dwp-observability')
     // Spring Cloud Gateway (Reactor Netty)
     implementation('org.springframework.cloud:spring-cloud-starter-gateway-server-webflux') {

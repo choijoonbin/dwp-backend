@@ -7,6 +7,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -14,6 +15,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class ProviderSecurityFilterTest {
+
+    private static final UUID AUTH_SESSION_ID =
+            UUID.fromString("40000000-0000-0000-0000-000000000001");
 
     private final ProviderOperatorService operatorService = mock(ProviderOperatorService.class);
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
@@ -81,6 +85,86 @@ class ProviderSecurityFilterTest {
     }
 
     @Test
+    void rejectsAStalePartialRoleSetInsteadOfKeepingAggregatedPrivileges() throws Exception {
+        ProviderRequestContext.Actor actor = new ProviderRequestContext.Actor(
+                9L,
+                17L,
+                3L,
+                "Provider support administrator",
+                Set.of("PROVIDER_ADMIN", "PROVIDER_SUPPORT"),
+                Set.of("ESTATE_READ", "TENANT_WRITE", "SUPPORT_SESSION_WRITE"),
+                AUTH_SESSION_ID);
+        when(operatorService.activeOperator(3L, 17L)).thenReturn(java.util.Optional.of(actor));
+        ProviderSecurityFilter filter = new ProviderSecurityFilter(
+                "trusted-provider", operatorService, objectMapper);
+        MockHttpServletRequest request = request("trusted-provider", "PROVIDER_SUPPORT");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (ignoredRequest, ignoredResponse) -> {
+            throw new AssertionError("partially matching provider roles must not be forwarded");
+        });
+
+        assertThat(response.getStatus()).isEqualTo(403);
+    }
+
+    @Test
+    void rejectsMatchingNonProviderRolesFromBothStores() throws Exception {
+        ProviderRequestContext.Actor actor = new ProviderRequestContext.Actor(
+                9L,
+                17L,
+                3L,
+                "Invalid provider operator",
+                Set.of("ADMIN"),
+                Set.of("TENANT_WRITE"),
+                AUTH_SESSION_ID);
+        when(operatorService.activeOperator(3L, 17L)).thenReturn(java.util.Optional.of(actor));
+        ProviderSecurityFilter filter = new ProviderSecurityFilter(
+                "trusted-provider", operatorService, objectMapper);
+        MockHttpServletRequest request = request("trusted-provider", "ADMIN");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (ignoredRequest, ignoredResponse) -> {
+            throw new AssertionError("tenant role namespace must not enter the provider plane");
+        });
+
+        assertThat(response.getStatus()).isEqualTo(403);
+    }
+
+    @Test
+    void rejectsRequestsWithoutTheVerifiedAuthSessionBinding() throws Exception {
+        when(operatorService.activeOperator(3L, 17L)).thenReturn(java.util.Optional.of(actor()));
+        ProviderSecurityFilter filter = new ProviderSecurityFilter(
+                "trusted-provider", operatorService, objectMapper);
+        MockHttpServletRequest request = request("trusted-provider", "PROVIDER_SUPPORT");
+        request.removeHeader("X-DWP-Auth-Session-ID");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (ignoredRequest, ignoredResponse) -> {
+            throw new AssertionError("an unbound login session must not be forwarded");
+        });
+
+        assertThat(response.getStatus()).isEqualTo(403);
+    }
+
+    @Test
+    void rejectsMixedProviderAndTenantRoleAssertionsEvenForAnActiveOperator() throws Exception {
+        ProviderRequestContext.Actor actor = actor();
+        when(operatorService.activeOperator(3L, 17L)).thenReturn(java.util.Optional.of(actor));
+        ProviderSecurityFilter filter = new ProviderSecurityFilter(
+                "trusted-provider", operatorService, objectMapper);
+        MockHttpServletRequest request = request(
+                "trusted-provider", "PROVIDER_SUPPORT,TENANT_ADMIN");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (ignoredRequest, ignoredResponse) -> {
+            throw new AssertionError("mixed identity must not be forwarded");
+        });
+
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getContentAsString()).contains("cannot coexist");
+    }
+
+    @Test
     void forwardsOnlyAnActiveProviderOperatorAndClearsTheRequestContext() throws Exception {
         ProviderRequestContext.Actor actor = actor();
         when(operatorService.activeOperator(3L, 17L)).thenReturn(java.util.Optional.of(actor));
@@ -103,6 +187,8 @@ class ProviderSecurityFilterTest {
         request.addHeader("X-DWP-User-ID", "17");
         request.addHeader("X-DWP-Tenant-ID", "3");
         request.addHeader("X-DWP-Roles", roles);
+        request.addHeader("X-DWP-Auth-Session-ID", AUTH_SESSION_ID.toString());
+        request.addHeader("X-DWP-Identity-Plane", "PROVIDER");
         return request;
     }
 
@@ -113,6 +199,7 @@ class ProviderSecurityFilterTest {
                 3L,
                 "Provider support",
                 Set.of("PROVIDER_SUPPORT"),
-                Set.of("ESTATE_READ", "SUPPORT_SESSION_WRITE"));
+                Set.of("ESTATE_READ", "SUPPORT_SESSION_WRITE"),
+                AUTH_SESSION_ID);
     }
 }

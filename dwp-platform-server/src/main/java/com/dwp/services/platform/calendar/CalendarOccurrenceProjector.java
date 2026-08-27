@@ -1,5 +1,6 @@
 package com.dwp.services.platform.calendar;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
@@ -32,9 +33,22 @@ final class CalendarOccurrenceProjector {
             OffsetDateTime from,
             OffsetDateTime to,
             String locale) {
+        return summaries(
+                tenantId, userId, personPublicId, null, from, to, locale);
+    }
+
+    List<CalendarDtos.EventSummary> summaries(
+            Long tenantId,
+            Long userId,
+            UUID personPublicId,
+            String verifiedGroupRefs,
+            OffsetDateTime from,
+            OffsetDateTime to,
+            String locale) {
         List<Occurrence> occurrences = occurrences(
-                repository.visibleEvents(
-                        tenantId, userId, personPublicId, from, to, korean(locale)), from, to);
+                CalendarRepositoryRouting.visibleEvents(
+                        repository, tenantId, userId, personPublicId,
+                        verifiedGroupRefs, from, to, korean(locale)), from, to);
         Map<OccurrenceKey, Boolean> conflicts = conflictMap(occurrences);
         return occurrences.stream()
                 .map(occurrence -> summary(
@@ -63,7 +77,7 @@ final class CalendarOccurrenceProjector {
         if (row.organizerPersonPublicId() != null) {
             return row.organizerPersonPublicId().equals(personPublicId);
         }
-        return row.organizerUserId().equals(userId);
+        return row.organizerUserId() != null && row.organizerUserId().equals(userId);
     }
 
     List<CalendarDtos.AttentionItem> attention(
@@ -158,6 +172,7 @@ final class CalendarOccurrenceProjector {
                 Occurrence first = values.get(left);
                 Occurrence second = values.get(right);
                 if (first.row().eventId().equals(second.row().eventId())) continue;
+                if (!conflictEligible(first.row()) || !conflictEligible(second.row())) continue;
                 if (first.startsAt().isBefore(second.endsAt())
                         && first.endsAt().isAfter(second.startsAt())) {
                     conflicts.put(first.key(), true);
@@ -179,6 +194,19 @@ final class CalendarOccurrenceProjector {
             OffsetDateTime endsAt) {
         String organizer = isOrganizer(row, userId, personPublicId)
                 ? (korean(locale) ? "나" : "You") : row.organizerName();
+        boolean redacted = row.detailLevel() == EventDetailLevel.FREE_BUSY;
+        CalendarDtos.EventCapabilities capabilities = capabilities(row, redacted);
+        if (redacted) {
+            return new CalendarDtos.EventSummary(
+                    redactedEventId(tenantId, userId, personPublicId, row.eventId()),
+                    row.calendarId(), row.calendarName(), row.calendarColor(), null, null,
+                    null, null, korean(locale) ? "바쁨" : "Busy", null,
+                    EventType.MEETING, startsAt, endsAt, row.timeZone(), row.allDay(),
+                    null, null, EventStatus.CONFIRMED, EventVisibility.DEFAULT,
+                    RecurrencePattern.NONE, 1, null, false, null, List.of(), null,
+                    false, EventImportance.NORMAL, EventDetailLevel.FREE_BUSY, true,
+                    false, 0, capabilities, "FREE_BUSY_ONLY", row.version());
+        }
         return new CalendarDtos.EventSummary(
                 row.eventId(), row.calendarId(), row.calendarName(), row.calendarColor(),
                 row.organizerPersonPublicId() == null ? row.organizerUserId() : null,
@@ -187,13 +215,51 @@ final class CalendarOccurrenceProjector {
                 row.location(), row.conferenceUrl(), row.status(), row.visibility(),
                 row.recurrence(), row.recurrenceInterval(), row.recurrenceUntil(),
                 row.responseRequired(), row.myResponse(),
-                repository.attendees(tenantId, row.eventId()).stream()
-                        .map(attendee -> new CalendarDtos.Attendee(
-                                attendee.personPublicId() == null ? attendee.userId() : null,
-                                attendee.personPublicId(), attendee.email(), attendee.name(),
-                                attendee.type(), attendee.response()))
-                        .toList(),
-                row.resource() == null ? null : resource(row.resource()), conflict, row.version());
+                attendees(tenantId, row),
+                row.resource() == null ? null : resource(row.resource()), conflict,
+                row.importance(), row.detailLevel(), false, row.starred(),
+                row.preferenceVersion(), capabilities, null, row.version());
+    }
+
+    private List<CalendarDtos.Attendee> attendees(
+            Long tenantId, CalendarRepository.EventRow row) {
+        if (row.accessLevel() != CalendarAccessLevel.OWNER
+                && row.accessLevel() != CalendarAccessLevel.MANAGE
+                && row.accessLevel() != CalendarAccessLevel.EDIT
+                && row.accessLevel() != CalendarAccessLevel.EVENT_ATTENDEE) {
+            return List.of();
+        }
+        return repository.attendees(tenantId, row.eventId()).stream()
+                .map(attendee -> new CalendarDtos.Attendee(
+                        attendee.personPublicId() == null ? attendee.userId() : null,
+                        attendee.personPublicId(), attendee.email(), attendee.name(),
+                        attendee.type(), attendee.response()))
+                .toList();
+    }
+
+    private boolean conflictEligible(CalendarRepository.EventRow row) {
+        return row.detailLevel() == EventDetailLevel.FULL
+                && (row.accessLevel() == CalendarAccessLevel.OWNER
+                || row.accessLevel() == CalendarAccessLevel.EVENT_ATTENDEE);
+    }
+
+    private CalendarDtos.EventCapabilities capabilities(
+            CalendarRepository.EventRow row, boolean redacted) {
+        boolean edit = !redacted && (row.accessLevel() == CalendarAccessLevel.OWNER
+                || row.accessLevel() == CalendarAccessLevel.MANAGE
+                || row.accessLevel() == CalendarAccessLevel.EDIT);
+        boolean delete = !redacted && (row.accessLevel() == CalendarAccessLevel.OWNER
+                || row.accessLevel() == CalendarAccessLevel.MANAGE);
+        return new CalendarDtos.EventCapabilities(
+                !redacted, edit, delete, false,
+                !redacted && row.myResponse() != null, !redacted);
+    }
+
+    private UUID redactedEventId(
+            Long tenantId, Long userId, UUID personPublicId, UUID eventId) {
+        String viewer = personPublicId == null ? "user:" + userId : "person:" + personPublicId;
+        return UUID.nameUUIDFromBytes(("calendar-free-busy:" + tenantId + ":" + viewer
+                + ":" + eventId).getBytes(StandardCharsets.UTF_8));
     }
 
     private int minutes(List<CalendarDtos.EventSummary> events, EventType type) {

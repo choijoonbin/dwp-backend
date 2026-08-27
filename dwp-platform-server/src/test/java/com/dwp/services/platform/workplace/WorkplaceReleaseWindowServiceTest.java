@@ -158,7 +158,7 @@ class WorkplaceReleaseWindowServiceTest {
                 policy)).thenReturn(policy);
 
         assertThatThrownBy(() -> service.create(
-                1L, 7L, null, "en-US", "corr-release", null, null, request))
+                1L, 7L, null, "en-US", "corr-release", "release-assignee", null, request))
                 .isInstanceOfSatisfying(BaseException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN))
                 .hasMessageContaining("verified assignee");
@@ -166,6 +166,23 @@ class WorkplaceReleaseWindowServiceTest {
         verify(releases, never()).create(
                 any(), any(), any(), any(), any(), any(), any(Integer.class), anyBoolean());
         verify(audit, never()).audit(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void createRequiresAnIdempotencyKey() {
+        OffsetDateTime startsAt = OffsetDateTime.now().plusDays(2);
+        WorkplaceReleaseWindowDtos.CreateRequest request =
+                new WorkplaceReleaseWindowDtos.CreateRequest(
+                        UUID.randomUUID(), startsAt, startsAt.plusHours(1), null);
+
+        assertThatThrownBy(() -> service.create(
+                1L, 7L, null, "en-US", "corr-release", null, null, request))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE))
+                .hasMessageContaining("Idempotency-Key is required");
+
+        verify(releases, never()).create(
+                any(), any(), any(), any(), any(), any(), any(Integer.class), anyBoolean());
     }
 
     @Test

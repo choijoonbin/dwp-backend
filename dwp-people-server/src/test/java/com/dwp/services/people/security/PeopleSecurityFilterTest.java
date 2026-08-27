@@ -15,14 +15,24 @@ class PeopleSecurityFilterTest {
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @Test
-    void permitsReadOnlyWorkforceAccessForAResolvedSupportSession() throws Exception {
+    void rejectsProviderWorkforceReadsUntilTheSafeProjectionIsImplemented() throws Exception {
         PeopleSecurityFilter filter = new PeopleSecurityFilter("trusted", objectMapper);
-        MockHttpServletRequest request = request("GET", "/v1/org-chart");
-        MockHttpServletResponse response = new MockHttpServletResponse();
+        for (String path : new String[] {
+                "/v1/people",
+                "/v1/people/00000000-0000-0000-0000-000000000001",
+                "/v1/org-chart",
+                "/v1/workforce/people",
+                "/v1/workforce/organization/chart",
+                "/v1/workforce/data-operations/hris/connectors",
+                "/v1/workforce/exports",
+                "/v1/workforce/reference-data",
+                "/v1/admin/workforce/access-policies"}) {
+            MockHttpServletResponse response = new MockHttpServletResponse();
 
-        filter.doFilter(request, response, new MockFilterChain());
+            filter.doFilter(request("GET", path), response, new MockFilterChain());
 
-        assertThat(response.getStatus()).isEqualTo(200);
+            assertThat(response.getStatus()).as(path).isEqualTo(403);
+        }
     }
 
     @Test

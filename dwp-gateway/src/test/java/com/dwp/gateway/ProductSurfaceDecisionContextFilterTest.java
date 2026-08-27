@@ -1,5 +1,6 @@
 package com.dwp.gateway;
 
+import com.dwp.gateway.audit.GatewayDenialAuditSink;
 import com.dwp.gateway.filter.ProductSurfaceDecisionContextFilter;
 import com.dwp.gateway.filter.ProductSurfaceRolloutHeaderFilter;
 import com.dwp.gateway.filter.SupportSessionContextFilter;
@@ -72,6 +73,9 @@ class ProductSurfaceDecisionContextFilterTest {
                 ProductSurfaceDecisionContextFilter.CONTEXT_HEADER)).isEqualTo("ctx-approval");
         assertThat(forwarded.get().getHeaders().getFirst(
                 ProductSurfaceDecisionContextFilter.SCOPE_HEADER)).isEqualTo("scope-approval");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.ACTIVE_ACCESS_MODE_HEADER))
+                .isEqualTo("NORMAL");
         assertThat(exchange.getResponse().getHeaders().getFirst(
                 ProductSurfaceDecisionContextFilter.RESPONSE_REVISION_HEADER))
                 .isEqualTo(REVISION);
@@ -168,6 +172,32 @@ class ProductSurfaceDecisionContextFilterTest {
     }
 
     @Test
+    void staleAuthorityRevisionNeverReachesTheOwnerService() {
+        ProductSurfaceContextAggregationService authority = authority(allowed());
+        ProductSurfaceDecisionContextFilter filter = filter(authority);
+        MockServerWebExchange exchange = exchange(MockServerHttpRequest.put(
+                        "/api/platform/v1/home-preferences/surfaces/approval-home")
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                .header(ProductSurfaceDecisionContextFilter.EXPECTED_REVISION_HEADER,
+                        "psr-" + "b".repeat(64)));
+        AtomicReference<Boolean> forwarded = new AtomicReference<>(false);
+
+        filter.filter(exchange, ignored -> {
+            forwarded.set(true);
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwarded.get()).isFalse();
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(body(exchange)).contains("DECISION_REVISION_CONFLICT");
+        assertThat(exchange.getResponse().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.RESPONSE_REVISION_HEADER))
+                .isEqualTo(REVISION);
+    }
+
+    @Test
     void legacyAndShadowStatesBypassPepButStripAllInternalEvidence() {
         ProductSurfaceContextAggregationService authority = mock(
                 ProductSurfaceContextAggregationService.class);
@@ -181,7 +211,9 @@ class ProductSurfaceDecisionContextFilterTest {
                     .header(ProductSurfaceDecisionContextFilter.CURRENT_REVALIDATE_AT_HEADER,
                             REVALIDATE_AT.toString())
                     .header(ProductSurfaceDecisionContextFilter.CONTEXT_HEADER, "spoofed")
-                    .header(ProductSurfaceDecisionContextFilter.SCOPE_HEADER, "spoofed"));
+                    .header(ProductSurfaceDecisionContextFilter.SCOPE_HEADER, "spoofed")
+                    .header(ProductSurfaceDecisionContextFilter.ACTIVE_ACCESS_MODE_HEADER,
+                            "ELEVATED"));
             AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
                     new AtomicReference<>();
 
@@ -194,6 +226,8 @@ class ProductSurfaceDecisionContextFilterTest {
                     ProductSurfaceDecisionContextFilter.ROUTE_HEADER)).isFalse();
             assertThat(forwarded.get().getHeaders().containsKey(
                     ProductSurfaceDecisionContextFilter.CURRENT_REVISION_HEADER)).isFalse();
+            assertThat(forwarded.get().getHeaders().containsKey(
+                    ProductSurfaceDecisionContextFilter.ACTIVE_ACCESS_MODE_HEADER)).isFalse();
         }
         verify(authority, never()).evaluateProductTrusted(any(), any());
     }
@@ -298,17 +332,50 @@ class ProductSurfaceDecisionContextFilterTest {
                 .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
                 .header(SupportSessionContextFilter.SUPPORT_SESSION_HEADER, "support-9")
                 .header(SupportSessionContextFilter.SUPPORT_REVISION_HEADER, "support-v3")
-                .header(SupportSessionContextFilter.SUPPORT_SCOPES_HEADER, "read:a,read:b"));
+                .header(SupportSessionContextFilter.SUPPORT_SCOPES_HEADER, "read:a,read:b")
+                .header(ProductSurfaceDecisionContextFilter.ACTIVE_ACCESS_MODE_HEADER, "NORMAL"));
         ArgumentCaptor<ProductSurfaceContextDtos.RequestContext> context =
                 ArgumentCaptor.forClass(ProductSurfaceContextDtos.RequestContext.class);
+        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                new AtomicReference<>();
 
-        filter.filter(exchange, filtered -> Mono.empty()).block();
+        filter.filter(exchange, filtered -> {
+            forwarded.set(filtered.getRequest());
+            return Mono.empty();
+        }).block();
 
         verify(authority).evaluateProductTrusted(context.capture(), any());
         assertThat(context.getValue().activeAccessMode())
                 .isEqualTo(ProductSurfaceContextDtos.AccessMode.PROVIDER_SUPPORT);
         assertThat(context.getValue().supportSessionRef()).isEqualTo("support-9");
         assertThat(context.getValue().supportScopes()).containsExactly("read:a", "read:b");
+        assertThat(forwarded.get().getHeaders().get(
+                ProductSurfaceDecisionContextFilter.ACTIVE_ACCESS_MODE_HEADER))
+                .containsExactly("PROVIDER_SUPPORT");
+    }
+
+    @Test
+    void clientCannotForgeElevatedAccessModeOnGovernedRoute() {
+        ProductSurfaceContextAggregationService authority = authority(allowed());
+        ProductSurfaceDecisionContextFilter filter = filter(authority);
+        MockServerWebExchange exchange = exchange(MockServerHttpRequest.get(
+                        "/api/approvals/v1/home")
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                .header(ProductSurfaceDecisionContextFilter.ACTIVE_ACCESS_MODE_HEADER,
+                        "ELEVATED"));
+        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                new AtomicReference<>();
+
+        filter.filter(exchange, filtered -> {
+            forwarded.set(filtered.getRequest());
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwarded.get().getHeaders().get(
+                ProductSurfaceDecisionContextFilter.ACTIVE_ACCESS_MODE_HEADER))
+                .containsExactly("NORMAL");
     }
 
     @Test
@@ -376,6 +443,84 @@ class ProductSurfaceDecisionContextFilterTest {
     }
 
     @Test
+    void exactLegacyWorkforceAccessRequestsBypassPepAndStripAllDecisionEvidence() {
+        ProductSurfaceContextAggregationService authority = mock(
+                ProductSurfaceContextAggregationService.class);
+        ProductSurfaceDecisionContextFilter filter = filter(authority);
+        List<MockServerHttpRequest.BaseBuilder<?>> requests = List.of(
+                MockServerHttpRequest.get(
+                        "/api/people/v1/admin/workforce/access-policies"),
+                MockServerHttpRequest.get(
+                        "/api/people/v1/admin/workforce/access-policies/organizations"),
+                MockServerHttpRequest.post(
+                        "/api/people/v1/admin/workforce/access-policies"),
+                MockServerHttpRequest.patch(
+                        "/api/people/v1/admin/workforce/access-policies/policy-7/revoke"));
+
+        for (MockServerHttpRequest.BaseBuilder<?> request : requests) {
+            MockServerWebExchange exchange = exchange(request
+                    .header(ProductSurfaceDecisionContextFilter.EXPECTED_REVISION_HEADER, REVISION)
+                    .header(ProductSurfaceDecisionContextFilter.ROUTE_HEADER, "spoofed-route")
+                    .header(ProductSurfaceDecisionContextFilter.CURRENT_REVISION_HEADER, REVISION)
+                    .header(ProductSurfaceDecisionContextFilter.CURRENT_REVALIDATE_AT_HEADER,
+                            REVALIDATE_AT.toString())
+                    .header(ProductSurfaceDecisionContextFilter.CONTEXT_HEADER, "spoofed-context")
+                    .header(ProductSurfaceDecisionContextFilter.SCOPE_HEADER, "spoofed-scope")
+                    .header(ProductSurfaceDecisionContextFilter.ACTIVE_ACCESS_MODE_HEADER,
+                            "ELEVATED"));
+            AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                    new AtomicReference<>();
+
+            filter.filter(exchange, filtered -> {
+                forwarded.set(filtered.getRequest());
+                return Mono.empty();
+            }).block();
+
+            assertThat(forwarded.get()).isNotNull();
+            for (String header : List.of(
+                    ProductSurfaceDecisionContextFilter.EXPECTED_REVISION_HEADER,
+                    ProductSurfaceDecisionContextFilter.ROUTE_HEADER,
+                    ProductSurfaceDecisionContextFilter.CURRENT_REVISION_HEADER,
+                    ProductSurfaceDecisionContextFilter.CURRENT_REVALIDATE_AT_HEADER,
+                    ProductSurfaceDecisionContextFilter.CONTEXT_HEADER,
+                    ProductSurfaceDecisionContextFilter.SCOPE_HEADER,
+                    ProductSurfaceDecisionContextFilter.ACTIVE_ACCESS_MODE_HEADER)) {
+                assertThat(forwarded.get().getHeaders().containsKey(header)).as(header).isFalse();
+            }
+        }
+        verify(authority, never()).evaluateProductTrusted(any(), any());
+    }
+
+    @Test
+    void legacyWorkforceAccessRequestsRejectProductScopeSelectionAndPathDrift() {
+        ProductSurfaceContextAggregationService authority = mock(
+                ProductSurfaceContextAggregationService.class);
+        ProductSurfaceDecisionContextFilter filter = filter(authority);
+        MockServerWebExchange scoped = exchange(MockServerHttpRequest.get(
+                "/api/people/v1/admin/workforce/access-policies?contextScopeKey=scope-hcm"));
+        MockServerWebExchange drifted = exchange(MockServerHttpRequest.get(
+                "/api/people/v1/admin/workforce/access-policies/organizations/"));
+        AtomicReference<Boolean> forwarded = new AtomicReference<>(false);
+
+        filter.filter(scoped, ignored -> {
+            forwarded.set(true);
+            return Mono.empty();
+        }).block();
+        filter.filter(drifted, ignored -> {
+            forwarded.set(true);
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwarded.get()).isFalse();
+        assertThat(scoped.getResponse().getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(body(scoped)).contains("INVALID_SCOPE_SELECTION");
+        assertThat(drifted.getResponse().getStatusCode())
+                .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(body(drifted)).contains("AUTHORITY_RESOLUTION_UNAVAILABLE");
+        verify(authority, never()).evaluateProductTrusted(any(), any());
+    }
+
+    @Test
     void invalidRolloutAndUnknownProductRouteFailClosedButNonProductPasses() {
         ProductSurfaceContextAggregationService authority = mock(
                 ProductSurfaceContextAggregationService.class);
@@ -400,6 +545,47 @@ class ProductSurfaceDecisionContextFilterTest {
             return Mono.empty();
         }).block();
         assertThat(passed.get()).isTrue();
+    }
+
+    @Test
+    void recordsTheGeneratedRouteTemplateBeforeCommittingAnAuthorityDenial() {
+        AtomicReference<GatewayDenialAuditSink.Denial> evidence = new AtomicReference<>();
+        ProductSurfaceDecisionContextFilter filter = new ProductSurfaceDecisionContextFilter(
+                authority(routeNotRegistered()), catalog, objectMapper,
+                (exchange, denial) -> {
+                    evidence.set(denial);
+                    return Mono.empty();
+                });
+        MockServerWebExchange exchange = exchange(MockServerHttpRequest.get(
+                        "/api/approvals/v1/admin/workflows")
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7"));
+
+        filter.filter(exchange, ignored -> Mono.empty()).block();
+
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(evidence.get().routeTemplate())
+                .isEqualTo("/api/approvals/v1/admin/workflows");
+        assertThat(evidence.get().denialCode()).isEqualTo("ROUTE_NOT_REGISTERED");
+    }
+
+    @Test
+    void convertsAuthorityDenialToServiceUnavailableWhenEvidenceSinkFails() {
+        ProductSurfaceDecisionContextFilter filter = new ProductSurfaceDecisionContextFilter(
+                authority(routeNotRegistered()), catalog, objectMapper,
+                (exchange, denial) -> Mono.error(new IllegalStateException("sink unavailable")));
+        MockServerWebExchange exchange = exchange(MockServerHttpRequest.get(
+                        "/api/approvals/v1/admin/workflows")
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7"));
+
+        filter.filter(exchange, ignored -> Mono.empty()).block();
+
+        assertThat(exchange.getResponse().getStatusCode())
+                .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(body(exchange)).contains("AUDIT_EVIDENCE_UNAVAILABLE");
     }
 
     private ProductSurfaceDecisionContextFilter filter(

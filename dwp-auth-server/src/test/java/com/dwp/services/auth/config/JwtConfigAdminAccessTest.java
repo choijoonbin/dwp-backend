@@ -2,6 +2,8 @@ package com.dwp.services.auth.config;
 
 import com.dwp.services.auth.security.AuthSessionActivityFilter;
 import com.dwp.services.auth.security.AuthSessionJwtValidator;
+import com.dwp.services.auth.security.DurableIdentityPlaneGuard;
+import com.dwp.services.auth.security.ProviderAuthPlaneBoundaryFilter;
 import com.dwp.services.auth.scim.ScimCredentialService;
 import com.dwp.services.auth.service.AuthSessionService;
 import com.dwp.services.auth.service.SessionCookieService;
@@ -35,7 +37,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(
         controllers = JwtConfigAdminSecurityProbe.class,
         properties = "jwt.secret=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
-@Import({JwtConfig.class, SecurityExceptionHandler.class, AuthSessionActivityFilter.class})
+@Import({
+        JwtConfig.class,
+        SecurityExceptionHandler.class,
+        AuthSessionActivityFilter.class,
+        ProviderAuthPlaneBoundaryFilter.class
+})
 class JwtConfigAdminAccessTest {
 
     private static final String SECRET =
@@ -56,10 +63,14 @@ class JwtConfigAdminAccessTest {
     @MockitoBean
     private ScimCredentialService scimCredentialService;
 
+    @MockitoBean
+    private DurableIdentityPlaneGuard identityPlaneGuard;
+
     @BeforeEach
     void allowSyntheticSession() {
         when(sessionValidator.validate(any(Jwt.class)))
                 .thenReturn(OAuth2TokenValidatorResult.success());
+        when(identityPlaneGuard.isProvider(any())).thenReturn(false);
     }
 
     @Test
@@ -80,6 +91,22 @@ class JwtConfigAdminAccessTest {
         mockMvc.perform(get("/auth/admin/access/reviews").cookie(session))
                 .andExpect(status().isOk());
         mockMvc.perform(get("/auth/admin/access/reviews/security-probe").cookie(session))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void onlyTheMinimalLoginPolicyRemainsPublic() throws Exception {
+        mockMvc.perform(get("/auth/policy"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/auth/idp"))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/auth/me/policy"))
+                .andExpect(status().isUnauthorized());
+
+        Cookie session = session(List.of("EMPLOYEE"));
+        mockMvc.perform(get("/auth/idp").cookie(session))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/auth/me/policy").cookie(session))
                 .andExpect(status().isOk());
     }
 
@@ -106,7 +133,10 @@ class JwtConfigAdminSecurityProbe {
 
     @GetMapping({
             "/auth/admin/access/reviews",
-            "/auth/admin/access/reviews/security-probe"
+            "/auth/admin/access/reviews/security-probe",
+            "/auth/policy",
+            "/auth/idp",
+            "/auth/me/policy"
     })
     Map<String, Boolean> available() {
         return Map.of("available", true);

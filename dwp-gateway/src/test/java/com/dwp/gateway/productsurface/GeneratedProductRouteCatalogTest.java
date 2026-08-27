@@ -113,6 +113,64 @@ class GeneratedProductRouteCatalogTest {
     }
 
     @Test
+    void exposesOnlyTheFourExactLegacyWorkforceAccessBindings() {
+        assertThat(catalog.match(
+                        "GET", "/api/people/v1/admin/workforce/access-policies", null).status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.LEGACY_EXEMPT);
+        assertThat(catalog.match(
+                        "GET",
+                        "/api/people/v1/admin/workforce/access-policies/organizations",
+                        null).status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.LEGACY_EXEMPT);
+        assertThat(catalog.match(
+                        "POST", "/api/people/v1/admin/workforce/access-policies", null).status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.LEGACY_EXEMPT);
+        assertThat(catalog.match(
+                        "PATCH",
+                        "/api/people/v1/admin/workforce/access-policies/policy-7/revoke",
+                        null).status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.LEGACY_EXEMPT);
+    }
+
+    @Test
+    void legacyWorkforceAccessBoundaryRejectsVerbAndPathShapeDrift() {
+        for (String method : List.of("PUT", "DELETE")) {
+            assertThat(catalog.match(
+                            method, "/api/people/v1/admin/workforce/access-policies", null).status())
+                    .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+        }
+        assertThat(catalog.match(
+                        "GET", "/api/people/v1/admin/workforce/access-policies/", null).status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+        assertThat(catalog.match(
+                        "GET",
+                        "/api/people/v1/admin/workforce/access-policies/organizations/",
+                        null).status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+        assertThat(catalog.match(
+                        "POST", "/api/people/v1/admin/workforce/access-policies/", null).status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+        for (String path : List.of(
+                "/api/people/v1/admin/workforce/access-policies//revoke",
+                "/api/people/v1/admin/workforce/access-policies/policy-7/revoke/",
+                "/api/people/v1/admin/workforce/access-policies/policy-7/revoke/extra")) {
+            assertThat(catalog.match("PATCH", path, null).status())
+                    .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+        }
+        assertThat(catalog.match(
+                        "GET",
+                        "/api/people/v1/admin/workforce/access-policies/policy-7/revoke",
+                        null).status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+        assertThat(catalog.match(
+                        "GET", "/api/people/v1/admin/workforce/not-registered", null).status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+        assertThat(catalog.match(
+                        "GET", "/api/people/v1/admin/workforce/access-policies", "%").status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+    }
+
+    @Test
     void exportsTheCanonicalIssuerWithoutTreatingItAsDomainPepTraffic() {
         var endpoint = catalog.authorityEndpoint(
                 "POST", "/api/auth/product-surface-step-up-challenges");

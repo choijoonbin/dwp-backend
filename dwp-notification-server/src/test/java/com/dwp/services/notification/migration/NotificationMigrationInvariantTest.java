@@ -177,6 +177,24 @@ class NotificationMigrationInvariantTest {
     }
 
     @Test
+    void isolatesAuditDeliveryBehindAForcedRlsRelayRole() throws IOException {
+        String migration = resource(
+                "db/migration/V22__isolate_notification_audit_relay.sql");
+
+        assertThat(migration)
+                .contains("CREATE ROLE dwp_notification_audit_relay")
+                .contains("NOBYPASSRLS")
+                .contains("REVOKE ALL ON TABLE sys_audit_outbox")
+                .contains("ALTER TABLE sys_audit_outbox FORCE ROW LEVEL SECURITY")
+                .contains("ntf_audit_outbox_api_insert_scope")
+                .contains("tenant_id = ntf_current_tenant_id()")
+                .contains("ntf_audit_outbox_relay_scope")
+                .contains("current_user = 'dwp_notification_audit_relay'")
+                .contains("GRANT SELECT (event_id)")
+                .doesNotContain("TO dwp_notification_worker;");
+    }
+
+    @Test
     void addsValidatedUserOwnedNotificationPresentationPreferences() throws IOException {
         String migration = resource(
                 "db/migration/V12__add_user_notification_experience_preferences.sql");

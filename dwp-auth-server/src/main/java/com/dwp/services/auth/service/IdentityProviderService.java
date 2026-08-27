@@ -27,14 +27,9 @@ public class IdentityProviderService {
 
     private IdentityProviderResponse toResponse(IdentityProvider provider) {
         return IdentityProviderResponse.builder()
-                .tenantId(provider.getTenantId())
                 .enabled(provider.getEnabled())
                 .providerType(provider.getProviderType())
                 .providerKey(provider.getProviderKey())
-                .issuerUri(provider.getIssuerUri())
-                .authUrl(provider.getAuthUrl())
-                .metadataUrl(provider.getMetadataUrl())
-                .clientId(provider.getClientId())
                 .build();
     }
 }

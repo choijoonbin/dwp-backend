@@ -15,6 +15,7 @@ import reactor.core.publisher.Mono;
 public class PlatformServiceIdentityFilter implements GlobalFilter, Ordered {
 
     public static final String SERVICE_TOKEN_HEADER = "X-DWP-Service-Token";
+    private static final String INTERNAL_PUBLIC_ALIAS = "/api/platform/internal";
 
     private final String serviceToken;
 
@@ -25,6 +26,10 @@ public class PlatformServiceIdentityFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        if (isInternalPublicAlias(exchange.getRequest())) {
+            exchange.getResponse().setStatusCode(HttpStatus.NOT_FOUND);
+            return exchange.getResponse().setComplete();
+        }
         if (!requiresServiceIdentity(exchange.getRequest())) {
             return chain.filter(exchange);
         }
@@ -42,6 +47,12 @@ public class PlatformServiceIdentityFilter implements GlobalFilter, Ordered {
                 .header(SERVICE_TOKEN_HEADER, serviceToken)
                 .build();
         return chain.filter(sanitizedExchange.mutate().request(authenticatedRequest).build());
+    }
+
+    private boolean isInternalPublicAlias(ServerHttpRequest request) {
+        String path = request.getURI().getPath();
+        return path.equals(INTERNAL_PUBLIC_ALIAS)
+                || path.startsWith(INTERNAL_PUBLIC_ALIAS + "/");
     }
 
     private boolean requiresServiceIdentity(ServerHttpRequest request) {

@@ -13,6 +13,22 @@ public enum ErrorCode {
             "RESOURCE_NOT_AVAILABLE",
             "The requested resource is not available."),
     RESOURCE_CONFLICT(HttpStatus.CONFLICT, "E1009", "The resource conflicts with its current state."),
+    SAVED_VIEW_CUSTODY_STALE(
+            HttpStatus.CONFLICT,
+            "SAVED_VIEW_CUSTODY_STALE",
+            "Saved-view custody changed. Refresh the plan and retry."),
+    SAVED_VIEW_TARGET_INELIGIBLE(
+            HttpStatus.BAD_REQUEST,
+            "SAVED_VIEW_TARGET_INELIGIBLE",
+            "The selected target is not eligible for the affected saved views."),
+    SAVED_VIEW_PERSONAL_NAME_CONFLICT(
+            HttpStatus.CONFLICT,
+            "SAVED_VIEW_PERSONAL_NAME_CONFLICT",
+            "The selected target already has an active personal saved view with the same name and surface."),
+    SAVED_VIEW_SHARED_NAME_CONFLICT(
+            HttpStatus.CONFLICT,
+            "SAVED_VIEW_SHARED_NAME_CONFLICT",
+            "An active shared saved view already uses the same scope, name, and surface. Rename or archive the conflicting view and retry."),
 
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "E2000", "Authentication is required."),
     FORBIDDEN(HttpStatus.FORBIDDEN, "E2001", "You do not have permission to perform this action."),

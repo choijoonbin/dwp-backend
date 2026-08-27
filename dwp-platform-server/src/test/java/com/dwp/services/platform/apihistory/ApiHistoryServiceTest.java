@@ -49,6 +49,21 @@ class ApiHistoryServiceTest {
     }
 
     @Test
+    void defaultServiceRegistryAcceptsTheVideoMeetingService() {
+        ApiHistoryService defaultRegistry = new ApiHistoryService(
+                repository,
+                mock(ApiHistoryCursorCodec.class),
+                ApiHistoryService.DEFAULT_ALLOWED_SERVICES,
+                90);
+        ApiHistoryEvent event = event("dwp-meeting-server", "/v1/meetings/{id}");
+
+        int accepted = defaultRegistry.ingest("dwp-meeting-server", List.of(event));
+
+        assertThat(accepted).isEqualTo(1);
+        verify(repository).ingest(List.of(event));
+    }
+
+    @Test
     void rejectsUnknownServicesAndQueryStrings() {
         assertThatThrownBy(() -> service.ingest(
                 "unknown", List.of(event("unknown", "/health"))))

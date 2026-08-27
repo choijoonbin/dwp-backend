@@ -1,5 +1,7 @@
 package com.dwp.services.platform.workplace;
 
+import com.dwp.core.common.ErrorCode;
+import com.dwp.core.exception.BaseException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -12,6 +14,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
@@ -49,7 +52,7 @@ class WorkplaceRoomAccessAdapterTest {
     }
 
     @Test
-    void unmappedCalendarResourceKeepsLegacyCalendarSemantics() {
+    void unmappedCalendarResourceIsHiddenAndCannotBeBooked() {
         UUID resourceId = UUID.randomUUID();
         when(jdbc.query(
                 anyString(),
@@ -60,15 +63,17 @@ class WorkplaceRoomAccessAdapterTest {
         WorkplaceRoomAccessAdapter adapter = new WorkplaceRoomAccessAdapter(jdbc, governance);
 
         assertThat(adapter.viewableResourceIds(
-                1L, 7L, "groups", List.of(resourceId))).containsExactly(resourceId);
-        adapter.requireBook(1L, 7L, "groups", resourceId);
+                1L, 7L, "groups", List.of(resourceId))).isEmpty();
+        assertThatThrownBy(() -> adapter.requireBook(1L, 7L, "groups", resourceId))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
 
         verify(governance, never()).canViewAccess(any(), any(), any(), any());
         verify(governance, never()).requireBookAccess(any(), any(), any(), any());
     }
 
     @Test
-    void bulkLookupEvaluatesEachSiteOnceAndRetainsUnmappedResources() {
+    void bulkLookupEvaluatesEachSiteOnceAndExcludesUnmappedResources() {
         UUID first = UUID.randomUUID();
         UUID second = UUID.randomUUID();
         UUID legacy = UUID.randomUUID();
@@ -86,7 +91,7 @@ class WorkplaceRoomAccessAdapterTest {
 
         assertThat(adapter.viewableResourceIds(
                 1L, 7L, "groups", List.of(first, second, legacy)))
-                .containsExactlyInAnyOrder(first, second, legacy);
+                .containsExactlyInAnyOrder(first, second);
 
         verify(governance).canViewAccess(1L, 7L, "groups", siteId);
     }

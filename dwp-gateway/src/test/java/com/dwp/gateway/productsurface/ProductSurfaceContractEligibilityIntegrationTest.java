@@ -25,11 +25,13 @@ import static org.mockito.Mockito.when;
 
 class ProductSurfaceContractEligibilityIntegrationTest {
 
-    private static final Set<String> PILOT_PRODUCTS =
-            Set.of("approvals", "communications", "hcm", "services");
+    private static final Set<String> KIND_COMPLETE_PILOT_PRODUCTS =
+            Set.of("approvals", "hcm");
+    private static final Set<String> INCOMPLETE_KIND_PRODUCTS =
+            Set.of("communications", "services");
 
     @Test
-    void activeV2PointerFailsClosedForRaw110FutureAndInventoryOnlyProducts() {
+    void activeV2PointerFailsClosedForRaw110FutureMissingOrIncompleteProducts() {
         GeneratedProductSurfaceCandidateCatalog catalog =
                 new GeneratedProductSurfaceCandidateCatalog(
                         new ObjectMapper(),
@@ -79,7 +81,7 @@ class ProductSurfaceContractEligibilityIntegrationTest {
     }
 
     @Test
-    void productScopedEnforcementRunsFourExactPilotsAlongsideSevenCompatibilityProducts() {
+    void enforcementRunsTwoKindCompletePilotsAndLeavesIncompleteKindsUnevaluated() {
         GeneratedProductSurfaceCandidateCatalog catalog = generatedCatalog();
         ProductSurfaceAuthorityClient authority = mock(ProductSurfaceAuthorityClient.class);
         GovernedRouteAuthorityClient governed = mock(GovernedRouteAuthorityClient.class);
@@ -91,7 +93,8 @@ class ProductSurfaceContractEligibilityIntegrationTest {
         when(rollout.evaluateProducts(anyLong(), any(), any()))
                 .thenReturn(Mono.just(catalog.rolloutProductKeys().stream()
                         .map(product -> rollout(
-                                product, PILOT_PRODUCTS.contains(product) ? "111" : "100"))
+                                product,
+                                KIND_COMPLETE_PILOT_PRODUCTS.contains(product) ? "111" : "100"))
                         .toList()));
         when(authority.evaluate(any(), any(), any(), any(), any(), any()))
                 .thenAnswer(invocation -> Mono.just(denied(
@@ -109,9 +112,9 @@ class ProductSurfaceContractEligibilityIntegrationTest {
 
         assertThat(result).isNotNull();
         assertThat(result.contexts()).isEmpty();
-        assertThat(result.rollouts()).hasSize(11);
+        assertThat(result.rollouts()).hasSize(12);
         assertThat(result.rollouts()).allSatisfy(value -> {
-            boolean pilot = PILOT_PRODUCTS.contains(value.productKey());
+            boolean pilot = KIND_COMPLETE_PILOT_PRODUCTS.contains(value.productKey());
             assertThat(value.state()).isEqualTo(pilot ? "111" : "100");
             assertThat(value.authorityStatus()).isEqualTo(pilot
                     ? ProductSurfaceContextDtos.AuthorityStatus.AVAILABLE
@@ -120,7 +123,14 @@ class ProductSurfaceContractEligibilityIntegrationTest {
         assertThat(catalog.activeCandidates().stream()
                         .map(ProductSurfaceContextDtos.ProductCandidate::productKey)
                         .collect(java.util.stream.Collectors.toSet()))
-                .containsExactlyInAnyOrderElementsOf(PILOT_PRODUCTS);
+                .containsExactlyInAnyOrderElementsOf(KIND_COMPLETE_PILOT_PRODUCTS);
+        assertThat(result.rollouts())
+                .filteredOn(value -> INCOMPLETE_KIND_PRODUCTS.contains(value.productKey()))
+                .allSatisfy(value -> {
+                    assertThat(value.state()).isEqualTo("100");
+                    assertThat(value.authorityStatus())
+                            .isEqualTo(ProductSurfaceContextDtos.AuthorityStatus.NOT_EVALUATED);
+                });
     }
 
     private GeneratedProductSurfaceCandidateCatalog generatedCatalog() {

@@ -6,7 +6,7 @@ import java.util.UUID;
 
 /**
  * Calendar-facing boundary for Workplace-managed room authorization.
- * Calendar resources without a Workplace mapping retain their existing behavior.
+ * Calendar room resources must have a Workplace site mapping before they are visible or bookable.
  */
 public interface WorkplaceRoomAccessPort {
 
@@ -21,7 +21,7 @@ public interface WorkplaceRoomAccessPort {
             Long userId,
             String verifiedGroupRefs,
             UUID calendarResourceId) {
-        if (calendarResourceId == null) return true;
+        if (calendarResourceId == null) return false;
         return viewableResourceIds(
                 tenantId, userId, verifiedGroupRefs, Set.of(calendarResourceId))
                 .contains(calendarResourceId);

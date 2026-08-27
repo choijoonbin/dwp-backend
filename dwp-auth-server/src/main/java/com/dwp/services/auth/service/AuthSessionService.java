@@ -2,23 +2,20 @@ package com.dwp.services.auth.service;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.core.security.RolePlaneBoundary;
 import com.dwp.services.auth.dto.AuthSessionResponse;
 import com.dwp.services.auth.dto.SessionRotationResponse;
 import com.dwp.services.auth.entity.AuthSession;
 import com.dwp.services.auth.repository.AuthSessionRepository;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
+import com.dwp.services.auth.security.AuthSessionJwtTokenEncoder;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import javax.crypto.SecretKey;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -27,7 +24,7 @@ import java.util.UUID;
 public class AuthSessionService {
 
     private final AuthSessionRepository authSessionRepository;
-    private final String jwtSecret;
+    private final AuthSessionJwtTokenEncoder tokenEncoder;
     private final long absoluteLifetimeSeconds;
     private final long idleTimeoutSeconds;
     private final long rotationMinimumAgeSeconds;
@@ -36,7 +33,7 @@ public class AuthSessionService {
 
     public AuthSessionService(
             AuthSessionRepository authSessionRepository,
-            @Value("${jwt.secret}") String jwtSecret,
+            AuthSessionJwtTokenEncoder tokenEncoder,
             @Value("${jwt.expiration-seconds:28800}") long absoluteLifetimeSeconds,
             @Value("${dwp.security.session.idle-timeout-seconds:1800}") long idleTimeoutSeconds,
             @Value("${dwp.security.session.rotation-minimum-age-seconds:600}")
@@ -46,7 +43,7 @@ public class AuthSessionService {
             @Value("${dwp.security.session.activity-touch-interval-seconds:60}")
                     long activityTouchIntervalSeconds) {
         this.authSessionRepository = authSessionRepository;
-        this.jwtSecret = jwtSecret;
+        this.tokenEncoder = tokenEncoder;
         this.absoluteLifetimeSeconds = absoluteLifetimeSeconds;
         this.idleTimeoutSeconds = idleTimeoutSeconds;
         this.rotationMinimumAgeSeconds = rotationMinimumAgeSeconds;
@@ -70,6 +67,7 @@ public class AuthSessionService {
             List<String> roles,
             AssuranceEvidence assurance,
             HttpServletRequest request) {
+        requireSeparatedRolePlane(roles);
         Instant now = Instant.now();
         Instant expiresAt = now.plusSeconds(absoluteLifetimeSeconds);
         Instant idleExpiresAt = earlier(now.plusSeconds(idleTimeoutSeconds), expiresAt);
@@ -108,6 +106,7 @@ public class AuthSessionService {
             Long tenantId,
             List<String> roles,
             HttpServletRequest request) {
+        requireSeparatedRolePlane(roles);
         Instant now = Instant.now();
         AuthSession previous = authSessionRepository.findByTokenIdForUpdate(jwt.getId())
                 .orElseThrow(() -> new BaseException(ErrorCode.TOKEN_INVALID));
@@ -271,6 +270,7 @@ public class AuthSessionService {
             UUID expectedFamilyId,
             AssuranceEvidence assurance,
             HttpServletRequest request) {
+        requireSeparatedRolePlane(roles);
         Instant now = Instant.now();
         AuthSession previous = authSessionRepository.findByTokenIdForUpdate(jwt.getId())
                 .orElseThrow(() -> new BaseException(ErrorCode.TOKEN_INVALID));
@@ -326,6 +326,14 @@ public class AuthSessionService {
                 .orElseThrow(() -> new BaseException(ErrorCode.TOKEN_INVALID));
     }
 
+    private void requireSeparatedRolePlane(List<String> roles) {
+        if (RolePlaneBoundary.hasConflict(roles)) {
+            throw new BaseException(
+                    ErrorCode.FORBIDDEN,
+                    "Provider control-plane roles cannot coexist with tenant or workspace roles.");
+        }
+    }
+
     private void requireActiveIdentity(
             AuthSession session,
             Jwt jwt,
@@ -350,21 +358,17 @@ public class AuthSessionService {
             Instant issuedAt,
             Instant expiresAt,
             AssuranceEvidence assurance) {
-        SecretKey key = Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
-        var builder = Jwts.builder()
-                .id(tokenId)
-                .subject(String.valueOf(userId))
-                .claim("tenant_id", String.valueOf(tenantId))
-                .claim("roles", roles)
-                .claim("sid", familyId.toString())
-                .issuedAt(Date.from(issuedAt))
-                .expiration(Date.from(expiresAt));
-        if (assurance.authenticatedAt() != null && assurance.acr() != null) {
-            builder.claim("auth_time", assurance.authenticatedAt().getEpochSecond())
-                    .claim("acr", assurance.acr())
-                    .claim("amr", assurance.amr());
-        }
-        return builder.signWith(key, Jwts.SIG.HS256).compact();
+        return tokenEncoder.encode(new AuthSessionJwtTokenEncoder.SessionTokenClaims(
+                userId,
+                tenantId,
+                roles,
+                tokenId,
+                familyId,
+                issuedAt,
+                expiresAt,
+                assurance.authenticatedAt(),
+                assurance.acr(),
+                assurance.amr()));
     }
 
     private static Instant earlier(Instant first, Instant second) {

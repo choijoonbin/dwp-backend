@@ -207,6 +207,33 @@
         },
         "type": "object"
       },
+      "ApiResponseConversationDisplayPreference": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ConversationDisplayPreference"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseConversationMembersResponse": {
         "properties": {
           "correlationId": {
@@ -342,6 +369,33 @@
         },
         "type": "object"
       },
+      "ApiResponseDisplayPreference": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DisplayPreference"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseDownloadGrant": {
         "properties": {
           "correlationId": {
@@ -349,6 +403,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/DownloadGrant"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseHistoryResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/HistoryResponse"
           },
           "errorCode": {
             "type": "string"
@@ -775,6 +856,27 @@
         },
         "type": "object"
       },
+      "AppearancePolicy": {
+        "properties": {
+          "allowPersonalBackgrounds": {
+            "type": "boolean"
+          },
+          "allowThemeSharing": {
+            "type": "boolean"
+          },
+          "allowedThemes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "AttachmentSummary": {
         "properties": {
           "attachmentId": {
@@ -868,6 +970,52 @@
           },
           "realtime": {
             "$ref": "#/components/schemas/RealtimeStatus"
+          }
+        },
+        "type": "object"
+      },
+      "ConversationDisplayPreference": {
+        "properties": {
+          "conversationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "density": {
+            "type": "string"
+          },
+          "effectiveDensity": {
+            "type": "string"
+          },
+          "effectiveLayoutMode": {
+            "type": "string"
+          },
+          "effectiveTheme": {
+            "type": "string"
+          },
+          "layoutMode": {
+            "type": "string"
+          },
+          "messagePreview": {
+            "type": "boolean"
+          },
+          "policyLocked": {
+            "type": "boolean"
+          },
+          "policyReason": {
+            "type": "string"
+          },
+          "showAvatars": {
+            "type": "boolean"
+          },
+          "theme": {
+            "type": "string"
+          },
+          "timestampMode": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -1136,6 +1284,36 @@
         ],
         "type": "object"
       },
+      "DisplayPreference": {
+        "properties": {
+          "density": {
+            "type": "string"
+          },
+          "layoutMode": {
+            "type": "string"
+          },
+          "messagePreview": {
+            "type": "boolean"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/AppearancePolicy"
+          },
+          "showAvatars": {
+            "type": "boolean"
+          },
+          "theme": {
+            "type": "string"
+          },
+          "timestampMode": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "DownloadGrant": {
         "properties": {
           "attachmentId": {
@@ -1158,6 +1336,66 @@
           "sizeBytes": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "HistoryItemResponse": {
+        "properties": {
+          "conversationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "durationSeconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "endedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "endedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "endedByName": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "sessionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "startedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "startedByName": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "HistoryResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HistoryItemResponse"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -1324,6 +1562,21 @@
         },
         "type": "object"
       },
+      "MentionSummary": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "mentionKind": {
+            "type": "string"
+          },
+          "userId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "MessagePage": {
         "properties": {
           "hasMore": {
@@ -1400,6 +1653,12 @@
           "editedAt": {
             "format": "date-time",
             "type": "string"
+          },
+          "mentions": {
+            "items": {
+              "$ref": "#/components/schemas/MentionSummary"
+            },
+            "type": "array"
           },
           "messageId": {
             "format": "uuid",
@@ -1890,6 +2149,33 @@
         ],
         "type": "object"
       },
+      "UpdateConversationDisplayPreferenceRequest": {
+        "properties": {
+          "density": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "layoutMode": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "theme": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "density",
+          "layoutMode",
+          "theme"
+        ],
+        "type": "object"
+      },
       "UpdateConversationMemberRoleRequest": {
         "properties": {
           "role": {
@@ -1908,6 +2194,44 @@
         },
         "required": [
           "role"
+        ],
+        "type": "object"
+      },
+      "UpdateDisplayPreferenceRequest": {
+        "properties": {
+          "density": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "layoutMode": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "messagePreview": {
+            "type": "boolean"
+          },
+          "showAvatars": {
+            "type": "boolean"
+          },
+          "theme": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "timestampMode": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "density",
+          "layoutMode",
+          "theme",
+          "timestampMode"
         ],
         "type": "object"
       },
@@ -2436,6 +2760,115 @@
         ]
       }
     },
+    "/v1/conversations/{conversationId}/display-preference": {
+      "delete": {
+        "operationId": "resetConversationPreference",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseConversationDisplayPreference"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-display-preference-controller"
+        ]
+      },
+      "get": {
+        "operationId": "conversationPreference",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseConversationDisplayPreference"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-display-preference-controller"
+        ]
+      },
+      "put": {
+        "operationId": "updateConversationPreference",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateConversationDisplayPreferenceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseConversationDisplayPreference"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-display-preference-controller"
+        ]
+      }
+    },
     "/v1/conversations/{conversationId}/leave": {
       "post": {
         "operationId": "leave",
@@ -2575,6 +3008,47 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseSessionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "meeting-controller"
+        ]
+      }
+    },
+    "/v1/conversations/{conversationId}/meetings/history": {
+      "get": {
+        "operationId": "history",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseHistoryResponse"
                 }
               }
             },
@@ -3476,6 +3950,54 @@
         },
         "tags": [
           "messaging-controller"
+        ]
+      }
+    },
+    "/v1/display-preferences": {
+      "get": {
+        "operationId": "displayPreference",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDisplayPreference"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-display-preference-controller"
+        ]
+      },
+      "put": {
+        "operationId": "updateDisplayPreference",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateDisplayPreferenceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDisplayPreference"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-display-preference-controller"
         ]
       }
     },

@@ -1,5 +1,6 @@
 package com.dwp.gateway;
 
+import com.dwp.gateway.filter.VerifiedIdentityFilter;
 import com.dwp.gateway.security.AuthSessionVerifier;
 import com.dwp.gateway.security.VerifiedIdentity;
 import org.junit.jupiter.api.Test;
@@ -7,6 +8,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
+import org.springframework.mock.web.server.MockServerWebExchange;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.ClientRequest;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -17,6 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AuthSessionVerifierTest {
 
@@ -111,13 +114,82 @@ class AuthSessionVerifierTest {
     }
 
     @Test
+    void acceptsExplicitTenantAndRolelessProviderIdentityPlanes() {
+        VerifiedIdentity tenant = verifierReturningBody("""
+                {"success":true,"data":{"userId":7,"tenantId":1,
+                "identityPlane":"TENANT","roles":["WORKSPACE_MEMBER"]}}
+                """).verify(MockServerHttpRequest.get("/api/agent/v1/plans/preview").build()).block();
+        VerifiedIdentity provider = verifierReturningBody("""
+                {"success":true,"data":{"userId":900001,"tenantId":1,
+                "identityPlane":"PROVIDER","roles":[]}}
+                """).verify(MockServerHttpRequest.get("/api/provider/v1/tenants").build()).block();
+
+        assertThat(tenant).isNotNull();
+        assertThat(tenant.identityPlane()).isEqualTo("TENANT");
+        assertThat(provider).isNotNull();
+        assertThat(provider.identityPlane()).isEqualTo("PROVIDER");
+        assertThat(provider.roles()).isEmpty();
+    }
+
+    @Test
+    void rejectsMissingBlankUnknownAndMixedRoleIdentityContracts() {
+        for (String body : java.util.List.of(
+                """
+                {"success":true,"data":{"userId":7,"tenantId":1,
+                "roles":["WORKSPACE_MEMBER"]}}
+                """,
+                """
+                {"success":true,"data":{"userId":7,"tenantId":1,
+                "identityPlane":" ","roles":["WORKSPACE_MEMBER"]}}
+                """,
+                """
+                {"success":true,"data":{"userId":7,"tenantId":1,
+                "identityPlane":"UNKNOWN","roles":["WORKSPACE_MEMBER"]}}
+                """,
+                """
+                {"success":true,"data":{"userId":7,"tenantId":1,
+                "identityPlane":"TENANT","roles":["TENANT_ADMIN","PROVIDER_ADMIN"]}}
+                """,
+                """
+                {"success":true,"data":{"userId":900001,"tenantId":1,
+                "identityPlane":"PROVIDER","roles":["PROVIDER_ADMIN","TENANT_ADMIN"]}}
+                """)) {
+            AuthSessionVerifier verifier = verifierReturningBody(body);
+
+            assertThatThrownBy(() -> verifier.verify(MockServerHttpRequest
+                    .get("/api/agent/v1/plans/preview")
+                    .build()).block())
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("invalid durable identity contract");
+        }
+    }
+
+    @Test
+    void returnsServiceUnavailableForAnInvalidSuccessfulAuthProjection() {
+        AuthSessionVerifier verifier = verifierReturningBody("""
+                {"success":true,"data":{"userId":7,"tenantId":1,
+                "roles":["WORKSPACE_MEMBER"]}}
+                """);
+        VerifiedIdentityFilter filter = new VerifiedIdentityFilter(verifier);
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
+                .get("/api/agent/v1/plans/preview")
+                .build());
+
+        filter.filter(exchange, ignored -> Mono.error(
+                new AssertionError("invalid identity must not be forwarded"))).block();
+
+        assertThat(exchange.getResponse().getStatusCode())
+                .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+    }
+
+    @Test
     void propagatesTraceContextToSessionVerification() {
         AtomicReference<ClientRequest> captured = new AtomicReference<>();
         WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
             captured.set(request);
             return Mono.just(ClientResponse.create(HttpStatus.OK)
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                    .body("{\"success\":true,\"data\":{\"userId\":7,\"tenantId\":1,\"roles\":[]}}")
+                    .body("{\"success\":true,\"data\":{\"userId\":7,\"tenantId\":1,\"identityPlane\":\"TENANT\",\"roles\":[]}}")
                     .build());
         });
         AuthSessionVerifier verifier = new AuthSessionVerifier(
@@ -141,7 +213,7 @@ class AuthSessionVerifierTest {
             return Mono.just(ClientResponse.create(HttpStatus.OK)
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .body("""
-                            {"success":true,"data":{"userId":7,"tenantId":1,"roles":["CUSTOM_AUDITOR"],
+                            {"success":true,"data":{"userId":7,"tenantId":1,"identityPlane":"TENANT","roles":["CUSTOM_AUDITOR"],
                             "permissions":[
                               {"resourceKey":"ADMIN.AUDIT_VIEW","permissionCode":"VIEW","effect":"ALLOW"},
                               {"resourceKey":"ADMIN.AUDIT_EXPORT","permissionCode":"EXPORT","effect":"DENY"}
@@ -171,7 +243,7 @@ class AuthSessionVerifierTest {
             return Mono.just(ClientResponse.create(HttpStatus.OK)
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .body("""
-                            {"success":true,"data":{"userId":7,"tenantId":1,"roles":["WORKSPACE_MEMBER"],
+                            {"success":true,"data":{"userId":7,"tenantId":1,"identityPlane":"TENANT","roles":["WORKSPACE_MEMBER"],
                             "permissions":[
                               {"resourceKey":"APP.WORK","permissionCode":"VIEW","effect":"ALLOW"},
                               {"resourceKey":"APP.WORK","permissionCode":"UPDATE","effect":"ALLOW"}
@@ -199,7 +271,7 @@ class AuthSessionVerifierTest {
             return Mono.just(ClientResponse.create(HttpStatus.OK)
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .body("""
-                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            {"success":true,"data":{"userId":7,"tenantId":1,"identityPlane":"TENANT",
                             "roles":["WORKSPACE_MEMBER"],"permissions":[
                               {"resourceKey":"APP.WORK","permissionCode":"VIEW","effect":"ALLOW"},
                               {"resourceKey":"APP.ACTIVITY","permissionCode":"VIEW","effect":"ALLOW"},
@@ -234,7 +306,7 @@ class AuthSessionVerifierTest {
             return Mono.just(ClientResponse.create(HttpStatus.OK)
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .body("""
-                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            {"success":true,"data":{"userId":7,"tenantId":1,"identityPlane":"TENANT",
                             "roles":["HOME_ADMIN"],"permissions":[
                               {"resourceKey":"ADMIN.HOME_TEMPLATE","permissionCode":"VIEW","effect":"ALLOW"},
                               {"resourceKey":"ADMIN.HOME_TEMPLATE","permissionCode":"MANAGE","effect":"ALLOW"}
@@ -264,9 +336,10 @@ class AuthSessionVerifierTest {
             return Mono.just(ClientResponse.create(HttpStatus.OK)
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .body("""
-                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            {"success":true,"data":{"userId":7,"tenantId":1,"identityPlane":"TENANT",
                             "roles":["WORKSPACE_MEMBER"],"permissions":[],
-                            "legacyRoleFallbackAllowed":true}}
+                            "legacyRoleFallbackAllowed":true,
+                            "sessionFamilyId":"40000000-0000-0000-0000-000000000001"}}
                             """)
                     .build());
         });
@@ -281,6 +354,9 @@ class AuthSessionVerifierTest {
                 .isEqualTo("permissionPrefix=APP.HCM,APP.HRIS,DATA.HR_");
         assertThat(identity).isNotNull();
         assertThat(identity.legacyRoleFallbackAllowed()).isTrue();
+        assertThat(identity.sessionFamilyId())
+                .isEqualTo("40000000-0000-0000-0000-000000000001");
+        assertThat(identity.identityPlane()).isEqualTo("TENANT");
     }
 
     @Test
@@ -291,7 +367,7 @@ class AuthSessionVerifierTest {
             return Mono.just(ClientResponse.create(HttpStatus.OK)
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .body("""
-                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            {"success":true,"data":{"userId":7,"tenantId":1,"identityPlane":"TENANT",
                             "roles":["HCM_ADMIN"],"permissions":[
                               {"resourceKey":"DATA.WORKFORCE","permissionCode":"VIEW","effect":"ALLOW"},
                               {"resourceKey":"DATA.HR_TIME","permissionCode":"VIEW","effect":"ALLOW"},
@@ -324,7 +400,7 @@ class AuthSessionVerifierTest {
             return Mono.just(ClientResponse.create(HttpStatus.OK)
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .body("""
-                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            {"success":true,"data":{"userId":7,"tenantId":1,"identityPlane":"TENANT",
                             "roles":["WORKSPACE_MEMBER"],"permissions":[
                               {"resourceKey":"APP.ASK","permissionCode":"VIEW","effect":"ALLOW"},
                               {"resourceKey":"APP.WORK","permissionCode":"VIEW","effect":"ALLOW"}
@@ -352,7 +428,7 @@ class AuthSessionVerifierTest {
             return Mono.just(ClientResponse.create(HttpStatus.OK)
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .body("""
-                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            {"success":true,"data":{"userId":7,"tenantId":1,"identityPlane":"TENANT",
                             "roles":["WORKSPACE_MEMBER"],"permissions":[
                               {"resourceKey":"APP.ASK","permissionCode":"VIEW","effect":"ALLOW"},
                               {"resourceKey":"APP.CALENDAR","permissionCode":"CREATE","effect":"ALLOW"}
@@ -373,7 +449,7 @@ class AuthSessionVerifierTest {
     }
 
     @Test
-    void scopesDwaionOperationsRoutesToDedicatedAdministrationAuthority() {
+    void requestsOnlyCanonicalAuthoritiesForGovernedPlanPreview() {
         AtomicReference<ClientRequest> captured = new AtomicReference<>();
         WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
             captured.set(request);
@@ -381,6 +457,68 @@ class AuthSessionVerifierTest {
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .body("""
                             {"success":true,"data":{"userId":7,"tenantId":1,
+                            "identityPlane":"TENANT","roles":["TENANT_ADMIN"],
+                            "permissions":[
+                              {"resourceKey":"APP.ASK","permissionCode":"VIEW","effect":"ALLOW"},
+                              {"resourceKey":"ADMIN.IDENTITY_DIRECTORY","permissionCode":"MANAGE","effect":"ALLOW"}
+                            ]}}
+                            """)
+                    .build());
+        });
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+
+        VerifiedIdentity identity = verifier.verify(MockServerHttpRequest
+                .post("/api/agent/v1/plans/preview")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery()).isEqualTo(
+                "permissionPrefix=APP.ASK,ADMIN.IDENTITY_DIRECTORY,ADMIN.APP_GOVERNANCE,"
+                        + "ADMIN.IDENTITY_PROVISIONING,ADMIN.NAVIGATION,"
+                        + "ACTION.WORKFORCE_DATA_OPERATIONS");
+        assertThat(identity).isNotNull();
+        assertThat(identity.permissions()).containsExactly(
+                "ADMIN.IDENTITY_DIRECTORY:MANAGE", "APP.ASK:VIEW");
+    }
+
+    @Test
+    void scopesNavigationAdministrationToItsDedicatedAuthority() {
+        AtomicReference<ClientRequest> captured = new AtomicReference<>();
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+            captured.set(request);
+            return Mono.just(ClientResponse.create(HttpStatus.OK)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .body("""
+                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            "identityPlane":"TENANT","roles":["TENANT_ADMIN"],
+                            "permissions":[
+                              {"resourceKey":"ADMIN.NAVIGATION","permissionCode":"MANAGE","effect":"ALLOW"}
+                            ]}}
+                            """)
+                    .build());
+        });
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+
+        VerifiedIdentity identity = verifier.verify(MockServerHttpRequest
+                .post("/api/platform/v1/admin/navigation/17/activate")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery())
+                .isEqualTo("permissionPrefix=ADMIN.NAVIGATION");
+        assertThat(identity).isNotNull();
+        assertThat(identity.permissions()).containsExactly("ADMIN.NAVIGATION:MANAGE");
+    }
+
+    @Test
+    void scopesDwaionOperationsRoutesToDedicatedAdministrationAuthority() {
+        AtomicReference<ClientRequest> captured = new AtomicReference<>();
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+            captured.set(request);
+            return Mono.just(ClientResponse.create(HttpStatus.OK)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .body("""
+                            {"success":true,"data":{"userId":7,"tenantId":1,"identityPlane":"TENANT",
                             "roles":["DWAION_ADMIN"],"permissions":[
                               {"resourceKey":"ADMIN.DWAION_OPERATIONS","permissionCode":"VIEW","effect":"ALLOW"}
                             ]}}
@@ -407,7 +545,7 @@ class AuthSessionVerifierTest {
             return Mono.just(ClientResponse.create(HttpStatus.OK)
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .body("""
-                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            {"success":true,"data":{"userId":7,"tenantId":1,"identityPlane":"TENANT",
                             "roles":["DWAION_AUDITOR"],"permissions":[
                               {"resourceKey":"ADMIN.DWAION_GATES","permissionCode":"VIEW","effect":"ALLOW"},
                               {"resourceKey":"ADMIN.DWAION_GATES","permissionCode":"APPROVE","effect":"ALLOW"}
@@ -436,7 +574,7 @@ class AuthSessionVerifierTest {
             return Mono.just(ClientResponse.create(HttpStatus.OK)
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .body("""
-                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            {"success":true,"data":{"userId":7,"tenantId":1,"identityPlane":"TENANT",
                             "roles":["DWAION_EVALUATOR"],"permissions":[
                               {"resourceKey":"ADMIN.DWAION_EVALUATION","permissionCode":"EXECUTE","effect":"ALLOW"},
                               {"resourceKey":"APP.ASK","permissionCode":"VIEW","effect":"ALLOW"},
@@ -467,7 +605,7 @@ class AuthSessionVerifierTest {
             return Mono.just(ClientResponse.create(HttpStatus.OK)
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .body("""
-                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            {"success":true,"data":{"userId":7,"tenantId":1,"identityPlane":"TENANT",
                             "roles":["COMMUNICATIONS_PUBLISHER"],"permissions":[
                               {"resourceKey":"ADMIN.COMMUNICATIONS","permissionCode":"APPROVE","effect":"ALLOW"}
                             ]}}
@@ -495,7 +633,7 @@ class AuthSessionVerifierTest {
             return Mono.just(ClientResponse.create(HttpStatus.OK)
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .body("""
-                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            {"success":true,"data":{"userId":7,"tenantId":1,"identityPlane":"TENANT",
                             "roles":["SERVICE_AGENT"],"permissions":[
                               {"resourceKey":"ADMIN.SERVICE_OPERATIONS","permissionCode":"MANAGE","effect":"ALLOW"}
                             ]}}
@@ -528,7 +666,7 @@ class AuthSessionVerifierTest {
             return Mono.just(ClientResponse.create(HttpStatus.OK)
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .body("""
-                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            {"success":true,"data":{"userId":7,"tenantId":1,"identityPlane":"TENANT",
                             "roles":["MAIL_ADMIN"],"permissions":[
                               {"resourceKey":"APP.MAIL","permissionCode":"VIEW","effect":"ALLOW"},
                               {"resourceKey":"ADMIN.MAIL","permissionCode":"MANAGE","effect":"ALLOW"}
@@ -564,7 +702,7 @@ class AuthSessionVerifierTest {
             return Mono.just(ClientResponse.create(HttpStatus.OK)
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .body("""
-                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            {"success":true,"data":{"userId":7,"tenantId":1,"identityPlane":"TENANT",
                             "roles":["WORKSPACE_MEMBER"],"permissions":[
                               {"resourceKey":"APP.ROOMS","permissionCode":"VIEW","effect":"ALLOW"}
                             ]}}
@@ -599,7 +737,7 @@ class AuthSessionVerifierTest {
             return Mono.just(ClientResponse.create(HttpStatus.OK)
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .body("""
-                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            {"success":true,"data":{"userId":7,"tenantId":1,"identityPlane":"TENANT",
                             "roles":["WORKSPACE_MEMBER"],"permissions":[
                               {"resourceKey":"APP.WORKPLACE","permissionCode":"VIEW","effect":"ALLOW"}
                             ]}}
@@ -634,7 +772,7 @@ class AuthSessionVerifierTest {
             return Mono.just(ClientResponse.create(HttpStatus.OK)
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .body("""
-                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            {"success":true,"data":{"userId":7,"tenantId":1,"identityPlane":"TENANT",
                             "roles":["APPROVAL_OPERATOR"],"permissions":[
                               {"resourceKey":"ACTION.APPROVAL_TASK","permissionCode":"APPROVE","effect":"ALLOW"}
                             ]}}
@@ -672,13 +810,19 @@ class AuthSessionVerifierTest {
                 ClientResponse.create(HttpStatus.OK)
                         .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                         .body("""
-                                {"success":true,"data":{"userId":7,"tenantId":1,
+                                {"success":true,"data":{"userId":7,"tenantId":1,"identityPlane":"TENANT",
                                 "roles":["WORKSPACE_MEMBER"],"resourceRoles":[{
                                   "responsibilityCode":"APP_CONFIG_ADMIN",
                                   "resourceType":"APPLICATION",
                                   "resourceKey":"APP.APPROVALS",
                                   "resourceSetId":"58fa4516-dc70-4785-ac9f-3606992c3f6b",
                                   "resourceSetKey":"RS_APPROVALS"
+                                },{
+                                  "responsibilityCode":" app_config_admin ",
+                                  "resourceType":"APPLICATION",
+                                  "resourceKey":"APP.APPROVALS",
+                                  "resourceSetId":"58fa4516-dc70-4785-ac9f-3606992c3f6b",
+                                  "resourceSetKey":" rs_approvals "
                                 }]}}
                                 """)
                         .build()));
@@ -702,7 +846,7 @@ class AuthSessionVerifierTest {
                 ClientResponse.create(HttpStatus.OK)
                         .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                         .body("""
-                                {"success":true,"data":{"userId":7,"tenantId":1,
+                                {"success":true,"data":{"userId":7,"tenantId":1,"identityPlane":"TENANT",
                                 "roles":["WORKSPACE_MEMBER"],"resourceRoles":[
                                   {"responsibilityCode":"APP_CONFIG_ADMIN","resourceKey":"APP.APPROVALS"},
                                   {"responsibilityCode":"APP_CONFIG_ADMIN","resourceSetKey":"../RS_APPROVALS"}
@@ -728,7 +872,7 @@ class AuthSessionVerifierTest {
             return Mono.just(ClientResponse.create(HttpStatus.OK)
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .body("""
-                            {"success":true,"data":{"userId":7,"tenantId":1,"roles":["TENANT_ADMIN"],
+                            {"success":true,"data":{"userId":7,"tenantId":1,"identityPlane":"TENANT","roles":["TENANT_ADMIN"],
                             "permissions":[
                               {"resourceKey":"ADMIN.PRODUCTIVITY_CONNECTOR","permissionCode":"VIEW","effect":"ALLOW"},
                               {"resourceKey":"ADMIN.PRODUCTIVITY_CONNECTOR","permissionCode":"MANAGE","effect":"ALLOW"}
@@ -759,7 +903,7 @@ class AuthSessionVerifierTest {
             return Mono.just(ClientResponse.create(HttpStatus.OK)
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .body("""
-                            {"success":true,"data":{"userId":7,"tenantId":1,"roles":["TENANT_ADMIN"],
+                            {"success":true,"data":{"userId":7,"tenantId":1,"identityPlane":"TENANT","roles":["TENANT_ADMIN"],
                             "permissions":[
                               {"resourceKey":"ADMIN.SAVED_VIEW_CUSTODY","permissionCode":"VIEW","effect":"ALLOW"},
                               {"resourceKey":"ADMIN.SAVED_VIEW_CUSTODY","permissionCode":"MANAGE","effect":"ALLOW"}
@@ -790,7 +934,7 @@ class AuthSessionVerifierTest {
             return Mono.just(ClientResponse.create(HttpStatus.OK)
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .body("""
-                            {"success":true,"data":{"userId":7,"tenantId":1,"roles":["HR_ADMIN"],
+                            {"success":true,"data":{"userId":7,"tenantId":1,"identityPlane":"TENANT","roles":["HR_ADMIN"],
                             "permissions":[
                               {"resourceKey":"DATA.WORKFORCE","permissionCode":"MANAGE","effect":"ALLOW"}
                             ]}}
@@ -816,7 +960,7 @@ class AuthSessionVerifierTest {
                 ClientResponse.create(HttpStatus.OK)
                         .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                         .body("""
-                                {"success":true,"data":{"userId":7,"tenantId":1,
+                                {"success":true,"data":{"userId":7,"tenantId":1,"identityPlane":"TENANT",
                                 "roles":["WORKSPACE_MEMBER"],"groups":[
                                   {"groupRef":"58fa4516-dc70-4785-ac9f-3606992c3f6b","groupKey":"FINANCE","displayName":"Finance"},
                                   {"groupRef":"c175742b-070e-4223-a49a-b9878d280a7c","groupKey":"OPERATIONS","displayName":"Operations"}
@@ -833,15 +977,22 @@ class AuthSessionVerifierTest {
         assertThat(identity).isNotNull();
         assertThat(identity.groupRefs()).containsExactly(
                 "58fa4516-dc70-4785-ac9f-3606992c3f6b",
-                "FINANCE",
-                "OPERATIONS",
                 "c175742b-070e-4223-a49a-b9878d280a7c");
     }
 
     private AuthSessionVerifier verifierReturningTenant(String tenantId) {
         String body = """
-                {"success":true,"data":{"userId":7,"tenantId":%s,"roles":["EMPLOYEE"]}}
+                {"success":true,"data":{"userId":7,"tenantId":%s,"identityPlane":"TENANT","roles":["EMPLOYEE"]}}
                 """.formatted(tenantId);
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(ignored -> Mono.just(
+                ClientResponse.create(HttpStatus.OK)
+                        .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                        .body(body)
+                        .build()));
+        return new AuthSessionVerifier(builder, "http://auth.test", Duration.ofSeconds(1));
+    }
+
+    private AuthSessionVerifier verifierReturningBody(String body) {
         WebClient.Builder builder = WebClient.builder().exchangeFunction(ignored -> Mono.just(
                 ClientResponse.create(HttpStatus.OK)
                         .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
@@ -855,7 +1006,7 @@ class AuthSessionVerifierTest {
             calls.incrementAndGet();
             return Mono.just(ClientResponse.create(HttpStatus.OK)
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                    .body("{\"success\":true,\"data\":{\"userId\":7,\"tenantId\":1,\"roles\":[]}}")
+                    .body("{\"success\":true,\"data\":{\"userId\":7,\"tenantId\":1,\"identityPlane\":\"TENANT\",\"roles\":[]}}")
                     .build());
         });
         return new AuthSessionVerifier(builder, "http://auth.test", Duration.ofSeconds(1));

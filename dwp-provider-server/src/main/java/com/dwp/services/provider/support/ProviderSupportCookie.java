@@ -11,8 +11,8 @@ public final class ProviderSupportCookie {
     public static final String NAME = "DWP_SUPPORT_SESSION";
     private static final List<String> PATHS = List.of(
             "/api/provider/v1/admin/",
-            "/api/platform/v1/admin/",
-            "/api/people/v1");
+            "/api/auth/",
+            "/api/platform/v1/admin/");
 
     private ProviderSupportCookie() {
     }

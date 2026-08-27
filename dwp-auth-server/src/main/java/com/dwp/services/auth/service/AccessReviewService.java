@@ -483,7 +483,8 @@ public class AccessReviewService {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "The reviewer strategy is invalid.");
         }
         if (reviewerUserId != null) requireExists(
-                "SELECT COUNT(*) FROM com_users WHERE tenant_id = ? AND user_id = ? AND status = 'ACTIVE'",
+                "SELECT COUNT(*) FROM com_users WHERE tenant_id = ? AND user_id = ? "
+                        + "AND status = 'ACTIVE' AND identity_plane = 'TENANT'",
                 tenantId, reviewerUserId, "The named reviewer is unavailable.");
     }
 

@@ -28,6 +28,36 @@ class ApprovalPilotPepRegistryTest {
     }
 
     @Test
+    void evaluatesOnlyProfilesMatchingTheActualActiveAccessMode() {
+        ApprovalPilotPepRegistry registry = new ApprovalPilotPepRegistry(objectMapper);
+        Set<String> permissions = Set.of("APP.APPROVALS:VIEW");
+        String routeKey = "route.approvals.work.home.page";
+
+        ApprovalPilotPepRegistry.Decision normal = registry.authorize(
+                new ApprovalPilotPepRegistry.RequestEvidence(
+                        "GET", "/v1/home", permissions, "", Set.of(), routeKey,
+                        ApprovalPilotPepRegistry.ActiveAccessMode.NORMAL));
+        ApprovalPilotPepRegistry.Decision elevated = registry.authorize(
+                new ApprovalPilotPepRegistry.RequestEvidence(
+                        "GET", "/v1/home", permissions, "", Set.of(), routeKey,
+                        ApprovalPilotPepRegistry.ActiveAccessMode.ELEVATED));
+        ApprovalPilotPepRegistry.Decision support = registry.authorize(
+                new ApprovalPilotPepRegistry.RequestEvidence(
+                        "GET", "/v1/home", permissions, "", Set.of(), routeKey,
+                        ApprovalPilotPepRegistry.ActiveAccessMode.PROVIDER_SUPPORT));
+        ApprovalPilotPepRegistry.Decision missing = registry.authorize(
+                new ApprovalPilotPepRegistry.RequestEvidence(
+                        "GET", "/v1/home", permissions, "", Set.of(), routeKey, null));
+
+        assertThat(normal.allowed()).isTrue();
+        assertThat(elevated.allowed()).isTrue();
+        assertThat(support.allowed()).isFalse();
+        assertThat(support.denialCode()).isEqualTo("EXACT_ROUTE_AUTHORITY_REQUIRED");
+        assertThat(missing.allowed()).isFalse();
+        assertThat(missing.denialCode()).isEqualTo("TRUSTED_ACCESS_MODE_REQUIRED");
+    }
+
+    @Test
     void permitsWorkEntitlementButDoesNotInferManagement() {
         ApprovalPilotPepRegistry registry = new ApprovalPilotPepRegistry(objectMapper);
 
@@ -194,13 +224,14 @@ class ApprovalPilotPepRegistryTest {
                 new ApprovalPilotPepRegistry.RequestEvidence(
                         "GET", "/v1/admin/workflows", permissions,
                         scoped("approvals.design.read", "ADMIN.APPROVAL_DESIGN:VIEW"), Set.of(),
-                        "route.approvals.admin.workflows.page", null));
+                        "route.approvals.admin.workflows.page", null,
+                        ApprovalPilotPepRegistry.ActiveAccessMode.NORMAL));
         ApprovalPilotPepRegistry.Decision referenceDecision = registry.authorize(
                 new ApprovalPilotPepRegistry.RequestEvidence(
                         "GET", "/v1/admin/workflows", permissions,
                         scoped("approvals.design.read", "ADMIN.APPROVAL_DESIGN:VIEW"), Set.of(),
                         "route.approvals.admin.forms-workflow-reference.data",
-                        "view=reference"));
+                        "view=reference", ApprovalPilotPepRegistry.ActiveAccessMode.NORMAL));
 
         assertThat(pageDecision.allowed()).isTrue();
         assertThat(referenceDecision.allowed()).isTrue();
@@ -223,7 +254,8 @@ class ApprovalPilotPepRegistryTest {
                 new ApprovalPilotPepRegistry.RequestEvidence(
                         "GET", "/v1/admin/workflows",
                         Set.of("ADMIN.APPROVAL_DESIGN:VIEW"), "", Set.of("TENANT_ADMIN"),
-                        "route.approvals.admin.workflows.page", null))
+                        "route.approvals.admin.workflows.page", null,
+                        ApprovalPilotPepRegistry.ActiveAccessMode.NORMAL))
                 .authorities().getFirst();
         ApprovalPilotPepRegistry.RouteAuthority auditor = registry.authorize(
                 new ApprovalPilotPepRegistry.RequestEvidence(
@@ -232,7 +264,8 @@ class ApprovalPilotPepRegistryTest {
                         ScopedAuthorityToken.wireToken(
                                 "approvals.audit.operations.read",
                                 "ADMIN.APPROVAL_OPERATIONS:VIEW", "RS_APPROVALS"), Set.of(),
-                        "route.approvals.admin.operations.page", null))
+                        "route.approvals.admin.operations.page", null,
+                        ApprovalPilotPepRegistry.ActiveAccessMode.NORMAL))
                 .authorities().getFirst();
 
         assertProjectionMetadata(
@@ -249,7 +282,8 @@ class ApprovalPilotPepRegistryTest {
                 new ApprovalPilotPepRegistry.RequestEvidence(
                         "GET", "/v1/tasks",
                         Set.of("ACTION.APPROVAL_TASK:VIEW"), "", Set.of(),
-                        "route.approvals.work.inbox.page"));
+                        "route.approvals.work.inbox.page",
+                        ApprovalPilotPepRegistry.ActiveAccessMode.NORMAL));
 
         assertThat(decision.allowed()).isTrue();
         assertThat(decision.authorities()).singleElement()
@@ -265,18 +299,21 @@ class ApprovalPilotPepRegistryTest {
         assertThat(registry.authorize(new ApprovalPilotPepRegistry.RequestEvidence(
                 "GET", "/v1/admin/workflows", permissions,
                 scoped("approvals.design.read", "ADMIN.APPROVAL_DESIGN:VIEW"), Set.of(),
-                "route.approvals.admin.workflows.page", "view=reference")).allowed())
+                "route.approvals.admin.workflows.page", "view=reference",
+                ApprovalPilotPepRegistry.ActiveAccessMode.NORMAL)).allowed())
                 .isFalse();
         assertThat(registry.authorize(new ApprovalPilotPepRegistry.RequestEvidence(
                 "GET", "/v1/admin/workflows", permissions,
                 scoped("approvals.design.read", "ADMIN.APPROVAL_DESIGN:VIEW"), Set.of(),
-                "route.approvals.admin.forms-workflow-reference.data", null)).allowed())
+                "route.approvals.admin.forms-workflow-reference.data", null,
+                ApprovalPilotPepRegistry.ActiveAccessMode.NORMAL)).allowed())
                 .isFalse();
         assertThat(registry.authorize(new ApprovalPilotPepRegistry.RequestEvidence(
                 "GET", "/v1/admin/workflows", permissions,
                 scoped("approvals.design.read", "ADMIN.APPROVAL_DESIGN:VIEW"), Set.of(),
                 "route.approvals.admin.forms-workflow-reference.data",
-                "view=reference&view=reference")).allowed()).isFalse();
+                "view=reference&view=reference",
+                ApprovalPilotPepRegistry.ActiveAccessMode.NORMAL)).allowed()).isFalse();
     }
 
     private ApprovalPilotPepRegistry.RequestEvidence evidence(
@@ -288,7 +325,8 @@ class ApprovalPilotPepRegistryTest {
             String routeKey) {
         return new ApprovalPilotPepRegistry.RequestEvidence(
                 method, path, permissions, resourceRoles, roles,
-                routeKey == null ? canonicalRoute(method, path) : routeKey);
+                routeKey == null ? canonicalRoute(method, path) : routeKey,
+                ApprovalPilotPepRegistry.ActiveAccessMode.NORMAL);
     }
 
     private String scoped(String contractKey, String resolvedCapabilityCode) {

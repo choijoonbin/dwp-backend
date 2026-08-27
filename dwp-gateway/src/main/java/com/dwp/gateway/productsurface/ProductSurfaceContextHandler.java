@@ -36,6 +36,10 @@ public class ProductSurfaceContextHandler {
     }
 
     public Mono<ServerResponse> contexts(ServerRequest request) {
+        if (!ProductSurfaceForwardingGuardFilter.permits(
+                request, ProductSurfaceForwardingGuardFilter.Endpoint.CONTEXTS)) {
+            return ServerResponse.notFound().build();
+        }
         ProductSurfaceContextDtos.RequestContext requestContext;
         try {
             requestContext = requestContext(request);
@@ -53,6 +57,10 @@ public class ProductSurfaceContextHandler {
     }
 
     public Mono<ServerResponse> evaluateProduct(ServerRequest request) {
+        if (!ProductSurfaceForwardingGuardFilter.permits(
+                request, ProductSurfaceForwardingGuardFilter.Endpoint.PRODUCT_EVALUATION)) {
+            return ServerResponse.notFound().build();
+        }
         ProductSurfaceContextDtos.RequestContext requestContext;
         try {
             requestContext = requestContext(request);
@@ -80,6 +88,10 @@ public class ProductSurfaceContextHandler {
     }
 
     public Mono<ServerResponse> evaluateGoverned(ServerRequest request) {
+        if (!ProductSurfaceForwardingGuardFilter.permits(
+                request, ProductSurfaceForwardingGuardFilter.Endpoint.GOVERNED_EVALUATION)) {
+            return ServerResponse.notFound().build();
+        }
         ProductSurfaceContextDtos.RequestContext requestContext;
         try {
             requestContext = requestContext(request);

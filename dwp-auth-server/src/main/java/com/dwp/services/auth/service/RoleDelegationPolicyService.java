@@ -2,6 +2,7 @@ package com.dwp.services.auth.service;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.core.security.RolePlaneBoundary;
 import com.dwp.services.auth.entity.BuiltinRoleDefinition;
 import com.dwp.services.auth.entity.Role;
 import com.dwp.services.auth.entity.RoleAssignmentPolicy;
@@ -197,6 +198,11 @@ public class RoleDelegationPolicyService {
     }
 
     private RoleSetDecision evaluateProspectiveRoleSet(Set<String> prospectiveRoleCodes) {
+        if (RolePlaneBoundary.hasConflict(prospectiveRoleCodes)) {
+            return new RoleSetDecision(
+                    false,
+                    "ROLE_CONFLICT_" + RolePlaneBoundary.CONFLICT_REASON);
+        }
         if (!prospectiveRoleCodes.contains(BASELINE_ROLE_CODE)) {
             return new RoleSetDecision(false, "BASELINE_ROLE_REQUIRED");
         }

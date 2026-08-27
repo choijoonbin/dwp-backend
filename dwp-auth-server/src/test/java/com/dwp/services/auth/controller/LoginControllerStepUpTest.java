@@ -6,6 +6,7 @@ import com.dwp.services.auth.dto.LoginResponse;
 import com.dwp.services.auth.dto.OidcUserInfo;
 import com.dwp.services.auth.service.AuthService;
 import com.dwp.services.auth.service.AuthenticatedSession;
+import com.dwp.services.auth.service.LoginDiscoveryService;
 import com.dwp.services.auth.service.OidcService;
 import com.dwp.services.auth.service.OidcStateStore;
 import com.dwp.services.auth.service.SessionCookieService;
@@ -37,6 +38,7 @@ class LoginControllerStepUpTest {
 
     private AuthService authService;
     private OidcService oidcService;
+    private LoginDiscoveryService loginDiscoveryService;
     private SessionCookieService cookieService;
     private StepUpBrowserBindingService browserBindingService;
     private LoginController controller;
@@ -45,10 +47,12 @@ class LoginControllerStepUpTest {
     void setUp() {
         authService = mock(AuthService.class);
         oidcService = mock(OidcService.class);
+        loginDiscoveryService = mock(LoginDiscoveryService.class);
         cookieService = mock(SessionCookieService.class);
         browserBindingService = mock(StepUpBrowserBindingService.class);
         controller = new LoginController(
-                authService, oidcService, cookieService, browserBindingService);
+                authService, oidcService, loginDiscoveryService, cookieService,
+                browserBindingService);
     }
 
     @Test
@@ -93,6 +97,32 @@ class LoginControllerStepUpTest {
                 new MockHttpServletRequest(), new MockHttpServletResponse()))
                 .isInstanceOf(BaseException.class);
         verify(authService, never()).completeOidcStepUp(any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void oidcLoginResolvesTheProviderKeyOnlyOnTheServer() {
+        when(loginDiscoveryService.requireSsoProviderKey(7L)).thenReturn("private-provider-key");
+        when(oidcService.getAuthorizationUrl(7L, "private-provider-key"))
+                .thenReturn("https://identity.example.test/authorize?state=opaque");
+
+        org.springframework.web.servlet.view.RedirectView redirect = controller.oidcLogin(null, 7L);
+
+        assertThat(redirect.getUrl())
+                .isEqualTo("https://identity.example.test/authorize?state=opaque");
+        verify(loginDiscoveryService).requireSsoProviderKey(7L);
+        verify(oidcService).getAuthorizationUrl(7L, "private-provider-key");
+    }
+
+    @Test
+    void incompleteProviderConfigurationUsesTheSamePublicCredentialFailure() {
+        when(loginDiscoveryService.requireSsoProviderKey(7L)).thenReturn("private-provider-key");
+        when(oidcService.getAuthorizationUrl(7L, "private-provider-key"))
+                .thenThrow(new BaseException(ErrorCode.INVALID_STATE));
+
+        assertThatThrownBy(() -> controller.oidcLogin(null, 7L))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.AUTH_INVALID_CREDENTIALS));
     }
 
     @Test

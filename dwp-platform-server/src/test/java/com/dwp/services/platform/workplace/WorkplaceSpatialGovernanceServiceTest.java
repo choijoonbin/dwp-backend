@@ -112,7 +112,7 @@ class WorkplaceSpatialGovernanceServiceTest {
     }
 
     @Test
-    void siteWithoutRulesKeepsExistingApiCompatibility() {
+    void siteWithoutRulesIsDeniedUntilAnAdministratorConfiguresAccess() {
         UUID siteId = UUID.randomUUID();
         when(repository.siteCampus(1L, siteId))
                 .thenReturn(Optional.of(new SiteCampusRow(siteId, UUID.randomUUID(), 0)));
@@ -121,8 +121,8 @@ class WorkplaceSpatialGovernanceServiceTest {
         SiteAccessDecision result = service.evaluateSiteAccess(
                 1L, 9L, null, siteId, AccessPermission.VIEW);
 
-        assertThat(result.allowed()).isTrue();
-        assertThat(result.decision()).isEqualTo("ALLOW_COMPATIBILITY_DEFAULT");
+        assertThat(result.allowed()).isFalse();
+        assertThat(result.decision()).isEqualTo("DENY_NOT_CONFIGURED");
     }
 
     @Test

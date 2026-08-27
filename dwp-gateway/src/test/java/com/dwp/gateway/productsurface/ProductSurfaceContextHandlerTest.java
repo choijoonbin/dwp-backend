@@ -2,20 +2,30 @@ package com.dwp.gateway.productsurface;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.dwp.gateway.filter.VerifiedIdentityFilter;
+import com.dwp.observability.api.ApiHistoryAttributes;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.cloud.gateway.route.Route;
 import org.springframework.http.MediaType;
+import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
+import org.springframework.mock.web.server.MockServerWebExchange;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import reactor.core.publisher.Mono;
 
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.cloud.gateway.support.ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR;
 
 class ProductSurfaceContextHandlerTest {
 
@@ -23,6 +33,7 @@ class ProductSurfaceContextHandlerTest {
             mock(ProductSurfaceContextAggregationService.class);
 
     private WebTestClient client;
+    private WebTestClient directClient;
 
     @BeforeEach
     void setUp() {
@@ -30,7 +41,23 @@ class ProductSurfaceContextHandlerTest {
                 aggregation, new ObjectMapper().findAndRegisterModules());
         var routes = new ProductSurfaceContextRouterConfiguration()
                 .productSurfaceContextRoutes(handler);
-        client = WebTestClient.bindToRouterFunction(routes).build();
+        Map<String, Object> trustedMarkers = Arrays.stream(
+                        ProductSurfaceForwardingGuardFilter.Endpoint.values())
+                .collect(Collectors.toUnmodifiableMap(
+                        ProductSurfaceForwardingGuardFilter.Endpoint::handlerPath,
+                        this::trustedMarker));
+        client = WebTestClient.bindToRouterFunction(routes)
+                .webFilter((exchange, chain) -> {
+                    Object marker = trustedMarkers.get(exchange.getRequest().getURI().getPath());
+                    if (marker != null) {
+                        exchange.getAttributes().put(
+                                ProductSurfaceForwardingGuardFilter.FORWARDING_ATTRIBUTE,
+                                marker);
+                    }
+                    return chain.filter(exchange);
+                })
+                .build();
+        directClient = WebTestClient.bindToRouterFunction(routes).build();
     }
 
     @Test
@@ -141,11 +168,68 @@ class ProductSurfaceContextHandlerTest {
     }
 
     @Test
-    void refusesMissingVerifiedIdentityHeaders() {
+    void refusesAForwardWhoseIdentityNoLongerMatchesItsMarker() {
         client.get().uri(ProductSurfaceContextRouterConfiguration.CONTEXTS_HANDLER_PATH)
                 .exchange()
-                .expectStatus().isUnauthorized()
-                .expectBody()
-                .jsonPath("$.errorCode").isEqualTo("AUTHENTICATION_REQUIRED");
+                .expectStatus().isNotFound();
+
+        verify(aggregation, never()).listContexts(any());
+    }
+
+    @Test
+    void refusesDirectInternalUrisEvenWithSpoofedIdentityAndMarkerHeaders() {
+        directClient.get().uri(ProductSurfaceContextRouterConfiguration.CONTEXTS_HANDLER_PATH)
+                .headers(this::spoofInternalHeaders)
+                .exchange()
+                .expectStatus().isNotFound();
+        directClient.post()
+                .uri(ProductSurfaceContextRouterConfiguration.PRODUCT_EVALUATION_HANDLER_PATH)
+                .headers(this::spoofInternalHeaders)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{}")
+                .exchange()
+                .expectStatus().isNotFound();
+        directClient.post()
+                .uri(ProductSurfaceContextRouterConfiguration.GOVERNED_EVALUATION_HANDLER_PATH)
+                .headers(this::spoofInternalHeaders)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{}")
+                .exchange()
+                .expectStatus().isNotFound();
+
+        verify(aggregation, never()).listContexts(any());
+        verify(aggregation, never()).evaluateProduct(any(), any());
+        verify(aggregation, never()).evaluateGoverned(any(), any());
+    }
+
+    private Object trustedMarker(ProductSurfaceForwardingGuardFilter.Endpoint endpoint) {
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
+                .method(endpoint.method(), endpoint.externalPath())
+                .header(VerifiedIdentityFilter.USER_HEADER, "7")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "1")
+                .build());
+        exchange.getAttributes().put(ApiHistoryAttributes.ACTOR_TYPE, "USER");
+        exchange.getAttributes().put(ApiHistoryAttributes.ACTOR_ID, "7");
+        exchange.getAttributes().put(ApiHistoryAttributes.TENANT_ID, "1");
+        exchange.getAttributes().put(GATEWAY_ROUTE_ATTR, Route.async()
+                .id(endpoint.routeId())
+                .uri(endpoint.forwardUri())
+                .predicate(ignored -> true)
+                .build());
+        AtomicReference<Object> marker = new AtomicReference<>();
+
+        new ProductSurfaceForwardingGuardFilter().filter(exchange, forwarded -> {
+            marker.set(forwarded.getAttribute(
+                    ProductSurfaceForwardingGuardFilter.FORWARDING_ATTRIBUTE));
+            return Mono.empty();
+        }).block();
+
+        return Objects.requireNonNull(marker.get());
+    }
+
+    private void spoofInternalHeaders(org.springframework.http.HttpHeaders headers) {
+        headers.set(VerifiedIdentityFilter.USER_HEADER, "7");
+        headers.set(VerifiedIdentityFilter.TENANT_HEADER, "1");
+        headers.set(ProductSurfaceForwardingGuardFilter.FORWARDING_ATTRIBUTE, "spoofed");
     }
 }

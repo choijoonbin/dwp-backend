@@ -68,6 +68,8 @@ class AppAdminPresetOpenApiContractTest {
     void schemasExposeAuthoritativeResourceAndDashboardProjectionWithoutInference()
             throws IOException {
         JsonNode schemas = openApi("auth.json").path("components").path("schemas");
+        JsonNode gatewaySchemas = openApi("gateway-public.json")
+                .path("components").path("schemas");
 
         assertThat(fieldNames(schemas.path("AppAdminPreset").path("properties")))
                 .contains("presetCode", "productKey", "appResourceKey", "requestable",
@@ -86,6 +88,13 @@ class AppAdminPresetOpenApiContractTest {
                 .containsExactlyInAnyOrder("reason", "version");
         assertThat(fieldNames(schemas.path("Dashboard").path("properties")))
                 .contains("presetCatalog", "presetAssignments", "presetReviews");
+        assertThat(fieldNames(schemas.path("Assignment").path("properties")))
+                .contains("firstApproverBootstrapEligible");
+        assertThat(schemas.path("Assignment").path("properties")
+                .path("firstApproverBootstrapEligible").path("type").asText())
+                .isEqualTo("boolean");
+        assertThat(fieldNames(gatewaySchemas.path("auth_Assignment").path("properties")))
+                .contains("firstApproverBootstrapEligible");
         assertThat(fieldNames(schemas.path("CreateSelfServicePresetRequest")
                 .path("properties")))
                 .containsExactlyInAnyOrder(

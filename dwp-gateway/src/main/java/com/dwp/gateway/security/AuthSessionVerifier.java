@@ -103,16 +103,7 @@ public class AuthSessionVerifier implements SessionVerifier {
                                 .filter(data -> data != null
                                         && data.userId() != null
                                         && data.tenantId() != null)
-                                .map(data -> new VerifiedIdentity(
-                                        data.userId().toString(),
-                                        data.tenantId().toString(),
-                                        data.roles(),
-                                        authorities(data.permissions()),
-                                        groupRefs(data.groups()),
-                                        resourceRoles(data.resourceRoles()),
-                                        data.personPublicId(),
-                                        data.displayName(),
-                                        Boolean.TRUE.equals(data.legacyRoleFallbackAllowed())))
+                                .map(this::toVerifiedIdentity)
                                 .filter(identity -> !tenantAssertionPresent
                                         || requestedTenant.equals(identity.tenantId()));
                     }
@@ -123,6 +114,27 @@ public class AuthSessionVerifier implements SessionVerifier {
                     return response.createException().flatMap(Mono::error);
                 })
                 .timeout(timeout);
+    }
+
+    private VerifiedIdentity toVerifiedIdentity(MeData data) {
+        try {
+            return new VerifiedIdentity(
+                    data.userId().toString(),
+                    data.tenantId().toString(),
+                    data.roles(),
+                    authorities(data.permissions()),
+                    groupRefs(data.groups()),
+                    resourceRoles(data.resourceRoles()),
+                    data.personPublicId(),
+                    data.displayName(),
+                    Boolean.TRUE.equals(data.legacyRoleFallbackAllowed()),
+                    data.sessionFamilyId(),
+                    data.identityPlane());
+        } catch (IllegalArgumentException | NullPointerException exception) {
+            throw new IllegalStateException(
+                    "Auth /auth/me returned an invalid durable identity contract.",
+                    exception);
+        }
     }
 
     private String cacheKey(ServerHttpRequest request) {
@@ -154,6 +166,10 @@ public class AuthSessionVerifier implements SessionVerifier {
         }
         if (path.startsWith("/api/platform/v1/admin/saved-view-ownership")) {
             return "ADMIN.SAVED_VIEW_CUSTODY";
+        }
+        if (path.equals("/api/platform/v1/admin/navigation")
+                || path.startsWith("/api/platform/v1/admin/navigation/")) {
+            return "ADMIN.NAVIGATION";
         }
         if (path.startsWith("/api/people/v1/admin/workforce")) {
             return "ADMIN.WORKFORCE_ACCESS";
@@ -240,6 +256,15 @@ public class AuthSessionVerifier implements SessionVerifier {
         if (path.startsWith("/api/messaging/v1/")) {
             return "APP.MESSAGING";
         }
+        if (path.startsWith("/api/meetings/v1/admin/")) {
+            return "ADMIN.MEETINGS";
+        }
+        if (path.equals("/api/meetings/v1/home")) {
+            return "APP.MEETINGS,ADMIN.MEETINGS";
+        }
+        if (path.startsWith("/api/meetings/v1/")) {
+            return "APP.MEETINGS";
+        }
         if (path.startsWith("/api/notifications/v1/admin/")) {
             return "ADMIN.NOTIFICATION_";
         }
@@ -255,6 +280,11 @@ public class AuthSessionVerifier implements SessionVerifier {
         }
         if (path.startsWith("/api/agent/v1/admin/")) {
             return "ADMIN.DWAION_";
+        }
+        if (path.equals("/api/agent/v1/plans/preview")) {
+            return "APP.ASK,ADMIN.IDENTITY_DIRECTORY,ADMIN.APP_GOVERNANCE,"
+                    + "ADMIN.IDENTITY_PROVISIONING,ADMIN.NAVIGATION,"
+                    + "ACTION.WORKFORCE_DATA_OPERATIONS";
         }
         if (path.startsWith("/api/agent/v1/")) {
             return "APP.,ACTION.";
@@ -279,7 +309,7 @@ public class AuthSessionVerifier implements SessionVerifier {
         if (groups == null) return List.of();
         return groups.stream()
                 .filter(Objects::nonNull)
-                .flatMap(group -> java.util.stream.Stream.of(group.groupRef(), group.groupKey()))
+                .map(GroupData::groupRef)
                 .filter(Objects::nonNull)
                 .map(String::trim)
                 .filter(value -> !value.isBlank())
@@ -292,23 +322,12 @@ public class AuthSessionVerifier implements SessionVerifier {
         if (roles == null) return List.of();
         return roles.stream()
                 .filter(Objects::nonNull)
-                .map(role -> resourceRole(
+                .map(role -> ResourceRoleEvidence.canonicalOrNull(
                         role.responsibilityCode(), role.resourceSetKey()))
                 .filter(Objects::nonNull)
                 .distinct()
                 .sorted()
                 .toList();
-    }
-
-    private String resourceRole(String responsibilityCode, String resourceKey) {
-        if (responsibilityCode == null || resourceKey == null) return null;
-        String responsibility = responsibilityCode.trim().toUpperCase();
-        String resource = resourceKey.trim().toUpperCase();
-        if (!responsibility.matches("[A-Z][A-Z0-9_]{2,49}")
-                || !resource.matches("[A-Z][A-Z0-9_.-]{2,254}")) {
-            return null;
-        }
-        return responsibility + "@" + resource;
     }
 
     private String authority(String resourceKey, String permissionCode) {
@@ -350,7 +369,9 @@ public class AuthSessionVerifier implements SessionVerifier {
             List<PermissionData> permissions,
             List<GroupData> groups,
             List<ResourceRoleData> resourceRoles,
-            Boolean legacyRoleFallbackAllowed) {
+            Boolean legacyRoleFallbackAllowed,
+            String sessionFamilyId,
+            String identityPlane) {
     }
 
     private record GroupData(String groupRef, String groupKey, String displayName) {

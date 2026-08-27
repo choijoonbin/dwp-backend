@@ -14,7 +14,7 @@ class ProductAuthorizationAuthoritySupportTest {
 
     private static final List<String> ROLLOUT_PRODUCTS = List.of(
             "approvals", "calendar", "communications", "dwaion", "hcm", "mail",
-            "messaging", "notifications", "services", "spaces", "workplace");
+            "meetings", "messaging", "notifications", "services", "spaces", "workplace");
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 

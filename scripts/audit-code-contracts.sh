@@ -217,6 +217,13 @@ dwp-platform-server/src/main/java/com/dwp/services/platform/servicecenter/Servic
 dwp-platform-server/src/main/java/com/dwp/services/platform/servicecenter/ServiceCenterTypes.java|RequestPriority
 dwp-platform-server/src/main/java/com/dwp/services/platform/servicecenter/ServiceCenterTypes.java|RequestStatus
 dwp-approval-server/src/main/java/com/dwp/services/approval/api/ApprovalController.java|TaskView
+dwp-approval-server/src/main/java/com/dwp/services/approval/security/ApprovalPilotPepRegistry.java|ActiveAccessMode
+dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingCollaborationModels.java|ChatMessageState
+dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingCollaborationModels.java|HandRequestState
+dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingContentModels.java|BlockerCode
+dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingContentModels.java|NoticeState
+dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingContentModels.java|PlanState
+dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingContentModels.java|RecordingState
 dwp-messaging-server/src/main/java/com/dwp/services/messaging/collaboration/CollaborationDtos.java|ConversationType
 dwp-messaging-server/src/main/java/com/dwp/services/messaging/collaboration/CollaborationDtos.java|MemberRole
 dwp-messaging-server/src/main/java/com/dwp/services/messaging/collaboration/CollaborationDtos.java|SearchType
@@ -226,6 +233,13 @@ dwp-notification-server/src/main/java/com/dwp/services/notification/integration/
 dwp-platform-contracts/src/main/java/com/dwp/platform/contract/MailConnectorPort.java|Capability
 dwp-platform-contracts/src/main/java/com/dwp/platform/contract/MailConnectorPort.java|ProviderFamily
 dwp-platform-contracts/src/main/java/com/dwp/platform/contract/MailConnectorPort.java|ReadinessState
+dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java|FolderColor
+dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java|LifecycleAction
+dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java|ProviderSyncState
+dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java|RuleActionType
+dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java|RuleField
+dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java|RuleMatchMode
+dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java|RuleOperator
 dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|AdapterRuntimeState
 dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|Classification
 dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|ConnectionState
@@ -261,6 +275,59 @@ dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceT
 dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceTypes.java|ResourceType
 dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceTypes.java|SiteState
 dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceTypes.java|SiteType
+dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/internal/security/WidgetRegistryIngressFailure.java|WidgetRegistryIngressFailure
+dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/internal/security/WidgetRegistryCommandTrustPolicy.java|TargetContract
+dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/internal/security/WidgetRegistryInternalRoutes.java|ResolutionStatus
+dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/internal/security/WidgetRegistryInternalRoutes.java|Route
+dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/internal/security/WidgetRegistryTrustPorts.java|AssertionKind
+dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/internal/security/WidgetRegistryTrustPorts.java|ReplayDecision
+dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/internal/security/WidgetRegistryTrustPorts.java|VerificationFailure
+dwp-auth-server/src/main/java/com/dwp/services/auth/config/ProductAuthorizationOperationsSecurityConfig.java|Lane
+dwp-auth-server/src/main/java/com/dwp/services/auth/dto/GovernedRouteAuthorityDtos.java|Decision
+dwp-auth-server/src/main/java/com/dwp/services/auth/dto/ProductSurfaceAuthorityDtos.java|AccessMode
+dwp-auth-server/src/main/java/com/dwp/services/auth/dto/ProductSurfaceAuthorityDtos.java|AccessSource
+dwp-auth-server/src/main/java/com/dwp/services/auth/dto/ProductSurfaceAuthorityDtos.java|ActivationState
+dwp-auth-server/src/main/java/com/dwp/services/auth/dto/ProductSurfaceAuthorityDtos.java|CapabilityAuthorityMode
+dwp-auth-server/src/main/java/com/dwp/services/auth/dto/ProductSurfaceAuthorityDtos.java|Decision
+dwp-auth-server/src/main/java/com/dwp/services/auth/dto/ProductSurfaceAuthorityDtos.java|PolicyAuthorityMode
+dwp-auth-server/src/main/java/com/dwp/services/auth/dto/ProductSurfaceAuthorityDtos.java|ResponsibilityRequirement
+dwp-auth-server/src/main/java/com/dwp/services/auth/service/AccessReviewWorkService.java|PredicateState
+dwp-auth-server/src/main/java/com/dwp/services/auth/service/OidcStateStore.java|Purpose
+dwp-gateway/src/main/java/com/dwp/gateway/productsurface/GeneratedProductRouteCatalog.java|MatchStatus
+dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceContextDtos.java|AccessMode
+dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceContextDtos.java|AccessSource
+dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceContextDtos.java|AuthorityStatus
+dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceContextDtos.java|CapabilityAuthorityMode
+dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceContextDtos.java|Decision
+dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceContextDtos.java|GovernedDecision
+dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceContextDtos.java|PolicyAuthorityMode
+dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceForwardingGuardFilter.java|Endpoint
+dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceRolloutSafetyLatch.java|ApprovalStatus
+dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceRolloutSafetyLatch.java|LoadStatus
+dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingModels.java|AccessScope
+dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingModels.java|AttendanceState
+dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingModels.java|LifecycleState
+dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingModels.java|ParticipantRole
+dwp-notification-server/src/main/java/com/dwp/services/notification/realtime/NotificationChangeCause.java|NotificationChangeCause
+dwp-people-server/src/main/java/com/dwp/services/people/hr/HrDtos.java|DataBoundary
+dwp-people-server/src/main/java/com/dwp/services/people/security/ProductSurfaceEligibilityDtos.java|AccessMode
+dwp-people-server/src/main/java/com/dwp/services/people/security/ProductSurfaceEligibilityDtos.java|Decision
+dwp-people-server/src/main/java/com/dwp/services/people/workforce/WorkforceCandidateDtos.java|Eligibility
+dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|CalendarAccessLevel
+dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|CalendarSourceKind
+dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|CalendarSubscriptionPolicy
+dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|EventDetailLevel
+dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|EventImportance
+dwp-platform-server/src/main/java/com/dwp/services/platform/home/preference/HomePreferenceDtos.java|HomePreferenceIntegrityStatus
+dwp-platform-server/src/main/java/com/dwp/services/platform/observability/ProductSurfaceTelemetryDtos.java|DeviceClass
+dwp-platform-server/src/main/java/com/dwp/services/platform/observability/ProductSurfaceTelemetryDtos.java|ElapsedBucket
+dwp-platform-server/src/main/java/com/dwp/services/platform/observability/ProductSurfaceTelemetryDtos.java|PolicyKind
+dwp-platform-server/src/main/java/com/dwp/services/platform/observability/ProductSurfaceTelemetryDtos.java|ReasonCode
+dwp-platform-server/src/main/java/com/dwp/services/platform/observability/ProductSurfaceTelemetryDtos.java|ScopeKind
+dwp-platform-server/src/main/java/com/dwp/services/platform/observability/ProductSurfaceTelemetryDtos.java|TaskKind
+dwp-platform-server/src/main/java/com/dwp/services/platform/security/PlatformApprovalsAuthorizationContext.java|Mode
+dwp-provider-server/src/main/java/com/dwp/services/provider/provisioning/TenantMutationRepository.java|Completion
+dwp-provider-server/src/main/java/com/dwp/services/provider/provisioning/TenantMutationRepository.java|FailureDisposition
 ENUMS
   LC_ALL=C sort -o "$actual" "$actual"
   LC_ALL=C sort -o "$expected" "$expected"
@@ -401,6 +468,7 @@ dwp_provider|dwp-provider-server
 dwp_approval|dwp-approval-server
 dwp_space|dwp-space-server
 dwp_notification|dwp-notification-server
+dwp_meetings|dwp-meeting-server
 DATABASES
 
 psql_query "$PLATFORM_DB" "
@@ -675,6 +743,210 @@ assert_java_enum_codes 'productivity synchronization mode enum' \
 assert_java_enum_codes 'productivity synchronization run state enum' \
   'dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java' \
   'SyncRunState' 'name' 'PLATFORM.PRODUCTIVITY_SYNC_RUN.RUN_STATE'
+assert_java_enum_codes 'product authorization operation lane enum' \
+  'dwp-auth-server/src/main/java/com/dwp/services/auth/config/ProductAuthorizationOperationsSecurityConfig.java' \
+  'Lane' 'name' 'AUTH.PRODUCT_AUTHORIZATION.OPERATION_LANE'
+assert_java_enum_codes 'governed route decision enum' \
+  'dwp-auth-server/src/main/java/com/dwp/services/auth/dto/GovernedRouteAuthorityDtos.java' \
+  'Decision' 'name' 'AUTH.GOVERNED_ROUTE.DECISION'
+assert_java_enum_codes 'product surface access mode enum' \
+  'dwp-auth-server/src/main/java/com/dwp/services/auth/dto/ProductSurfaceAuthorityDtos.java' \
+  'AccessMode' 'name' 'AUTH.PRODUCT_SURFACE.ACCESS_MODE'
+assert_java_enum_codes 'product surface access source enum' \
+  'dwp-auth-server/src/main/java/com/dwp/services/auth/dto/ProductSurfaceAuthorityDtos.java' \
+  'AccessSource' 'name' 'AUTH.PRODUCT_SURFACE.ACCESS_SOURCE'
+assert_java_enum_codes 'product surface activation state enum' \
+  'dwp-auth-server/src/main/java/com/dwp/services/auth/dto/ProductSurfaceAuthorityDtos.java' \
+  'ActivationState' 'name' 'AUTH.PRODUCT_SURFACE.ACTIVATION_STATE'
+assert_java_enum_codes 'product surface capability authority mode enum' \
+  'dwp-auth-server/src/main/java/com/dwp/services/auth/dto/ProductSurfaceAuthorityDtos.java' \
+  'CapabilityAuthorityMode' 'name' 'AUTH.PRODUCT_SURFACE.CAPABILITY_AUTHORITY_MODE'
+assert_java_enum_codes 'product surface decision enum' \
+  'dwp-auth-server/src/main/java/com/dwp/services/auth/dto/ProductSurfaceAuthorityDtos.java' \
+  'Decision' 'name' 'AUTH.PRODUCT_SURFACE.DECISION'
+assert_java_enum_codes 'product surface policy authority mode enum' \
+  'dwp-auth-server/src/main/java/com/dwp/services/auth/dto/ProductSurfaceAuthorityDtos.java' \
+  'PolicyAuthorityMode' 'name' 'AUTH.PRODUCT_SURFACE.POLICY_AUTHORITY_MODE'
+assert_java_enum_codes 'product surface responsibility requirement enum' \
+  'dwp-auth-server/src/main/java/com/dwp/services/auth/dto/ProductSurfaceAuthorityDtos.java' \
+  'ResponsibilityRequirement' 'name' 'AUTH.PRODUCT_SURFACE.RESPONSIBILITY_REQUIREMENT'
+assert_java_enum_codes 'access review predicate state enum' \
+  'dwp-auth-server/src/main/java/com/dwp/services/auth/service/AccessReviewWorkService.java' \
+  'PredicateState' 'name' 'AUTH.ACCESS_REVIEW.PREDICATE_STATE'
+assert_java_enum_codes 'OIDC state purpose enum' \
+  'dwp-auth-server/src/main/java/com/dwp/services/auth/service/OidcStateStore.java' \
+  'Purpose' 'name' 'AUTH.OIDC_STATE.PURPOSE'
+assert_java_enum_codes 'gateway product route match status enum' \
+  'dwp-gateway/src/main/java/com/dwp/gateway/productsurface/GeneratedProductRouteCatalog.java' \
+  'MatchStatus' 'name' 'GATEWAY.PRODUCT_ROUTE.MATCH_STATUS'
+assert_java_enum_codes 'gateway product surface access mode enum' \
+  'dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceContextDtos.java' \
+  'AccessMode' 'name' 'AUTH.PRODUCT_SURFACE.ACCESS_MODE'
+assert_java_enum_codes 'gateway product surface access source enum' \
+  'dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceContextDtos.java' \
+  'AccessSource' 'name' 'AUTH.PRODUCT_SURFACE.ACCESS_SOURCE'
+assert_java_enum_codes 'gateway product surface authority status enum' \
+  'dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceContextDtos.java' \
+  'AuthorityStatus' 'name' 'GATEWAY.PRODUCT_SURFACE.AUTHORITY_STATUS'
+assert_java_enum_codes 'gateway product surface capability authority mode enum' \
+  'dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceContextDtos.java' \
+  'CapabilityAuthorityMode' 'name' 'AUTH.PRODUCT_SURFACE.CAPABILITY_AUTHORITY_MODE'
+assert_java_enum_codes 'gateway product surface decision enum' \
+  'dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceContextDtos.java' \
+  'Decision' 'name' 'AUTH.PRODUCT_SURFACE.DECISION'
+assert_java_enum_codes 'gateway governed product surface decision enum' \
+  'dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceContextDtos.java' \
+  'GovernedDecision' 'name' 'AUTH.GOVERNED_ROUTE.DECISION'
+assert_java_enum_codes 'gateway product surface policy authority mode enum' \
+  'dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceContextDtos.java' \
+  'PolicyAuthorityMode' 'name' 'AUTH.PRODUCT_SURFACE.POLICY_AUTHORITY_MODE'
+assert_java_enum_codes 'product surface forwarding endpoint enum' \
+  'dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceForwardingGuardFilter.java' \
+  'Endpoint' 'name' 'GATEWAY.PRODUCT_SURFACE.FORWARDING_ENDPOINT'
+assert_java_enum_codes 'product surface rollout approval status enum' \
+  'dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceRolloutSafetyLatch.java' \
+  'ApprovalStatus' 'name' 'GATEWAY.PRODUCT_SURFACE.ROLLOUT_APPROVAL_STATUS'
+assert_java_enum_codes 'product surface rollout load status enum' \
+  'dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceRolloutSafetyLatch.java' \
+  'LoadStatus' 'name' 'GATEWAY.PRODUCT_SURFACE.ROLLOUT_LOAD_STATUS'
+assert_java_enum_codes 'video meeting access scope enum' \
+  'dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingModels.java' \
+  'AccessScope' 'name' 'MEETING.VIDEO_MEETING.ACCESS_SCOPE'
+assert_java_enum_codes 'video meeting attendance state enum' \
+  'dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingModels.java' \
+  'AttendanceState' 'name' 'MEETING.VIDEO_MEETING.ATTENDANCE_STATE'
+assert_java_enum_codes 'video meeting lifecycle state enum' \
+  'dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingModels.java' \
+  'LifecycleState' 'name' 'MEETING.VIDEO_MEETING.LIFECYCLE_STATE'
+assert_java_enum_codes 'video meeting participant role enum' \
+  'dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingModels.java' \
+  'ParticipantRole' 'name' 'MEETING.VIDEO_MEETING.PARTICIPANT_ROLE'
+assert_java_enum_codes 'video meeting chat message state enum' \
+  'dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingCollaborationModels.java' \
+  'ChatMessageState' 'name' 'MEETING.VIDEO_MEETING.CHAT_MESSAGE_STATE'
+assert_java_enum_codes 'video meeting hand request state enum' \
+  'dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingCollaborationModels.java' \
+  'HandRequestState' 'name' 'MEETING.VIDEO_MEETING.HAND_REQUEST_STATE'
+assert_java_enum_codes 'video meeting content plan state enum' \
+  'dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingContentModels.java' \
+  'PlanState' 'name' 'MEETING.VIDEO_MEETING.CONTENT_PLAN_STATE'
+assert_java_enum_codes 'video meeting content notice state enum' \
+  'dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingContentModels.java' \
+  'NoticeState' 'name' 'MEETING.VIDEO_MEETING.CONTENT_NOTICE_STATE'
+assert_java_enum_codes 'video meeting recording state enum' \
+  'dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingContentModels.java' \
+  'RecordingState' 'name' 'MEETING.VIDEO_MEETING.RECORDING_STATE'
+assert_java_enum_codes 'video meeting content blocker code enum' \
+  'dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingContentModels.java' \
+  'BlockerCode' 'name' 'MEETING.VIDEO_MEETING.CONTENT_BLOCKER_CODE'
+assert_java_enum_codes 'mail folder color enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java' \
+  'FolderColor' 'name' 'PLATFORM.MAIL_FOLDERS.COLOR_TOKEN'
+assert_java_enum_codes 'mail folder provider synchronization state enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java' \
+  'ProviderSyncState' 'name' 'PLATFORM.MAIL_FOLDERS.PROVIDER_SYNC_STATE'
+assert_java_enum_codes 'mail rule provider synchronization state enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java' \
+  'ProviderSyncState' 'name' 'PLATFORM.MAIL_RULES.SYNCHRONIZATION_STATE'
+assert_java_enum_codes 'mail rule match mode enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java' \
+  'RuleMatchMode' 'name' 'PLATFORM.MAIL_RULES.MATCH_MODE'
+assert_java_enum_codes 'mail rule field enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java' \
+  'RuleField' 'name' 'PLATFORM.MAIL_ORGANIZATION.RULE_FIELD'
+assert_java_enum_codes 'mail rule operator enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java' \
+  'RuleOperator' 'name' 'PLATFORM.MAIL_ORGANIZATION.RULE_OPERATOR'
+assert_java_enum_codes 'mail rule action type enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java' \
+  'RuleActionType' 'name' 'PLATFORM.MAIL_ORGANIZATION.RULE_ACTION_TYPE'
+assert_java_enum_codes 'mail lifecycle action enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java' \
+  'LifecycleAction' 'name' 'PLATFORM.MAIL_ORGANIZATION.LIFECYCLE_ACTION'
+assert_java_enum_codes 'approval active product surface access mode enum' \
+  'dwp-approval-server/src/main/java/com/dwp/services/approval/security/ApprovalPilotPepRegistry.java' \
+  'ActiveAccessMode' 'name' 'AUTH.PRODUCT_SURFACE.ACCESS_MODE'
+assert_java_enum_codes 'Widget Registry ingress failure enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/internal/security/WidgetRegistryIngressFailure.java' \
+  'WidgetRegistryIngressFailure' 'name' 'PLATFORM.WIDGET_REGISTRY.INGRESS_FAILURE'
+assert_java_enum_codes 'Widget Registry command target contract enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/internal/security/WidgetRegistryCommandTrustPolicy.java' \
+  'TargetContract' 'name' 'PLATFORM.WIDGET_REGISTRY.COMMAND_TARGET_CONTRACT'
+assert_java_enum_codes 'Widget Registry route resolution status enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/internal/security/WidgetRegistryInternalRoutes.java' \
+  'ResolutionStatus' 'name' 'PLATFORM.WIDGET_REGISTRY.INTERNAL_ROUTE_RESOLUTION_STATUS'
+assert_java_enum_codes 'Widget Registry internal route enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/internal/security/WidgetRegistryInternalRoutes.java' \
+  'Route' 'name' 'PLATFORM.WIDGET_REGISTRY.INTERNAL_ROUTE'
+assert_java_enum_codes 'Widget Registry assertion kind enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/internal/security/WidgetRegistryTrustPorts.java' \
+  'AssertionKind' 'name' 'PLATFORM.WIDGET_REGISTRY.ASSERTION_KIND'
+assert_java_enum_codes 'Widget Registry replay decision enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/internal/security/WidgetRegistryTrustPorts.java' \
+  'ReplayDecision' 'name' 'PLATFORM.WIDGET_REGISTRY.REPLAY_DECISION'
+assert_java_enum_codes 'Widget Registry verification failure enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/internal/security/WidgetRegistryTrustPorts.java' \
+  'VerificationFailure' 'name' 'PLATFORM.WIDGET_REGISTRY.VERIFICATION_FAILURE'
+assert_java_enum_codes 'notification change cause enum' \
+  'dwp-notification-server/src/main/java/com/dwp/services/notification/realtime/NotificationChangeCause.java' \
+  'NotificationChangeCause' 'name' 'NOTIFICATION.CHANGE_CAUSE'
+assert_java_enum_codes 'HR data boundary enum' \
+  'dwp-people-server/src/main/java/com/dwp/services/people/hr/HrDtos.java' \
+  'DataBoundary' 'name' 'PEOPLE.HR.DATA_BOUNDARY'
+assert_java_enum_codes 'people product surface access mode enum' \
+  'dwp-people-server/src/main/java/com/dwp/services/people/security/ProductSurfaceEligibilityDtos.java' \
+  'AccessMode' 'name' 'AUTH.PRODUCT_SURFACE.ACCESS_MODE'
+assert_java_enum_codes 'people product surface eligibility decision enum' \
+  'dwp-people-server/src/main/java/com/dwp/services/people/security/ProductSurfaceEligibilityDtos.java' \
+  'Decision' 'name' 'PEOPLE.PRODUCT_SURFACE.ELIGIBILITY_DECISION'
+assert_java_enum_codes 'workforce candidate eligibility enum' \
+  'dwp-people-server/src/main/java/com/dwp/services/people/workforce/WorkforceCandidateDtos.java' \
+  'Eligibility' 'name' 'PEOPLE.WORKFORCE_CANDIDATE.ELIGIBILITY'
+assert_java_enum_codes 'calendar access level enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java' \
+  'CalendarAccessLevel' 'name' 'PLATFORM.CALENDAR.ACCESS_LEVEL'
+assert_java_enum_codes 'calendar source kind enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java' \
+  'CalendarSourceKind' 'name' 'PLATFORM.CALENDAR.SOURCE_KIND'
+assert_java_enum_codes 'calendar subscription policy enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java' \
+  'CalendarSubscriptionPolicy' 'name' 'PLATFORM.CAL_CALENDARS.SUBSCRIPTION_POLICY'
+assert_java_enum_codes 'calendar event detail level enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java' \
+  'EventDetailLevel' 'name' 'PLATFORM.CALENDAR.EVENT_DETAIL_LEVEL'
+assert_java_enum_codes 'calendar event importance enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java' \
+  'EventImportance' 'name' 'PLATFORM.CAL_EVENTS.IMPORTANCE'
+assert_java_enum_codes 'home preference integrity status enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/home/preference/HomePreferenceDtos.java' \
+  'HomePreferenceIntegrityStatus' 'name' 'PLATFORM.HOME_PREFERENCE.INTEGRITY_STATUS'
+assert_java_enum_codes 'product surface telemetry device class enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/observability/ProductSurfaceTelemetryDtos.java' \
+  'DeviceClass' 'name' 'PLATFORM.PLT_PRODUCT_SURFACE_UX_EVENT.DEVICE_CLASS'
+assert_java_enum_codes 'product surface telemetry elapsed bucket enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/observability/ProductSurfaceTelemetryDtos.java' \
+  'ElapsedBucket' 'name' 'PLATFORM.PLT_PRODUCT_SURFACE_UX_EVENT.ELAPSED_BUCKET'
+assert_java_enum_codes 'product surface telemetry policy kind enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/observability/ProductSurfaceTelemetryDtos.java' \
+  'PolicyKind' 'name' 'PLATFORM.PRODUCT_SURFACE_TELEMETRY.POLICY_KIND'
+assert_java_enum_codes 'product surface telemetry reason code enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/observability/ProductSurfaceTelemetryDtos.java' \
+  'ReasonCode' 'name' 'PLATFORM.PRODUCT_SURFACE_TELEMETRY.REASON_CODE'
+assert_java_enum_codes 'product surface telemetry scope kind enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/observability/ProductSurfaceTelemetryDtos.java' \
+  'ScopeKind' 'name' 'PLATFORM.PLT_PRODUCT_SURFACE_UX_EVENT.SCOPE_KIND'
+assert_java_enum_codes 'product surface telemetry task kind enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/observability/ProductSurfaceTelemetryDtos.java' \
+  'TaskKind' 'name' 'PLATFORM.PRODUCT_SURFACE_TELEMETRY.TASK_KIND'
+assert_java_enum_codes 'platform approvals authorization mode enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/security/PlatformApprovalsAuthorizationContext.java' \
+  'Mode' 'name' 'PLATFORM.APPROVALS.AUTHORIZATION_MODE'
+assert_java_enum_codes 'provider tenant mutation completion enum' \
+  'dwp-provider-server/src/main/java/com/dwp/services/provider/provisioning/TenantMutationRepository.java' \
+  'Completion' 'name' 'PROVIDER.TENANT_MUTATION.COMPLETION'
+assert_java_enum_codes 'provider tenant mutation failure disposition enum' \
+  'dwp-provider-server/src/main/java/com/dwp/services/provider/provisioning/TenantMutationRepository.java' \
+  'FailureDisposition' 'name' 'PROVIDER.TENANT_MUTATION.FAILURE_DISPOSITION'
 
 # API and JSON contracts do not have database CHECK constraints. These
 # manifests make their byte-for-byte values an explicit release gate.

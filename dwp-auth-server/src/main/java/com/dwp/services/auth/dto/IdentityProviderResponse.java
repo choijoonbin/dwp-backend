@@ -7,12 +7,7 @@ import lombok.Getter;
 @Builder
 public class IdentityProviderResponse {
 
-    private Long tenantId;
     private Boolean enabled;
     private String providerType;
     private String providerKey;
-    private String issuerUri;
-    private String authUrl;
-    private String metadataUrl;
-    private String clientId;
 }

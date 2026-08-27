@@ -155,6 +155,16 @@ class RoleDelegationPolicyServiceTest {
                         false, "ROLE_CONFLICT_AUDIT_INDEPENDENCE"));
     }
 
+    @Test
+    void rejectsProviderAndTenantRolesBeforePersistedConflictLookup() {
+        assertThat(service.evaluateAdditiveRoleSet(
+                        Set.of("PROVIDER_ADMIN"),
+                        Set.of("WORKSPACE_MEMBER")))
+                .isEqualTo(new RoleDelegationPolicyService.RoleSetDecision(
+                        false,
+                        "ROLE_CONFLICT_PROVIDER_TENANT_PLANE_SEPARATION"));
+    }
+
     private Role role(Long id, String code, boolean privileged) {
         return Role.builder()
                 .roleId(id)

@@ -1,5 +1,6 @@
 package com.dwp.services.people.provisioning;
 
+import com.dwp.core.provisioning.ProviderTenantCommand;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -31,5 +32,12 @@ public class PeopleTenantProvisioningController {
             @PathVariable UUID providerTenantId,
             @Valid @RequestBody PeopleTenantProvisioningDtos.UpdateLifecycleRequest request) {
         return service.lifecycle(providerTenantId, request);
+    }
+
+    @PostMapping("/{providerTenantId}/commands")
+    public ProviderTenantCommand.Receipt command(
+            @PathVariable UUID providerTenantId,
+            @RequestBody ProviderTenantCommand.Request request) {
+        return service.command(providerTenantId, request);
     }
 }

@@ -2,7 +2,7 @@
 
 Status: `in-app-pilot-and-tenant-governance-implemented`; production release gates remain open
 
-Last reviewed: 2026-08-24
+Last reviewed: 2026-08-27
 
 Canonical product and solution decision:
 [`R1 DWP Notification Platform 및 Omnichannel Delivery ADR`](../../../dwp-frontend/docs/03-architecture/R1%20DWP%20Notification%20Platform%20및%20Omnichannel%20Delivery%20ADR.md)
@@ -90,6 +90,14 @@ The reusable implementation baseline is:
 
 Producer onboarding is still contract-gated. A service does not become a notification producer
 merely because it writes an audit record or has a local application event.
+The required decision table, ownership split, Messaging reference implementation and release gate
+are defined in [`notification-producer-onboarding.md`](notification-producer-onboarding.md).
+
+The 2026-08-27 runtime follow-up found that browser reconnects could leave stale SSE emitters until
+timeout and exhaust the per-user connection quota. Streams now carry a stable browser client ID;
+a reconnect from the same client atomically supersedes its previous emitter before capacity is
+evaluated. A genuine capacity rejection returns a content-free `429` with `Retry-After`, so an SSE
+`Accept` header cannot turn it into a media-type serialization failure.
 
 ## Implemented Module
 

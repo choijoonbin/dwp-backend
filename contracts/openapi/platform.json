@@ -1189,6 +1189,87 @@
         },
         "type": "object"
       },
+      "ApiResponseCalendarCapabilities": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CalendarCapabilities"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseCalendarShare": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CalendarShare"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseCalendarSubscriptionResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CalendarSubscriptionResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseCaseClosureReport": {
         "properties": {
           "correlationId": {
@@ -1358,6 +1439,60 @@
           },
           "data": {
             "$ref": "#/components/schemas/CommunicationItem"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseCompanyCalendarSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CompanyCalendarSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseCompanyEventSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CompanyEventSummary"
           },
           "errorCode": {
             "type": "string"
@@ -1702,6 +1837,33 @@
         },
         "type": "object"
       },
+      "ApiResponseEventCapabilities": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/EventCapabilities"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseEventPage": {
         "properties": {
           "correlationId": {
@@ -1709,6 +1871,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/EventPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseEventPreferenceResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/EventPreferenceResponse"
           },
           "errorCode": {
             "type": "string"
@@ -1898,6 +2087,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/FloorPlanRevisionSnapshot"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseFolderSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FolderSummary"
           },
           "errorCode": {
             "type": "string"
@@ -2188,6 +2404,33 @@
         },
         "type": "object"
       },
+      "ApiResponseLifecycleResult": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/LifecycleResult"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseListAdminCatalogItem": {
         "properties": {
           "correlationId": {
@@ -2428,6 +2671,36 @@
         },
         "type": "object"
       },
+      "ApiResponseListCalendarShare": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/CalendarShare"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseListCalendarSummary": {
         "properties": {
           "correlationId": {
@@ -2436,6 +2709,66 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/CalendarSummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListCompanyCalendarSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/CompanyCalendarSummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListCompanyEventSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/CompanyEventSummary"
             },
             "type": "array"
           },
@@ -2496,6 +2829,36 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/Connector"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListCustodyCandidate": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/CustodyCandidate"
             },
             "type": "array"
           },
@@ -2796,6 +3159,36 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/IntegrityCheckpoint"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListOrphanLifecycleResult": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/OrphanLifecycleResult"
             },
             "type": "array"
           },
@@ -3238,6 +3631,36 @@
         },
         "type": "object"
       },
+      "ApiResponseListTrashedEventSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/TrashedEventSummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseListWorkItem": {
         "properties": {
           "correlationId": {
@@ -3635,6 +4058,60 @@
           },
           "data": {
             "$ref": "#/components/schemas/ManagedPreferencePolicy"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseOrganizationResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/OrganizationResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseOrphanLifecycleResult": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/OrphanLifecycleResult"
           },
           "errorCode": {
             "type": "string"
@@ -4276,6 +4753,60 @@
         },
         "type": "object"
       },
+      "ApiResponseRuleRunSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/RuleRunSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseRuleSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/RuleSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseRuntimeCodeSet": {
         "properties": {
           "correlationId": {
@@ -4411,6 +4942,33 @@
         },
         "type": "object"
       },
+      "ApiResponseSchedulingEvaluationResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SchedulingEvaluationResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseSharedInboxSummary": {
         "properties": {
           "correlationId": {
@@ -4526,6 +5084,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/TenantBrandingResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseTenantExperiencePreviewResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TenantExperiencePreviewResponse"
           },
           "errorCode": {
             "type": "string"
@@ -6130,6 +6715,9 @@
           "reason": {
             "type": "string"
           },
+          "reasonCode": {
+            "type": "string"
+          },
           "score": {
             "format": "int32",
             "type": "integer"
@@ -6275,6 +6863,32 @@
         },
         "type": "object"
       },
+      "BrandingConfiguration": {
+        "properties": {
+          "accentColor": {
+            "type": "string"
+          },
+          "logoConfigured": {
+            "type": "boolean"
+          },
+          "logoHeight": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "logoWidth": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "BrandingRevisionResponse": {
         "properties": {
           "accentColor": {
@@ -6361,8 +6975,187 @@
         },
         "type": "object"
       },
+      "CalendarCapabilities": {
+        "properties": {
+          "canCreateEvents": {
+            "type": "boolean"
+          },
+          "canDeleteCalendar": {
+            "type": "boolean"
+          },
+          "canEditCalendar": {
+            "type": "boolean"
+          },
+          "canManageSharing": {
+            "type": "boolean"
+          },
+          "canUnsubscribe": {
+            "type": "boolean"
+          },
+          "canViewDetails": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "CalendarShare": {
+        "properties": {
+          "accessLevel": {
+            "enum": [
+              "OWNER",
+              "MANAGE",
+              "EDIT",
+              "VIEW_DETAILS",
+              "VIEW_FREE_BUSY",
+              "EVENT_ATTENDEE",
+              "NONE"
+            ],
+            "type": "string"
+          },
+          "canViewPrivate": {
+            "type": "boolean"
+          },
+          "grantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "principalDisplayName": {
+            "type": "string"
+          },
+          "principalGroupRef": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "principalPersonPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "principalType": {
+            "type": "string"
+          },
+          "validUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "CalendarShareRequest": {
+        "properties": {
+          "accessLevel": {
+            "enum": [
+              "OWNER",
+              "MANAGE",
+              "EDIT",
+              "VIEW_DETAILS",
+              "VIEW_FREE_BUSY",
+              "EVENT_ATTENDEE",
+              "NONE"
+            ],
+            "type": "string"
+          },
+          "canViewPrivate": {
+            "type": "boolean"
+          },
+          "principalDisplayName": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "principalPersonPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "validUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "accessLevel",
+          "principalDisplayName",
+          "principalPersonPublicId",
+          "version"
+        ],
+        "type": "object"
+      },
+      "CalendarSubscriptionRequest": {
+        "properties": {
+          "colorOverride": {
+            "pattern": "^#[0-9A-Fa-f]{6}$",
+            "type": "string"
+          },
+          "displayOrder": {
+            "format": "int32",
+            "maximum": 10000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "favorite": {
+            "type": "boolean"
+          },
+          "selected": {
+            "type": "boolean"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "type": "object"
+      },
+      "CalendarSubscriptionResponse": {
+        "properties": {
+          "colorOverride": {
+            "type": "string"
+          },
+          "displayOrder": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "favorite": {
+            "type": "boolean"
+          },
+          "selected": {
+            "type": "boolean"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "CalendarSummary": {
         "properties": {
+          "accessLevel": {
+            "enum": [
+              "OWNER",
+              "MANAGE",
+              "EDIT",
+              "VIEW_DETAILS",
+              "VIEW_FREE_BUSY",
+              "EVENT_ATTENDEE",
+              "NONE"
+            ],
+            "type": "string"
+          },
           "calendarId": {
             "format": "uuid",
             "type": "string"
@@ -6370,14 +7163,56 @@
           "calendarKey": {
             "type": "string"
           },
+          "capabilities": {
+            "$ref": "#/components/schemas/CalendarCapabilities"
+          },
           "color": {
             "type": "string"
+          },
+          "displayOrder": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "favorite": {
+            "type": "boolean"
           },
           "name": {
             "type": "string"
           },
+          "ownerDisplayName": {
+            "type": "string"
+          },
+          "ownerPersonPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
           "selected": {
             "type": "boolean"
+          },
+          "sourceKind": {
+            "enum": [
+              "OWNED",
+              "COMPANY",
+              "SHARED",
+              "TEAM",
+              "RESOURCE"
+            ],
+            "type": "string"
+          },
+          "subscriptionPolicy": {
+            "enum": [
+              "REQUIRED",
+              "DEFAULT_ON",
+              "OPTIONAL"
+            ],
+            "type": "string"
+          },
+          "subscriptionVersion": {
+            "format": "int64",
+            "type": "integer"
           },
           "type": {
             "enum": [
@@ -6387,6 +7222,10 @@
               "SYSTEM"
             ],
             "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
           },
           "visibility": {
             "type": "string"
@@ -7204,6 +8043,197 @@
         },
         "type": "object"
       },
+      "CompanyCalendarRequest": {
+        "properties": {
+          "color": {
+            "minLength": 1,
+            "pattern": "^#[0-9A-Fa-f]{6}$",
+            "type": "string"
+          },
+          "key": {
+            "minLength": 1,
+            "pattern": "[a-z0-9][a-z0-9-]{2,79}",
+            "type": "string"
+          },
+          "nameEn": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "nameKo": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "color",
+          "key",
+          "nameEn",
+          "nameKo",
+          "version"
+        ],
+        "type": "object"
+      },
+      "CompanyCalendarSummary": {
+        "properties": {
+          "calendarId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "nameEn": {
+            "type": "string"
+          },
+          "nameKo": {
+            "type": "string"
+          },
+          "trashedEventCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "upcomingEventCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "CompanyEventSummary": {
+        "properties": {
+          "allDay": {
+            "type": "boolean"
+          },
+          "attendees": {
+            "items": {
+              "$ref": "#/components/schemas/Attendee"
+            },
+            "type": "array"
+          },
+          "calendarId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/EventCapabilities"
+          },
+          "conferenceUrl": {
+            "type": "string"
+          },
+          "deletedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "eventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "importance": {
+            "enum": [
+              "LOW",
+              "NORMAL",
+              "HIGH"
+            ],
+            "type": "string"
+          },
+          "legalHold": {
+            "type": "boolean"
+          },
+          "location": {
+            "type": "string"
+          },
+          "purgeAfter": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "recurrence": {
+            "enum": [
+              "NONE",
+              "DAILY",
+              "WEEKLY",
+              "MONTHLY"
+            ],
+            "type": "string"
+          },
+          "recurrenceInterval": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "recurrenceUntil": {
+            "format": "date",
+            "type": "string"
+          },
+          "responseRequired": {
+            "type": "boolean"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "CONFIRMED",
+              "TENTATIVE",
+              "CANCELLED"
+            ],
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "MEETING",
+              "FOCUS",
+              "TASK",
+              "OUT_OF_OFFICE",
+              "REMINDER"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "visibility": {
+            "enum": [
+              "DEFAULT",
+              "PUBLIC",
+              "PRIVATE",
+              "CONFIDENTIAL"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "CompatibilityRule": {
         "properties": {
           "contentSha256": {
@@ -7997,6 +9027,10 @@
             "minItems": 0,
             "type": "array"
           },
+          "calendarId": {
+            "format": "uuid",
+            "type": "string"
+          },
           "conferenceUrl": {
             "maxLength": 1000,
             "minLength": 0,
@@ -8013,6 +9047,14 @@
           },
           "idempotencyKey": {
             "format": "uuid",
+            "type": "string"
+          },
+          "importance": {
+            "enum": [
+              "LOW",
+              "NORMAL",
+              "HIGH"
+            ],
             "type": "string"
           },
           "location": {
@@ -8393,6 +9435,51 @@
           "name",
           "setKey"
         ],
+        "type": "object"
+      },
+      "CustodyCandidate": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "eligibilityStatus": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "identityPlane": {
+            "type": "string"
+          },
+          "ineligibilityReasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "jobTitle": {
+            "type": "string"
+          },
+          "personPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "publicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "tenantId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "userId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
         "type": "object"
       },
       "DecideExceptionRequest": {
@@ -9171,6 +10258,29 @@
         },
         "type": "object"
       },
+      "EventCapabilities": {
+        "properties": {
+          "canDelete": {
+            "type": "boolean"
+          },
+          "canEdit": {
+            "type": "boolean"
+          },
+          "canRespond": {
+            "type": "boolean"
+          },
+          "canRestore": {
+            "type": "boolean"
+          },
+          "canStar": {
+            "type": "boolean"
+          },
+          "canViewDetails": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "EventPage": {
         "properties": {
           "content": {
@@ -9193,6 +10303,40 @@
           },
           "totalPages": {
             "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "EventPreferenceRequest": {
+        "properties": {
+          "hidden": {
+            "type": "boolean"
+          },
+          "starred": {
+            "type": "boolean"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "type": "object"
+      },
+      "EventPreferenceResponse": {
+        "properties": {
+          "hidden": {
+            "type": "boolean"
+          },
+          "starred": {
+            "type": "boolean"
+          },
+          "version": {
+            "format": "int64",
             "type": "integer"
           }
         },
@@ -9332,6 +10476,9 @@
           "calendarName": {
             "type": "string"
           },
+          "capabilities": {
+            "$ref": "#/components/schemas/EventCapabilities"
+          },
           "conferenceUrl": {
             "type": "string"
           },
@@ -9341,12 +10488,27 @@
           "description": {
             "type": "string"
           },
+          "detailLevel": {
+            "enum": [
+              "FULL",
+              "FREE_BUSY"
+            ],
+            "type": "string"
+          },
           "endsAt": {
             "format": "date-time",
             "type": "string"
           },
           "eventId": {
             "format": "uuid",
+            "type": "string"
+          },
+          "importance": {
+            "enum": [
+              "LOW",
+              "NORMAL",
+              "HIGH"
+            ],
             "type": "string"
           },
           "location": {
@@ -9375,6 +10537,10 @@
             "format": "int64",
             "type": "integer"
           },
+          "preferenceVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
           "recurrence": {
             "enum": [
               "NONE",
@@ -9392,10 +10558,19 @@
             "format": "date",
             "type": "string"
           },
+          "redacted": {
+            "type": "boolean"
+          },
           "resource": {
             "$ref": "#/components/schemas/ResourceSummary"
           },
           "responseRequired": {
+            "type": "boolean"
+          },
+          "restrictionReason": {
+            "type": "string"
+          },
+          "starred": {
             "type": "boolean"
           },
           "startsAt": {
@@ -9911,6 +11086,140 @@
         ],
         "type": "object"
       },
+      "FolderCreateRequest": {
+        "properties": {
+          "accountId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "color": {
+            "enum": [
+              "NEUTRAL",
+              "BLUE",
+              "TEAL",
+              "GREEN",
+              "AMBER",
+              "CORAL",
+              "VIOLET"
+            ],
+            "type": "string"
+          },
+          "displayName": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "parentFolderId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "accountId",
+          "color",
+          "displayName"
+        ],
+        "type": "object"
+      },
+      "FolderSummary": {
+        "properties": {
+          "accountId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "color": {
+            "enum": [
+              "NEUTRAL",
+              "BLUE",
+              "TEAL",
+              "GREEN",
+              "AMBER",
+              "CORAL",
+              "VIOLET"
+            ],
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "folderId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "folderKey": {
+            "type": "string"
+          },
+          "folderType": {
+            "type": "string"
+          },
+          "parentFolderId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "sortOrder": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "synchronizationState": {
+            "enum": [
+              "LOCAL_ONLY",
+              "PENDING",
+              "SYNCED",
+              "ERROR"
+            ],
+            "type": "string"
+          },
+          "totalCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "unreadCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "FolderUpdateRequest": {
+        "properties": {
+          "color": {
+            "enum": [
+              "NEUTRAL",
+              "BLUE",
+              "TEAL",
+              "GREEN",
+              "AMBER",
+              "CORAL",
+              "VIOLET"
+            ],
+            "type": "string"
+          },
+          "displayName": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "parentFolderId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "color",
+          "displayName",
+          "version"
+        ],
+        "type": "object"
+      },
       "GovernedHomeZone": {
         "properties": {
           "height": {
@@ -10027,6 +11336,76 @@
         ],
         "type": "object"
       },
+      "HomeConfiguration": {
+        "properties": {
+          "backgroundConfigured": {
+            "type": "boolean"
+          },
+          "backgroundFocalX": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "backgroundFocalY": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "backgroundHeight": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "backgroundPosition": {
+            "type": "string"
+          },
+          "backgroundWidth": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "compositionPolicy": {
+            "$ref": "#/components/schemas/HomeCompositionPolicy"
+          },
+          "contentAlignment": {
+            "type": "string"
+          },
+          "defaultLocale": {
+            "type": "string"
+          },
+          "effectiveExperienceVariant": {
+            "type": "string"
+          },
+          "headline": {
+            "type": "string"
+          },
+          "launchpadConfiguration": {
+            "$ref": "#/components/schemas/HomeLaunchpadConfiguration"
+          },
+          "localizedContent": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/LocalizedCopy"
+            },
+            "type": "object"
+          },
+          "mobileBackgroundFocalX": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "mobileBackgroundFocalY": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "overlayOpacity": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "subheadline": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "HomeExperienceResponse": {
         "properties": {
           "advancedPersonalizationEnabled": {
@@ -10034,6 +11413,14 @@
           },
           "backgroundContentType": {
             "type": "string"
+          },
+          "backgroundFocalX": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "backgroundFocalY": {
+            "format": "int32",
+            "type": "integer"
           },
           "backgroundHeight": {
             "format": "int32",
@@ -10061,6 +11448,14 @@
           },
           "compositionPolicy": {
             "$ref": "#/components/schemas/HomeCompositionPolicy"
+          },
+          "contentAlignment": {
+            "enum": [
+              "LEFT",
+              "CENTER",
+              "RIGHT"
+            ],
+            "type": "string"
           },
           "defaultLocale": {
             "type": "string"
@@ -10091,6 +11486,14 @@
             },
             "type": "object"
           },
+          "mobileBackgroundFocalX": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "mobileBackgroundFocalY": {
+            "format": "int32",
+            "type": "integer"
+          },
           "overlayOpacity": {
             "format": "int32",
             "type": "integer"
@@ -10113,12 +11516,17 @@
         },
         "required": [
           "advancedPersonalizationEnabled",
+          "backgroundFocalX",
+          "backgroundFocalY",
           "backgroundPosition",
           "composerEnabled",
           "compositionPolicy",
+          "contentAlignment",
           "effectiveExperienceVariant",
           "homePreferenceStore",
           "launchpadConfiguration",
+          "mobileBackgroundFocalX",
+          "mobileBackgroundFocalY",
           "overlayOpacity",
           "version"
         ],
@@ -10126,6 +11534,19 @@
       },
       "HomeExperienceRevisionResponse": {
         "properties": {
+          "affectedScopes": {
+            "description": "Aggregate scopes that a rollback to this revision replaces.",
+            "enum": [
+              "PRESENTATION",
+              "BACKGROUND_ASSET",
+              "LAUNCHPAD",
+              "COMPOSITION"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "backgroundHeight": {
             "format": "int32",
             "type": "integer"
@@ -10963,14 +12384,42 @@
       },
       "LifecycleRequest": {
         "properties": {
+          "action": {
+            "enum": [
+              "MOVE",
+              "ARCHIVE",
+              "TRASH",
+              "SPAM",
+              "RESTORE",
+              "DELETE_FOREVER"
+            ],
+            "type": "string"
+          },
+          "targetFolderId": {
+            "format": "uuid",
+            "type": "string"
+          },
           "version": {
             "format": "int64",
+            "minimum": 0,
             "type": "integer"
           }
         },
         "required": [
+          "action",
           "version"
         ],
+        "type": "object"
+      },
+      "LifecycleResult": {
+        "properties": {
+          "deleted": {
+            "type": "boolean"
+          },
+          "thread": {
+            "$ref": "#/components/schemas/ThreadSummary"
+          }
+        },
         "type": "object"
       },
       "LocalizedCopy": {
@@ -11141,6 +12590,231 @@
         },
         "type": "object"
       },
+      "OrganizationResponse": {
+        "properties": {
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/AccountSummary"
+            },
+            "type": "array"
+          },
+          "folders": {
+            "items": {
+              "$ref": "#/components/schemas/FolderSummary"
+            },
+            "type": "array"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "recentRuns": {
+            "items": {
+              "$ref": "#/components/schemas/RuleRunSummary"
+            },
+            "type": "array"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/RuleSummary"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "OrphanArchiveRequest": {
+        "properties": {
+          "idempotencyKey": {
+            "maxLength": 120,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "type": "string"
+          },
+          "reasonCode": {
+            "maxLength": 40,
+            "minLength": 0,
+            "type": "string"
+          },
+          "sourceReference": {
+            "maxLength": 240,
+            "minLength": 3,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "idempotencyKey",
+          "reason",
+          "reasonCode",
+          "sourceReference"
+        ],
+        "type": "object"
+      },
+      "OrphanLifecycleResult": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          },
+          "newLifecycleState": {
+            "type": "string"
+          },
+          "nextRetentionUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "previousLifecycleState": {
+            "type": "string"
+          },
+          "previousRetentionUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "previousVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "reasonCode": {
+            "type": "string"
+          },
+          "requestFingerprint": {
+            "type": "string"
+          },
+          "resultingVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "savedViewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "savedViewName": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "sourceReference": {
+            "type": "string"
+          },
+          "surfaceKey": {
+            "type": "string"
+          },
+          "targetOwnerDisplayName": {
+            "type": "string"
+          },
+          "targetOwnerUserId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "OrphanReassignRequest": {
+        "properties": {
+          "idempotencyKey": {
+            "maxLength": 120,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "type": "string"
+          },
+          "reasonCode": {
+            "maxLength": 40,
+            "minLength": 0,
+            "type": "string"
+          },
+          "sourceReference": {
+            "maxLength": 240,
+            "minLength": 3,
+            "type": "string"
+          },
+          "targetOwnerUserId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "idempotencyKey",
+          "reason",
+          "reasonCode",
+          "sourceReference",
+          "targetOwnerUserId"
+        ],
+        "type": "object"
+      },
+      "OrphanRetentionRequest": {
+        "properties": {
+          "idempotencyKey": {
+            "maxLength": 120,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "type": "string"
+          },
+          "reasonCode": {
+            "maxLength": 40,
+            "minLength": 0,
+            "type": "string"
+          },
+          "retentionUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "sourceReference": {
+            "maxLength": 240,
+            "minLength": 3,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "idempotencyKey",
+          "reason",
+          "reasonCode",
+          "retentionUntil",
+          "sourceReference"
+        ],
+        "type": "object"
+      },
       "OrphanedView": {
         "properties": {
           "name": {
@@ -11148,6 +12822,9 @@
           },
           "ownerGroupRef": {
             "format": "uuid",
+            "type": "string"
+          },
+          "reassignmentBlockReason": {
             "type": "string"
           },
           "retentionUntil": {
@@ -11167,6 +12844,10 @@
           "updatedAt": {
             "format": "date-time",
             "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -11242,6 +12923,28 @@
         },
         "type": "object"
       },
+      "OwnershipNameConflict": {
+        "properties": {
+          "existingTargetName": {
+            "type": "string"
+          },
+          "existingTargetSavedViewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "incomingName": {
+            "type": "string"
+          },
+          "incomingSavedViewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "surfaceKey": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "OwnershipPlanRequest": {
         "properties": {
           "disposition": {
@@ -11251,7 +12954,7 @@
           },
           "reason": {
             "maxLength": 1000,
-            "minLength": 0,
+            "minLength": 10,
             "type": "string"
           },
           "reasonCode": {
@@ -11269,7 +12972,7 @@
           },
           "sourceReference": {
             "maxLength": 240,
-            "minLength": 0,
+            "minLength": 3,
             "type": "string"
           },
           "targetOwnerUserId": {
@@ -11298,6 +13001,12 @@
           "evaluatedAt": {
             "format": "date-time",
             "type": "string"
+          },
+          "nameConflicts": {
+            "items": {
+              "$ref": "#/components/schemas/OwnershipNameConflict"
+            },
+            "type": "array"
           },
           "ownershipFingerprint": {
             "type": "string"
@@ -11342,6 +13051,9 @@
           "ownershipFingerprint": {
             "type": "string"
           },
+          "reason": {
+            "type": "string"
+          },
           "reasonCode": {
             "type": "string"
           },
@@ -11352,11 +13064,17 @@
             "format": "date-time",
             "type": "string"
           },
+          "sourceOwnerDisplayName": {
+            "type": "string"
+          },
           "sourceOwnerUserId": {
             "format": "int64",
             "type": "integer"
           },
           "sourceReference": {
+            "type": "string"
+          },
+          "targetOwnerDisplayName": {
             "type": "string"
           },
           "targetOwnerUserId": {
@@ -11397,7 +13115,7 @@
           },
           "reason": {
             "maxLength": 1000,
-            "minLength": 0,
+            "minLength": 10,
             "type": "string"
           },
           "reasonCode": {
@@ -11415,7 +13133,7 @@
           },
           "sourceReference": {
             "maxLength": 240,
-            "minLength": 0,
+            "minLength": 3,
             "type": "string"
           },
           "targetOwnerUserId": {
@@ -11447,6 +13165,9 @@
           "disposition": {
             "type": "string"
           },
+          "reason": {
+            "type": "string"
+          },
           "reasonCode": {
             "type": "string"
           },
@@ -11454,11 +13175,17 @@
             "format": "date-time",
             "type": "string"
           },
+          "sourceOwnerDisplayName": {
+            "type": "string"
+          },
           "sourceOwnerUserId": {
             "format": "int64",
             "type": "integer"
           },
           "sourceReference": {
+            "type": "string"
+          },
+          "targetOwnerDisplayName": {
             "type": "string"
           },
           "targetOwnerUserId": {
@@ -12558,6 +14285,43 @@
         },
         "type": "object"
       },
+      "Receipt": {
+        "properties": {
+          "appliedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "commandType": {
+            "type": "string"
+          },
+          "expectedRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "payloadSha256": {
+            "type": "string"
+          },
+          "providerTenantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "result": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "targetRevision": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "Recommendation": {
         "properties": {
           "actionPath": {
@@ -13019,6 +14783,32 @@
           "body",
           "idempotencyKey"
         ],
+        "type": "object"
+      },
+      "Request": {
+        "properties": {
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "commandType": {
+            "type": "string"
+          },
+          "expectedRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "payloadSha256": {
+            "type": "string"
+          },
+          "targetRevision": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
         "type": "object"
       },
       "RequestDetail": {
@@ -13599,6 +15389,290 @@
         },
         "type": "object"
       },
+      "RuleAction": {
+        "properties": {
+          "folderId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "importance": {
+            "enum": [
+              "LOW",
+              "NORMAL",
+              "HIGH",
+              "URGENT"
+            ],
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "MOVE_TO_FOLDER",
+              "MARK_READ",
+              "STAR",
+              "SET_IMPORTANCE"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "RuleCondition": {
+        "properties": {
+          "field": {
+            "enum": [
+              "SENDER",
+              "RECIPIENT",
+              "SUBJECT",
+              "BODY",
+              "HAS_ATTACHMENT",
+              "IMPORTANCE"
+            ],
+            "type": "string"
+          },
+          "operator": {
+            "enum": [
+              "CONTAINS",
+              "EQUALS",
+              "STARTS_WITH",
+              "ENDS_WITH",
+              "IS"
+            ],
+            "type": "string"
+          },
+          "value": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "field",
+          "operator",
+          "value"
+        ],
+        "type": "object"
+      },
+      "RuleCreateRequest": {
+        "properties": {
+          "accountId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/RuleAction"
+            },
+            "maxItems": 8,
+            "minItems": 0,
+            "type": "array"
+          },
+          "conditions": {
+            "items": {
+              "$ref": "#/components/schemas/RuleCondition"
+            },
+            "maxItems": 10,
+            "minItems": 0,
+            "type": "array"
+          },
+          "displayName": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "matchMode": {
+            "enum": [
+              "ALL",
+              "ANY"
+            ],
+            "type": "string"
+          },
+          "priority": {
+            "format": "int32",
+            "maximum": 10000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "stopProcessing": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "accountId",
+          "actions",
+          "conditions",
+          "displayName",
+          "matchMode"
+        ],
+        "type": "object"
+      },
+      "RuleRunSummary": {
+        "properties": {
+          "changedCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "matchedCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "ruleId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "runId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "scannedCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "triggerKind": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RuleSummary": {
+        "properties": {
+          "accountId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/RuleAction"
+            },
+            "type": "array"
+          },
+          "conditions": {
+            "items": {
+              "$ref": "#/components/schemas/RuleCondition"
+            },
+            "type": "array"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "lastMatchCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "lastRunAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "matchMode": {
+            "enum": [
+              "ALL",
+              "ANY"
+            ],
+            "type": "string"
+          },
+          "priority": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "ruleId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "stopProcessing": {
+            "type": "boolean"
+          },
+          "synchronizationState": {
+            "enum": [
+              "LOCAL_ONLY",
+              "PENDING",
+              "SYNCED",
+              "ERROR"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "RuleUpdateRequest": {
+        "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/RuleAction"
+            },
+            "maxItems": 8,
+            "minItems": 0,
+            "type": "array"
+          },
+          "conditions": {
+            "items": {
+              "$ref": "#/components/schemas/RuleCondition"
+            },
+            "maxItems": 10,
+            "minItems": 0,
+            "type": "array"
+          },
+          "displayName": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "matchMode": {
+            "enum": [
+              "ALL",
+              "ANY"
+            ],
+            "type": "string"
+          },
+          "priority": {
+            "format": "int32",
+            "maximum": 10000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "stopProcessing": {
+            "type": "boolean"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "actions",
+          "conditions",
+          "displayName",
+          "matchMode",
+          "version"
+        ],
+        "type": "object"
+      },
       "RuntimeCodeSet": {
         "properties": {
           "codeSetKey": {
@@ -13990,6 +16064,108 @@
           "version": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SchedulingEvaluationRequest": {
+        "properties": {
+          "durationMinutes": {
+            "format": "int32",
+            "maximum": 1440,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "from": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "personIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 19,
+            "minItems": 0,
+            "type": "array"
+          },
+          "roomEndsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "roomStartsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "timeZone": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "to": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "personIds",
+          "roomEndsAt",
+          "roomStartsAt",
+          "timeZone",
+          "to"
+        ],
+        "type": "object"
+      },
+      "SchedulingEvaluationResponse": {
+        "properties": {
+          "availability": {
+            "$ref": "#/components/schemas/AvailabilityResponse"
+          },
+          "completeness": {
+            "type": "string"
+          },
+          "criteriaHash": {
+            "type": "string"
+          },
+          "evaluationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "rooms": {
+            "items": {
+              "$ref": "#/components/schemas/ResourceSummary"
+            },
+            "type": "array"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SchedulingEvaluationSource"
+            },
+            "type": "array"
+          },
+          "validUntil": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SchedulingEvaluationSource": {
+        "properties": {
+          "lastSuccessfulSyncAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "sourceType": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -14722,6 +16898,33 @@
         },
         "type": "object"
       },
+      "TenantExperiencePreviewResponse": {
+        "properties": {
+          "branding": {
+            "$ref": "#/components/schemas/BrandingConfiguration"
+          },
+          "contractVersion": {
+            "type": "string"
+          },
+          "excludedData": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "home": {
+            "$ref": "#/components/schemas/HomeConfiguration"
+          },
+          "previewMode": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "TenantPolicy": {
         "properties": {
           "aiAssistanceEnabled": {
@@ -14983,7 +17186,9 @@
               "DONE",
               "SNOOZED",
               "ARCHIVED",
-              "DRAFT"
+              "DRAFT",
+              "TRASHED",
+              "SPAM"
             ],
             "type": "string"
           }
@@ -15080,6 +17285,83 @@
         ],
         "type": "object"
       },
+      "TrashEventRequest": {
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "type": "object"
+      },
+      "TrashedEventSummary": {
+        "properties": {
+          "calendarColor": {
+            "type": "string"
+          },
+          "calendarId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "calendarName": {
+            "type": "string"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/EventCapabilities"
+          },
+          "deletedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "deletionReason": {
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "eventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "importance": {
+            "enum": [
+              "LOW",
+              "NORMAL",
+              "HIGH"
+            ],
+            "type": "string"
+          },
+          "legalHold": {
+            "type": "boolean"
+          },
+          "purgeAfter": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "UpdateAnnouncementRequest": {
         "properties": {
           "definition": {
@@ -15171,6 +17453,14 @@
           },
           "endsAt": {
             "format": "date-time",
+            "type": "string"
+          },
+          "importance": {
+            "enum": [
+              "LOW",
+              "NORMAL",
+              "HIGH"
+            ],
             "type": "string"
           },
           "location": {
@@ -15275,7 +17565,23 @@
       },
       "UpdateHomeExperienceRequest": {
         "properties": {
+          "backgroundFocalX": {
+            "format": "int32",
+            "maximum": 100,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "backgroundFocalY": {
+            "format": "int32",
+            "maximum": 100,
+            "minimum": 0,
+            "type": "integer"
+          },
           "backgroundPosition": {
+            "pattern": "LEFT|CENTER|RIGHT",
+            "type": "string"
+          },
+          "contentAlignment": {
             "pattern": "LEFT|CENTER|RIGHT",
             "type": "string"
           },
@@ -15293,6 +17599,18 @@
               "$ref": "#/components/schemas/LocalizedCopy"
             },
             "type": "object"
+          },
+          "mobileBackgroundFocalX": {
+            "format": "int32",
+            "maximum": 100,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "mobileBackgroundFocalY": {
+            "format": "int32",
+            "maximum": 100,
+            "minimum": 0,
+            "type": "integer"
           },
           "overlayOpacity": {
             "format": "int32",
@@ -17384,7 +19702,7 @@
     },
     "/internal/provider/v1/code-catalog/code-sets/{codeSetKey}": {
       "get": {
-        "operationId": "get_11",
+        "operationId": "get_12",
         "parameters": [
           {
             "in": "path",
@@ -17481,6 +19799,47 @@
         ]
       }
     },
+    "/internal/provider/v1/tenants/{providerTenantId}/commands": {
+      "post": {
+        "operationId": "command",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "providerTenantId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Request"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform-tenant-provisioning-controller"
+        ]
+      }
+    },
     "/internal/provider/v1/tenants/{providerTenantId}/entitlements": {
       "put": {
         "operationId": "replaceEntitlements",
@@ -17524,7 +19883,7 @@
     },
     "/internal/provider/v1/tenants/{providerTenantId}/lifecycle": {
       "patch": {
-        "operationId": "lifecycle",
+        "operationId": "lifecycle_1",
         "parameters": [
           {
             "in": "path",
@@ -17722,7 +20081,7 @@
     },
     "/v1/admin/announcements/{announcementId}/publish": {
       "post": {
-        "operationId": "publish_3",
+        "operationId": "publish_4",
         "parameters": [
           {
             "in": "header",
@@ -17771,7 +20130,7 @@
     },
     "/v1/admin/api-history/events": {
       "get": {
-        "operationId": "events_2",
+        "operationId": "events_3",
         "parameters": [
           {
             "in": "query",
@@ -18658,7 +21017,7 @@
     },
     "/v1/admin/audit-control/events": {
       "get": {
-        "operationId": "events_1",
+        "operationId": "events_2",
         "parameters": [
           {
             "in": "query",
@@ -19511,6 +21870,418 @@
         },
         "tags": [
           "admin-calendar-controller"
+        ]
+      }
+    },
+    "/v1/admin/calendar/company-calendars": {
+      "get": {
+        "operationId": "calendars",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListCompanyCalendarSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "company-calendar-admin-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createCalendar",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompanyCalendarRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCompanyCalendarSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "company-calendar-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/calendar/company-calendars/{calendarId}": {
+      "put": {
+        "operationId": "updateCalendar",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "calendarId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompanyCalendarRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCompanyCalendarSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "company-calendar-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/calendar/company-calendars/{calendarId}/events": {
+      "get": {
+        "operationId": "events_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "calendarId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "deleted",
+            "required": false,
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListCompanyEventSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "company-calendar-admin-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createEvent",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "calendarId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateEventRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCompanyEventSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "company-calendar-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/calendar/company-calendars/{calendarId}/events/{eventId}": {
+      "put": {
+        "operationId": "updateEvent",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "calendarId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "eventId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateEventRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCompanyEventSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "company-calendar-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/calendar/company-calendars/{calendarId}/events/{eventId}/restore": {
+      "post": {
+        "operationId": "restoreEvent_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "calendarId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "eventId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCompanyEventSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "company-calendar-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/calendar/company-calendars/{calendarId}/events/{eventId}/trash": {
+      "post": {
+        "operationId": "trashEvent_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "calendarId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "eventId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrashEventRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCompanyEventSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "company-calendar-admin-controller"
         ]
       }
     },
@@ -20613,6 +23384,60 @@
             }
           },
           "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseHomeExperienceResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-home-experience-controller"
+        ]
+      }
+    },
+    "/v1/admin/home-experience/publish": {
+      "post": {
+        "operationId": "publish_3",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "format": "binary",
+                    "type": "string"
+                  },
+                  "resetBackground": {
+                    "type": "boolean"
+                  },
+                  "settings": {
+                    "$ref": "#/components/schemas/UpdateHomeExperienceRequest"
+                  }
+                },
+                "required": [
+                  "settings"
+                ],
+                "type": "object"
+              }
+            }
+          }
         },
         "responses": {
           "200": {
@@ -23548,6 +26373,185 @@
         ]
       }
     },
+    "/v1/admin/saved-view-ownership/orphaned/actions": {
+      "get": {
+        "operationId": "orphanActions",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListOrphanLifecycleResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-saved-view-ownership-controller"
+        ]
+      }
+    },
+    "/v1/admin/saved-view-ownership/orphaned/{savedViewId}/archive": {
+      "post": {
+        "operationId": "archiveOrphanNow",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "savedViewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrphanArchiveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOrphanLifecycleResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-saved-view-ownership-controller"
+        ]
+      }
+    },
+    "/v1/admin/saved-view-ownership/orphaned/{savedViewId}/extend-retention": {
+      "post": {
+        "operationId": "extendOrphanRetention",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "savedViewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrphanRetentionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOrphanLifecycleResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-saved-view-ownership-controller"
+        ]
+      }
+    },
+    "/v1/admin/saved-view-ownership/orphaned/{savedViewId}/reassign": {
+      "post": {
+        "operationId": "reassignOrphan",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "savedViewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrphanReassignRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOrphanLifecycleResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-saved-view-ownership-controller"
+        ]
+      }
+    },
     "/v1/admin/saved-view-ownership/preview": {
       "post": {
         "operationId": "preview",
@@ -23638,6 +26642,74 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOwnershipTransfer"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-saved-view-ownership-controller"
+        ]
+      }
+    },
+    "/v1/admin/saved-view-ownership/users": {
+      "get": {
+        "operationId": "users",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "activeOnly",
+            "required": false,
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sourceOwnerUserId",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "savedViewId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListCustodyCandidate"
                 }
               }
             },
@@ -24133,6 +27205,27 @@
         },
         "tags": [
           "admin-tenant-branding-controller"
+        ]
+      }
+    },
+    "/v1/admin/tenant-experience-preview": {
+      "get": {
+        "operationId": "get_11",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTenantExperiencePreviewResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "tenant-experience-preview-controller"
         ]
       }
     },
@@ -26686,7 +29779,7 @@
     },
     "/v1/calendar/calendars": {
       "get": {
-        "operationId": "calendars",
+        "operationId": "calendars_1",
         "parameters": [
           {
             "in": "header",
@@ -26711,6 +29804,233 @@
         },
         "tags": [
           "calendar-controller"
+        ]
+      }
+    },
+    "/v1/calendar/calendars/{calendarId}/capabilities": {
+      "get": {
+        "operationId": "calendarCapabilities",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "calendarId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCalendarCapabilities"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-collaboration-controller"
+        ]
+      }
+    },
+    "/v1/calendar/calendars/{calendarId}/shares": {
+      "get": {
+        "operationId": "listShares",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "calendarId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListCalendarShare"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-collaboration-controller"
+        ]
+      }
+    },
+    "/v1/calendar/calendars/{calendarId}/shares/{grantId}": {
+      "delete": {
+        "operationId": "revokeShare",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "calendarId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "grantId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-collaboration-controller"
+        ]
+      }
+    },
+    "/v1/calendar/calendars/{calendarId}/shares/{sharedPersonPublicId}": {
+      "put": {
+        "operationId": "upsertPersonShare",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "calendarId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sharedPersonPublicId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalendarShareRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCalendarShare"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-collaboration-controller"
+        ]
+      }
+    },
+    "/v1/calendar/calendars/{calendarId}/subscription": {
+      "put": {
+        "operationId": "updateSubscription",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "calendarId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalendarSubscriptionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCalendarSubscriptionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-collaboration-controller"
         ]
       }
     },
@@ -26922,6 +30242,86 @@
         ]
       }
     },
+    "/v1/calendar/events/{eventId}/capabilities": {
+      "get": {
+        "operationId": "eventCapabilities",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "eventId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEventCapabilities"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-collaboration-controller"
+        ]
+      }
+    },
+    "/v1/calendar/events/{eventId}/preference": {
+      "put": {
+        "operationId": "updateEventPreference",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "eventId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EventPreferenceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEventPreferenceResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-collaboration-controller"
+        ]
+      }
+    },
     "/v1/calendar/events/{eventId}/response": {
       "post": {
         "operationId": "respond",
@@ -26979,6 +30379,104 @@
         ]
       }
     },
+    "/v1/calendar/events/{eventId}/restore": {
+      "post": {
+        "operationId": "restoreEvent",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "eventId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEventCapabilities"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-collaboration-controller"
+        ]
+      }
+    },
+    "/v1/calendar/events/{eventId}/trash": {
+      "post": {
+        "operationId": "trashEvent",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "eventId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrashEventRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEventCapabilities"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-collaboration-controller"
+        ]
+      }
+    },
     "/v1/calendar/home": {
       "get": {
         "operationId": "home_1",
@@ -27007,6 +30505,27 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseHomeResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-controller"
+        ]
+      }
+    },
+    "/v1/calendar/policy": {
+      "get": {
+        "operationId": "calendarPolicy",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePolicy"
                 }
               }
             },
@@ -27063,6 +30582,76 @@
         },
         "tags": [
           "calendar-controller"
+        ]
+      }
+    },
+    "/v1/calendar/scheduling/evaluations": {
+      "post": {
+        "operationId": "evaluateScheduling",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SchedulingEvaluationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSchedulingEvaluationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-controller"
+        ]
+      }
+    },
+    "/v1/calendar/trash": {
+      "get": {
+        "operationId": "trashedEvents",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListTrashedEventSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-trash-controller"
         ]
       }
     },
@@ -30134,6 +33723,342 @@
         ]
       }
     },
+    "/v1/mail/organization": {
+      "get": {
+        "operationId": "organization",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOrganizationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "mail-organization-controller"
+        ]
+      }
+    },
+    "/v1/mail/organization/folders": {
+      "post": {
+        "operationId": "createFolder",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseFolderSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "mail-organization-controller"
+        ]
+      }
+    },
+    "/v1/mail/organization/folders/{folderId}": {
+      "put": {
+        "operationId": "updateFolder",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "folderId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseFolderSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "mail-organization-controller"
+        ]
+      }
+    },
+    "/v1/mail/organization/folders/{folderId}/archive": {
+      "post": {
+        "operationId": "archiveFolder",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "folderId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "mail-organization-controller"
+        ]
+      }
+    },
+    "/v1/mail/organization/rules": {
+      "post": {
+        "operationId": "createRule",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuleCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRuleSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "mail-organization-controller"
+        ]
+      }
+    },
+    "/v1/mail/organization/rules/{ruleId}": {
+      "put": {
+        "operationId": "updateRule",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "ruleId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuleUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRuleSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "mail-organization-controller"
+        ]
+      }
+    },
+    "/v1/mail/organization/rules/{ruleId}/archive": {
+      "post": {
+        "operationId": "archiveRule",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "ruleId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "mail-organization-controller"
+        ]
+      }
+    },
+    "/v1/mail/organization/rules/{ruleId}/run": {
+      "post": {
+        "operationId": "runRule",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "ruleId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRuleRunSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "mail-organization-controller"
+        ]
+      }
+    },
     "/v1/mail/proposals/{proposalId}/decision": {
       "post": {
         "operationId": "decideProposal",
@@ -30211,6 +34136,15 @@
             "required": false,
             "schema": {
               "default": "",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "folderId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
               "type": "string"
             }
           },
@@ -30494,6 +34428,55 @@
         },
         "tags": [
           "mail-controller"
+        ]
+      }
+    },
+    "/v1/mail/threads/{threadId}/lifecycle": {
+      "post": {
+        "operationId": "lifecycle",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "threadId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LifecycleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseLifecycleResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "mail-lifecycle-controller"
         ]
       }
     },
@@ -31765,7 +35748,7 @@
           {
             "in": "header",
             "name": "Idempotency-Key",
-            "required": false,
+            "required": true,
             "schema": {
               "type": "string"
             }
@@ -32184,7 +36167,7 @@
           {
             "in": "header",
             "name": "Idempotency-Key",
-            "required": false,
+            "required": true,
             "schema": {
               "type": "string"
             }

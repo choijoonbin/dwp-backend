@@ -42,6 +42,9 @@ spring:
     validate-on-migrate: true
 
 dwp:
+  # Unknown is fail-closed for customer-approval fixtures. The local supervisor
+  # sets DWP_ENVIRONMENT=local explicitly.
+  environment: ${DWP_ENVIRONMENT:}
   http:
     client:
       connect-timeout: ${DWP_HTTP_CONNECT_TIMEOUT:2s}
@@ -101,6 +104,18 @@ dwp:
     provisioning-token: ${DWP_PROVIDER_PROVISIONING_TOKEN:}
     support-validation-token: ${DWP_PROVIDER_SUPPORT_VALIDATION_TOKEN:}
     support-cookie-secure: ${DWP_PROVIDER_SUPPORT_COOKIE_SECURE:true}
+    support-activation-enabled: ${DWP_PROVIDER_SUPPORT_ACTIVATION_ENABLED:false}
+    local-approval-fixtures-enabled: ${DWP_PROVIDER_LOCAL_APPROVAL_FIXTURES_ENABLED:false}
+    support-authority-reconciliation:
+      enabled: ${DWP_PROVIDER_SUPPORT_AUTHORITY_RECONCILIATION_ENABLED:true}
+      delay-ms: ${DWP_PROVIDER_SUPPORT_AUTHORITY_RECONCILIATION_DELAY_MS:5000}
+    tenant-mutation:
+      recovery-enabled: ${DWP_TENANT_MUTATION_RECOVERY_ENABLED:true}
+      worker-id: ${DWP_TENANT_MUTATION_WORKER_ID:${HOSTNAME:provider-tenant-mutation}}
+      maximum-attempts: ${DWP_TENANT_MUTATION_MAXIMUM_ATTEMPTS:8}
+      lease-duration: ${DWP_TENANT_MUTATION_LEASE_DURATION:30s}
+      recovery-batch-size: ${DWP_TENANT_MUTATION_RECOVERY_BATCH_SIZE:25}
+      recovery-delay-ms: ${DWP_TENANT_MUTATION_RECOVERY_DELAY_MS:1000}
     product-surface-rollout:
       relay-enabled: ${DWP_PRODUCT_SURFACE_ROLLOUT_RELAY_ENABLED:false}
       publisher-enabled: ${DWP_PRODUCT_SURFACE_ROLLOUT_PUBLISHER_ENABLED:false}

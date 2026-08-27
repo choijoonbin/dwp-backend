@@ -46,6 +46,18 @@ class AgentLocalEnvironmentTest(unittest.TestCase):
                 for name, environment in environments.items() if name != "provider")
         )
 
+        provider_support_local_controls = {
+            "DWP_PROVIDER_SUPPORT_ACTIVATION_ENABLED": "true",
+            "DWP_PROVIDER_LOCAL_APPROVAL_FIXTURES_ENABLED": "true",
+        }
+        for key, value in provider_support_local_controls.items():
+            self.assertEqual(environments["provider"][key], value)
+            self.assertTrue(
+                all(key not in environment
+                    for name, environment in environments.items()
+                    if name != "provider")
+            )
+
         exact_latches = {
             "platform": "DWP_PLATFORM_PRODUCT_AUTHORIZATION_APPROVALS_V2_ENABLED",
             "people": "DWP_HCM_PRODUCT_AUTHORIZATION_V3_ENABLED",
@@ -56,6 +68,37 @@ class AgentLocalEnvironmentTest(unittest.TestCase):
             self.assertTrue(
                 all(key not in environment
                     for name, environment in environments.items() if name != owner)
+                )
+
+        agent_key_settings = {
+            "DWP_AGENT_KEY_PROVIDER": "local-inline",
+            "DWP_AGENT_DATA_KEY_VERSION": "local-v1",
+        }
+        for key, value in agent_key_settings.items():
+            self.assertEqual(environments["agent"][key], value)
+            self.assertTrue(
+                all(
+                    key not in environment
+                    for name, environment in environments.items()
+                    if name != "agent"
+                )
+            )
+
+        delegated_identity_settings = {
+            "DWP_AGENT_IDENTITY_SIGNING_SECRET": (
+                "dwp-local-agent-identity-signing-secret-v1"
+            ),
+            "DWP_AGENT_IDENTITY_KEY_ID": "gateway-agent-v1",
+        }
+        for key, value in delegated_identity_settings.items():
+            self.assertEqual(environments["agent"][key], value)
+            self.assertEqual(environments["gateway"][key], value)
+            self.assertTrue(
+                all(
+                    key not in environment
+                    for name, environment in environments.items()
+                    if name not in {"agent", "gateway"}
+                )
             )
 
     def test_agent_receives_local_model_settings_without_leaking_to_other_services(

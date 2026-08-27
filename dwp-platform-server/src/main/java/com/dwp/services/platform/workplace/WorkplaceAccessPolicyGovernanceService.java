@@ -92,8 +92,8 @@ final class WorkplaceAccessPolicyGovernanceService
         OffsetDateTime now = OffsetDateTime.now();
         List<AccessRuleRow> active = repository.activeAccessRules(tenantId, siteId, now);
         if (active.isEmpty()) {
-            return new SiteAccessDecision(siteId, userId, permission, true,
-                    "ALLOW_COMPATIBILITY_DEFAULT", List.of(), now);
+            return new SiteAccessDecision(siteId, userId, permission, false,
+                    "DENY_NOT_CONFIGURED", List.of(), now);
         }
         List<AccessRuleRow> matched = active.stream()
                 .filter(rule -> grants(rule.permission(), permission))

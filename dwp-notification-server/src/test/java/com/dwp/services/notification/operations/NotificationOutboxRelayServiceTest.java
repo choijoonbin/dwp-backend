@@ -1,7 +1,6 @@
 package com.dwp.services.notification.operations;
 
 import com.dwp.services.notification.operations.NotificationOutboxRepository.OutboxEvent;
-import com.dwp.services.notification.security.NotificationDatabaseScope;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -25,19 +24,18 @@ class NotificationOutboxRelayServiceTest {
 
     @Test
     void publishesACloudEventsEnvelopeAndMarksTheLeaseComplete() throws Exception {
-        NotificationDatabaseScope scope = mock(NotificationDatabaseScope.class);
-        NotificationOutboxRepository repository = mock(NotificationOutboxRepository.class);
+        NotificationOutboxRelayTransaction transactions = mock(NotificationOutboxRelayTransaction.class);
         @SuppressWarnings("unchecked")
         KafkaTemplate<String, String> kafka = mock(KafkaTemplate.class);
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
         OutboxEvent event = event(1);
-        when(repository.lease(eq(7L), anyString(), any(), any(), eq(50)))
+        when(transactions.lease(eq(7L), anyString(), any(), any(), eq(50)))
                 .thenReturn(List.of(event));
         when(kafka.send(eq("dwp.notification.outbox.v1"), eq(event.eventKey()), anyString()))
                 .thenReturn(CompletableFuture.completedFuture(null));
-        when(repository.markPublished(eq(7L), eq(event.outboxId()), anyString(), any()))
+        when(transactions.markPublished(eq(7L), eq(event.outboxId()), anyString(), any()))
                 .thenReturn(true);
-        NotificationOutboxRelayService service = service(scope, repository, kafka, mapper, 12);
+        NotificationOutboxRelayService service = service(transactions, kafka, mapper, 12);
 
         var result = service.relayTenant(7, Instant.parse("2026-08-20T09:00:00Z"));
 
@@ -50,46 +48,43 @@ class NotificationOutboxRelayServiceTest {
         assertThat(root.path("id").asText()).isEqualTo(event.outboxId().toString());
         assertThat(root.path("tenantid").asText()).isEqualTo("7");
         assertThat(root.path("data").path("notificationId").asText()).isEqualTo("n-1");
-        verify(repository).markPublished(eq(7L), eq(event.outboxId()), anyString(), any());
+        verify(transactions).markPublished(eq(7L), eq(event.outboxId()), anyString(), any());
     }
 
     @Test
     void retainsADeadEventAfterTheRetryBudgetIsExhausted() {
-        NotificationDatabaseScope scope = mock(NotificationDatabaseScope.class);
-        NotificationOutboxRepository repository = mock(NotificationOutboxRepository.class);
+        NotificationOutboxRelayTransaction transactions = mock(NotificationOutboxRelayTransaction.class);
         @SuppressWarnings("unchecked")
         KafkaTemplate<String, String> kafka = mock(KafkaTemplate.class);
         OutboxEvent event = event(3);
-        when(repository.lease(eq(7L), anyString(), any(), any(), eq(50)))
+        when(transactions.lease(eq(7L), anyString(), any(), any(), eq(50)))
                 .thenReturn(List.of(event));
         when(kafka.send(anyString(), anyString(), anyString()))
                 .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("down")));
-        when(repository.markFailed(
+        when(transactions.markFailed(
                 eq(7L), eq(event.outboxId()), anyString(), eq(3), eq(3),
                 any(), anyString()))
                 .thenReturn(true);
         NotificationOutboxRelayService service = service(
-                scope, repository, kafka,
+                transactions, kafka,
                 new ObjectMapper().findAndRegisterModules(), 3);
 
         var result = service.relayTenant(7, Instant.parse("2026-08-20T09:00:00Z"));
 
         assertThat(result.failed()).isEqualTo(1);
         assertThat(result.dead()).isEqualTo(1);
-        verify(repository).markFailed(
+        verify(transactions).markFailed(
                 eq(7L), eq(event.outboxId()), anyString(), eq(3), eq(3),
                 any(), anyString());
     }
 
     private NotificationOutboxRelayService service(
-            NotificationDatabaseScope scope,
-            NotificationOutboxRepository repository,
+            NotificationOutboxRelayTransaction transactions,
             KafkaTemplate<String, String> kafka,
             ObjectMapper mapper,
             int maximumAttempts) {
         return new NotificationOutboxRelayService(
-                scope,
-                repository,
+                transactions,
                 kafka,
                 mapper,
                 "dwp.notification.outbox.v1",

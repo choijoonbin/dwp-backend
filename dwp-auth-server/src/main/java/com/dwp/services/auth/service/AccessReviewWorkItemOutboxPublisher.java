@@ -272,6 +272,10 @@ public class AccessReviewWorkItemOutboxPublisher {
               JOIN com_access_review_campaigns campaign
                 ON campaign.tenant_id = item.tenant_id
                AND campaign.access_review_campaign_id = item.access_review_campaign_id
+              JOIN com_users reviewer
+                ON reviewer.tenant_id = item.tenant_id
+               AND reviewer.user_id = item.reviewer_user_id
+               AND reviewer.identity_plane = 'TENANT'
             """;
 
     private record Projection(

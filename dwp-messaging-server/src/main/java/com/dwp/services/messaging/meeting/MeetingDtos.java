@@ -1,6 +1,8 @@
 package com.dwp.services.messaging.meeting;
 
 import java.time.OffsetDateTime;
+import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
 
 public final class MeetingDtos {
@@ -57,6 +59,34 @@ public final class MeetingDtos {
     }
 
     public record CurrentMeetingResponse(SessionResponse session) {
+    }
+
+    public record HistoryItemResponse(
+            UUID sessionId,
+            UUID conversationId,
+            String provider,
+            String lifecycleState,
+            long startedBy,
+            String startedByName,
+            OffsetDateTime startedAt,
+            Long endedBy,
+            String endedByName,
+            OffsetDateTime endedAt,
+            long durationSeconds,
+            long version) {
+
+        static HistoryItemResponse from(MeetingHistoryItem item) {
+            long duration = item.endedAt() == null
+                    ? 0
+                    : Math.max(0, Duration.between(item.startedAt(), item.endedAt()).toSeconds());
+            return new HistoryItemResponse(
+                    item.sessionId(), item.conversationId(), item.provider(), item.lifecycleState(),
+                    item.startedBy(), item.startedByName(), item.startedAt(), item.endedBy(),
+                    item.endedByName(), item.endedAt(), duration, item.version());
+        }
+    }
+
+    public record HistoryResponse(List<HistoryItemResponse> items) {
     }
 
     public record JoinTokenResponse(

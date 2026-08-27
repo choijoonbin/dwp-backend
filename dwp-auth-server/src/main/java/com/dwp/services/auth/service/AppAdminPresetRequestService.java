@@ -237,7 +237,8 @@ public class AppAdminPresetRequestService {
     private void requireActiveUser(Long tenantId, Long actorId) {
         Boolean active = jdbc.queryForObject("""
                 SELECT EXISTS (SELECT 1 FROM com_users
-                 WHERE tenant_id = ? AND user_id = ? AND status = 'ACTIVE')
+                 WHERE tenant_id = ? AND user_id = ? AND status = 'ACTIVE'
+                   AND identity_plane = 'TENANT')
                 """, Boolean.class, tenantId, actorId);
         if (!Boolean.TRUE.equals(active)) throw new BaseException(ErrorCode.FORBIDDEN);
     }
@@ -287,9 +288,10 @@ public class AppAdminPresetRequestService {
     private void requirePrincipal(Long tenantId, String type, String ref) {
         String table = "USER".equals(type) ? "com_users" : "com_groups";
         String id = "USER".equals(type) ? "user_id" : "group_id";
+        String tenantPlane = "USER".equals(type) ? " AND identity_plane = 'TENANT'" : "";
         Boolean exists = jdbc.queryForObject(
                 "SELECT EXISTS (SELECT 1 FROM " + table + " WHERE tenant_id = ? AND "
-                        + id + "::text = ? AND status = 'ACTIVE')",
+                        + id + "::text = ? AND status = 'ACTIVE'" + tenantPlane + ")",
                 Boolean.class, tenantId, ref);
         if (!Boolean.TRUE.equals(exists)) throw new BaseException(ErrorCode.NOT_FOUND);
     }

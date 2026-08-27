@@ -19,6 +19,8 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -60,6 +62,32 @@ class AccessReviewServiceTest {
                 .isInstanceOf(BaseException.class)
                 .hasMessageContaining("reviewer");
         verifyNoInteractions(jdbc, audit);
+    }
+
+    @Test
+    void providerIdentityCannotBeSelectedAsANamedReviewer() {
+        when(jdbc.queryForObject(
+                contains("identity_plane = 'TENANT'"),
+                eq(Long.class),
+                eq(1L),
+                eq(900001L)))
+                .thenReturn(0L);
+        var request = new AccessReviewDtos.CreateCampaignRequest(
+                "Provider reviewer boundary",
+                null,
+                "TENANT",
+                null,
+                "NAMED_REVIEWER",
+                900001L,
+                Instant.now().plusSeconds(86_400));
+
+        assertThatThrownBy(() -> service.createCampaign(1L, 10L, "corr-provider", request))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("reviewer");
+
+        verify(jdbc, never()).update(contains("INSERT INTO com_access_review_campaigns"),
+                any(Object[].class));
+        verifyNoInteractions(audit);
     }
 
     @Test

@@ -1,6 +1,86 @@
 {
   "components": {
     "schemas": {
+      "AccessRequestLedgerItem": {
+        "properties": {
+          "accessMode": {
+            "type": "string"
+          },
+          "activatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "approvalReference": {
+            "type": "string"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "customerApprovalRequired": {
+            "type": "boolean"
+          },
+          "decisionDueAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "durationMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "justification": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "postReviewState": {
+            "type": "string"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "requesterName": {
+            "type": "string"
+          },
+          "requesterOwned": {
+            "type": "boolean"
+          },
+          "riskTier": {
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "supportAccessRequestId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "supportSessionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenantKey": {
+            "type": "string"
+          },
+          "tenantName": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "ActionItem": {
         "properties": {
           "category": {
@@ -48,31 +128,32 @@
         ],
         "type": "object"
       },
-      "AdministratorInvitation": {
+      "AdministratorInvitationConflictError": {
+        "additionalProperties": false,
         "properties": {
-          "activationPath": {
+          "correlationId": {
             "type": "string"
           },
-          "activationToken": {
+          "errorCode": {
+            "enum": [
+              "E1009"
+            ],
             "type": "string"
           },
-          "authTenantId": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "authUserId": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "email": {
+          "message": {
             "type": "string"
           },
-          "expiresAt": {
+          "status": {
+            "enum": [
+              "ERROR"
+            ],
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
             "format": "date-time",
-            "type": "string"
-          },
-          "tenantAdministratorId": {
-            "format": "uuid",
             "type": "string"
           }
         },
@@ -100,13 +181,13 @@
         ],
         "type": "object"
       },
-      "ApiResponseAdministratorInvitation": {
+      "ApiResponseAccessRequestLedgerItem": {
         "properties": {
           "correlationId": {
             "type": "string"
           },
           "data": {
-            "$ref": "#/components/schemas/AdministratorInvitation"
+            "$ref": "#/components/schemas/AccessRequestLedgerItem"
           },
           "errorCode": {
             "type": "string"
@@ -134,6 +215,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/AuditInsights"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseBrowserSessionContext": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/BrowserSessionContext"
           },
           "errorCode": {
             "type": "string"
@@ -289,6 +397,33 @@
         },
         "type": "object"
       },
+      "ApiResponseEvidence": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Evidence"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseFeatureFlag": {
         "properties": {
           "correlationId": {
@@ -350,6 +485,36 @@
           },
           "data": {
             "$ref": "#/components/schemas/JsonNode"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListAccessRequestLedgerItem": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/AccessRequestLedgerItem"
+            },
+            "type": "array"
           },
           "errorCode": {
             "type": "string"
@@ -580,6 +745,36 @@
         },
         "type": "object"
       },
+      "ApiResponseListSessionLedgerItem": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/SessionLedgerItem"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseListSubscriptionRenewalRevision": {
         "properties": {
           "correlationId": {
@@ -610,36 +805,6 @@
         },
         "type": "object"
       },
-      "ApiResponseListSupportAccessRequestSummary": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/SupportAccessRequestSummary"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "ApiResponseListSupportScopeSummary": {
         "properties": {
           "correlationId": {
@@ -648,36 +813,6 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/SupportScopeSummary"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ApiResponseListSupportSessionSummary": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/SupportSessionSummary"
             },
             "type": "array"
           },
@@ -1105,33 +1240,6 @@
         },
         "type": "object"
       },
-      "ApiResponseSupportSessionContext": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "$ref": "#/components/schemas/SupportSessionContext"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "ApiResponseSupportSessionSummary": {
         "properties": {
           "correlationId": {
@@ -1194,6 +1302,58 @@
           "data": {
             "$ref": "#/components/schemas/TenantSummary"
           },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseVerifiedSessionContext": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/VerifiedSessionContext"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseVoid": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {},
           "errorCode": {
             "type": "string"
           },
@@ -1347,6 +1507,48 @@
             "type": "array"
           },
           "privilegedAccess24Hours": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "BrowserSessionContext": {
+        "properties": {
+          "accessMode": {
+            "type": "string"
+          },
+          "dataRegion": {
+            "type": "string"
+          },
+          "environmentKey": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "supportSessionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenantKey": {
+            "type": "string"
+          },
+          "tenantName": {
+            "type": "string"
+          },
+          "version": {
             "format": "int64",
             "type": "integer"
           }
@@ -1962,6 +2164,7 @@
           },
           "scopes": {
             "items": {
+              "minLength": 1,
               "pattern": "[A-Z][A-Z0-9_]{1,79}",
               "type": "string"
             },
@@ -2011,6 +2214,7 @@
           },
           "scopes": {
             "items": {
+              "minLength": 1,
               "pattern": "[A-Z][A-Z0-9_]{1,79}",
               "type": "string"
             },
@@ -2256,6 +2460,19 @@
         ],
         "type": "object"
       },
+      "DisableActivationRequest": {
+        "properties": {
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
       "DomainChallenge": {
         "properties": {
           "domain": {
@@ -2415,6 +2632,116 @@
           },
           "value": {
             "$ref": "#/components/schemas/JsonNode"
+          }
+        },
+        "type": "object"
+      },
+      "Event": {
+        "properties": {
+          "auditEventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "reasonCode": {
+            "type": "string"
+          },
+          "routeTemplate": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Evidence": {
+        "properties": {
+          "actualUseCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "anomalies": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "deniedAttemptCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "displayTruncated": {
+            "type": "boolean"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/Event"
+            },
+            "type": "array"
+          },
+          "evidenceComplete": {
+            "type": "boolean"
+          },
+          "evidenceFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "evidenceThrough": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "grantedScopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "noUseConfirmed": {
+            "type": "boolean"
+          },
+          "observedScopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "readiness": {
+            "type": "string"
+          },
+          "sessionLifecycleState": {
+            "type": "string"
+          },
+          "supportAccessRequestId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "supportSessionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "totalEventCount": {
+            "format": "int64",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -3997,6 +4324,70 @@
         },
         "type": "object"
       },
+      "SessionLedgerItem": {
+        "properties": {
+          "accessMode": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastUsedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "operatorName": {
+            "type": "string"
+          },
+          "operatorOwned": {
+            "type": "boolean"
+          },
+          "revokedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "riskTier": {
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "supportAccessRequestId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "supportSessionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenantKey": {
+            "type": "string"
+          },
+          "tenantName": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "Snapshot": {
         "properties": {
           "assets": {
@@ -4514,46 +4905,6 @@
         },
         "type": "object"
       },
-      "SupportSessionContext": {
-        "properties": {
-          "accessMode": {
-            "type": "string"
-          },
-          "authTenantId": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "expiresAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "scopes": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "supportSessionId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "tenantId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "tenantKey": {
-            "type": "string"
-          },
-          "tenantName": {
-            "type": "string"
-          },
-          "version": {
-            "format": "int64",
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
       "SupportSessionSummary": {
         "properties": {
           "accessMode": {
@@ -4628,42 +4979,26 @@
         },
         "type": "object"
       },
-      "TenantAdministratorSummary": {
+      "TenantAdministratorPosture": {
         "properties": {
-          "activatedAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "authUserId": {
-            "format": "int64",
+          "activeCount": {
+            "format": "int32",
             "type": "integer"
           },
-          "displayName": {
-            "type": "string"
-          },
-          "email": {
-            "type": "string"
+          "configuredCount": {
+            "format": "int32",
+            "type": "integer"
           },
           "lastInvitedAt": {
             "format": "date-time",
             "type": "string"
           },
-          "lifecycleState": {
-            "type": "string"
-          },
-          "primaryAdministrator": {
-            "type": "boolean"
-          },
-          "roleCode": {
-            "type": "string"
-          },
-          "tenantAdministratorId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "version": {
-            "format": "int64",
+          "pendingDeliveryCount": {
+            "format": "int32",
             "type": "integer"
+          },
+          "primaryConfigured": {
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -4706,11 +5041,8 @@
       },
       "TenantSummary": {
         "properties": {
-          "administrators": {
-            "items": {
-              "$ref": "#/components/schemas/TenantAdministratorSummary"
-            },
-            "type": "array"
+          "administratorPosture": {
+            "$ref": "#/components/schemas/TenantAdministratorPosture"
           },
           "authTenantId": {
             "format": "int64",
@@ -4834,6 +5166,46 @@
         ],
         "type": "object"
       },
+      "VerifiedSessionContext": {
+        "properties": {
+          "accessMode": {
+            "type": "string"
+          },
+          "authTenantId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "providerTenantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "supportSessionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "tenantKey": {
+            "type": "string"
+          },
+          "tenantName": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "VerifyDomainRequest": {
         "properties": {
           "justification": {
@@ -4906,6 +5278,68 @@
         },
         "tags": [
           "feature-rollout-internal-evaluation-controller"
+        ]
+      }
+    },
+    "/internal/provider/v1/support-access/resolve": {
+      "post": {
+        "operationId": "resolve",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Support-Validation-Token",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Support-Resource-Method",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Support-Resource-Path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "DWP_SUPPORT_SESSION",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVerifiedSessionContext"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-support-access-controller"
         ]
       }
     },
@@ -6711,7 +7145,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListSupportAccessRequestSummary"
+                  "$ref": "#/components/schemas/ApiResponseListAccessRequestLedgerItem"
                 }
               }
             },
@@ -6798,7 +7232,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseSupportAccessRequestSummary"
+                  "$ref": "#/components/schemas/ApiResponseAccessRequestLedgerItem"
                 }
               }
             },
@@ -6908,6 +7342,37 @@
         ]
       }
     },
+    "/v1/admin/support-access-requests/{requestId}/post-review-evidence": {
+      "get": {
+        "operationId": "evidence",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEvidence"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-support-post-review-evidence-controller"
+        ]
+      }
+    },
     "/v1/admin/support-access-requests/{requestId}/review": {
       "post": {
         "operationId": "reviewSupportAccessRequest",
@@ -6957,6 +7422,46 @@
         ]
       }
     },
+    "/v1/admin/support-activation/disable": {
+      "post": {
+        "operationId": "disableSupportActivation",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisableActivationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider-control-plane-controller"
+        ]
+      }
+    },
     "/v1/admin/support-scopes": {
       "get": {
         "operationId": "supportScopes",
@@ -6988,6 +7493,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -6995,7 +7508,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseSupportSessionContext"
+                  "$ref": "#/components/schemas/ApiResponseBrowserSessionContext"
                 }
               }
             },
@@ -7026,7 +7539,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListSupportSessionSummary"
+                  "$ref": "#/components/schemas/ApiResponseListSessionLedgerItem"
                 }
               }
             },
@@ -7280,15 +7793,15 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "409": {
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseAdministratorInvitation"
+                  "$ref": "#/components/schemas/AdministratorInvitationConflictError"
                 }
               }
             },
-            "description": "OK"
+            "description": "Provider-origin administrator invitation issuance is disabled until customer-owned out-of-band delivery is configured."
           }
         },
         "tags": [
@@ -7538,68 +8051,6 @@
         },
         "tags": [
           "provider-control-plane-controller"
-        ]
-      }
-    },
-    "/v1/internal/support-access/resolve": {
-      "post": {
-        "operationId": "resolve",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-DWP-Support-Validation-Token",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Support-Resource-Method",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-DWP-Support-Resource-Path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "header",
-            "name": "X-Correlation-ID",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "cookie",
-            "name": "DWP_SUPPORT_SESSION",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiResponseSupportSessionContext"
-                }
-              }
-            },
-            "description": "OK"
-          }
-        },
-        "tags": [
-          "provider-support-access-controller"
         ]
       }
     }

@@ -107,7 +107,8 @@ public class RoomService {
             String correlationId,
             String verifiedGroupRefs,
             CalendarDtos.UpdateEventRequest request) {
-        requireRoomBooking(tenantId, userId, personPublicId, eventId, locale);
+        requireRoomBooking(
+                tenantId, userId, personPublicId, verifiedGroupRefs, eventId, locale);
         requireRoomResource(tenantId, request.resourceId(), locale);
         return calendarService.update(
                 tenantId, userId, personPublicId, eventId,
@@ -124,7 +125,8 @@ public class RoomService {
             String correlationId,
             String verifiedGroupRefs,
             CalendarDtos.VersionRequest request) {
-        requireRoomBooking(tenantId, userId, personPublicId, eventId, locale);
+        requireRoomBooking(
+                tenantId, userId, personPublicId, verifiedGroupRefs, eventId, locale);
         calendarService.cancel(
                 tenantId, userId, personPublicId, eventId,
                 locale, correlationId, verifiedGroupRefs, request);
@@ -140,7 +142,8 @@ public class RoomService {
             String correlationId,
             String verifiedGroupRefs,
             CalendarDtos.RespondRequest request) {
-        requireRoomBooking(tenantId, userId, personPublicId, eventId, locale);
+        requireRoomBooking(
+                tenantId, userId, personPublicId, verifiedGroupRefs, eventId, locale);
         return calendarService.respond(
                 tenantId, userId, personPublicId, eventId,
                 locale, correlationId, verifiedGroupRefs, request);
@@ -256,10 +259,12 @@ public class RoomService {
             Long tenantId,
             Long userId,
             UUID personPublicId,
+            String verifiedGroupRefs,
             UUID eventId,
             String locale) {
-        CalendarRepository.EventRow event = calendarRepository.event(
-                        tenantId, userId, personPublicId, eventId, korean(locale))
+        CalendarRepository.EventRow event = CalendarRepositoryRouting.event(
+                        calendarRepository, tenantId, userId, personPublicId,
+                        verifiedGroupRefs, eventId, korean(locale))
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         if (event.resource() == null || event.resource().type() != ResourceType.ROOM) {
             throw new BaseException(ErrorCode.NOT_FOUND, "The room booking was not found.");

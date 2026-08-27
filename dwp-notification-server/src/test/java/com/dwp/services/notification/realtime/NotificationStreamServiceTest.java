@@ -22,6 +22,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class NotificationStreamServiceTest {
 
@@ -138,6 +139,89 @@ class NotificationStreamServiceTest {
                             .isEqualTo(List.of(notificationId.toString()));
                     assertThat(payload.get("arrivalIds")).isEqualTo(List.of());
                 });
+    }
+
+    @Test
+    void rejectsConnectionsAboveThePerUserQuota() {
+        CapturingEmitter emitter = new CapturingEmitter();
+        NotificationStreamService service = new NotificationStreamService(
+                TimeUnit.MINUTES.toMillis(30),
+                new SimpleMeterRegistry(),
+                ignored -> emitter,
+                4,
+                2,
+                1,
+                10);
+        UUID firstClient = UUID.fromString("41000000-0000-0000-0000-000000000001");
+        UUID secondClient = UUID.fromString("41000000-0000-0000-0000-000000000002");
+        service.open(ACTOR, "0", firstClient, (after, limit) -> sync("0", List.of(), false));
+
+        assertThatThrownBy(() ->
+                service.open(ACTOR, "0", secondClient, (after, limit) -> sync("0", List.of(), false)))
+                .isInstanceOf(NotificationStreamCapacityException.class);
+        assertThat(service.connectionCount()).isEqualTo(1);
+    }
+
+    @Test
+    void reconnectFromTheSameBrowserInstanceAtomicallySupersedesItsStaleStream() {
+        CapturingEmitter firstEmitter = new CapturingEmitter();
+        CapturingEmitter secondEmitter = new CapturingEmitter();
+        List<CapturingEmitter> emitters = new ArrayList<>(List.of(firstEmitter, secondEmitter));
+        NotificationStreamService service = new NotificationStreamService(
+                TimeUnit.MINUTES.toMillis(30),
+                new SimpleMeterRegistry(),
+                ignored -> emitters.removeFirst(),
+                1,
+                1,
+                1,
+                10);
+        UUID clientId = UUID.fromString("41000000-0000-0000-0000-000000000003");
+
+        service.open(ACTOR, "0", clientId, (after, limit) -> sync("0", List.of(), false));
+        service.open(ACTOR, "0", clientId, (after, limit) -> sync("0", List.of(), false));
+        service.dispatch(new NotificationRealtimeEnvelope(
+                1, 9, "1", "1", List.of(id(1)), List.of(id(1))));
+
+        assertThat(service.connectionCount()).isEqualTo(1);
+        assertThat(firstEmitter.payloads("notification.changed")).isEmpty();
+        assertThat(secondEmitter.payloads("notification.changed")).singleElement();
+    }
+
+    @Test
+    void boundsCatchUpBufferAndRequiresAuthoritativeResynchronization() throws Exception {
+        CapturingEmitter emitter = new CapturingEmitter();
+        NotificationStreamService service = new NotificationStreamService(
+                TimeUnit.MINUTES.toMillis(30),
+                new SimpleMeterRegistry(),
+                ignored -> emitter,
+                10,
+                10,
+                4,
+                2);
+        CountDownLatch catchUpStarted = new CountDownLatch(1);
+        CountDownLatch releaseCatchUp = new CountDownLatch(1);
+
+        try (ExecutorService executor = Executors.newSingleThreadExecutor()) {
+            Future<SseEmitter> opened = executor.submit(() -> service.open(ACTOR, "0", (after, limit) -> {
+                catchUpStarted.countDown();
+                await(releaseCatchUp);
+                return sync("1", List.of(id(1)), false);
+            }));
+            assertThat(catchUpStarted.await(2, TimeUnit.SECONDS)).isTrue();
+            for (int version = 2; version <= 4; version++) {
+                service.dispatch(new NotificationRealtimeEnvelope(
+                        1, 9, Integer.toString(version), Integer.toString(version),
+                        List.of(id(version)), List.of(id(version))));
+            }
+            releaseCatchUp.countDown();
+            opened.get(2, TimeUnit.SECONDS);
+        }
+
+        assertThat(emitter.payloads("notification.sync-reset"))
+                .singleElement()
+                .satisfies(payload -> assertThat(payload)
+                        .containsEntry("errorCode", "NOTIFICATION_SYNC_RESET_REQUIRED"));
+        assertThat(service.connectionCount()).isZero();
     }
 
     private NotificationStreamService service(CapturingEmitter emitter) {

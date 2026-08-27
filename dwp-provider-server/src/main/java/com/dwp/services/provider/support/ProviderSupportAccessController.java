@@ -3,7 +3,6 @@ package com.dwp.services.provider.support;
 import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
-import com.dwp.services.provider.ProviderDtos;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -15,7 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 
 @RestController
-@RequestMapping("/v1/internal/support-access")
+@RequestMapping("/internal/provider/v1/support-access")
 public class ProviderSupportAccessController {
 
     public static final String VALIDATION_TOKEN_HEADER = "X-DWP-Support-Validation-Token";
@@ -34,7 +33,7 @@ public class ProviderSupportAccessController {
     }
 
     @PostMapping("/resolve")
-    public ApiResponse<ProviderDtos.SupportSessionContext> resolve(
+    public ApiResponse<ProviderSupportDtos.VerifiedSessionContext> resolve(
             @RequestHeader(value = VALIDATION_TOKEN_HEADER, required = false) String providedToken,
             @RequestHeader(RESOURCE_METHOD_HEADER) String resourceMethod,
             @RequestHeader(RESOURCE_PATH_HEADER) String resourcePath,

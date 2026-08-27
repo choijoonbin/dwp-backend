@@ -59,6 +59,44 @@ public class TenantMediaCleanupOutbox {
                 result.getInt("attempt_count")), batchSize, workerId, leaseSeconds);
     }
 
+    @Transactional
+    boolean beginDelete(CleanupJob job, String workerId) {
+        List<MediaAssetState> assets = jdbc.query("""
+                SELECT reference_count, asset_status
+                  FROM wp_floor_plan_media_assets
+                 WHERE tenant_id = ? AND storage_key = ?
+                 FOR UPDATE
+                """, (result, ignored) -> new MediaAssetState(
+                result.getInt("reference_count"), result.getString("asset_status")),
+                job.tenantId(), job.storageKey());
+        if (!assets.isEmpty()) {
+            MediaAssetState asset = assets.getFirst();
+            if (asset.referenceCount() > 0
+                    || !("STAGED".equals(asset.status())
+                    || "PENDING_DELETE".equals(asset.status()))) {
+                return false;
+            }
+        }
+        Integer leased = jdbc.queryForObject("""
+                SELECT COUNT(*)
+                  FROM sys_tenant_media_cleanup_outbox
+                 WHERE cleanup_id = ?
+                   AND cleanup_status = 'LEASED'
+                   AND lease_owner = ?
+                """, Integer.class, job.cleanupId(), workerId);
+        if (leased == null || leased != 1) return false;
+        if (!assets.isEmpty()) {
+            return jdbc.update("""
+                    UPDATE wp_floor_plan_media_assets
+                       SET asset_status = 'DELETING'
+                     WHERE tenant_id = ? AND storage_key = ?
+                       AND reference_count = 0
+                       AND asset_status IN ('STAGED', 'PENDING_DELETE')
+                    """, job.tenantId(), job.storageKey()) == 1;
+        }
+        return true;
+    }
+
     int complete(CleanupJob job, String workerId) {
         return jdbc.update("""
                 UPDATE sys_tenant_media_cleanup_outbox
@@ -74,6 +112,19 @@ public class TenantMediaCleanupOutbox {
                 """, job.cleanupId(), workerId);
     }
 
+    @Transactional
+    int completeDelete(CleanupJob job, String workerId) {
+        jdbc.update("""
+                UPDATE wp_floor_plan_media_assets
+                   SET asset_status = 'DELETED'
+                 WHERE tenant_id = ? AND storage_key = ?
+                   AND reference_count = 0
+                   AND asset_status = 'DELETING'
+                """, job.tenantId(), job.storageKey());
+        return complete(job, workerId);
+    }
+
+    @Transactional
     int fail(
             CleanupJob job,
             String workerId,
@@ -81,6 +132,13 @@ public class TenantMediaCleanupOutbox {
             String errorCode,
             OffsetDateTime nextAttemptAt) {
         boolean exhausted = job.attemptCount() >= maximumAttempts;
+        jdbc.update("""
+                UPDATE wp_floor_plan_media_assets
+                   SET asset_status = 'PENDING_DELETE'
+                 WHERE tenant_id = ? AND storage_key = ?
+                   AND reference_count = 0
+                   AND asset_status = 'DELETING'
+                """, job.tenantId(), job.storageKey());
         return jdbc.update("""
                 UPDATE sys_tenant_media_cleanup_outbox
                    SET cleanup_status = ?,
@@ -96,7 +154,19 @@ public class TenantMediaCleanupOutbox {
                 errorCode, job.cleanupId(), workerId);
     }
 
+    @Transactional
     void releaseExpiredLeases() {
+        jdbc.update("""
+                UPDATE wp_floor_plan_media_assets asset
+                   SET asset_status = 'PENDING_DELETE'
+                  FROM sys_tenant_media_cleanup_outbox cleanup
+                 WHERE cleanup.tenant_id = asset.tenant_id
+                   AND cleanup.storage_key = asset.storage_key
+                   AND cleanup.cleanup_status = 'LEASED'
+                   AND cleanup.lease_expires_at < CURRENT_TIMESTAMP
+                   AND asset.reference_count = 0
+                   AND asset.asset_status = 'DELETING'
+                """);
         jdbc.update("""
                 UPDATE sys_tenant_media_cleanup_outbox
                    SET cleanup_status = 'RETRY_WAIT',
@@ -118,6 +188,8 @@ public class TenantMediaCleanupOutbox {
         }
         return normalized;
     }
+
+    private record MediaAssetState(int referenceCount, String status) {}
 
     record CleanupJob(UUID cleanupId, Long tenantId, String storageKey, int attemptCount) {}
 }

@@ -318,7 +318,8 @@ class ApprovalPilotAcceptanceMatrixTest {
                 String resourceRoles, Set<String> roles) {
             return registry.authorize(new ApprovalPilotPepRegistry.RequestEvidence(
                     method, path, permissions, resourceRoles, roles,
-                    canonicalRoute(method, path)));
+                    canonicalRoute(method, path),
+                    ApprovalPilotPepRegistry.ActiveAccessMode.NORMAL));
         }
 
         private String canonicalRoute(String method, String path) {

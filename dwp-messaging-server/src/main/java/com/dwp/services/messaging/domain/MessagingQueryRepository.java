@@ -158,7 +158,23 @@ class MessagingQueryRepository {
         return jdbc.queryForObject("""
                 SELECT COALESCE(COUNT(DISTINCT conversation.conversation_id)
                        FILTER (WHERE unread.message_id IS NOT NULL), 0) AS unread_conversations,
-                       0 AS mentions,
+                       COALESCE((SELECT COUNT(*)
+                           FROM msg_message_mentions mention
+                           JOIN msg_messages mentioned_message
+                             ON mentioned_message.tenant_id = mention.tenant_id
+                            AND mentioned_message.conversation_id = mention.conversation_id
+                            AND mentioned_message.message_id = mention.message_id
+                           JOIN msg_conversation_members mentioned_member
+                             ON mentioned_member.tenant_id = mention.tenant_id
+                            AND mentioned_member.conversation_id = mention.conversation_id
+                            AND mentioned_member.user_id = mention.mentioned_user_id
+                            AND mentioned_member.lifecycle_state = 'ACTIVE'
+                          WHERE mention.tenant_id = ?
+                            AND mention.mentioned_user_id = ?
+                            AND mentioned_message.deleted_at IS NULL
+                            AND mentioned_message.sequence > mentioned_member.last_read_sequence
+                            AND mentioned_message.sequence >= mentioned_member.history_start_sequence),
+                           0) AS mentions,
                        COALESCE(COUNT(DISTINCT conversation.conversation_id)
                        FILTER (WHERE conversation.visibility = 'SPACE'), 0) AS space_channels,
                        COALESCE(COUNT(DISTINCT conversation.conversation_id)
@@ -195,7 +211,7 @@ class MessagingQueryRepository {
                 result.getInt("space_channels"),
                 result.getInt("direct_messages"),
                 result.getInt("saved_items")),
-                tenantId, userId, userId, userId, tenantId);
+                tenantId, userId, tenantId, userId, userId, userId, tenantId);
     }
 
     MessagingDtos.TenantPolicy policy(long tenantId) {

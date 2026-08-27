@@ -4219,6 +4219,43 @@
         ],
         "type": "object"
       },
+      "Receipt": {
+        "properties": {
+          "appliedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "commandType": {
+            "type": "string"
+          },
+          "expectedRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "payloadSha256": {
+            "type": "string"
+          },
+          "providerTenantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "result": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "targetRevision": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "ReconciliationIssue": {
         "properties": {
           "connectorInstanceId": {
@@ -4380,6 +4417,32 @@
           },
           "relationshipType": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Request": {
+        "properties": {
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "commandType": {
+            "type": "string"
+          },
+          "expectedRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "payload": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "payloadSha256": {
+            "type": "string"
+          },
+          "targetRevision": {
+            "format": "int64",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -5474,6 +5537,47 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/ProvisionTenantResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "people-tenant-provisioning-controller"
+        ]
+      }
+    },
+    "/internal/provider/v1/tenants/{providerTenantId}/commands": {
+      "post": {
+        "operationId": "command",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "providerTenantId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Request"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
                 }
               }
             },

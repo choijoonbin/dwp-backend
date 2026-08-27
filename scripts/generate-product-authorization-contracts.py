@@ -172,6 +172,14 @@ PLATFORM_TELEMETRY_SURFACE_DIMENSIONS = {
         "scopeKinds": ["SELF"],
         "taskKinds": ["WORK"],
     },
+    "meetings.management": {
+        "scopeKinds": ["RESOURCE_SET"],
+        "taskKinds": ["ADMINISTRATION", "OPERATIONS"],
+    },
+    "meetings.work": {
+        "scopeKinds": ["SELF"],
+        "taskKinds": ["WORK"],
+    },
     "messaging.management": {
         "scopeKinds": ["RESOURCE_SET"],
         "taskKinds": ["ADMINISTRATION", "OPERATIONS"],
@@ -255,6 +263,17 @@ PLATFORM_TELEMETRY_COMPATIBILITY_ROUTE_IDS = {
         "mail.work.sent",
         "mail.work.shared",
     ],
+    "meetings.management": [
+        "meetings.management.operations",
+        "meetings.management.policies",
+    ],
+    "meetings.work": [
+        "meetings.work.history",
+        "meetings.work.home",
+        "meetings.work.join",
+        "meetings.work.mine",
+        "meetings.work.room",
+    ],
     "messaging.management": [
         "messaging.management.overview",
         "messaging.management.policy",
@@ -319,6 +338,7 @@ PRODUCT_SURFACE_ROLLOUT_PRODUCTS = {
     "dwaion",
     "hcm",
     "mail",
+    "meetings",
     "messaging",
     "notifications",
     "services",
@@ -392,7 +412,7 @@ def normalize_source(source: dict[str, Any]) -> dict[str, Any]:
         isinstance(rollout_products, list)
         and len(rollout_products) == len(set(rollout_products))
         and set(rollout_products) == PRODUCT_SURFACE_ROLLOUT_PRODUCTS,
-        "rolloutProducts must contain the exact eleven product rollout keys",
+        "rolloutProducts must contain the exact twelve product rollout keys",
     )
     for section in required_sections:
         require(isinstance(source.get(section), list), f"{section} must be an array")
@@ -1341,7 +1361,7 @@ def build_rollout_inventory(source: dict[str, Any]) -> dict[str, Any]:
         isinstance(products, list)
         and len(products) == len(set(products))
         and set(products) == PRODUCT_SURFACE_ROLLOUT_PRODUCTS,
-        "rolloutProducts must contain the exact eleven product rollout keys",
+        "rolloutProducts must contain the exact twelve product rollout keys",
     )
     inventory = {
         "schemaVersion": 1,
@@ -1721,7 +1741,7 @@ def build_platform_telemetry_dimensions(snapshot: dict[str, Any]) -> dict[str, A
     }
     require(
         (projection["productCount"], projection["surfaceCount"], projection["routeIdCount"])
-        == (11, 24, 127),
+        == (12, 26, 134),
         "Platform telemetry dimension closure drift",
     )
     require(

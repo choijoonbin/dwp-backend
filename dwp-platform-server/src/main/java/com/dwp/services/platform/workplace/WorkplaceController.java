@@ -18,7 +18,6 @@ import org.springframework.http.ResponseEntity;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 @RestController
 @RequestMapping("/v1/workplace")
@@ -51,12 +50,14 @@ public class WorkplaceController {
     public ApiResponse<List<WorkplaceDtos.Booking>> getWorkplaceBookings(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
+            @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
                     OffsetDateTime from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
                     OffsetDateTime to) {
-        return ApiResponse.success(service.myBookings(tenantId, userId, from, to, locale));
+        return ApiResponse.success(service.myBookings(
+                tenantId, userId, from, to, locale, groupRefs));
     }
 
     @GetMapping("/floors/{floorId}/background")
@@ -71,7 +72,7 @@ public class WorkplaceController {
                 .contentType(MediaType.parseMediaType(content.contentType()))
                 .contentLength(content.sizeBytes())
                 .eTag(content.sha256())
-                .cacheControl(CacheControl.maxAge(1, TimeUnit.HOURS).cachePrivate())
+                .cacheControl(CacheControl.noCache().cachePrivate().mustRevalidate())
                 .body(content.resource());
     }
 
@@ -79,35 +80,38 @@ public class WorkplaceController {
     public ApiResponse<WorkplaceDtos.Booking> checkInWorkplaceBooking(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
+            @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @PathVariable UUID bookingId,
             @Valid @RequestBody WorkplaceDtos.VersionRequest request) {
         return ApiResponse.success(service.checkIn(
-                tenantId, userId, bookingId, locale, correlationId, request));
+                tenantId, userId, bookingId, locale, correlationId, groupRefs, request));
     }
 
     @PostMapping("/bookings/{bookingId}/cancel")
     public ApiResponse<WorkplaceDtos.Booking> cancelWorkplaceBooking(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
+            @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @PathVariable UUID bookingId,
             @Valid @RequestBody WorkplaceDtos.VersionRequest request) {
         return ApiResponse.success(service.cancelBooking(
-                tenantId, userId, bookingId, locale, correlationId, request));
+                tenantId, userId, bookingId, locale, correlationId, groupRefs, request));
     }
 
     @PostMapping("/bookings/{bookingId}/release")
     public ApiResponse<WorkplaceDtos.Booking> releaseWorkplaceBooking(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
+            @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @PathVariable UUID bookingId,
             @Valid @RequestBody WorkplaceDtos.VersionRequest request) {
         return ApiResponse.success(service.releaseBooking(
-                tenantId, userId, bookingId, locale, correlationId, request));
+                tenantId, userId, bookingId, locale, correlationId, groupRefs, request));
     }
 }

@@ -38,7 +38,7 @@ public class WorkplaceOperationsController {
                     String displayName,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
-            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @Valid @RequestBody WorkplaceDtos.BookingRequest request) {
         return ApiResponse.success(service.createBooking(

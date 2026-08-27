@@ -94,6 +94,33 @@ public final class PilotAuthorizationFixtureAdapter {
                 canonicalOrNull(testCase.get("delta")));
     }
 
+    /**
+     * Returns the complete signed negative-case catalog without interpreting a denial as a grant.
+     * The X-03 matrix binds this projection's execution test to separately enumerated Gateway and
+     * owner-service PEP tests; this keeps input and expected denial bound to the fixture checksum.
+     */
+    public List<NegativeFixture> negativeFixtures() {
+        List<NegativeFixture> result = new ArrayList<>();
+        Map<String, NegativeFixture> unique = new LinkedHashMap<>();
+        for (JsonNode value : requiredArray(fixture, "negativeCases")) {
+            String fixtureId = value.path("fixtureId").asText();
+            String input = value.path("input").asText();
+            String expected = value.path("expected").asText();
+            require(value.isObject() && value.size() == 3
+                            && fixtureId.startsWith("FX-N-")
+                            && !input.isBlank() && !expected.isBlank(),
+                    "Canonical negative fixture is invalid.");
+            NegativeFixture projection = new NegativeFixture(
+                    fixture.path("fixtureChecksum").asText(), fixtureId, input, expected);
+            require(unique.putIfAbsent(fixtureId, projection) == null,
+                    "Duplicate negative fixture ID: " + fixtureId);
+            result.add(projection);
+        }
+        require(result.size() == 46,
+                "Pilot fixture must project exactly 46 negative cases.");
+        return List.copyOf(result);
+    }
+
     private ObjectNode readFixture() {
         ClassLoader loader = PilotAuthorizationFixtureAdapter.class.getClassLoader();
         try (InputStream input = loader.getResourceAsStream(RESOURCE)) {
@@ -365,6 +392,13 @@ public final class PilotAuthorizationFixtureAdapter {
             String testRegistryOverrideRef,
             List<SourceRecord> composition,
             String deltaJson) {
+    }
+
+    public record NegativeFixture(
+            String fixtureChecksum,
+            String fixtureId,
+            String input,
+            String expectedOutcome) {
     }
 
     private record CatalogRecord(String catalogName, JsonNode value) {

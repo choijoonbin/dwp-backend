@@ -110,13 +110,15 @@ public class NotificationController {
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream(
             @RequestParam(required = false) String after,
-            @RequestHeader(name = "Last-Event-ID", required = false) String lastEventId) {
+            @RequestHeader(name = "Last-Event-ID", required = false) String lastEventId,
+            @RequestParam(required = false) UUID clientId) {
         NotificationRequestContext.Actor actor = actor();
         String cursor = after == null || after.isBlank() ? lastEventId : after;
         service.validateSyncCursor(actor, cursor);
         return streamService.open(
                 actor,
                 cursor,
+                clientId,
                 (pageAfter, limit) -> service.sync(actor, pageAfter, limit));
     }
 

@@ -33,6 +33,21 @@ class WorkplaceFloorPlanValidatorTest {
     }
 
     @Test
+    void acceptsLargeFloorPlanThroughTheBoundedDecodePath() throws Exception {
+        BufferedImage image = new BufferedImage(2500, 2000, BufferedImage.TYPE_BYTE_GRAY);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", output);
+        byte[] content = output.toByteArray();
+        WorkplaceFloorPlanValidator validator = new WorkplaceFloorPlanValidator(10 * 1024 * 1024);
+
+        WorkplaceFloorPlanValidator.ValidatedFloorPlan result = validator.validate(
+                new MockMultipartFile("file", "large-floor-plan.png", "image/png", content));
+
+        assertThat(result.width()).isEqualTo(2500);
+        assertThat(result.height()).isEqualTo(2000);
+    }
+
+    @Test
     void rejectsScriptableContentEvenWhenFilenameAndMimeClaimPng() {
         byte[] content = "<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>"
                 .getBytes(StandardCharsets.UTF_8);

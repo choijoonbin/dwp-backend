@@ -29,6 +29,7 @@ import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.doNothing;
 
 @ExtendWith(MockitoExtension.class)
 class WorkplaceServiceTest {
@@ -124,6 +125,50 @@ class WorkplaceServiceTest {
     }
 
     @Test
+    void exploreDoesNotExposeAnotherMembersFixedSeatNameWhenTenantShowsColleagueNames() {
+        UUID siteId = UUID.randomUUID();
+        UUID floorId = UUID.randomUUID();
+        UUID resourceId = UUID.randomUUID();
+        OffsetDateTime from = OffsetDateTime.now().plusHours(1);
+        OffsetDateTime to = from.plusHours(1);
+        when(catalog.sites(1L, false)).thenReturn(List.of(site(siteId)));
+        when(catalog.floors(1L, null, false)).thenReturn(List.of(floor(siteId, floorId)));
+        when(catalog.policy(1L)).thenReturn(policy(true));
+        when(catalog.resources(1L, floorId, false)).thenReturn(List.of(
+                resource(resourceId, floorId, ResourceType.DESK, BookingMode.ASSIGNED, 7L)));
+        when(bookings.occupancy(1L, 9L, floorId, from, to)).thenReturn(List.of());
+
+        WorkplaceDtos.Resource result = service.explore(
+                1L, 9L, UUID.randomUUID(), floorId, from, to, "en-US", null)
+                .resources().getFirst();
+
+        assertThat(result.assignedToCurrentUser()).isFalse();
+        assertThat(result.assignedDisplayName()).isNull();
+    }
+
+    @Test
+    void exploreLetsTheAssigneeRecognizeTheirOwnFixedSeat() {
+        UUID siteId = UUID.randomUUID();
+        UUID floorId = UUID.randomUUID();
+        UUID resourceId = UUID.randomUUID();
+        OffsetDateTime from = OffsetDateTime.now().plusHours(1);
+        OffsetDateTime to = from.plusHours(1);
+        when(catalog.sites(1L, false)).thenReturn(List.of(site(siteId)));
+        when(catalog.floors(1L, null, false)).thenReturn(List.of(floor(siteId, floorId)));
+        when(catalog.policy(1L)).thenReturn(policy(false));
+        when(catalog.resources(1L, floorId, false)).thenReturn(List.of(
+                resource(resourceId, floorId, ResourceType.DESK, BookingMode.ASSIGNED, 9L)));
+        when(bookings.occupancy(1L, 9L, floorId, from, to)).thenReturn(List.of());
+
+        WorkplaceDtos.Resource result = service.explore(
+                1L, 9L, null, floorId, from, to, "en-US", null)
+                .resources().getFirst();
+
+        assertThat(result.assignedToCurrentUser()).isTrue();
+        assertThat(result.assignedDisplayName()).isEqualTo("고정 좌석");
+    }
+
+    @Test
     void assignedSeatCannotBeReservedByAnotherMember() {
         UUID siteId = UUID.randomUUID();
         UUID floorId = UUID.randomUUID();
@@ -203,6 +248,81 @@ class WorkplaceServiceTest {
                 .containsExactly(activeSiteId);
         assertThat(result.floors()).extracting(WorkplaceDtos.Floor::floorId)
                 .containsExactly(activeFloorId);
+    }
+
+    @Test
+    void myBookingsImmediatelyHidesReservationsWhoseSiteViewWasRevoked() {
+        UUID allowedSiteId = UUID.randomUUID();
+        UUID deniedSiteId = UUID.randomUUID();
+        UUID allowedFloorId = UUID.randomUUID();
+        UUID deniedFloorId = UUID.randomUUID();
+        UUID allowedResourceId = UUID.randomUUID();
+        UUID deniedResourceId = UUID.randomUUID();
+        OffsetDateTime from = OffsetDateTime.now().minusDays(1);
+        OffsetDateTime to = from.plusDays(7);
+        WorkplaceBookingRepository.BookingRow allowed = bookingRow(
+                allowedResourceId, from.plusDays(2));
+        WorkplaceBookingRepository.BookingRow denied = bookingRow(
+                deniedResourceId, from.plusDays(3));
+        when(bookings.bookings(1L, 9L, from, to, true)).thenReturn(List.of(allowed, denied));
+        when(catalog.policy(1L)).thenReturn(policy(true));
+        when(catalog.resource(1L, allowedResourceId, false)).thenReturn(Optional.of(
+                resource(allowedResourceId, allowedFloorId,
+                        ResourceType.DESK, BookingMode.RESERVABLE, null)));
+        when(catalog.resource(1L, deniedResourceId, false)).thenReturn(Optional.of(
+                resource(deniedResourceId, deniedFloorId,
+                        ResourceType.DESK, BookingMode.RESERVABLE, null)));
+        when(catalog.floor(1L, allowedFloorId, false))
+                .thenReturn(Optional.of(floor(allowedSiteId, allowedFloorId)));
+        when(catalog.floor(1L, deniedFloorId, false))
+                .thenReturn(Optional.of(floor(deniedSiteId, deniedFloorId)));
+        doNothing().when(runtimeGovernance)
+                .requireViewAccess(1L, 9L, "group-a", allowedSiteId);
+        doThrow(new BaseException(ErrorCode.FORBIDDEN))
+                .when(runtimeGovernance)
+                .requireViewAccess(1L, 9L, "group-a", deniedSiteId);
+
+        List<WorkplaceDtos.Booking> result = service.myBookings(
+                1L, 9L, from, to, "ko-KR", "group-a");
+
+        assertThat(result).extracting(WorkplaceDtos.Booking::resourceId)
+                .containsExactly(allowedResourceId);
+    }
+
+    @Test
+    void revokedBookPermissionBlocksEveryMemberLifecycleMutation() {
+        UUID siteId = UUID.randomUUID();
+        UUID floorId = UUID.randomUUID();
+        UUID resourceId = UUID.randomUUID();
+        UUID bookingId = UUID.randomUUID();
+        WorkplaceBookingRepository.BookingRow current = bookingRow(
+                bookingId, resourceId, OffsetDateTime.now().plusHours(2));
+        when(bookings.booking(1L, 9L, bookingId, true)).thenReturn(Optional.of(current));
+        when(catalog.resource(1L, resourceId, false)).thenReturn(Optional.of(
+                resource(resourceId, floorId,
+                        ResourceType.DESK, BookingMode.RESERVABLE, null)));
+        when(catalog.floor(1L, floorId, false)).thenReturn(Optional.of(floor(siteId, floorId)));
+        doThrow(new BaseException(ErrorCode.FORBIDDEN))
+                .when(runtimeGovernance)
+                .requireBookAccess(1L, 9L, "group-a", siteId);
+        WorkplaceDtos.VersionRequest version = new WorkplaceDtos.VersionRequest(0L);
+
+        assertThatThrownBy(() -> service.checkIn(
+                1L, 9L, bookingId, "ko-KR", "corr", "group-a", version))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+        assertThatThrownBy(() -> service.cancelBooking(
+                1L, 9L, bookingId, "ko-KR", "corr", "group-a", version))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+        assertThatThrownBy(() -> service.releaseBooking(
+                1L, 9L, bookingId, "ko-KR", "corr", "group-a", version))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+
+        verify(bookings, never()).checkIn(any(), any(), any(), any(), any());
+        verify(bookings, never()).cancel(any(), any(), any(), any(), any());
+        verify(bookings, never()).release(any(), any(), any(), any(), any());
     }
 
     @Test
@@ -424,6 +544,19 @@ class WorkplaceServiceTest {
                 false, false, BigDecimal.TEN, BigDecimal.TEN, BigDecimal.TEN,
                 BigDecimal.TEN, 0, assignedUserId, null,
                 assignedUserId == null ? null : "고정 좌석", 0, 0L);
+    }
+
+    private WorkplaceBookingRepository.BookingRow bookingRow(
+            UUID resourceId, OffsetDateTime startsAt) {
+        return bookingRow(UUID.randomUUID(), resourceId, startsAt);
+    }
+
+    private WorkplaceBookingRepository.BookingRow bookingRow(
+            UUID bookingId, UUID resourceId, OffsetDateTime startsAt) {
+        return new WorkplaceBookingRepository.BookingRow(
+                bookingId, resourceId, "좌석", ResourceType.DESK,
+                "판교", "12층", "집중 업무", startsAt, startsAt.plusHours(1),
+                BookingStatus.RESERVED, true, null, null, 0L);
     }
 
     private WorkplaceCatalogRepository.PolicyRow policy(boolean showNames) {

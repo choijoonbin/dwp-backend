@@ -46,8 +46,10 @@ public class CalendarController {
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
             @RequestHeader(value = "X-DWP-Person-Public-ID", required = false) UUID personPublicId,
+            @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @RequestHeader(value = "Accept-Language", required = false) String locale) {
-        return ApiResponse.success(service.calendars(tenantId, userId, personPublicId, locale));
+        return ApiResponse.success(service.calendars(
+                tenantId, userId, personPublicId, groupRefs, locale));
     }
 
     @GetMapping("/events")
@@ -136,11 +138,18 @@ public class CalendarController {
                 tenantId, userId, groupRefs, from, to, locale));
     }
 
+    @GetMapping("/policy")
+    public ApiResponse<CalendarDtos.Policy> calendarPolicy(
+            @RequestHeader("X-DWP-Tenant-ID") Long tenantId) {
+        return ApiResponse.success(service.policy(tenantId));
+    }
+
     @GetMapping("/availability")
     public ApiResponse<CalendarDtos.AvailabilityResponse> availability(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
             @RequestHeader(value = "X-DWP-Person-Public-ID", required = false) UUID personPublicId,
+            @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestParam(required = false, defaultValue = "") List<UUID> personIds,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime from,
@@ -148,8 +157,20 @@ public class CalendarController {
             @RequestParam(defaultValue = "30") int durationMinutes,
             @RequestParam(defaultValue = "Asia/Seoul") String timeZone) {
         return ApiResponse.success(service.availability(
-                tenantId, userId, personPublicId, personIds, from, to,
+                tenantId, userId, personPublicId, groupRefs, personIds, from, to,
                 durationMinutes, timeZone, locale));
+    }
+
+    @PostMapping("/scheduling/evaluations")
+    public ApiResponse<CalendarDtos.SchedulingEvaluationResponse> evaluateScheduling(
+            @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
+            @RequestHeader("X-DWP-User-ID") Long userId,
+            @RequestHeader(value = "X-DWP-Person-Public-ID", required = false) UUID personPublicId,
+            @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
+            @RequestHeader(value = "Accept-Language", required = false) String locale,
+            @Valid @RequestBody CalendarDtos.SchedulingEvaluationRequest request) {
+        return ApiResponse.success(service.evaluateScheduling(
+                tenantId, userId, personPublicId, groupRefs, locale, request));
     }
 
     private String decoded(String value) {

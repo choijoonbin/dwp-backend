@@ -332,7 +332,7 @@ class ProductSurfaceContextAggregationServiceTest {
     void defaultOffEnvelopeIncludesTheCompleteRolloutInventoryWithoutRouteAuthority() {
         List<String> products = List.of(
                 "approvals", "calendar", "communications", "dwaion", "hcm", "mail",
-                "messaging", "notifications", "services", "spaces", "workplace");
+                "meetings", "messaging", "notifications", "services", "spaces", "workplace");
         when(catalog.rolloutProductKeys()).thenReturn(products);
         when(rollout.evaluateProducts(anyLong(), any(), any()))
                 .thenReturn(Mono.just(products.stream()
@@ -357,7 +357,7 @@ class ProductSurfaceContextAggregationServiceTest {
     void contractLessProductsFailClosedWhenRawRolloutRequiresEnforcement() {
         List<String> products = List.of(
                 "approvals", "calendar", "communications", "dwaion", "hcm", "mail",
-                "messaging", "notifications", "services", "spaces", "workplace");
+                "meetings", "messaging", "notifications", "services", "spaces", "workplace");
         List<ProductSurfaceContextDtos.ProductCandidate> active = List.of(
                 new ProductSurfaceContextDtos.ProductCandidate(
                         "approvals", "approvals.admin"),
@@ -409,7 +409,7 @@ class ProductSurfaceContextAggregationServiceTest {
     void uiEnabledProductWithoutActiveAuthorityFailsClosed() {
         List<String> products = List.of(
                 "approvals", "calendar", "communications", "dwaion", "hcm", "mail",
-                "messaging", "notifications", "services", "spaces", "workplace");
+                "meetings", "messaging", "notifications", "services", "spaces", "workplace");
         when(catalog.rolloutProductKeys()).thenReturn(products);
         when(rollout.evaluateProducts(anyLong(), any(), any()))
                 .thenReturn(Mono.just(products.stream()

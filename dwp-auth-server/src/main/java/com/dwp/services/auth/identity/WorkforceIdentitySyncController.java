@@ -42,7 +42,8 @@ public class WorkforceIdentitySyncController {
     public List<IdentitySubjectLookupService.DirectorySubject> searchSubjects(
             @PathVariable Long tenantId,
             @RequestParam(defaultValue = "") String query,
+            @RequestParam(defaultValue = "true") boolean activeOnly,
             @RequestParam(defaultValue = "10") int limit) {
-        return subjects.search(tenantId, query, limit);
+        return subjects.search(tenantId, query, activeOnly, limit);
     }
 }

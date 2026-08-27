@@ -86,6 +86,10 @@ class GatewayProductSurfaceOpenApiContractTest {
                 .noneMatch(path -> path.contains("/internal/auth/")
                         || path.contains("/internal/people/")
                         || path.contains("/internal/provider/"));
+        assertThat(gateway.path("paths").propertyStream()
+                .map(entry -> entry.getKey()))
+                .noneMatch(path -> path.equals("/api/platform/internal")
+                        || path.startsWith("/api/platform/internal/"));
     }
 
     @Test

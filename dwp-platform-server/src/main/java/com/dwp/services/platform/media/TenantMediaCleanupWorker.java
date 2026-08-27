@@ -56,8 +56,12 @@ class TenantMediaCleanupWorker {
 
     private void clean(TenantMediaCleanupOutbox.CleanupJob job) {
         try {
+            if (!outbox.beginDelete(job, workerId)) {
+                outbox.complete(job, workerId);
+                return;
+            }
             storage.delete(job.tenantId(), job.storageKey());
-            outbox.complete(job, workerId);
+            outbox.completeDelete(job, workerId);
         } catch (RuntimeException exception) {
             long delaySeconds = Math.min(3600L, 5L << Math.min(job.attemptCount() - 1, 9));
             String errorCode = sanitize(exception.getClass().getSimpleName());

@@ -49,6 +49,26 @@ public class HomeExperience extends BaseEntity {
     private String backgroundPosition = "CENTER";
 
     @Builder.Default
+    @Column(name = "background_focal_x", nullable = false)
+    private Integer backgroundFocalX = 50;
+
+    @Builder.Default
+    @Column(name = "background_focal_y", nullable = false)
+    private Integer backgroundFocalY = 50;
+
+    @Builder.Default
+    @Column(name = "mobile_background_focal_x", nullable = false)
+    private Integer mobileBackgroundFocalX = 50;
+
+    @Builder.Default
+    @Column(name = "mobile_background_focal_y", nullable = false)
+    private Integer mobileBackgroundFocalY = 50;
+
+    @Builder.Default
+    @Column(name = "content_alignment", nullable = false, length = 16)
+    private String contentAlignment = "LEFT";
+
+    @Builder.Default
     @Column(name = "overlay_opacity", nullable = false)
     private Integer overlayOpacity = 18;
 

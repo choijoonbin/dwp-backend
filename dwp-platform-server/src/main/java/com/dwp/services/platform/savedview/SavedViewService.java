@@ -10,79 +10,93 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
 public class SavedViewService {
 
-    private static final Pattern SURFACE = Pattern.compile("^[a-z0-9][a-z0-9._-]{2,79}$");
-    private static final Pattern IDEMPOTENCY = Pattern.compile("^[A-Za-z0-9][A-Za-z0-9._:-]{7,119}$");
-    private static final Set<String> SCOPES = Set.of("PERSONAL", "TEAM", "TENANT");
     private static final Set<String> DISPOSITIONS = Set.of("TRANSFER", "RETAIN_ORPHANED");
     private static final Set<String> TRANSFER_REASONS = Set.of(
             "OFFBOARDING", "TEAM_REORGANIZATION", "OWNER_CORRECTION");
     private static final Set<String> SHARED_VIEW_ROLES = Set.of(
             "ADMIN", "TENANT_ADMIN", "PLATFORM_ADMIN");
-    private static final int MAX_CONFIGURATION_BYTES = 16_384;
-
+    static final String NO_AFFECTED_VIEWS = "NO_AFFECTED_VIEWS";
+    static final String SOURCE_OWNER_NOT_SUCCESSOR = "SOURCE_OWNER_NOT_SUCCESSOR";
+    static final String SELF_ASSIGNMENT_NOT_ALLOWED = "SELF_ASSIGNMENT_NOT_ALLOWED";
+    static final String EVALUATION_UNAVAILABLE = "EVALUATION_UNAVAILABLE";
     private final SavedViewRepository repository;
     private final PlatformAuditService audit;
     private final ObjectMapper objectMapper;
-
-    public SavedViewService(
-            SavedViewRepository repository,
-            PlatformAuditService audit,
-            ObjectMapper objectMapper) {
+    private final SavedViewSubjectDirectory subjects;
+    private final SavedViewOrphanLifecycleService orphanLifecycle;
+    private final SavedViewOwnershipConflictPolicy ownershipConflicts;
+    private final SavedViewSurfaceAccessPolicy surfaceAccess;
+    private final SavedViewTargetEligibilityPolicy targetEligibility;
+    private final SavedViewInputNormalizer input;
+    public SavedViewService(SavedViewRepository repository, PlatformAuditService audit,
+            ObjectMapper objectMapper, SavedViewSubjectDirectory subjects,
+            SavedViewOrphanLifecycleService orphanLifecycle,
+            SavedViewOwnershipConflictPolicy ownershipConflicts,
+            SavedViewSurfaceAccessPolicy surfaceAccess,
+            SavedViewTargetEligibilityPolicy targetEligibility) {
         this.repository = repository;
         this.audit = audit;
         this.objectMapper = objectMapper;
+        this.subjects = subjects;
+        this.orphanLifecycle = orphanLifecycle;
+        this.ownershipConflicts = ownershipConflicts;
+        this.surfaceAccess = surfaceAccess;
+        this.targetEligibility = targetEligibility;
+        this.input = new SavedViewInputNormalizer(objectMapper);
     }
-
     @Transactional(readOnly = true)
     public List<SavedViewDtos.SavedView> list(
             Long tenantId,
             Long actorId,
+            String permissions,
             String roles,
             String groupRefsHeader,
             String surfaceKey) {
-        String surface = surface(surfaceKey);
+        String surface = input.surface(surfaceKey);
+        surfaceAccess.requireRead(surface, permissions);
         Set<UUID> groupRefs = groupRefs(groupRefsHeader);
         boolean sharedEditor = sharedEditor(roles);
         return repository.visible(tenantId, actorId, groupRefs, surface).stream()
                 .map(row -> dto(row, actorId, sharedEditor))
                 .toList();
     }
-
     @Transactional
     public SavedViewDtos.SavedView create(
             Long tenantId,
             Long actorId,
+            String permissions,
             String roles,
             String groupRefsHeader,
             String correlationId,
             String surfaceKey,
             SavedViewDtos.CreateRequest request) {
-        String surface = surface(surfaceKey);
-        String scope = scope(request.scope());
+        String surface = input.surface(surfaceKey);
+        surfaceAccess.requireWrite(surface, permissions);
+        String scope = input.scope(request.scope());
         Set<UUID> groupRefs = groupRefs(groupRefsHeader);
         UUID ownerGroupRef = ownerGroupRef(scope, request.ownerGroupRef(), groupRefs);
         requireSharedEditor(scope, roles);
-        String name = name(request.name());
-        Map<String, Object> configuration = configuration(request.configuration());
+        String name = input.name(request.name());
+        Map<String, Object> configuration = input.configuration(request.configuration());
         try {
             UUID id = repository.create(
                     tenantId, actorId, surface, name, scope, ownerGroupRef, configuration);
@@ -93,7 +107,7 @@ public class SavedViewService {
                     id.toString(), correlationId, null, created);
             return dto(created, actorId, sharedEditor(roles));
         } catch (DataIntegrityViolationException exception) {
-            throw nameConflict(exception);
+            throw input.nameConflict(exception);
         }
     }
 
@@ -101,6 +115,7 @@ public class SavedViewService {
     public SavedViewDtos.SavedView update(
             Long tenantId,
             Long actorId,
+            String permissions,
             String roles,
             String groupRefsHeader,
             String correlationId,
@@ -108,8 +123,9 @@ public class SavedViewService {
             SavedViewDtos.UpdateRequest request) {
         Set<UUID> groupRefs = groupRefs(groupRefsHeader);
         SavedViewRepository.Row before = accessible(tenantId, actorId, groupRefs, savedViewId);
+        surfaceAccess.requireWrite(before.surfaceKey(), permissions);
         requireEditable(before, actorId, roles);
-        String scope = scope(request.scope());
+        String scope = input.scope(request.scope());
         requireSharedEditor(scope, roles);
         if (("PERSONAL".equals(scope) || "TEAM".equals(scope))
                 && !Objects.equals(before.ownerUserId(), actorId)) {
@@ -118,12 +134,12 @@ public class SavedViewService {
         UUID ownerGroupRef = ownerGroupRef(scope, request.ownerGroupRef(), groupRefs);
         try {
             if (!repository.update(
-                    tenantId, actorId, savedViewId, name(request.name()), scope,
-                    ownerGroupRef, configuration(request.configuration()), request.version())) {
+                    tenantId, actorId, savedViewId, input.name(request.name()), scope,
+                    ownerGroupRef, input.configuration(request.configuration()), request.version())) {
                 throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
             }
         } catch (DataIntegrityViolationException exception) {
-            throw nameConflict(exception);
+            throw input.nameConflict(exception);
         }
         SavedViewRepository.Row after = accessible(tenantId, actorId, groupRefs, savedViewId);
         audit.success(tenantId, actorId, "workspace.saved-view.updated", "SAVED_VIEW",
@@ -135,18 +151,20 @@ public class SavedViewService {
     public void delete(
             Long tenantId,
             Long actorId,
+            String permissions,
             String roles,
             String groupRefsHeader,
             String correlationId,
             UUID savedViewId) {
         Set<UUID> groupRefs = groupRefs(groupRefsHeader);
         SavedViewRepository.Row before = accessible(tenantId, actorId, groupRefs, savedViewId);
+        surfaceAccess.requireWrite(before.surfaceKey(), permissions);
         requireEditable(before, actorId, roles);
         if (!repository.archive(tenantId, actorId, savedViewId)) {
             throw new BaseException(ErrorCode.NOT_FOUND);
         }
         audit.success(tenantId, actorId, "workspace.saved-view.archived", "SAVED_VIEW",
-                savedViewId.toString(), correlationId, summary(before),
+                savedViewId.toString(), correlationId, SavedViewAuditSnapshots.view(before),
                 Map.of("lifecycleState", "ARCHIVED"));
     }
 
@@ -154,12 +172,14 @@ public class SavedViewService {
     public SavedViewDtos.SavedView preference(
             Long tenantId,
             Long actorId,
+            String permissions,
             String roles,
             String groupRefsHeader,
             UUID savedViewId,
             SavedViewDtos.PreferenceRequest request) {
         Set<UUID> groupRefs = groupRefs(groupRefsHeader);
         SavedViewRepository.Row view = accessible(tenantId, actorId, groupRefs, savedViewId);
+        surfaceAccess.requireWrite(view.surfaceKey(), permissions);
         repository.preference(tenantId, actorId, view.surfaceKey(), savedViewId,
                 request.favorite(), request.defaultView());
         return dto(accessible(tenantId, actorId, groupRefs, savedViewId),
@@ -170,27 +190,44 @@ public class SavedViewService {
     public void markUsed(
             Long tenantId,
             Long actorId,
+            String permissions,
             String groupRefsHeader,
             UUID savedViewId) {
         Set<UUID> groupRefs = groupRefs(groupRefsHeader);
         SavedViewRepository.Row view = accessible(tenantId, actorId, groupRefs, savedViewId);
+        surfaceAccess.requireUse(view.surfaceKey(), permissions);
         repository.markUsed(tenantId, actorId, view.surfaceKey(), savedViewId);
     }
-
     @Transactional
     public SavedViewDtos.OwnershipPreview previewOwnership(
             Long tenantId,
+            Long actorId,
             SavedViewDtos.OwnershipPlanRequest request) {
         OwnershipPlan plan = ownershipPlan(
                 request.sourceOwnerUserId(), request.disposition(), request.targetOwnerUserId(),
                 request.reasonCode(), request.reason(), request.sourceReference(),
-                request.retentionUntil());
+                request.retentionUntil(), true);
+        requireIndependentTarget(actorId, plan.targetOwnerUserId());
+        subjects.require(tenantId, plan.sourceOwnerUserId());
+        SavedViewSubjectDirectory.Subject target = "TRANSFER".equals(plan.disposition())
+                ? subjects.require(tenantId, plan.targetOwnerUserId()) : null;
         List<SavedViewRepository.Row> views = repository.ownedActiveForUpdate(
                 tenantId, plan.sourceOwnerUserId());
+        requireEligibleTarget(views, plan, target);
+        List<SavedViewDtos.OwnershipNameConflict> conflicts = ownershipConflicts
+                .transferConflicts(tenantId, plan.sourceOwnerUserId(), plan.targetOwnerUserId());
         return new SavedViewDtos.OwnershipPreview(
                 plan.sourceOwnerUserId(), plan.disposition(), plan.targetOwnerUserId(),
-                plan.retentionUntil(), views.size(), ownershipFingerprint(views),
-                views.stream().map(this::candidate).toList(), OffsetDateTime.now());
+                plan.retentionUntil(), views.size(), ownershipFingerprint(views, plan),
+                views.stream().map(this::candidate).toList(), conflicts, OffsetDateTime.now());
+    }
+    @Transactional(readOnly = true)
+    public Optional<SavedViewDtos.OwnershipTransfer> resolveCompletedTransfer(
+            Long tenantId,
+            SavedViewDtos.OwnershipTransferRequest request) {
+        NormalizedTransfer normalized = normalizedTransfer(request, false);
+        return matchingTransfer(
+                tenantId, normalized.request().idempotencyKey(), normalized.requestFingerprint());
     }
 
     @Transactional
@@ -199,62 +236,125 @@ public class SavedViewService {
             Long actorId,
             String correlationId,
             SavedViewDtos.OwnershipTransferRequest request) {
-        OwnershipPlan plan = ownershipPlan(
-                request.sourceOwnerUserId(), request.disposition(), request.targetOwnerUserId(),
-                request.reasonCode(), request.reason(), request.sourceReference(),
-                request.retentionUntil());
-        String idempotencyKey = idempotencyKey(request.idempotencyKey());
-        SavedViewDtos.OwnershipTransferRequest normalized =
-                new SavedViewDtos.OwnershipTransferRequest(
-                        idempotencyKey, plan.sourceOwnerUserId(), plan.disposition(),
-                        plan.targetOwnerUserId(), plan.reasonCode(), plan.reason(),
-                        plan.sourceReference(), plan.retentionUntil(), request.expectedCount(),
-                        normalizedFingerprint(request.ownershipFingerprint()));
-        String requestFingerprint = requestFingerprint(normalized);
-        repository.idempotencyLock(tenantId, idempotencyKey);
-        SavedViewDtos.OwnershipTransfer existing = repository
-                .transferByIdempotency(tenantId, idempotencyKey).orElse(null);
-        if (existing != null) {
-            if (!requestFingerprint.equals(existing.requestFingerprint())) {
-                throw new BaseException(
-                        ErrorCode.RESOURCE_CONFLICT,
-                        "The idempotency key was already used for a different ownership transfer.");
-            }
-            return existing;
-        }
+        NormalizedTransfer normalizedTransfer = normalizedTransfer(request, false);
+        SavedViewDtos.OwnershipTransferRequest normalized = normalizedTransfer.request();
+        OwnershipPlan plan = normalizedTransfer.plan();
+        repository.idempotencyLock(tenantId, normalized.idempotencyKey());
+        Optional<SavedViewDtos.OwnershipTransfer> replay = matchingTransfer(
+                tenantId, normalized.idempotencyKey(), normalizedTransfer.requestFingerprint());
+        if (replay.isPresent()) return replay.get();
+        requireIndependentTarget(actorId, plan.targetOwnerUserId());
+        validateNewOwnershipPlan(plan);
+        SavedViewSubjectDirectory.Subject source = subjects.require(
+                tenantId, normalized.sourceOwnerUserId());
+        SavedViewSubjectDirectory.Subject target = normalized.targetOwnerUserId() == null
+                ? null : subjects.require(tenantId, normalized.targetOwnerUserId());
         List<SavedViewRepository.Row> views = repository.ownedActiveForUpdate(
                 tenantId, plan.sourceOwnerUserId());
-        String currentFingerprint = ownershipFingerprint(views);
+        requireEligibleTarget(views, plan, target);
+        ownershipConflicts.requireTransferClear(
+                tenantId, plan.sourceOwnerUserId(), plan.targetOwnerUserId());
+        String currentFingerprint = ownershipFingerprint(views, plan);
         if (views.size() != normalized.expectedCount()
                 || !currentFingerprint.equals(normalized.ownershipFingerprint())) {
             throw new BaseException(
-                    ErrorCode.RESOURCE_CONFLICT,
+                    ErrorCode.SAVED_VIEW_CUSTODY_STALE,
                     "Saved-view ownership changed after preview. Refresh the plan and retry.");
         }
         try {
             SavedViewDtos.OwnershipTransfer result = repository.transfer(
-                    tenantId, actorId, UUID.randomUUID(), normalized, requestFingerprint, views);
+                    tenantId, actorId, UUID.randomUUID(), displaySnapshot(source),
+                    displaySnapshot(target), normalized,
+                    normalizedTransfer.requestFingerprint(), views);
             audit.success(
                     tenantId, actorId, "admin.saved-view-ownership.transferred",
                     "SAVED_VIEW_TRANSFER_BATCH", result.transferBatchId().toString(), correlationId,
-                    null, transferSummary(result));
+                    null, SavedViewAuditSnapshots.transfer(result));
             return result;
         } catch (OptimisticLockingFailureException exception) {
             throw new BaseException(
-                    ErrorCode.RESOURCE_CONFLICT,
+                    ErrorCode.SAVED_VIEW_CUSTODY_STALE,
                     "Saved-view ownership changed during transfer. Refresh and retry.",
                     exception);
         } catch (DataIntegrityViolationException exception) {
-            throw new BaseException(
-                    ErrorCode.RESOURCE_CONFLICT,
-                    "The target owner already has a conflicting active saved view.",
-                    exception);
+            throw ownershipConflicts.conflict("PERSONAL", exception);
         }
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<SavedViewDtos.OrphanLifecycleResult> resolveCompletedOrphanReassign(
+            Long tenantId,
+            UUID savedViewId,
+            SavedViewDtos.OrphanReassignRequest request) {
+        return orphanLifecycle.resolve(tenantId, savedViewId, request);
+    }
+
+    @Transactional
+    public SavedViewDtos.OrphanLifecycleResult reassignOrphan(
+            Long tenantId,
+            Long actorId,
+            String correlationId,
+            UUID savedViewId,
+            SavedViewDtos.OrphanReassignRequest request) {
+        return orphanLifecycle.reassign(tenantId, actorId, correlationId, savedViewId, request);
+    }
+
+    @Transactional
+    public SavedViewDtos.OrphanLifecycleResult extendOrphanRetention(
+            Long tenantId,
+            Long actorId,
+            String correlationId,
+            UUID savedViewId,
+            SavedViewDtos.OrphanRetentionRequest request) {
+        return orphanLifecycle.extend(tenantId, actorId, correlationId, savedViewId, request);
+    }
+
+    @Transactional
+    public SavedViewDtos.OrphanLifecycleResult archiveOrphanNow(
+            Long tenantId,
+            Long actorId,
+            String correlationId,
+            UUID savedViewId,
+            SavedViewDtos.OrphanArchiveRequest request) {
+        return orphanLifecycle.archive(tenantId, actorId, correlationId, savedViewId, request);
     }
 
     @Transactional(readOnly = true)
     public List<SavedViewDtos.OrphanedView> orphaned(Long tenantId) {
         return repository.orphaned(tenantId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<SavedViewDtos.CustodyCandidate> custodyCandidates(
+            Long tenantId,
+            Long actorId,
+            List<SavedViewSubjectDirectory.DirectorySubject> directory,
+            Long sourceOwnerUserId,
+            UUID orphanedSavedViewId) {
+        if (sourceOwnerUserId != null && orphanedSavedViewId != null) {
+            throw input.invalid("Choose either a source owner or one retained saved view for target evaluation.");
+        }
+        if (sourceOwnerUserId != null && sourceOwnerUserId <= 0) {
+            throw input.invalid("A valid source owner is required for target evaluation.");
+        }
+        List<SavedViewRepository.Row> affected = sourceOwnerUserId != null
+                ? repository.ownedActive(tenantId, sourceOwnerUserId)
+                : orphanedSavedViewId != null
+                        ? repository.orphan(tenantId, orphanedSavedViewId)
+                                .map(List::of).orElseGet(List::of)
+                        : null;
+        Map<Long, String> nameConflictReasons = orphanedSavedViewId == null
+                ? Map.of()
+                : ownershipConflicts.orphanCandidateReasons(
+                        tenantId,
+                        orphanedSavedViewId,
+                        directory.stream().map(
+                                SavedViewSubjectDirectory.DirectorySubject::userId).toList());
+        return directory.stream()
+                .map(candidate -> custodyCandidate(
+                        actorId, sourceOwnerUserId, affected, candidate,
+                        nameConflictReasons.get(candidate.userId())))
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -277,7 +377,7 @@ public class SavedViewService {
                         "SAVED_VIEW",
                         view.id().toString(),
                         null,
-                        summary(view),
+                        SavedViewAuditSnapshots.view(view),
                         Map.of("lifecycleState", "ARCHIVED"));
                 archived++;
             }
@@ -324,49 +424,52 @@ public class SavedViewService {
                 row.version(), row.updatedAt());
     }
 
-    private Map<String, Object> summary(SavedViewRepository.Row row) {
-        Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("savedViewId", row.id());
-        summary.put("surfaceKey", row.surfaceKey());
-        summary.put("scope", row.scope());
-        summary.put("ownerUserId", row.ownerUserId());
-        summary.put("ownerGroupRef", row.ownerGroupRef());
-        summary.put("lifecycleState", row.lifecycleState());
-        summary.put("version", row.version());
-        return summary;
-    }
-
-    private Map<String, Object> transferSummary(SavedViewDtos.OwnershipTransfer transfer) {
-        Map<String, Object> summary = new LinkedHashMap<>();
-        summary.put("transferBatchId", transfer.transferBatchId());
-        summary.put("sourceOwnerUserId", transfer.sourceOwnerUserId());
-        summary.put("targetOwnerUserId", transfer.targetOwnerUserId());
-        summary.put("disposition", transfer.disposition());
-        summary.put("reasonCode", transfer.reasonCode());
-        summary.put("sourceReference", transfer.sourceReference());
-        summary.put("retentionUntil", transfer.retentionUntil());
-        summary.put("transferredCount", transfer.transferredCount());
-        summary.put("ownershipFingerprint", transfer.ownershipFingerprint());
-        return summary;
-    }
-
-    private String surface(String value) {
-        String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
-        if (!SURFACE.matcher(normalized).matches()) {
-            throw invalid("Invalid saved-view surface key.");
+    private SavedViewDtos.CustodyCandidate custodyCandidate(
+            Long actorId,
+            Long sourceOwnerUserId,
+            List<SavedViewRepository.Row> affected,
+            SavedViewSubjectDirectory.DirectorySubject candidate,
+            String nameConflictReason) {
+        if (affected == null) {
+            return custodyCandidate(candidate, "NOT_EVALUATED", List.of());
         }
-        return normalized;
+        Set<String> reasons = new LinkedHashSet<>();
+        if (affected.isEmpty()) reasons.add(NO_AFFECTED_VIEWS);
+        if (Objects.equals(candidate.userId(), sourceOwnerUserId)) {
+            reasons.add(SOURCE_OWNER_NOT_SUCCESSOR);
+        }
+        if (Objects.equals(candidate.userId(), actorId)) {
+            reasons.add(SELF_ASSIGNMENT_NOT_ALLOWED);
+        }
+        if (!affected.isEmpty()) {
+            if (!candidate.hasCompleteEligibilityEvidence()) {
+                reasons.add(EVALUATION_UNAVAILABLE);
+            } else {
+                reasons.addAll(targetEligibility.reasons(
+                        affected, candidate.exactSnapshot()));
+            }
+            if (nameConflictReason != null) reasons.add(nameConflictReason);
+        }
+        return custodyCandidate(
+                candidate,
+                reasons.isEmpty() ? "ELIGIBLE" : "INELIGIBLE",
+                List.copyOf(reasons));
     }
 
-    private String scope(String value) {
-        String normalized = code(value);
-        if (!SCOPES.contains(normalized)) throw invalid("Invalid saved-view scope.");
-        return normalized;
+    private SavedViewDtos.CustodyCandidate custodyCandidate(
+            SavedViewSubjectDirectory.DirectorySubject candidate,
+            String eligibilityStatus,
+            List<String> reasons) {
+        return new SavedViewDtos.CustodyCandidate(
+                candidate.tenantId(), candidate.userId(), candidate.publicId(),
+                candidate.personPublicId(), candidate.displayName(), candidate.email(),
+                candidate.jobTitle(), candidate.status(), candidate.identityPlane(),
+                eligibilityStatus, reasons);
     }
 
     private UUID ownerGroupRef(String scope, UUID requested, Set<UUID> groupRefs) {
         if (!"TEAM".equals(scope)) {
-            if (requested != null) throw invalid("A group owner is only valid for a team view.");
+            if (requested != null) throw input.invalid("A group owner is only valid for a team view.");
             return null;
         }
         if (requested == null || !groupRefs.contains(requested)) {
@@ -392,29 +495,6 @@ public class SavedViewService {
         }
     }
 
-    private String name(String value) {
-        String normalized = value == null ? "" : value.trim();
-        if (normalized.isEmpty() || normalized.length() > 160) {
-            throw invalid("Invalid saved-view name.");
-        }
-        return normalized;
-    }
-
-    private Map<String, Object> configuration(Map<String, Object> value) {
-        Map<String, Object> normalized = value == null ? Map.of() : new LinkedHashMap<>(value);
-        try {
-            if (objectMapper.writeValueAsBytes(normalized).length > MAX_CONFIGURATION_BYTES) {
-                throw invalid("Saved-view configuration exceeds the 16 KiB limit.");
-            }
-            return normalized;
-        } catch (JsonProcessingException exception) {
-            throw new BaseException(
-                    ErrorCode.INVALID_INPUT_VALUE,
-                    "Saved-view configuration is not valid JSON.",
-                    exception);
-        }
-    }
-
     private OwnershipPlan ownershipPlan(
             Long sourceOwnerUserId,
             String disposition,
@@ -422,75 +502,144 @@ public class SavedViewService {
             String reasonCode,
             String reason,
             String sourceReference,
-            OffsetDateTime retentionUntil) {
+            OffsetDateTime retentionUntil,
+            boolean requireFutureRetention) {
         if (sourceOwnerUserId == null || sourceOwnerUserId <= 0) {
-            throw invalid("A valid source owner is required.");
+            throw input.invalid("A valid source owner is required.");
         }
-        String normalizedDisposition = code(disposition);
+        String normalizedDisposition = input.code(disposition);
         if (!DISPOSITIONS.contains(normalizedDisposition)) {
-            throw invalid("Invalid saved-view ownership disposition.");
+            throw input.invalid("Invalid saved-view ownership disposition.");
         }
-        String normalizedReasonCode = code(reasonCode);
+        String normalizedReasonCode = input.code(reasonCode);
         if (!TRANSFER_REASONS.contains(normalizedReasonCode)) {
-            throw invalid("Invalid saved-view ownership reason.");
+            throw input.invalid("Invalid saved-view ownership reason.");
         }
-        String normalizedReason = required(reason, 1000, "A transfer reason is required.");
-        String normalizedSource = required(
-                sourceReference, 240, "An authoritative source reference is required.");
+        String normalizedReason = input.required(
+                reason, 10, 1000, "A transfer reason of at least 10 characters is required.");
+        String normalizedSource = input.required(
+                sourceReference, 3, 240,
+                "An authoritative source reference of at least 3 characters is required.");
         if ("TRANSFER".equals(normalizedDisposition)) {
             if (targetOwnerUserId == null || targetOwnerUserId <= 0
                     || targetOwnerUserId.equals(sourceOwnerUserId) || retentionUntil != null) {
-                throw invalid("A transfer requires a different valid target owner.");
+                throw input.invalid("A transfer requires a different valid target owner.");
             }
-        } else if (targetOwnerUserId != null || retentionUntil == null
-                || !retentionUntil.isAfter(OffsetDateTime.now())) {
-            throw invalid("Orphan retention requires a future retention deadline and no target owner.");
+        } else if (targetOwnerUserId != null || retentionUntil == null) {
+            throw input.invalid(
+                    "Orphan retention requires a retention deadline and no target owner.");
         }
-        return new OwnershipPlan(
+        OwnershipPlan plan = new OwnershipPlan(
                 sourceOwnerUserId, normalizedDisposition, targetOwnerUserId,
                 normalizedReasonCode, normalizedReason, normalizedSource, retentionUntil);
+        if (requireFutureRetention) validateNewOwnershipPlan(plan);
+        return plan;
     }
 
-    private String ownershipFingerprint(List<SavedViewRepository.Row> views) {
-        String material = views.stream()
+    private void validateNewOwnershipPlan(OwnershipPlan plan) {
+        if (!"RETAIN_ORPHANED".equals(plan.disposition())) return;
+        OffsetDateTime now = OffsetDateTime.now();
+        if (!plan.retentionUntil().isAfter(now)
+                || plan.retentionUntil().isAfter(now.plusDays(365))) {
+            throw input.invalid("Orphan retention must end within the next 365 days.");
+        }
+    }
+
+    private NormalizedTransfer normalizedTransfer(
+            SavedViewDtos.OwnershipTransferRequest request,
+            boolean requireFutureRetention) {
+        OwnershipPlan plan = ownershipPlan(
+                request.sourceOwnerUserId(), request.disposition(), request.targetOwnerUserId(),
+                request.reasonCode(), request.reason(), request.sourceReference(),
+                request.retentionUntil(), requireFutureRetention);
+        if (request.expectedCount() <= 0) {
+            throw input.invalid("At least one saved view is required for an ownership transfer.");
+        }
+        SavedViewDtos.OwnershipTransferRequest normalized =
+                new SavedViewDtos.OwnershipTransferRequest(
+                        input.idempotencyKey(request.idempotencyKey()), plan.sourceOwnerUserId(),
+                        plan.disposition(), plan.targetOwnerUserId(), plan.reasonCode(),
+                        plan.reason(), plan.sourceReference(), plan.retentionUntil(),
+                        request.expectedCount(),
+                        input.fingerprint(request.ownershipFingerprint()));
+        return new NormalizedTransfer(
+                plan, normalized, requestFingerprint(normalized));
+    }
+
+    private Optional<SavedViewDtos.OwnershipTransfer> matchingTransfer(
+            Long tenantId, String idempotencyKey, String requestFingerprint) {
+        Optional<SavedViewDtos.OwnershipTransfer> existing = repository
+                .transferByIdempotency(tenantId, idempotencyKey);
+        if (existing.isPresent()
+                && !requestFingerprint.equals(existing.get().requestFingerprint())) {
+            throw new BaseException(
+                    ErrorCode.RESOURCE_CONFLICT,
+                    "The idempotency key was already used for a different ownership transfer.");
+        }
+        return existing;
+    }
+
+    private void requireIndependentTarget(Long actorId, Long targetOwnerUserId) {
+        if (targetOwnerUserId != null && Objects.equals(actorId, targetOwnerUserId)) {
+            throw new BaseException(
+                    ErrorCode.FORBIDDEN,
+                    "Administrators cannot assign saved-view custody to themselves.");
+        }
+    }
+
+    private void requireEligibleTarget(
+            List<SavedViewRepository.Row> views,
+            OwnershipPlan plan,
+            SavedViewSubjectDirectory.Subject target) {
+        if (!"TRANSFER".equals(plan.disposition())) return;
+        requireEligibleTarget(views, target);
+    }
+
+    private void requireEligibleTarget(
+            List<SavedViewRepository.Row> views,
+            SavedViewSubjectDirectory.Subject target) {
+        targetEligibility.require(views, target);
+    }
+
+    private String displaySnapshot(SavedViewSubjectDirectory.Subject subject) {
+        if (subject == null) return null;
+        String displayName = subject.displayName() == null
+                ? "" : subject.displayName().strip();
+        String fallback = "User #" + subject.userId();
+        String value = displayName.isEmpty() ? fallback : displayName;
+        return value.substring(0, Math.min(value.length(), 240));
+    }
+
+    private String ownershipFingerprint(
+            List<SavedViewRepository.Row> views,
+            OwnershipPlan plan) {
+        List<String> viewSnapshot = views.stream()
                 .sorted(java.util.Comparator.comparing(row -> row.id().toString()))
                 .map(row -> row.id() + ":" + row.version())
-                .collect(Collectors.joining("\n"));
-        return sha256(material.getBytes(StandardCharsets.UTF_8));
+                .toList();
+        Map<String, Object> material = new LinkedHashMap<>();
+        material.put("sourceOwnerUserId", plan.sourceOwnerUserId());
+        material.put("disposition", plan.disposition());
+        material.put("targetOwnerUserId", plan.targetOwnerUserId());
+        material.put("reasonCode", plan.reasonCode());
+        material.put("reason", plan.reason());
+        material.put("sourceReference", plan.sourceReference());
+        material.put("retentionUntil",
+                plan.retentionUntil() == null ? null : plan.retentionUntil().toString());
+        material.put("views", viewSnapshot);
+        try {
+            return sha256(objectMapper.writeValueAsBytes(material));
+        } catch (JsonProcessingException exception) {
+            throw input.invalid("The ownership preview plan is not serializable.");
+        }
     }
 
-    private String requestFingerprint(SavedViewDtos.OwnershipTransferRequest request) {
+    private String requestFingerprint(Object request) {
         try {
             return sha256(objectMapper.writeValueAsBytes(request));
         } catch (JsonProcessingException exception) {
-            throw invalid("The ownership transfer request is not serializable.");
+            throw input.invalid("The saved-view custody request is not serializable.");
         }
-    }
-
-    private String normalizedFingerprint(String value) {
-        String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
-        if (!normalized.matches("^[0-9a-f]{64}$")) {
-            throw invalid("A valid ownership preview fingerprint is required.");
-        }
-        return normalized;
-    }
-
-    private String idempotencyKey(String value) {
-        String normalized = value == null ? "" : value.trim();
-        if (!IDEMPOTENCY.matcher(normalized).matches()) {
-            throw invalid("Invalid ownership transfer idempotency key.");
-        }
-        return normalized;
-    }
-
-    private String required(String value, int max, String message) {
-        String normalized = value == null ? "" : value.trim();
-        if (normalized.isEmpty() || normalized.length() > max) throw invalid(message);
-        return normalized;
-    }
-
-    private String code(String value) {
-        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
     private String sha256(byte[] value) {
@@ -515,24 +664,11 @@ public class SavedViewService {
                 .anyMatch(SHARED_VIEW_ROLES::contains);
     }
 
-    private BaseException invalid(String message) {
-        return new BaseException(ErrorCode.INVALID_INPUT_VALUE, message);
-    }
+    private record OwnershipPlan(Long sourceOwnerUserId, String disposition,
+            Long targetOwnerUserId, String reasonCode, String reason,
+            String sourceReference, OffsetDateTime retentionUntil) { }
 
-    private BaseException nameConflict(DataIntegrityViolationException exception) {
-        return new BaseException(
-                ErrorCode.RESOURCE_CONFLICT,
-                "A saved view with this name already exists in the selected scope.",
-                exception);
-    }
+    private record NormalizedTransfer(OwnershipPlan plan,
+            SavedViewDtos.OwnershipTransferRequest request, String requestFingerprint) { }
 
-    private record OwnershipPlan(
-            Long sourceOwnerUserId,
-            String disposition,
-            Long targetOwnerUserId,
-            String reasonCode,
-            String reason,
-            String sourceReference,
-            OffsetDateTime retentionUntil) {
-    }
 }

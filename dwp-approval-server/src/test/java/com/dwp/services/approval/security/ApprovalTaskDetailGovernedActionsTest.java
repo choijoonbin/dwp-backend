@@ -43,7 +43,8 @@ class ApprovalTaskDetailGovernedActionsTest {
         ApprovalPilotPepRegistry.Decision detailRoute = registry.authorize(
                 new ApprovalPilotPepRegistry.RequestEvidence(
                         "GET", "/v1/tasks/" + taskId, permissions, "", Set.of(),
-                        "route.approvals.work.task-detail.data"));
+                        "route.approvals.work.task-detail.data",
+                        ApprovalPilotPepRegistry.ActiveAccessMode.NORMAL));
         assertThat(detailRoute.allowed()).isTrue();
         ApprovalPilotAuthorizationContext.set(detailRoute.authorities());
         ApprovalRequestContext.set(17L, 42L, null, Set.of(), permissions);

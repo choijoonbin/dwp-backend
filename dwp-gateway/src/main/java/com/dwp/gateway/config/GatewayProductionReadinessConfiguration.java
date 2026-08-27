@@ -21,6 +21,7 @@ public class GatewayProductionReadinessConfiguration {
             List<String> failures = new ArrayList<>();
             requireSecret(environment, failures, "spring.data.redis.password");
             requireSecret(environment, failures, "dwp.agent.service-token");
+            requireSecret(environment, failures, "dwp.agent.identity-signing-secret");
             requireSecret(environment, failures, "dwp.auth.product-surface-token");
             requireSecret(environment, failures, "dwp.platform.service-token");
             requireSecret(environment, failures, "dwp.people.service-token");
@@ -29,10 +30,18 @@ public class GatewayProductionReadinessConfiguration {
             requireSecret(environment, failures, "dwp.approval.service-token");
             requireSecret(environment, failures, "dwp.space.service-token");
             requireSecret(environment, failures, "dwp.notification.service-token");
+            requireSecret(environment, failures, "dwp.messaging.service-token");
+            requireSecret(environment, failures, "dwp.meeting.service-token");
+            requireSecret(environment, failures, "dwp.audit.ingest-token");
+            requireSecret(environment, failures, "dwp.audit.privacy-hash-secret");
             requireSecret(environment, failures, "dwp.observability.api-history.ingest-token");
             requireSecret(environment, failures, "dwp.observability.api-history.privacy-hash-secret");
             requireUrl(environment, failures, "dwp.observability.api-history.collector-url",
                     "http://localhost:8002/internal/observability/api-history");
+            requireUrl(environment, failures, "dwp.audit.collector-url",
+                    "http://localhost:8002/internal/audit/events");
+            requirePath(environment, failures, "dwp.audit.collector-url",
+                    "/internal/audit/events");
             requireUrl(environment, failures, "otel.exporter.otlp.endpoint",
                     "http://localhost:4318");
             requireProductionOrigin(environment, failures, "CORS_ALLOWED_ORIGIN_PATTERN");
@@ -108,6 +117,22 @@ public class GatewayProductionReadinessConfiguration {
         if (!value.startsWith("https://") || value.contains("localhost")
                 || value.contains("127.0.0.1") || value.equals("https://*")) {
             failures.add(property + " must declare an explicit production HTTPS origin");
+        }
+    }
+
+    private void requirePath(
+            Environment environment,
+            List<String> failures,
+            String property,
+            String expectedPath) {
+        try {
+            URI uri = URI.create(environment.getProperty(property, "").trim());
+            if (!expectedPath.equals(uri.getRawPath())
+                    || uri.getRawQuery() != null || uri.getRawFragment() != null) {
+                failures.add(property + " must use exact path " + expectedPath);
+            }
+        } catch (IllegalArgumentException exception) {
+            failures.add(property + " must use exact path " + expectedPath);
         }
     }
 

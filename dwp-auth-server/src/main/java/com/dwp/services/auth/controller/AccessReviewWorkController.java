@@ -4,6 +4,7 @@ import com.dwp.core.common.ApiResponse;
 import com.dwp.services.auth.dto.AccessReviewDtos;
 import com.dwp.services.auth.security.AuthenticatedUserResolver;
 import com.dwp.services.auth.security.AccessReviewWorkRouteGuard;
+import com.dwp.services.auth.security.DurableIdentityPlaneGuard;
 import com.dwp.services.auth.security.TenantContextResolver;
 import com.dwp.services.auth.service.AccessReviewWorkService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,12 +30,15 @@ public class AccessReviewWorkController {
 
     private final AccessReviewWorkService service;
     private final AccessReviewWorkRouteGuard routeGuard;
+    private final DurableIdentityPlaneGuard identityPlaneGuard;
 
     public AccessReviewWorkController(
             AccessReviewWorkService service,
-            AccessReviewWorkRouteGuard routeGuard) {
+            AccessReviewWorkRouteGuard routeGuard,
+            DurableIdentityPlaneGuard identityPlaneGuard) {
         this.service = service;
         this.routeGuard = routeGuard;
+        this.identityPlaneGuard = identityPlaneGuard;
     }
 
     @GetMapping("/{workItemRef}")
@@ -43,6 +47,7 @@ public class AccessReviewWorkController {
             Authentication authentication,
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,
             @PathVariable UUID workItemRef) {
+        identityPlaneGuard.requireTenant(authentication);
         Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
         routeGuard.requireDetail(tenantId, actorId, workItemRef);
@@ -57,6 +62,7 @@ public class AccessReviewWorkController {
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @PathVariable UUID workItemRef,
             @Valid @RequestBody AccessReviewDtos.DecisionRequest request) {
+        identityPlaneGuard.requireTenant(authentication);
         Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
         routeGuard.requireDecision(tenantId, actorId, workItemRef, request.version());

@@ -57,6 +57,7 @@ public class MailService {
             String lane,
             String state,
             String folder,
+            UUID folderId,
             boolean sharedOnly,
             String search,
             int page,
@@ -71,11 +72,11 @@ public class MailService {
         return new MailDtos.ThreadPage(
                 queries.threads(
                         tenantId, userId, resolvedLane, resolvedState,
-                        resolvedFolder, sharedOnly, resolvedSearch,
+                        resolvedFolder, folderId, sharedOnly, resolvedSearch,
                         resolvedPage, resolvedPageSize),
                 queries.threadCount(
                         tenantId, userId, resolvedLane, resolvedState,
-                        resolvedFolder, sharedOnly, resolvedSearch),
+                        resolvedFolder, folderId, sharedOnly, resolvedSearch),
                 resolvedPage,
                 resolvedPageSize);
     }

@@ -117,11 +117,21 @@ request(
     expected=202,
 )
 
+# Exercise the saved-view custody audit route through the authenticated Gateway.
+# An empty list is valid in a clean local database; route and authorization reachability are not.
+custody_actions, _ = request(
+    "GET",
+    "/api/platform/v1/admin/saved-view-ownership/orphaned/actions?limit=1",
+)
+require(isinstance(custody_actions["data"], list), "Saved-view custody actions must be a list")
+
 request(
     "GET",
     "/api/auth/me",
     headers={"X-Tenant-ID": "2"},
-    expected=403,
+    # Reject a mismatched tenant assertion at the Gateway identity boundary
+    # before the request can be forwarded to a downstream authorization layer.
+    expected=401,
 )
 
 # The rejected auth request clears the CSRF cookie; refresh it before logout.
@@ -132,4 +142,7 @@ csrf_token = csrf["token"]
 request("POST", "/api/auth/logout", headers={csrf_header: csrf_token})
 request("GET", "/api/auth/me", expected=401)
 
-print("PASS runtime smoke: Gateway CSRF, login, tenant isolation, telemetry, headers, and logout")
+print(
+    "PASS runtime smoke: Gateway CSRF, login, tenant isolation, telemetry, "
+    "saved-view custody audit, headers, and logout"
+)

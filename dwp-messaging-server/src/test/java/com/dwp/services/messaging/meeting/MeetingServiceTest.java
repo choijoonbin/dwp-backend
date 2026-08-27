@@ -15,6 +15,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Map;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -169,6 +170,24 @@ class MeetingServiceTest {
 
         verify(provider, never()).endRoom(any());
         verify(repository, never()).end(anyLong(), any(), any(), anyLong());
+    }
+
+    @Test
+    void meetingHistoryIsConversationScopedAndBounded() {
+        UUID conversationId = UUID.randomUUID();
+        MessagingRequestContext.set(subject(101L));
+        allow(conversationId, "MEMBER");
+        MeetingHistoryItem item = new MeetingHistoryItem(
+                UUID.randomUUID(), conversationId, "LIVEKIT", "ENDED",
+                101L, "Test User", NOW, 202L, "Moderator", NOW.plusMinutes(20), 1L);
+        when(repository.history(1L, conversationId, 20)).thenReturn(List.of(item));
+
+        MeetingDtos.HistoryResponse response = service().history(conversationId, 100);
+
+        assertThat(response.items()).hasSize(1);
+        assertThat(response.items().getFirst().durationSeconds()).isEqualTo(1_200);
+        assertThat(response.items().getFirst().startedByName()).isEqualTo("Test User");
+        verify(repository).history(1L, conversationId, 20);
     }
 
     private MeetingService service() {

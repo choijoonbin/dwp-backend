@@ -48,7 +48,7 @@
       "failureMode": "fail-closed",
       "requiredMarkers": [
         "${SERVICE_PROVIDER_URL:http://localhost:8004}",
-        "/v1/internal/support-access/resolve",
+        "/internal/provider/v1/support-access/resolve",
         "X-DWP-Service-Token",
         "X-DWP-Support-Validation-Token",
         ".timeout(timeout)",
@@ -57,6 +57,34 @@
       ],
       "forbiddenMarkers": [
         "/api/"
+      ]
+    },
+    {
+      "id": "gateway-denial-audit-evidence-sink",
+      "classification": "gateway-authorization-denial-evidence",
+      "interfaceType": "gateway-verifier",
+      "sourceService": "dwp-gateway",
+      "targetServices": [
+        "dwp-platform-server"
+      ],
+      "path": "dwp-gateway/src/main/java/com/dwp/gateway/audit/ReactiveGatewayDenialAuditClient.java",
+      "purpose": "Persist privacy-minimized Provider and tenant authorization denial evidence before Gateway commits a forbidden response.",
+      "auth": "Uses the purpose-specific audit ingest token and exact dwp-gateway source identity; browser credentials and raw PII are forbidden.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "${dwp.audit.collector-url:}",
+        "HttpAuditEventPublisher.INGEST_TOKEN_HEADER",
+        "HttpAuditEventPublisher.SERVICE_NAME_HEADER",
+        ".timeout(timeout)",
+        "TRACE_PARENT_HEADER",
+        "TRACE_STATE_HEADER"
+      ],
+      "forbiddenMarkers": [
+        "X-Forwarded-For",
+        "Authorization",
+        "actorPrincipal(",
+        "actorDisplayName("
       ]
     },
     {

@@ -1,9 +1,11 @@
 package com.dwp.services.notification.common;
 
+import com.dwp.services.notification.realtime.NotificationStreamCapacityException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
@@ -42,6 +44,16 @@ public class NotificationExceptionHandler {
     @ExceptionHandler({AsyncRequestNotUsableException.class, AsyncRequestTimeoutException.class})
     void asyncClientDisconnected(Exception exception) {
         log.debug("Notification SSE client disconnected: {}", exception.getMessage());
+    }
+
+    @ExceptionHandler(NotificationStreamCapacityException.class)
+    ResponseEntity<Void> streamCapacity(NotificationStreamCapacityException exception) {
+        log.debug("Notification SSE connection rejected: {}", exception.getMessage());
+        return ResponseEntity.status(429)
+                .header(
+                        HttpHeaders.RETRY_AFTER,
+                        Integer.toString(NotificationStreamCapacityException.RETRY_AFTER_SECONDS))
+                .build();
     }
 
     @ExceptionHandler(Exception.class)

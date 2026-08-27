@@ -1,15 +1,12 @@
 package com.dwp.services.notification.operations;
 
 import com.dwp.services.notification.operations.NotificationOutboxRepository.OutboxEvent;
-import com.dwp.services.notification.security.NotificationDatabaseScope;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -21,8 +18,7 @@ import java.util.concurrent.TimeUnit;
 @Service
 public class NotificationOutboxRelayService {
 
-    private final NotificationDatabaseScope databaseScope;
-    private final NotificationOutboxRepository repository;
+    private final NotificationOutboxRelayTransaction transactions;
     private final KafkaTemplate<String, String> kafka;
     private final ObjectMapper objectMapper;
     private final String topic;
@@ -34,8 +30,7 @@ public class NotificationOutboxRelayService {
     private final int batchSize;
 
     public NotificationOutboxRelayService(
-            NotificationDatabaseScope databaseScope,
-            NotificationOutboxRepository repository,
+            NotificationOutboxRelayTransaction transactions,
             KafkaTemplate<String, String> kafka,
             ObjectMapper objectMapper,
             @Value("${dwp.notification.outbox.topic:dwp.notification.outbox.v1}") String topic,
@@ -54,8 +49,7 @@ public class NotificationOutboxRelayService {
                 || batchSize < 1 || batchSize > 100) {
             throw new IllegalArgumentException("Notification outbox configuration is invalid.");
         }
-        this.databaseScope = databaseScope;
-        this.repository = repository;
+        this.transactions = transactions;
         this.kafka = kafka;
         this.objectMapper = objectMapper;
         this.topic = topic;
@@ -67,11 +61,10 @@ public class NotificationOutboxRelayService {
         this.batchSize = batchSize;
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public RelayResult relayTenant(long tenantId, Instant now) {
-        databaseScope.applyWorker(tenantId);
-        var events = repository.lease(
-                tenantId, leaseOwner, now, now.plus(leaseDuration), batchSize);
+        String leaseToken = leaseOwner + ":" + UUID.randomUUID();
+        var events = transactions.lease(
+                tenantId, leaseToken, now, now.plus(leaseDuration), batchSize);
         int published = 0;
         int failed = 0;
         int dead = 0;
@@ -79,32 +72,36 @@ public class NotificationOutboxRelayService {
             try {
                 kafka.send(topic, event.eventKey(), envelope(event))
                         .get(sendTimeout.toMillis(), TimeUnit.MILLISECONDS);
-                if (!repository.markPublished(
-                        tenantId, event.outboxId(), leaseOwner, Instant.now())) {
+                if (!transactions.markPublished(
+                        tenantId, event.outboxId(), leaseToken, Instant.now())) {
                     throw new IllegalStateException("Notification outbox lease was lost.");
                 }
                 published++;
             } catch (InterruptedException exception) {
                 Thread.currentThread().interrupt();
-                if (markFailed(event, exception, now)) dead++;
+                if (markFailed(event, leaseToken, exception, now)) dead++;
                 failed++;
                 break;
             } catch (Exception exception) {
-                if (markFailed(event, exception, now)) dead++;
+                if (markFailed(event, leaseToken, exception, now)) dead++;
                 failed++;
             }
         }
-        int cleaned = repository.cleanupPublished(
+        int cleaned = transactions.cleanupPublished(
                 tenantId, now.minus(publishedRetention), batchSize);
         return new RelayResult(events.size(), published, failed, dead, cleaned);
     }
 
-    private boolean markFailed(OutboxEvent event, Exception exception, Instant now) {
+    private boolean markFailed(
+            OutboxEvent event,
+            String leaseToken,
+            Exception exception,
+            Instant now) {
         int attempt = event.attemptCount();
-        boolean marked = repository.markFailed(
+        boolean marked = transactions.markFailed(
                 event.tenantId(),
                 event.outboxId(),
-                leaseOwner,
+                leaseToken,
                 attempt,
                 maximumAttempts,
                 now.plus(backoff(event.outboxId(), attempt)),

@@ -17,17 +17,13 @@ import java.util.UUID;
 
 @Repository
 public class SavedViewRepository {
-
     private static final TypeReference<Map<String, Object>> MAP = new TypeReference<>() { };
-
     private final NamedParameterJdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
-
     public SavedViewRepository(NamedParameterJdbcTemplate jdbc, ObjectMapper objectMapper) {
         this.jdbc = jdbc;
         this.objectMapper = objectMapper;
     }
-
     public List<Row> visible(
             Long tenantId,
             Long actorId,
@@ -51,30 +47,14 @@ public class SavedViewRepository {
                    AND view.lifecycle_state = 'ACTIVE'
                    AND (view.owner_user_id = :actorId OR view.scope = 'TENANT'
                      OR (view.scope = 'TEAM' AND view.owner_group_ref IN (:groupRefs)))
-                 ORDER BY COALESCE(preference.is_default, FALSE) DESC,
-                          COALESCE(preference.favorite, FALSE) DESC,
-                          (view.owner_user_id = :actorId) DESC,
-                          view.updated_at DESC, LOWER(view.name)
+                ORDER BY COALESCE(preference.is_default, FALSE) DESC,
+                         COALESCE(preference.favorite, FALSE) DESC,
+                         (view.owner_user_id = :actorId) DESC,
+                         view.updated_at DESC, LOWER(view.name)
                 """, parameters(tenantId, actorId, surfaceKey)
                         .addValue("groupRefs", databaseGroupRefs(groupRefs)),
-                (result, ignored) -> row(
-                result.getObject("saved_view_id", UUID.class),
-                result.getString("surface_key"),
-                result.getString("name"),
-                result.getString("scope"),
-                result.getObject("owner_user_id", Long.class),
-                result.getObject("owner_group_ref", UUID.class),
-                result.getString("lifecycle_state"),
-                result.getObject("retention_until", OffsetDateTime.class),
-                jsonMap(result.getString("configuration")),
-                result.getLong("version"),
-                result.getBoolean("favorite"),
-                result.getBoolean("is_default"),
-                result.getObject("last_used_at", OffsetDateTime.class),
-                result.getObject("created_at", OffsetDateTime.class),
-                result.getObject("updated_at", OffsetDateTime.class)));
+                (result, ignored) -> row(result));
     }
-
     public Optional<Row> find(Long tenantId, Long actorId, UUID savedViewId) {
         return jdbc.query("""
                 SELECT view.saved_view_id, view.surface_key, view.name, view.scope,
@@ -93,24 +73,9 @@ public class SavedViewRepository {
                    AND view.saved_view_id = :savedViewId
                 """, new MapSqlParameterSource("tenantId", tenantId)
                 .addValue("actorId", actorId)
-                .addValue("savedViewId", savedViewId), (result, ignored) -> row(
-                result.getObject("saved_view_id", UUID.class),
-                result.getString("surface_key"),
-                result.getString("name"),
-                result.getString("scope"),
-                result.getObject("owner_user_id", Long.class),
-                result.getObject("owner_group_ref", UUID.class),
-                result.getString("lifecycle_state"),
-                result.getObject("retention_until", OffsetDateTime.class),
-                jsonMap(result.getString("configuration")),
-                result.getLong("version"),
-                result.getBoolean("favorite"),
-                result.getBoolean("is_default"),
-                result.getObject("last_used_at", OffsetDateTime.class),
-                result.getObject("created_at", OffsetDateTime.class),
-                result.getObject("updated_at", OffsetDateTime.class))).stream().findFirst();
+                .addValue("savedViewId", savedViewId), (result, ignored) -> row(result))
+                .stream().findFirst();
     }
-
     public UUID create(
             Long tenantId,
             Long actorId,
@@ -133,7 +98,6 @@ public class SavedViewRepository {
                 .addValue("ownerGroupRef", ownerGroupRef)
                 .addValue("configuration", json(configuration)), UUID.class);
     }
-
     public boolean update(
             Long tenantId,
             Long actorId,
@@ -164,7 +128,6 @@ public class SavedViewRepository {
                 .addValue("configuration", json(configuration))
                 .addValue("version", version)) == 1;
     }
-
     public boolean archive(Long tenantId, Long actorId, UUID savedViewId) {
         jdbc.update("""
                 DELETE FROM usr_saved_view_preferences
@@ -182,7 +145,6 @@ public class SavedViewRepository {
                 .addValue("actorId", actorId)
                 .addValue("savedViewId", savedViewId)) == 1;
     }
-
     public List<Row> ownedActiveForUpdate(Long tenantId, Long ownerUserId) {
         return jdbc.query("""
                 SELECT view.saved_view_id, view.surface_key, view.name, view.scope,
@@ -200,13 +162,42 @@ public class SavedViewRepository {
                 .addValue("ownerUserId", ownerUserId), (result, ignored) -> row(result));
     }
 
+    public List<Row> ownedActive(Long tenantId, Long ownerUserId) {
+        return jdbc.query("""
+                SELECT view.saved_view_id, view.surface_key, view.name, view.scope,
+                       view.owner_user_id, view.owner_group_ref, view.lifecycle_state,
+                       view.retention_until, view.configuration, view.version,
+                       FALSE AS favorite, FALSE AS is_default, NULL::TIMESTAMPTZ AS last_used_at,
+                       view.created_at, view.updated_at
+                  FROM usr_saved_views view
+                 WHERE view.tenant_id = :tenantId
+                   AND view.owner_user_id = :ownerUserId
+                   AND view.lifecycle_state = 'ACTIVE'
+                 ORDER BY view.saved_view_id
+                """, new MapSqlParameterSource("tenantId", tenantId)
+                .addValue("ownerUserId", ownerUserId), (result, ignored) -> row(result));
+    }
     public List<SavedViewDtos.OrphanedView> orphaned(Long tenantId) {
         return jdbc.query("""
-                SELECT saved_view_id, surface_key, name, scope, owner_group_ref,
-                       retention_until, updated_at
-                  FROM usr_saved_views
-                 WHERE tenant_id = :tenantId AND lifecycle_state = 'ORPHANED'
-                 ORDER BY retention_until, updated_at DESC
+                SELECT view.saved_view_id, view.surface_key, view.name, view.scope,
+                       view.owner_group_ref, view.retention_until, view.version,
+                       view.updated_at,
+                       CASE WHEN view.scope IN ('TEAM', 'TENANT') AND EXISTS (
+                           SELECT 1
+                             FROM usr_saved_views existing
+                            WHERE existing.tenant_id = view.tenant_id
+                              AND existing.saved_view_id <> view.saved_view_id
+                              AND existing.scope = view.scope
+                              AND existing.lifecycle_state = 'ACTIVE'
+                              AND existing.surface_key = view.surface_key
+                              AND LOWER(existing.name) = LOWER(view.name)
+                              AND (view.scope = 'TENANT'
+                                   OR existing.owner_group_ref = view.owner_group_ref)
+                       ) THEN 'SHARED_NAME_CONFLICT' END AS reassignment_block_reason
+                  FROM usr_saved_views view
+                 WHERE view.tenant_id = :tenantId
+                   AND view.lifecycle_state = 'ORPHANED'
+                 ORDER BY view.retention_until, view.updated_at DESC
                 """, new MapSqlParameterSource("tenantId", tenantId), (result, ignored) ->
                 new SavedViewDtos.OrphanedView(
                         result.getObject("saved_view_id", UUID.class),
@@ -214,16 +205,18 @@ public class SavedViewRepository {
                         result.getString("scope"),
                         result.getObject("owner_group_ref", UUID.class),
                         result.getObject("retention_until", OffsetDateTime.class),
-                        result.getObject("updated_at", OffsetDateTime.class)));
+                        result.getLong("version"),
+                        result.getObject("updated_at", OffsetDateTime.class),
+                        result.getString("reassignment_block_reason")));
     }
-
     public Optional<SavedViewDtos.OwnershipTransfer> transferByIdempotency(
             Long tenantId, String idempotencyKey) {
         return jdbc.query("""
                 SELECT transfer_batch_id, idempotency_key, source_owner_user_id,
-                       target_owner_user_id, disposition, reason_code, source_reference,
-                       retention_until, transferred_count, ownership_fingerprint,
-                       request_fingerprint, created_at, created_by
+                       source_owner_display_name, target_owner_user_id,
+                       target_owner_display_name, disposition, reason_code, reason,
+                       source_reference, retention_until, transferred_count,
+                       ownership_fingerprint, request_fingerprint, created_at, created_by
                   FROM usr_saved_view_transfer_batches
                  WHERE tenant_id = :tenantId AND idempotency_key = :idempotencyKey
                 """, new MapSqlParameterSource("tenantId", tenantId)
@@ -233,8 +226,9 @@ public class SavedViewRepository {
 
     public List<SavedViewDtos.OwnershipTransferSummary> transfers(Long tenantId, int limit) {
         return jdbc.query("""
-                SELECT transfer_batch_id, source_owner_user_id, target_owner_user_id,
-                       disposition, reason_code, source_reference, retention_until,
+                SELECT transfer_batch_id, source_owner_user_id, source_owner_display_name,
+                       target_owner_user_id, target_owner_display_name, disposition,
+                       reason_code, reason, source_reference, retention_until,
                        transferred_count, created_at, created_by
                   FROM usr_saved_view_transfer_batches
                  WHERE tenant_id = :tenantId
@@ -245,8 +239,11 @@ public class SavedViewRepository {
                 new SavedViewDtos.OwnershipTransferSummary(
                         result.getObject("transfer_batch_id", UUID.class),
                         result.getObject("source_owner_user_id", Long.class),
+                        result.getString("source_owner_display_name"),
                         result.getObject("target_owner_user_id", Long.class),
+                        result.getString("target_owner_display_name"),
                         result.getString("disposition"), result.getString("reason_code"),
+                        result.getString("reason"),
                         result.getString("source_reference"),
                         result.getObject("retention_until", OffsetDateTime.class),
                         result.getInt("transferred_count"),
@@ -258,21 +255,27 @@ public class SavedViewRepository {
             Long tenantId,
             Long actorId,
             UUID batchId,
+            String sourceOwnerDisplayName,
+            String targetOwnerDisplayName,
             SavedViewDtos.OwnershipTransferRequest request,
             String requestFingerprint,
             List<Row> views) {
         jdbc.update("""
                 INSERT INTO usr_saved_view_transfer_batches (
                     transfer_batch_id, tenant_id, idempotency_key, source_owner_user_id,
-                    target_owner_user_id, disposition, reason_code, reason, source_reference,
-                    retention_until, ownership_fingerprint, request_fingerprint,
-                    expected_count, transferred_count, created_by)
+                    source_owner_display_name, target_owner_user_id,
+                    target_owner_display_name, disposition, reason_code, reason,
+                    source_reference, retention_until, ownership_fingerprint,
+                    request_fingerprint, expected_count, transferred_count, created_by)
                 VALUES (
                     :batchId, :tenantId, :idempotencyKey, :sourceOwnerUserId,
-                    :targetOwnerUserId, :disposition, :reasonCode, :reason, :sourceReference,
-                    :retentionUntil, :ownershipFingerprint, :requestFingerprint,
-                    :expectedCount, :expectedCount, :actorId)
-                """, transferParameters(tenantId, actorId, batchId, request, requestFingerprint));
+                    :sourceOwnerDisplayName, :targetOwnerUserId,
+                    :targetOwnerDisplayName, :disposition, :reasonCode, :reason,
+                    :sourceReference, :retentionUntil, :ownershipFingerprint,
+                    :requestFingerprint, :expectedCount, :expectedCount, :actorId)
+                """, transferParameters(
+                tenantId, actorId, batchId, sourceOwnerDisplayName,
+                targetOwnerDisplayName, request, requestFingerprint));
         for (Row view : views) {
             String nextState = "TRANSFER".equals(request.disposition()) ? "ACTIVE" : "ORPHANED";
             Long nextOwner = "TRANSFER".equals(request.disposition())
@@ -331,6 +334,140 @@ public class SavedViewRepository {
         return transferByIdempotency(tenantId, request.idempotencyKey()).orElseThrow();
     }
 
+    public Optional<Row> orphanForUpdate(Long tenantId, UUID savedViewId) {
+        return jdbc.query("""
+                SELECT view.saved_view_id, view.surface_key, view.name, view.scope,
+                       view.owner_user_id, view.owner_group_ref, view.lifecycle_state,
+                       view.retention_until, view.configuration, view.version,
+                       FALSE AS favorite, FALSE AS is_default,
+                       NULL::TIMESTAMPTZ AS last_used_at, view.created_at, view.updated_at
+                  FROM usr_saved_views view
+                 WHERE view.tenant_id = :tenantId
+                   AND view.saved_view_id = :savedViewId
+                   AND view.lifecycle_state = 'ORPHANED'
+                 FOR UPDATE
+                """, new MapSqlParameterSource("tenantId", tenantId)
+                .addValue("savedViewId", savedViewId), (result, ignored) -> row(result))
+                .stream().findFirst();
+    }
+
+    public Optional<Row> orphan(Long tenantId, UUID savedViewId) {
+        return jdbc.query("""
+                SELECT view.saved_view_id, view.surface_key, view.name, view.scope,
+                       view.owner_user_id, view.owner_group_ref, view.lifecycle_state,
+                       view.retention_until, view.configuration, view.version,
+                       FALSE AS favorite, FALSE AS is_default,
+                       NULL::TIMESTAMPTZ AS last_used_at, view.created_at, view.updated_at
+                  FROM usr_saved_views view
+                 WHERE view.tenant_id = :tenantId
+                   AND view.saved_view_id = :savedViewId
+                   AND view.lifecycle_state = 'ORPHANED'
+                """, new MapSqlParameterSource("tenantId", tenantId)
+                .addValue("savedViewId", savedViewId), (result, ignored) -> row(result))
+                .stream().findFirst();
+    }
+
+    public Optional<SavedViewDtos.OrphanLifecycleResult> lifecycleByIdempotency(
+            Long tenantId, String idempotencyKey) {
+        return jdbc.query("""
+                SELECT command_id, idempotency_key, saved_view_id,
+                       saved_view_name, surface_key, scope, action,
+                       target_owner_user_id, target_owner_display_name,
+                       previous_lifecycle_state, new_lifecycle_state,
+                       previous_retention_until, next_retention_until,
+                       reason_code, reason, source_reference, request_fingerprint,
+                       previous_version, resulting_version, created_at, created_by
+                  FROM usr_saved_view_lifecycle_commands
+                 WHERE tenant_id = :tenantId AND idempotency_key = :idempotencyKey
+                """, new MapSqlParameterSource("tenantId", tenantId)
+                .addValue("idempotencyKey", idempotencyKey),
+                (result, ignored) -> lifecycle(result)).stream().findFirst();
+    }
+
+    public SavedViewDtos.OrphanLifecycleResult applyOrphanLifecycle(
+            Long tenantId,
+            Long actorId,
+            UUID commandId,
+            Row before,
+            LifecycleCommand command) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource("tenantId", tenantId)
+                .addValue("actorId", actorId)
+                .addValue("savedViewId", before.id())
+                .addValue("version", command.version())
+                .addValue("targetOwnerUserId", command.targetOwnerUserId())
+                .addValue("nextRetentionUntil", command.nextRetentionUntil());
+        int changed = switch (command.action()) {
+            case "REASSIGN" -> jdbc.update("""
+                    UPDATE usr_saved_views
+                       SET owner_user_id = :targetOwnerUserId,
+                           lifecycle_state = 'ACTIVE', retention_until = NULL,
+                           version = version + 1, updated_at = CURRENT_TIMESTAMP,
+                           updated_by = :actorId
+                     WHERE tenant_id = :tenantId AND saved_view_id = :savedViewId
+                       AND lifecycle_state = 'ORPHANED' AND version = :version
+                    """, parameters);
+            case "EXTEND_RETENTION" -> jdbc.update("""
+                    UPDATE usr_saved_views
+                       SET retention_until = :nextRetentionUntil,
+                           version = version + 1, updated_at = CURRENT_TIMESTAMP,
+                           updated_by = :actorId
+                     WHERE tenant_id = :tenantId AND saved_view_id = :savedViewId
+                       AND lifecycle_state = 'ORPHANED' AND version = :version
+                    """, parameters);
+            case "ARCHIVE_NOW" -> jdbc.update("""
+                    UPDATE usr_saved_views
+                       SET lifecycle_state = 'ARCHIVED', retention_until = NULL,
+                           version = version + 1, updated_at = CURRENT_TIMESTAMP,
+                           updated_by = :actorId
+                     WHERE tenant_id = :tenantId AND saved_view_id = :savedViewId
+                       AND lifecycle_state = 'ORPHANED' AND version = :version
+                    """, parameters);
+            default -> throw new IllegalArgumentException(
+                    "Unsupported saved-view lifecycle action: " + command.action());
+        };
+        if (changed != 1) {
+            throw new OptimisticLockingFailureException(
+                    "Saved-view retention state changed during the lifecycle command.");
+        }
+        String nextState = "REASSIGN".equals(command.action())
+                ? "ACTIVE" : "ARCHIVE_NOW".equals(command.action()) ? "ARCHIVED" : "ORPHANED";
+        jdbc.update("""
+                INSERT INTO usr_saved_view_lifecycle_commands (
+                    command_id, tenant_id, saved_view_id, saved_view_name, surface_key, scope,
+                    idempotency_key, action,
+                    request_fingerprint, target_owner_user_id, target_owner_display_name,
+                    previous_lifecycle_state, new_lifecycle_state,
+                    previous_retention_until, next_retention_until,
+                    reason_code, reason, source_reference,
+                    previous_version, resulting_version, created_by)
+                VALUES (
+                    :commandId, :tenantId, :savedViewId, :savedViewName, :surfaceKey, :scope,
+                    :idempotencyKey, :action,
+                    :requestFingerprint, :targetOwnerUserId, :targetOwnerDisplayName,
+                    :previousLifecycleState, :newLifecycleState,
+                    :previousRetentionUntil, :nextRetentionUntil,
+                    :reasonCode, :reason, :sourceReference,
+                    :previousVersion, :resultingVersion, :actorId)
+                """, parameters
+                .addValue("commandId", commandId)
+                .addValue("savedViewName", before.name())
+                .addValue("surfaceKey", before.surfaceKey())
+                .addValue("scope", before.scope())
+                .addValue("idempotencyKey", command.idempotencyKey())
+                .addValue("action", command.action())
+                .addValue("requestFingerprint", command.requestFingerprint())
+                .addValue("targetOwnerDisplayName", command.targetOwnerDisplayName())
+                .addValue("previousLifecycleState", before.lifecycleState())
+                .addValue("newLifecycleState", nextState)
+                .addValue("previousRetentionUntil", before.retentionUntil())
+                .addValue("reasonCode", command.reasonCode())
+                .addValue("reason", command.reason())
+                .addValue("sourceReference", command.sourceReference())
+                .addValue("previousVersion", before.version())
+                .addValue("resultingVersion", before.version() + 1));
+        return lifecycleByIdempotency(tenantId, command.idempotencyKey()).orElseThrow();
+    }
+
     public void idempotencyLock(Long tenantId, String idempotencyKey) {
         jdbc.getJdbcTemplate().query(
                 "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
@@ -345,9 +482,10 @@ public class SavedViewRepository {
                        view.retention_until, view.configuration, view.version,
                        FALSE AS favorite, FALSE AS is_default, NULL::TIMESTAMPTZ AS last_used_at,
                        view.created_at, view.updated_at
-                  FROM usr_saved_views view
+                 FROM usr_saved_views view
                  WHERE view.lifecycle_state = 'ORPHANED' AND view.retention_until <= :now
                  ORDER BY view.saved_view_id
+                 LIMIT 250
                  FOR UPDATE SKIP LOCKED
                 """, new MapSqlParameterSource("now", now), (result, ignored) ->
                 new RetentionRow(result.getLong("tenant_id"), row(result)));
@@ -358,7 +496,7 @@ public class SavedViewRepository {
         return jdbc.update("""
                 UPDATE usr_saved_views
                    SET lifecycle_state = 'ARCHIVED', retention_until = NULL,
-                       version = version + 1, updated_at = :now
+                       version = version + 1, updated_at = :now, updated_by = 0
                  WHERE tenant_id = :tenantId AND saved_view_id = :savedViewId
                    AND lifecycle_state = 'ORPHANED'
                    AND version = :version AND retention_until <= :now
@@ -417,29 +555,8 @@ public class SavedViewRepository {
                 .addValue("surfaceKey", surfaceKey);
     }
 
-    private Row row(
-            UUID id,
-            String surfaceKey,
-            String name,
-            String scope,
-            Long ownerUserId,
-            UUID ownerGroupRef,
-            String lifecycleState,
-            OffsetDateTime retentionUntil,
-            Map<String, Object> configuration,
-            long version,
-            boolean favorite,
-            boolean defaultView,
-            OffsetDateTime lastUsedAt,
-            OffsetDateTime createdAt,
-            OffsetDateTime updatedAt) {
-        return new Row(id, surfaceKey, name, scope, ownerUserId, ownerGroupRef,
-                lifecycleState, retentionUntil, configuration, version,
-                favorite, defaultView, lastUsedAt, createdAt, updatedAt);
-    }
-
     private Row row(java.sql.ResultSet result) throws java.sql.SQLException {
-        return row(result.getObject("saved_view_id", UUID.class),
+        return new Row(result.getObject("saved_view_id", UUID.class),
                 result.getString("surface_key"), result.getString("name"),
                 result.getString("scope"), result.getObject("owner_user_id", Long.class),
                 result.getObject("owner_group_ref", UUID.class),
@@ -461,6 +578,8 @@ public class SavedViewRepository {
             Long tenantId,
             Long actorId,
             UUID batchId,
+            String sourceOwnerDisplayName,
+            String targetOwnerDisplayName,
             SavedViewDtos.OwnershipTransferRequest request,
             String requestFingerprint) {
         return new MapSqlParameterSource("batchId", batchId)
@@ -468,7 +587,9 @@ public class SavedViewRepository {
                 .addValue("actorId", actorId)
                 .addValue("idempotencyKey", request.idempotencyKey())
                 .addValue("sourceOwnerUserId", request.sourceOwnerUserId())
+                .addValue("sourceOwnerDisplayName", sourceOwnerDisplayName)
                 .addValue("targetOwnerUserId", request.targetOwnerUserId())
+                .addValue("targetOwnerDisplayName", targetOwnerDisplayName)
                 .addValue("disposition", request.disposition())
                 .addValue("reasonCode", request.reasonCode())
                 .addValue("reason", request.reason())
@@ -485,13 +606,42 @@ public class SavedViewRepository {
                 result.getObject("transfer_batch_id", UUID.class),
                 result.getString("idempotency_key"),
                 result.getObject("source_owner_user_id", Long.class),
+                result.getString("source_owner_display_name"),
                 result.getObject("target_owner_user_id", Long.class),
+                result.getString("target_owner_display_name"),
                 result.getString("disposition"), result.getString("reason_code"),
+                result.getString("reason"),
                 result.getString("source_reference"),
                 result.getObject("retention_until", OffsetDateTime.class),
                 result.getInt("transferred_count"),
                 result.getString("ownership_fingerprint"),
                 result.getString("request_fingerprint"),
+                result.getObject("created_at", OffsetDateTime.class),
+                result.getObject("created_by", Long.class));
+    }
+
+    private SavedViewDtos.OrphanLifecycleResult lifecycle(java.sql.ResultSet result)
+            throws java.sql.SQLException {
+        return new SavedViewDtos.OrphanLifecycleResult(
+                result.getObject("command_id", UUID.class),
+                result.getString("idempotency_key"),
+                result.getObject("saved_view_id", UUID.class),
+                result.getString("saved_view_name"),
+                result.getString("surface_key"),
+                result.getString("scope"),
+                result.getString("action"),
+                result.getObject("target_owner_user_id", Long.class),
+                result.getString("target_owner_display_name"),
+                result.getString("previous_lifecycle_state"),
+                result.getString("new_lifecycle_state"),
+                result.getObject("previous_retention_until", OffsetDateTime.class),
+                result.getObject("next_retention_until", OffsetDateTime.class),
+                result.getString("reason_code"),
+                result.getString("reason"),
+                result.getString("source_reference"),
+                result.getString("request_fingerprint"),
+                result.getLong("previous_version"),
+                result.getLong("resulting_version"),
                 result.getObject("created_at", OffsetDateTime.class),
                 result.getObject("created_by", Long.class));
     }
@@ -530,4 +680,16 @@ public class SavedViewRepository {
             OffsetDateTime updatedAt) { }
 
     public record RetentionRow(Long tenantId, Row view) { }
+
+    public record LifecycleCommand(
+            String idempotencyKey,
+            String action,
+            Long targetOwnerUserId,
+            String targetOwnerDisplayName,
+            OffsetDateTime nextRetentionUntil,
+            String reasonCode,
+            String reason,
+            String sourceReference,
+            long version,
+            String requestFingerprint) { }
 }

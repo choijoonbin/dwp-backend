@@ -19,6 +19,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.net.URI;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -29,9 +30,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 @Repository
 public class NotificationQueryRepository {
+
+    private static final Pattern ENCODED_AUTHORITY_SEPARATOR =
+            Pattern.compile("(?i)(^/%2f|%5c)");
 
     static final String INBOX_SELECT = """
             SELECT user_notification.notification_id,
@@ -52,6 +57,16 @@ public class NotificationQueryRepository {
                    user_notification.safe_preview,
                    user_notification.reason_code,
                    user_notification.effective_priority,
+                   CASE UPPER(COALESCE(
+                       NULLIF(type_version.contract_payload ->> 'interruptionLevel', ''),
+                       'ACTIVE'
+                   ))
+                       WHEN 'PASSIVE' THEN 'PASSIVE'
+                       WHEN 'ACTIVE' THEN 'ACTIVE'
+                       WHEN 'TIME_SENSITIVE' THEN 'TIME_SENSITIVE'
+                       WHEN 'CRITICAL' THEN 'CRITICAL'
+                       ELSE 'ACTIVE'
+                   END AS interruption_level,
                    user_notification.action_required,
                    user_notification.read_at,
                    user_notification.saved_at,
@@ -313,6 +328,7 @@ public class NotificationQueryRepository {
                 resultSet.getString("safe_preview"),
                 actorLabel,
                 resultSet.getString("effective_priority"),
+                resultSet.getString("interruption_level"),
                 reason(reasonCode),
                 instant(resultSet, "first_activity_at"),
                 instant(resultSet, "last_activity_at"),
@@ -455,10 +471,25 @@ public class NotificationQueryRepository {
     }
 
     static boolean safeTargetHref(String href) {
-        return href != null
-                && href.startsWith("/")
-                && !href.startsWith("//")
-                && href.chars().noneMatch(character -> character < 32);
+        if (href == null
+                || !href.startsWith("/")
+                || href.startsWith("//")
+                || href.indexOf('\\') >= 0
+                || href.chars().anyMatch(character -> character < 32 || character == 127)
+                || ENCODED_AUTHORITY_SEPARATOR.matcher(href).find()) {
+            return false;
+        }
+        try {
+            URI target = URI.create(href);
+            String path = target.getRawPath();
+            return !target.isAbsolute()
+                    && target.getRawAuthority() == null
+                    && path != null
+                    && path.startsWith("/")
+                    && !path.startsWith("//");
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
     }
 
     private NotificationException targetUnavailable(String reason) {

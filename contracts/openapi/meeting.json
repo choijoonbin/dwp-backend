@@ -1,0 +1,3788 @@
+{
+  "components": {
+    "schemas": {
+      "AdminCapabilitiesResponse": {
+        "properties": {
+          "aiNotesConfigured": {
+            "type": "boolean"
+          },
+          "captions": {
+            "type": "boolean"
+          },
+          "chat": {
+            "type": "boolean"
+          },
+          "recordingConfigured": {
+            "type": "boolean"
+          },
+          "screenShare": {
+            "type": "boolean"
+          },
+          "transcriptConfigured": {
+            "type": "boolean"
+          },
+          "video": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "AdminOverviewResponse": {
+        "properties": {
+          "averageQualityScore": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/AdminCapabilitiesResponse"
+          },
+          "failedJoinAttempts": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "liveMeetings": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "meetingsLastSevenDays": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "scheduledToday": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "waitingParticipants": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "AdmissionCommand": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseAdminOverviewResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AdminOverviewResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseCapabilityResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CapabilityResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseChatMessagePageResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ChatMessagePageResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseChatMessageResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ChatMessageResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseClearHandRequestsResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ClearHandRequestsResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseContentPlanResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ContentPlanResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseHandRequestPageResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/HandRequestPageResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseHandRequestResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/HandRequestResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseHomeResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/HomeResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseJoinCodeResolutionResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/JoinCodeResolutionResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseJoinRequestResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/JoinRequestResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListMeetingPersonResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/MeetingPersonResponse"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseLobbyResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/LobbyResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseMeetingCreatedResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/MeetingCreatedResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseMeetingDetailResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/MeetingDetailResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseNoticeAcknowledgementResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/NoticeAcknowledgementResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponsePageResponseHistoryItemResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PageResponseHistoryItemResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponsePageResponseMeetingSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PageResponseMeetingSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseParticipantResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ParticipantResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseParticipantTokenResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ParticipantTokenResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponsePolicyResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PolicyResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseRecordingCommandResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/RecordingCommandResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ArtifactResponse": {
+        "properties": {
+          "artifactId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "artifactState": {
+            "type": "string"
+          },
+          "artifactType": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "retentionUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "sizeBytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "BlockerResponse": {
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "CapabilityResponse": {
+        "properties": {
+          "aiNotesConfigured": {
+            "type": "boolean"
+          },
+          "audio": {
+            "type": "boolean"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "captions": {
+            "type": "boolean"
+          },
+          "chat": {
+            "type": "boolean"
+          },
+          "handRaise": {
+            "type": "boolean"
+          },
+          "maximumParticipants": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "participantList": {
+            "type": "boolean"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "reactions": {
+            "type": "boolean"
+          },
+          "recordingConfigured": {
+            "type": "boolean"
+          },
+          "screenShare": {
+            "type": "boolean"
+          },
+          "tokenTtlSeconds": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "transcriptConfigured": {
+            "type": "boolean"
+          },
+          "unavailableReason": {
+            "type": "string"
+          },
+          "unmuteControl": {
+            "type": "string"
+          },
+          "video": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "ChatMessagePageResponse": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ChatMessageResponse"
+            },
+            "type": "array"
+          },
+          "nextSequence": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ChatMessageResponse": {
+        "properties": {
+          "canDelete": {
+            "type": "boolean"
+          },
+          "createdSequence": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "deletedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "messageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "mine": {
+            "type": "boolean"
+          },
+          "retentionUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "sender": {
+            "$ref": "#/components/schemas/ParticipantSnapshotResponse"
+          },
+          "sentAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "sequence": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ClearHandRequestsResponse": {
+        "properties": {
+          "clearedCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "sequence": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ConsentResponse": {
+        "properties": {
+          "complete": {
+            "type": "boolean"
+          },
+          "receivedAcknowledgements": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "requiredAcknowledgements": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ContentDependencyResponse": {
+        "properties": {
+          "auditAvailable": {
+            "type": "boolean"
+          },
+          "egressAvailable": {
+            "type": "boolean"
+          },
+          "kmsAvailable": {
+            "type": "boolean"
+          },
+          "languageModelAvailable": {
+            "type": "boolean"
+          },
+          "speechToTextAvailable": {
+            "type": "boolean"
+          },
+          "storageAvailable": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "ContentNoticeResponse": {
+        "properties": {
+          "acknowledgedByViewer": {
+            "type": "boolean"
+          },
+          "aiSummaryDisclosed": {
+            "type": "boolean"
+          },
+          "disclosureCode": {
+            "type": "string"
+          },
+          "noticeId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "recordingDisclosed": {
+            "type": "boolean"
+          },
+          "revision": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          },
+          "transcriptionDisclosed": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "ContentPlanResponse": {
+        "properties": {
+          "aiSummaryRequested": {
+            "type": "boolean"
+          },
+          "blockers": {
+            "items": {
+              "$ref": "#/components/schemas/BlockerResponse"
+            },
+            "type": "array"
+          },
+          "consent": {
+            "$ref": "#/components/schemas/ConsentResponse"
+          },
+          "dependencies": {
+            "$ref": "#/components/schemas/ContentDependencyResponse"
+          },
+          "e2eeEnabled": {
+            "type": "boolean"
+          },
+          "meetingId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "notice": {
+            "$ref": "#/components/schemas/ContentNoticeResponse"
+          },
+          "planId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "recordingRequested": {
+            "type": "boolean"
+          },
+          "recordingSession": {
+            "$ref": "#/components/schemas/RecordingSessionResponse"
+          },
+          "state": {
+            "type": "string"
+          },
+          "transcriptionRequested": {
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "DeleteChatMessageCommand": {
+        "properties": {
+          "reason": {
+            "maxLength": 240,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "EffectivePermissionsResponse": {
+        "properties": {
+          "camera": {
+            "type": "boolean"
+          },
+          "chat": {
+            "type": "boolean"
+          },
+          "handRaise": {
+            "type": "boolean"
+          },
+          "microphone": {
+            "type": "boolean"
+          },
+          "participantList": {
+            "type": "boolean"
+          },
+          "reactions": {
+            "type": "boolean"
+          },
+          "screenShare": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "GuestInvitee": {
+        "properties": {
+          "displayName": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "emailAddress": {
+            "format": "email",
+            "maxLength": 255,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "displayName"
+        ],
+        "type": "object"
+      },
+      "HandRequestPageResponse": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HandRequestResponse"
+            },
+            "type": "array"
+          },
+          "nextSequence": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "HandRequestResponse": {
+        "properties": {
+          "acknowledgedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "canAcknowledge": {
+            "type": "boolean"
+          },
+          "canDismiss": {
+            "type": "boolean"
+          },
+          "canLower": {
+            "type": "boolean"
+          },
+          "mine": {
+            "type": "boolean"
+          },
+          "raisedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "raisedSequence": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "requestId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "requester": {
+            "$ref": "#/components/schemas/ParticipantSnapshotResponse"
+          },
+          "resolvedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "sequence": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HistoryItemResponse": {
+        "properties": {
+          "actualDurationMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "averageQualityScore": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "endedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "meetingId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "participantPeak": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "recordingAvailable": {
+            "type": "boolean"
+          },
+          "title": {
+            "type": "string"
+          },
+          "transcriptAvailable": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "HomeMetricsResponse": {
+        "properties": {
+          "averageJoinSeconds": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "meetingMinutesToday": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "meetingsToday": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "qualityScore": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "waitingForApproval": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "HomeResponse": {
+        "properties": {
+          "activeMeeting": {
+            "$ref": "#/components/schemas/MeetingSummary"
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/CapabilityResponse"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/HomeMetricsResponse"
+          },
+          "nextMeeting": {
+            "$ref": "#/components/schemas/MeetingSummary"
+          },
+          "recent": {
+            "items": {
+              "$ref": "#/components/schemas/MeetingSummary"
+            },
+            "type": "array"
+          },
+          "serverNow": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "today": {
+            "items": {
+              "$ref": "#/components/schemas/MeetingSummary"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "InstantMeetingRequest": {
+        "properties": {
+          "accessScope": {
+            "enum": [
+              "INTERNAL",
+              "INVITED",
+              "PUBLIC_CODE"
+            ],
+            "type": "string"
+          },
+          "agenda": {
+            "maxLength": 8000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "allowJoinBeforeHost": {
+            "type": "boolean"
+          },
+          "defaultCameraEnabled": {
+            "type": "boolean"
+          },
+          "defaultMicrophoneEnabled": {
+            "type": "boolean"
+          },
+          "description": {
+            "maxLength": 4000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "guestAccessEnabled": {
+            "type": "boolean"
+          },
+          "guestInvitees": {
+            "items": {
+              "$ref": "#/components/schemas/GuestInvitee"
+            },
+            "maxItems": 100,
+            "minItems": 0,
+            "type": "array"
+          },
+          "participantUserIds": {
+            "items": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "maxItems": 200,
+            "minItems": 0,
+            "type": "array"
+          },
+          "title": {
+            "maxLength": 240,
+            "minLength": 0,
+            "type": "string"
+          },
+          "waitingRoomEnabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "accessScope",
+          "title"
+        ],
+        "type": "object"
+      },
+      "IssueTokenCommand": {
+        "properties": {
+          "joinRequestId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "JoinCodeResolutionResponse": {
+        "properties": {
+          "denialReason": {
+            "type": "string"
+          },
+          "joinAllowed": {
+            "type": "boolean"
+          },
+          "meeting": {
+            "$ref": "#/components/schemas/MeetingSummary"
+          },
+          "waitingRoomRequired": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "JoinRequestCommand": {
+        "properties": {
+          "displayName": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "JoinRequestResponse": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "external": {
+            "type": "boolean"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "requestId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "JsonNode": {},
+      "LobbyResponse": {
+        "properties": {
+          "waiting": {
+            "items": {
+              "$ref": "#/components/schemas/JoinRequestResponse"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "MeetingCreatedResponse": {
+        "properties": {
+          "meeting": {
+            "$ref": "#/components/schemas/MeetingDetailResponse"
+          },
+          "meetingCode": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "MeetingDetailResponse": {
+        "properties": {
+          "accessScope": {
+            "type": "string"
+          },
+          "agenda": {
+            "type": "string"
+          },
+          "aiNotesAvailable": {
+            "type": "boolean"
+          },
+          "allowJoinBeforeHost": {
+            "type": "boolean"
+          },
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactResponse"
+            },
+            "type": "array"
+          },
+          "canHost": {
+            "type": "boolean"
+          },
+          "canModerate": {
+            "type": "boolean"
+          },
+          "decisions": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "defaultCameraEnabled": {
+            "type": "boolean"
+          },
+          "defaultMicrophoneEnabled": {
+            "type": "boolean"
+          },
+          "description": {
+            "type": "string"
+          },
+          "durationMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "endedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "followUpActions": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "guestAccessEnabled": {
+            "type": "boolean"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "meetingCode": {
+            "type": "string"
+          },
+          "meetingId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "organizerName": {
+            "type": "string"
+          },
+          "organizerPersonPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "organizerUserId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "participantRole": {
+            "type": "string"
+          },
+          "participants": {
+            "items": {
+              "$ref": "#/components/schemas/ParticipantResponse"
+            },
+            "type": "array"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "recordingAvailable": {
+            "type": "boolean"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "transcriptAvailable": {
+            "type": "boolean"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "waitingRoomEnabled": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "MeetingPersonResponse": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "emailAddress": {
+            "type": "string"
+          },
+          "jobTitle": {
+            "type": "string"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "personPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "userId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "MeetingSummary": {
+        "properties": {
+          "accessScope": {
+            "type": "string"
+          },
+          "agenda": {
+            "type": "string"
+          },
+          "allowJoinBeforeHost": {
+            "type": "boolean"
+          },
+          "attendeeCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "canHost": {
+            "type": "boolean"
+          },
+          "canModerate": {
+            "type": "boolean"
+          },
+          "defaultCameraEnabled": {
+            "type": "boolean"
+          },
+          "defaultMicrophoneEnabled": {
+            "type": "boolean"
+          },
+          "description": {
+            "type": "string"
+          },
+          "durationMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "meetingCode": {
+            "type": "string"
+          },
+          "meetingId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "organizerName": {
+            "type": "string"
+          },
+          "organizerUserId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "participantRole": {
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "waitingRoomEnabled": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "NoticeAcknowledgementResponse": {
+        "properties": {
+          "acknowledgedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "acknowledgementId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "noticeId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "noticeRevision": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "participantId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PageResponseHistoryItemResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HistoryItemResponse"
+            },
+            "type": "array"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "pageSize": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "PageResponseMeetingSummary": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MeetingSummary"
+            },
+            "type": "array"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "pageSize": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ParticipantResponse": {
+        "properties": {
+          "admittedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "attendanceState": {
+            "type": "string"
+          },
+          "canSelfUnmute": {
+            "type": "boolean"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "emailAddress": {
+            "type": "string"
+          },
+          "jobTitle": {
+            "type": "string"
+          },
+          "joinRequestedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "joinedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "leftAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "participantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "participantRole": {
+            "type": "string"
+          },
+          "personPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "unmuteRequestedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "userId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ParticipantSnapshotResponse": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "participantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "participantRole": {
+            "type": "string"
+          },
+          "personPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "userId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ParticipantTokenResponse": {
+        "properties": {
+          "effectivePermissions": {
+            "$ref": "#/components/schemas/EffectivePermissionsResponse"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "meetingId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "participantRole": {
+            "type": "string"
+          },
+          "participantToken": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "serverUrl": {
+            "type": "string"
+          },
+          "sessionId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PolicyResponse": {
+        "properties": {
+          "aiNotesConfigured": {
+            "type": "boolean"
+          },
+          "allowJoinBeforeHost": {
+            "type": "boolean"
+          },
+          "artifactRetentionDays": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "chatRetentionDays": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "guestsAllowed": {
+            "type": "boolean"
+          },
+          "maximumParticipants": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "meetingsEnabled": {
+            "type": "boolean"
+          },
+          "participantChatAllowed": {
+            "type": "boolean"
+          },
+          "reactionsAllowed": {
+            "type": "boolean"
+          },
+          "recordingConfigured": {
+            "type": "boolean"
+          },
+          "recordingPolicy": {
+            "type": "string"
+          },
+          "requireAuthenticatedInternalUsers": {
+            "type": "boolean"
+          },
+          "retentionDays": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "screenShareAllowed": {
+            "type": "boolean"
+          },
+          "unmuteControl": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "waitingRoomRequired": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "RecordingCommandResponse": {
+        "properties": {
+          "accepted": {
+            "type": "boolean"
+          },
+          "blockers": {
+            "items": {
+              "$ref": "#/components/schemas/BlockerResponse"
+            },
+            "type": "array"
+          },
+          "commandState": {
+            "type": "string"
+          },
+          "contentPlanVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "recordingSession": {
+            "$ref": "#/components/schemas/RecordingSessionResponse"
+          }
+        },
+        "type": "object"
+      },
+      "RecordingSessionResponse": {
+        "properties": {
+          "failureCode": {
+            "type": "string"
+          },
+          "noticeId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "planVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "recordingSessionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "stopRequestedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "stoppedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "RequestRecordingCommand": {
+        "properties": {
+          "expectedPlanVersion": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ScheduleMeetingRequest": {
+        "properties": {
+          "accessScope": {
+            "enum": [
+              "INTERNAL",
+              "INVITED",
+              "PUBLIC_CODE"
+            ],
+            "type": "string"
+          },
+          "agenda": {
+            "maxLength": 8000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "allowJoinBeforeHost": {
+            "type": "boolean"
+          },
+          "defaultCameraEnabled": {
+            "type": "boolean"
+          },
+          "defaultMicrophoneEnabled": {
+            "type": "boolean"
+          },
+          "description": {
+            "maxLength": 4000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "durationMinutes": {
+            "format": "int32",
+            "maximum": 1440,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "guestAccessEnabled": {
+            "type": "boolean"
+          },
+          "guestInvitees": {
+            "items": {
+              "$ref": "#/components/schemas/GuestInvitee"
+            },
+            "maxItems": 100,
+            "minItems": 0,
+            "type": "array"
+          },
+          "participantUserIds": {
+            "items": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "maxItems": 200,
+            "minItems": 0,
+            "type": "array"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "timeZone": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 240,
+            "minLength": 0,
+            "type": "string"
+          },
+          "waitingRoomEnabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "accessScope",
+          "startsAt",
+          "timeZone",
+          "title"
+        ],
+        "type": "object"
+      },
+      "SendChatMessageCommand": {
+        "properties": {
+          "text": {
+            "maxLength": 4000,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "StopRecordingCommand": {
+        "properties": {
+          "expectedSessionVersion": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "TenantPolicyUpdateRequest": {
+        "properties": {
+          "allowJoinBeforeHost": {
+            "type": "boolean"
+          },
+          "artifactRetentionDays": {
+            "format": "int32",
+            "maximum": 3650,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "chatRetentionDays": {
+            "format": "int32",
+            "maximum": 365,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "guestsAllowed": {
+            "type": "boolean"
+          },
+          "maximumParticipants": {
+            "format": "int32",
+            "maximum": 1000,
+            "minimum": 2,
+            "type": "integer"
+          },
+          "meetingsEnabled": {
+            "type": "boolean"
+          },
+          "participantChatAllowed": {
+            "type": "boolean"
+          },
+          "reactionsAllowed": {
+            "type": "boolean"
+          },
+          "recordingPolicy": {
+            "minLength": 1,
+            "pattern": "NEVER",
+            "type": "string"
+          },
+          "requireAuthenticatedInternalUsers": {
+            "type": "boolean"
+          },
+          "retentionDays": {
+            "format": "int32",
+            "maximum": 3650,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "screenShareAllowed": {
+            "type": "boolean"
+          },
+          "waitingRoomRequired": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "recordingPolicy"
+        ],
+        "type": "object"
+      },
+      "UpdateContentPlanCommand": {
+        "properties": {
+          "aiSummaryDependencyValid": {
+            "type": "boolean"
+          },
+          "aiSummaryRequested": {
+            "type": "boolean"
+          },
+          "e2eeEnabled": {
+            "type": "boolean"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "recordingRequested": {
+            "type": "boolean"
+          },
+          "transcriptionRequested": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "VersionedCommand": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "OpenAPI definition",
+    "version": "v0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/v1/admin/overview": {
+      "get": {
+        "operationId": "adminOverview",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "timeZone",
+            "required": false,
+            "schema": {
+              "default": "UTC",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAdminOverviewResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-controller"
+        ]
+      }
+    },
+    "/v1/admin/policy": {
+      "get": {
+        "operationId": "policy",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePolicyResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-controller"
+        ]
+      },
+      "put": {
+        "operationId": "updatePolicy",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantPolicyUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePolicyResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-controller"
+        ]
+      }
+    },
+    "/v1/capabilities": {
+      "get": {
+        "operationId": "capabilities",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCapabilityResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-controller"
+        ]
+      }
+    },
+    "/v1/history": {
+      "get": {
+        "operationId": "history",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "format": "int32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePageResponseHistoryItemResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-controller"
+        ]
+      }
+    },
+    "/v1/home": {
+      "get": {
+        "operationId": "home",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "timeZone",
+            "required": false,
+            "schema": {
+              "default": "UTC",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseHomeResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-controller"
+        ]
+      }
+    },
+    "/v1/join-codes/{code}": {
+      "get": {
+        "operationId": "resolveCode",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseJoinCodeResolutionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-controller"
+        ]
+      }
+    },
+    "/v1/meetings": {
+      "get": {
+        "operationId": "meetings",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "format": "int32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePageResponseMeetingSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-controller"
+        ]
+      },
+      "post": {
+        "operationId": "schedule",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleMeetingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseMeetingCreatedResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-controller"
+        ]
+      }
+    },
+    "/v1/meetings/instant": {
+      "post": {
+        "operationId": "instant",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InstantMeetingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseMeetingCreatedResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-controller"
+        ]
+      }
+    },
+    "/v1/meetings/{meetingId}": {
+      "get": {
+        "operationId": "detail",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseMeetingDetailResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-controller"
+        ]
+      }
+    },
+    "/v1/meetings/{meetingId}/chat/messages": {
+      "get": {
+        "operationId": "chatMessages",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "afterSequence",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseChatMessagePageResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-collaboration-controller"
+        ]
+      },
+      "post": {
+        "operationId": "sendChatMessage",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendChatMessageCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseChatMessageResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-collaboration-controller"
+        ]
+      }
+    },
+    "/v1/meetings/{meetingId}/chat/messages/{messageId}/delete": {
+      "post": {
+        "operationId": "deleteChatMessage",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "messageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteChatMessageCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseChatMessageResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-collaboration-controller"
+        ]
+      }
+    },
+    "/v1/meetings/{meetingId}/connected": {
+      "post": {
+        "operationId": "connected",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseParticipantResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-controller"
+        ]
+      }
+    },
+    "/v1/meetings/{meetingId}/content-notices/{noticeId}/acknowledge": {
+      "post": {
+        "operationId": "acknowledgeNotice",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "noticeId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseNoticeAcknowledgementResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-content-controller"
+        ]
+      }
+    },
+    "/v1/meetings/{meetingId}/content-plan": {
+      "get": {
+        "operationId": "contentPlan",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseContentPlanResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-content-controller"
+        ]
+      },
+      "put": {
+        "operationId": "updateContentPlan",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateContentPlanCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseContentPlanResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-content-controller"
+        ]
+      }
+    },
+    "/v1/meetings/{meetingId}/end": {
+      "post": {
+        "operationId": "end",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseMeetingDetailResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-controller"
+        ]
+      }
+    },
+    "/v1/meetings/{meetingId}/hand-requests": {
+      "get": {
+        "operationId": "handRequests",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "afterSequence",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseHandRequestPageResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-collaboration-controller"
+        ]
+      }
+    },
+    "/v1/meetings/{meetingId}/hand-requests/clear": {
+      "post": {
+        "operationId": "clearHands",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseClearHandRequestsResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-collaboration-controller"
+        ]
+      }
+    },
+    "/v1/meetings/{meetingId}/hand-requests/raise": {
+      "post": {
+        "operationId": "raiseHand",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseHandRequestResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-collaboration-controller"
+        ]
+      }
+    },
+    "/v1/meetings/{meetingId}/hand-requests/{requestId}/acknowledge": {
+      "post": {
+        "operationId": "acknowledgeHand",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseHandRequestResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-collaboration-controller"
+        ]
+      }
+    },
+    "/v1/meetings/{meetingId}/hand-requests/{requestId}/dismiss": {
+      "post": {
+        "operationId": "dismissHand",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseHandRequestResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-collaboration-controller"
+        ]
+      }
+    },
+    "/v1/meetings/{meetingId}/hand-requests/{requestId}/lower": {
+      "post": {
+        "operationId": "lowerHand",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseHandRequestResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-collaboration-controller"
+        ]
+      }
+    },
+    "/v1/meetings/{meetingId}/join-requests": {
+      "post": {
+        "operationId": "requestJoin",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinRequestCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseJoinRequestResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-controller"
+        ]
+      }
+    },
+    "/v1/meetings/{meetingId}/join-requests/{participantId}/admit": {
+      "post": {
+        "operationId": "admit",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "participantId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdmissionCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseJoinRequestResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-controller"
+        ]
+      }
+    },
+    "/v1/meetings/{meetingId}/join-requests/{participantId}/deny": {
+      "post": {
+        "operationId": "deny",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "participantId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdmissionCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseJoinRequestResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-controller"
+        ]
+      }
+    },
+    "/v1/meetings/{meetingId}/join-requests/{requestId}": {
+      "get": {
+        "operationId": "joinRequest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseJoinRequestResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-controller"
+        ]
+      }
+    },
+    "/v1/meetings/{meetingId}/leave": {
+      "post": {
+        "operationId": "leave",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseParticipantResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-controller"
+        ]
+      }
+    },
+    "/v1/meetings/{meetingId}/lobby": {
+      "get": {
+        "operationId": "lobby",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseLobbyResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-controller"
+        ]
+      }
+    },
+    "/v1/meetings/{meetingId}/recording/request": {
+      "post": {
+        "operationId": "requestRecording",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestRecordingCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRecordingCommandResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-content-controller"
+        ]
+      }
+    },
+    "/v1/meetings/{meetingId}/recording/stop": {
+      "post": {
+        "operationId": "stopRecording",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StopRecordingCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRecordingCommandResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-content-controller"
+        ]
+      }
+    },
+    "/v1/meetings/{meetingId}/start": {
+      "post": {
+        "operationId": "start",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseMeetingDetailResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-controller"
+        ]
+      }
+    },
+    "/v1/meetings/{meetingId}/token": {
+      "post": {
+        "operationId": "token",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IssueTokenCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseParticipantTokenResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-controller"
+        ]
+      }
+    },
+    "/v1/people": {
+      "get": {
+        "operationId": "people",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 160,
+              "minLength": 0,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "format": "int32",
+              "maximum": 50,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListMeetingPersonResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-controller"
+        ]
+      }
+    }
+  }
+}

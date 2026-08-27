@@ -171,6 +171,48 @@ class MessagingNotificationEventsTest {
                 .path("recipientUserIds").toString()).isEqualTo("[20]");
     }
 
+    @Test
+    void prioritizesMentionsAndThreadRepliesWithoutDuplicatingAllSubscribers() {
+        UUID conversationId = UUID.randomUUID();
+        UUID replyToMessageId = UUID.randomUUID();
+        when(queries.members(1L, conversationId)).thenReturn(List.of(
+                member(10L, "DEFAULT"),
+                member(20L, "MENTIONS"),
+                member(30L, "DEFAULT"),
+                member(40L, "ALL"),
+                member(50L, "MUTE")));
+
+        events.messageCreated(
+                subject(10L),
+                conversation(conversationId, "GROUP", "INTERNAL"),
+                new MessagingCommandRepository.MessageInsertResult(
+                        UUID.randomUUID(), true, 8),
+                new MessagingDtos.SendMessageRequest(
+                        "@사용자20 확인 부탁드립니다.",
+                        UUID.randomUUID(),
+                        replyToMessageId,
+                        List.of(),
+                        List.of(20L)),
+                30L,
+                "corr-8");
+
+        ArgumentCaptor<DomainEventEnvelope> captured =
+                ArgumentCaptor.forClass(DomainEventEnvelope.class);
+        verify(recorder).record(captured.capture());
+        var intents = captured.getValue().data().path("notificationIntents");
+
+        assertThat(intents).hasSize(3);
+        assertThat(intents.get(0).path("typeKey").asText())
+                .isEqualTo(MessagingNotificationEvents.MENTION);
+        assertThat(intents.get(0).path("recipientUserIds").toString()).isEqualTo("[20]");
+        assertThat(intents.get(1).path("typeKey").asText())
+                .isEqualTo(MessagingNotificationEvents.THREAD_REPLY);
+        assertThat(intents.get(1).path("recipientUserIds").toString()).isEqualTo("[30]");
+        assertThat(intents.get(2).path("typeKey").asText())
+                .isEqualTo(MessagingNotificationEvents.CHANNEL_MESSAGE);
+        assertThat(intents.get(2).path("recipientUserIds").toString()).isEqualTo("[40]");
+    }
+
     private MessagingRequestContext.Subject subject(long userId) {
         return new MessagingRequestContext.Subject(
                 userId, 1L, UUID.randomUUID(), "김민서", Set.of(), Set.of(), Set.of());

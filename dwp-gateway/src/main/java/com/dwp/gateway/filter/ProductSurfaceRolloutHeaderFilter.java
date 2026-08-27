@@ -69,7 +69,9 @@ public class ProductSurfaceRolloutHeaderFilter implements GlobalFilter, Ordered 
                 sanitized.getMethod() == null ? null : sanitized.getMethod().name(),
                 sanitized.getURI().getPath(), sanitized.getURI().getRawQuery());
         if (sanitized.getMethod() != HttpMethod.OPTIONS
-                && routeMatch.status() != GeneratedProductRouteCatalog.MatchStatus.UNGOVERNED) {
+                && routeMatch.status() != GeneratedProductRouteCatalog.MatchStatus.UNGOVERNED
+                && routeMatch.status()
+                    != GeneratedProductRouteCatalog.MatchStatus.LEGACY_EXEMPT) {
             if (routeMatch.status() != GeneratedProductRouteCatalog.MatchStatus.GOVERNED
                     || routeMatch.productKey() == null) {
                 return complete(sanitizedExchange, HttpStatus.SERVICE_UNAVAILABLE);

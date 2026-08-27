@@ -1,10 +1,16 @@
 package com.dwp.gateway;
 
+import com.dwp.gateway.audit.GatewayDenialAuditSink;
 import com.dwp.gateway.filter.SupportSessionContextFilter;
 import com.dwp.gateway.filter.VerifiedIdentityFilter;
+import com.dwp.gateway.productsurface.GeneratedProductRouteCatalog;
 import com.dwp.gateway.security.SupportSessionVerifier;
 import com.dwp.gateway.security.VerifiedSupportAccess;
+import com.dwp.gateway.security.ProviderSupportSessionVerifier.SupportValidationUnavailableException;
+import com.dwp.gateway.security.ProviderSupportSessionVerifier.SupportValidationRejectedException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpCookie;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
@@ -13,6 +19,7 @@ import reactor.core.publisher.Mono;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -78,6 +85,91 @@ class SupportSessionContextFilterTest {
     }
 
     @Test
+    void convertsSupportDenialToServiceUnavailableWhenCentralEvidenceCannotBeWritten() {
+        GeneratedProductRouteCatalog catalog = new GeneratedProductRouteCatalog(
+                new ObjectMapper(),
+                new ClassPathResource(
+                        "product-authorization/product-surfaces-v1.generated.json"));
+        SupportSessionContextFilter filter = new SupportSessionContextFilter(
+                (request, token) -> Mono.empty(),
+                catalog,
+                (exchange, denial) -> Mono.error(new IllegalStateException("sink unavailable")));
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
+                .get("/api/platform/v1/admin/tenant-experience-preview")
+                .header(VerifiedIdentityFilter.USER_HEADER, "17")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "3")
+                .cookie(new HttpCookie(
+                        SupportSessionContextFilter.SUPPORT_COOKIE, "expired"))
+                .build());
+
+        filter.filter(exchange, ignored -> Mono.empty()).block();
+
+        assertThat(exchange.getResponse().getStatusCode())
+                .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+    }
+
+    @Test
+    void failsClosedWithoutForwardingWhenProviderVerificationIsUnavailable() {
+        GeneratedProductRouteCatalog catalog = new GeneratedProductRouteCatalog(
+                new ObjectMapper(),
+                new ClassPathResource(
+                        "product-authorization/product-surfaces-v1.generated.json"));
+        SupportSessionContextFilter filter = new SupportSessionContextFilter(
+                (request, token) -> Mono.error(new SupportValidationUnavailableException()),
+                catalog,
+                GatewayDenialAuditSink.NOOP);
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
+                .get("/api/platform/v1/admin/tenant-experience-preview")
+                .header(VerifiedIdentityFilter.USER_HEADER, "17")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "3")
+                .cookie(new HttpCookie(
+                        SupportSessionContextFilter.SUPPORT_COOKIE, "support-secret"))
+                .build());
+        AtomicBoolean forwarded = new AtomicBoolean();
+
+        filter.filter(exchange, ignored -> {
+            forwarded.set(true);
+            return Mono.empty();
+        }).block();
+
+        assertThat(exchange.getResponse().getStatusCode())
+                .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(forwarded).isFalse();
+    }
+
+    @Test
+    void preservesProviderRequestRejectionsWithoutForwardingToTheTenantDataPlane() {
+        for (HttpStatus status : List.of(HttpStatus.BAD_REQUEST, HttpStatus.NOT_FOUND)) {
+            GeneratedProductRouteCatalog catalog = new GeneratedProductRouteCatalog(
+                    new ObjectMapper(),
+                    new ClassPathResource(
+                            "product-authorization/product-surfaces-v1.generated.json"));
+            SupportSessionContextFilter filter = new SupportSessionContextFilter(
+                    (request, token) -> Mono.error(
+                            new SupportValidationRejectedException(status)),
+                    catalog,
+                    GatewayDenialAuditSink.NOOP);
+            MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
+                    .get("/api/platform/v1/admin/tenant-experience-preview")
+                    .header(VerifiedIdentityFilter.USER_HEADER, "17")
+                    .header(VerifiedIdentityFilter.TENANT_HEADER, "3")
+                    .cookie(new HttpCookie(
+                            SupportSessionContextFilter.SUPPORT_COOKIE, "rejected"))
+                    .build());
+            AtomicBoolean forwarded = new AtomicBoolean();
+
+            filter.filter(exchange, ignored -> {
+                forwarded.set(true);
+                return Mono.empty();
+            }).block();
+
+            assertThat(exchange.getResponse().getStatusCode()).as(status.toString())
+                    .isEqualTo(status);
+            assertThat(forwarded).as(status.toString()).isFalse();
+        }
+    }
+
+    @Test
     void doesNotForwardSpoofedSupportContextWithoutAResolvedSession() {
         SupportSessionContextFilter filter = new SupportSessionContextFilter(
                 (request, token) -> Mono.error(new AssertionError("must not validate")));
@@ -101,39 +193,62 @@ class SupportSessionContextFilterTest {
     }
 
     @Test
-    void resolvesSupportModeBeforeAProductSurfaceEvaluation() {
+    void doesNotResolveRetiredTenantAuthorityPathsAsSupportSurfaces() {
         AtomicReference<String> verifiedPath = new AtomicReference<>();
         SupportSessionContextFilter filter = new SupportSessionContextFilter((request, token) -> {
             verifiedPath.set(request.getURI().getPath());
-            return Mono.just(new VerifiedSupportAccess(
-                    "session-2",
-                    "provider-tenant-1",
-                    "42",
-                    "acme",
-                    "Acme",
-                    List.of("WORKFORCE_READ"),
-                    "STANDARD",
-                    Instant.now().plusSeconds(600),
-                    9));
+            return Mono.error(new AssertionError("tenant authority APIs are not support surfaces"));
         });
-        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
-                .post("/api/auth/product-surface-access/evaluate")
-                .header(VerifiedIdentityFilter.USER_HEADER, "17")
-                .header(VerifiedIdentityFilter.TENANT_HEADER, "3")
-                .cookie(new HttpCookie(SupportSessionContextFilter.SUPPORT_COOKIE, "support-secret"))
-                .build());
-        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
-                new AtomicReference<>();
 
-        filter.filter(exchange, filteredExchange -> {
-            forwarded.set(filteredExchange.getRequest());
+        for (String path : List.of(
+                "/api/auth/product-surface-contexts",
+                "/api/auth/product-surface-access/evaluate",
+                "/api/auth/governed-route-access/evaluate",
+                "/api/auth/product-surface-step-up-challenges")) {
+            MockServerHttpRequest.BaseBuilder<?> request = path.endsWith("contexts")
+                    ? MockServerHttpRequest.get(path)
+                    : MockServerHttpRequest.post(path);
+            MockServerWebExchange exchange = MockServerWebExchange.from(request
+                    .header(VerifiedIdentityFilter.USER_HEADER, "17")
+                    .header(VerifiedIdentityFilter.TENANT_HEADER, "3")
+                    .cookie(new HttpCookie(
+                            SupportSessionContextFilter.SUPPORT_COOKIE, "support-secret"))
+                    .build());
+            AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                    new AtomicReference<>();
+
+            filter.filter(exchange, filteredExchange -> {
+                forwarded.set(filteredExchange.getRequest());
+                return Mono.empty();
+            }).block();
+
+            assertThat(forwarded.get().getHeaders().containsKey(
+                    SupportSessionContextFilter.SUPPORT_SESSION_HEADER)).as(path).isFalse();
+            assertThat(forwarded.get().getHeaders().getFirst("Cookie")).as(path).isNull();
+        }
+        assertThat(verifiedPath.get()).isNull();
+    }
+
+    @Test
+    void legacyExemptWorkforceAccessStillRequiresSupportSessionVerification() {
+        AtomicReference<String> verifiedPath = new AtomicReference<>();
+        GeneratedProductRouteCatalog catalog = new GeneratedProductRouteCatalog(
+                new ObjectMapper(),
+                new ClassPathResource(
+                        "product-authorization/product-surfaces-v1.generated.json"));
+        SupportSessionContextFilter filter = new SupportSessionContextFilter((request, token) -> {
+            verifiedPath.set(request.getURI().getPath());
             return Mono.empty();
-        }).block();
+        }, catalog, GatewayDenialAuditSink.NOOP);
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
+                .get("/api/people/v1/admin/workforce/access-policies")
+                .cookie(new HttpCookie(SupportSessionContextFilter.SUPPORT_COOKIE, "expired"))
+                .build());
 
-        assertThat(verifiedPath).hasValue("/api/auth/product-surface-access/evaluate");
-        assertThat(forwarded.get().getHeaders().getFirst(
-                SupportSessionContextFilter.SUPPORT_SESSION_HEADER)).isEqualTo("session-2");
-        assertThat(forwarded.get().getHeaders().getFirst(
-                SupportSessionContextFilter.SUPPORT_REVISION_HEADER)).isEqualTo("support-v9");
+        filter.filter(exchange, ignored -> Mono.empty()).block();
+
+        assertThat(verifiedPath).hasValue(
+                "/api/people/v1/admin/workforce/access-policies");
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 }

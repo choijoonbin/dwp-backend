@@ -1,6 +1,6 @@
 # Cryptographic Key and Secret Management Policy
 
-- Status: Accepted policy, implementation planned
+- Status: Accepted policy, internal envelope baseline implemented
 - Decision date: 2026-08-20
 - Delivery item: `R3-02-KMS`
 - Scope: `dwp-backend`, `dwp_agent`, object storage, connectors and deployment configuration
@@ -158,11 +158,12 @@ same immutable-retention policy as other security evidence.
 | Area | Current state | Gap |
 | --- | --- | --- |
 | Local supervisor | `scripts/devctl.py` injects plaintext local DB passwords, service tokens, encryption and audit keys | Keep this explicit local exception; add typed provider metadata and leakage tests. |
-| Agent payload | AES-256-GCM, versioned active and previous keys | Key material is environment-injected; common provider adapter is absent. |
+| Common envelope boundary | Java and Python use canonical `dwp2` Envelope, per-write DEK, context-bound AES-256-GCM, local-only providers and startup cryptographic probes | Managed cloud KMS adapters, workload identity and provider outage evidence remain external. |
+| Agent payload | Migration `V13` writes run, conversation, message, feedback and evaluation payloads as Envelope v2 and keeps an explicit Legacy Read path | Legacy re-encryption worker and customer-approved retirement evidence remain external. |
 | Productivity connector | AES-256-GCM with a configured data key | Direct key configuration must move behind `KeyProvider`. |
 | Platform and Messaging S3 | Optional SSE-KMS key ID support | Environment enforcement, identity and recovery evidence remain external. |
-| Production readiness | Production secret and unsafe-default checks exist | `dev` and `qa` provider/profile policy and common key probes are absent. |
-| Restricted fields and exports | Fail-closed or disabled behind delivery gates | Envelope encryption, object storage and migration workers remain planned. |
+| Production readiness | Unknown or ambiguous environments and local providers outside `local` fail closed; configured providers run a cryptographic startup probe | Managed adapter connectivity, denial, latency and recovery probes remain external. |
+| Restricted fields and exports | Agent protected fields have Envelope v2; remaining exports stay fail-closed or disabled behind delivery gates | Object storage encryption and service-by-service migration workers remain planned. |
 
 ## 9. Implementation tracking
 
@@ -175,6 +176,8 @@ same immutable-retention policy as other security evidence.
 
 - [NIST SP 800-57 Part 1 Rev. 5](https://csrc.nist.gov/pubs/sp/800/57/pt1/r5/final)
 - [Spring Boot externalized configuration](https://docs.spring.io/spring-boot/reference/features/external-config.html)
+- [Azure Key Vault multitenancy guidance](https://learn.microsoft.com/en-us/azure/architecture/guide/multitenant/service/key-vault)
+- [Google Cloud envelope encryption](https://cloud.google.com/kms/docs/envelope-encryption)
 - [AWS KMS IAM policy best practices](https://docs.aws.amazon.com/kms/latest/developerguide/iam-policies-best-practices.html)
 - [AWS KMS encryption context](https://docs.aws.amazon.com/kms/latest/developerguide/encrypt_context.html)
 - [OWASP Secrets Management Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Secrets_Management_Cheat_Sheet.html)

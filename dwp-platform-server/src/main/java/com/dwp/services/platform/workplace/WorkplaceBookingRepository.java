@@ -38,7 +38,7 @@ class WorkplaceBookingRepository {
                    occurrence.local_starts_at AT TIME ZONE event.time_zone AS starts_at,
                    (occurrence.local_starts_at AT TIME ZONE event.time_zone)
                        + (booking.ends_at - booking.starts_at) AS ends_at,
-                   CASE WHEN event.visibility = 'PUBLIC' OR event.organizer_user_id = ?
+                   CASE WHEN event.organizer_user_id = ?
                         THEN event.organizer_name END AS booked_by_display_name,
                    event.organizer_user_id = ? AS current_user
               FROM wp_resources resource

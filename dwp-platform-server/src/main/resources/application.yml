@@ -108,9 +108,9 @@ dwp:
       cursor-secret: ${DWP_API_HISTORY_CURSOR_SECRET:}
       cursor-ttl: ${DWP_API_HISTORY_CURSOR_TTL:PT15M}
       retention-days: ${DWP_API_HISTORY_RETENTION_DAYS:90}
-      allowed-services: ${DWP_API_HISTORY_ALLOWED_SERVICES:dwp-gateway,dwp-auth-server,dwp-platform-server,dwp-people-server,dwp-provider-server,dwp-approval-server,dwp-space-server,dwp-messaging-server,dwp-notification-server,dwp-agent-runtime}
+      allowed-services: ${DWP_API_HISTORY_ALLOWED_SERVICES:dwp-gateway,dwp-auth-server,dwp-platform-server,dwp-people-server,dwp-provider-server,dwp-approval-server,dwp-space-server,dwp-messaging-server,dwp-meeting-server,dwp-notification-server,dwp-agent-runtime}
     audit:
-      allowed-services: ${DWP_AUDIT_ALLOWED_SERVICES:dwp-auth-server,dwp-platform-server,dwp-people-server,dwp-provider-server,dwp-approval-server,dwp-space-server,dwp-messaging-server,dwp-notification-server,dwp-agent-runtime}
+      allowed-services: ${DWP_AUDIT_ALLOWED_SERVICES:dwp-gateway,dwp-auth-server,dwp-platform-server,dwp-people-server,dwp-provider-server,dwp-approval-server,dwp-space-server,dwp-messaging-server,dwp-meeting-server,dwp-notification-server,dwp-agent-runtime}
       integrity-secret: ${DWP_AUDIT_INTEGRITY_SECRET:}
       integrity-cron: ${DWP_AUDIT_INTEGRITY_CRON:0 15 0 * * *}
       retention-cron: ${DWP_AUDIT_RETENTION_CRON:0 10 2 * * *}

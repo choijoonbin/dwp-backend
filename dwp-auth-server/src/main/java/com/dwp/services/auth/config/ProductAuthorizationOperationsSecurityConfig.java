@@ -28,8 +28,10 @@ import java.util.List;
 @Configuration
 public class ProductAuthorizationOperationsSecurityConfig {
 
+    public static final String INTERNAL_PATH_ROOT =
+            "/internal/auth/v1/product-authorization";
     public static final String INTERNAL_PATH_PREFIX =
-            "/internal/auth/v1/product-authorization/operations";
+            INTERNAL_PATH_ROOT + "/operations";
     public static final String SERVICE_IDENTITY_HEADER = "X-DWP-Service-Identity";
     public static final String APPROVAL_TOKEN_HEADER =
             "X-DWP-Product-Authorization-Approval-Token";
@@ -48,7 +50,7 @@ public class ProductAuthorizationOperationsSecurityConfig {
             String platformActivationToken,
             ObjectMapper objectMapper) throws Exception {
         http
-                .securityMatcher(INTERNAL_PATH_PREFIX + "/**")
+                .securityMatcher(INTERNAL_PATH_ROOT + "/**")
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

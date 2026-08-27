@@ -19,6 +19,7 @@ final class ProductSurfaceRolloutFlagCatalog {
             "dwaion",
             "hcm",
             "mail",
+            "meetings",
             "messaging",
             "notifications",
             "services",

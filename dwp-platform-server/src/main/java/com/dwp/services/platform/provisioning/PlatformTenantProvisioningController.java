@@ -1,5 +1,6 @@
 package com.dwp.services.platform.provisioning;
 
+import com.dwp.core.provisioning.ProviderTenantCommand;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -39,6 +40,13 @@ public class PlatformTenantProvisioningController {
             @PathVariable UUID providerTenantId,
             @Valid @RequestBody PlatformTenantProvisioningDtos.ReplaceEntitlementsRequest request) {
         return service.replaceEntitlements(providerTenantId, request);
+    }
+
+    @PostMapping("/{providerTenantId}/commands")
+    public ProviderTenantCommand.Receipt command(
+            @PathVariable UUID providerTenantId,
+            @RequestBody ProviderTenantCommand.Request request) {
+        return service.command(providerTenantId, request);
     }
 
     @PostMapping("/{providerTenantId}/asset-storage")

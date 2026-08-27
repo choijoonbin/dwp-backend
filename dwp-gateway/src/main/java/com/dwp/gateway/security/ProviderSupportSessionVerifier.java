@@ -4,6 +4,7 @@ import com.dwp.gateway.filter.VerifiedIdentityFilter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -49,13 +50,15 @@ public class ProviderSupportSessionVerifier implements SupportSessionVerifier {
             return Mono.error(new SupportValidationUnavailableException());
         }
         return providerClient.post()
-                .uri("/v1/internal/support-access/resolve")
+                .uri("/internal/provider/v1/support-access/resolve")
                 .headers(headers -> {
                     headers.set(SERVICE_TOKEN_HEADER, serviceToken);
                     headers.set(VALIDATION_TOKEN_HEADER, validationToken);
                     copyHeader(request.getHeaders(), headers, VerifiedIdentityFilter.USER_HEADER);
                     copyHeader(request.getHeaders(), headers, VerifiedIdentityFilter.TENANT_HEADER);
                     copyHeader(request.getHeaders(), headers, VerifiedIdentityFilter.ROLES_HEADER);
+                    copyHeader(request.getHeaders(), headers, VerifiedIdentityFilter.AUTH_SESSION_ID_HEADER);
+                    copyHeader(request.getHeaders(), headers, VerifiedIdentityFilter.IDENTITY_PLANE_HEADER);
                     copyHeader(request.getHeaders(), headers, CORRELATION_HEADER);
                     copyHeader(request.getHeaders(), headers, TRACE_PARENT_HEADER);
                     copyHeader(request.getHeaders(), headers, TRACE_STATE_HEADER);
@@ -75,11 +78,17 @@ public class ProviderSupportSessionVerifier implements SupportSessionVerifier {
                             || response.statusCode() == HttpStatus.CONFLICT) {
                         return response.releaseBody().then(Mono.empty());
                     }
+                    if (response.statusCode().is4xxClientError()) {
+                        return response.releaseBody().then(Mono.error(
+                                new SupportValidationRejectedException(
+                                        response.statusCode())));
+                    }
                     return response.createException().flatMap(Mono::error);
                 })
                 .timeout(timeout)
                 .onErrorMap(
-                        error -> !(error instanceof SupportValidationUnavailableException),
+                        error -> !(error instanceof SupportValidationUnavailableException)
+                                && !(error instanceof SupportValidationRejectedException),
                         SupportValidationUnavailableException::new);
     }
 
@@ -89,6 +98,19 @@ public class ProviderSupportSessionVerifier implements SupportSessionVerifier {
     }
 
     private record SupportContextEnvelope(Boolean success, VerifiedSupportAccess data) {
+    }
+
+    public static final class SupportValidationRejectedException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+        private final HttpStatusCode statusCode;
+
+        public SupportValidationRejectedException(HttpStatusCode statusCode) {
+            this.statusCode = statusCode;
+        }
+
+        public HttpStatusCode statusCode() {
+            return statusCode;
+        }
     }
 
     public static final class SupportValidationUnavailableException extends RuntimeException {

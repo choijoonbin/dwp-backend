@@ -2,6 +2,10 @@ package com.dwp.services.platform.provisioning;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.core.provisioning.ProviderTenantCommand;
+import com.dwp.core.provisioning.ProviderTenantCommandReceiptStore;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -22,12 +26,53 @@ public class PlatformTenantProvisioningService {
 
     private final JdbcTemplate jdbc;
     private final Path assetRoot;
+    private final ObjectMapper objectMapper;
+    private final ProviderTenantCommandReceiptStore commandReceipts;
 
     public PlatformTenantProvisioningService(
             JdbcTemplate jdbc,
             @Value("${dwp.platform.assets.root:${user.home}/.dwp/platform-assets}") String assetRoot) {
+        this(jdbc, assetRoot, new ObjectMapper());
+    }
+
+    @Autowired
+    public PlatformTenantProvisioningService(
+            JdbcTemplate jdbc,
+            @Value("${dwp.platform.assets.root:${user.home}/.dwp/platform-assets}") String assetRoot,
+            ObjectMapper objectMapper) {
         this.jdbc = jdbc;
         this.assetRoot = Path.of(assetRoot).toAbsolutePath().normalize();
+        this.objectMapper = objectMapper;
+        this.commandReceipts = new ProviderTenantCommandReceiptStore(jdbc, objectMapper, "platform");
+    }
+
+    @Transactional
+    public ProviderTenantCommand.Receipt command(
+            UUID providerTenantId,
+            ProviderTenantCommand.Request command) {
+        return commandReceipts.execute(providerTenantId, command, () -> {
+            if ("LIFECYCLE".equals(command.commandType())) {
+                String state = command.payload().path("lifecycleState").asText("");
+                if (!Set.of("ACTIVE", "SUSPENDED", "RETIRED").contains(state)) {
+                    throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "Invalid lifecycle command payload.");
+                }
+                return objectMapper.valueToTree(lifecycle(
+                        providerTenantId,
+                        new PlatformTenantProvisioningDtos.UpdateLifecycleRequest(state)));
+            }
+            if ("ENTITLEMENTS".equals(command.commandType())) {
+                List<String> keys = new java.util.ArrayList<>();
+                command.payload().path("entitlementKeys").forEach(value -> keys.add(value.asText()));
+                if (!command.payload().path("entitlementKeys").isArray()
+                        || keys.stream().anyMatch(String::isBlank)) {
+                    throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "Invalid entitlement command payload.");
+                }
+                return objectMapper.valueToTree(replaceEntitlements(
+                        providerTenantId,
+                        new PlatformTenantProvisioningDtos.ReplaceEntitlementsRequest(List.copyOf(keys))));
+            }
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "Unsupported provider command type.");
+        });
     }
 
     @Transactional
@@ -65,6 +110,7 @@ public class PlatformTenantProvisioningService {
         seedGovernedAgents(request.tenantId(), request.entitlementKeys());
         seedNavigation(request.tenantId(), request.defaultLocale(), request.entitlementKeys());
         seedWorkspaceApps(request.tenantId(), request.entitlementKeys());
+        PlatformCalendarTenantSeeder.seed(jdbc, request.tenantId(), request.displayName());
         return new PlatformTenantProvisioningDtos.ProvisionTenantResponse(
                 request.providerTenantId(), request.tenantId(), "PROVISIONING", 1,
                 "platform-tenant:" + request.tenantId());
@@ -214,25 +260,7 @@ public class PlatformTenantProvisioningService {
     }
 
     private void seedGovernedAgents(Long tenantId, List<String> entitlements) {
-        java.util.ArrayList<AgentSeed> desired = new java.util.ArrayList<>();
-        if (entitlements.contains("ai.agent-runtime")) {
-            desired.add(new AgentSeed(
-                    "DWP_ASSISTANT",
-                    "DWAI-ON Workplace Assistant",
-                    "Read-only grounded workplace answers with permission-scoped evidence",
-                    "agent:runtime",
-                    "MEDIUM",
-                    "ask-runtime-v2"));
-            if (entitlements.contains("core.approvals")) {
-                desired.add(new AgentSeed(
-                        "DWP_APPROVAL_EXPERT",
-                        "DWAI-ON Approval Expert",
-                        "Read-only approval intelligence for tasks, requests, forms, SLA, and evidence",
-                        "agent:approval",
-                        "MEDIUM",
-                        "approval-expert-v1"));
-            }
-        }
+        List<AgentSeed> desired = governedAgents(entitlements);
         Set<String> desiredKeys = desired.stream().map(AgentSeed::entryKey).collect(Collectors.toSet());
         for (AgentSeed agent : desired) {
             jdbc.update("""
@@ -251,7 +279,8 @@ public class PlatformTenantProvisioningService {
                     """, tenantId, agent.entryKey(), agent.name(), agent.description(),
                     agent.ownerRef(), agent.riskTier(), agent.artifactVersion());
         }
-        for (String managedKey : List.of("DWP_ASSISTANT", "DWP_APPROVAL_EXPERT")) {
+        for (String managedKey : List.of(
+                "REFERENCE_PLANNER", "DWP_ASSISTANT", "DWP_APPROVAL_EXPERT")) {
             if (desiredKeys.contains(managedKey)) continue;
             jdbc.update("""
                     UPDATE adm_registry_entries
@@ -262,6 +291,36 @@ public class PlatformTenantProvisioningService {
                        AND lifecycle_state <> 'RETIRED'
                     """, tenantId, managedKey);
         }
+    }
+
+    static List<AgentSeed> governedAgents(List<String> entitlements) {
+        java.util.ArrayList<AgentSeed> desired = new java.util.ArrayList<>();
+        if (entitlements.contains("ai.agent-runtime")) {
+            desired.add(new AgentSeed(
+                    "REFERENCE_PLANNER",
+                    "DWAI-ON Reference Planner",
+                    "Governed read-only action and administration plan previews",
+                    "agent:planner",
+                    "MEDIUM",
+                    "reference-planner-v1"));
+            desired.add(new AgentSeed(
+                    "DWP_ASSISTANT",
+                    "DWAI-ON Workplace Assistant",
+                    "Read-only grounded workplace answers with permission-scoped evidence",
+                    "agent:runtime",
+                    "MEDIUM",
+                    "ask-runtime-v2"));
+            if (entitlements.contains("core.approvals")) {
+                desired.add(new AgentSeed(
+                        "DWP_APPROVAL_EXPERT",
+                        "DWAI-ON Approval Expert",
+                        "Read-only approval intelligence for tasks, requests, forms, SLA, and evidence",
+                        "agent:approval",
+                        "MEDIUM",
+                        "approval-expert-v1"));
+            }
+        }
+        return List.copyOf(desired);
     }
 
     private void seedNavigation(Long tenantId, String defaultLocale, List<String> entitlements) {
@@ -568,7 +627,7 @@ public class PlatformTenantProvisioningService {
             String lifecycleState) {
     }
 
-    private record AgentSeed(
+    record AgentSeed(
             String entryKey,
             String name,
             String description,

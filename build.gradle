@@ -60,12 +60,29 @@ tasks.register('pilotFixturesCheck', Exec) {
     commandLine 'python3', 'scripts/generate-product-authorization-fixtures.py', '--check'
 }
 
+tasks.register('authorizationNegativeMatrixCheck', Exec) {
+    group = 'verification'
+    description = 'Verifies the fail-closed X-03 product authorization negative-test inventory.'
+    dependsOn tasks.named('authorizationNegativeMatrixTest')
+    workingDir rootDir
+    commandLine 'python3', 'scripts/check-authorization-negative-matrix.py'
+}
+
+tasks.register('authorizationNegativeMatrixTest', Exec) {
+    group = 'verification'
+    description = 'Runs X-03 owner-service routing and evidence-boundary regressions.'
+    workingDir rootDir
+    commandLine 'python3', '-m', 'unittest', 'discover',
+            '-s', 'scripts/tests', '-p', 'test_authorization_negative_matrix.py', '-v'
+}
+
 tasks.named('check') {
     dependsOn tasks.named('checkServiceBoundaries')
     dependsOn tasks.named('checkSourceSize')
     dependsOn tasks.named('productAuthorizationRegistryCheck')
     dependsOn tasks.named('approvalProjectionSchemaCheck')
     dependsOn tasks.named('pilotFixturesCheck')
+    dependsOn tasks.named('authorizationNegativeMatrixCheck')
 }
 
 subprojects {

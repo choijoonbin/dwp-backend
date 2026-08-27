@@ -20,5 +20,7 @@ class SavedViewCustodyAccessGuardTest {
                 .isInstanceOf(BaseException.class);
         assertThatCode(() -> guard.manage("ADMIN.SAVED_VIEW_CUSTODY:MANAGE"))
                 .doesNotThrowAnyException();
+        assertThatThrownBy(() -> guard.view(null))
+                .isInstanceOf(BaseException.class);
     }
 }

@@ -2,7 +2,11 @@ package com.dwp.services.people.provisioning;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.core.provisioning.ProviderTenantCommand;
+import com.dwp.core.provisioning.ProviderTenantCommandReceiptStore;
 import com.dwp.services.people.hr.HrDomainFoundationService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,12 +19,42 @@ public class PeopleTenantProvisioningService {
 
     private final JdbcTemplate jdbc;
     private final HrDomainFoundationService hrDomainFoundation;
+    private final ObjectMapper objectMapper;
+    private final ProviderTenantCommandReceiptStore commandReceipts;
 
     public PeopleTenantProvisioningService(
             JdbcTemplate jdbc,
             HrDomainFoundationService hrDomainFoundation) {
+        this(jdbc, hrDomainFoundation, new ObjectMapper());
+    }
+
+    @Autowired
+    public PeopleTenantProvisioningService(
+            JdbcTemplate jdbc,
+            HrDomainFoundationService hrDomainFoundation,
+            ObjectMapper objectMapper) {
         this.jdbc = jdbc;
         this.hrDomainFoundation = hrDomainFoundation;
+        this.objectMapper = objectMapper;
+        this.commandReceipts = new ProviderTenantCommandReceiptStore(jdbc, objectMapper, "people");
+    }
+
+    @Transactional
+    public ProviderTenantCommand.Receipt command(
+            UUID providerTenantId,
+            ProviderTenantCommand.Request command) {
+        if (!"LIFECYCLE".equals(command.commandType())) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "People only accepts lifecycle commands.");
+        }
+        return commandReceipts.execute(providerTenantId, command, () -> {
+            String state = command.payload().path("lifecycleState").asText("");
+            if (!java.util.Set.of("ACTIVE", "SUSPENDED", "RETIRED").contains(state)) {
+                throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "Invalid lifecycle command payload.");
+            }
+            return objectMapper.valueToTree(lifecycle(
+                    providerTenantId,
+                    new PeopleTenantProvisioningDtos.UpdateLifecycleRequest(state)));
+        });
     }
 
     @Transactional

@@ -1,5 +1,6 @@
 package com.dwp.services.auth.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -93,7 +94,21 @@ public final class AppGovernanceDtos {
             String decisionReason,
             long version,
             OffsetDateTime createdAt,
-            OffsetDateTime updatedAt) {
+            OffsetDateTime updatedAt,
+            @Schema(description = "Actor-specific, non-authoritative hint that the current "
+                    + "dashboard viewer may decide this assignment through the one-time "
+                    + "first APP_ACCESS_APPROVER bootstrap path. The decision endpoint always "
+                    + "revalidates authority, independence, state, scope, and version.")
+            boolean firstApproverBootstrapEligible) {
+
+        public Assignment withFirstApproverBootstrapEligible(boolean eligible) {
+            return new Assignment(
+                    assignmentId, principalType, principalRef, principalName,
+                    responsibilityCode, resourceSetId, resourceSetKey, resourceSetName,
+                    assignmentSource, lifecycleState, validFrom, validTo, reviewDueAt,
+                    justification, requestedBy, requestedByName, approvedBy, approvedByName,
+                    approvedAt, decisionReason, version, createdAt, updatedAt, eligible);
+        }
     }
 
     public record ResourceRole(

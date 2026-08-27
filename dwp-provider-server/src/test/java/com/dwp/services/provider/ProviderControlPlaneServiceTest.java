@@ -11,10 +11,15 @@ import com.dwp.services.provider.operation.ProviderOperationRepository;
 import com.dwp.services.provider.operation.ProviderOperationStep;
 import com.dwp.services.provider.operation.ProviderOperationStepAttemptRepository;
 import com.dwp.services.provider.operation.ProviderOperationStepRepository;
-import com.dwp.services.provider.provisioning.DownstreamProvisioningClient;
 import com.dwp.services.provider.provisioning.ProviderProvisioningOrchestrator;
+import com.dwp.services.provider.provisioning.TenantMutationOrchestrator;
 import com.dwp.services.provider.security.ProviderRequestContext;
 import com.dwp.services.provider.support.ProviderSupportRequestRepository;
+import com.dwp.services.provider.support.ProviderSupportRequestSecurityPolicy;
+import com.dwp.services.provider.support.ProviderSupportActivationGate;
+import com.dwp.services.provider.support.ProviderSupportSessionRepository;
+import com.dwp.services.provider.support.ProviderSupportSessionLifecycleService;
+import com.dwp.services.provider.support.CustomerApprovalEvidencePolicy;
 import com.dwp.services.provider.tenant.ProviderTenant;
 import com.dwp.services.provider.tenant.ProviderTenantRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -22,20 +27,26 @@ import com.fasterxml.jackson.databind.json.JsonMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.util.ArrayList;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.when;
 
 class ProviderControlPlaneServiceTest {
@@ -51,6 +62,19 @@ class ProviderControlPlaneServiceTest {
             mock(ProviderCommercialRenewalRepository.class);
     private final ProviderSupportRequestRepository supportRequestRepository =
             mock(ProviderSupportRequestRepository.class);
+    private final ProviderSupportRequestSecurityPolicy supportRequestSecurityPolicy =
+            mock(ProviderSupportRequestSecurityPolicy.class);
+    private final ProviderSupportSessionRepository supportSessionRepository =
+            mock(ProviderSupportSessionRepository.class);
+    private final ProviderSupportSessionLifecycleService supportSessionLifecycleService =
+            mock(ProviderSupportSessionLifecycleService.class);
+    private final ProviderSupportActivationGate supportActivationGate =
+            mock(ProviderSupportActivationGate.class);
+    private final CustomerApprovalEvidencePolicy customerApprovalEvidencePolicy =
+            mock(CustomerApprovalEvidencePolicy.class);
+    private final TenantMutationOrchestrator tenantMutationOrchestrator =
+            mock(TenantMutationOrchestrator.class);
+    private final ProviderAuditService auditService = mock(ProviderAuditService.class);
     private final ProviderControlPlaneService service = new ProviderControlPlaneService(
             tenantRepository,
             entitlementRepository,
@@ -62,14 +86,37 @@ class ProviderControlPlaneServiceTest {
             operationsRepository,
             commercialRenewalRepository,
             supportRequestRepository,
+            supportRequestSecurityPolicy,
+            supportSessionRepository,
+            supportSessionLifecycleService,
+            supportActivationGate,
+            customerApprovalEvidencePolicy,
             mock(ProviderProvisioningOrchestrator.class),
-            mock(DownstreamProvisioningClient.class),
-            mock(ProviderAuditService.class),
+            tenantMutationOrchestrator,
+            auditService,
             JsonMapper.builder().findAndAddModules().build());
 
     @BeforeEach
     void setContext() {
         ProviderRequestContext.setForTest(12L, 1L);
+        when(supportRequestSecurityPolicy.requireActivationTarget(
+                any(), any(), any(), any())).thenAnswer(invocation -> {
+                    Optional<ProviderSupportRequestRepository.SupportAccessRequestRecord> candidate =
+                            invocation.getArgument(0);
+                    return candidate == null ? null : candidate.orElse(null);
+                });
+        when(supportRequestSecurityPolicy.requireCancellationTarget(
+                any(), any(), any(), any())).thenAnswer(invocation -> {
+                    Optional<ProviderSupportRequestRepository.SupportAccessRequestRecord> candidate =
+                            invocation.getArgument(0);
+                    return candidate == null ? null : candidate.orElse(null);
+                });
+        when(supportRequestSecurityPolicy.requireRevocationTarget(
+                any(), any(), any(), any())).thenAnswer(invocation -> {
+                    Optional<ProviderSupportSessionRepository.SupportSessionRecord> candidate =
+                            invocation.getArgument(0);
+                    return candidate == null ? null : candidate.orElse(null);
+                });
     }
 
     @AfterEach
@@ -153,10 +200,74 @@ class ProviderControlPlaneServiceTest {
         ProviderDtos.ReplaceEntitlementsRequest request =
                 new ProviderDtos.ReplaceEntitlementsRequest(
                         List.of("core.workspace"), "Approved change", 3L);
+        when(entitlementRepository.findByLifecycleStateOrderByEntitlementKeyAsc("ACTIVE"))
+                .thenReturn(List.of(Entitlement.builder()
+                        .entitlementId(1L)
+                        .entitlementKey("core.workspace")
+                        .name("Core workspace")
+                        .entitlementType("APP")
+                        .lifecycleState("ACTIVE")
+                        .build()));
+        doThrow(new BaseException(
+                com.dwp.core.common.ErrorCode.RESOURCE_CONFLICT,
+                "The tenant changed before the durable mutation could be created."))
+                .when(tenantMutationOrchestrator)
+                .replaceEntitlements(any(), org.mockito.ArgumentMatchers.eq(3L),
+                        any(), any(), any());
 
         assertThatThrownBy(() -> service.replaceEntitlements(tenantId, "corr-4", request))
                 .isInstanceOf(BaseException.class)
                 .hasMessageContaining("changed");
+    }
+
+    @Test
+    void administratorInvitationFailsClosedBeforeAProviderCanReceiveACapability() {
+        UUID tenantId = UUID.fromString("20000000-0000-0000-0000-000000000010");
+        UUID organizationId = UUID.fromString("20000000-0000-0000-0000-000000000011");
+        UUID administratorId = UUID.fromString("20000000-0000-0000-0000-000000000012");
+        ProviderTenant tenant = ProviderTenant.builder()
+                .providerTenantId(tenantId)
+                .organizationId(organizationId)
+                .tenantKey("activation-boundary")
+                .displayName("Activation Boundary")
+                .serviceTier("ENTERPRISE")
+                .dataRegion("ap-northeast-2")
+                .isolationModel("POOL")
+                .lifecycleState("ACTIVE")
+                .onboardingState("READY")
+                .authTenantId(42L)
+                .version(0L)
+                .build();
+        when(tenantRepository.findById(tenantId)).thenReturn(Optional.of(tenant));
+        when(estateRepository.administrator(tenantId, administratorId)).thenReturn(Optional.of(
+                new ProviderEstateRepository.AdministratorRecord(
+                        administratorId, 77L, "tenant-admin@example.test",
+                        "Tenant administrator", "INVITED")));
+
+        assertThatThrownBy(() -> service.issueAdministratorInvitation(
+                tenantId,
+                administratorId,
+                "corr-activation-boundary",
+                new ProviderDtos.IssueAdministratorInvitationRequest(
+                        60, "Initial customer administrator activation")))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("customer-owned out-of-band delivery");
+
+        ArgumentCaptor<Object> snapshot = ArgumentCaptor.forClass(Object.class);
+        verify(auditService).denied(
+                org.mockito.ArgumentMatchers.eq("provider.tenant-administrator.invitation-blocked"),
+                org.mockito.ArgumentMatchers.eq("TENANT_ADMINISTRATOR"),
+                org.mockito.ArgumentMatchers.eq(administratorId.toString()),
+                org.mockito.ArgumentMatchers.eq(tenantId),
+                org.mockito.ArgumentMatchers.eq(organizationId),
+                org.mockito.ArgumentMatchers.eq("corr-activation-boundary"),
+                snapshot.capture());
+        Map<?, ?> denialEvidence = (Map<?, ?>) snapshot.getValue();
+        assertThat(denialEvidence.get("decision")).isEqualTo("DENY");
+        assertThat(denialEvidence.get("reasonCode"))
+                .isEqualTo("CUSTOMER_OWNED_DELIVERY_UNAVAILABLE");
+        assertThat(denialEvidence.containsKey("email")).isFalse();
+        assertThat(denialEvidence.containsKey("justification")).isFalse();
     }
 
     @Test
@@ -176,12 +287,12 @@ class ProviderControlPlaneServiceTest {
                 .build();
         when(tenantRepository.findById(tenantId)).thenReturn(Optional.of(tenant));
         when(operationsRepository.supportPolicy(any()))
-                .thenReturn(new ProviderOperationsRepository.SupportPolicy("L2", true, 1));
+                .thenReturn(new ProviderOperationsRepository.SupportPolicy("L1", true, 1));
 
         ProviderDtos.CreateSupportSessionRequest request =
                 new ProviderDtos.CreateSupportSessionRequest(
                         tenantId,
-                        List.of("TENANT_CONFIGURATION_READ"),
+                        List.of("TENANT_EXPERIENCE_PREVIEW"),
                         30,
                         "Investigate an approved customer issue",
                         null,
@@ -224,7 +335,221 @@ class ProviderControlPlaneServiceTest {
 
         assertThatThrownBy(() -> service.createSupportSession("corr-6", request))
                 .isInstanceOf(BaseException.class)
-                .hasMessageContaining("unknown or inactive");
+                .hasMessageContaining("active L1 customer-approved");
+    }
+
+    @Test
+    void breakGlassRemainsDisabledUntilExternalControlsAreBound() {
+        UUID tenantB = UUID.fromString("30000000-0000-0000-0000-000000000005");
+        ProviderTenant tenant = ProviderTenant.builder()
+                .providerTenantId(tenantB)
+                .organizationId(UUID.fromString("30000000-0000-0000-0000-000000000006"))
+                .tenantKey("tenant-b")
+                .displayName("Tenant B")
+                .serviceTier("ENTERPRISE")
+                .dataRegion("ap-northeast-2")
+                .isolationModel("POOL")
+                .lifecycleState("ACTIVE")
+                .onboardingState("READY")
+                .version(0L)
+                .build();
+        when(tenantRepository.findById(tenantB)).thenReturn(Optional.of(tenant));
+        when(operationsRepository.supportPolicy(any()))
+                .thenReturn(new ProviderOperationsRepository.SupportPolicy("L1", true, 1));
+        ProviderDtos.CreateSupportSessionRequest request =
+                new ProviderDtos.CreateSupportSessionRequest(
+                        tenantB,
+                        List.of("TENANT_EXPERIENCE_PREVIEW"),
+                        15,
+                        "Diagnose Tenant B after reviewing Tenant A",
+                        "CASE-B-1001",
+                        true,
+                        "support-tenant-b-1001");
+
+        assertThatThrownBy(() -> service.createSupportSession("corr-tenant-b", request))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("disabled until incident binding");
+
+        verify(supportSessionRepository, never()).requireNoActiveSupportSession(any());
+        verify(supportSessionRepository, never()).activateApprovedRequest(
+                any(), anyLong(), any(), any(), any());
+    }
+
+    @Test
+    void supportSessionRevocationUsesOptimisticConcurrency() {
+        UUID sessionId = UUID.fromString("30000000-0000-0000-0000-000000000007");
+        UUID tenantId = UUID.fromString("30000000-0000-0000-0000-000000000008");
+        ProviderTenant tenant = ProviderTenant.builder()
+                .providerTenantId(tenantId)
+                .organizationId(UUID.fromString("30000000-0000-0000-0000-000000000009"))
+                .tenantKey("tenant-revoke")
+                .displayName("Tenant Revoke")
+                .serviceTier("ENTERPRISE")
+                .dataRegion("ap-northeast-2")
+                .isolationModel("POOL")
+                .lifecycleState("ACTIVE")
+                .onboardingState("READY")
+                .version(0L)
+                .build();
+        Instant expiresAt = Instant.now().plusSeconds(900);
+        when(supportSessionRepository.session(sessionId)).thenReturn(Optional.of(
+                new ProviderSupportSessionRepository.SupportSessionRecord(
+                        sessionId, tenantId, 12L, "ACTIVE", "hash", "STANDARD",
+                        expiresAt, Instant.now(), expiresAt, 4L,
+                        UUID.fromString("00000000-0000-0000-0000-000000000001"))));
+        when(tenantRepository.findById(tenantId)).thenReturn(Optional.of(tenant));
+        when(supportSessionRepository.revoke(sessionId, 12L, 4L)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.revokeSupportSession(
+                sessionId,
+                "corr-revoke-race",
+                new ProviderDtos.RevokeSupportSessionRequest(
+                        "Terminate the approved diagnostic session", 4L)))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("changed before it could be revoked");
+
+    }
+
+    @Test
+    void supportOperatorCannotRevokeAnotherOperatorsSession() {
+        UUID sessionId = UUID.fromString("30000000-0000-0000-0000-000000000017");
+        UUID tenantId = UUID.fromString("30000000-0000-0000-0000-000000000018");
+        UUID organizationId = UUID.fromString("30000000-0000-0000-0000-000000000019");
+        ProviderTenant tenant = ProviderTenant.builder()
+                .providerTenantId(tenantId)
+                .organizationId(organizationId)
+                .tenantKey("tenant-owner-boundary")
+                .displayName("Tenant Owner Boundary")
+                .serviceTier("ENTERPRISE")
+                .dataRegion("ap-northeast-2")
+                .isolationModel("POOL")
+                .lifecycleState("ACTIVE")
+                .onboardingState("READY")
+                .version(0L)
+                .build();
+        Instant expiresAt = Instant.now().plusSeconds(900);
+        when(supportSessionRepository.session(sessionId)).thenReturn(Optional.of(
+                new ProviderSupportSessionRepository.SupportSessionRecord(
+                        sessionId, tenantId, 99L, "ACTIVE", "hash", "STANDARD",
+                        expiresAt, Instant.now(), expiresAt, 4L,
+                        UUID.fromString("00000000-0000-0000-0000-000000000001"))));
+        when(supportRequestSecurityPolicy.requireRevocationTarget(
+                any(), any(), any(), any()))
+                .thenThrow(new BaseException(com.dwp.core.common.ErrorCode.FORBIDDEN));
+        ProviderRequestContext.set(new ProviderRequestContext.Actor(
+                12L, 120L, 1L, "Support operator",
+                Set.of("PROVIDER_SUPPORT"), Set.of("SUPPORT_SESSION_WRITE"),
+                UUID.fromString("00000000-0000-0000-0000-000000000001")));
+
+        assertThatThrownBy(() -> service.revokeSupportSession(
+                sessionId,
+                "corr-owner-boundary",
+                new ProviderDtos.RevokeSupportSessionRequest("Unauthorized revoke", 4L)))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(com.dwp.core.common.ErrorCode.FORBIDDEN));
+
+        verify(supportRequestSecurityPolicy).requireRevocationTarget(
+                any(), any(), any(), any());
+        verify(supportSessionRepository, never()).revoke(any(), any(), anyLong());
+    }
+
+    @Test
+    void activationRevalidatesThatEveryApprovedScopeIsStillActive() {
+        UUID requestId = UUID.fromString("30000000-0000-0000-0000-000000000010");
+        UUID tenantId = UUID.fromString("30000000-0000-0000-0000-000000000011");
+        when(supportRequestRepository.byId(requestId)).thenReturn(Optional.of(
+                new ProviderSupportRequestRepository.SupportAccessRequestRecord(
+                        requestId,
+                        tenantId,
+                        12L,
+                        UUID.fromString("00000000-0000-0000-0000-000000000001"),
+                        "APPROVED",
+                        "STANDARD",
+                        "Investigate a customer-approved workforce issue",
+                        List.of("WORKFORCE_READ"),
+                        15,
+                        "CASE-RETIRED-1001",
+                        true,
+                        "L2",
+                        "retired-scope-1001",
+                        "a".repeat(64),
+                        Instant.now().plusSeconds(900),
+                        14L,
+                        null,
+                        "NOT_REQUIRED",
+                        2L)));
+        when(operationsRepository.supportPolicy(any()))
+                .thenReturn(new ProviderOperationsRepository.SupportPolicy("L1", false, 0));
+
+        assertThatThrownBy(() -> service.activateSupportAccessRequest(
+                requestId,
+                "corr-retired-scope",
+                new ProviderDtos.ActivateSupportAccessRequest(2L)))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("active L1 customer-approved");
+
+        verify(supportSessionRepository, never()).activateApprovedRequest(
+                any(), anyLong(), any(), any(), any());
+    }
+
+    @Test
+    void activationRequiresAnActiveReadyTenantLinkedToAuth() {
+        UUID requestId = UUID.fromString("30000000-0000-0000-0000-000000000012");
+        UUID tenantId = UUID.fromString("30000000-0000-0000-0000-000000000013");
+        when(supportRequestRepository.byId(requestId)).thenReturn(Optional.of(
+                approvedPreviewRequest(requestId, tenantId)));
+        when(operationsRepository.supportPolicy(any())).thenReturn(
+                new ProviderOperationsRepository.SupportPolicy("L1", true, 1));
+        when(customerApprovalEvidencePolicy.requireVerified("CASE-APPROVED-1001"))
+                .thenReturn(CustomerApprovalEvidencePolicy.LOCAL_REFERENCE_ONLY);
+        when(tenantRepository.findById(tenantId)).thenReturn(Optional.of(
+                supportTenant(tenantId, null)));
+
+        assertThatThrownBy(() -> service.activateSupportAccessRequest(
+                requestId, "corr-no-auth-link",
+                new ProviderDtos.ActivateSupportAccessRequest(2L)))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("ACTIVE, READY, and linked to auth");
+
+        verify(supportSessionRepository, never()).activateApprovedRequest(
+                any(), anyLong(), any(), any(), any());
+    }
+
+    @Test
+    void activationRequiresTheRepositoryToCreateTheExactGrantAtomically() {
+        UUID requestId = UUID.fromString("30000000-0000-0000-0000-000000000014");
+        UUID tenantId = UUID.fromString("30000000-0000-0000-0000-000000000015");
+        when(supportRequestRepository.byId(requestId)).thenReturn(Optional.of(
+                approvedPreviewRequest(requestId, tenantId)));
+        when(operationsRepository.supportPolicy(any())).thenReturn(
+                new ProviderOperationsRepository.SupportPolicy("L1", true, 1));
+        when(customerApprovalEvidencePolicy.requireVerified("CASE-APPROVED-1001"))
+                .thenReturn(CustomerApprovalEvidencePolicy.LOCAL_REFERENCE_ONLY);
+        when(tenantRepository.findById(tenantId)).thenReturn(Optional.of(
+                supportTenant(tenantId, 42L)));
+        when(supportSessionRepository.activateApprovedRequest(
+                org.mockito.ArgumentMatchers.eq(requestId),
+                org.mockito.ArgumentMatchers.eq(2L),
+                org.mockito.ArgumentMatchers.eq(12L),
+                org.mockito.ArgumentMatchers.eq(
+                        UUID.fromString("00000000-0000-0000-0000-000000000001")),
+                any()))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.activateSupportAccessRequest(
+                requestId, "corr-activation-race",
+                new ProviderDtos.ActivateSupportAccessRequest(2L)))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("changed or expired");
+
+        verify(supportSessionRepository).activateApprovedRequest(
+                org.mockito.ArgumentMatchers.eq(requestId),
+                org.mockito.ArgumentMatchers.eq(2L),
+                org.mockito.ArgumentMatchers.eq(12L),
+                org.mockito.ArgumentMatchers.eq(
+                        UUID.fromString("00000000-0000-0000-0000-000000000001")),
+                any());
     }
 
     @Test
@@ -470,6 +795,37 @@ class ProviderControlPlaneServiceTest {
         assertThat(storedSteps.get()).extracting(ProviderOperationStep::getStepKey)
                 .containsExactly("SCHEDULE_MAINTENANCE");
         verify(operationsRepository).ensureOperationApproval(storedOperation.get());
+    }
+
+    private ProviderSupportRequestRepository.SupportAccessRequestRecord approvedPreviewRequest(
+            UUID requestId,
+            UUID tenantId) {
+        return new ProviderSupportRequestRepository.SupportAccessRequestRecord(
+                requestId, tenantId, 12L,
+                UUID.fromString("00000000-0000-0000-0000-000000000001"),
+                "APPROVED", "STANDARD",
+                "Investigate a customer-approved tenant preview",
+                List.of("TENANT_EXPERIENCE_PREVIEW"), 15,
+                "CASE-APPROVED-1001", true, "L1", "approved-preview-1001",
+                "a".repeat(64), Instant.now().plusSeconds(900), 14L,
+                null, "NOT_REQUIRED", 2L);
+    }
+
+    private ProviderTenant supportTenant(UUID tenantId, Long authTenantId) {
+        return ProviderTenant.builder()
+                .providerTenantId(tenantId)
+                .organizationId(UUID.fromString("30000000-0000-0000-0000-000000000099"))
+                .tenantKey("support-target")
+                .displayName("Support Target")
+                .environmentKey("production")
+                .serviceTier("ENTERPRISE")
+                .dataRegion("ap-northeast-2")
+                .isolationModel("POOL")
+                .lifecycleState("ACTIVE")
+                .onboardingState("READY")
+                .authTenantId(authTenantId)
+                .version(0L)
+                .build();
     }
 
     private ProviderDtos.OnboardingPlanRequest request(String displayName) {

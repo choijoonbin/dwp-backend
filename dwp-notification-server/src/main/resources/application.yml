@@ -49,6 +49,8 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
+      ssl:
+        enabled: ${DWP_NOTIFICATION_REDIS_SSL_ENABLED:false}
       timeout: ${DWP_NOTIFICATION_REDIS_TIMEOUT:2s}
       connect-timeout: ${DWP_NOTIFICATION_REDIS_CONNECT_TIMEOUT:2s}
 
@@ -59,6 +61,8 @@ springdoc:
   paths-to-exclude: /internal/**
 
 dwp:
+  audit:
+    relay-database-role: dwp_notification_audit_relay
   notification:
     bulk-undo-window: ${DWP_NOTIFICATION_BULK_UNDO_WINDOW:PT10M}
     service-token: ${DWP_NOTIFICATION_SERVICE_TOKEN:}
@@ -70,6 +74,10 @@ dwp:
     cursor-ttl: ${DWP_NOTIFICATION_CURSOR_TTL:24h}
     sse-timeout: ${DWP_NOTIFICATION_SSE_TIMEOUT:30m}
     sse-heartbeat: ${DWP_NOTIFICATION_SSE_HEARTBEAT:15s}
+    sse-max-connections: ${DWP_NOTIFICATION_SSE_MAX_CONNECTIONS:5000}
+    sse-max-connections-per-tenant: ${DWP_NOTIFICATION_SSE_MAX_CONNECTIONS_PER_TENANT:1000}
+    sse-max-connections-per-user: ${DWP_NOTIFICATION_SSE_MAX_CONNECTIONS_PER_USER:4}
+    sse-catch-up-buffer-capacity: ${DWP_NOTIFICATION_SSE_CATCH_UP_BUFFER_CAPACITY:100}
     realtime:
       redis-enabled: ${DWP_NOTIFICATION_REDIS_ENABLED:true}
       channel-prefix: ${DWP_NOTIFICATION_REDIS_CHANNEL_PREFIX:dwp.notification.signal.v1}

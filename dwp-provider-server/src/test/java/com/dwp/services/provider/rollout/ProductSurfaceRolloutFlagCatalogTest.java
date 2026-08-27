@@ -16,6 +16,7 @@ class ProductSurfaceRolloutFlagCatalogTest {
             "dwaion",
             "hcm",
             "mail",
+            "meetings",
             "messaging",
             "notifications",
             "services",
@@ -23,12 +24,12 @@ class ProductSurfaceRolloutFlagCatalogTest {
             "workplace");
 
     @Test
-    void exposesTheExactImmutableElevenProductAndTwentyFourFlagContract() {
+    void exposesTheExactTwelveProductAndTwentySixFlagContract() {
         assertThat(ProductSurfaceRolloutFlagCatalog.productKeys())
-                .hasSize(11)
+                .hasSize(12)
                 .containsExactlyInAnyOrderElementsOf(PRODUCTS);
         assertThat(ProductSurfaceRolloutFlagCatalog.allFlags())
-                .hasSize(24)
+                .hasSize(26)
                 .allMatch(ProductSurfaceRolloutFlagCatalog::contains)
                 .contains(
                         ProductSurfaceRolloutFlagCatalog.CONTEXT_SHADOW_FLAG,
@@ -55,6 +56,7 @@ class ProductSurfaceRolloutFlagCatalogTest {
                 "access.product-surfaces.capability-enforcement.dwaion.v1",
                 "access.product-surfaces.capability-enforcement.hcm.v1",
                 "access.product-surfaces.capability-enforcement.mail.v1",
+                "access.product-surfaces.capability-enforcement.meetings.v1",
                 "access.product-surfaces.capability-enforcement.messaging.v1",
                 "access.product-surfaces.capability-enforcement.notifications.v1",
                 "access.product-surfaces.capability-enforcement.services.v1",
@@ -69,6 +71,7 @@ class ProductSurfaceRolloutFlagCatalogTest {
                 "ux.product-surfaces.dwaion.v1",
                 "ux.product-surfaces.hcm.v1",
                 "ux.product-surfaces.mail.v1",
+                "ux.product-surfaces.meetings.v1",
                 "ux.product-surfaces.messaging.v1",
                 "ux.product-surfaces.notifications.v1",
                 "ux.product-surfaces.services.v1",

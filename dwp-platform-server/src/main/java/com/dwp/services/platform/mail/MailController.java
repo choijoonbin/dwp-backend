@@ -40,12 +40,14 @@ public class MailController {
             @RequestParam(required = false, defaultValue = "") String lane,
             @RequestParam(required = false, defaultValue = "") String state,
             @RequestParam(required = false, defaultValue = "") String folder,
+            @RequestParam(required = false) UUID folderId,
             @RequestParam(defaultValue = "false") boolean sharedOnly,
             @RequestParam(required = false, defaultValue = "") String query,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "30") int pageSize) {
         return ApiResponse.success(service.threads(
-                tenantId, userId, lane, state, folder, sharedOnly, query, page, pageSize));
+                tenantId, userId, lane, state, folder, folderId,
+                sharedOnly, query, page, pageSize));
     }
 
     @PostMapping("/messages")

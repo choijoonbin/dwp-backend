@@ -65,6 +65,10 @@ public class User extends BaseEntity {
     private String status = "ACTIVE";
 
     @Builder.Default
+    @Column(name = "identity_plane", nullable = false, length = 16)
+    private String identityPlane = "TENANT";
+
+    @Builder.Default
     @Column(name = "mfa_enabled", nullable = false)
     private Boolean mfaEnabled = false;
 

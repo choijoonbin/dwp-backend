@@ -24,9 +24,11 @@ import static com.dwp.services.platform.workplace.WorkplaceTypes.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -120,6 +122,20 @@ class WorkplaceOperationsServiceTest {
     }
 
     @Test
+    void createRequiresAnIdempotencyKey() {
+        WorkplaceDtos.BookingRequest request = request(UUID.randomUUID());
+
+        assertThatThrownBy(() -> service.createBooking(
+                1L, 7L, null, "Member", "en-US", "corr-7", null, null, request))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE))
+                .hasMessageContaining("Idempotency-Key is required");
+
+        verify(workplace, never()).createBooking(
+                any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
     void relocateAtomicallyValidatesUpdatesAndAuditsTheFutureBooking() {
         UUID bookingId = UUID.randomUUID();
         UUID currentResourceId = UUID.randomUUID();
@@ -167,6 +183,33 @@ class WorkplaceOperationsServiceTest {
     }
 
     @Test
+    void relocateRevalidatesTheCurrentSiteBeforeInspectingTheTarget() {
+        UUID bookingId = UUID.randomUUID();
+        UUID currentResourceId = UUID.randomUUID();
+        OffsetDateTime startsAt = OffsetDateTime.now().plusDays(2);
+        WorkplaceBookingRepository.BookingRow current = new WorkplaceBookingRepository.BookingRow(
+                bookingId, currentResourceId, "Current desk", ResourceType.DESK,
+                "Site", "Floor", "Focus", startsAt, startsAt.plusHours(1),
+                BookingStatus.RESERVED, true, null, null, 1L);
+        when(bookings.booking(1L, 7L, bookingId, false)).thenReturn(Optional.of(current));
+        doThrow(new BaseException(ErrorCode.FORBIDDEN))
+                .when(workplace)
+                .requireBookingBookAccess(1L, 7L, "group-a", current);
+
+        assertThatThrownBy(() -> service.relocateBooking(
+                1L, 7L, null, bookingId, "en-US", "corr-revoked", "group-a",
+                new WorkplaceOperationsDtos.RelocateBookingRequest(
+                        UUID.randomUUID(), startsAt.plusHours(1), startsAt.plusHours(2),
+                        null, 1L)))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+
+        verify(catalog, never()).resource(any(), any(), anyBoolean());
+        verify(operations, never()).relocate(
+                any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
     void relocateRejectsMeetingRoomsBeforeAnyResourceUpdate() {
         UUID bookingId = UUID.randomUUID();
         UUID resourceId = UUID.randomUUID();
@@ -183,6 +226,33 @@ class WorkplaceOperationsServiceTest {
                         UUID.randomUUID(), start.plusHours(1), start.plusHours(2), null, 1L)))
                 .isInstanceOf(BaseException.class)
                 .hasMessageContaining("calendar-aware room flow");
+
+        verify(operations, never()).relocate(
+                any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void relocateRejectsAResourceOfAnotherType() {
+        UUID bookingId = UUID.randomUUID();
+        UUID currentResourceId = UUID.randomUUID();
+        UUID targetResourceId = UUID.randomUUID();
+        UUID floorId = UUID.randomUUID();
+        OffsetDateTime start = OffsetDateTime.now().plusDays(1);
+        WorkplaceBookingRepository.BookingRow desk = new WorkplaceBookingRepository.BookingRow(
+                bookingId, currentResourceId, "Desk", ResourceType.DESK,
+                "Site", "Floor", "Focus", start, start.plusHours(1),
+                BookingStatus.RESERVED, true, null, null, 1L);
+        when(bookings.booking(1L, 7L, bookingId, false)).thenReturn(Optional.of(desk));
+        when(catalog.resource(1L, targetResourceId, false))
+                .thenReturn(Optional.of(resource(targetResourceId, floorId, ResourceType.PARKING)));
+
+        assertThatThrownBy(() -> service.relocateBooking(
+                1L, 7L, null, bookingId, "en-US", "corr-type", null,
+                new WorkplaceOperationsDtos.RelocateBookingRequest(
+                        targetResourceId, start.plusHours(1), start.plusHours(2), null, 1L)))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT_VALUE))
+                .hasMessageContaining("same resource type");
 
         verify(operations, never()).relocate(
                 any(), any(), any(), any(), any(), any(), any(), any());
@@ -295,9 +365,14 @@ class WorkplaceOperationsServiceTest {
     }
 
     private WorkplaceCatalogRepository.ResourceRow resource(UUID resourceId, UUID floorId) {
+        return resource(resourceId, floorId, ResourceType.DESK);
+    }
+
+    private WorkplaceCatalogRepository.ResourceRow resource(
+            UUID resourceId, UUID floorId, ResourceType type) {
         return new WorkplaceCatalogRepository.ResourceRow(
                 resourceId, floorId, null, "DESK-02", "Desk 02", "좌석 02", "Desk 02",
-                ResourceType.DESK, BookingMode.RESERVABLE, ResourceState.AVAILABLE,
+                type, BookingMode.RESERVABLE, ResourceState.AVAILABLE,
                 "Team zone", 1, List.of("MONITOR"), false, false,
                 BigDecimal.TEN, BigDecimal.TEN, BigDecimal.TEN, BigDecimal.TEN,
                 0, null, null, null, 0L, null);

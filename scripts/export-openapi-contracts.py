@@ -101,6 +101,7 @@ SERVICES = (
     ServiceContract("space", 8006, prefixed("/api/spaces")),
     ServiceContract("messaging", 8007, prefixed("/api/messaging")),
     ServiceContract("notification", 8008, prefixed("/api/notifications")),
+    ServiceContract("meeting", 8009, prefixed("/api/meetings")),
 )
 
 

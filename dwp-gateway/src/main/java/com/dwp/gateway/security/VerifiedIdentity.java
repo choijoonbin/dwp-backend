@@ -11,42 +11,17 @@ public record VerifiedIdentity(
         List<String> resourceRoles,
         String personPublicId,
         String displayName,
-        boolean legacyRoleFallbackAllowed) {
-
-    public VerifiedIdentity(String userId, String tenantId, List<String> roles) {
-        this(userId, tenantId, roles, List.of(), List.of(), List.of(), null, null, false);
-    }
+        boolean legacyRoleFallbackAllowed,
+        String sessionFamilyId,
+        String identityPlane) {
 
     public VerifiedIdentity(
             String userId,
             String tenantId,
             List<String> roles,
-            List<String> permissions) {
-        this(userId, tenantId, roles, permissions, List.of(), List.of(), null, null, false);
-    }
-
-    public VerifiedIdentity(
-            String userId,
-            String tenantId,
-            List<String> roles,
-            List<String> permissions,
-            List<String> groupRefs,
-            List<String> resourceRoles) {
-        this(userId, tenantId, roles, permissions, groupRefs, resourceRoles, null, null, false);
-    }
-
-    public VerifiedIdentity(
-            String userId,
-            String tenantId,
-            List<String> roles,
-            List<String> permissions,
-            List<String> groupRefs,
-            List<String> resourceRoles,
-            String personPublicId,
-            String displayName) {
-        this(
-                userId, tenantId, roles, permissions, groupRefs, resourceRoles,
-                personPublicId, displayName, false);
+            String identityPlane) {
+        this(userId, tenantId, roles, List.of(), List.of(), List.of(), null, null,
+                false, null, identityPlane);
     }
 
     public VerifiedIdentity {
@@ -63,5 +38,33 @@ public record VerifiedIdentity(
         displayName = displayName == null || displayName.isBlank()
                 ? null
                 : displayName.trim();
+        sessionFamilyId = sessionFamilyId == null || sessionFamilyId.isBlank()
+                ? null
+                : sessionFamilyId.trim();
+        identityPlane = identityPlane == null ? null : identityPlane.trim();
+        if (!"PROVIDER".equals(identityPlane) && !"TENANT".equals(identityPlane)) {
+            throw new IllegalArgumentException(
+                    "identityPlane is required and must be PROVIDER or TENANT");
+        }
+
+        boolean hasProviderRole = false;
+        boolean hasTenantRole = false;
+        for (String role : roles) {
+            if (role == null || role.isBlank()) continue;
+            if (role.trim().toUpperCase(java.util.Locale.ROOT).startsWith("PROVIDER_")) {
+                hasProviderRole = true;
+            } else {
+                hasTenantRole = true;
+            }
+        }
+        if (hasProviderRole && hasTenantRole) {
+            throw new IllegalArgumentException(
+                    "provider and tenant roles cannot coexist on one identity");
+        }
+        if (("PROVIDER".equals(identityPlane) && hasTenantRole)
+                || ("TENANT".equals(identityPlane) && hasProviderRole)) {
+            throw new IllegalArgumentException(
+                    "roles must belong to the durable identityPlane");
+        }
     }
 }

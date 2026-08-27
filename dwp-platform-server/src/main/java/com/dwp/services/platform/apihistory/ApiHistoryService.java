@@ -24,7 +24,8 @@ public class ApiHistoryService {
     static final String DEFAULT_ALLOWED_SERVICES =
             "dwp-gateway,dwp-auth-server,dwp-platform-server,"
                     + "dwp-people-server,dwp-provider-server,dwp-approval-server,"
-                    + "dwp-space-server,dwp-messaging-server,dwp-notification-server,"
+                    + "dwp-space-server,dwp-messaging-server,dwp-meeting-server,"
+                    + "dwp-notification-server,"
                     + "dwp-agent-runtime";
     private static final Pattern TRACE_ID = Pattern.compile("^[0-9a-f]{32}$");
     private static final Pattern SPAN_ID = Pattern.compile("^[0-9a-f]{16}$");
