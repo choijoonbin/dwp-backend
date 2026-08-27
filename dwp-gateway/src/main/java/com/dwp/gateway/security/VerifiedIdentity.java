@@ -46,6 +46,7 @@ public record VerifiedIdentity(
             throw new IllegalArgumentException(
                     "identityPlane is required and must be PROVIDER or TENANT");
         }
+        requireNoProviderResourceRoles(identityPlane, resourceRoles);
 
         boolean hasProviderRole = false;
         boolean hasTenantRole = false;
@@ -65,6 +66,18 @@ public record VerifiedIdentity(
                 || ("TENANT".equals(identityPlane) && hasProviderRole)) {
             throw new IllegalArgumentException(
                     "roles must belong to the durable identityPlane");
+        }
+    }
+
+    static void requireNoProviderResourceRoles(
+            String identityPlane,
+            List<?> resourceRoles) {
+        String plane = identityPlane == null ? null : identityPlane.trim();
+        if ("PROVIDER".equals(plane)
+                && resourceRoles != null
+                && !resourceRoles.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "provider identities cannot carry tenant resource-role evidence");
         }
     }
 }

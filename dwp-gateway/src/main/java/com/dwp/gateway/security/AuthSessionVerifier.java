@@ -118,6 +118,8 @@ public class AuthSessionVerifier implements SessionVerifier {
 
     private VerifiedIdentity toVerifiedIdentity(MeData data) {
         try {
+            VerifiedIdentity.requireNoProviderResourceRoles(
+                    data.identityPlane(), data.resourceRoles());
             return new VerifiedIdentity(
                     data.userId().toString(),
                     data.tenantId().toString(),

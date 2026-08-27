@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 import java.util.Arrays;
@@ -56,6 +57,8 @@ public class AuthSavedViewSubjectDirectory implements SavedViewSubjectDirectory 
                 throw new BaseException(ErrorCode.NOT_FOUND, "The tenant user does not exist.");
             }
             throw unavailable("Identity subject validation is unavailable.", exception);
+        } catch (RestClientException exception) {
+            throw unavailable("Identity subject validation is unavailable.", exception);
         }
     }
 
@@ -87,6 +90,8 @@ public class AuthSavedViewSubjectDirectory implements SavedViewSubjectDirectory 
             }
             return List.copyOf(Arrays.asList(subjects));
         } catch (RestClientResponseException exception) {
+            throw unavailable("Identity subject search is unavailable.", exception);
+        } catch (RestClientException exception) {
             throw unavailable("Identity subject search is unavailable.", exception);
         }
     }

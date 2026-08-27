@@ -129,6 +129,21 @@ class AuthSessionVerifierTest {
         assertThat(provider).isNotNull();
         assertThat(provider.identityPlane()).isEqualTo("PROVIDER");
         assertThat(provider.roles()).isEmpty();
+        assertThat(provider.resourceRoles()).isEmpty();
+    }
+
+    @Test
+    void rejectsProviderProjectionWithCanonicalTenantResourceRoleEvidence() {
+        assertProviderResourceRolesFailClosed("""
+                {"responsibilityCode":"APP_OWNER","resourceSetKey":"RS_MAIL"}
+                """);
+    }
+
+    @Test
+    void rejectsProviderProjectionWithMalformedRawResourceRoleEvidence() {
+        assertProviderResourceRolesFailClosed("""
+                {"responsibilityCode":"APP_OWNER","resourceSetKey":"../RS_MAIL"}
+                """);
     }
 
     @Test
@@ -999,6 +1014,19 @@ class AuthSessionVerifierTest {
                         .body(body)
                         .build()));
         return new AuthSessionVerifier(builder, "http://auth.test", Duration.ofSeconds(1));
+    }
+
+    private void assertProviderResourceRolesFailClosed(String resourceRole) {
+        AuthSessionVerifier verifier = verifierReturningBody("""
+                {"success":true,"data":{"userId":900001,"tenantId":1,
+                "identityPlane":"PROVIDER","roles":[],"resourceRoles":[%s]}}
+                """.formatted(resourceRole));
+
+        assertThatThrownBy(() -> verifier.verify(MockServerHttpRequest
+                .get("/api/agent/v1/plans/preview")
+                .build()).block())
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("invalid durable identity contract");
     }
 
     private AuthSessionVerifier verifierCountingSuccessfulCalls(AtomicInteger calls) {
