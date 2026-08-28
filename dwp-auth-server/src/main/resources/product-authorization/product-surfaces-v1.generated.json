@@ -26,6 +26,30 @@
       "surfaceKey": "approvals.work"
     },
     {
+      "accessPolicyKey": "calendar.work-access.v1",
+      "authorityMode": "ENTITLEMENT",
+      "entitlementExpressionKey": "CALENDAR_WORK_ACCESS_V1",
+      "evaluationType": "SINGLE",
+      "lifecycleState": "ACTIVE",
+      "modeBranches": null,
+      "navigationContextId": "calendar.work",
+      "owner": "Calendar + Platform + Security",
+      "policyVersion": 1,
+      "productKey": "calendar",
+      "relationshipResolver": null,
+      "requiresProductEntitlement": true,
+      "routeContractKeys": [
+        "route.calendar.work.home.page",
+        "route.calendar.work.schedule.data"
+      ],
+      "scopeResolver": "SELF",
+      "supportScopes": null,
+      "surfaceEntryKeys": [
+        "calendar.work"
+      ],
+      "surfaceKey": "calendar.work"
+    },
+    {
       "accessPolicyKey": "communications.content-route-access.v1",
       "authorityMode": null,
       "entitlementExpressionKey": null,
@@ -133,7 +157,8 @@
         "route.communications.work.required-story.page",
         "route.communications.work.required.page",
         "route.communications.work.saved-story.page",
-        "route.communications.work.saved.page"
+        "route.communications.work.saved.page",
+        "route.communications.work.story-detail.data"
       ],
       "scopeResolver": "SELF",
       "supportScopes": null,
@@ -141,6 +166,30 @@
         "communications.work"
       ],
       "surfaceKey": "communications.work"
+    },
+    {
+      "accessPolicyKey": "dwaion.work-access.v1",
+      "authorityMode": "ENTITLEMENT",
+      "entitlementExpressionKey": "DWAION_WORK_ACCESS_V1",
+      "evaluationType": "SINGLE",
+      "lifecycleState": "ACTIVE",
+      "modeBranches": null,
+      "navigationContextId": "dwaion.work",
+      "owner": "DWAI.ON + Agent Runtime + Security",
+      "policyVersion": 1,
+      "productKey": "dwaion",
+      "relationshipResolver": null,
+      "requiresProductEntitlement": true,
+      "routeContractKeys": [
+        "route.dwaion.work.conversation.data",
+        "route.dwaion.work.home.page"
+      ],
+      "scopeResolver": "SELF",
+      "supportScopes": null,
+      "surfaceEntryKeys": [
+        "dwaion.work"
+      ],
+      "surfaceKey": "dwaion.work"
     },
     {
       "accessPolicyKey": "hcm.directory-access.v1",
@@ -425,6 +474,101 @@
       "surfaceKey": null
     },
     {
+      "accessPolicyKey": "mail.work-access.v1",
+      "authorityMode": "ENTITLEMENT",
+      "entitlementExpressionKey": "MAIL_WORK_ACCESS_V1",
+      "evaluationType": "SINGLE",
+      "lifecycleState": "ACTIVE",
+      "modeBranches": null,
+      "navigationContextId": "mail.work",
+      "owner": "Mail + Platform + Security",
+      "policyVersion": 1,
+      "productKey": "mail",
+      "relationshipResolver": null,
+      "requiresProductEntitlement": true,
+      "routeContractKeys": [
+        "route.mail.work.home.page",
+        "route.mail.work.threads.data"
+      ],
+      "scopeResolver": "SELF",
+      "supportScopes": null,
+      "surfaceEntryKeys": [
+        "mail.work"
+      ],
+      "surfaceKey": "mail.work"
+    },
+    {
+      "accessPolicyKey": "meetings.work-access.v1",
+      "authorityMode": "ENTITLEMENT",
+      "entitlementExpressionKey": "MEETINGS_WORK_ACCESS_V1",
+      "evaluationType": "SINGLE",
+      "lifecycleState": "ACTIVE",
+      "modeBranches": null,
+      "navigationContextId": "meetings.work",
+      "owner": "Meetings + Security",
+      "policyVersion": 1,
+      "productKey": "meetings",
+      "relationshipResolver": null,
+      "requiresProductEntitlement": true,
+      "routeContractKeys": [
+        "route.meetings.work.home.page"
+      ],
+      "scopeResolver": "SELF",
+      "supportScopes": null,
+      "surfaceEntryKeys": [
+        "meetings.work"
+      ],
+      "surfaceKey": "meetings.work"
+    },
+    {
+      "accessPolicyKey": "messaging.work-access.v1",
+      "authorityMode": "ENTITLEMENT",
+      "entitlementExpressionKey": "MESSAGING_WORK_ACCESS_V1",
+      "evaluationType": "SINGLE",
+      "lifecycleState": "ACTIVE",
+      "modeBranches": null,
+      "navigationContextId": "messaging.work",
+      "owner": "Messaging + Security",
+      "policyVersion": 1,
+      "productKey": "messaging",
+      "relationshipResolver": null,
+      "requiresProductEntitlement": true,
+      "routeContractKeys": [
+        "route.messaging.work.conversation-messages.data",
+        "route.messaging.work.home.page"
+      ],
+      "scopeResolver": "SELF",
+      "supportScopes": null,
+      "surfaceEntryKeys": [
+        "messaging.work"
+      ],
+      "surfaceKey": "messaging.work"
+    },
+    {
+      "accessPolicyKey": "notifications.work-access.v1",
+      "authorityMode": "ENTITLEMENT",
+      "entitlementExpressionKey": "NOTIFICATIONS_WORK_ACCESS_V1",
+      "evaluationType": "SINGLE",
+      "lifecycleState": "ACTIVE",
+      "modeBranches": null,
+      "navigationContextId": "notifications.work",
+      "owner": "Notifications + Security",
+      "policyVersion": 1,
+      "productKey": "notifications",
+      "relationshipResolver": null,
+      "requiresProductEntitlement": true,
+      "routeContractKeys": [
+        "route.notifications.work.center.page",
+        "route.notifications.work.summary.data"
+      ],
+      "scopeResolver": "SELF",
+      "supportScopes": null,
+      "surfaceEntryKeys": [
+        "notifications.work"
+      ],
+      "surfaceKey": "notifications.work"
+    },
+    {
       "accessPolicyKey": "services.work-access.v1",
       "authorityMode": "ENTITLEMENT",
       "entitlementExpressionKey": "SERVICES_WORK_ACCESS_V1",
@@ -447,7 +591,8 @@
         "route.services.work.my-detail.page",
         "route.services.work.my.page",
         "route.services.work.request-cancel.action",
-        "route.services.work.request-create.action"
+        "route.services.work.request-create.action",
+        "route.services.work.request-detail.data"
       ],
       "scopeResolver": "SELF",
       "supportScopes": null,
@@ -455,6 +600,54 @@
         "services.work"
       ],
       "surfaceKey": "services.work"
+    },
+    {
+      "accessPolicyKey": "spaces.work-access.v1",
+      "authorityMode": "ENTITLEMENT",
+      "entitlementExpressionKey": "SPACES_WORK_ACCESS_V1",
+      "evaluationType": "SINGLE",
+      "lifecycleState": "ACTIVE",
+      "modeBranches": null,
+      "navigationContextId": "spaces.work",
+      "owner": "Spaces + Security",
+      "policyVersion": 1,
+      "productKey": "spaces",
+      "relationshipResolver": null,
+      "requiresProductEntitlement": true,
+      "routeContractKeys": [
+        "route.spaces.work.content.data",
+        "route.spaces.work.home.page"
+      ],
+      "scopeResolver": "SELF",
+      "supportScopes": null,
+      "surfaceEntryKeys": [
+        "spaces.work"
+      ],
+      "surfaceKey": "spaces.work"
+    },
+    {
+      "accessPolicyKey": "workplace.work-access.v1",
+      "authorityMode": "ENTITLEMENT",
+      "entitlementExpressionKey": "WORKPLACE_WORK_ACCESS_V1",
+      "evaluationType": "SINGLE",
+      "lifecycleState": "ACTIVE",
+      "modeBranches": null,
+      "navigationContextId": "workplace.work",
+      "owner": "Workplace + Platform + Security",
+      "policyVersion": 1,
+      "productKey": "workplace",
+      "relationshipResolver": null,
+      "requiresProductEntitlement": true,
+      "routeContractKeys": [
+        "route.workplace.work.explore.page",
+        "route.workplace.work.floor-background.data"
+      ],
+      "scopeResolver": "SELF",
+      "supportScopes": null,
+      "surfaceEntryKeys": [
+        "workplace.work"
+      ],
+      "surfaceKey": "workplace.work"
     }
   ],
   "authorityEndpoints": [
@@ -1084,6 +1277,30 @@
       "surfaceKey": "approvals.work"
     },
     {
+      "action": "CREATE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "calendar.work.event.create",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Calendar + Platform + Security",
+      "policyVersion": 1,
+      "productKey": "calendar",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "APP.CALENDAR:CREATE",
+      "resourceKey": "APP.CALENDAR",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "MEDIUM",
+      "routeContractKeys": [
+        "route.calendar.work.event-create.action"
+      ],
+      "scopeResolver": "SELF",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "calendar.work"
+    },
+    {
       "action": "MANAGE",
       "activationPolicy": null,
       "authorityMode": "PERMISSION",
@@ -1207,6 +1424,30 @@
       "sodPolicyId": null,
       "sunsetAt": null,
       "surfaceKey": "communications.management"
+    },
+    {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "dwaion.work.ask.execute",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "DWAI.ON + Agent Runtime + Security",
+      "policyVersion": 1,
+      "productKey": "dwaion",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "APP.ASK:VIEW",
+      "resourceKey": "APP.ASK",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "MEDIUM",
+      "routeContractKeys": [
+        "route.dwaion.work.ask.action"
+      ],
+      "scopeResolver": "SELF",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "dwaion.work"
     },
     {
       "action": "EXPORT",
@@ -1905,6 +2146,126 @@
     {
       "action": "CREATE",
       "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "mail.work.message.create",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Mail + Platform + Security",
+      "policyVersion": 1,
+      "productKey": "mail",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "APP.MAIL:CREATE",
+      "resourceKey": "APP.MAIL",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "MEDIUM",
+      "routeContractKeys": [
+        "route.mail.work.message-create.action"
+      ],
+      "scopeResolver": "SELF",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "mail.work"
+    },
+    {
+      "action": "CREATE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "meetings.work.meeting.create",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Meetings + Security",
+      "policyVersion": 1,
+      "productKey": "meetings",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "APP.MEETINGS:CREATE",
+      "resourceKey": "APP.MEETINGS",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "MEDIUM",
+      "routeContractKeys": [
+        "route.meetings.work.meeting-create.action"
+      ],
+      "scopeResolver": "SELF",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "meetings.work"
+    },
+    {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "meetings.work.meetings.read",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Meetings + Security",
+      "policyVersion": 1,
+      "productKey": "meetings",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "APP.MEETINGS:VIEW",
+      "resourceKey": "APP.MEETINGS",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.meetings.work.meetings.data"
+      ],
+      "scopeResolver": "SELF",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "meetings.work"
+    },
+    {
+      "action": "CREATE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "messaging.work.message.create",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Messaging + Security",
+      "policyVersion": 1,
+      "productKey": "messaging",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "APP.MESSAGING:CREATE",
+      "resourceKey": "APP.MESSAGING",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "MEDIUM",
+      "routeContractKeys": [
+        "route.messaging.work.message-send.action"
+      ],
+      "scopeResolver": "CONVERSATION_MEMBERSHIP",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "messaging.work"
+    },
+    {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "notifications.work.inbox.use",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Notifications + Security",
+      "policyVersion": 1,
+      "productKey": "notifications",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "APP.NOTIFICATIONS:VIEW",
+      "resourceKey": "APP.NOTIFICATIONS",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.notifications.work.read.action"
+      ],
+      "scopeResolver": "SELF",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "notifications.work"
+    },
+    {
+      "action": "CREATE",
+      "activationPolicy": null,
       "authorityMode": "PERMISSION",
       "contractKey": "services.catalog.create",
       "legacySource": null,
@@ -2026,9 +2387,57 @@
       "sodPolicyId": null,
       "sunsetAt": null,
       "surfaceKey": "services.management"
+    },
+    {
+      "action": "CREATE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "spaces.request.create",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Spaces + Security",
+      "policyVersion": 1,
+      "productKey": "spaces",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "ACTION.SPACE_REQUEST:CREATE",
+      "resourceKey": "ACTION.SPACE_REQUEST",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "MEDIUM",
+      "routeContractKeys": [
+        "route.spaces.work.request-create.action"
+      ],
+      "scopeResolver": "SELF",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "spaces.work"
+    },
+    {
+      "action": "CREATE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "workplace.space.create",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Workplace + Platform + Security",
+      "policyVersion": 1,
+      "productKey": "workplace",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "APP.WORKPLACE:CREATE",
+      "resourceKey": "APP.WORKPLACE",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "MEDIUM",
+      "routeContractKeys": [
+        "route.workplace.work.booking-create.action"
+      ],
+      "scopeResolver": "SELF",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "workplace.work"
     }
   ],
-  "checksum": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+  "checksum": "a9cd08260fd9a11dd7c612f2db6f03bb312f1e7843a2eb10b4082660da151137",
   "checksumAlgorithm": "SHA-256",
   "entitlementExpressions": [
     {
@@ -2043,12 +2452,32 @@
     },
     {
       "expression": {
+        "entitlement": "APP.CALENDAR:VIEW",
+        "type": "LEAF"
+      },
+      "expressionKey": "CALENDAR_WORK_ACCESS_V1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Calendar + Platform + Security",
+      "policyVersion": 1
+    },
+    {
+      "expression": {
         "entitlement": "APP.COMMUNICATIONS:VIEW",
         "type": "LEAF"
       },
       "expressionKey": "COMMUNICATIONS_WORK_ACCESS_V1",
       "lifecycleState": "ACTIVE",
       "owner": "Communications + Security",
+      "policyVersion": 1
+    },
+    {
+      "expression": {
+        "entitlement": "APP.ASK:VIEW",
+        "type": "LEAF"
+      },
+      "expressionKey": "DWAION_WORK_ACCESS_V1",
+      "lifecycleState": "ACTIVE",
+      "owner": "DWAI.ON + Agent Runtime + Security",
       "policyVersion": 1
     },
     {
@@ -2139,12 +2568,72 @@
     },
     {
       "expression": {
+        "entitlement": "APP.MAIL:VIEW",
+        "type": "LEAF"
+      },
+      "expressionKey": "MAIL_WORK_ACCESS_V1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Mail + Platform + Security",
+      "policyVersion": 1
+    },
+    {
+      "expression": {
+        "entitlement": "APP.MEETINGS:VIEW",
+        "type": "LEAF"
+      },
+      "expressionKey": "MEETINGS_WORK_ACCESS_V1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Meetings + Security",
+      "policyVersion": 1
+    },
+    {
+      "expression": {
+        "entitlement": "APP.MESSAGING:VIEW",
+        "type": "LEAF"
+      },
+      "expressionKey": "MESSAGING_WORK_ACCESS_V1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Messaging + Security",
+      "policyVersion": 1
+    },
+    {
+      "expression": {
+        "entitlement": "APP.NOTIFICATIONS:VIEW",
+        "type": "LEAF"
+      },
+      "expressionKey": "NOTIFICATIONS_WORK_ACCESS_V1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Notifications + Security",
+      "policyVersion": 1
+    },
+    {
+      "expression": {
         "entitlement": "APP.EMPLOYEE_SERVICES:VIEW",
         "type": "LEAF"
       },
       "expressionKey": "SERVICES_WORK_ACCESS_V1",
       "lifecycleState": "ACTIVE",
       "owner": "Services + Security",
+      "policyVersion": 1
+    },
+    {
+      "expression": {
+        "entitlement": "APP.SPACES:VIEW",
+        "type": "LEAF"
+      },
+      "expressionKey": "SPACES_WORK_ACCESS_V1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Spaces + Security",
+      "policyVersion": 1
+    },
+    {
+      "expression": {
+        "entitlement": "APP.WORKPLACE:VIEW",
+        "type": "LEAF"
+      },
+      "expressionKey": "WORKPLACE_WORK_ACCESS_V1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Workplace + Platform + Security",
       "policyVersion": 1
     }
   ],
@@ -2331,6 +2820,28 @@
       ]
     },
     {
+      "inputEvidenceSchemaKey": "CalendarSelfEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Calendar + Platform + Security",
+      "ownerServiceKey": "platform",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.calendar-self.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.calendar-self.v1",
+      "routeContractKeys": [
+        "route.calendar.work.event-create.action",
+        "route.calendar.work.home.page",
+        "route.calendar.work.schedule.data"
+      ],
+      "targetBindingKinds": [
+        "SELF"
+      ]
+    },
+    {
       "inputEvidenceSchemaKey": "CommunicationReaderActionEvidenceV1",
       "lifecycleState": "ACTIVE",
       "owner": "Platform + Communications + Security",
@@ -2381,6 +2892,28 @@
       ],
       "targetBindingKinds": [
         "OBJECT"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "DwaionSelfEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "DWAI.ON + Agent Runtime + Security",
+      "ownerServiceKey": "agent",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.dwaion-self.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.dwaion-self.v1",
+      "routeContractKeys": [
+        "route.dwaion.work.ask.action",
+        "route.dwaion.work.conversation.data",
+        "route.dwaion.work.home.page"
+      ],
+      "targetBindingKinds": [
+        "SELF"
       ]
     },
     {
@@ -2570,6 +3103,73 @@
       ]
     },
     {
+      "inputEvidenceSchemaKey": "MailSelfEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Mail + Platform + Security",
+      "ownerServiceKey": "platform",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.mail-self.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.mail-self.v1",
+      "routeContractKeys": [
+        "route.mail.work.home.page",
+        "route.mail.work.message-create.action",
+        "route.mail.work.threads.data"
+      ],
+      "targetBindingKinds": [
+        "SELF"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "MeetingSelfEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Meetings + Security",
+      "ownerServiceKey": "meeting",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.meetings-self.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.meetings-self.v1",
+      "routeContractKeys": [
+        "route.meetings.work.home.page",
+        "route.meetings.work.meeting-create.action",
+        "route.meetings.work.meetings.data"
+      ],
+      "targetBindingKinds": [
+        "SELF"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "MessagingConversationEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Messaging + Security",
+      "ownerServiceKey": "messaging",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.messaging-conversation.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.messaging-conversation.v1",
+      "routeContractKeys": [
+        "route.messaging.work.conversation-messages.data",
+        "route.messaging.work.home.page",
+        "route.messaging.work.message-send.action"
+      ],
+      "targetBindingKinds": [
+        "SELF",
+        "TARGET_POPULATION"
+      ]
+    },
+    {
       "inputEvidenceSchemaKey": "NamedReviewerWorkItemEvidenceV1",
       "lifecycleState": "ACTIVE",
       "owner": "Identity + Workspace + Security",
@@ -2587,6 +3187,29 @@
         "route.context.work__work.review-detail.data"
       ],
       "targetBindingKinds": [
+        "OBJECT"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "NotificationInboxEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Notifications + Security",
+      "ownerServiceKey": "notification",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.notification-inbox.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.notification-inbox.v1",
+      "routeContractKeys": [
+        "route.notifications.work.center.page",
+        "route.notifications.work.read.action",
+        "route.notifications.work.summary.data"
+      ],
+      "targetBindingKinds": [
+        "SELF",
         "OBJECT"
       ]
     },
@@ -2755,6 +3378,29 @@
       ]
     },
     {
+      "inputEvidenceSchemaKey": "SpaceMembershipEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Spaces + Security",
+      "ownerServiceKey": "space",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.space-membership.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.space-membership.v1",
+      "routeContractKeys": [
+        "route.spaces.work.content.data",
+        "route.spaces.work.home.page",
+        "route.spaces.work.request-create.action"
+      ],
+      "targetBindingKinds": [
+        "SELF",
+        "RELATIONSHIP"
+      ]
+    },
+    {
       "inputEvidenceSchemaKey": "TeamTargetPopulationEvidenceV1",
       "lifecycleState": "ACTIVE",
       "owner": "People + HCM + Security",
@@ -2799,6 +3445,29 @@
         "route.communications.work.saved-story.page"
       ],
       "targetBindingKinds": [
+        "OBJECT"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "WorkplaceResourceEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Workplace + Platform + Security",
+      "ownerServiceKey": "platform",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.workplace-resource.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.workplace-resource.v1",
+      "routeContractKeys": [
+        "route.workplace.work.booking-create.action",
+        "route.workplace.work.explore.page",
+        "route.workplace.work.floor-background.data"
+      ],
+      "targetBindingKinds": [
+        "SELF",
         "OBJECT"
       ]
     }
@@ -5642,6 +6311,182 @@
           ],
           "precedence": 300,
           "predicatePolicyKeys": [
+            "predicate.calendar-self.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "calendar.work.event.create",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.calendar.work.event-create.action.binding.01",
+          "method": "POST",
+          "path": "/api/platform/v1/calendar/events",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "calendar.work",
+      "owner": "Calendar + Platform + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.calendar.work.event-create.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.calendar.work.event-create.action.binding.01",
+          "method": "POST",
+          "path": "/v1/calendar/events",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "calendar",
+        "surfaceKey": "calendar.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.calendar-self.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": true,
+          "requiredAccess": {
+            "accessPolicyKey": "calendar.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.calendar.work.home.page.binding.01",
+              "projectionPolicyKey": "route.calendar.work.home.page.full-work.projection.v1",
+              "responseSchemaKey": "route.calendar.work.home.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.calendar.work.home.page.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/calendar/home",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "calendar.work",
+      "owner": "Calendar + Platform + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.calendar.work.home.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.calendar.work.home.page.binding.01",
+          "method": "GET",
+          "path": "/v1/calendar/home",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "calendar",
+        "surfaceKey": "calendar.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "calendar.work.home",
+      "uiRoutePattern": "/calendar/home"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.calendar-self.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": true,
+          "requiredAccess": {
+            "accessPolicyKey": "calendar.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.calendar.work.schedule.data.binding.01",
+              "projectionPolicyKey": "route.calendar.work.schedule.data.full-work.projection.v1",
+              "responseSchemaKey": "route.calendar.work.schedule.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.calendar.work.schedule.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/calendar/events",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "calendar.work",
+      "owner": "Calendar + Platform + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.calendar.work.schedule.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.calendar.work.schedule.data.binding.01",
+          "method": "GET",
+          "path": "/v1/calendar/events",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "calendar",
+        "surfaceKey": "calendar.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
             "predicate.platform.object-version.v1"
           ],
           "profileKey": "full-management",
@@ -6707,6 +7552,77 @@
             "ELEVATED"
           ],
           "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-work",
+          "readOnly": true,
+          "requiredAccess": {
+            "accessPolicyKey": "communications.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.communications.work.story-detail.data.binding.01",
+              "projectionPolicyKey": "route.communications.work.story-detail.data.full-work.projection.v1",
+              "responseSchemaKey": "route.communications.work.story-detail.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.communications.work.story-detail.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/communications/{communicationId}",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "view": {
+              "kind": "FIXED",
+              "value": "detail"
+            }
+          }
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "communications.work",
+      "owner": "Platform + Communications + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.communications.work.story-detail.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.communications.work.story-detail.data.binding.01",
+          "method": "GET",
+          "path": "/v1/communications/{communicationId}",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "view": {
+              "kind": "FIXED",
+              "value": "detail"
+            }
+          },
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "communications",
+        "surfaceKey": "communications.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
           "predicatePolicyKeys": [
             "predicate.named-reviewer-assigned-item.v1"
           ],
@@ -6809,6 +7725,182 @@
       },
       "uiRouteId": null,
       "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.dwaion-self.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "dwaion.work.ask.execute",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.dwaion.work.ask.action.binding.01",
+          "method": "POST",
+          "path": "/api/agent/v1/ask",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "dwaion.work",
+      "owner": "DWAI.ON + Agent Runtime + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.dwaion.work.ask.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.dwaion.work.ask.action.binding.01",
+          "method": "POST",
+          "path": "/v1/ask",
+          "pathParameterConstraints": {},
+          "serviceKey": "agent"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "dwaion",
+        "surfaceKey": "dwaion.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.dwaion-self.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": true,
+          "requiredAccess": {
+            "accessPolicyKey": "dwaion.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.dwaion.work.conversation.data.binding.01",
+              "projectionPolicyKey": "route.dwaion.work.conversation.data.full-work.projection.v1",
+              "responseSchemaKey": "route.dwaion.work.conversation.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.dwaion.work.conversation.data.binding.01",
+          "method": "GET",
+          "path": "/api/agent/v1/conversations/{conversationId}",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "dwaion.work",
+      "owner": "DWAI.ON + Agent Runtime + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.dwaion.work.conversation.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.dwaion.work.conversation.data.binding.01",
+          "method": "GET",
+          "path": "/v1/conversations/{conversationId}",
+          "pathParameterConstraints": {},
+          "serviceKey": "agent"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "dwaion",
+        "surfaceKey": "dwaion.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.dwaion-self.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": true,
+          "requiredAccess": {
+            "accessPolicyKey": "dwaion.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.dwaion.work.home.page.binding.01",
+              "projectionPolicyKey": "route.dwaion.work.home.page.full-work.projection.v1",
+              "responseSchemaKey": "route.dwaion.work.home.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.dwaion.work.home.page.binding.01",
+          "method": "GET",
+          "path": "/api/agent/v1/conversations",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "dwaion.work",
+      "owner": "DWAI.ON + Agent Runtime + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.dwaion.work.home.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.dwaion.work.home.page.binding.01",
+          "method": "GET",
+          "path": "/v1/conversations",
+          "pathParameterConstraints": {},
+          "serviceKey": "agent"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "dwaion",
+        "surfaceKey": "dwaion.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "dwaion.work.home",
+      "uiRoutePattern": "/dwaion/home"
     },
     {
       "accessProfiles": [
@@ -10712,6 +11804,710 @@
             "ELEVATED"
           ],
           "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.mail-self.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": true,
+          "requiredAccess": {
+            "accessPolicyKey": "mail.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.mail.work.home.page.binding.01",
+              "projectionPolicyKey": "route.mail.work.home.page.full-work.projection.v1",
+              "responseSchemaKey": "route.mail.work.home.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.mail.work.home.page.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/mail/home",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "mail.work",
+      "owner": "Mail + Platform + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.mail.work.home.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.mail.work.home.page.binding.01",
+          "method": "GET",
+          "path": "/v1/mail/home",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "mail",
+        "surfaceKey": "mail.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "mail.work.home",
+      "uiRoutePattern": "/mail/home"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.mail-self.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "mail.work.message.create",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.mail.work.message-create.action.binding.01",
+          "method": "POST",
+          "path": "/api/platform/v1/mail/messages",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "mail.work",
+      "owner": "Mail + Platform + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.mail.work.message-create.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.mail.work.message-create.action.binding.01",
+          "method": "POST",
+          "path": "/v1/mail/messages",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "mail",
+        "surfaceKey": "mail.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.mail-self.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": true,
+          "requiredAccess": {
+            "accessPolicyKey": "mail.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.mail.work.threads.data.binding.01",
+              "projectionPolicyKey": "route.mail.work.threads.data.full-work.projection.v1",
+              "responseSchemaKey": "route.mail.work.threads.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.mail.work.threads.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/mail/threads",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "mail.work",
+      "owner": "Mail + Platform + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.mail.work.threads.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.mail.work.threads.data.binding.01",
+          "method": "GET",
+          "path": "/v1/mail/threads",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "mail",
+        "surfaceKey": "mail.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.meetings-self.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": true,
+          "requiredAccess": {
+            "accessPolicyKey": "meetings.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.meetings.work.home.page.binding.01",
+              "projectionPolicyKey": "route.meetings.work.home.page.full-work.projection.v1",
+              "responseSchemaKey": "route.meetings.work.home.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.meetings.work.home.page.binding.01",
+          "method": "GET",
+          "path": "/api/meetings/v1/home",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "meetings.work",
+      "owner": "Meetings + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.meetings.work.home.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.meetings.work.home.page.binding.01",
+          "method": "GET",
+          "path": "/v1/home",
+          "pathParameterConstraints": {},
+          "serviceKey": "meeting"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "meetings",
+        "surfaceKey": "meetings.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "meetings.work.home",
+      "uiRoutePattern": "/meetings/home"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.meetings-self.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "meetings.work.meeting.create",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.meetings.work.meeting-create.action.binding.01",
+          "method": "POST",
+          "path": "/api/meetings/v1/meetings",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "meetings.work",
+      "owner": "Meetings + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.meetings.work.meeting-create.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.meetings.work.meeting-create.action.binding.01",
+          "method": "POST",
+          "path": "/v1/meetings",
+          "pathParameterConstraints": {},
+          "serviceKey": "meeting"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "meetings",
+        "surfaceKey": "meetings.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.meetings-self.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "meetings.work.meetings.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.meetings.work.meetings.data.binding.01",
+              "projectionPolicyKey": "route.meetings.work.meetings.data.full-work.projection.v1",
+              "responseSchemaKey": "route.meetings.work.meetings.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.meetings.work.meetings.data.binding.01",
+          "method": "GET",
+          "path": "/api/meetings/v1/meetings",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "meetings.work",
+      "owner": "Meetings + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.meetings.work.meetings.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.meetings.work.meetings.data.binding.01",
+          "method": "GET",
+          "path": "/v1/meetings",
+          "pathParameterConstraints": {},
+          "serviceKey": "meeting"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "meetings",
+        "surfaceKey": "meetings.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.messaging-conversation.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": true,
+          "requiredAccess": {
+            "accessPolicyKey": "messaging.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.messaging.work.conversation-messages.data.binding.01",
+              "projectionPolicyKey": "route.messaging.work.conversation-messages.data.full-work.projection.v1",
+              "responseSchemaKey": "route.messaging.work.conversation-messages.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.messaging.work.conversation-messages.data.binding.01",
+          "method": "GET",
+          "path": "/api/messaging/v1/conversations/{conversationId}/messages",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "messaging.work",
+      "owner": "Messaging + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.messaging.work.conversation-messages.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.messaging.work.conversation-messages.data.binding.01",
+          "method": "GET",
+          "path": "/v1/conversations/{conversationId}/messages",
+          "pathParameterConstraints": {},
+          "serviceKey": "messaging"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "messaging",
+        "surfaceKey": "messaging.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.messaging-conversation.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": true,
+          "requiredAccess": {
+            "accessPolicyKey": "messaging.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.messaging.work.home.page.binding.01",
+              "projectionPolicyKey": "route.messaging.work.home.page.full-work.projection.v1",
+              "responseSchemaKey": "route.messaging.work.home.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.messaging.work.home.page.binding.01",
+          "method": "GET",
+          "path": "/api/messaging/v1/home",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "messaging.work",
+      "owner": "Messaging + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.messaging.work.home.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.messaging.work.home.page.binding.01",
+          "method": "GET",
+          "path": "/v1/home",
+          "pathParameterConstraints": {},
+          "serviceKey": "messaging"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "messaging",
+        "surfaceKey": "messaging.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "messaging.work.home",
+      "uiRoutePattern": "/messages/home"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.messaging-conversation.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "messaging.work.message.create",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "TARGET_POPULATION"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.messaging.work.message-send.action.binding.01",
+          "method": "POST",
+          "path": "/api/messaging/v1/conversations/{conversationId}/messages",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "messaging.work",
+      "owner": "Messaging + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.messaging.work.message-send.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.messaging.work.message-send.action.binding.01",
+          "method": "POST",
+          "path": "/v1/conversations/{conversationId}/messages",
+          "pathParameterConstraints": {},
+          "serviceKey": "messaging"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "messaging",
+        "surfaceKey": "messaging.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.notification-inbox.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": true,
+          "requiredAccess": {
+            "accessPolicyKey": "notifications.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.notifications.work.center.page.binding.01",
+              "projectionPolicyKey": "route.notifications.work.center.page.full-work.projection.v1",
+              "responseSchemaKey": "route.notifications.work.center.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.notifications.work.center.page.binding.01",
+          "method": "GET",
+          "path": "/api/notifications/v1/inbox",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "notifications.work",
+      "owner": "Notifications + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.notifications.work.center.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.notifications.work.center.page.binding.01",
+          "method": "GET",
+          "path": "/v1/inbox",
+          "pathParameterConstraints": {},
+          "serviceKey": "notification"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "notifications",
+        "surfaceKey": "notifications.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "notifications.work.center",
+      "uiRoutePattern": "/notifications/center"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.notification-inbox.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "notifications.work.inbox.use",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.notifications.work.read.action.binding.01",
+          "method": "POST",
+          "path": "/api/notifications/v1/inbox/{notificationId}/read",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "notifications.work",
+      "owner": "Notifications + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.notifications.work.read.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.notifications.work.read.action.binding.01",
+          "method": "POST",
+          "path": "/v1/inbox/{notificationId}/read",
+          "pathParameterConstraints": {},
+          "serviceKey": "notification"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "notifications",
+        "surfaceKey": "notifications.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.notification-inbox.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": true,
+          "requiredAccess": {
+            "accessPolicyKey": "notifications.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.notifications.work.summary.data.binding.01",
+              "projectionPolicyKey": "route.notifications.work.summary.data.full-work.projection.v1",
+              "responseSchemaKey": "route.notifications.work.summary.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.notifications.work.summary.data.binding.01",
+          "method": "GET",
+          "path": "/api/notifications/v1/summary/by-app",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "notifications.work",
+      "owner": "Notifications + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.notifications.work.summary.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.notifications.work.summary.data.binding.01",
+          "method": "GET",
+          "path": "/v1/summary/by-app",
+          "pathParameterConstraints": {},
+          "serviceKey": "notification"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "notifications",
+        "surfaceKey": "notifications.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
           "predicatePolicyKeys": [],
           "profileKey": "full-management",
           "readOnly": false,
@@ -11725,8 +13521,431 @@
       },
       "uiRouteId": null,
       "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-work",
+          "readOnly": true,
+          "requiredAccess": {
+            "accessPolicyKey": "services.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.services.work.request-detail.data.binding.01",
+              "projectionPolicyKey": "route.services.work.request-detail.data.full-work.projection.v1",
+              "responseSchemaKey": "route.services.work.request-detail.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.services.work.request-detail.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/services/requests/{requestId}",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "view": {
+              "kind": "FIXED",
+              "value": "detail"
+            }
+          }
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "services.work",
+      "owner": "Platform + Services + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.services.work.request-detail.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.services.work.request-detail.data.binding.01",
+          "method": "GET",
+          "path": "/v1/services/requests/{requestId}",
+          "pathParameterConstraints": {},
+          "queryParameterConstraints": {
+            "view": {
+              "kind": "FIXED",
+              "value": "detail"
+            }
+          },
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "services",
+        "surfaceKey": "services.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.space-membership.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": true,
+          "requiredAccess": {
+            "accessPolicyKey": "spaces.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.spaces.work.content.data.binding.01",
+              "projectionPolicyKey": "route.spaces.work.content.data.full-work.projection.v1",
+              "responseSchemaKey": "route.spaces.work.content.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "RELATIONSHIP"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.spaces.work.content.data.binding.01",
+          "method": "GET",
+          "path": "/api/spaces/v1/spaces/{spaceKey}/content",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "spaces.work",
+      "owner": "Spaces + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.spaces.work.content.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.spaces.work.content.data.binding.01",
+          "method": "GET",
+          "path": "/v1/spaces/{spaceKey}/content",
+          "pathParameterConstraints": {},
+          "serviceKey": "space"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "spaces",
+        "surfaceKey": "spaces.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.space-membership.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": true,
+          "requiredAccess": {
+            "accessPolicyKey": "spaces.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.spaces.work.home.page.binding.01",
+              "projectionPolicyKey": "route.spaces.work.home.page.full-work.projection.v1",
+              "responseSchemaKey": "route.spaces.work.home.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.spaces.work.home.page.binding.01",
+          "method": "GET",
+          "path": "/api/spaces/v1/home",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "spaces.work",
+      "owner": "Spaces + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.spaces.work.home.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.spaces.work.home.page.binding.01",
+          "method": "GET",
+          "path": "/v1/home",
+          "pathParameterConstraints": {},
+          "serviceKey": "space"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "spaces",
+        "surfaceKey": "spaces.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "spaces.work.home",
+      "uiRoutePattern": "/spaces/home"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.space-membership.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "spaces.request.create",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.spaces.work.request-create.action.binding.01",
+          "method": "POST",
+          "path": "/api/spaces/v1/requests",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "spaces.work",
+      "owner": "Spaces + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.spaces.work.request-create.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.spaces.work.request-create.action.binding.01",
+          "method": "POST",
+          "path": "/v1/requests",
+          "pathParameterConstraints": {},
+          "serviceKey": "space"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "spaces",
+        "surfaceKey": "spaces.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.workplace-resource.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "workplace.space.create",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.work.booking-create.action.binding.01",
+          "method": "POST",
+          "path": "/api/platform/v1/workplace/bookings",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "workplace.work",
+      "owner": "Workplace + Platform + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.workplace.work.booking-create.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.work.booking-create.action.binding.01",
+          "method": "POST",
+          "path": "/v1/workplace/bookings",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "workplace",
+        "surfaceKey": "workplace.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.workplace-resource.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": true,
+          "requiredAccess": {
+            "accessPolicyKey": "workplace.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.workplace.work.explore.page.binding.01",
+              "projectionPolicyKey": "route.workplace.work.explore.page.full-work.projection.v1",
+              "responseSchemaKey": "route.workplace.work.explore.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.work.explore.page.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/workplace/explore",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "workplace.work",
+      "owner": "Workplace + Platform + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.workplace.work.explore.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.work.explore.page.binding.01",
+          "method": "GET",
+          "path": "/v1/workplace/explore",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "workplace",
+        "surfaceKey": "workplace.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "workplace.work.explore",
+      "uiRoutePattern": "/workplace/explore"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.workplace-resource.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": true,
+          "requiredAccess": {
+            "accessPolicyKey": "workplace.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.workplace.work.floor-background.data.binding.01",
+              "projectionPolicyKey": "route.workplace.work.floor-background.data.full-work.projection.v1",
+              "responseSchemaKey": "route.workplace.work.floor-background.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.work.floor-background.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/workplace/floors/{floorId}/background",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "workplace.work",
+      "owner": "Workplace + Platform + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.workplace.work.floor-background.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.work.floor-background.data.binding.01",
+          "method": "GET",
+          "path": "/v1/workplace/floors/{floorId}/background",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "workplace",
+        "surfaceKey": "workplace.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
     }
   ],
   "schemaVersion": 1,
-  "version": 3
+  "version": 4
 }

@@ -20,8 +20,10 @@ public class MeetingIntelligenceOutputValidator {
     private static final int MAX_SEGMENTS = 500;
     private static final int MAX_SEGMENT_TEXT = 4_000;
     private static final int MAX_TRANSCRIPT_TEXT = 300_000;
-    private static final int MAX_ITEMS = 100;
-    private static final int MAX_TEXT = 8_000;
+    private static final int MAX_TOPIC_ITEMS = 20;
+    private static final int MAX_OTHER_ITEMS = 30;
+    private static final int MAX_TEXT = 2_000;
+    private static final int MAX_CITATIONS = 20;
 
     public void validateTranscript(List<TranscriptSegment> transcript) {
         if (transcript == null || transcript.isEmpty() || transcript.size() > MAX_SEGMENTS) {
@@ -52,16 +54,19 @@ public class MeetingIntelligenceOutputValidator {
         Map<String, TranscriptSegment> segments = new HashMap<>();
         transcript.forEach(segment -> segments.put(segment.segmentId(), segment));
         citedText(analysis.executiveSummary(), segments);
-        citedList(analysis.topics(), segments);
-        citedList(analysis.decisions(), segments);
-        citedList(analysis.actionItems(), segments);
-        citedList(analysis.openQuestions(), segments);
-        citedList(analysis.risks(), segments);
+        citedList(analysis.topics(), MAX_TOPIC_ITEMS, segments);
+        citedList(analysis.decisions(), MAX_OTHER_ITEMS, segments);
+        citedList(analysis.actionItems(), MAX_OTHER_ITEMS, segments);
+        citedList(analysis.openQuestions(), MAX_OTHER_ITEMS, segments);
+        citedList(analysis.risks(), MAX_OTHER_ITEMS, segments);
         climate(analysis, segments);
     }
 
-    private void citedList(List<CitedText> items, Map<String, TranscriptSegment> segments) {
-        if (items == null || items.size() > MAX_ITEMS) {
+    private void citedList(
+            List<CitedText> items,
+            int maximumItems,
+            Map<String, TranscriptSegment> segments) {
+        if (items == null || items.size() > maximumItems) {
             throw invalid("Provider insight collection is invalid.");
         }
         items.forEach(item -> citedText(item, segments));
@@ -70,7 +75,7 @@ public class MeetingIntelligenceOutputValidator {
     private void citedText(CitedText item, Map<String, TranscriptSegment> segments) {
         if (item == null || !safeText(item.text(), MAX_TEXT)
                 || item.citations() == null || item.citations().isEmpty()
-                || item.citations().size() > 20) {
+                || item.citations().size() > MAX_CITATIONS) {
             throw invalid("Every generated statement must contain transcript evidence.");
         }
         citations(item.citations(), segments);
@@ -80,6 +85,7 @@ public class MeetingIntelligenceOutputValidator {
         var climate = analysis.conversationClimate();
         if (climate == null || climate.label() == null || climate.signals() == null
                 || climate.citations() == null || climate.signals().size() > 5
+                || climate.citations().size() > MAX_CITATIONS
                 || new HashSet<>(climate.signals()).size() != climate.signals().size()) {
             throw invalid("Conversation climate structure is invalid.");
         }
@@ -108,7 +114,7 @@ public class MeetingIntelligenceOutputValidator {
     }
 
     private boolean safeId(String value) {
-        return value != null && value.matches("^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$");
+        return value != null && value.matches("^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$");
     }
 
     private boolean safeText(String value, int maximumLength) {

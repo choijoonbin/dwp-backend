@@ -12,7 +12,9 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -66,9 +68,202 @@ class MeetingSecurityFilterTest {
         assertThat(response.getStatus()).isEqualTo(403);
     }
 
+    @Test
+    void draftV4CannotActivateWithoutTheOwnerServiceReadinessLatch()
+            throws ServletException, IOException {
+        MeetingSecurityFilter filter = new MeetingSecurityFilter(
+                "trusted-token", new ObjectMapper().findAndRegisterModules());
+        MockHttpServletRequest request = exactRequest("GET", "/v1/home");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertThat(response.getStatus()).isEqualTo(503);
+    }
+
+    @Test
+    void duplicateTrustedEvidenceFailsClosedBeforeTheController()
+            throws ServletException, IOException {
+        MeetingSecurityFilter filter = new MeetingSecurityFilter(
+                "trusted-token", true, new ObjectMapper().findAndRegisterModules(),
+                new MeetingProductAccessPolicy());
+        MockHttpServletRequest request = exactRequest("GET", "/v1/home");
+        request.addHeader(MeetingSecurityFilter.ROUTE_CONTRACT,
+                "route.meetings.work.meetings.data");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        AtomicBoolean invoked = new AtomicBoolean();
+
+        filter.doFilter(request, response, (servletRequest, servletResponse) ->
+                invoked.set(true));
+
+        assertThat(response.getStatus()).isEqualTo(503);
+        assertThat(invoked).isFalse();
+    }
+
+    @Test
+    void rawEncodedMatrixRepeatedSlashAndDotSegmentPathsFailClosed()
+            throws ServletException, IOException {
+        MeetingSecurityFilter filter = new MeetingSecurityFilter(
+                "trusted-token", true, new ObjectMapper().findAndRegisterModules(),
+                new MeetingProductAccessPolicy());
+        for (String path : java.util.List.of(
+                "/%76%31/home",
+                "/v1/home;x=y",
+                "/v1//home",
+                "/v1/./home",
+                "/v1/team/../home")) {
+            MockHttpServletRequest request = exactRequest("GET", path);
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            AtomicBoolean invoked = new AtomicBoolean();
+
+            filter.doFilter(request, response, (servletRequest, servletResponse) ->
+                    invoked.set(true));
+
+            assertThat(response.getStatus()).as(path).isEqualTo(403);
+            assertThat(invoked).as(path).isFalse();
+        }
+    }
+
+    @Test
+    void activeExactRolloutLeavesUnmodeledSiblingRoutesOnTheLegacyPermissionBoundary()
+            throws ServletException, IOException {
+        MeetingSecurityFilter filter = exactFilter();
+        for (Sibling sibling : List.of(
+                new Sibling("GET", "/v1/meetings/42", "APP.MEETINGS:VIEW"),
+                new Sibling("POST", "/v1/meetings/42/token", "APP.MEETINGS:UPDATE"),
+                new Sibling("PUT", "/v1/meetings", "APP.MEETINGS:CREATE"),
+                new Sibling("GET", "/v1/admin/overview", "ADMIN.MEETINGS:VIEW"))) {
+            MockHttpServletRequest request = exactRequest(sibling.method(), sibling.path());
+            replaceHeader(request, MeetingSecurityFilter.PERMISSIONS, sibling.permission());
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            AtomicBoolean invoked = new AtomicBoolean();
+
+            filter.doFilter(request, response, (servletRequest, servletResponse) ->
+                    invoked.set(true));
+
+            assertThat(response.getStatus()).as(sibling.path()).isEqualTo(200);
+            assertThat(invoked).as(sibling.path()).isTrue();
+        }
+    }
+
+    @Test
+    void unmodeledSiblingRoutesStillRequireTheirLegacyPermission()
+            throws ServletException, IOException {
+        MeetingSecurityFilter filter = exactFilter();
+        for (Sibling sibling : List.of(
+                new Sibling("GET", "/v1/meetings/42", "APP.PEOPLE:VIEW"),
+                new Sibling("POST", "/v1/meetings/42/token", "APP.PEOPLE:VIEW"),
+                new Sibling("PUT", "/v1/meetings", "APP.PEOPLE:VIEW"),
+                new Sibling("GET", "/v1/admin/overview", "APP.MEETINGS:VIEW"))) {
+            MockHttpServletRequest request = exactRequest(sibling.method(), sibling.path());
+            replaceHeader(request, MeetingSecurityFilter.PERMISSIONS, sibling.permission());
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            AtomicBoolean invoked = new AtomicBoolean();
+
+            filter.doFilter(request, response, (servletRequest, servletResponse) ->
+                    invoked.set(true));
+
+            assertThat(response.getStatus()).as(sibling.path()).isEqualTo(403);
+            assertThat(invoked).as(sibling.path()).isFalse();
+        }
+    }
+
+    @Test
+    void activeExactRolloutRejectsMissingRouteEvidenceOnAllModeledCandidates()
+            throws ServletException, IOException {
+        MeetingSecurityFilter filter = exactFilter();
+        for (Candidate candidate : candidates()) {
+            MockHttpServletRequest request = exactRequest(
+                    candidate.method(), candidate.path());
+            replaceHeader(request, MeetingSecurityFilter.PERMISSIONS,
+                    candidate.permission());
+            request.removeHeader(MeetingSecurityFilter.ROUTE_CONTRACT);
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            AtomicBoolean invoked = new AtomicBoolean();
+
+            filter.doFilter(request, response, (servletRequest, servletResponse) ->
+                    invoked.set(true));
+
+            assertThat(response.getStatus()).as(candidate.path()).isEqualTo(503);
+            assertThat(invoked).as(candidate.path()).isFalse();
+        }
+    }
+
+    @Test
+    void activeExactRolloutRejectsUnknownRouteEvidenceOnAllModeledCandidates()
+            throws ServletException, IOException {
+        MeetingSecurityFilter filter = exactFilter();
+        for (Candidate candidate : candidates()) {
+            MockHttpServletRequest request = exactRequest(
+                    candidate.method(), candidate.path());
+            replaceHeader(request, MeetingSecurityFilter.PERMISSIONS,
+                    candidate.permission());
+            replaceHeader(request, MeetingSecurityFilter.ROUTE_CONTRACT,
+                    "route.meetings.work.unknown");
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            AtomicBoolean invoked = new AtomicBoolean();
+
+            filter.doFilter(request, response, (servletRequest, servletResponse) ->
+                    invoked.set(true));
+
+            assertThat(response.getStatus()).as(candidate.path()).isEqualTo(403);
+            assertThat(invoked).as(candidate.path()).isFalse();
+        }
+    }
+
+    private MeetingSecurityFilter exactFilter() {
+        return new MeetingSecurityFilter(
+                "trusted-token", true, new ObjectMapper().findAndRegisterModules(),
+                new MeetingProductAccessPolicy());
+    }
+
+    private List<Candidate> candidates() {
+        return List.of(
+                new Candidate("GET", "/v1/home", "APP.MEETINGS:VIEW"),
+                new Candidate("GET", "/v1/meetings", "APP.MEETINGS:VIEW"),
+                new Candidate("POST", "/v1/meetings", "APP.MEETINGS:CREATE"));
+    }
+
+    private void replaceHeader(
+            MockHttpServletRequest request, String name, String value) {
+        request.removeHeader(name);
+        request.addHeader(name, value);
+    }
+
+    private MockHttpServletRequest exactRequest(String method, String path) {
+        MockHttpServletRequest request = request(method, path);
+        request.addHeader(MeetingSecurityFilter.SERVICE_TOKEN, "trusted-token");
+        request.addHeader(MeetingSecurityFilter.USER, "101");
+        request.addHeader(MeetingSecurityFilter.TENANT, "77");
+        request.addHeader(MeetingSecurityFilter.ROLES, "WORKSPACE_MEMBER");
+        request.addHeader(MeetingSecurityFilter.PERMISSIONS, "APP.MEETINGS:VIEW");
+        request.addHeader(MeetingSecurityFilter.ROLLOUT_STATE, "110");
+        request.addHeader(MeetingSecurityFilter.ROLLOUT_REVISION,
+                "rollout-" + "a".repeat(64));
+        request.addHeader(MeetingSecurityFilter.ROLLOUT_COHORT, "full");
+        request.addHeader(MeetingSecurityFilter.ROUTE_CONTRACT,
+                "route.meetings.work.home.page");
+        request.addHeader(MeetingSecurityFilter.CURRENT_CONTEXT,
+                "psc-" + "b".repeat(64));
+        request.addHeader(MeetingSecurityFilter.CURRENT_SCOPE,
+                new MeetingProductAccessPolicy().selfScope(77L, 101L));
+        request.addHeader(MeetingSecurityFilter.ACTIVE_ACCESS_MODE, "NORMAL");
+        request.addHeader(MeetingSecurityFilter.CURRENT_DECISION_REVISION,
+                "psr-" + "c".repeat(64));
+        request.addHeader(MeetingSecurityFilter.CURRENT_REVALIDATE_AT,
+                "2099-01-01T00:00:00Z");
+        return request;
+    }
+
     private MockHttpServletRequest request(String method, String path) {
         MockHttpServletRequest request = new MockHttpServletRequest(method, path);
         request.setRequestURI(path);
         return request;
+    }
+
+    private record Candidate(String method, String path, String permission) {
+    }
+
+    private record Sibling(String method, String path, String permission) {
     }
 }

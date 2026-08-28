@@ -86,6 +86,34 @@ class ProductAuthorizationContractValidatorTest {
     }
 
     @Test
+    void validatesVersionFourExactTwelveProductRouteKindClosure() throws IOException {
+        ProductAuthorizationContractDtos.BundleContract result = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v4.generated.json"));
+
+        assertThat(result.version()).isEqualTo(4);
+        assertThat(result.capabilities()).hasSize(71);
+        assertThat(result.accessPolicies()).hasSize(22);
+        assertThat(result.entitlementExpressions()).hasSize(16);
+        assertThat(result.predicatePolicies()).hasSize(33);
+        assertThat(result.routes()).hasSize(155);
+        assertThat(result.routes()).filteredOn(route -> "PAGE".equals(route.routeKind())).hasSize(66);
+        assertThat(result.routes()).filteredOn(route -> "DATA".equals(route.routeKind())).hasSize(22);
+        assertThat(result.routes()).filteredOn(route -> "ACTION".equals(route.routeKind())).hasSize(67);
+
+        assertThat(result.routes().stream()
+                .filter(route -> "PRODUCT".equals(route.subject().type()))
+                .collect(java.util.stream.Collectors.groupingBy(
+                        route -> route.subject().productKey(),
+                        java.util.stream.Collectors.mapping(
+                                ProductAuthorizationContractDtos.GovernedRoute::routeKind,
+                                java.util.stream.Collectors.toSet()))))
+                .hasSize(12)
+                .allSatisfy((product, kinds) -> assertThat(kinds)
+                        .as(product)
+                        .contains("PAGE", "DATA", "ACTION"));
+    }
+
+    @Test
     void validatesOrderedSeedIndexAndStrictSnapshotSupersets() throws IOException {
         JsonNode indexDocument = generatedDocument("product-surfaces-v1.index.generated.json");
         ProductAuthorizationContractDtos.SeedIndex index =
@@ -96,17 +124,20 @@ class ProductAuthorizationContractValidatorTest {
                 generatedDocument("product-surfaces-v1.bundle-v2.generated.json"));
         ProductAuthorizationContractDtos.BundleContract versionThree = validator.validateDocument(
                 generatedDocument("product-surfaces-v1.bundle-v3.generated.json"));
+        ProductAuthorizationContractDtos.BundleContract versionFour = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v4.generated.json"));
 
-        assertThat(index.latestVersion()).isEqualTo(3);
-        assertThat(index.latestChecksum()).isEqualTo(versionThree.checksum());
+        assertThat(index.latestVersion()).isEqualTo(4);
+        assertThat(index.latestChecksum()).isEqualTo(versionFour.checksum());
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::version)
-                .containsExactly(1L, 2L, 3L);
+                .containsExactly(1L, 2L, 3L, 4L);
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::bundleStatus)
                 .containsOnly("DRAFT");
         assertStrictCapabilitySuperset(versionOne, versionTwo);
         assertStrictCapabilitySuperset(versionTwo, versionThree);
+        assertStrictCapabilitySuperset(versionThree, versionFour);
         assertThat(versionOne.capabilities())
                 .filteredOn(value -> "REQUIRED".equals(value.responsibilityRequirement()))
                 .allMatch(value -> "APP_CONFIG_ADMIN".equals(
@@ -116,6 +147,10 @@ class ProductAuthorizationContractValidatorTest {
                 .allMatch(value -> "APP_CONFIG_ADMIN".equals(
                         value.requiredResponsibilityCode()));
         assertThat(versionThree.capabilities())
+                .filteredOn(value -> "REQUIRED".equals(value.responsibilityRequirement()))
+                .allMatch(value -> "APP_CONFIG_ADMIN".equals(
+                        value.requiredResponsibilityCode()));
+        assertThat(versionFour.capabilities())
                 .filteredOn(value -> "REQUIRED".equals(value.responsibilityRequirement()))
                 .allMatch(value -> "APP_CONFIG_ADMIN".equals(
                         value.requiredResponsibilityCode()));

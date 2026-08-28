@@ -83,6 +83,20 @@ class MeetingIntelligenceOutputValidatorTest {
     }
 
     @Test
+    void acceptsAgentContractSegmentIdentifierBoundary() {
+        assertThatCode(() -> validator.validateTranscript(List.of(
+                segment("s".repeat(80), 0, 1000, "text"))))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void rejectsSegmentIdentifierAboveAgentContractBoundary() {
+        assertThatThrownBy(() -> validator.validateTranscript(List.of(
+                segment("s".repeat(81), 0, 1000, "text"))))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void rejectsBlankSegmentText() {
         assertThatThrownBy(() -> validator.validateTranscript(List.of(
                 segment("s1", 0, 1000, "   "))))
@@ -220,6 +234,41 @@ class MeetingIntelligenceOutputValidatorTest {
         Analysis analysis = new Analysis(
                 cited("summary"), null, List.of(), List.of(), List.of(), List.of(),
                 validClimate());
+
+        assertThatThrownBy(() -> validator.validate(analysis, transcript()))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsTopicCollectionAboveAgentContractLimit() {
+        Analysis valid = validAnalysis();
+        Analysis analysis = new Analysis(
+                valid.executiveSummary(), java.util.Collections.nCopies(21, cited("topic")),
+                valid.decisions(), valid.actionItems(), valid.openQuestions(), valid.risks(),
+                valid.conversationClimate());
+
+        assertThatThrownBy(() -> validator.validate(analysis, transcript()))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsGeneratedTextAboveAgentContractLimit() {
+        Analysis valid = validAnalysis();
+        Analysis analysis = new Analysis(
+                cited("x".repeat(2_001)), valid.topics(), valid.decisions(),
+                valid.actionItems(), valid.openQuestions(), valid.risks(),
+                valid.conversationClimate());
+
+        assertThatThrownBy(() -> validator.validate(analysis, transcript()))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsClimateCitationsAboveAgentContractLimit() {
+        Analysis analysis = withClimate(new ConversationClimate(
+                ClimateLabel.ALIGNED,
+                List.of(ClimateSignal.BALANCED_TURN_TAKING),
+                java.util.Collections.nCopies(21, new Citation("s1", 0, 900))));
 
         assertThatThrownBy(() -> validator.validate(analysis, transcript()))
                 .isInstanceOf(IllegalArgumentException.class);

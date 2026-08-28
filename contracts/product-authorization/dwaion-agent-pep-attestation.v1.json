@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "attestationId": "dwaion-agent-owner-pep.v1",
+  "repository": "https://github.com/choijoonbin/aura_agent",
+  "revision": "12360c6223f3e628c5ead3d8f07ff8553224bf56",
+  "testRoot": "tests",
+  "pepSourceReferences": [
+    "src/dwp_agent/main.py",
+    "src/dwp_agent/product_surface_pep.py",
+    "contracts/product-authorization/dwaion-pep-v4.draft.json"
+  ],
+  "files": [
+    {
+      "path": "pyproject.toml",
+      "sha256": "fdf1a2416fc37d47dbadc311bdd919b1bfebe27a62eda00c6a46903610a8f728"
+    },
+    {
+      "path": "uv.lock",
+      "sha256": "c5e67e6b4e4bb36da93a92994c3c4b19700fd0c6eb99da2fe930dc95a982177f"
+    },
+    {
+      "path": "src/dwp_agent/main.py",
+      "sha256": "33ed53d4c1ad196854f4859df841d112d75e6c5e9d9c14033536636e9a91a384"
+    },
+    {
+      "path": "src/dwp_agent/product_surface_pep.py",
+      "sha256": "28a0fa1b93d6c834099cf1182a61f6b92e2bee34449a116682137e88b61db707"
+    },
+    {
+      "path": "contracts/product-authorization/dwaion-pep-v4.draft.json",
+      "sha256": "d5c9e2160075c4848e7a8035d402107b29924cde58544d1be0f22d6fc7e343f8"
+    },
+    {
+      "path": "tests/test_product_surface_pep.py",
+      "sha256": "ed96cc413bfe872d70d4cc72c140b7a53cd64ed20aa5aee879db330cf62d7224"
+    }
+  ],
+  "pytestNodeIds": [
+    "tests/test_product_surface_pep.py::test_rejects_cross_tenant_scope_at_agent_owner_pep",
+    "tests/test_product_surface_pep.py::test_rejects_canonical_opaque_scope_escape_at_agent_owner_pep",
+    "tests/test_product_surface_pep.py::test_rejects_stale_authority_revision_at_agent_owner_pep",
+    "tests/test_product_surface_pep.py::test_rejects_normal_support_confused_deputy_at_agent_owner_pep",
+    "tests/test_product_surface_pep.py::test_rejects_internal_header_spoof_at_agent_owner_boundary",
+    "tests/test_product_surface_pep.py::test_executes_page_data_action_through_agent_owner_pep",
+    "tests/test_product_surface_pep.py::test_v4_draft_contract_exposes_exact_dwaion_consumer_metadata",
+    "tests/test_product_surface_pep.py::test_malformed_candidate_and_rollout_evidence_fail_closed",
+    "tests/test_product_surface_pep.py::test_candidate_scope_is_exact_and_leaves_legacy_siblings_ungoverned"
+  ],
+  "command": [
+    "uv",
+    "run",
+    "pytest",
+    "tests/test_product_surface_pep.py::test_rejects_cross_tenant_scope_at_agent_owner_pep",
+    "tests/test_product_surface_pep.py::test_rejects_canonical_opaque_scope_escape_at_agent_owner_pep",
+    "tests/test_product_surface_pep.py::test_rejects_stale_authority_revision_at_agent_owner_pep",
+    "tests/test_product_surface_pep.py::test_rejects_normal_support_confused_deputy_at_agent_owner_pep",
+    "tests/test_product_surface_pep.py::test_rejects_internal_header_spoof_at_agent_owner_boundary",
+    "tests/test_product_surface_pep.py::test_executes_page_data_action_through_agent_owner_pep",
+    "tests/test_product_surface_pep.py::test_v4_draft_contract_exposes_exact_dwaion_consumer_metadata",
+    "tests/test_product_surface_pep.py::test_malformed_candidate_and_rollout_evidence_fail_closed",
+    "tests/test_product_surface_pep.py::test_candidate_scope_is_exact_and_leaves_legacy_siblings_ungoverned"
+  ],
+  "result": {
+    "status": "PASS",
+    "passed": 9,
+    "failed": 0
+  },
+  "executionWorkflow": ".github/workflows/backend-quality-gates.yml",
+  "sourceCiRun": {
+    "provider": "GITHUB_ACTIONS",
+    "workflow": "Agent quality",
+    "runId": "33162256046",
+    "url": "https://github.com/choijoonbin/aura_agent/actions/runs/33162256046",
+    "headSha": "12360c6223f3e628c5ead3d8f07ff8553224bf56",
+    "conclusion": "success"
+  },
+  "checksum": "20ce158f28f0ad6e6a7d5ad7055650d31fd80449bdd850543e85f036f6df3431"
+}

@@ -19,10 +19,43 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      DWP_AGENT_EVIDENCE_ROOT: ${{ github.workspace }}/.agent-evidence
+      DWP_AGENT_EVIDENCE_REPOSITORY: https://github.com/choijoonbin/aura_agent
 
     steps:
       - name: Check out source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Check out immutable Agent owner-PEP evidence
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: choijoonbin/aura_agent
+          ref: 12360c6223f3e628c5ead3d8f07ff8553224bf56
+          path: .agent-evidence
+          fetch-depth: 1
+
+      - name: Install uv for Agent evidence
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          version: '0.11.28'
+          enable-cache: true
+
+      - name: Execute immutable Agent owner-PEP evidence
+        working-directory: .agent-evidence
+        run: |
+          uv python install 3.13
+          uv sync --locked --all-groups --python 3.13
+          uv run pytest \
+            tests/test_product_surface_pep.py::test_rejects_cross_tenant_scope_at_agent_owner_pep \
+            tests/test_product_surface_pep.py::test_rejects_canonical_opaque_scope_escape_at_agent_owner_pep \
+            tests/test_product_surface_pep.py::test_rejects_stale_authority_revision_at_agent_owner_pep \
+            tests/test_product_surface_pep.py::test_rejects_normal_support_confused_deputy_at_agent_owner_pep \
+            tests/test_product_surface_pep.py::test_rejects_internal_header_spoof_at_agent_owner_boundary \
+            tests/test_product_surface_pep.py::test_executes_page_data_action_through_agent_owner_pep \
+            tests/test_product_surface_pep.py::test_v4_draft_contract_exposes_exact_dwaion_consumer_metadata \
+            tests/test_product_surface_pep.py::test_malformed_candidate_and_rollout_evidence_fail_closed \
+            tests/test_product_surface_pep.py::test_candidate_scope_is_exact_and_leaves_legacy_siblings_ungoverned
 
       - name: Set up Java
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5

@@ -121,7 +121,7 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
         String trustedRoute = exactHeader(request, ROUTE_CONTRACT_HEADER);
         String trustedContext = exactHeader(request, CURRENT_CONTEXT_HEADER);
         String trustedScope = exactHeader(request, CURRENT_SCOPE_HEADER);
-        if (!trustedText(trustedRoute) || !trustedText(trustedContext)
+        if (!trustedText(trustedRoute) || !validContext(trustedContext)
                 || !trustedText(trustedScope)) {
             writeError(response, ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
                     "Trusted HCM route, context, and scope evidence is missing or invalid.");
@@ -212,8 +212,13 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
         java.util.Enumeration<String> values = request.getHeaders(name);
         if (values == null || !values.hasMoreElements()) return null;
         String value = values.nextElement();
-        if (values.hasMoreElements() || !trustedText(value)) return null;
-        return value.trim();
+        if (values.hasMoreElements() || !trustedText(value)
+                || !value.equals(value.trim())) return null;
+        return value;
+    }
+
+    private boolean validContext(String value) {
+        return value != null && value.matches("psc-[a-f0-9]{64}");
     }
 
     private boolean trustedText(String value) {

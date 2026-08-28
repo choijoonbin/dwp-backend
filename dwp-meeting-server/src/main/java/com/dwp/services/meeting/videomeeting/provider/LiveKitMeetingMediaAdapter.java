@@ -100,7 +100,8 @@ public class LiveKitMeetingMediaAdapter implements MeetingMediaProvider {
         token.setIdentity("tenant:" + subject.tenantId() + ":user:" + subject.userId());
         token.setName(participant.displayName());
         token.setMetadata("{\"meetingRole\":\"" + participant.participantRole().name()
-                + "\",\"meetingId\":\"" + meeting.meetingId() + "\"}");
+                + "\",\"meetingId\":\"" + meeting.meetingId()
+                + "\",\"reactionsAllowed\":" + permissions.reactions() + "}");
         token.setTtl(properties.getTokenTtl().toMillis());
         token.addGrants(
                 new RoomJoin(true),

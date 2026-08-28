@@ -43,12 +43,12 @@ class ProductAuthorizationSeedLoaderTest {
                 loader.read(resources.getResource(
                         "classpath:product-authorization/product-surfaces-v1.generated.json"));
 
-        assertThat(index.latestVersion()).isEqualTo(3);
+        assertThat(index.latestVersion()).isEqualTo(4);
         assertThat(index.versions()).extracting(ProductAuthorizationContractDtos.SeedIndexEntry::version)
-                .containsExactly(1L, 2L, 3L);
+                .containsExactly(1L, 2L, 3L, 4L);
         assertThat(contract.bundleStatus()).isEqualTo("DRAFT");
-        assertThat(contract.version()).isEqualTo(3);
-        assertThat(contract.routes()).hasSize(129);
+        assertThat(contract.version()).isEqualTo(4);
+        assertThat(contract.routes()).hasSize(155);
     }
 
     @Test
@@ -73,10 +73,10 @@ class ProductAuthorizationSeedLoaderTest {
         @SuppressWarnings("unchecked")
         org.mockito.ArgumentCaptor<ProductAuthorizationContractDtos.BundleContract> captor =
                 org.mockito.ArgumentCaptor.forClass(ProductAuthorizationContractDtos.BundleContract.class);
-        verify(service, org.mockito.Mockito.times(3)).importDraft(captor.capture());
+        verify(service, org.mockito.Mockito.times(4)).importDraft(captor.capture());
         List<ProductAuthorizationContractDtos.BundleContract> imported = captor.getAllValues();
         assertThat(imported).extracting(ProductAuthorizationContractDtos.BundleContract::version)
-                .containsExactly(1L, 2L, 3L);
+                .containsExactly(1L, 2L, 3L, 4L);
         assertThat(imported).extracting(ProductAuthorizationContractDtos.BundleContract::bundleStatus)
                 .containsOnly("DRAFT");
         verify(service, never()).approve(any(), anyLong(), any());

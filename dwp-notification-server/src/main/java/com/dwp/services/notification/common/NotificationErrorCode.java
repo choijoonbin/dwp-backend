@@ -13,8 +13,10 @@ public enum NotificationErrorCode {
     NOTIFICATION_INVALID_CURSOR(HttpStatus.BAD_REQUEST, "NOTIFICATION_INVALID_CURSOR", "The cursor is invalid or expired."),
     NOTIFICATION_SYNC_RESET_REQUIRED(HttpStatus.CONFLICT, "NOTIFICATION_SYNC_RESET_REQUIRED", "A full notification refresh is required."),
     NOTIFICATION_IDEMPOTENCY_CONFLICT(HttpStatus.CONFLICT, "NOTIFICATION_IDEMPOTENCY_CONFLICT", "The idempotency key was reused with a different request."),
+    DECISION_REVISION_CONFLICT(HttpStatus.CONFLICT, "DECISION_REVISION_CONFLICT", "The authorization decision revision changed."),
     NOTIFICATION_CONTRACT_QUARANTINED(HttpStatus.UNPROCESSABLE_ENTITY, "NOTIFICATION_CONTRACT_QUARANTINED", "The notification contract is not active or compatible."),
     NOTIFICATION_IDENTITY_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "NOTIFICATION_IDENTITY_UNAVAILABLE", "Recipient entitlement validation is unavailable."),
+    AUTHORITY_RESOLUTION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AUTHORITY_RESOLUTION_UNAVAILABLE", "Current authorization evidence is unavailable."),
     NOTIFICATION_CAPABILITY_DISABLED(HttpStatus.NOT_IMPLEMENTED, "NOTIFICATION_CAPABILITY_DISABLED", "The requested notification capability is disabled."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "E1000", "An internal server error occurred.");
 

@@ -50,7 +50,7 @@ ALLOWED_OVERRIDE_REFS = {
     "PS-G010": "test.services-catalog-jit.v1",
 }
 RESERVED_CONTRACTS = {"hcm.reference.publish", "hcm.integration.rotate-secret"}
-REGISTRY_VERSIONS = (1, 2, 3)
+REGISTRY_VERSIONS = (1, 2, 3, 4)
 FIXED_GROUP_VERSIONS = {"CANARY": 1, "APPROVALS": 2, "HCM": 3}
 DESCRIPTOR_SECTIONS = {
     "capabilityContractKeys": ("capabilities", "contractKey"),
@@ -452,7 +452,7 @@ def validate_registry_index(index: dict[str, Any]) -> None:
     if not isinstance(versions, list) or [
         entry.get("version") for entry in versions if isinstance(entry, dict)
     ] != list(REGISTRY_VERSIONS):
-        raise ContractError("Registry lineage must contain exactly versions 1, 2, and 3")
+        raise ContractError("Registry lineage must contain the declared versions 1 through 4")
 
 
 def validate_registry_entry(
@@ -571,7 +571,7 @@ def load_registry_lineage() -> tuple[dict[str, Any], dict[int, dict[str, Any]]]:
         or index.get("latestAuthSeedArtifact")
         != f"product-surfaces-v1.bundle-v{latest_version}.generated.json"
     ):
-        raise ContractError("Registry latest alias metadata is not v3-exact")
+        raise ContractError("Registry latest alias metadata is not lineage-latest exact")
     try:
         if REGISTRY_LATEST_ALIAS.read_bytes() != (
             CONTRACT_ROOT / index["latestArtifact"]

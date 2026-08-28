@@ -67,6 +67,7 @@ dwp:
   audit:
     relay-database-role: dwp_notification_audit_relay
   notification:
+    product-authorization-v4-enabled: ${DWP_NOTIFICATION_PRODUCT_AUTHORIZATION_V4_ENABLED:false}
     bulk-undo-window: ${DWP_NOTIFICATION_BULK_UNDO_WINDOW:PT10M}
     service-token: ${DWP_NOTIFICATION_SERVICE_TOKEN:}
     gateway-source: ${DWP_NOTIFICATION_GATEWAY_SOURCE:dwp-gateway}

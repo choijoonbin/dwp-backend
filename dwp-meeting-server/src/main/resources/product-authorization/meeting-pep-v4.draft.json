@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "projectionKey": "meeting-pep-v4-draft",
+  "registryRef": {
+    "bundleKey": "product-surfaces",
+    "version": 4,
+    "bundleStatus": "DRAFT"
+  },
+  "policyId": "P-MEETINGS",
+  "ownerServiceKey": "meeting",
+  "ownerServiceModule": "dwp-meeting-server",
+  "productId": "meetings",
+  "surfaceKey": "meetings.work",
+  "activation": {
+    "enabledByDefault": false,
+    "readinessProperty": "dwp.meeting.product-authorization-v4-enabled"
+  },
+  "accessPolicy": {
+    "accessPolicyKey": "meetings.work-access.v1",
+    "resolvedAuthority": "APP.MEETINGS:VIEW",
+    "scopeResolver": "SELF",
+    "activeAccessModes": ["NORMAL", "ELEVATED"]
+  },
+  "routes": [
+    {
+      "routeContractKey": "route.meetings.work.home.page",
+      "routeKind": "PAGE",
+      "accessContractKey": "meetings.work-access.v1",
+      "resolvedAuthority": "APP.MEETINGS:VIEW",
+      "readOnly": true,
+      "targetKind": "SELF",
+      "gatewayBinding": {
+        "method": "GET",
+        "path": "/api/meetings/v1/home"
+      },
+      "servicePepBinding": {
+        "serviceKey": "meeting",
+        "method": "GET",
+        "path": "/v1/home"
+      }
+    },
+    {
+      "routeContractKey": "route.meetings.work.meetings.data",
+      "routeKind": "DATA",
+      "accessContractKey": "meetings.work.meetings.read",
+      "resolvedAuthority": "APP.MEETINGS:VIEW",
+      "readOnly": true,
+      "targetKind": "SELF",
+      "gatewayBinding": {
+        "method": "GET",
+        "path": "/api/meetings/v1/meetings"
+      },
+      "servicePepBinding": {
+        "serviceKey": "meeting",
+        "method": "GET",
+        "path": "/v1/meetings"
+      }
+    },
+    {
+      "routeContractKey": "route.meetings.work.meeting-create.action",
+      "routeKind": "ACTION",
+      "accessContractKey": "meetings.work.meeting.create",
+      "resolvedAuthority": "APP.MEETINGS:CREATE",
+      "readOnly": false,
+      "targetKind": "SELF",
+      "gatewayBinding": {
+        "method": "POST",
+        "path": "/api/meetings/v1/meetings"
+      },
+      "servicePepBinding": {
+        "serviceKey": "meeting",
+        "method": "POST",
+        "path": "/v1/meetings"
+      }
+    }
+  ]
+}

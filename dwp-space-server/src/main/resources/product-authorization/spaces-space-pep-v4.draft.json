@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "projectionKey": "spaces-space-pep-v4-draft",
+  "registryRef": {
+    "bundleKey": "product-surfaces",
+    "version": 4,
+    "bundleStatus": "DRAFT"
+  },
+  "ownerServiceKey": "space",
+  "productKey": "spaces",
+  "routes": [
+    {
+      "routeContractKey": "route.spaces.work.home.page",
+      "routeKind": "PAGE",
+      "surfaceKey": "spaces.work",
+      "requiredAccess": {
+        "type": "POLICY",
+        "key": "spaces.work-access.v1"
+      },
+      "bindings": [
+        {
+          "method": "GET",
+          "servicePath": "/v1/home",
+          "permission": "APP.SPACES:VIEW"
+        }
+      ]
+    },
+    {
+      "routeContractKey": "route.spaces.work.content.data",
+      "routeKind": "DATA",
+      "surfaceKey": "spaces.work",
+      "requiredAccess": {
+        "type": "POLICY",
+        "key": "spaces.work-access.v1"
+      },
+      "bindings": [
+        {
+          "method": "GET",
+          "servicePath": "/v1/spaces/{spaceKey}/content",
+          "permission": "APP.SPACES:VIEW"
+        }
+      ]
+    },
+    {
+      "routeContractKey": "route.spaces.work.request-create.action",
+      "routeKind": "ACTION",
+      "surfaceKey": "spaces.work",
+      "requiredAccess": {
+        "type": "CAPABILITY",
+        "key": "spaces.request.create"
+      },
+      "bindings": [
+        {
+          "method": "POST",
+          "servicePath": "/v1/requests",
+          "permission": "ACTION.SPACE_REQUEST:CREATE"
+        }
+      ]
+    }
+  ]
+}

@@ -10144,6 +10144,366 @@
           "lifecycleState": "ACTIVE"
         }
       ]
+    },
+    {
+      "version": 4,
+      "capabilities": [
+        {
+          "contractKey": "calendar.work.event.create",
+          "resolvedCapabilityCode": "APP.CALENDAR:CREATE",
+          "mappingVersion": 1,
+          "productKey": "calendar",
+          "surfaceKey": "calendar.work",
+          "resourceKey": "APP.CALENDAR",
+          "action": "CREATE",
+          "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+          "responsibilityRequirement": "NOT_REQUIRED",
+          "scopeResolver": "SELF",
+          "riskTier": "MEDIUM",
+          "activationPolicy": null,
+          "sodPolicyId": null,
+          "requiresProductEntitlement": true,
+          "sunsetAt": null,
+          "legacySource": null,
+          "owner": "Calendar + Platform + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "contractKey": "dwaion.work.ask.execute",
+          "resolvedCapabilityCode": "APP.ASK:VIEW",
+          "mappingVersion": 1,
+          "productKey": "dwaion",
+          "surfaceKey": "dwaion.work",
+          "resourceKey": "APP.ASK",
+          "action": "VIEW",
+          "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+          "responsibilityRequirement": "NOT_REQUIRED",
+          "scopeResolver": "SELF",
+          "riskTier": "MEDIUM",
+          "activationPolicy": null,
+          "sodPolicyId": null,
+          "requiresProductEntitlement": true,
+          "sunsetAt": null,
+          "legacySource": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "contractKey": "mail.work.message.create",
+          "resolvedCapabilityCode": "APP.MAIL:CREATE",
+          "mappingVersion": 1,
+          "productKey": "mail",
+          "surfaceKey": "mail.work",
+          "resourceKey": "APP.MAIL",
+          "action": "CREATE",
+          "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+          "responsibilityRequirement": "NOT_REQUIRED",
+          "scopeResolver": "SELF",
+          "riskTier": "MEDIUM",
+          "activationPolicy": null,
+          "sodPolicyId": null,
+          "requiresProductEntitlement": true,
+          "sunsetAt": null,
+          "legacySource": null,
+          "owner": "Mail + Platform + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "contractKey": "meetings.work.meeting.create",
+          "resolvedCapabilityCode": "APP.MEETINGS:CREATE",
+          "mappingVersion": 1,
+          "productKey": "meetings",
+          "surfaceKey": "meetings.work",
+          "resourceKey": "APP.MEETINGS",
+          "action": "CREATE",
+          "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+          "responsibilityRequirement": "NOT_REQUIRED",
+          "scopeResolver": "SELF",
+          "riskTier": "MEDIUM",
+          "activationPolicy": null,
+          "sodPolicyId": null,
+          "requiresProductEntitlement": true,
+          "sunsetAt": null,
+          "legacySource": null,
+          "owner": "Meetings + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "contractKey": "meetings.work.meetings.read",
+          "resolvedCapabilityCode": "APP.MEETINGS:VIEW",
+          "mappingVersion": 1,
+          "productKey": "meetings",
+          "surfaceKey": "meetings.work",
+          "resourceKey": "APP.MEETINGS",
+          "action": "VIEW",
+          "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+          "responsibilityRequirement": "NOT_REQUIRED",
+          "scopeResolver": "SELF",
+          "riskTier": "LOW",
+          "activationPolicy": null,
+          "sodPolicyId": null,
+          "requiresProductEntitlement": true,
+          "sunsetAt": null,
+          "legacySource": null,
+          "owner": "Meetings + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "contractKey": "messaging.work.message.create",
+          "resolvedCapabilityCode": "APP.MESSAGING:CREATE",
+          "mappingVersion": 1,
+          "productKey": "messaging",
+          "surfaceKey": "messaging.work",
+          "resourceKey": "APP.MESSAGING",
+          "action": "CREATE",
+          "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+          "responsibilityRequirement": "NOT_REQUIRED",
+          "scopeResolver": "CONVERSATION_MEMBERSHIP",
+          "riskTier": "MEDIUM",
+          "activationPolicy": null,
+          "sodPolicyId": null,
+          "requiresProductEntitlement": true,
+          "sunsetAt": null,
+          "legacySource": null,
+          "owner": "Messaging + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "contractKey": "notifications.work.inbox.use",
+          "resolvedCapabilityCode": "APP.NOTIFICATIONS:VIEW",
+          "mappingVersion": 1,
+          "productKey": "notifications",
+          "surfaceKey": "notifications.work",
+          "resourceKey": "APP.NOTIFICATIONS",
+          "action": "VIEW",
+          "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+          "responsibilityRequirement": "NOT_REQUIRED",
+          "scopeResolver": "SELF",
+          "riskTier": "LOW",
+          "activationPolicy": null,
+          "sodPolicyId": null,
+          "requiresProductEntitlement": true,
+          "sunsetAt": null,
+          "legacySource": null,
+          "owner": "Notifications + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "contractKey": "spaces.request.create",
+          "resolvedCapabilityCode": "ACTION.SPACE_REQUEST:CREATE",
+          "mappingVersion": 1,
+          "productKey": "spaces",
+          "surfaceKey": "spaces.work",
+          "resourceKey": "ACTION.SPACE_REQUEST",
+          "action": "CREATE",
+          "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+          "responsibilityRequirement": "NOT_REQUIRED",
+          "scopeResolver": "SELF",
+          "riskTier": "MEDIUM",
+          "activationPolicy": null,
+          "sodPolicyId": null,
+          "requiresProductEntitlement": true,
+          "sunsetAt": null,
+          "legacySource": null,
+          "owner": "Spaces + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "contractKey": "workplace.space.create",
+          "resolvedCapabilityCode": "APP.WORKPLACE:CREATE",
+          "mappingVersion": 1,
+          "productKey": "workplace",
+          "surfaceKey": "workplace.work",
+          "resourceKey": "APP.WORKPLACE",
+          "action": "CREATE",
+          "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+          "responsibilityRequirement": "NOT_REQUIRED",
+          "scopeResolver": "SELF",
+          "riskTier": "MEDIUM",
+          "activationPolicy": null,
+          "sodPolicyId": null,
+          "requiresProductEntitlement": true,
+          "sunsetAt": null,
+          "legacySource": null,
+          "owner": "Workplace + Platform + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        }
+      ],
+      "accessPolicies": [
+        {"accessPolicyKey":"calendar.work-access.v1","navigationContextId":"calendar.work","productKey":"calendar","surfaceKey":"calendar.work","surfaceEntryKeys":["calendar.work"],"evaluationType":"SINGLE","authorityMode":"ENTITLEMENT","entitlementExpressionKey":"CALENDAR_WORK_ACCESS_V1","requiresProductEntitlement":true,"relationshipResolver":null,"scopeResolver":"SELF","supportScopes":null,"modeBranches":null,"owner":"Calendar + Platform + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"accessPolicyKey":"dwaion.work-access.v1","navigationContextId":"dwaion.work","productKey":"dwaion","surfaceKey":"dwaion.work","surfaceEntryKeys":["dwaion.work"],"evaluationType":"SINGLE","authorityMode":"ENTITLEMENT","entitlementExpressionKey":"DWAION_WORK_ACCESS_V1","requiresProductEntitlement":true,"relationshipResolver":null,"scopeResolver":"SELF","supportScopes":null,"modeBranches":null,"owner":"DWAI.ON + Agent Runtime + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"accessPolicyKey":"mail.work-access.v1","navigationContextId":"mail.work","productKey":"mail","surfaceKey":"mail.work","surfaceEntryKeys":["mail.work"],"evaluationType":"SINGLE","authorityMode":"ENTITLEMENT","entitlementExpressionKey":"MAIL_WORK_ACCESS_V1","requiresProductEntitlement":true,"relationshipResolver":null,"scopeResolver":"SELF","supportScopes":null,"modeBranches":null,"owner":"Mail + Platform + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"accessPolicyKey":"meetings.work-access.v1","navigationContextId":"meetings.work","productKey":"meetings","surfaceKey":"meetings.work","surfaceEntryKeys":["meetings.work"],"evaluationType":"SINGLE","authorityMode":"ENTITLEMENT","entitlementExpressionKey":"MEETINGS_WORK_ACCESS_V1","requiresProductEntitlement":true,"relationshipResolver":null,"scopeResolver":"SELF","supportScopes":null,"modeBranches":null,"owner":"Meetings + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"accessPolicyKey":"messaging.work-access.v1","navigationContextId":"messaging.work","productKey":"messaging","surfaceKey":"messaging.work","surfaceEntryKeys":["messaging.work"],"evaluationType":"SINGLE","authorityMode":"ENTITLEMENT","entitlementExpressionKey":"MESSAGING_WORK_ACCESS_V1","requiresProductEntitlement":true,"relationshipResolver":null,"scopeResolver":"SELF","supportScopes":null,"modeBranches":null,"owner":"Messaging + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"accessPolicyKey":"notifications.work-access.v1","navigationContextId":"notifications.work","productKey":"notifications","surfaceKey":"notifications.work","surfaceEntryKeys":["notifications.work"],"evaluationType":"SINGLE","authorityMode":"ENTITLEMENT","entitlementExpressionKey":"NOTIFICATIONS_WORK_ACCESS_V1","requiresProductEntitlement":true,"relationshipResolver":null,"scopeResolver":"SELF","supportScopes":null,"modeBranches":null,"owner":"Notifications + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"accessPolicyKey":"spaces.work-access.v1","navigationContextId":"spaces.work","productKey":"spaces","surfaceKey":"spaces.work","surfaceEntryKeys":["spaces.work"],"evaluationType":"SINGLE","authorityMode":"ENTITLEMENT","entitlementExpressionKey":"SPACES_WORK_ACCESS_V1","requiresProductEntitlement":true,"relationshipResolver":null,"scopeResolver":"SELF","supportScopes":null,"modeBranches":null,"owner":"Spaces + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"accessPolicyKey":"workplace.work-access.v1","navigationContextId":"workplace.work","productKey":"workplace","surfaceKey":"workplace.work","surfaceEntryKeys":["workplace.work"],"evaluationType":"SINGLE","authorityMode":"ENTITLEMENT","entitlementExpressionKey":"WORKPLACE_WORK_ACCESS_V1","requiresProductEntitlement":true,"relationshipResolver":null,"scopeResolver":"SELF","supportScopes":null,"modeBranches":null,"owner":"Workplace + Platform + Security","policyVersion":1,"lifecycleState":"ACTIVE"}
+      ],
+      "entitlementExpressions": [
+        {"expressionKey":"CALENDAR_WORK_ACCESS_V1","expression":{"type":"LEAF","entitlement":"APP.CALENDAR:VIEW"},"owner":"Calendar + Platform + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"expressionKey":"DWAION_WORK_ACCESS_V1","expression":{"type":"LEAF","entitlement":"APP.ASK:VIEW"},"owner":"DWAI.ON + Agent Runtime + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"expressionKey":"MAIL_WORK_ACCESS_V1","expression":{"type":"LEAF","entitlement":"APP.MAIL:VIEW"},"owner":"Mail + Platform + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"expressionKey":"MEETINGS_WORK_ACCESS_V1","expression":{"type":"LEAF","entitlement":"APP.MEETINGS:VIEW"},"owner":"Meetings + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"expressionKey":"MESSAGING_WORK_ACCESS_V1","expression":{"type":"LEAF","entitlement":"APP.MESSAGING:VIEW"},"owner":"Messaging + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"expressionKey":"NOTIFICATIONS_WORK_ACCESS_V1","expression":{"type":"LEAF","entitlement":"APP.NOTIFICATIONS:VIEW"},"owner":"Notifications + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"expressionKey":"SPACES_WORK_ACCESS_V1","expression":{"type":"LEAF","entitlement":"APP.SPACES:VIEW"},"owner":"Spaces + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"expressionKey":"WORKPLACE_WORK_ACCESS_V1","expression":{"type":"LEAF","entitlement":"APP.WORKPLACE:VIEW"},"owner":"Workplace + Platform + Security","policyVersion":1,"lifecycleState":"ACTIVE"}
+      ],
+      "predicatePolicies": [
+        {"predicatePolicyKey":"predicate.calendar-self.v1","ownerServiceKey":"platform","targetBindingKinds":["SELF"],"inputEvidenceSchemaKey":"CalendarSelfEvidenceV1","parameterSchemaKey":"predicate.calendar-self.v1.parameters.v1","parameterSchema":{"type":"object","additionalProperties":false,"properties":{}},"owner":"Calendar + Platform + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"predicatePolicyKey":"predicate.dwaion-self.v1","ownerServiceKey":"agent","targetBindingKinds":["SELF"],"inputEvidenceSchemaKey":"DwaionSelfEvidenceV1","parameterSchemaKey":"predicate.dwaion-self.v1.parameters.v1","parameterSchema":{"type":"object","additionalProperties":false,"properties":{}},"owner":"DWAI.ON + Agent Runtime + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"predicatePolicyKey":"predicate.mail-self.v1","ownerServiceKey":"platform","targetBindingKinds":["SELF"],"inputEvidenceSchemaKey":"MailSelfEvidenceV1","parameterSchemaKey":"predicate.mail-self.v1.parameters.v1","parameterSchema":{"type":"object","additionalProperties":false,"properties":{}},"owner":"Mail + Platform + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"predicatePolicyKey":"predicate.meetings-self.v1","ownerServiceKey":"meeting","targetBindingKinds":["SELF"],"inputEvidenceSchemaKey":"MeetingSelfEvidenceV1","parameterSchemaKey":"predicate.meetings-self.v1.parameters.v1","parameterSchema":{"type":"object","additionalProperties":false,"properties":{}},"owner":"Meetings + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"predicatePolicyKey":"predicate.messaging-conversation.v1","ownerServiceKey":"messaging","targetBindingKinds":["SELF","TARGET_POPULATION"],"inputEvidenceSchemaKey":"MessagingConversationEvidenceV1","parameterSchemaKey":"predicate.messaging-conversation.v1.parameters.v1","parameterSchema":{"type":"object","additionalProperties":false,"properties":{}},"owner":"Messaging + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"predicatePolicyKey":"predicate.notification-inbox.v1","ownerServiceKey":"notification","targetBindingKinds":["SELF","OBJECT"],"inputEvidenceSchemaKey":"NotificationInboxEvidenceV1","parameterSchemaKey":"predicate.notification-inbox.v1.parameters.v1","parameterSchema":{"type":"object","additionalProperties":false,"properties":{}},"owner":"Notifications + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"predicatePolicyKey":"predicate.space-membership.v1","ownerServiceKey":"space","targetBindingKinds":["SELF","RELATIONSHIP"],"inputEvidenceSchemaKey":"SpaceMembershipEvidenceV1","parameterSchemaKey":"predicate.space-membership.v1.parameters.v1","parameterSchema":{"type":"object","additionalProperties":false,"properties":{}},"owner":"Spaces + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"predicatePolicyKey":"predicate.workplace-resource.v1","ownerServiceKey":"platform","targetBindingKinds":["SELF","OBJECT"],"inputEvidenceSchemaKey":"WorkplaceResourceEvidenceV1","parameterSchemaKey":"predicate.workplace-resource.v1.parameters.v1","parameterSchema":{"type":"object","additionalProperties":false,"properties":{}},"owner":"Workplace + Platform + Security","policyVersion":1,"lifecycleState":"ACTIVE"}
+      ],
+      "routes": [
+        {
+          "routeContractKey":"route.communications.work.story-detail.data","navigationContextId":"communications.work","subject":{"type":"PRODUCT","productKey":"communications","surfaceKey":"communications.work"},"routeKind":"DATA","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,
+          "accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"POLICY","accessPolicyKey":"communications.work-access.v1"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":[],"readOnly":true}],
+          "gatewayApiBindings":[{"bindingKey":"route.communications.work.story-detail.data.binding.01","method":"GET","path":"/api/platform/v1/communications/{communicationId}","pathParameterConstraints":{},"queryParameterConstraints":{"view":{"kind":"FIXED","value":"detail"}}}],
+          "servicePepBindings":[{"bindingKey":"route.communications.work.story-detail.data.binding.01","serviceKey":"platform","method":"GET","path":"/v1/communications/{communicationId}","pathParameterConstraints":{},"queryParameterConstraints":{"view":{"kind":"FIXED","value":"detail"}}}],
+          "owner":"Platform + Communications + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.services.work.request-detail.data","navigationContextId":"services.work","subject":{"type":"PRODUCT","productKey":"services","surfaceKey":"services.work"},"routeKind":"DATA","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,
+          "accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"POLICY","accessPolicyKey":"services.work-access.v1"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":[],"readOnly":true}],
+          "gatewayApiBindings":[{"bindingKey":"route.services.work.request-detail.data.binding.01","method":"GET","path":"/api/platform/v1/services/requests/{requestId}","pathParameterConstraints":{},"queryParameterConstraints":{"view":{"kind":"FIXED","value":"detail"}}}],
+          "servicePepBindings":[{"bindingKey":"route.services.work.request-detail.data.binding.01","serviceKey":"platform","method":"GET","path":"/v1/services/requests/{requestId}","pathParameterConstraints":{},"queryParameterConstraints":{"view":{"kind":"FIXED","value":"detail"}}}],
+          "owner":"Platform + Services + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.calendar.work.home.page","navigationContextId":"calendar.work","subject":{"type":"PRODUCT","productKey":"calendar","surfaceKey":"calendar.work"},"routeKind":"PAGE","sideEffectFree":null,"uiRouteId":"calendar.work.home","uiRoutePattern":"/calendar/home",
+          "accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"POLICY","accessPolicyKey":"calendar.work-access.v1"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":["predicate.calendar-self.v1"],"readOnly":true}],
+          "gatewayApiBindings":[{"bindingKey":"route.calendar.work.home.page.binding.01","method":"GET","path":"/api/platform/v1/calendar/home","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.calendar.work.home.page.binding.01","serviceKey":"platform","method":"GET","path":"/v1/calendar/home","pathParameterConstraints":{}}],"owner":"Calendar + Platform + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.calendar.work.schedule.data","navigationContextId":"calendar.work","subject":{"type":"PRODUCT","productKey":"calendar","surfaceKey":"calendar.work"},"routeKind":"DATA","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,
+          "accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"POLICY","accessPolicyKey":"calendar.work-access.v1"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":["predicate.calendar-self.v1"],"readOnly":true}],
+          "gatewayApiBindings":[{"bindingKey":"route.calendar.work.schedule.data.binding.01","method":"GET","path":"/api/platform/v1/calendar/events","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.calendar.work.schedule.data.binding.01","serviceKey":"platform","method":"GET","path":"/v1/calendar/events","pathParameterConstraints":{}}],"owner":"Calendar + Platform + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.calendar.work.event-create.action","navigationContextId":"calendar.work","subject":{"type":"PRODUCT","productKey":"calendar","surfaceKey":"calendar.work"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,
+          "accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"calendar.work.event.create"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":["predicate.calendar-self.v1"],"readOnly":false}],
+          "gatewayApiBindings":[{"bindingKey":"route.calendar.work.event-create.action.binding.01","method":"POST","path":"/api/platform/v1/calendar/events","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.calendar.work.event-create.action.binding.01","serviceKey":"platform","method":"POST","path":"/v1/calendar/events","pathParameterConstraints":{}}],"owner":"Calendar + Platform + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.dwaion.work.home.page","navigationContextId":"dwaion.work","subject":{"type":"PRODUCT","productKey":"dwaion","surfaceKey":"dwaion.work"},"routeKind":"PAGE","sideEffectFree":null,"uiRouteId":"dwaion.work.home","uiRoutePattern":"/dwaion/home",
+          "accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"POLICY","accessPolicyKey":"dwaion.work-access.v1"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":["predicate.dwaion-self.v1"],"readOnly":true}],
+          "gatewayApiBindings":[{"bindingKey":"route.dwaion.work.home.page.binding.01","method":"GET","path":"/api/agent/v1/conversations","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.dwaion.work.home.page.binding.01","serviceKey":"agent","method":"GET","path":"/v1/conversations","pathParameterConstraints":{}}],"owner":"DWAI.ON + Agent Runtime + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.dwaion.work.conversation.data","navigationContextId":"dwaion.work","subject":{"type":"PRODUCT","productKey":"dwaion","surfaceKey":"dwaion.work"},"routeKind":"DATA","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,
+          "accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"POLICY","accessPolicyKey":"dwaion.work-access.v1"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":["predicate.dwaion-self.v1"],"readOnly":true}],
+          "gatewayApiBindings":[{"bindingKey":"route.dwaion.work.conversation.data.binding.01","method":"GET","path":"/api/agent/v1/conversations/{conversationId}","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.dwaion.work.conversation.data.binding.01","serviceKey":"agent","method":"GET","path":"/v1/conversations/{conversationId}","pathParameterConstraints":{}}],"owner":"DWAI.ON + Agent Runtime + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.dwaion.work.ask.action","navigationContextId":"dwaion.work","subject":{"type":"PRODUCT","productKey":"dwaion","surfaceKey":"dwaion.work"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,
+          "accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"dwaion.work.ask.execute"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":["predicate.dwaion-self.v1"],"readOnly":false}],
+          "gatewayApiBindings":[{"bindingKey":"route.dwaion.work.ask.action.binding.01","method":"POST","path":"/api/agent/v1/ask","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.dwaion.work.ask.action.binding.01","serviceKey":"agent","method":"POST","path":"/v1/ask","pathParameterConstraints":{}}],"owner":"DWAI.ON + Agent Runtime + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.mail.work.home.page","navigationContextId":"mail.work","subject":{"type":"PRODUCT","productKey":"mail","surfaceKey":"mail.work"},"routeKind":"PAGE","sideEffectFree":null,"uiRouteId":"mail.work.home","uiRoutePattern":"/mail/home",
+          "accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"POLICY","accessPolicyKey":"mail.work-access.v1"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":["predicate.mail-self.v1"],"readOnly":true}],
+          "gatewayApiBindings":[{"bindingKey":"route.mail.work.home.page.binding.01","method":"GET","path":"/api/platform/v1/mail/home","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.mail.work.home.page.binding.01","serviceKey":"platform","method":"GET","path":"/v1/mail/home","pathParameterConstraints":{}}],"owner":"Mail + Platform + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.mail.work.threads.data","navigationContextId":"mail.work","subject":{"type":"PRODUCT","productKey":"mail","surfaceKey":"mail.work"},"routeKind":"DATA","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,
+          "accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"POLICY","accessPolicyKey":"mail.work-access.v1"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":["predicate.mail-self.v1"],"readOnly":true}],
+          "gatewayApiBindings":[{"bindingKey":"route.mail.work.threads.data.binding.01","method":"GET","path":"/api/platform/v1/mail/threads","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.mail.work.threads.data.binding.01","serviceKey":"platform","method":"GET","path":"/v1/mail/threads","pathParameterConstraints":{}}],"owner":"Mail + Platform + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.mail.work.message-create.action","navigationContextId":"mail.work","subject":{"type":"PRODUCT","productKey":"mail","surfaceKey":"mail.work"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,
+          "accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"mail.work.message.create"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":["predicate.mail-self.v1"],"readOnly":false}],
+          "gatewayApiBindings":[{"bindingKey":"route.mail.work.message-create.action.binding.01","method":"POST","path":"/api/platform/v1/mail/messages","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.mail.work.message-create.action.binding.01","serviceKey":"platform","method":"POST","path":"/v1/mail/messages","pathParameterConstraints":{}}],"owner":"Mail + Platform + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.meetings.work.home.page","navigationContextId":"meetings.work","subject":{"type":"PRODUCT","productKey":"meetings","surfaceKey":"meetings.work"},"routeKind":"PAGE","sideEffectFree":null,"uiRouteId":"meetings.work.home","uiRoutePattern":"/meetings/home",
+          "accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"POLICY","accessPolicyKey":"meetings.work-access.v1"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":["predicate.meetings-self.v1"],"readOnly":true}],
+          "gatewayApiBindings":[{"bindingKey":"route.meetings.work.home.page.binding.01","method":"GET","path":"/api/meetings/v1/home","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.meetings.work.home.page.binding.01","serviceKey":"meeting","method":"GET","path":"/v1/home","pathParameterConstraints":{}}],"owner":"Meetings + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.meetings.work.meetings.data","navigationContextId":"meetings.work","subject":{"type":"PRODUCT","productKey":"meetings","surfaceKey":"meetings.work"},"routeKind":"DATA","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,
+          "accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"meetings.work.meetings.read"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":["predicate.meetings-self.v1"],"readOnly":true}],
+          "gatewayApiBindings":[{"bindingKey":"route.meetings.work.meetings.data.binding.01","method":"GET","path":"/api/meetings/v1/meetings","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.meetings.work.meetings.data.binding.01","serviceKey":"meeting","method":"GET","path":"/v1/meetings","pathParameterConstraints":{}}],"owner":"Meetings + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.meetings.work.meeting-create.action","navigationContextId":"meetings.work","subject":{"type":"PRODUCT","productKey":"meetings","surfaceKey":"meetings.work"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,
+          "accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"meetings.work.meeting.create"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":["predicate.meetings-self.v1"],"readOnly":false}],
+          "gatewayApiBindings":[{"bindingKey":"route.meetings.work.meeting-create.action.binding.01","method":"POST","path":"/api/meetings/v1/meetings","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.meetings.work.meeting-create.action.binding.01","serviceKey":"meeting","method":"POST","path":"/v1/meetings","pathParameterConstraints":{}}],"owner":"Meetings + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.messaging.work.home.page","navigationContextId":"messaging.work","subject":{"type":"PRODUCT","productKey":"messaging","surfaceKey":"messaging.work"},"routeKind":"PAGE","sideEffectFree":null,"uiRouteId":"messaging.work.home","uiRoutePattern":"/messages/home",
+          "accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"POLICY","accessPolicyKey":"messaging.work-access.v1"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":["predicate.messaging-conversation.v1"],"readOnly":true}],
+          "gatewayApiBindings":[{"bindingKey":"route.messaging.work.home.page.binding.01","method":"GET","path":"/api/messaging/v1/home","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.messaging.work.home.page.binding.01","serviceKey":"messaging","method":"GET","path":"/v1/home","pathParameterConstraints":{}}],"owner":"Messaging + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.messaging.work.conversation-messages.data","navigationContextId":"messaging.work","subject":{"type":"PRODUCT","productKey":"messaging","surfaceKey":"messaging.work"},"routeKind":"DATA","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,
+          "accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"POLICY","accessPolicyKey":"messaging.work-access.v1"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":["predicate.messaging-conversation.v1"],"readOnly":true}],
+          "gatewayApiBindings":[{"bindingKey":"route.messaging.work.conversation-messages.data.binding.01","method":"GET","path":"/api/messaging/v1/conversations/{conversationId}/messages","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.messaging.work.conversation-messages.data.binding.01","serviceKey":"messaging","method":"GET","path":"/v1/conversations/{conversationId}/messages","pathParameterConstraints":{}}],"owner":"Messaging + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.messaging.work.message-send.action","navigationContextId":"messaging.work","subject":{"type":"PRODUCT","productKey":"messaging","surfaceKey":"messaging.work"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,
+          "accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"messaging.work.message.create"},"targetBindingKinds":["TARGET_POPULATION"],"predicatePolicyKeys":["predicate.messaging-conversation.v1"],"readOnly":false}],
+          "gatewayApiBindings":[{"bindingKey":"route.messaging.work.message-send.action.binding.01","method":"POST","path":"/api/messaging/v1/conversations/{conversationId}/messages","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.messaging.work.message-send.action.binding.01","serviceKey":"messaging","method":"POST","path":"/v1/conversations/{conversationId}/messages","pathParameterConstraints":{}}],"owner":"Messaging + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.notifications.work.center.page","navigationContextId":"notifications.work","subject":{"type":"PRODUCT","productKey":"notifications","surfaceKey":"notifications.work"},"routeKind":"PAGE","sideEffectFree":null,"uiRouteId":"notifications.work.center","uiRoutePattern":"/notifications/center",
+          "accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"POLICY","accessPolicyKey":"notifications.work-access.v1"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":["predicate.notification-inbox.v1"],"readOnly":true}],
+          "gatewayApiBindings":[{"bindingKey":"route.notifications.work.center.page.binding.01","method":"GET","path":"/api/notifications/v1/inbox","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.notifications.work.center.page.binding.01","serviceKey":"notification","method":"GET","path":"/v1/inbox","pathParameterConstraints":{}}],"owner":"Notifications + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.notifications.work.summary.data","navigationContextId":"notifications.work","subject":{"type":"PRODUCT","productKey":"notifications","surfaceKey":"notifications.work"},"routeKind":"DATA","sideEffectFree":true,"uiRouteId":null,"uiRoutePattern":null,
+          "accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"POLICY","accessPolicyKey":"notifications.work-access.v1"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":["predicate.notification-inbox.v1"],"readOnly":true}],
+          "gatewayApiBindings":[{"bindingKey":"route.notifications.work.summary.data.binding.01","method":"GET","path":"/api/notifications/v1/summary/by-app","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.notifications.work.summary.data.binding.01","serviceKey":"notification","method":"GET","path":"/v1/summary/by-app","pathParameterConstraints":{}}],"owner":"Notifications + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.notifications.work.read.action","navigationContextId":"notifications.work","subject":{"type":"PRODUCT","productKey":"notifications","surfaceKey":"notifications.work"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,
+          "accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"notifications.work.inbox.use"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":["predicate.notification-inbox.v1"],"readOnly":false}],
+          "gatewayApiBindings":[{"bindingKey":"route.notifications.work.read.action.binding.01","method":"POST","path":"/api/notifications/v1/inbox/{notificationId}/read","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.notifications.work.read.action.binding.01","serviceKey":"notification","method":"POST","path":"/v1/inbox/{notificationId}/read","pathParameterConstraints":{}}],"owner":"Notifications + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.spaces.work.home.page","navigationContextId":"spaces.work","subject":{"type":"PRODUCT","productKey":"spaces","surfaceKey":"spaces.work"},"routeKind":"PAGE","sideEffectFree":null,"uiRouteId":"spaces.work.home","uiRoutePattern":"/spaces/home",
+          "accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"POLICY","accessPolicyKey":"spaces.work-access.v1"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":["predicate.space-membership.v1"],"readOnly":true}],
+          "gatewayApiBindings":[{"bindingKey":"route.spaces.work.home.page.binding.01","method":"GET","path":"/api/spaces/v1/home","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.spaces.work.home.page.binding.01","serviceKey":"space","method":"GET","path":"/v1/home","pathParameterConstraints":{}}],"owner":"Spaces + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.spaces.work.content.data","navigationContextId":"spaces.work","subject":{"type":"PRODUCT","productKey":"spaces","surfaceKey":"spaces.work"},"routeKind":"DATA","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,
+          "accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"POLICY","accessPolicyKey":"spaces.work-access.v1"},"targetBindingKinds":["RELATIONSHIP"],"predicatePolicyKeys":["predicate.space-membership.v1"],"readOnly":true}],
+          "gatewayApiBindings":[{"bindingKey":"route.spaces.work.content.data.binding.01","method":"GET","path":"/api/spaces/v1/spaces/{spaceKey}/content","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.spaces.work.content.data.binding.01","serviceKey":"space","method":"GET","path":"/v1/spaces/{spaceKey}/content","pathParameterConstraints":{}}],"owner":"Spaces + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.spaces.work.request-create.action","navigationContextId":"spaces.work","subject":{"type":"PRODUCT","productKey":"spaces","surfaceKey":"spaces.work"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,
+          "accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"spaces.request.create"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":["predicate.space-membership.v1"],"readOnly":false}],
+          "gatewayApiBindings":[{"bindingKey":"route.spaces.work.request-create.action.binding.01","method":"POST","path":"/api/spaces/v1/requests","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.spaces.work.request-create.action.binding.01","serviceKey":"space","method":"POST","path":"/v1/requests","pathParameterConstraints":{}}],"owner":"Spaces + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.workplace.work.explore.page","navigationContextId":"workplace.work","subject":{"type":"PRODUCT","productKey":"workplace","surfaceKey":"workplace.work"},"routeKind":"PAGE","sideEffectFree":null,"uiRouteId":"workplace.work.explore","uiRoutePattern":"/workplace/explore",
+          "accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"POLICY","accessPolicyKey":"workplace.work-access.v1"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":["predicate.workplace-resource.v1"],"readOnly":true}],
+          "gatewayApiBindings":[{"bindingKey":"route.workplace.work.explore.page.binding.01","method":"GET","path":"/api/platform/v1/workplace/explore","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.workplace.work.explore.page.binding.01","serviceKey":"platform","method":"GET","path":"/v1/workplace/explore","pathParameterConstraints":{}}],"owner":"Workplace + Platform + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.workplace.work.floor-background.data","navigationContextId":"workplace.work","subject":{"type":"PRODUCT","productKey":"workplace","surfaceKey":"workplace.work"},"routeKind":"DATA","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,
+          "accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"POLICY","accessPolicyKey":"workplace.work-access.v1"},"targetBindingKinds":["OBJECT"],"predicatePolicyKeys":["predicate.workplace-resource.v1"],"readOnly":true}],
+          "gatewayApiBindings":[{"bindingKey":"route.workplace.work.floor-background.data.binding.01","method":"GET","path":"/api/platform/v1/workplace/floors/{floorId}/background","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.workplace.work.floor-background.data.binding.01","serviceKey":"platform","method":"GET","path":"/v1/workplace/floors/{floorId}/background","pathParameterConstraints":{}}],"owner":"Workplace + Platform + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.workplace.work.booking-create.action","navigationContextId":"workplace.work","subject":{"type":"PRODUCT","productKey":"workplace","surfaceKey":"workplace.work"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,
+          "accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"workplace.space.create"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":["predicate.workplace-resource.v1"],"readOnly":false}],
+          "gatewayApiBindings":[{"bindingKey":"route.workplace.work.booking-create.action.binding.01","method":"POST","path":"/api/platform/v1/workplace/bookings","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.workplace.work.booking-create.action.binding.01","serviceKey":"platform","method":"POST","path":"/v1/workplace/bookings","pathParameterConstraints":{}}],"owner":"Workplace + Platform + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        }
+      ]
     }
   ],
   "descriptorEnrichments": {

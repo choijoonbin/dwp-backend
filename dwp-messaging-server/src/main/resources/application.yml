@@ -72,6 +72,7 @@ dwp:
       flush-interval: ${DWP_API_HISTORY_FLUSH_INTERVAL:PT1S}
   messaging:
     service-token: ${DWP_MESSAGING_SERVICE_TOKEN:}
+    product-authorization-v4-enabled: ${DWP_MESSAGING_PRODUCT_AUTHORIZATION_V4_ENABLED:false}
     sse-timeout: ${DWP_MESSAGING_SSE_TIMEOUT:30m}
     sse-heartbeat: ${DWP_MESSAGING_SSE_HEARTBEAT:15s}
     realtime:

@@ -32,16 +32,7 @@ class ProductSurfaceContractEligibilityIntegrationTest {
 
     @Test
     void activeV2PointerFailsClosedForRaw110FutureMissingOrIncompleteProducts() {
-        GeneratedProductSurfaceCandidateCatalog catalog =
-                new GeneratedProductSurfaceCandidateCatalog(
-                        new ObjectMapper(),
-                        new ClassPathResource(
-                                "product-authorization/product-surfaces-v1.generated.json"),
-                        new ClassPathResource(
-                                "product-authorization/product-surfaces-v1.index.generated.json"),
-                        new ClassPathResource(
-                                "product-authorization/"
-                                        + "product-surface-rollout-inventory.v1.generated.json"));
+        ProductSurfaceCandidateCatalog catalog = legacyIncompleteCatalog();
         ProductSurfaceAuthorityClient authority = mock(ProductSurfaceAuthorityClient.class);
         GovernedRouteAuthorityClient governed = mock(GovernedRouteAuthorityClient.class);
         ProductSurfaceEligibilityClient eligibility = mock(ProductSurfaceEligibilityClient.class);
@@ -82,7 +73,7 @@ class ProductSurfaceContractEligibilityIntegrationTest {
 
     @Test
     void enforcementRunsTwoKindCompletePilotsAndLeavesIncompleteKindsUnevaluated() {
-        GeneratedProductSurfaceCandidateCatalog catalog = generatedCatalog();
+        ProductSurfaceCandidateCatalog catalog = legacyIncompleteCatalog();
         ProductSurfaceAuthorityClient authority = mock(ProductSurfaceAuthorityClient.class);
         GovernedRouteAuthorityClient governed = mock(GovernedRouteAuthorityClient.class);
         ProductSurfaceEligibilityClient eligibility = mock(ProductSurfaceEligibilityClient.class);
@@ -143,6 +134,28 @@ class ProductSurfaceContractEligibilityIntegrationTest {
                 new ClassPathResource(
                         "product-authorization/"
                                 + "product-surface-rollout-inventory.v1.generated.json"));
+    }
+
+    private ProductSurfaceCandidateCatalog legacyIncompleteCatalog() {
+        List<ProductSurfaceContextDtos.ProductCandidate> candidates = List.of(
+                new ProductSurfaceContextDtos.ProductCandidate("approvals", "approvals.admin"),
+                new ProductSurfaceContextDtos.ProductCandidate("approvals", "approvals.work"),
+                new ProductSurfaceContextDtos.ProductCandidate("hcm", "hcm.management"),
+                new ProductSurfaceContextDtos.ProductCandidate("hcm", "hcm.operations"),
+                new ProductSurfaceContextDtos.ProductCandidate("hcm", "hcm.personal"),
+                new ProductSurfaceContextDtos.ProductCandidate("hcm", "hcm.team"));
+        List<String> rolloutProducts = generatedCatalog().rolloutProductKeys();
+        return new ProductSurfaceCandidateCatalog() {
+            @Override
+            public List<ProductSurfaceContextDtos.ProductCandidate> activeCandidates() {
+                return candidates;
+            }
+
+            @Override
+            public List<String> rolloutProductKeys() {
+                return rolloutProducts;
+            }
+        };
     }
 
     private ProductSurfaceContextDtos.RequestContext requestContext() {

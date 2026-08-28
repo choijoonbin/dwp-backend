@@ -1,0 +1,61 @@
+{
+  "schemaVersion": 1,
+  "projectionKey": "platform-workplace-pep-v4-draft",
+  "registryRef": {
+    "bundleKey": "product-surfaces",
+    "version": 4,
+    "bundleStatus": "DRAFT"
+  },
+  "ownerServiceKey": "platform",
+  "productKey": "workplace",
+  "routes": [
+    {
+      "routeContractKey": "route.workplace.work.explore.page",
+      "routeKind": "PAGE",
+      "surfaceKey": "workplace.work",
+      "requiredAccess": {
+        "type": "POLICY",
+        "key": "workplace.work-access.v1"
+      },
+      "bindings": [
+        {
+          "method": "GET",
+          "servicePath": "/v1/workplace/explore",
+          "permission": "APP.WORKPLACE:VIEW"
+        }
+      ]
+    },
+    {
+      "routeContractKey": "route.workplace.work.floor-background.data",
+      "routeKind": "DATA",
+      "surfaceKey": "workplace.work",
+      "requiredAccess": {
+        "type": "POLICY",
+        "key": "workplace.work-access.v1"
+      },
+      "bindings": [
+        {
+          "method": "GET",
+          "servicePath": "/v1/workplace/floors/{floorId}/background",
+          "permission": "APP.WORKPLACE:VIEW"
+        }
+      ]
+    },
+    {
+      "routeContractKey": "route.workplace.work.booking-create.action",
+      "routeKind": "ACTION",
+      "surfaceKey": "workplace.work",
+      "requiredAccess": {
+        "type": "CAPABILITY",
+        "key": "workplace.space.create"
+      },
+      "bindings": [
+        {
+          "method": "POST",
+          "servicePath": "/v1/workplace/bookings",
+          "permission": "APP.WORKPLACE:CREATE"
+        }
+      ]
+    }
+  ]
+}

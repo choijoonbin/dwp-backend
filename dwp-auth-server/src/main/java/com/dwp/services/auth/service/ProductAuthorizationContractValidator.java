@@ -36,7 +36,9 @@ public class ProductAuthorizationContractValidator {
     private static final Set<String> TARGET_KINDS =
             Set.of("SELF", "OBJECT", "RELATIONSHIP", "TARGET_POPULATION", "CONFIG_SCOPE");
     private static final Set<String> ROUTE_KINDS = Set.of("PAGE", "DATA", "ACTION");
-    private static final Set<String> SERVICE_KEYS = Set.of("auth", "platform", "approval", "people");
+    private static final Set<String> SERVICE_KEYS = Set.of(
+            "agent", "approval", "auth", "meeting", "messaging",
+            "notification", "people", "platform", "space");
     private static final Pattern CONTEXT_PATTERN =
             Pattern.compile("^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)+$");
     private static final Pattern CHECKSUM_PATTERN = Pattern.compile("^[0-9a-f]{64}$");
@@ -107,14 +109,14 @@ public class ProductAuthorizationContractValidator {
         require(index.schemaVersion() == 1, "Unsupported registry seed index schemaVersion.");
         require("product-surfaces".equals(index.bundleKey()), "Unexpected registry seed index bundleKey.");
         require("SHA-256".equals(index.indexChecksumAlgorithm()), "Only SHA-256 index checksums are supported.");
-        require(index.latestVersion() == 3, "Registry latest version must be 3.");
+        require(index.latestVersion() == 4, "Registry latest version must be 4.");
         require(CHECKSUM_PATTERN.matcher(index.latestChecksum()).matches(), "Invalid latest registry checksum.");
         require(ARTIFACT_PATTERN.matcher(index.latestArtifact()).matches(), "Invalid latest registry artifact.");
         require(ARTIFACT_PATTERN.matcher(index.latestAuthSeedArtifact()).matches(),
                 "Invalid latest auth seed artifact.");
         require(index.versions() != null && !index.versions().isEmpty(), "Registry index versions are required.");
-        require(index.versions().size() == 3,
-                "Registry index must contain only versions 1, 2, and 3.");
+        require(index.versions().size() == 4,
+                "Registry index must contain only versions 1 through 4.");
 
         long expectedVersion = 1;
         Set<String> checksums = new HashSet<>();
@@ -146,8 +148,8 @@ public class ProductAuthorizationContractValidator {
         require(contract != null, "Registry contract is required.");
         require(contract.schemaVersion() == 1, "Unsupported registry schemaVersion.");
         require("product-surfaces".equals(contract.bundleKey()), "Unexpected registry bundleKey.");
-        require(Set.of(1L, 2L, 3L).contains(contract.version()),
-                "Registry version must be 1, 2, or 3.");
+        require(Set.of(1L, 2L, 3L, 4L).contains(contract.version()),
+                "Registry version must be one of the immutable lineage versions 1 through 4.");
         require(Set.of("DRAFT", "APPROVED", "ACTIVE", "RETIRED").contains(contract.bundleStatus()),
                 "Invalid bundle status.");
         require("SHA-256".equals(contract.checksumAlgorithm()), "Only SHA-256 is supported.");
@@ -474,7 +476,7 @@ public class ProductAuthorizationContractValidator {
             return;
         }
         require(endpoints.size() == 1,
-                "Registry v2 and v3 require the exact step-up authority endpoint.");
+                "Every registry version after v1 requires the exact step-up authority endpoint.");
         ProductAuthorizationContractDtos.AuthorityEndpoint endpoint = endpoints.get(0);
         require("product-surface-step-up-challenge.issue".equals(endpoint.endpointKey())
                         && "POST".equals(endpoint.method())

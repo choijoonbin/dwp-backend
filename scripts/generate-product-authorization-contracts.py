@@ -62,13 +62,14 @@ PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
+BUNDLE_VERSIONS = (1, 2, 3, 4)
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
-    for version in (1, 2, 3)
+    for version in BUNDLE_VERSIONS
 }
 VERSIONED_AUTH_SEED_OUTPUTS = {
     version: AUTH_SEED_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.generated.json"
-    for version in (1, 2, 3)
+    for version in BUNDLE_VERSIONS
 }
 
 SECTION_KEYS = {
@@ -101,6 +102,8 @@ EXPECTED_RELEASE_COUNTS = {
         "predicatePolicies": 13, "routes": 76, "PAGE": 33, "DATA": 6, "ACTION": 37},
     3: {"capabilities": 62, "accessPolicies": 14, "entitlementExpressions": 8,
         "predicatePolicies": 25, "routes": 129, "PAGE": 58, "DATA": 12, "ACTION": 59},
+    4: {"capabilities": 71, "accessPolicies": 22, "entitlementExpressions": 16,
+        "predicatePolicies": 33, "routes": 155, "PAGE": 66, "DATA": 22, "ACTION": 67},
 }
 PLATFORM_CANARY_PRODUCTS = {"communications", "services"}
 PLATFORM_TELEMETRY_SURFACE_DIMENSIONS = {
@@ -352,10 +355,15 @@ TARGET_KINDS = {"SELF", "OBJECT", "RELATIONSHIP", "TARGET_POPULATION", "CONFIG_S
 LIFECYCLE_STATES = {"ACTIVE", "RETIRED"}
 BUNDLE_STATES = {"DRAFT", "APPROVED", "ACTIVE", "RETIRED"}
 SERVICE_PATH_PREFIXES = {
+    "agent": "/v1/",
     "auth": "/auth/",
+    "meeting": "/v1/",
+    "messaging": "/v1/",
+    "notification": "/v1/",
     "platform": "/v1/",
     "approval": "/v1/",
     "people": "/v1/",
+    "space": "/v1/",
 }
 
 
@@ -405,7 +413,10 @@ def normalize_source(source: dict[str, Any]) -> dict[str, Any]:
     )
     require(source.get("schemaVersion") == 1, "schemaVersion must be 1")
     require(source.get("bundleKey") == "product-surfaces", "bundleKey must be product-surfaces")
-    require(source.get("version") in {1, 2, 3}, "bundle version must be 1, 2, or 3")
+    require(
+        source.get("version") in set(BUNDLE_VERSIONS),
+        "bundle version must be one of the declared lineage versions",
+    )
     require(source.get("bundleStatus") in BUNDLE_STATES, "invalid bundleStatus")
     rollout_products = source.get("rolloutProducts")
     require(
@@ -517,14 +528,15 @@ def normalize_source(source: dict[str, Any]) -> dict[str, Any]:
 
 
 def build_snapshots(source: dict[str, Any]) -> list[dict[str, Any]]:
-    """Expand gate-isolated declarations into three complete DRAFT snapshots."""
+    """Expand gate-isolated declarations into immutable complete DRAFT snapshots."""
     canonical = copy.deepcopy(source)
     waves = canonical.pop("waves", None)
     descriptor_enrichments = canonical.pop("descriptorEnrichments", None)
     require(isinstance(waves, list), "waves must be an array")
     require(
-        [wave.get("version") for wave in waves if isinstance(wave, dict)] == [2, 3],
-        "waves must contain exactly versions 2 and 3 in order",
+        [wave.get("version") for wave in waves if isinstance(wave, dict)]
+        == list(BUNDLE_VERSIONS[1:]),
+        "waves must contain every post-base lineage version in order",
     )
     require(canonical.get("version") == 1, "canonical base must be bundle version 1")
     _validate_descriptor_enrichment_envelope(canonical, waves, descriptor_enrichments)
@@ -826,7 +838,7 @@ def _validate_release_snapshot(snapshot: dict[str, Any]) -> None:
             "v2 W1a snapshot must close exactly four Approval HIGH bindings",
         )
 
-    if version != 3:
+    if version < 3:
         return
     capability_keys = {item["contractKey"] for item in snapshot["capabilities"]}
     route_keys = {item["routeContractKey"] for item in snapshot["routes"]}
@@ -1823,9 +1835,9 @@ def write_or_check(path: pathlib.Path, content: str, check: bool) -> bool:
 def verify_artifact_set(index: dict[str, Any]) -> None:
     require(index_checksum(index) == index["indexChecksum"], "index checksum mismatch")
     require(
-        [entry["version"] for entry in index["versions"]] == [1, 2, 3]
+        [entry["version"] for entry in index["versions"]] == list(BUNDLE_VERSIONS)
         and all(entry["bundleStatus"] == "DRAFT" for entry in index["versions"]),
-        "seed index must contain only DRAFT versions 1, 2, and 3",
+        "seed index must contain only the declared DRAFT lineage versions",
     )
     latest_version = index["latestVersion"]
     latest_contract = VERSIONED_CONTRACT_OUTPUTS[latest_version].read_bytes()

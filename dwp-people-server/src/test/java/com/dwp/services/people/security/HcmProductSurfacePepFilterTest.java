@@ -27,6 +27,7 @@ class HcmProductSurfacePepFilterTest {
 
     private static final String ROLLOUT_REVISION = "rollout-" + "a".repeat(64);
     private static final String DECISION_REVISION = "psr-" + "b".repeat(64);
+    private static final String CONTEXT_KEY = "psc-" + "d".repeat(64);
 
     private final HrService service = mock(HrService.class);
     private final WorkforceCandidateService candidates = mock(WorkforceCandidateService.class);
@@ -168,7 +169,7 @@ class HcmProductSurfacePepFilterTest {
                             .header(HcmProductSurfacePepFilter.ROUTE_CONTRACT_HEADER,
                                     binding.route())
                             .header(HcmProductSurfacePepFilter.CURRENT_CONTEXT_HEADER,
-                                    "psc-context")
+                                    CONTEXT_KEY)
                             .header(HcmProductSurfacePepFilter.CURRENT_SCOPE_HEADER,
                                     "support-session-scope")
                             .header(PeopleSecurityFilter.SUPPORT_SESSION_HEADER, "support-1")
@@ -199,7 +200,7 @@ class HcmProductSurfacePepFilterTest {
                 .header(HcmProductSurfacePepFilter.ROLLOUT_REVISION_HEADER, ROLLOUT_REVISION)
                 .header(HcmProductSurfacePepFilter.ROLLOUT_COHORT_HEADER, "full")
                 .header(HcmProductSurfacePepFilter.ROUTE_CONTRACT_HEADER, route)
-                .header(HcmProductSurfacePepFilter.CURRENT_CONTEXT_HEADER, "psc-context")
+                .header(HcmProductSurfacePepFilter.CURRENT_CONTEXT_HEADER, CONTEXT_KEY)
                 .header(HcmProductSurfacePepFilter.CURRENT_SCOPE_HEADER, "hcm-scope-current")
                 .header(HcmProductSurfacePepFilter.CURRENT_DECISION_REVISION_HEADER,
                         DECISION_REVISION)

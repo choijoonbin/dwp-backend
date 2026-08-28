@@ -26,14 +26,29 @@ class GeneratedProductSurfaceCandidateCatalogTest {
         assertThat(catalog.activeCandidates()).containsExactly(
                 candidate("approvals", "approvals.admin"),
                 candidate("approvals", "approvals.work"),
+                candidate("calendar", "calendar.work"),
+                candidate("communications", "communications.management"),
+                candidate("communications", "communications.work"),
+                candidate("dwaion", "dwaion.work"),
                 candidate("hcm", "hcm.management"),
                 candidate("hcm", "hcm.operations"),
                 candidate("hcm", "hcm.personal"),
-                candidate("hcm", "hcm.team"));
+                candidate("hcm", "hcm.team"),
+                candidate("mail", "mail.work"),
+                candidate("meetings", "meetings.work"),
+                candidate("messaging", "messaging.work"),
+                candidate("notifications", "notifications.work"),
+                candidate("services", "services.management"),
+                candidate("services", "services.work"),
+                candidate("spaces", "spaces.work"),
+                candidate("workplace", "workplace.work"));
         assertThat(catalog.activeCandidates().stream()
                         .map(ProductSurfaceContextDtos.ProductCandidate::productKey)
                         .collect(java.util.stream.Collectors.toSet()))
-                .containsExactlyInAnyOrder("approvals", "hcm");
+                .containsExactlyInAnyOrder(
+                        "approvals", "calendar", "communications", "dwaion", "hcm", "mail",
+                        "meetings", "messaging", "notifications", "services", "spaces",
+                        "workplace");
         assertThat(catalog.rolloutProductKeys()).containsExactly(
                 "approvals", "calendar", "communications", "dwaion", "hcm", "mail",
                 "meetings", "messaging", "notifications", "services", "spaces", "workplace");

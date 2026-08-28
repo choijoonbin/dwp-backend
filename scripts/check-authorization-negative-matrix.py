@@ -3,9 +3,12 @@
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
+import os
 import re
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,7 +36,189 @@ RUNTIME_CANDIDATE_CATALOG_REFERENCE = (
     "dwp-gateway/src/main/java/com/dwp/gateway/productsurface/"
     "GeneratedProductSurfaceCandidateCatalog.java"
 )
+AGENT_EVIDENCE_ROOT_ENV = "DWP_AGENT_EVIDENCE_ROOT"
+AGENT_ATTESTATION_FIELDS = {
+    "schemaVersion", "attestationId", "repository", "revision", "testRoot",
+    "pepSourceReferences", "files", "pytestNodeIds", "command", "result",
+    "executionWorkflow", "sourceCiRun", "checksum",
+}
+AGENT_CI_RUN_FIELDS = {
+    "provider", "workflow", "runId", "url", "headSha", "conclusion",
+}
 ROUTED_PRODUCT_PEPS = {
+    "approvals": {
+        "routes": {"approval-server": "/api/approvals/**"},
+        "securityFilter": (
+            "dwp-approval-server/src/main/java/com/dwp/services/approval/security/"
+            "ApprovalSecurityFilter.java"
+        ),
+        "productPepFilter": (
+            "dwp-approval-server/src/main/java/com/dwp/services/approval/security/"
+            "ApprovalSecurityFilter.java"
+        ),
+        "productPepComponent": "ApprovalPilotPepRegistry",
+        "fullChainTestReference": (
+            "dwp-approval-server/src/test/java/com/dwp/services/approval/security/"
+            "ApprovalProductSurfacePepEvidenceTest.java"
+            "#rejectsCrossTenantOpaqueScopeAtOwnerServicePep"
+        ),
+        "chainInvariant": {
+            "kind": "INTEGRATED_FILTER",
+            "filterVariable": "filter",
+            "requestHarness": "execute",
+        },
+    },
+    "calendar": {
+        "routes": {"platform-server": "/api/platform/**"},
+        "securityFilter": (
+            "dwp-platform-server/src/main/java/com/dwp/services/platform/security/"
+            "PlatformSecurityFilter.java"
+        ),
+        "productPepFilter": (
+            "dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/"
+            "CalendarProductSurfacePepFilter.java"
+        ),
+        "fullChainTestReference": (
+            "dwp-platform-server/src/test/java/com/dwp/services/platform/calendar/"
+            "CalendarProductSurfacePepEvidenceTest.java"
+            "#pageDataAndActionExecuteThroughPlatformSecurityAndCalendarOwnerPep"
+        ),
+        "chainInvariant": {
+            "kind": "MOCK_MVC_FILTER_CHAIN",
+            "requestHarness": "mvc",
+            "members": {
+                "platformSecurity": "PlatformSecurityFilter",
+                "calendarPep": "CalendarProductSurfacePepFilter",
+            },
+        },
+    },
+    "communications": {
+        "routes": {"platform-server": "/api/platform/**"},
+        "securityFilter": (
+            "dwp-platform-server/src/main/java/com/dwp/services/platform/security/"
+            "PlatformSecurityFilter.java"
+        ),
+        "productPepFilter": (
+            "dwp-platform-server/src/main/java/com/dwp/services/platform/communication/"
+            "CommunicationProductSurfacePepFilter.java"
+        ),
+        "fullChainTestReference": (
+            "dwp-platform-server/src/test/java/com/dwp/services/platform/communication/"
+            "CommunicationProductSurfacePepEvidenceTest.java"
+            "#executesPageDataAndActionConsumersThroughCommunicationsOwnerChain"
+        ),
+        "chainInvariant": {
+            "kind": "MOCK_MVC_FILTER_CHAIN",
+            "requestHarness": "mvc",
+            "members": {
+                "platformSecurity": "PlatformSecurityFilter",
+                "ownerPep": "CommunicationProductSurfacePepFilter",
+            },
+        },
+    },
+    "dwaion": {
+        "routes": {"agent-runtime": "/api/agent/**"},
+        "ownerService": "dwp-agent-runtime",
+        "ownerRepository": "https://github.com/choijoonbin/aura_agent",
+        "testRoot": "tests",
+        "attestation": (
+            "contracts/product-authorization/dwaion-agent-pep-attestation.v1.json"
+        ),
+    },
+    "hcm": {
+        "routes": {"people-server": "/api/people/**"},
+        "securityFilter": (
+            "dwp-people-server/src/main/java/com/dwp/services/people/security/"
+            "PeopleSecurityFilter.java"
+        ),
+        "productPepFilter": (
+            "dwp-people-server/src/main/java/com/dwp/services/people/security/"
+            "HcmProductSurfacePepFilter.java"
+        ),
+        "fullChainTestReference": (
+            "dwp-people-server/src/test/java/com/dwp/services/people/security/"
+            "HcmOwnerPepExecutionTest.java"
+            "#pHcmPageDataAndActionBindingsReachTheirActualPublicControllers"
+        ),
+        "chainInvariant": {
+            "kind": "MOCK_MVC_FILTER_CHAIN",
+            "requestHarness": "mvc",
+            "members": {
+                "PeopleSecurityFilter": "PeopleSecurityFilter",
+                "HcmProductSurfacePepFilter": "HcmProductSurfacePepFilter",
+            },
+        },
+    },
+    "mail": {
+        "routes": {"platform-server": "/api/platform/**"},
+        "securityFilter": (
+            "dwp-platform-server/src/main/java/com/dwp/services/platform/security/"
+            "PlatformSecurityFilter.java"
+        ),
+        "productPepFilter": (
+            "dwp-platform-server/src/main/java/com/dwp/services/platform/mail/"
+            "MailProductSurfacePepFilter.java"
+        ),
+        "fullChainTestReference": (
+            "dwp-platform-server/src/test/java/com/dwp/services/platform/mail/"
+            "MailProductSurfacePepEvidenceTest.java"
+            "#pageDataAndActionExecuteThroughPlatformSecurityAndMailOwnerPep"
+        ),
+        "chainInvariant": {
+            "kind": "MOCK_MVC_FILTER_CHAIN",
+            "requestHarness": "mvc",
+            "members": {
+                "platformSecurity": "PlatformSecurityFilter",
+                "mailPep": "MailProductSurfacePepFilter",
+            },
+        },
+    },
+    "meetings": {
+        "routes": {"meeting-server": "/api/meetings/**"},
+        "securityFilter": (
+            "dwp-meeting-server/src/main/java/com/dwp/services/meeting/security/"
+            "MeetingSecurityFilter.java"
+        ),
+        "productPepFilter": (
+            "dwp-meeting-server/src/main/java/com/dwp/services/meeting/security/"
+            "MeetingSecurityFilter.java"
+        ),
+        "productPepComponent": "MeetingProductAccessPolicy",
+        "fullChainTestReference": (
+            "dwp-meeting-server/src/test/java/com/dwp/services/meeting/"
+            "videomeeting/domain/MeetingProductSurfacePepPostgresTest.java"
+            "#crossTenantAttackCannotSubstituteActorTenantAtTheDataEndpoint"
+        ),
+        "chainInvariant": {
+            "kind": "MOCK_MVC_FILTER_CHAIN",
+            "requestHarness": "mvc",
+            "members": {"filter": "MeetingSecurityFilter"},
+        },
+    },
+    "messaging": {
+        "routes": {"messaging-server": "/api/messaging/**"},
+        "securityFilter": (
+            "dwp-messaging-server/src/main/java/com/dwp/services/messaging/security/"
+            "MessagingSecurityFilter.java"
+        ),
+        "productPepFilter": (
+            "dwp-messaging-server/src/main/java/com/dwp/services/messaging/security/"
+            "MessagingProductSurfacePepFilter.java"
+        ),
+        "fullChainTestReference": (
+            "dwp-messaging-server/src/test/java/com/dwp/services/messaging/security/"
+            "MessagingProductSurfacePepPostgresIntegrationTest.java"
+            "#pageDataAndActionBindingsReachMessagingOwnerOnlyWithExactEvidence"
+        ),
+        "chainInvariant": {
+            "kind": "MOCK_MVC_FILTER_CHAIN",
+            "requestHarness": "mvc",
+            "members": {
+                "identityFilter": "MessagingSecurityFilter",
+                "pepFilter": "MessagingProductSurfacePepFilter",
+            },
+        },
+    },
     "notifications": {
         "routes": {
             "notification-stream": "/api/notifications/v1/stream",
@@ -43,6 +228,23 @@ ROUTED_PRODUCT_PEPS = {
             "dwp-notification-server/src/main/java/com/dwp/services/notification/"
             "security/NotificationSecurityFilter.java"
         ),
+        "productPepFilter": (
+            "dwp-notification-server/src/main/java/com/dwp/services/notification/"
+            "security/NotificationProductSurfacePepFilter.java"
+        ),
+        "fullChainTestReference": (
+            "dwp-notification-server/src/test/java/com/dwp/services/notification/"
+            "security/NotificationProductSurfacePepEvidenceTest.java"
+            "#v4DraftPageDataAndActionBindingsReachActualNotificationRoutes"
+        ),
+        "chainInvariant": {
+            "kind": "MOCK_MVC_FILTER_CHAIN",
+            "requestHarness": "mvc",
+            "members": {
+                "identityFilter": "NotificationSecurityFilter",
+                "pepFilter": "NotificationProductSurfacePepFilter",
+            },
+        },
     },
     "spaces": {
         "routes": {"space-server": "/api/spaces/**"},
@@ -50,6 +252,71 @@ ROUTED_PRODUCT_PEPS = {
             "dwp-space-server/src/main/java/com/dwp/services/space/security/"
             "SpaceSecurityFilter.java"
         ),
+        "productPepFilter": (
+            "dwp-space-server/src/main/java/com/dwp/services/space/security/"
+            "SpaceProductSurfacePepFilter.java"
+        ),
+        "fullChainTestReference": (
+            "dwp-space-server/src/test/java/com/dwp/services/space/security/"
+            "SpaceProductSurfacePepContractTest.java"
+            "#v4DraftPageDataAndActionBindingsReachActualSpaceRoutes"
+        ),
+        "chainInvariant": {
+            "kind": "MOCK_MVC_FILTER_CHAIN",
+            "requestHarness": "mvc",
+            "members": {
+                "SpaceSecurityFilter": "SpaceSecurityFilter",
+                "SpaceProductSurfacePepFilter": "SpaceProductSurfacePepFilter",
+            },
+        },
+    },
+    "services": {
+        "routes": {"platform-server": "/api/platform/**"},
+        "securityFilter": (
+            "dwp-platform-server/src/main/java/com/dwp/services/platform/security/"
+            "PlatformSecurityFilter.java"
+        ),
+        "productPepFilter": (
+            "dwp-platform-server/src/main/java/com/dwp/services/platform/servicecenter/"
+            "ServicesProductSurfacePepFilter.java"
+        ),
+        "fullChainTestReference": (
+            "dwp-platform-server/src/test/java/com/dwp/services/platform/servicecenter/"
+            "ServicesProductSurfacePepEvidenceTest.java"
+            "#executesPageDataAndActionConsumersThroughServicesOwnerChain"
+        ),
+        "chainInvariant": {
+            "kind": "MOCK_MVC_FILTER_CHAIN",
+            "requestHarness": "mvc",
+            "members": {
+                "platformSecurity": "PlatformSecurityFilter",
+                "ownerPep": "ServicesProductSurfacePepFilter",
+            },
+        },
+    },
+    "workplace": {
+        "routes": {"platform-server": "/api/platform/**"},
+        "securityFilter": (
+            "dwp-platform-server/src/main/java/com/dwp/services/platform/security/"
+            "PlatformSecurityFilter.java"
+        ),
+        "productPepFilter": (
+            "dwp-platform-server/src/main/java/com/dwp/services/platform/security/"
+            "PlatformWorkplaceProductPepFilter.java"
+        ),
+        "fullChainTestReference": (
+            "dwp-platform-server/src/test/java/com/dwp/services/platform/security/"
+            "WorkplaceProductSurfacePepContractTest.java"
+            "#v4DraftPageDataAndActionBindingsReachActualWorkplaceRoutes"
+        ),
+        "chainInvariant": {
+            "kind": "MOCK_MVC_FILTER_CHAIN",
+            "requestHarness": "mvc",
+            "members": {
+                "platformSecurity": "PlatformSecurityFilter",
+                "workplacePep": "PlatformWorkplaceProductPepFilter",
+            },
+        },
     },
 }
 
@@ -95,10 +362,178 @@ def checksum(document: dict, *excluded_fields: str) -> str:
     return hashlib.sha256(canonical).hexdigest()
 
 
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def external_repository_path(root: Path, reference: object, label: str) -> Path:
+    if not isinstance(reference, str) or not reference:
+        fail(f"{label} reference is required")
+    relative = Path(reference)
+    if relative.is_absolute() or ".." in relative.parts:
+        fail(f"{label} reference escapes the external repository: {reference}")
+    resolved_root = root.resolve()
+    path = (resolved_root / relative).resolve()
+    if resolved_root not in path.parents or not path.is_file():
+        fail(f"{label} reference does not exist: {reference}")
+    return path
+
+
+def agent_evidence_root() -> Path:
+    configured = os.environ.get(AGENT_EVIDENCE_ROOT_ENV)
+    return Path(configured).resolve() if configured else (ROOT.parent / "dwp_agent").resolve()
+
+
+def validate_agent_attestation(descriptor: dict) -> tuple[dict, Path]:
+    attestation_reference = descriptor.get("attestation")
+    attestation = read_json(repository_path(attestation_reference, "Agent attestation"))
+    if set(attestation) != AGENT_ATTESTATION_FIELDS:
+        fail("Agent PEP attestation field set is invalid")
+    if attestation.get("schemaVersion") != 1 or attestation.get("attestationId") != (
+            "dwaion-agent-owner-pep.v1"):
+        fail("Agent PEP attestation identity drift")
+    if attestation.get("repository") != descriptor.get("ownerRepository"):
+        fail("Agent PEP attestation repository is not canonical")
+    if attestation.get("testRoot") != descriptor.get("testRoot"):
+        fail("Agent PEP attestation test root drift")
+    if attestation.get("checksum") != checksum(attestation, "checksum"):
+        fail("Agent PEP attestation checksum drift")
+    revision = attestation.get("revision")
+    if not isinstance(revision, str) or not re.fullmatch(r"[a-f0-9]{40}", revision):
+        fail("Agent PEP attestation requires an exact Git revision")
+    source_ci_run = attestation.get("sourceCiRun")
+    if not isinstance(source_ci_run, dict) or set(source_ci_run) != AGENT_CI_RUN_FIELDS:
+        fail("Agent PEP source CI run field set is invalid")
+    run_id = source_ci_run.get("runId")
+    expected_run_url = f"{descriptor.get('ownerRepository')}/actions/runs/{run_id}"
+    if (
+        source_ci_run.get("provider") != "GITHUB_ACTIONS"
+        or source_ci_run.get("workflow") != "Agent quality"
+        or not isinstance(run_id, str)
+        or not re.fullmatch(r"[1-9][0-9]*", run_id)
+        or source_ci_run.get("url") != expected_run_url
+        or source_ci_run.get("headSha") != revision
+        or source_ci_run.get("conclusion") != "success"
+    ):
+        fail("Agent PEP source CI run is not bound to the immutable revision")
+
+    root = agent_evidence_root()
+    try:
+        actual_revision = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError) as exception:
+        fail(f"Agent PEP evidence checkout is unavailable: {exception}")
+    if actual_revision != revision:
+        fail(
+            "Agent PEP evidence checkout revision does not match the checksummed attestation"
+        )
+
+    files = attestation.get("files")
+    if not isinstance(files, list) or not files:
+        fail("Agent PEP attestation requires checksummed source and test files")
+    file_hashes: dict[str, str] = {}
+    for item in files:
+        if not isinstance(item, dict) or set(item) != {"path", "sha256"}:
+            fail("Agent PEP attestation file entry is invalid")
+        reference = item.get("path")
+        expected_hash = item.get("sha256")
+        if not isinstance(expected_hash, str) or not re.fullmatch(r"[a-f0-9]{64}", expected_hash):
+            fail(f"Agent PEP attestation file hash is invalid: {reference!r}")
+        if reference in file_hashes:
+            fail(f"Agent PEP attestation file is duplicated: {reference!r}")
+        path = external_repository_path(root, reference, "Agent evidence")
+        if file_sha256(path) != expected_hash:
+            fail(f"Agent PEP evidence file checksum drift: {reference}")
+        file_hashes[reference] = expected_hash
+    for dependency_lock in ("pyproject.toml", "uv.lock"):
+        if dependency_lock not in file_hashes:
+            fail(f"Agent PEP attestation must checksum {dependency_lock}")
+    sources = attestation.get("pepSourceReferences")
+    if not isinstance(sources, list) or not sources or len(sources) != len(set(sources)):
+        fail("Agent PEP attestation requires unique PEP source references")
+    if any(source not in file_hashes for source in sources):
+        fail("Agent PEP source reference is not checksummed")
+
+    node_ids = attestation.get("pytestNodeIds")
+    if not isinstance(node_ids, list) or len(node_ids) < len(VECTOR_IDS) \
+            or len(node_ids) != len(set(node_ids)):
+        fail("Agent PEP attestation requires unique executable pytest nodes")
+    command = attestation.get("command")
+    if not isinstance(command, list) or command[:3] != ["uv", "run", "pytest"] \
+            or any(node_id not in command for node_id in node_ids):
+        fail("Agent PEP attestation command must execute every declared pytest node")
+    result = attestation.get("result")
+    if not isinstance(result, dict) or set(result) != {"status", "passed", "failed"} \
+            or result.get("status") != "PASS" or result.get("failed") != 0 \
+            or not isinstance(result.get("passed"), int) \
+            or result.get("passed") < len(node_ids):
+        fail("Agent PEP attestation does not record a complete passing execution")
+
+    workflow_reference = attestation.get("executionWorkflow")
+    workflow = repository_path(workflow_reference, "Agent evidence workflow").read_text(
+        encoding="utf-8"
+    )
+    required_workflow_fragments = (
+        descriptor.get("ownerRepository"),
+        revision,
+        AGENT_EVIDENCE_ROOT_ENV,
+        "uv sync --locked",
+        "uv run pytest",
+    )
+    if any(not isinstance(fragment, str) or fragment not in workflow
+           for fragment in required_workflow_fragments):
+        fail("Agent PEP execution workflow is not pinned to the attested checkout and command")
+    if any(node_id not in workflow for node_id in node_ids):
+        fail("Agent PEP execution workflow does not execute every attested pytest node")
+    return attestation, root
+
+
+def python_test_function_names(source: str, reference: str) -> set[str]:
+    try:
+        tree = ast.parse(source)
+    except SyntaxError as exception:
+        fail(f"Agent pytest source is invalid for {reference}: {exception}")
+    return {
+        node.name
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name.startswith("test_")
+    }
+
+
+def validate_agent_pytest_reference(reference: str, descriptor: dict) -> None:
+    relative_path, method = reference.split("#")
+    test_root = descriptor.get("testRoot")
+    if not isinstance(test_root, str) or not relative_path.startswith(f"{test_root}/"):
+        fail(f"Agent owner-service evidence escapes the declared test root: {reference}")
+    if not re.fullmatch(r"test_[a-zA-Z0-9_]+", method):
+        fail(f"invalid Agent pytest function name: {reference}")
+    attestation, root = validate_agent_attestation(descriptor)
+    path = external_repository_path(root, relative_path, "Agent pytest")
+    if method not in python_test_function_names(path.read_text(encoding="utf-8"), reference):
+        fail(f"referenced Agent pytest function does not exist: {reference}")
+    if relative_path not in {item["path"] for item in attestation["files"]}:
+        fail(f"referenced Agent pytest file is not checksummed: {reference}")
+    node_id = f"{relative_path}::{method}"
+    if node_id not in attestation["pytestNodeIds"]:
+        fail(f"referenced Agent pytest node is not executable evidence: {reference}")
+
+
 def validate_test_reference(reference: object, owner_service: str | None = None) -> None:
     if not isinstance(reference, str) or reference.count("#") != 1:
         fail(f"invalid test reference {reference!r}")
     relative_path, method = reference.split("#")
+    if owner_service == "dwp-agent-runtime":
+        validate_agent_pytest_reference(reference, ROUTED_PRODUCT_PEPS["dwaion"])
+        return
     if owner_service is not None and not relative_path.startswith(
             f"{owner_service}/src/test/"):
         fail(f"owner-service evidence escapes {owner_service}: {reference}")
@@ -107,7 +542,198 @@ def validate_test_reference(reference: object, owner_service: str | None = None)
         fail(f"invalid Java test method name: {reference}")
     if not re.search(
             rf"\bvoid\s+{re.escape(method)}\s*\(", path.read_text(encoding="utf-8")):
-            fail(f"referenced test method does not exist: {reference}")
+        fail(f"referenced test method does not exist: {reference}")
+
+
+def scrub_java_non_code(source: str) -> str:
+    """Replace comments and literals while preserving indices for structural scans."""
+    output = list(source)
+    index = 0
+    state = "CODE"
+    while index < len(source):
+        current = source[index]
+        following = source[index + 1] if index + 1 < len(source) else ""
+        if state == "CODE":
+            if current == "/" and following == "/":
+                output[index] = output[index + 1] = " "
+                index += 2
+                state = "LINE_COMMENT"
+                continue
+            if current == "/" and following == "*":
+                output[index] = output[index + 1] = " "
+                index += 2
+                state = "BLOCK_COMMENT"
+                continue
+            if current == '"':
+                output[index] = " "
+                index += 1
+                state = "STRING"
+                continue
+            if current == "'":
+                output[index] = " "
+                index += 1
+                state = "CHAR"
+                continue
+        elif state == "LINE_COMMENT":
+            if current == "\n":
+                state = "CODE"
+            else:
+                output[index] = " "
+            index += 1
+            continue
+        elif state == "BLOCK_COMMENT":
+            if current == "*" and following == "/":
+                output[index] = output[index + 1] = " "
+                index += 2
+                state = "CODE"
+                continue
+            if current != "\n":
+                output[index] = " "
+            index += 1
+            continue
+        elif state in {"STRING", "CHAR"}:
+            output[index] = " " if current != "\n" else "\n"
+            if current == "\\" and following:
+                output[index + 1] = " " if following != "\n" else "\n"
+                index += 2
+                continue
+            if (state == "STRING" and current == '"') \
+                    or (state == "CHAR" and current == "'"):
+                state = "CODE"
+            index += 1
+            continue
+        index += 1
+    return "".join(output)
+
+
+def balanced_call_arguments(source: str, call_name: str) -> list[str]:
+    scrubbed = scrub_java_non_code(source)
+    marker = re.compile(rf"\.{re.escape(call_name)}\s*\(")
+    arguments = []
+    for match in marker.finditer(scrubbed):
+        opening = scrubbed.find("(", match.start())
+        depth = 0
+        for index in range(opening, len(scrubbed)):
+            character = scrubbed[index]
+            if character == "(":
+                depth += 1
+            elif character == ")":
+                depth -= 1
+                if depth == 0:
+                    arguments.append(scrubbed[opening + 1:index])
+                    break
+        else:
+            fail(f"Java {call_name} invocation is not balanced")
+    return arguments
+
+
+def java_method_body(source: str, method: str, reference: str) -> str:
+    scrubbed = scrub_java_non_code(source)
+    declaration = re.search(
+        rf"\bvoid\s+{re.escape(method)}\s*\([^)]*\)\s*(?:throws\s+[^{{]+)?{{",
+        scrubbed,
+    )
+    if declaration is None:
+        fail(f"referenced full-chain test method does not exist: {reference}")
+    opening = scrubbed.find("{", declaration.start())
+    depth = 0
+    for index in range(opening, len(scrubbed)):
+        if scrubbed[index] == "{":
+            depth += 1
+        elif scrubbed[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return scrubbed[opening + 1:index]
+    fail(f"referenced full-chain test method is not balanced: {reference}")
+    raise AssertionError("unreachable")
+
+
+def validate_mock_mvc_chain(
+        product_id: str, source: str, invariant: dict,
+        generic_class: str, product_class: str) -> None:
+    members = invariant.get("members")
+    if not isinstance(members, dict) or not members:
+        fail(f"{product_id} full-chain invariant has no filter members")
+    if generic_class not in set(members.values()) or product_class not in set(members.values()):
+        fail(f"{product_id} full-chain invariant omits the generic or product PEP filter")
+    for variable, class_name in members.items():
+        if not isinstance(variable, str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9]*", variable) \
+                or not isinstance(class_name, str) \
+                or not re.fullmatch(r"[A-Za-z][A-Za-z0-9]*", class_name):
+            fail(f"{product_id} full-chain member declaration is invalid")
+        if variable == class_name:
+            constructor = rf"\bnew\s+{re.escape(class_name)}\s*\("
+        else:
+            constructor = (
+                rf"\b{re.escape(class_name)}\s+{re.escape(variable)}\s*=\s*"
+                rf"new\s+{re.escape(class_name)}\s*\("
+            )
+        if not re.search(constructor, scrub_java_non_code(source)):
+            fail(f"{product_id} full-chain member {variable} is not an actual {class_name}")
+    invocations = balanced_call_arguments(source, "addFilters")
+    if not any(all(re.search(rf"\b{re.escape(member)}\b", arguments)
+                       for member in members)
+               for arguments in invocations):
+        fail(f"{product_id} generic and product PEP filters are not in one request chain")
+
+
+def validate_product_pep_closure(product_id: str, owner_service: str, descriptor: dict) -> None:
+    if owner_service == "dwp-agent-runtime":
+        validate_agent_attestation(descriptor)
+        return
+    generic_reference = descriptor.get("securityFilter")
+    product_reference = descriptor.get("productPepFilter")
+    full_chain_reference = descriptor.get("fullChainTestReference")
+    invariant = descriptor.get("chainInvariant")
+    if not all(isinstance(value, str) and value
+               for value in (generic_reference, product_reference, full_chain_reference)) \
+            or not isinstance(invariant, dict):
+        fail(f"{product_id} complete evidence requires a product PEP and full-chain invariant")
+    if not product_reference.startswith(f"{owner_service}/src/main/"):
+        fail(f"{product_id} product PEP filter escapes {owner_service}")
+    generic_path = repository_path(generic_reference, f"{product_id} SecurityFilter")
+    product_path = repository_path(product_reference, f"{product_id} product PEP filter")
+    generic_class = generic_path.stem
+    product_class = product_path.stem
+    product_source = product_path.read_text(encoding="utf-8")
+    if not re.search(rf"\bclass\s+{re.escape(product_class)}\b", product_source):
+        fail(f"{product_id} product PEP filter class does not exist")
+    component = descriptor.get("productPepComponent")
+    if generic_path == product_path:
+        if not isinstance(component, str) or not re.fullmatch(
+                r"[A-Za-z][A-Za-z0-9]*", component):
+            fail(f"{product_id} integrated filter requires an explicit product PEP component")
+        if not re.search(rf"\b{re.escape(component)}\b", product_source):
+            fail(f"{product_id} integrated filter is not bound to {component}")
+    elif generic_class == "PlatformSecurityFilter" and product_class == generic_class:
+        fail(f"{product_id} cannot use generic PlatformSecurityFilter as its product PEP")
+
+    validate_test_reference(full_chain_reference, owner_service)
+    test_relative, method = full_chain_reference.split("#")
+    test_source = repository_path(test_relative, f"{product_id} full-chain test").read_text(
+        encoding="utf-8"
+    )
+    method_body = java_method_body(test_source, method, full_chain_reference)
+    request_harness = invariant.get("requestHarness")
+    if not isinstance(request_harness, str) or not re.search(
+            rf"\b{re.escape(request_harness)}\s*(?:\.|\()", method_body):
+        fail(f"{product_id} full-chain test does not execute its declared request harness")
+    kind = invariant.get("kind")
+    if kind == "MOCK_MVC_FILTER_CHAIN":
+        validate_mock_mvc_chain(
+            product_id, test_source, invariant, generic_class, product_class)
+    elif kind == "INTEGRATED_FILTER":
+        variable = invariant.get("filterVariable")
+        if not isinstance(variable, str) or not re.search(
+                rf"\b{re.escape(generic_class)}\s+{re.escape(variable)}\s*=\s*"
+                rf"new\s+{re.escape(generic_class)}\s*\(",
+                scrub_java_non_code(test_source)):
+            fail(f"{product_id} integrated product PEP filter is not constructed")
+        if not re.search(rf"\b{re.escape(variable)}\.doFilter\s*\(",
+                         scrub_java_non_code(test_source)):
+            fail(f"{product_id} integrated product PEP filter is not executed")
+    else:
+        fail(f"{product_id} full-chain invariant kind is invalid")
 
 
 def gateway_route_block(source: str, route_id: str) -> str:
@@ -137,6 +763,8 @@ def owner_service_from_gateway_route(route_id: str, block: str) -> str:
     if uri is None:
         fail(f"Gateway route {route_id} must target a SERVICE_*_URL")
     service_key = uri.group(1).lower().replace("_", "-")
+    if service_key == "agent":
+        return "dwp-agent-runtime"
     return f"dwp-{service_key}-server"
 
 
@@ -159,12 +787,25 @@ def validate_routed_owner_services(products: list[dict]) -> dict[str, str]:
         if len(route_owners) != 1:
             fail(f"{product_id} Gateway routes disagree on owner service")
         owner_service = route_owners.pop()
-        security_filter = str(descriptor["securityFilter"])
-        if not security_filter.startswith(f"{owner_service}/src/main/"):
-            fail(f"{product_id} SecurityFilter does not belong to {owner_service}")
-        filter_path = repository_path(security_filter, f"{product_id} SecurityFilter")
-        if not re.search(r"\bclass\s+\w*SecurityFilter\b", filter_path.read_text(encoding="utf-8")):
-            fail(f"{product_id} owner service has no SecurityFilter class")
+        expected_owner = descriptor.get("ownerService", owner_service)
+        if owner_service != expected_owner:
+            fail(
+                f"{product_id} Gateway route resolves to {owner_service}, "
+                f"not canonical owner {expected_owner}"
+            )
+        security_filter = descriptor.get("securityFilter")
+        if security_filter is not None:
+            security_filter = str(security_filter)
+            if not security_filter.startswith(f"{owner_service}/src/main/"):
+                fail(f"{product_id} SecurityFilter does not belong to {owner_service}")
+            filter_path = repository_path(security_filter, f"{product_id} SecurityFilter")
+            if not re.search(
+                    r"\bclass\s+\w*SecurityFilter\b",
+                    filter_path.read_text(encoding="utf-8")):
+                fail(f"{product_id} owner service has no SecurityFilter class")
+        elif descriptor.get("ownerRepository") != (
+                "https://github.com/choijoonbin/aura_agent"):
+            fail(f"{product_id} non-Java owner repository is not canonical")
         product = products_by_id.get(product_id)
         if product is None or product.get("ownerService") != owner_service:
             actual = product.get("ownerService") if product is not None else None
@@ -397,6 +1038,11 @@ def main() -> None:
                 fail(f"{product_id} {vector_id} requires owner-service PEP evidence")
             for reference in references:
                 validate_test_reference(reference, owner_service)
+        if not missing_set:
+            descriptor = ROUTED_PRODUCT_PEPS.get(product_id)
+            if not isinstance(descriptor, dict):
+                fail(f"{product_id} complete evidence has no routed product PEP descriptor")
+            validate_product_pep_closure(product_id, owner_service, descriptor)
         if expected_status == "MISSING":
             missing_contract_count += 1
             if evidence or missing_set != VECTOR_IDS or product.get("rolloutCeiling") != "100":

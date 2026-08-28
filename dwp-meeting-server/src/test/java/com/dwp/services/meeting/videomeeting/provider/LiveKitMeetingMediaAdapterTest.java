@@ -7,6 +7,8 @@ import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.Lifecycle
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.Meeting;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.Participant;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.ParticipantRole;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import io.livekit.server.LiveKitAPI;
 import io.livekit.server.RoomServiceClient;
@@ -101,6 +103,40 @@ class LiveKitMeetingMediaAdapterTest {
                 .contains("camera")
                 .contains("microphone")
                 .doesNotContain("screen_share");
+        assertThat(metadata(claims))
+                .contains("\"meetingId\":\"" + meeting.meetingId() + "\"")
+                .contains("\"reactionsAllowed\":false");
+    }
+
+    @Test
+    void immutableMetadataBindsReactionAuthorityToTheExactMeeting() {
+        MeetingMediaProperties properties = configuredProperties();
+        LiveKitMeetingMediaAdapter adapter = new LiveKitMeetingMediaAdapter(properties);
+        Meeting meeting = meeting();
+        Participant participant = participant(meeting.meetingId());
+        MeetingMediaProvider.EffectivePermissions permissions =
+                new MeetingMediaProvider.EffectivePermissions(
+                        false, false, false, false, false, true, false);
+
+        MeetingMediaProvider.ParticipantToken token = adapter.issueParticipantToken(
+                meeting, participant, subject(), permissions,
+                OffsetDateTime.of(2026, 8, 27, 0, 0, 0, 0, ZoneOffset.UTC));
+
+        String claims = new String(
+                Base64.getUrlDecoder().decode(token.token().split("\\.")[1]),
+                StandardCharsets.UTF_8);
+        assertThat(metadata(claims))
+                .contains("\"meetingId\":\"" + meeting.meetingId() + "\"")
+                .contains("\"reactionsAllowed\":true");
+        assertThat(claims).contains("\"canUpdateOwnMetadata\":false");
+    }
+
+    private String metadata(String claims) {
+        try {
+            return new ObjectMapper().readTree(claims).path("metadata").asText();
+        } catch (JsonProcessingException exception) {
+            throw new AssertionError("LiveKit token claims are not valid JSON", exception);
+        }
     }
 
     private MeetingMediaProperties configuredProperties() {
