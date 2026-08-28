@@ -140,6 +140,7 @@ class MessagingServiceTest {
         UUID conversationId = UUID.randomUUID();
         UUID foreignMessageId = UUID.randomUUID();
         allowConversation(conversationId);
+        allowSending();
         when(messageQueries.access(1, conversationId, 100, foreignMessageId))
                 .thenReturn(java.util.Optional.empty());
 
@@ -188,6 +189,7 @@ class MessagingServiceTest {
         UUID conversationId = UUID.randomUUID();
         UUID replyId = UUID.randomUUID();
         allowConversation(conversationId);
+        allowSending();
         when(messageQueries.access(1, conversationId, 100, replyId))
                 .thenReturn(java.util.Optional.of(
                         access(replyId, conversationId, 200, UUID.randomUUID(), 0, "MEMBER")));
@@ -255,6 +257,7 @@ class MessagingServiceTest {
         MessagingRequestContext.set(subject(100));
         UUID conversationId = UUID.randomUUID();
         MessagingDtos.ConversationSummary summary = conversation(conversationId);
+        when(queries.policy(1)).thenReturn(policy(true, true));
         when(queries.person(1, 200)).thenReturn(Optional.of(new MessagingDtos.PersonSummary(
                 200, UUID.randomUUID(), "person@example.com", "Person", null, null, "ONLINE")));
         when(commands.directConversation(1, 100, 200)).thenReturn(conversationId);
@@ -278,6 +281,7 @@ class MessagingServiceTest {
         UUID messageId = UUID.randomUUID();
         UUID idempotencyKey = UUID.randomUUID();
         allowConversation(conversationId);
+        allowSending();
         when(commands.replayMessage(
                 1, 100, conversationId, idempotencyKey, "hello", null, List.of(), List.of()))
                 .thenReturn(Optional.empty());
@@ -456,6 +460,7 @@ class MessagingServiceTest {
         UUID messageId = UUID.randomUUID();
         UUID idempotencyKey = UUID.randomUUID();
         allowConversation(conversationId);
+        allowSending();
         when(commands.replayMessage(
                 1, 100, conversationId, idempotencyKey, "@Person 확인 부탁드립니다", null,
                 List.of(), List.of(200L))).thenReturn(Optional.empty());
@@ -493,6 +498,7 @@ class MessagingServiceTest {
         UUID conversationId = UUID.randomUUID();
         UUID idempotencyKey = UUID.randomUUID();
         allowConversation(conversationId);
+        allowSending();
         when(commands.replayMessage(
                 1, 100, conversationId, idempotencyKey, "@모두 확인", null,
                 List.of(), List.of(200L, 300L, 400L))).thenReturn(Optional.empty());
@@ -519,6 +525,10 @@ class MessagingServiceTest {
     private void allowConversation(UUID conversationId) {
         when(queries.conversation(1, 100, conversationId))
                 .thenReturn(java.util.Optional.of(conversation(conversationId)));
+    }
+
+    private void allowSending() {
+        when(queries.policy(1)).thenReturn(policy(true, true));
     }
 
     private MessagingRequestContext.Subject subject(long userId) {

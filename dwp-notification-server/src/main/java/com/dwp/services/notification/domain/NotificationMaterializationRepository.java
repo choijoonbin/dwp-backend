@@ -9,7 +9,6 @@ import com.dwp.services.notification.domain.NotificationModels.MaterializationRe
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -20,6 +19,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Repository
@@ -145,7 +145,8 @@ public class NotificationMaterializationRepository {
             TemplateContract contract,
             RenderedContent content,
             String sourcePayloadHash,
-            String correlationId) {
+            String correlationId,
+            Set<Long> entitledRecipientUserIds) {
         IntentResolution intent = createIntent(
                 tenantId, request, contract, sourcePayloadHash, correlationId);
         if (intent.duplicate()) {
@@ -153,6 +154,12 @@ public class NotificationMaterializationRepository {
                 throw new NotificationException(
                         NotificationErrorCode.NOTIFICATION_CONTRACT_QUARANTINED,
                         "The source event ID was reused with a different payload.");
+            }
+            if (intent.notificationId() == null && "SUPPRESSED".equals(intent.decision())) {
+                return new PersistenceResult(
+                        new MaterializationResult(
+                                intent.intentId(), null, 0, true, "0"),
+                        List.of());
             }
             if (intent.notificationId() == null) {
                 throw new IllegalStateException("Duplicate intent has no notification projection.");
@@ -168,6 +175,26 @@ public class NotificationMaterializationRepository {
             return new PersistenceResult(
                     new MaterializationResult(
                             intent.intentId(), intent.notificationId(), recipients, true, "0"),
+                    List.of());
+        }
+
+        Set<Long> requestedRecipients = Set.copyOf(request.recipientUserIds());
+        if (!requestedRecipients.containsAll(entitledRecipientUserIds)) {
+            throw new IllegalArgumentException(
+                    "Entitled notification recipients must be a subset of requested recipients.");
+        }
+        if (entitledRecipientUserIds.isEmpty()) {
+            jdbc.update("""
+                    UPDATE ntf_notification_intents
+                       SET decision = 'SUPPRESSED',
+                           reason_code = 'RECIPIENT_APP_ENTITLEMENT_DENIED'
+                     WHERE tenant_id = :tenantId AND intent_id = :intentId
+                    """, new MapSqlParameterSource()
+                    .addValue("tenantId", tenantId)
+                    .addValue("intentId", intent.intentId()));
+            return new PersistenceResult(
+                    new MaterializationResult(
+                            intent.intentId(), null, 0, false, "0"),
                     List.of());
         }
 
@@ -204,7 +231,7 @@ public class NotificationMaterializationRepository {
 
         List<ChangeSignal> signals = new ArrayList<>();
         long highestChangeVersion = 0;
-        for (Long recipientUserId : new LinkedHashSet<>(request.recipientUserIds())) {
+        for (Long recipientUserId : new LinkedHashSet<>(entitledRecipientUserIds)) {
             if (!runtimeAdmissionRepository.inAppDeliveryEnabled(
                     tenantId,
                     recipientUserId,
@@ -250,8 +277,22 @@ public class NotificationMaterializationRepository {
             String sourcePayloadHash,
             String correlationId) {
         UUID intentId = UUID.randomUUID();
-        try {
-            UUID inserted = jdbc.queryForObject("""
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("intentId", intentId)
+                .addValue("tenantId", tenantId)
+                .addValue("sourceEventId", request.sourceEventId())
+                .addValue("sourceEventType", request.sourceEventType())
+                .addValue("sourceSchemaVersion", request.sourceSchemaVersion())
+                .addValue("typeKey", contract.typeKey())
+                .addValue("typeVersionId", contract.typeVersionId())
+                .addValue("typeScopeTenantId", contract.typeScopeTenantId())
+                .addValue("sourcePayloadHash", sourcePayloadHash)
+                .addValue("correlationId", correlationId)
+                .addValue("reasonCode", reason(request.reasonCode()))
+                .addValue("variables", json(request.variables()))
+                .addValue("occurredAt", Timestamp.from(
+                        request.occurredAt() == null ? Instant.now() : request.occurredAt()));
+        List<UUID> inserted = jdbc.query("""
                     INSERT INTO ntf_notification_intents (
                         intent_id, tenant_id, source_event_id, source_event_type,
                         source_schema_version, type_key, type_version_id, type_scope_tenant_id,
@@ -264,41 +305,27 @@ public class NotificationMaterializationRepository {
                         :sourcePayloadHash,
                         :correlationId, 'MATERIALIZED', :reasonCode,
                         CAST(:variables AS jsonb), :occurredAt)
+                    ON CONFLICT (tenant_id, source_event_id, type_key) DO NOTHING
                     RETURNING intent_id
-                    """, new MapSqlParameterSource()
-                    .addValue("intentId", intentId)
-                    .addValue("tenantId", tenantId)
-                    .addValue("sourceEventId", request.sourceEventId())
-                    .addValue("sourceEventType", request.sourceEventType())
-                    .addValue("sourceSchemaVersion", request.sourceSchemaVersion())
-                    .addValue("typeKey", contract.typeKey())
-                    .addValue("typeVersionId", contract.typeVersionId())
-                    .addValue("typeScopeTenantId", contract.typeScopeTenantId())
-                    .addValue("sourcePayloadHash", sourcePayloadHash)
-                    .addValue("correlationId", correlationId)
-                    .addValue("reasonCode", reason(request.reasonCode()))
-                    .addValue("variables", json(request.variables()))
-                    .addValue("occurredAt", Timestamp.from(
-                            request.occurredAt() == null ? Instant.now() : request.occurredAt())),
-                    UUID.class);
-            return new IntentResolution(inserted, null, sourcePayloadHash, false);
-        } catch (DuplicateKeyException exception) {
-            return jdbc.queryForObject("""
-                    SELECT intent_id, notification_id, source_payload_hash
-                      FROM ntf_notification_intents
-                     WHERE tenant_id = :tenantId
-                       AND source_event_id = :sourceEventId
-                       AND type_key = :typeKey
-                    """, new MapSqlParameterSource()
-                    .addValue("tenantId", tenantId)
-                    .addValue("sourceEventId", request.sourceEventId())
-                    .addValue("typeKey", contract.typeKey()),
-                    (resultSet, rowNumber) -> new IntentResolution(
-                            resultSet.getObject("intent_id", UUID.class),
-                            resultSet.getObject("notification_id", UUID.class),
-                            resultSet.getString("source_payload_hash"),
-                            true));
+                    """, parameters,
+                (resultSet, rowNumber) -> resultSet.getObject("intent_id", UUID.class));
+        if (!inserted.isEmpty()) {
+            return new IntentResolution(
+                    inserted.get(0), null, sourcePayloadHash, "MATERIALIZED", false);
         }
+        return jdbc.queryForObject("""
+                SELECT intent_id, notification_id, source_payload_hash, decision
+                  FROM ntf_notification_intents
+                 WHERE tenant_id = :tenantId
+                   AND source_event_id = :sourceEventId
+                   AND type_key = :typeKey
+                """, parameters,
+                (resultSet, rowNumber) -> new IntentResolution(
+                        resultSet.getObject("intent_id", UUID.class),
+                        resultSet.getObject("notification_id", UUID.class),
+                        resultSet.getString("source_payload_hash"),
+                        resultSet.getString("decision"),
+                        true));
     }
 
     private UUID upsertNotification(
@@ -601,6 +628,7 @@ public class NotificationMaterializationRepository {
             UUID intentId,
             UUID notificationId,
             String sourcePayloadHash,
+            String decision,
             boolean duplicate) {
     }
 

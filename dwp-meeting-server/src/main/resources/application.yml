@@ -49,6 +49,35 @@ dwp:
     token-ttl: ${DWP_MEETING_TOKEN_TTL:PT5M}
     join-code-length: ${DWP_MEETING_JOIN_CODE_LENGTH:12}
     recording-policy: ${DWP_MEETING_RECORDING_POLICY:NEVER}
+    intelligence:
+      provider: ${DWP_MEETING_INTELLIGENCE_PROVIDER:disabled}
+      base-url: ${DWP_MEETING_INTELLIGENCE_BASE_URL:}
+      allowed-hosts: ${DWP_MEETING_INTELLIGENCE_ALLOWED_HOSTS:}
+      service-token: ${DWP_MEETING_INTELLIGENCE_SERVICE_TOKEN:}
+      assertion-key-id: ${DWP_MEETING_INTELLIGENCE_ASSERTION_KEY_ID:}
+      assertion-secret-base64: ${DWP_MEETING_INTELLIGENCE_ASSERTION_SECRET_BASE64:}
+      assertion-ttl: ${DWP_MEETING_INTELLIGENCE_ASSERTION_TTL:PT30S}
+      connect-timeout: ${DWP_MEETING_INTELLIGENCE_CONNECT_TIMEOUT:PT2S}
+      request-timeout: ${DWP_MEETING_INTELLIGENCE_REQUEST_TIMEOUT:PT15S}
+      maximum-response-bytes: ${DWP_MEETING_INTELLIGENCE_MAX_RESPONSE_BYTES:2000000}
+      retention:
+        enabled: ${DWP_MEETING_INTELLIGENCE_RETENTION_ENABLED:false}
+        batch-size: ${DWP_MEETING_INTELLIGENCE_RETENTION_BATCH_SIZE:100}
+        poll-delay: ${DWP_MEETING_INTELLIGENCE_RETENTION_POLL_DELAY:PT5M}
+        lease-duration: ${DWP_MEETING_INTELLIGENCE_RETENTION_LEASE_DURATION:PT1M}
+        worker-id: ${DWP_MEETING_INTELLIGENCE_RETENTION_WORKER_ID:meeting-retention-worker}
+    transcript-source:
+      provider: ${DWP_MEETING_TRANSCRIPT_PROVIDER:disabled}
+      base-url: ${DWP_MEETING_TRANSCRIPT_BASE_URL:}
+      allowed-hosts: ${DWP_MEETING_TRANSCRIPT_ALLOWED_HOSTS:}
+      service-token: ${DWP_MEETING_TRANSCRIPT_SERVICE_TOKEN:}
+      connect-timeout: ${DWP_MEETING_TRANSCRIPT_CONNECT_TIMEOUT:PT2S}
+      request-timeout: ${DWP_MEETING_TRANSCRIPT_REQUEST_TIMEOUT:PT10S}
+      maximum-response-bytes: ${DWP_MEETING_TRANSCRIPT_MAX_RESPONSE_BYTES:5000000}
+    transcript-finalization:
+      service-token: ${DWP_MEETING_TRANSCRIPT_FINALIZATION_TOKEN:}
+      assertion-key-id: ${DWP_MEETING_TRANSCRIPT_FINALIZATION_ASSERTION_KEY_ID:}
+      assertion-secret-base64: ${DWP_MEETING_TRANSCRIPT_FINALIZATION_ASSERTION_SECRET_BASE64:}
     livekit:
       api-url: ${LIVEKIT_API_URL:}
       client-url: ${LIVEKIT_URL:}

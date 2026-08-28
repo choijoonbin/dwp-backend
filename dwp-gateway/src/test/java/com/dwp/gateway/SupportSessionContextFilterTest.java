@@ -63,6 +63,9 @@ class SupportSessionContextFilterTest {
                 SupportSessionContextFilter.ACTOR_TENANT_HEADER)).isEqualTo("3");
         assertThat(forwarded.get().getHeaders().getFirst(
                 SupportSessionContextFilter.SUPPORT_REVISION_HEADER)).isEqualTo("support-v0");
+        assertThat(exchange.<String>getAttribute(
+                SupportSessionContextFilter.SUPPORT_TARGET_TENANT_ATTRIBUTE))
+                .isEqualTo("42");
         assertThat(forwarded.get().getHeaders().getFirst("Cookie"))
                 .contains("DWP_SESSION=browser-session")
                 .doesNotContain("DWP_SUPPORT_SESSION");
@@ -82,6 +85,54 @@ class SupportSessionContextFilterTest {
         filter.filter(exchange, ignored -> Mono.empty()).block();
 
         assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void removesSpoofedSupportHeadersBeforePublishingCredentialDenialEvidence() {
+        GeneratedProductRouteCatalog catalog = new GeneratedProductRouteCatalog(
+                new ObjectMapper(),
+                new ClassPathResource(
+                        "product-authorization/product-surfaces-v1.generated.json"));
+        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> audited =
+                new AtomicReference<>();
+        SupportSessionContextFilter filter = new SupportSessionContextFilter(
+                (request, token) -> Mono.empty(),
+                catalog,
+                (auditExchange, denial) -> {
+                    audited.set(auditExchange.getRequest());
+                    return Mono.empty();
+                });
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
+                .get("/api/platform/v1/admin/tenant-experience-preview")
+                .header(VerifiedIdentityFilter.USER_HEADER, "17")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "3")
+                .header(SupportSessionContextFilter.SUPPORT_SESSION_HEADER, "spoofed")
+                .header(SupportSessionContextFilter.SUPPORT_SCOPES_HEADER, "spoofed")
+                .header(SupportSessionContextFilter.SUPPORT_REVISION_HEADER, "spoofed")
+                .header(SupportSessionContextFilter.PROVIDER_TENANT_HEADER, "spoofed")
+                .header(SupportSessionContextFilter.ACTOR_TENANT_HEADER, "spoofed")
+                .header("X-DWP-Support-Validation-Token", "spoofed")
+                .header("X-DWP-Support-Resource-Method", "DELETE")
+                .header("X-DWP-Support-Resource-Path", "/api/platform/v1/admin/spoofed")
+                .cookie(new HttpCookie("DWP_SESSION", "browser-session"))
+                .cookie(new HttpCookie(SupportSessionContextFilter.SUPPORT_COOKIE, "expired"))
+                .build());
+
+        filter.filter(exchange, ignored -> Mono.empty()).block();
+
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(audited.get().getHeaders()).doesNotContainKeys(
+                SupportSessionContextFilter.SUPPORT_SESSION_HEADER,
+                SupportSessionContextFilter.SUPPORT_SCOPES_HEADER,
+                SupportSessionContextFilter.SUPPORT_REVISION_HEADER,
+                SupportSessionContextFilter.PROVIDER_TENANT_HEADER,
+                SupportSessionContextFilter.ACTOR_TENANT_HEADER,
+                "X-DWP-Support-Validation-Token",
+                "X-DWP-Support-Resource-Method",
+                "X-DWP-Support-Resource-Path");
+        assertThat(audited.get().getHeaders().getFirst("Cookie"))
+                .contains("DWP_SESSION=browser-session")
+                .doesNotContain("DWP_SUPPORT_SESSION");
     }
 
     @Test

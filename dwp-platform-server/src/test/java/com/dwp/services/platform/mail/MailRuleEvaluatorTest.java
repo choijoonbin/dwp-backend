@@ -22,7 +22,7 @@ class MailRuleEvaluatorTest {
                         condition(RuleField.SENDER, RuleOperator.ENDS_WITH, "@example.com"),
                         condition(RuleField.SUBJECT, RuleOperator.CONTAINS, "Project")));
         var candidate = new MailOrganizationQueryRepository.RuleCandidate(
-                UUID.randomUUID(), "Partner@Example.com", "member@sk.com",
+                UUID.randomUUID(), 0, "Partner@Example.com", "member@sk.com",
                 "PROJECT kickoff", "Agenda", true, Importance.HIGH);
 
         assertThat(evaluator.matches(rule, candidate)).isTrue();
@@ -36,7 +36,7 @@ class MailRuleEvaluatorTest {
                         condition(RuleField.HAS_ATTACHMENT, RuleOperator.IS, "true"),
                         condition(RuleField.SUBJECT, RuleOperator.EQUALS, "unrelated")));
         var candidate = new MailOrganizationQueryRepository.RuleCandidate(
-                UUID.randomUUID(), "member@sk.com", "member@sk.com",
+                UUID.randomUUID(), 0, "member@sk.com", "member@sk.com",
                 "보고서", "본문", true, Importance.NORMAL);
 
         assertThat(evaluator.matches(rule, candidate)).isTrue();

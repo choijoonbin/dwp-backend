@@ -40,6 +40,8 @@ public class VideoMeetingService {
     private final MeetingMediaProvider mediaProvider;
     private final MeetingJoinCodeGenerator joinCodeGenerator;
     private final VideoMeetingCreationCoordinator creation;
+    private final VideoMeetingLifecycleCoordinator lifecycle;
+    private final VideoMeetingContentAdmissionGuard contentAdmissionGuard;
     private final VideoMeetingAuditRecorder audit;
     private final Clock clock;
 
@@ -48,8 +50,11 @@ public class VideoMeetingService {
             VideoMeetingRepository repository,
             MeetingMediaProvider mediaProvider,
             MeetingJoinCodeGenerator joinCodeGenerator,
+            VideoMeetingLifecycleCoordinator lifecycle,
+            VideoMeetingContentAdmissionGuard contentAdmissionGuard,
             VideoMeetingAuditRecorder audit) {
-        this(repository, mediaProvider, joinCodeGenerator, audit, Clock.systemUTC());
+        this(repository, mediaProvider, joinCodeGenerator, lifecycle, contentAdmissionGuard,
+                audit, Clock.systemUTC());
     }
 
     VideoMeetingService(
@@ -58,11 +63,24 @@ public class VideoMeetingService {
             MeetingJoinCodeGenerator joinCodeGenerator,
             VideoMeetingAuditRecorder audit,
             Clock clock) {
+        this(repository, mediaProvider, joinCodeGenerator, null, null, audit, clock);
+    }
+
+    VideoMeetingService(
+            VideoMeetingRepository repository,
+            MeetingMediaProvider mediaProvider,
+            MeetingJoinCodeGenerator joinCodeGenerator,
+            VideoMeetingLifecycleCoordinator lifecycle,
+            VideoMeetingContentAdmissionGuard contentAdmissionGuard,
+            VideoMeetingAuditRecorder audit,
+            Clock clock) {
         this.repository = repository;
         this.mediaProvider = mediaProvider;
         this.joinCodeGenerator = joinCodeGenerator;
         this.creation = new VideoMeetingCreationCoordinator(
                 repository, joinCodeGenerator, audit);
+        this.lifecycle = lifecycle;
+        this.contentAdmissionGuard = contentAdmissionGuard;
         this.audit = audit;
         this.clock = clock;
     }
@@ -168,11 +186,15 @@ public class VideoMeetingService {
     public VideoMeetingDtos.MeetingDetailResponse detail(UUID meetingId) {
         MeetingRequestContext.Subject subject = MeetingRequestContext.get();
         Meeting meeting = accessible(subject, meetingId);
-        ParticipantRole viewerRole = repository.participant(
-                        subject.tenantId(), meetingId, subject.userId())
-                .map(Participant::participantRole).orElse(null);
+        Optional<Participant> viewer = repository.participant(
+                subject.tenantId(), meetingId, subject.userId());
+        ParticipantRole viewerRole = viewer.map(Participant::participantRole).orElse(null);
+        boolean canHost = meeting.organizerUserId() == subject.userId()
+                || viewer.map(Participant::canHost).orElse(false);
+        boolean recapVisible = canHost || meeting.lifecycleState() == LifecycleState.ENDED
+                && viewer.map(Participant::admitted).orElse(false);
         return VideoMeetingDtos.MeetingDetailResponse.from(
-                repository.detail(meeting), viewerRole);
+                repository.detail(meeting), viewerRole, recapVisible, canHost);
     }
 
     @Transactional(readOnly = true)
@@ -290,36 +312,12 @@ public class VideoMeetingService {
         return VideoMeetingDtos.JoinRequestResponse.from(decided);
     }
 
-    @Transactional
     public VideoMeetingDtos.MeetingDetailResponse start(
             UUID meetingId,
             VideoMeetingDtos.VersionedCommand request,
             String idempotencyKey,
             String correlationId) {
-        MeetingRequestContext.Subject subject = MeetingRequestContext.get();
-        TenantPolicy policy = requireEnabledPolicy(subject);
-        Meeting meeting = repository.lockMeeting(subject.tenantId(), meetingId);
-        Participant host = requireHost(subject, meeting);
-        if (meeting.live()) return VideoMeetingDtos.MeetingDetailResponse.from(
-                repository.detail(meeting), host.participantRole());
-        if (meeting.terminal()) {
-            throw invalidState("A completed or cancelled meeting cannot be started.");
-        }
-        if (meeting.version() != request.expectedVersion()) throw versionConflict();
-        requireProvider();
-        MeetingMediaProvider.PreparedRoom room = mediaProvider.prepareRoom(
-                meeting.meetingId(), meeting.tenantId(), policy.maximumParticipants());
-        Meeting started = repository.start(
-                meeting, room.provider(), room.roomName(), subject.userId(), request.expectedVersion());
-        String eventCorrelation = correlation(correlationId);
-        Map<String, Object> evidence = Map.of("provider", room.provider());
-        repository.recordEvent(
-                started, null, subject.userId(), "STARTED", eventCorrelation,
-                commandKey(idempotencyKey), evidence);
-        audit.meetingLifecycle(
-                subject, started, "meeting.started", eventCorrelation, evidence);
-        return VideoMeetingDtos.MeetingDetailResponse.from(
-                repository.detail(started), host.participantRole());
+        return lifecycle.start(meetingId, request, idempotencyKey, correlationId);
     }
 
     @Transactional
@@ -343,6 +341,7 @@ public class VideoMeetingService {
                 && !request.joinRequestId().equals(participant.participantId())) {
             throw new BaseException(ErrorCode.FORBIDDEN, "Meeting admission is required.");
         }
+        requireCurrentContentNotice(subject, meetingId, participant);
         OffsetDateTime issuedAt = OffsetDateTime.now(clock);
         MeetingMediaProvider.EffectivePermissions permissions = effectivePermissions(
                 capability, policy);
@@ -376,6 +375,7 @@ public class VideoMeetingService {
         if (!participant.admitted()) {
             throw new BaseException(ErrorCode.FORBIDDEN, "Meeting admission is required.");
         }
+        requireCurrentContentNotice(subject, meetingId, participant);
         if (participant.attendanceState() == AttendanceState.JOINED) {
             return VideoMeetingDtos.ParticipantResponse.from(participant);
         }
@@ -390,6 +390,16 @@ public class VideoMeetingService {
                 subject, meeting, joined, "meeting.participant.joined",
                 eventCorrelation, "SUCCESS", evidence);
         return VideoMeetingDtos.ParticipantResponse.from(joined);
+    }
+
+    private void requireCurrentContentNotice(
+            MeetingRequestContext.Subject subject,
+            UUID meetingId,
+            Participant participant) {
+        if (contentAdmissionGuard != null) {
+            contentAdmissionGuard.requireCurrentNoticeAcknowledgement(
+                    subject.tenantId(), meetingId, participant.participantId());
+        }
     }
 
     @Transactional
@@ -419,36 +429,12 @@ public class VideoMeetingService {
         return VideoMeetingDtos.ParticipantResponse.from(left);
     }
 
-    @Transactional
     public VideoMeetingDtos.MeetingDetailResponse end(
             UUID meetingId,
             VideoMeetingDtos.VersionedCommand request,
             String idempotencyKey,
             String correlationId) {
-        MeetingRequestContext.Subject subject = MeetingRequestContext.get();
-        Meeting meeting = repository.lockMeeting(subject.tenantId(), meetingId);
-        requireHost(subject, meeting);
-        if (meeting.lifecycleState() == LifecycleState.ENDED) {
-            return VideoMeetingDtos.MeetingDetailResponse.from(
-                    repository.detail(meeting), requireHost(subject, meeting).participantRole());
-        }
-        if (!meeting.live()) throw invalidState("Only a live meeting can be ended.");
-        if (meeting.version() != request.expectedVersion()) throw versionConflict();
-        requireProvider();
-        mediaProvider.endRoom(meeting);
-        Meeting ended = repository.end(meeting, subject.userId(), request.expectedVersion());
-        String eventCorrelation = correlation(correlationId);
-        Map<String, Object> evidence = Map.of("provider", ended.provider());
-        repository.recordEvent(
-                ended, null, subject.userId(), "ENDED", eventCorrelation,
-                commandKey(idempotencyKey), evidence);
-        audit.meetingLifecycle(
-                subject, ended, "meeting.ended", eventCorrelation, evidence);
-        ParticipantRole viewerRole = repository.participant(
-                        subject.tenantId(), meetingId, subject.userId())
-                .map(Participant::participantRole).orElse(ParticipantRole.ATTENDEE);
-        return VideoMeetingDtos.MeetingDetailResponse.from(
-                repository.detail(ended), viewerRole);
+        return lifecycle.end(meetingId, request, idempotencyKey, correlationId);
     }
 
     @Transactional

@@ -14,6 +14,8 @@ import org.springframework.web.client.RestClient;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 import java.util.UUID;
 
 @Component
@@ -62,6 +64,16 @@ public class DownstreamProvisioningClient {
                 .retrieve()
                 .body(AuthProvisioningResult.class);
         if (result == null) throw unavailable("Auth provisioning returned no result.");
+        String expectedEmail = canonicalEmail(
+                plan.path("initialAdministrator").path("email").asText(null));
+        if (!tenantId.equals(result.providerTenantId())
+                || !positive(result.tenantId())
+                || !positive(result.administratorUserId())
+                || !Objects.equals(expectedEmail, result.administratorEmail())
+                || !"PROVISIONING".equals(result.lifecycleState())
+                || result.schemaVersion() != 1) {
+            throw unavailable("Auth provisioning returned an invalid tenant binding.");
+        }
         return result;
     }
 
@@ -86,6 +98,8 @@ public class DownstreamProvisioningClient {
                 .retrieve()
                 .body(ServiceProvisioningResult.class);
         if (result == null) throw unavailable("Platform provisioning returned no result.");
+        validateServiceResult(
+                "Platform", tenantId, authTenantId, "platform-tenant:" + authTenantId, result);
         return result;
     }
 
@@ -108,12 +122,14 @@ public class DownstreamProvisioningClient {
                 .retrieve()
                 .body(ServiceProvisioningResult.class);
         if (result == null) throw unavailable("People provisioning returned no result.");
+        validateServiceResult(
+                "People", tenantId, authTenantId, "people-tenant:" + authTenantId, result);
         return result;
     }
 
     @Bulkhead(name = "tenantProvisioning", type = Bulkhead.Type.SEMAPHORE)
     @CircuitBreaker(name = "tenantProvisioning")
-    public ServiceProvisioningResult provisionAssetStorage(UUID tenantId) {
+    public ServiceProvisioningResult provisionAssetStorage(UUID tenantId, Long authTenantId) {
         requireConfigured();
         ServiceProvisioningResult result = platform.post()
                 .uri("/internal/provider/v1/tenants/{tenantId}/asset-storage", tenantId)
@@ -122,17 +138,10 @@ public class DownstreamProvisioningClient {
                 .retrieve()
                 .body(ServiceProvisioningResult.class);
         if (result == null) throw unavailable("Asset storage provisioning returned no result.");
+        validateServiceResult(
+                "Asset storage", tenantId, authTenantId,
+                "asset-storage:tenant:" + authTenantId, result);
         return result;
-    }
-
-    @Bulkhead(name = "tenantProvisioning", type = Bulkhead.Type.SEMAPHORE)
-    @CircuitBreaker(name = "tenantProvisioning")
-    public void updateLifecycle(UUID tenantId, String lifecycleState) {
-        requireConfigured();
-        LifecycleRequest request = new LifecycleRequest(lifecycleState);
-        updateLifecycle(auth, tenantId, request);
-        updateLifecycle(platform, tenantId, request);
-        updateLifecycle(people, tenantId, request);
     }
 
     @Bulkhead(name = "tenantProvisioning", type = Bulkhead.Type.SEMAPHORE)
@@ -181,17 +190,6 @@ public class DownstreamProvisioningClient {
         return receipt;
     }
 
-    private void updateLifecycle(RestClient client, UUID tenantId, LifecycleRequest request) {
-        client.patch()
-                .uri("/internal/provider/v1/tenants/{tenantId}/lifecycle", tenantId)
-                .headers(headers -> OutboundHttpHeaders.propagateObservability(headers))
-                .header(TOKEN_HEADER, provisioningToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(request)
-                .retrieve()
-                .toBodilessEntity();
-    }
-
     private void replaceEntitlements(RestClient client, UUID tenantId, EntitlementsRequest request) {
         client.put()
                 .uri("/internal/provider/v1/tenants/{tenantId}/entitlements", tenantId)
@@ -207,6 +205,32 @@ public class DownstreamProvisioningClient {
         List<String> values = new ArrayList<>();
         plan.path("entitlements").forEach(value -> values.add(value.asText()));
         return values;
+    }
+
+    private void validateServiceResult(
+            String service,
+            UUID expectedProviderTenantId,
+            Long expectedAuthTenantId,
+            String expectedExternalReference,
+            ServiceProvisioningResult result) {
+        if (!expectedProviderTenantId.equals(result.providerTenantId())
+                || !positive(expectedAuthTenantId)
+                || !expectedAuthTenantId.equals(result.tenantId())
+                || !"PROVISIONING".equals(result.lifecycleState())
+                || result.schemaVersion() != 1
+                || !expectedExternalReference.equals(result.externalReference())) {
+            throw unavailable(service + " provisioning returned an invalid tenant binding.");
+        }
+    }
+
+    private boolean positive(Long value) {
+        return value != null && value > 0;
+    }
+
+    private String canonicalEmail(String value) {
+        if (value == null) return null;
+        String canonical = value.strip().toLowerCase(Locale.ROOT);
+        return canonical.isEmpty() ? null : canonical;
     }
 
     private void requireConfigured() {
@@ -250,9 +274,6 @@ public class DownstreamProvisioningClient {
             String displayName,
             String dataRegion,
             String isolationModel) {
-    }
-
-    private record LifecycleRequest(String lifecycleState) {
     }
 
     private record EntitlementsRequest(List<String> entitlementKeys) {

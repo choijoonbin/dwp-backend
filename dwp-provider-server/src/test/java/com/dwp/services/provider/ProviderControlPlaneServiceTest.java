@@ -42,6 +42,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
@@ -218,6 +219,97 @@ class ProviderControlPlaneServiceTest {
         assertThatThrownBy(() -> service.replaceEntitlements(tenantId, "corr-4", request))
                 .isInstanceOf(BaseException.class)
                 .hasMessageContaining("changed");
+    }
+
+    @Test
+    void onboardingTenantBlocksPlanDriftButDelegatesContainmentLifecycle() {
+        UUID tenantId = UUID.fromString("20000000-0000-0000-0000-000000000002");
+        ProviderTenant tenant = ProviderTenant.builder()
+                .providerTenantId(tenantId)
+                .lifecycleState("PROVISIONING")
+                .onboardingState("PENDING_EXTERNAL")
+                .version(2L)
+                .build();
+        when(tenantRepository.findById(tenantId)).thenReturn(Optional.of(tenant));
+
+        assertThatThrownBy(() -> service.lifecycle(
+                tenantId,
+                "corr-onboarding-activate",
+                new ProviderDtos.LifecycleRequest("ACTIVE", "Resume onboarding", 2L)))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("onboarding must be ready");
+        assertThatThrownBy(() -> service.replaceEntitlements(
+                tenantId,
+                "corr-onboarding-entitlements",
+                new ProviderDtos.ReplaceEntitlementsRequest(
+                        List.of("core.workspace"), "Adjust onboarding", 2L)))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("onboarding must be ready");
+
+        doThrow(new IllegalStateException("suspension delegated"))
+                .when(tenantMutationOrchestrator)
+                .lifecycle(eq(tenant), eq(2L), eq("SUSPENDED"), any(), any());
+        doThrow(new IllegalStateException("retirement delegated"))
+                .when(tenantMutationOrchestrator)
+                .lifecycle(eq(tenant), eq(2L), eq("RETIRED"), any(), any());
+
+        assertThatThrownBy(() -> service.lifecycle(
+                tenantId,
+                "corr-onboarding-suspend",
+                new ProviderDtos.LifecycleRequest("SUSPENDED", "Pause onboarding", 2L)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("suspension delegated");
+        assertThatThrownBy(() -> service.lifecycle(
+                tenantId,
+                "corr-onboarding-retire",
+                new ProviderDtos.LifecycleRequest("RETIRED", "Retire failed onboarding", 2L)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("retirement delegated");
+        verify(tenantMutationOrchestrator, never())
+                .lifecycle(eq(tenant), eq(2L), eq("ACTIVE"), any(), any());
+        verify(tenantMutationOrchestrator, never())
+                .replaceEntitlements(any(), anyLong(), any(), any(), any());
+    }
+
+    @Test
+    void readyTenantDelegatesActivationAndEntitlementMutations() {
+        UUID tenantId = UUID.fromString("20000000-0000-0000-0000-000000000003");
+        ProviderTenant tenant = ProviderTenant.builder()
+                .providerTenantId(tenantId)
+                .lifecycleState("ACTIVE")
+                .onboardingState("READY")
+                .version(3L)
+                .build();
+        when(tenantRepository.findById(tenantId)).thenReturn(Optional.of(tenant));
+        Entitlement workspace = Entitlement.builder()
+                .entitlementId(1L)
+                .entitlementKey("core.workspace")
+                .name("Core workspace")
+                .entitlementType("APP")
+                .lifecycleState("ACTIVE")
+                .build();
+        when(entitlementRepository.findByLifecycleStateOrderByEntitlementKeyAsc("ACTIVE"))
+                .thenReturn(List.of(workspace));
+        doThrow(new IllegalStateException("lifecycle delegated"))
+                .when(tenantMutationOrchestrator)
+                .lifecycle(eq(tenant), eq(3L), eq("ACTIVE"), any(), any());
+        doThrow(new IllegalStateException("entitlements delegated"))
+                .when(tenantMutationOrchestrator)
+                .replaceEntitlements(eq(tenant), eq(3L), eq(List.of("core.workspace")), any(), any());
+
+        assertThatThrownBy(() -> service.lifecycle(
+                tenantId,
+                "corr-ready-activate",
+                new ProviderDtos.LifecycleRequest("ACTIVE", "Approved activation", 3L)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("lifecycle delegated");
+        assertThatThrownBy(() -> service.replaceEntitlements(
+                tenantId,
+                "corr-ready-entitlements",
+                new ProviderDtos.ReplaceEntitlementsRequest(
+                        List.of("core.workspace"), "Approved entitlement change", 3L)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("entitlements delegated");
     }
 
     @Test
@@ -595,6 +687,7 @@ class ProviderControlPlaneServiceTest {
 
     @Test
     void requesterCannotApproveTheirOwnHighRiskChange() {
+        setApprovalActor(12L, "PROVIDER_CHANGE_APPROVER");
         UUID approvalId = UUID.fromString("40000000-0000-0000-0000-000000000001");
         UUID operationId = UUID.fromString("40000000-0000-0000-0000-000000000002");
         when(operationsRepository.approval(approvalId)).thenReturn(Optional.of(
@@ -602,7 +695,7 @@ class ProviderControlPlaneServiceTest {
                         approvalId,
                         operationId,
                         "PENDING",
-                        "PROVIDER_ADMIN",
+                        "PROVIDER_CHANGE_APPROVER",
                         true,
                         12L,
                         null,
@@ -615,6 +708,61 @@ class ProviderControlPlaneServiceTest {
         assertThatThrownBy(() -> service.decideOperationApproval(approvalId, "corr-9", request))
                 .isInstanceOf(BaseException.class)
                 .hasMessageContaining("Separation of duties");
+    }
+
+    @Test
+    void dedicatedChangeApproverCanApproveAnotherOperatorsHighRiskChange() {
+        setApprovalActor(13L, "PROVIDER_CHANGE_APPROVER");
+        UUID approvalId = UUID.fromString("40000000-0000-0000-0000-000000000011");
+        UUID operationId = UUID.fromString("40000000-0000-0000-0000-000000000012");
+        when(operationsRepository.approval(approvalId)).thenReturn(Optional.of(
+                new ProviderOperationsRepository.ApprovalRecord(
+                        approvalId, operationId, "PENDING", "PROVIDER_CHANGE_APPROVER",
+                        true, 12L, null, 0L)));
+        when(operationsRepository.decideApproval(
+                approvalId, "APPROVED", "Reviewed tenant impact", 13L, 0L)).thenReturn(true);
+        ProviderOperation operation = ProviderOperation.builder()
+                .operationId(operationId)
+                .operationType("TENANT_ONBOARD")
+                .lifecycleState("PREVIEWED")
+                .riskTier("L3")
+                .build();
+        when(operationRepository.findById(operationId)).thenReturn(Optional.of(operation));
+        ProviderDtos.OperationApprovalSummary summary = new ProviderDtos.OperationApprovalSummary(
+                approvalId, operationId, null, null, "TENANT_ONBOARD", "L3",
+                "RISK_REVIEW", 1, "APPROVED", "PROVIDER_CHANGE_APPROVER", true,
+                12L, "Tenant provisioner", 13L, "Change approver",
+                "Regulated onboarding", "Reviewed tenant impact",
+                Instant.now(), Instant.now(), Instant.now().plusSeconds(3600), 1L);
+        when(operationsRepository.operationApprovals(null)).thenReturn(List.of(summary));
+
+        ProviderDtos.OperationApprovalSummary decided = service.decideOperationApproval(
+                approvalId, "corr-dedicated-approver",
+                new ProviderDtos.DecideOperationApprovalRequest(
+                        "APPROVED", "Reviewed tenant impact", 0L));
+
+        assertThat(decided).isEqualTo(summary);
+        verify(operationsRepository).decideApproval(
+                approvalId, "APPROVED", "Reviewed tenant impact", 13L, 0L);
+    }
+
+    @Test
+    void providerAdminWithoutDedicatedRoleCannotApproveHighRiskChange() {
+        setApprovalActor(13L, "PROVIDER_ADMIN");
+        UUID approvalId = UUID.fromString("40000000-0000-0000-0000-000000000021");
+        UUID operationId = UUID.fromString("40000000-0000-0000-0000-000000000022");
+        when(operationsRepository.approval(approvalId)).thenReturn(Optional.of(
+                new ProviderOperationsRepository.ApprovalRecord(
+                        approvalId, operationId, "PENDING", "PROVIDER_CHANGE_APPROVER",
+                        true, 12L, null, 0L)));
+
+        assertThatThrownBy(() -> service.decideOperationApproval(
+                approvalId, "corr-admin-not-approver",
+                new ProviderDtos.DecideOperationApprovalRequest(
+                        "APPROVED", "Attempted broad admin approval", 0L)))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("required approval role");
+        verify(operationsRepository, never()).decideApproval(any(), any(), any(), any(), anyLong());
     }
 
     @Test
@@ -835,5 +983,11 @@ class ProviderControlPlaneServiceTest {
                 "ko-KR", "Asia/Seoul", "acme.example.com",
                 "Acme Administrator", "admin@acme.example.com",
                 List.of("core.workspace"), "Approved enterprise onboarding request");
+    }
+
+    private void setApprovalActor(Long operatorId, String role) {
+        ProviderRequestContext.set(new ProviderRequestContext.Actor(
+                operatorId, operatorId, 1L, "Approval test operator",
+                Set.of(role), Set.of("CHANGE_APPROVE")));
     }
 }

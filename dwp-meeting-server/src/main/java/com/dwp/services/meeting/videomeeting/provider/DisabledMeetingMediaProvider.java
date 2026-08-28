@@ -32,7 +32,12 @@ public class DisabledMeetingMediaProvider implements MeetingMediaProvider {
     }
 
     @Override
-    public PreparedRoom prepareRoom(UUID meetingId, long tenantId, int maximumParticipants) {
+    public PreparedRoom planRoom(UUID meetingId, long tenantId) {
+        throw unavailable();
+    }
+
+    @Override
+    public void ensureRoom(PreparedRoom room, int maximumParticipants) {
         throw unavailable();
     }
 
@@ -47,7 +52,7 @@ public class DisabledMeetingMediaProvider implements MeetingMediaProvider {
     }
 
     @Override
-    public void endRoom(Meeting meeting) {
+    public void endRoom(String roomName) {
         throw unavailable();
     }
 

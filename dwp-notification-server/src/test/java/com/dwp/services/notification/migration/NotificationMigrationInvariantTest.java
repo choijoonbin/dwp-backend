@@ -11,6 +11,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 class NotificationMigrationInvariantTest {
 
     @Test
+    void recordsEntitlementSuppressionWithoutCreatingRecipientDeliveryState()
+            throws IOException {
+        String migration = resource(
+                "db/migration/V23__record_entitlement_suppressed_notification_intents.sql");
+
+        assertThat(migration)
+                .contains("'SUPPRESSED'")
+                .contains("without creating notification, recipient projection, or delivery outbox")
+                .doesNotContain("INSERT INTO ntf_notifications")
+                .doesNotContain("INSERT INTO ntf_user_notifications")
+                .doesNotContain("INSERT INTO ntf_outbox_events");
+    }
+
+    @Test
     void tracksRecipientScopedTargetLifecycleAndKeepsRlsForced() throws IOException {
         String migration = resource(
                 "db/migration/V20__track_notification_target_lifecycle.sql");

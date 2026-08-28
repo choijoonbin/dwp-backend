@@ -187,7 +187,8 @@ public class MailOrganizationService {
                 .toList();
         int changed = matches.stream()
                 .mapToInt(candidate -> commands.applyRuleActions(
-                        tenantId, userId, rule.accountId(), candidate.threadId(), rule.actions()))
+                        tenantId, userId, rule.accountId(), candidate.threadId(),
+                        candidate.version(), rule.actions()))
                 .sum();
         commands.completeRuleRun(
                 tenantId, userId, ruleId, runId, candidates.size(), matches.size(), changed);

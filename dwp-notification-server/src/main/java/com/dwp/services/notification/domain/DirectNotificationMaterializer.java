@@ -5,23 +5,21 @@ import com.dwp.services.notification.domain.NotificationMaterializationRepositor
 import com.dwp.services.notification.domain.NotificationMaterializationRepository.TemplateContract;
 import com.dwp.services.notification.domain.NotificationModels.DirectMaterializationRequest;
 import com.dwp.services.notification.domain.NotificationModels.MaterializationResult;
-import com.dwp.services.notification.operations.NotificationRetentionService;
-import com.dwp.services.notification.realtime.NotificationChangePublisher;
-import com.dwp.services.notification.security.NotificationDatabaseScope;
 import com.dwp.services.notification.security.NotificationRequestContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -32,34 +30,26 @@ public class DirectNotificationMaterializer {
     private static final Pattern PLACEHOLDER = Pattern.compile("\\{\\{\\s*([A-Za-z][A-Za-z0-9_.-]{0,79})\\s*}}");
     private static final Pattern SAFE_KEY = Pattern.compile("[A-Za-z][A-Za-z0-9_.-]{0,79}");
 
-    private final NotificationDatabaseScope databaseScope;
-    private final NotificationMaterializationRepository repository;
+    private final NotificationMaterializationTransactions transactions;
     private final NotificationProducerOwnershipPolicy ownershipPolicy;
-    private final NotificationRetentionService retentionService;
-    private final NotificationChangePublisher changePublisher;
+    private final NotificationRecipientEntitlementAdmission entitlementAdmission;
     private final ObjectMapper objectMapper;
 
     public DirectNotificationMaterializer(
-            NotificationDatabaseScope databaseScope,
-            NotificationMaterializationRepository repository,
+            NotificationMaterializationTransactions transactions,
             NotificationProducerOwnershipPolicy ownershipPolicy,
-            NotificationRetentionService retentionService,
-            NotificationChangePublisher changePublisher,
+            NotificationRecipientEntitlementAdmission entitlementAdmission,
             ObjectMapper objectMapper) {
-        this.databaseScope = databaseScope;
-        this.repository = repository;
+        this.transactions = transactions;
         this.ownershipPolicy = ownershipPolicy;
-        this.retentionService = retentionService;
-        this.changePublisher = changePublisher;
+        this.entitlementAdmission = entitlementAdmission;
         this.objectMapper = objectMapper;
     }
 
-    @Transactional
     public MaterializationResult materialize(
             NotificationRequestContext.Actor actor,
             DirectMaterializationRequest request,
             String correlationId) {
-        databaseScope.applyWorker(actor.tenantId());
         Map<String, Object> variables = sanitize(request.variables());
         DirectMaterializationRequest sanitizedRequest = new DirectMaterializationRequest(
                 request.sourceEventId(),
@@ -77,28 +67,29 @@ public class DirectNotificationMaterializer {
                 request.dueAt(),
                 request.actionRequired(),
                 variables);
-        TemplateContract contract = repository.contract(
+        TemplateContract contract = transactions.contract(
                 actor.tenantId(),
                 sanitizedRequest.typeKey(),
                 sanitizedRequest.sourceEventType(),
                 sanitizedRequest.sourceSchemaVersion(),
                 sanitizedRequest.locale());
         ownershipPolicy.requireOwnership(actor, contract);
+        Set<Long> entitledRecipients = entitlementAdmission.admittedRecipients(
+                actor.tenantId(),
+                sanitizedRequest.recipientUserIds(),
+                contract.ownerAppKey());
         String payloadHash = payloadHash(sanitizedRequest);
-        java.time.Instant admittedAt = java.time.Instant.now();
+        Instant admittedAt = Instant.now();
         RenderedContent content = render(contract, variables);
-        PersistenceResult result = repository.materialize(
+        PersistenceResult result = transactions.materialize(
                 actor.tenantId(),
                 sanitizedRequest,
                 contract,
                 content,
                 payloadHash,
-                correlationId);
-        if (!result.result().duplicate()) {
-            retentionService.applyDefaultExpiry(
-                    actor.tenantId(), result.result().notificationId(), admittedAt);
-        }
-        changePublisher.publishAfterCommit(result.signals());
+                correlationId,
+                entitledRecipients,
+                admittedAt);
         return result.result();
     }
 

@@ -169,6 +169,7 @@ class MailOrganizationCommandRepository {
             Long userId,
             UUID accountId,
             UUID threadId,
+            long expectedVersion,
             List<MailOrganizationDtos.RuleAction> actions) {
         UUID targetFolderId = actions.stream()
                 .filter(action -> action.type() == RuleActionType.MOVE_TO_FOLDER)
@@ -205,8 +206,18 @@ class MailOrganizationCommandRepository {
                        updated_at = CURRENT_TIMESTAMP, updated_by = ?
                  WHERE thread.tenant_id = ? AND thread.account_id = ?
                    AND thread.thread_id = ?
+                   AND thread.version = ?
+                   AND (?::uuid IS NULL OR EXISTS (
+                       SELECT 1 FROM mail_folders target
+                        WHERE target.tenant_id = thread.tenant_id
+                          AND target.account_id = thread.account_id
+                          AND target.folder_id = ?::uuid
+                          AND target.lifecycle_state = 'ACTIVE'
+                          AND target.folder_type IN ('INBOX', 'ARCHIVE', 'CUSTOM')
+                   ))
                    AND thread.workflow_state NOT IN ('DRAFT', 'TRASHED', 'SPAM')
                 """, targetFolderId, targetFolderId, markRead, star, importance,
-                targetFolderId, targetFolderId, userId, tenantId, accountId, threadId);
+                targetFolderId, targetFolderId, userId, tenantId, accountId, threadId,
+                expectedVersion, targetFolderId, targetFolderId);
     }
 }

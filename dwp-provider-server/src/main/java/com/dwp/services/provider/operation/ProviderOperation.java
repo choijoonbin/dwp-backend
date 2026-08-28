@@ -72,6 +72,15 @@ public class ProviderOperation {
     @Column(name = "completed_at")
     private Instant completedAt;
 
+    @Column(name = "lease_owner", length = 120, insertable = false, updatable = false)
+    private String leaseOwner;
+
+    @Column(name = "lease_token", insertable = false, updatable = false)
+    private UUID leaseToken;
+
+    @Column(name = "lease_expires_at", insertable = false, updatable = false)
+    private Instant leaseExpiresAt;
+
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private Instant createdAt;
 

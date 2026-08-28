@@ -26,9 +26,11 @@ public class ProviderOperationsRepository {
             DateTimeFormatter.ofPattern("yyyyMMdd").withZone(ZoneOffset.UTC);
 
     private final JdbcTemplate jdbc;
+    private final ProviderOperationApprovalPolicy approvalPolicy;
 
     public ProviderOperationsRepository(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
+        this.approvalPolicy = new ProviderOperationApprovalPolicy(jdbc);
     }
 
     public ProviderDtos.CommandCenter commandCenter(ProviderDtos.EstateOverview estate) {
@@ -410,14 +412,7 @@ public class ProviderOperationsRepository {
     }
 
     public void ensureOperationApproval(ProviderOperation operation) {
-        if (!"L3".equals(operation.getRiskTier())) return;
-        jdbc.update("""
-                INSERT INTO prv_operation_approvals (
-                    operation_id, gate_key, lifecycle_state, required_role_code,
-                    separation_of_duties, requested_by, request_reason)
-                VALUES (?, 'RISK_REVIEW', 'PENDING', 'PROVIDER_ADMIN', TRUE, ?, ?)
-                ON CONFLICT (operation_id, gate_key) DO NOTHING
-                """, operation.getOperationId(), operation.getRequestedBy(), operation.getJustification());
+        approvalPolicy.ensureRequiredApproval(operation);
     }
 
     public Optional<ApprovalRecord> approval(UUID approvalId) {
@@ -441,13 +436,7 @@ public class ProviderOperationsRepository {
 
     public boolean operationApproved(UUID operationId) {
         expireApprovals();
-        long required = count("SELECT COUNT(*) FROM prv_operation_approvals WHERE operation_id = ?", operationId);
-        if (required == 0) return true;
-        long approved = count("""
-                SELECT COUNT(*) FROM prv_operation_approvals
-                 WHERE operation_id = ? AND lifecycle_state = 'APPROVED'
-                """, operationId);
-        return approved == required;
+        return approvalPolicy.allRequiredApprovalsPassed(operationId);
     }
 
     public boolean decideApproval(

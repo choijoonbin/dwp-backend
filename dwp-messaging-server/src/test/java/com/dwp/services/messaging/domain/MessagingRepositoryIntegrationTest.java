@@ -287,6 +287,39 @@ class MessagingRepositoryIntegrationTest {
     }
 
     @Test
+    void mentionScopeReturnsOnlyUnreadMentionedConversations() {
+        UUID mentionedConversation = createConversation("integration:mention-scope");
+        UUID ordinaryConversation = createConversation("integration:mention-scope-ordinary");
+        createMember(mentionedConversation, USER_ID);
+        createMember(ordinaryConversation, USER_ID);
+        MessagingCommandRepository.MessageInsertResult mentioned = sendAs(
+                OTHER_USER_ID, mentionedConversation, UUID.randomUUID(), "please review", null);
+        sendAs(OTHER_USER_ID, ordinaryConversation, UUID.randomUUID(), "ordinary update", null);
+        jdbc.update("""
+                INSERT INTO msg_message_mentions (
+                    tenant_id, conversation_id, message_id, mentioned_user_id,
+                    display_name_snapshot, mention_kind)
+                VALUES (?, ?, ?, ?, 'Mentioned user', 'USER')
+                """, TENANT_ID, mentionedConversation, mentioned.messageId(), USER_ID);
+        MessagingQueryRepository queries = new MessagingQueryRepository(
+                jdbc, new MessagingMessageQueryRepository(jdbc));
+
+        assertThat(queries.conversations(TENANT_ID, USER_ID, "MENTIONS", "", 0, 20))
+                .extracting(MessagingDtos.ConversationSummary::conversationId)
+                .containsExactly(mentionedConversation);
+        assertThat(queries.conversationCount(TENANT_ID, USER_ID, "MENTIONS", ""))
+                .isOne();
+
+        transactions.executeWithoutResult(status -> new MessagingCommandRepository(jdbc).markRead(
+                TENANT_ID, USER_ID, mentionedConversation, mentioned.messageId()).orElseThrow());
+
+        assertThat(queries.conversations(TENANT_ID, USER_ID, "MENTIONS", "", 0, 20))
+                .isEmpty();
+        assertThat(queries.conversationCount(TENANT_ID, USER_ID, "MENTIONS", ""))
+                .isZero();
+    }
+
+    @Test
     void realtimeEventLogCommitsAtomicallyAndCarriesMessageSequence() {
         UUID conversationId = createConversation("integration:durable-event");
         MessagingCommandRepository.MessageInsertResult message =

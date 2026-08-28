@@ -33,6 +33,7 @@ public class SupportSessionContextFilter implements GlobalFilter, Ordered {
     public static final String SUPPORT_REVISION_HEADER = "X-DWP-Support-Revision";
     public static final String PROVIDER_TENANT_HEADER = "X-DWP-Provider-Tenant-ID";
     public static final String ACTOR_TENANT_HEADER = "X-DWP-Actor-Tenant-ID";
+    public static final String SUPPORT_TARGET_TENANT_ATTRIBUTE = "dwp.supportTenantId";
     private static final List<String> INTERNAL_HEADERS = List.of(
             SUPPORT_SESSION_HEADER,
             SUPPORT_SCOPES_HEADER,
@@ -87,10 +88,10 @@ public class SupportSessionContextFilter implements GlobalFilter, Ordered {
                 .flatMap(access -> chain.filter(withSupportContext(sanitizedExchange, access)))
                 .onErrorResume(
                         SupportAccessDeniedException.class,
-                        ignored -> deny(exchange, HttpStatus.FORBIDDEN))
+                        ignored -> deny(sanitizedExchange, HttpStatus.FORBIDDEN))
                 .onErrorResume(
                         SupportValidationRejectedException.class,
-                        exception -> deny(exchange, exception.statusCode()))
+                        exception -> deny(sanitizedExchange, exception.statusCode()))
                 .onErrorResume(
                         SupportValidationUnavailableException.class,
                         ignored -> complete(exchange, HttpStatus.SERVICE_UNAVAILABLE))
@@ -144,7 +145,7 @@ public class SupportSessionContextFilter implements GlobalFilter, Ordered {
                 })
                 .build();
         exchange.getAttributes().put("dwp.supportSessionId", access.supportSessionId());
-        exchange.getAttributes().put("dwp.supportTenantId", access.authTenantId());
+        exchange.getAttributes().put(SUPPORT_TARGET_TENANT_ATTRIBUTE, access.authTenantId());
         return exchange.mutate().request(request).build();
     }
 

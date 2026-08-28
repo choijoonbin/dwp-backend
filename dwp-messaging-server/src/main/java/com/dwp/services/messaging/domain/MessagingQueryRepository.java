@@ -37,7 +37,20 @@ class MessagingQueryRepository {
                         OR (? = 'FAVORITES' AND member.favorite = TRUE)
                         OR (? = 'SPACES' AND conversation.visibility = 'SPACE')
                         OR (? = 'DIRECT' AND conversation.conversation_type = 'DIRECT')
-                        OR (? = 'CHANNELS' AND conversation.conversation_type <> 'DIRECT'))
+                        OR (? = 'CHANNELS' AND conversation.conversation_type <> 'DIRECT')
+                        OR (? = 'MENTIONS' AND EXISTS (
+                            SELECT 1
+                              FROM msg_message_mentions mention
+                              JOIN msg_messages mentioned_message
+                                ON mentioned_message.tenant_id = mention.tenant_id
+                               AND mentioned_message.conversation_id = mention.conversation_id
+                               AND mentioned_message.message_id = mention.message_id
+                             WHERE mention.tenant_id = conversation.tenant_id
+                               AND mention.conversation_id = conversation.conversation_id
+                               AND mention.mentioned_user_id = member.user_id
+                               AND mentioned_message.deleted_at IS NULL
+                               AND mentioned_message.sequence > member.last_read_sequence
+                               AND mentioned_message.sequence >= member.history_start_sequence)))
                    AND (? = '' OR LOWER(COALESCE(conversation.name, '')) LIKE ?
                         OR LOWER(COALESCE(conversation.topic, '')) LIKE ?)
                  GROUP BY conversation.conversation_id, member.favorite, member.pinned,
@@ -48,7 +61,7 @@ class MessagingQueryRepository {
                  LIMIT ? OFFSET ?
                 """, (result, ignored) -> conversation(result),
                 tenantId, userId,
-                scope, scope, scope, scope, scope,
+                scope, scope, scope, scope, scope, scope,
                 query, pattern(query), pattern(query),
                 pageSize, page * pageSize);
     }
@@ -68,11 +81,24 @@ class MessagingQueryRepository {
                         OR (? = 'FAVORITES' AND member.favorite = TRUE)
                         OR (? = 'SPACES' AND conversation.visibility = 'SPACE')
                         OR (? = 'DIRECT' AND conversation.conversation_type = 'DIRECT')
-                        OR (? = 'CHANNELS' AND conversation.conversation_type <> 'DIRECT'))
+                        OR (? = 'CHANNELS' AND conversation.conversation_type <> 'DIRECT')
+                        OR (? = 'MENTIONS' AND EXISTS (
+                            SELECT 1
+                              FROM msg_message_mentions mention
+                              JOIN msg_messages mentioned_message
+                                ON mentioned_message.tenant_id = mention.tenant_id
+                               AND mentioned_message.conversation_id = mention.conversation_id
+                               AND mentioned_message.message_id = mention.message_id
+                             WHERE mention.tenant_id = conversation.tenant_id
+                               AND mention.conversation_id = conversation.conversation_id
+                               AND mention.mentioned_user_id = member.user_id
+                               AND mentioned_message.deleted_at IS NULL
+                               AND mentioned_message.sequence > member.last_read_sequence
+                               AND mentioned_message.sequence >= member.history_start_sequence)))
                    AND (? = '' OR LOWER(COALESCE(conversation.name, '')) LIKE ?
                         OR LOWER(COALESCE(conversation.topic, '')) LIKE ?)
                 """, Long.class,
-                tenantId, userId, scope, scope, scope, scope, scope,
+                tenantId, userId, scope, scope, scope, scope, scope, scope,
                 query, pattern(query), pattern(query));
         return count == null ? 0 : count;
     }

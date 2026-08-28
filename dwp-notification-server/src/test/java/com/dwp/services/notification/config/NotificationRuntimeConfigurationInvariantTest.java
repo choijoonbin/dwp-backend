@@ -21,4 +21,21 @@ class NotificationRuntimeConfigurationInvariantTest {
                 .isNotNull()
                 .containsEntry("spring.jpa.open-in-view", Boolean.FALSE);
     }
+
+    @Test
+    void recipientIdentityValidationHasBoundedResilienceAndExactViewBindings() {
+        YamlPropertiesFactoryBean yaml = new YamlPropertiesFactoryBean();
+        yaml.setResources(new ClassPathResource("application.yml"));
+        yaml.afterPropertiesSet();
+
+        assertThat(yaml.getObject())
+                .isNotNull()
+                .containsKeys(
+                        "dwp.identity-sync.auth-url",
+                        "dwp.identity-sync.token",
+                        "dwp.notification.recipient-entitlements.app-view-bindings")
+                .containsEntry(
+                        "resilience4j.retry.instances.notificationIdentityDirectory.base-config",
+                        "notificationIdentity");
+    }
 }

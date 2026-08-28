@@ -19,6 +19,7 @@ class MailOrganizationQueryRepository {
 
     record RuleCandidate(
             UUID threadId,
+            long version,
             String sender,
             String recipient,
             String subject,
@@ -168,7 +169,7 @@ class MailOrganizationQueryRepository {
 
     List<RuleCandidate> candidates(Long tenantId, Long userId, UUID accountId) {
         return jdbc.query("""
-                SELECT thread.thread_id,
+                SELECT thread.thread_id, thread.version,
                        COALESCE(latest.sender_email, '') AS sender,
                        account.email_address AS recipient,
                        thread.subject,
@@ -193,6 +194,7 @@ class MailOrganizationQueryRepository {
                  LIMIT 500
                 """, (result, ignored) -> new RuleCandidate(
                 result.getObject("thread_id", UUID.class),
+                result.getLong("version"),
                 result.getString("sender"),
                 result.getString("recipient"),
                 result.getString("subject"),

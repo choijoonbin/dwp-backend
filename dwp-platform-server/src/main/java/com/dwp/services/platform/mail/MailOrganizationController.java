@@ -18,9 +18,13 @@ import java.util.UUID;
 public class MailOrganizationController {
 
     private final MailOrganizationService service;
+    private final MailRuleBackfillService backfills;
 
-    public MailOrganizationController(MailOrganizationService service) {
+    public MailOrganizationController(
+            MailOrganizationService service,
+            MailRuleBackfillService backfills) {
         this.service = service;
+        this.backfills = backfills;
     }
 
     @GetMapping
@@ -101,5 +105,24 @@ public class MailOrganizationController {
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @PathVariable UUID ruleId) {
         return ApiResponse.success(service.runRule(tenantId, userId, ruleId, correlationId));
+    }
+
+    @GetMapping("/accounts/{accountId}/rules/backfill-preview")
+    public ApiResponse<MailRuleBackfillDtos.Preview> backfillPreview(
+            @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
+            @RequestHeader("X-DWP-User-ID") Long userId,
+            @PathVariable UUID accountId) {
+        return ApiResponse.success(backfills.preview(tenantId, userId, accountId));
+    }
+
+    @PostMapping("/accounts/{accountId}/rules/backfill")
+    public ApiResponse<MailRuleBackfillDtos.Result> backfill(
+            @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
+            @RequestHeader("X-DWP-User-ID") Long userId,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @PathVariable UUID accountId,
+            @Valid @RequestBody MailRuleBackfillDtos.Request request) {
+        return ApiResponse.success(
+                backfills.run(tenantId, userId, accountId, correlationId, request));
     }
 }

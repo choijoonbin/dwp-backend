@@ -14,6 +14,7 @@ import io.livekit.server.CanUpdateOwnMetadata;
 import io.livekit.server.LiveKitAPI;
 import io.livekit.server.RoomJoin;
 import io.livekit.server.RoomName;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import retrofit2.Response;
@@ -31,13 +32,14 @@ public class LiveKitMeetingMediaAdapter implements MeetingMediaProvider {
     private final MeetingMediaProperties properties;
     private final LiveKitAPI api;
 
+    @Autowired
     public LiveKitMeetingMediaAdapter(MeetingMediaProperties properties) {
+        this(properties, createApi(properties));
+    }
+
+    LiveKitMeetingMediaAdapter(MeetingMediaProperties properties, LiveKitAPI api) {
         this.properties = properties;
-        MeetingMediaProperties.LiveKit livekit = properties.getLivekit();
-        this.api = livekit.configured()
-                ? LiveKitAPI.createClient(
-                        livekit.getApiUrl(), livekit.getApiKey(), livekit.getApiSecret())
-                : null;
+        this.api = api;
     }
 
     @Override
@@ -55,19 +57,30 @@ public class LiveKitMeetingMediaAdapter implements MeetingMediaProvider {
     }
 
     @Override
-    public PreparedRoom prepareRoom(UUID meetingId, long tenantId, int maximumParticipants) {
+    public PreparedRoom planRoom(UUID meetingId, long tenantId) {
         requireAvailable();
         String roomName = "dwp-meeting-t" + tenantId + "-"
                 + meetingId.toString().replace("-", "");
+        return new PreparedRoom("LIVEKIT", roomName);
+    }
+
+    @Override
+    public void ensureRoom(PreparedRoom room, int maximumParticipants) {
+        requireAvailable();
+        if (room == null || !"LIVEKIT".equals(room.provider())
+                || room.roomName() == null || room.roomName().isBlank()) {
+            throw providerFailure("The LiveKit room plan is invalid.");
+        }
         try {
+            if (roomExists(room.roomName())) return;
             Response<?> response = api.getRoom()
-                    .createRoom(roomName, null, maximumParticipants)
+                    .createRoom(room.roomName(), null, maximumParticipants)
                     .execute();
             if (!response.isSuccessful()) {
+                if (roomExists(room.roomName())) return;
                 throw providerFailure(
                         "LiveKit room creation failed with status " + response.code() + ".");
             }
-            return new PreparedRoom("LIVEKIT", roomName);
         } catch (IOException exception) {
             throw providerFailure("LiveKit room creation could not be completed.", exception);
         }
@@ -114,10 +127,13 @@ public class LiveKitMeetingMediaAdapter implements MeetingMediaProvider {
     }
 
     @Override
-    public void endRoom(Meeting meeting) {
+    public void endRoom(String roomName) {
         requireAvailable();
+        if (roomName == null || roomName.isBlank()) {
+            throw providerFailure("The LiveKit room name is missing.");
+        }
         try {
-            Response<?> response = api.getRoom().deleteRoom(meeting.roomName()).execute();
+            Response<?> response = api.getRoom().deleteRoom(roomName).execute();
             if (!response.isSuccessful() && response.code() != 404) {
                 throw providerFailure(
                         "LiveKit room termination failed with status " + response.code() + ".");
@@ -125,6 +141,18 @@ public class LiveKitMeetingMediaAdapter implements MeetingMediaProvider {
         } catch (IOException exception) {
             throw providerFailure("LiveKit room termination could not be completed.", exception);
         }
+    }
+
+    private boolean roomExists(String roomName) throws IOException {
+        Response<List<livekit.LivekitModels.Room>> response =
+                api.getRoom().listRooms(List.of(roomName)).execute();
+        if (!response.isSuccessful()) {
+            throw providerFailure(
+                    "LiveKit room reconciliation failed with status "
+                            + response.code() + ".");
+        }
+        List<livekit.LivekitModels.Room> rooms = response.body();
+        return rooms != null && rooms.stream().anyMatch(room -> roomName.equals(room.getName()));
     }
 
     private void requireAvailable() {
@@ -139,5 +167,13 @@ public class LiveKitMeetingMediaAdapter implements MeetingMediaProvider {
 
     private BaseException providerFailure(String message, Exception cause) {
         return new BaseException(ErrorCode.EXTERNAL_SERVICE_ERROR, message, cause);
+    }
+
+    private static LiveKitAPI createApi(MeetingMediaProperties properties) {
+        MeetingMediaProperties.LiveKit livekit = properties.getLivekit();
+        return livekit.configured()
+                ? LiveKitAPI.createClient(
+                        livekit.getApiUrl(), livekit.getApiKey(), livekit.getApiSecret())
+                : null;
     }
 }

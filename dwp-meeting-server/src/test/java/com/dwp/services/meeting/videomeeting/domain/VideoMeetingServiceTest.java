@@ -62,6 +62,10 @@ class VideoMeetingServiceTest {
     @Mock
     private MeetingJoinCodeGenerator joinCodeGenerator;
     @Mock
+    private VideoMeetingLifecycleCoordinator lifecycle;
+    @Mock
+    private VideoMeetingContentAdmissionGuard contentAdmissionGuard;
+    @Mock
     private VideoMeetingAuditRecorder audit;
 
     @AfterEach
@@ -104,13 +108,11 @@ class VideoMeetingServiceTest {
     @Test
     void ordinaryAttendeeCannotStartTheMeeting() {
         UUID meetingId = UUID.randomUUID();
-        Meeting meeting = meeting(meetingId, LifecycleState.SCHEDULED, 2);
         MeetingRequestContext.set(subject());
-        when(repository.ensurePolicy(TENANT_ID, USER_ID)).thenReturn(policy());
-        when(repository.lockMeeting(TENANT_ID, meetingId)).thenReturn(meeting);
-        when(repository.participant(TENANT_ID, meetingId, USER_ID))
-                .thenReturn(Optional.of(participant(
-                        meetingId, ParticipantRole.ATTENDEE, AttendanceState.ADMITTED, 0)));
+        when(lifecycle.start(
+                eq(meetingId), any(), eq("start-command-001"), eq("corr-start")))
+                .thenThrow(new BaseException(
+                        ErrorCode.FORBIDDEN, "A meeting host role is required."));
 
         assertThatThrownBy(() -> service().start(
                 meetingId, new VideoMeetingDtos.VersionedCommand(2),
@@ -118,40 +120,32 @@ class VideoMeetingServiceTest {
                 .isInstanceOfSatisfying(BaseException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
 
-        verify(mediaProvider, never()).prepareRoom(any(), anyLong(), anyInt());
+        verify(mediaProvider, never()).ensureRoom(any(), anyInt());
         verify(repository, never()).start(any(), any(), any(), anyLong(), anyLong());
     }
 
     @Test
     void hostStartsAFormalMeetingThroughTheMediaPort() {
         UUID meetingId = UUID.randomUUID();
-        Meeting scheduled = meeting(meetingId, LifecycleState.SCHEDULED, 2);
         Meeting live = meeting(meetingId, LifecycleState.LIVE, 3);
         Participant organizer = participant(
                 meetingId, ParticipantRole.ORGANIZER, AttendanceState.ADMITTED, 0);
         MeetingRequestContext.set(subject());
-        when(repository.ensurePolicy(TENANT_ID, USER_ID)).thenReturn(policy());
-        when(repository.lockMeeting(TENANT_ID, meetingId)).thenReturn(scheduled);
-        when(repository.participant(TENANT_ID, meetingId, USER_ID))
-                .thenReturn(Optional.of(organizer));
-        when(mediaProvider.capability()).thenReturn(capability());
-        when(mediaProvider.prepareRoom(meetingId, TENANT_ID, 100))
-                .thenReturn(new MeetingMediaProvider.PreparedRoom("LIVEKIT", "formal-room"));
-        when(repository.start(scheduled, "LIVEKIT", "formal-room", USER_ID, 2))
-                .thenReturn(live);
-        when(repository.detail(live)).thenReturn(new MeetingDetail(live, List.of(organizer), List.of()));
+        VideoMeetingDtos.MeetingDetailResponse expected =
+                VideoMeetingDtos.MeetingDetailResponse.from(
+                        new MeetingDetail(live, List.of(organizer), List.of()),
+                        ParticipantRole.ORGANIZER);
+        when(lifecycle.start(
+                eq(meetingId), any(), eq("start-command-002"), eq("corr-start")))
+                .thenReturn(expected);
 
         VideoMeetingDtos.MeetingDetailResponse response = service().start(
                 meetingId, new VideoMeetingDtos.VersionedCommand(2),
                 "start-command-002", "corr-start");
 
         assertThat(response.lifecycleState()).isEqualTo("LIVE");
-        verify(repository).recordEvent(
-                eq(live), eq(null), eq(USER_ID), eq("STARTED"), eq("corr-start"),
-                eq("start-command-002"), eq(Map.of("provider", "LIVEKIT")));
-        verify(audit).meetingLifecycle(
-                eq(subject()), eq(live), eq("meeting.started"), eq("corr-start"),
-                eq(Map.of("provider", "LIVEKIT")));
+        verify(lifecycle).start(
+                eq(meetingId), any(), eq("start-command-002"), eq("corr-start"));
     }
 
     @Test
@@ -216,6 +210,8 @@ class VideoMeetingServiceTest {
         assertThat(response.participantToken()).isEqualTo("secret-participant-token");
         assertThat(response.effectivePermissions().screenShare()).isTrue();
         assertThat(response.effectivePermissions().chat()).isTrue();
+        verify(contentAdmissionGuard).requireCurrentNoticeAcknowledgement(
+                TENANT_ID, meetingId, admitted.participantId());
         verify(repository, never()).markJoined(anyLong(), any(), any(), anyLong());
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Object>> payload = ArgumentCaptor.forClass(Map.class);
@@ -359,9 +355,38 @@ class VideoMeetingServiceTest {
         assertThat(response.aiNotesAvailable()).isTrue();
     }
 
+    @Test
+    void attendeeDetailRedactsPrivateProfilesAndUnpublishedRecapContent() {
+        UUID meetingId = UUID.randomUUID();
+        Meeting live = meeting(meetingId, LifecycleState.LIVE, 3);
+        Participant admitted = participant(
+                meetingId, ParticipantRole.ATTENDEE, AttendanceState.JOINED, 1);
+        Participant requested = participant(
+                meetingId, ParticipantRole.GUEST, AttendanceState.REQUESTED, 1);
+        Artifact recording = artifact(meetingId, "RECORDING", "AVAILABLE", "video/mp4");
+
+        VideoMeetingDtos.MeetingDetailResponse response =
+                VideoMeetingDtos.MeetingDetailResponse.from(
+                        new MeetingDetail(live, List.of(admitted, requested), List.of(recording)),
+                        ParticipantRole.ATTENDEE, false, false);
+
+        assertThat(response.participants()).hasSize(1);
+        VideoMeetingDtos.ParticipantResponse participant = response.participants().getFirst();
+        assertThat(participant.displayName()).isEqualTo("박현우");
+        assertThat(participant.emailAddress()).isNull();
+        assertThat(participant.jobTitle()).isNull();
+        assertThat(participant.organizationName()).isNull();
+        assertThat(participant.joinedAt()).isNull();
+        assertThat(response.artifacts()).isEmpty();
+        assertThat(response.recordingAvailable()).isFalse();
+        assertThat(response.decisions()).isEmpty();
+        assertThat(response.followUpActions()).isEmpty();
+    }
+
     private VideoMeetingService service() {
         return new VideoMeetingService(
-                repository, mediaProvider, joinCodeGenerator, audit,
+                repository, mediaProvider, joinCodeGenerator, lifecycle,
+                contentAdmissionGuard, audit,
                 Clock.fixed(Instant.parse("2026-08-26T09:00:00Z"), ZoneOffset.UTC));
     }
 

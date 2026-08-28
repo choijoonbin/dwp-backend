@@ -8,7 +8,11 @@ import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.Meeting;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.Participant;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.ParticipantRole;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import io.livekit.server.LiveKitAPI;
+import io.livekit.server.RoomServiceClient;
 import org.junit.jupiter.api.Test;
+import retrofit2.Call;
+import retrofit2.Response;
 
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
@@ -18,16 +22,62 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class LiveKitMeetingMediaAdapterTest {
 
     @Test
+    void retryAdoptsTheDeterministicRoomInsteadOfCreatingAnOrphanDuplicate() throws Exception {
+        MeetingMediaProperties properties = configuredProperties();
+        LiveKitAPI api = mock(LiveKitAPI.class);
+        RoomServiceClient rooms = mock(RoomServiceClient.class);
+        @SuppressWarnings("unchecked")
+        Call<java.util.List<livekit.LivekitModels.Room>> listCall = mock(Call.class);
+        livekit.LivekitModels.Room existing = livekit.LivekitModels.Room.newBuilder()
+                .setName("dwp-meeting-t77-room").build();
+        when(api.getRoom()).thenReturn(rooms);
+        when(rooms.listRooms(java.util.List.of("dwp-meeting-t77-room")))
+                .thenReturn(listCall);
+        when(listCall.execute()).thenReturn(Response.success(java.util.List.of(existing)));
+        LiveKitMeetingMediaAdapter adapter = new LiveKitMeetingMediaAdapter(properties, api);
+        MeetingMediaProvider.PreparedRoom room =
+                new MeetingMediaProvider.PreparedRoom("LIVEKIT", "dwp-meeting-t77-room");
+
+        adapter.ensureRoom(room, 100);
+
+        verify(rooms, never()).createRoom(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyInt());
+    }
+
+    @Test
+    void retryTreatsAnAlreadyDeletedRoomAsSuccessfulTermination() throws Exception {
+        MeetingMediaProperties properties = configuredProperties();
+        LiveKitAPI api = mock(LiveKitAPI.class);
+        RoomServiceClient rooms = mock(RoomServiceClient.class);
+        @SuppressWarnings("unchecked")
+        Call<Void> deleteCall = mock(Call.class);
+        @SuppressWarnings("unchecked")
+        Response<Void> missing = mock(Response.class);
+        when(api.getRoom()).thenReturn(rooms);
+        when(rooms.deleteRoom("dwp-meeting-t77-room")).thenReturn(deleteCall);
+        when(deleteCall.execute()).thenReturn(missing);
+        when(missing.isSuccessful()).thenReturn(false);
+        when(missing.code()).thenReturn(404);
+        LiveKitMeetingMediaAdapter adapter = new LiveKitMeetingMediaAdapter(properties, api);
+
+        adapter.endRoom("dwp-meeting-t77-room");
+
+        verify(rooms).deleteRoom("dwp-meeting-t77-room");
+    }
+
+    @Test
     void tokenCarriesExplicitFailClosedMediaAndDataGrants() {
-        MeetingMediaProperties properties = new MeetingMediaProperties();
-        properties.getLivekit().setApiUrl("http://localhost:7880");
-        properties.getLivekit().setClientUrl("ws://localhost:7880");
-        properties.getLivekit().setApiKey("devkey");
-        properties.getLivekit().setApiSecret("secretsecretsecretsecretsecretsecret");
+        MeetingMediaProperties properties = configuredProperties();
         LiveKitMeetingMediaAdapter adapter = new LiveKitMeetingMediaAdapter(properties);
         Meeting meeting = meeting();
         Participant participant = participant(meeting.meetingId());
@@ -51,6 +101,15 @@ class LiveKitMeetingMediaAdapterTest {
                 .contains("camera")
                 .contains("microphone")
                 .doesNotContain("screen_share");
+    }
+
+    private MeetingMediaProperties configuredProperties() {
+        MeetingMediaProperties properties = new MeetingMediaProperties();
+        properties.getLivekit().setApiUrl("http://localhost:7880");
+        properties.getLivekit().setClientUrl("ws://localhost:7880");
+        properties.getLivekit().setApiKey("devkey");
+        properties.getLivekit().setApiSecret("secretsecretsecretsecretsecretsecret");
+        return properties;
     }
 
     private MeetingRequestContext.Subject subject() {

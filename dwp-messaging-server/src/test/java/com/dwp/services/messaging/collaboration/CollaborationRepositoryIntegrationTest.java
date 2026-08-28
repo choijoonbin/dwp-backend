@@ -3,6 +3,7 @@ package com.dwp.services.messaging.collaboration;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.messaging.security.MessagingRequestContext;
+import com.dwp.services.messaging.domain.MessagingTenantPolicyGuard;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -19,6 +20,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 
 @EnabledIfEnvironmentVariable(named = "DWP_MESSAGING_INTEGRATION_DB_URL", matches = ".+")
 class CollaborationRepositoryIntegrationTest {
@@ -60,7 +62,8 @@ class CollaborationRepositoryIntegrationTest {
                 TENANT_ID, OTHER_TENANT_ID);
         service = new CollaborationService(
                 new ConversationCreationRepository(jdbc),
-                new SqlCollaborationSearchRepository(new NamedParameterJdbcTemplate(jdbc)));
+                new SqlCollaborationSearchRepository(new NamedParameterJdbcTemplate(jdbc)),
+                mock(MessagingTenantPolicyGuard.class));
         person(TENANT_ID, OWNER_ID, "Owner", "owner@tenant.test", "ACTIVE");
         subject(TENANT_ID, OWNER_ID);
     }

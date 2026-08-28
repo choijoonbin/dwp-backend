@@ -2,29 +2,51 @@ package com.dwp.services.provider.provisioning;
 
 import com.dwp.core.exception.BaseException;
 import com.dwp.core.provisioning.ProviderTenantCommand;
+import com.dwp.services.provider.security.ProviderRequestContext;
+import com.dwp.services.provider.tenant.ProviderTenant;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.flywaydb.core.Flyway;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.postgresql.ds.PGSimpleDataSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.client.HttpServerErrorException;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
 @Testcontainers(disabledWithoutDocker = true)
 class TenantMutationOrchestrationPostgresTest {
@@ -37,17 +59,25 @@ class TenantMutationOrchestrationPostgresTest {
             new PostgreSQLContainer<>("postgres:16-alpine");
 
     private static JdbcTemplate jdbc;
+    private static PGSimpleDataSource dataSource;
     private static ObjectMapper objectMapper;
     private static TenantMutationRepository repository;
+    private static ProviderOnboardingActivationRepository onboardingActivationRepository;
     private static TransactionTemplate transactions;
+    private static ProviderOnboardingOperationTestFixture operationFixture;
     private static long operatorId;
 
     @BeforeAll
-    static void migrate() {
-        PGSimpleDataSource dataSource = new PGSimpleDataSource();
+    static void configureDataSource() {
+        dataSource = new PGSimpleDataSource();
         dataSource.setURL(POSTGRES.getJdbcUrl());
         dataSource.setUser(POSTGRES.getUsername());
         dataSource.setPassword(POSTGRES.getPassword());
+        objectMapper = JsonMapper.builder().findAndAddModules().build();
+    }
+
+    @BeforeEach
+    void resetTenant() {
         Flyway flyway = Flyway.configure()
                 .dataSource(dataSource)
                 .locations(
@@ -58,24 +88,26 @@ class TenantMutationOrchestrationPostgresTest {
         flyway.clean();
         flyway.migrate();
         jdbc = new JdbcTemplate(dataSource);
-        objectMapper = JsonMapper.builder().findAndAddModules().build();
-        repository = new TenantMutationRepository(
-                jdbc, objectMapper, new TenantMutationCompensationPlanner(jdbc, objectMapper));
-        transactions = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
-        operatorId = jdbc.queryForObject(
-                "SELECT MIN(provider_operator_id) FROM prv_operators", Long.class);
-    }
-
-    @BeforeEach
-    void resetTenant() {
-        jdbc.update("DELETE FROM prv_tenant_command_outbox");
-        jdbc.update("DELETE FROM prv_tenant_mutations");
         jdbc.update("""
                 UPDATE prv_tenants
                    SET lifecycle_state = 'SUSPENDED', onboarding_state = 'READY',
                        entitlement_revision = 0, version = 0
                  WHERE provider_tenant_id = ?
                 """, TENANT_ID);
+        repository = new TenantMutationRepository(
+                jdbc, objectMapper, new TenantMutationCompensationPlanner(jdbc, objectMapper));
+        transactions = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+        onboardingActivationRepository =
+                new ProviderOnboardingActivationRepository(jdbc, repository, transactions);
+        operatorId = jdbc.queryForObject(
+                "SELECT MIN(provider_operator_id) FROM prv_operators", Long.class);
+        operationFixture = new ProviderOnboardingOperationTestFixture(
+                jdbc, transactions, operatorId, TENANT_ID);
+    }
+
+    @AfterEach
+    void clearContext() {
+        ProviderRequestContext.clear();
     }
 
     @Test
@@ -273,6 +305,252 @@ class TenantMutationOrchestrationPostgresTest {
                 """, Integer.class)).isEqualTo(1);
     }
 
+    @Test
+    void rawDownstreamHttpBodyNeverReachesDurableFailureOrAuditEvidence() {
+        ProviderRequestContext.set(new ProviderRequestContext.Actor(
+                operatorId, 1L, 1L, "Mutation canary test",
+                Set.of("PROVIDER_TENANT_PROVISIONER"), Set.of("TENANT_WRITE")));
+        DownstreamProvisioningClient downstream = mock(DownstreamProvisioningClient.class);
+        TenantMutationOrchestrator orchestrator = new TenantMutationOrchestrator(
+                repository, onboardingActivationRepository, downstream,
+                objectMapper, new SimpleMeterRegistry(),
+                "pg-canary-worker", 1, Duration.ofSeconds(30));
+        String canary = "raw-provider-body-canary bearer-secret user@example.test";
+        when(downstream.executeTenantCommand(anyString(), any(), any())).thenThrow(
+                HttpServerErrorException.create(
+                        HttpStatus.INTERNAL_SERVER_ERROR,
+                        "Downstream failed",
+                        HttpHeaders.EMPTY,
+                        ("{\"detail\":\"" + canary + "\"}")
+                                .getBytes(StandardCharsets.UTF_8),
+                        StandardCharsets.UTF_8));
+        ProviderTenant tenant = ProviderTenant.builder()
+                .providerTenantId(TENANT_ID)
+                .lifecycleState("ACTIVE")
+                .onboardingState("READY")
+                .version(0L)
+                .build();
+
+        assertThatThrownBy(() -> orchestrator.lifecycle(
+                tenant, 0L, "SUSPENDED", "Approved containment", "corr-http-canary"))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("recovered automatically");
+
+        String mutationEvidence = jdbc.queryForObject("""
+                SELECT CONCAT_WS(' ', command.last_error_code, command.last_error_message,
+                                  mutation.failure_code, mutation.failure_message)
+                  FROM prv_tenant_command_outbox command
+                  JOIN prv_tenant_mutations mutation ON mutation.mutation_id = command.mutation_id
+                 WHERE mutation.correlation_id = 'corr-http-canary'
+                   AND command.command_order = 1
+                """, String.class);
+        assertThat(mutationEvidence)
+                .contains("HTTP_500", "Downstream tenant command failed (HTTP 500).")
+                .doesNotContain(canary, "bearer-secret", "user@example.test");
+
+        jdbc.update("""
+                DELETE FROM prv_tenant_command_outbox
+                 WHERE mutation_id IN (
+                       SELECT mutation_id FROM prv_tenant_mutations
+                        WHERE correlation_id = 'corr-http-canary')
+                """);
+        String auditEvidence = jdbc.queryForObject("""
+                SELECT redacted_snapshot::text
+                  FROM prv_audit_events
+                 WHERE correlation_id = 'corr-http-canary'
+                   AND action = 'provider.tenant-mutation.reconciliation-required'
+                """, String.class);
+        assertThat(auditEvidence)
+                .contains("HTTP_500", "Downstream tenant command failed (HTTP 500).")
+                .doesNotContain(canary, "bearer-secret", "user@example.test");
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM prv_audit_events
+                 WHERE correlation_id = 'corr-http-canary'
+                   AND redacted_snapshot::text LIKE ?
+                """, Integer.class, "%" + canary + "%")).isZero();
+    }
+
+    @Test
+    void containmentCommittedBeforeStaleOnboardingActivationPreventsEveryActiveCommand() {
+        prepareOnboardingActivationState();
+        setActor();
+        DownstreamProvisioningClient downstream = mock(DownstreamProvisioningClient.class);
+        doAnswer(invocation -> receipt(
+                invocation.getArgument(1), invocation.getArgument(2)))
+                .when(downstream).executeTenantCommand(anyString(), any(), any());
+        TenantMutationOrchestrator orchestrator = mutationOrchestrator(downstream);
+        ProviderTenant staleOnboardingTenant = tenantSnapshot();
+        UUID operationId = UUID.randomUUID();
+        UUID operationLeaseToken = operationFixture.claim(operationId);
+        try {
+            orchestrator.lifecycle(
+                    staleOnboardingTenant, 0L, "SUSPENDED",
+                    "Contain before onboarding activation", "corr-containment-first");
+            clearInvocations(downstream);
+
+            assertThatThrownBy(() -> orchestrator.activateForOnboarding(
+                    staleOnboardingTenant, operationId, operationLeaseToken,
+                    "corr-stale-onboarding"))
+                    .isInstanceOf(BaseException.class)
+                    .hasMessageContaining("changed before");
+            verifyNoInteractions(downstream);
+            assertThat(tenantLifecycle()).isEqualTo("SUSPENDED");
+            assertThat(jdbc.queryForObject("""
+                    SELECT COUNT(*)
+                      FROM prv_tenant_command_outbox command
+                      JOIN prv_tenant_mutations mutation ON mutation.mutation_id = command.mutation_id
+                     WHERE mutation.provider_tenant_id = ?
+                       AND command.payload ->> 'lifecycleState' = 'ACTIVE'
+                    """, Integer.class, TENANT_ID)).isZero();
+        } finally {
+            operationFixture.cleanup(operationId, operationLeaseToken);
+        }
+    }
+
+    @Test
+    void activeOnboardingSagaMakesContainmentConflictUntilLaterRevisionWins() throws Exception {
+        prepareOnboardingActivationState();
+        setActor();
+        UUID operationId = UUID.randomUUID();
+        UUID operationLeaseToken = operationFixture.claim(operationId);
+        CountDownLatch firstActivationStarted = new CountDownLatch(1);
+        CountDownLatch releaseActivation = new CountDownLatch(1);
+        List<String> remoteStates = new CopyOnWriteArrayList<>();
+        DownstreamProvisioningClient downstream = mock(DownstreamProvisioningClient.class);
+        when(downstream.executeTenantCommand(anyString(), any(), any()))
+                .thenAnswer(invocation -> {
+                    String target = invocation.getArgument(0);
+                    UUID tenantId = invocation.getArgument(1);
+                    ProviderTenantCommand.Request request = invocation.getArgument(2);
+                    String state = request.payload().path("lifecycleState").asText();
+                    remoteStates.add(state + ":" + target + ":" + request.targetRevision());
+                    if ("ACTIVE".equals(state) && "PLATFORM".equals(target)) {
+                        firstActivationStarted.countDown();
+                        assertThat(releaseActivation.await(5, TimeUnit.SECONDS)).isTrue();
+                    }
+                    return receipt(tenantId, request);
+                });
+        TenantMutationOrchestrator orchestrator = mutationOrchestrator(downstream);
+        ProviderTenant activationTenant = tenantSnapshot();
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            Future<TenantMutationOrchestrator.ActivationFence> activation = executor.submit(() -> {
+                setActor();
+                try {
+                    return orchestrator.activateForOnboarding(
+                            activationTenant, operationId, operationLeaseToken,
+                            "corr-activation-first");
+                } finally {
+                    ProviderRequestContext.clear();
+                }
+            });
+            assertThat(firstActivationStarted.await(5, TimeUnit.SECONDS)).isTrue();
+
+            assertThatThrownBy(() -> orchestrator.lifecycle(
+                    tenantSnapshot(), 0L, "SUSPENDED",
+                    "Concurrent containment", "corr-containment-conflict"))
+                    .isInstanceOf(BaseException.class)
+                    .hasMessageContaining("already active");
+
+            releaseActivation.countDown();
+            TenantMutationOrchestrator.ActivationFence fence = activation.get();
+            assertThat(tenantLifecycle()).isEqualTo("ACTIVE");
+            orchestrator.lifecycle(
+                    tenantSnapshot(), 1L, "SUSPENDED",
+                    "Retried containment", "corr-containment-retry");
+
+            assertThatThrownBy(() -> orchestrator.completeOnboardingProjection(fence, operatorId))
+                    .isInstanceOf(BaseException.class)
+                    .hasMessageContaining("containment superseded");
+            assertThat(tenantLifecycle()).isEqualTo("SUSPENDED");
+            assertThat(remoteStates).containsExactly(
+                    "ACTIVE:PLATFORM:1", "ACTIVE:PEOPLE:1", "ACTIVE:AUTH:1",
+                    "SUSPENDED:AUTH:2", "SUSPENDED:PLATFORM:2", "SUSPENDED:PEOPLE:2");
+        } finally {
+            releaseActivation.countDown();
+            executor.shutdownNow();
+            operationFixture.cleanup(operationId, operationLeaseToken);
+        }
+    }
+
+    @Test
+    void partialOperationBlocksGenericLateActivationAndExplicitRetryReclaimsExpiredCommand() {
+        prepareOnboardingActivationState();
+        setActor();
+        UUID operationId = UUID.randomUUID();
+        UUID firstOperationLease = operationFixture.claim(operationId);
+        DownstreamProvisioningClient downstream = mock(DownstreamProvisioningClient.class);
+        when(downstream.executeTenantCommand(anyString(), any(), any()))
+                .thenThrow(new IllegalStateException("simulated activation interruption"));
+        TenantMutationOrchestrator orchestrator = mutationOrchestrator(downstream);
+        ProviderTenant activationTenant = tenantSnapshot();
+
+        assertThatThrownBy(() -> orchestrator.activateForOnboarding(
+                activationTenant, operationId, firstOperationLease,
+                "corr-activation-interrupted"))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("requires a provider operation retry")
+                .hasMessageNotContaining("automatically");
+        UUID mutationId = jdbc.queryForObject("""
+                SELECT mutation_id
+                  FROM prv_tenant_mutations
+                 WHERE idempotency_key = ?
+                """, UUID.class, "provider-onboarding:" + operationId + ":activate");
+        UUID expiredCommandLease = UUID.randomUUID();
+        ProviderOperationLeaseRepository operationLeases =
+                new ProviderOperationLeaseRepository(jdbc);
+        transactions.executeWithoutResult(status -> {
+            operationLeases.renewOwned(operationId, firstOperationLease, Duration.ofMinutes(5));
+            jdbc.update("""
+                    UPDATE prv_tenant_command_outbox
+                       SET lifecycle_state = 'LEASED', lease_owner = 'crashed-worker',
+                           lease_token = ?,
+                           lease_expires_at = CURRENT_TIMESTAMP - INTERVAL '1 second'
+                     WHERE mutation_id = ? AND command_order = 1
+                    """, expiredCommandLease, mutationId);
+        });
+        operationFixture.finish(operationId, firstOperationLease);
+        clearInvocations(downstream);
+
+        orchestrator.recoverOne();
+        verifyNoInteractions(downstream);
+        assertThat(tenantLifecycle()).isEqualTo("PROVISIONING");
+        assertThat(jdbc.queryForObject("""
+                SELECT lifecycle_state
+                  FROM prv_tenant_command_outbox
+                 WHERE mutation_id = ? AND command_order = 1
+                """, String.class, mutationId)).isEqualTo("LEASED");
+
+        long operationVersion = jdbc.queryForObject("""
+                SELECT version FROM prv_operations WHERE operation_id = ?
+                """, Long.class, operationId);
+        UUID retryOperationLease = operationLeases.claim(
+                operationId, operationVersion, true,
+                "pg-race-retry", Duration.ofMinutes(5));
+        doAnswer(invocation -> receipt(
+                invocation.getArgument(1), invocation.getArgument(2)))
+                .when(downstream).executeTenantCommand(anyString(), any(), any());
+        try {
+            TenantMutationOrchestrator.ActivationFence fence =
+                    orchestrator.activateForOnboarding(
+                            tenantSnapshot(), operationId, retryOperationLease,
+                            "corr-activation-retry");
+            orchestrator.completeOnboardingProjection(fence, operatorId);
+
+            assertThat(tenantLifecycle()).isEqualTo("ACTIVE");
+            assertThat(jdbc.queryForObject("""
+                    SELECT onboarding_state FROM prv_tenants WHERE provider_tenant_id = ?
+                    """, String.class, TENANT_ID)).isEqualTo("READY");
+            assertThat(jdbc.queryForObject("""
+                    SELECT attempt_count
+                      FROM prv_tenant_command_outbox
+                     WHERE mutation_id = ? AND command_order = 1
+                    """, Integer.class, mutationId)).isEqualTo(2);
+        } finally {
+            operationFixture.cleanup(operationId, retryOperationLease);
+        }
+    }
+
     private TenantMutationRepository.MutationRequest activation() {
         ObjectNode previous = objectMapper.createObjectNode().put("lifecycleState", "SUSPENDED");
         ObjectNode desired = objectMapper.createObjectNode()
@@ -288,6 +566,42 @@ class TenantMutationOrchestrationPostgresTest {
                         new TenantMutationRepository.CommandSpec("AUTH", "LIFECYCLE", payload)));
     }
 
+    private TenantMutationOrchestrator mutationOrchestrator(
+            DownstreamProvisioningClient downstream) {
+        return new TenantMutationOrchestrator(
+                repository, onboardingActivationRepository, downstream,
+                objectMapper, new SimpleMeterRegistry(),
+                "pg-race-worker", 3, Duration.ofSeconds(30));
+    }
+
+    private void prepareOnboardingActivationState() {
+        jdbc.update("""
+                UPDATE prv_tenants
+                   SET lifecycle_state = 'PROVISIONING', onboarding_state = 'PENDING_EXTERNAL',
+                       version = 0
+                 WHERE provider_tenant_id = ?
+                """, TENANT_ID);
+    }
+
+    private ProviderTenant tenantSnapshot() {
+        return jdbc.queryForObject("""
+                SELECT lifecycle_state, onboarding_state, version
+                  FROM prv_tenants
+                 WHERE provider_tenant_id = ?
+                """, (result, ignored) -> ProviderTenant.builder()
+                .providerTenantId(TENANT_ID)
+                .lifecycleState(result.getString("lifecycle_state"))
+                .onboardingState(result.getString("onboarding_state"))
+                .version(result.getLong("version"))
+                .build(), TENANT_ID);
+    }
+
+    private void setActor() {
+        ProviderRequestContext.set(new ProviderRequestContext.Actor(
+                operatorId, 1L, 1L, "Mutation race test",
+                Set.of("PROVIDER_TENANT_PROVISIONER"), Set.of("TENANT_WRITE")));
+    }
+
     private TenantMutationRepository.CommandLease claim(UUID mutationId) {
         return tx(() -> repository.claimNext(
                 mutationId, "test-worker", Duration.ofSeconds(30)));
@@ -297,6 +611,15 @@ class TenantMutationOrchestrationPostgresTest {
         return new ProviderTenantCommand.Receipt(
                 command.commandId(), command.providerTenantId(), command.commandType(),
                 command.expectedRevision(), command.targetRevision(), command.payloadSha256(),
+                objectMapper.createObjectNode().put("state", "applied"), Instant.now(), false);
+    }
+
+    private ProviderTenantCommand.Receipt receipt(
+            UUID tenantId,
+            ProviderTenantCommand.Request request) {
+        return new ProviderTenantCommand.Receipt(
+                request.commandId(), tenantId, request.commandType(),
+                request.expectedRevision(), request.targetRevision(), request.payloadSha256(),
                 objectMapper.createObjectNode().put("state", "applied"), Instant.now(), false);
     }
 

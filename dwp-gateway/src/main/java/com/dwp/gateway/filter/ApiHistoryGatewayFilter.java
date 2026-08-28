@@ -117,8 +117,10 @@ public class ApiHistoryGatewayFilter implements GlobalFilter, Ordered {
                 attribute(exchange, ApiHistoryAttributes.ACTOR_TYPE),
                 actorId == null ? "ANONYMOUS" : "USER");
         String tenantValue = firstNonBlank(
-                attribute(exchange, ApiHistoryAttributes.TENANT_ID),
-                request.getHeaders().getFirst("X-Tenant-ID"));
+                attribute(exchange, SupportSessionContextFilter.SUPPORT_TARGET_TENANT_ATTRIBUTE),
+                firstNonBlank(
+                        attribute(exchange, ApiHistoryAttributes.TENANT_ID),
+                        request.getHeaders().getFirst("X-Tenant-ID")));
         return new ApiHistoryEvent(
                 UUID.randomUUID(),
                 occurredAt,

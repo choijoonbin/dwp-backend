@@ -12,7 +12,11 @@ public interface MeetingMediaProvider {
 
     Capability capability();
 
-    PreparedRoom prepareRoom(UUID meetingId, long tenantId, int maximumParticipants);
+    /** Pure, deterministic room identity calculation. This method must never perform I/O. */
+    PreparedRoom planRoom(UUID meetingId, long tenantId);
+
+    /** Idempotently creates or adopts the planned room. This is the provider I/O boundary. */
+    void ensureRoom(PreparedRoom room, int maximumParticipants);
 
     ParticipantToken issueParticipantToken(
             Meeting meeting,
@@ -21,7 +25,8 @@ public interface MeetingMediaProvider {
             EffectivePermissions permissions,
             OffsetDateTime issuedAt);
 
-    void endRoom(Meeting meeting);
+    /** Idempotently terminates the named room; an already absent room is successful. */
+    void endRoom(String roomName);
 
     record Capability(
             boolean available,

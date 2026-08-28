@@ -1,10 +1,10 @@
 package com.dwp.services.provider.provisioning;
 
+import com.dwp.core.autoconfig.DwpHttpClientProperties;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
-import com.dwp.services.provider.ProviderOperationsRepository;
 import com.dwp.services.provider.ProviderEstateRepository;
-import com.dwp.services.provider.audit.ProviderAuditService;
+import com.dwp.services.provider.ProviderOperationsRepository;
 import com.dwp.services.provider.entitlement.Entitlement;
 import com.dwp.services.provider.entitlement.EntitlementRepository;
 import com.dwp.services.provider.entitlement.TenantEntitlement;
@@ -12,8 +12,6 @@ import com.dwp.services.provider.entitlement.TenantEntitlementRepository;
 import com.dwp.services.provider.operation.ProviderOperation;
 import com.dwp.services.provider.operation.ProviderOperationRepository;
 import com.dwp.services.provider.operation.ProviderOperationStep;
-import com.dwp.services.provider.operation.ProviderOperationStepAttempt;
-import com.dwp.services.provider.operation.ProviderOperationStepAttemptRepository;
 import com.dwp.services.provider.operation.ProviderOperationStepRepository;
 import com.dwp.services.provider.security.ProviderRequestContext;
 import com.dwp.services.provider.tenant.ProviderTenant;
@@ -21,66 +19,105 @@ import com.dwp.services.provider.tenant.ProviderTenantRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.dao.DataAccessException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.support.TransactionTemplate;
-import org.springframework.web.client.RestClientResponseException;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.time.Instant;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @Service
 public class ProviderProvisioningOrchestrator {
 
+    private static final Set<String> ONBOARDING_SERVICES =
+            Set.of("auth", "platform", "people", "asset-storage");
+
     private final ProviderOperationRepository operationRepository;
     private final ProviderOperationStepRepository stepRepository;
-    private final ProviderOperationStepAttemptRepository attemptRepository;
+    private final ProviderOperationLeaseRepository leaseRepository;
+    private final ProviderOperationEvidenceRepository evidenceRepository;
+    private final ProviderOperationProjectionCoordinator projectionCoordinator;
+    private final ProviderProvisioningFailureSanitizer failureSanitizer;
     private final ProviderTenantRepository tenantRepository;
     private final EntitlementRepository entitlementRepository;
     private final TenantEntitlementRepository tenantEntitlementRepository;
     private final ProviderEstateRepository estateRepository;
+    private final ProviderTenantPlacementRepository placementRepository;
+    private final ProviderOnboardingFoundationVerifier foundationVerifier;
     private final ProviderOperationsRepository operationsRepository;
     private final DownstreamProvisioningClient client;
-    private final ProviderAuditService auditService;
+    private final TenantMutationOrchestrator tenantMutationOrchestrator;
+    private final ProviderProvisioningAuditRecorder auditRecorder;
     private final ObjectMapper objectMapper;
-    private final TransactionTemplate transactionTemplate;
+    private final String workerId;
+    private final Duration leaseDuration;
 
     public ProviderProvisioningOrchestrator(
             ProviderOperationRepository operationRepository,
             ProviderOperationStepRepository stepRepository,
-            ProviderOperationStepAttemptRepository attemptRepository,
+            ProviderOperationLeaseRepository leaseRepository,
+            ProviderOperationEvidenceRepository evidenceRepository,
+            ProviderOperationProjectionCoordinator projectionCoordinator,
+            ProviderProvisioningFailureSanitizer failureSanitizer,
             ProviderTenantRepository tenantRepository,
             EntitlementRepository entitlementRepository,
             TenantEntitlementRepository tenantEntitlementRepository,
             ProviderEstateRepository estateRepository,
+            ProviderTenantPlacementRepository placementRepository,
+            ProviderOnboardingFoundationVerifier foundationVerifier,
             ProviderOperationsRepository operationsRepository,
             DownstreamProvisioningClient client,
-            ProviderAuditService auditService,
+            TenantMutationOrchestrator tenantMutationOrchestrator,
+            ProviderProvisioningAuditRecorder auditRecorder,
             ObjectMapper objectMapper,
-            TransactionTemplate transactionTemplate) {
+            DwpHttpClientProperties httpClientProperties,
+            @Value("${dwp.provider.onboarding.worker-id:provider-onboarding}") String workerId,
+            @Value("${dwp.provider.onboarding.lease-duration:5m}") Duration leaseDuration) {
+        if (workerId == null || workerId.isBlank() || workerId.length() > 120) {
+            throw new IllegalArgumentException("A bounded provider onboarding worker id is required.");
+        }
+        Duration maximumDownstreamStep = httpClientProperties.connectTimeout()
+                .plus(httpClientProperties.readTimeout())
+                .multipliedBy(3)
+                .plusSeconds(5);
+        if (leaseDuration == null
+                || leaseDuration.compareTo(Duration.ofMinutes(1)) < 0
+                || leaseDuration.compareTo(Duration.ofMinutes(30)) > 0
+                || leaseDuration.compareTo(maximumDownstreamStep) <= 0) {
+            throw new IllegalArgumentException(
+                    "Provider onboarding lease duration must be 1-30 minutes and exceed the downstream timeout budget.");
+        }
         this.operationRepository = operationRepository;
         this.stepRepository = stepRepository;
-        this.attemptRepository = attemptRepository;
+        this.leaseRepository = leaseRepository;
+        this.evidenceRepository = evidenceRepository;
+        this.projectionCoordinator = projectionCoordinator;
+        this.failureSanitizer = failureSanitizer;
         this.tenantRepository = tenantRepository;
         this.entitlementRepository = entitlementRepository;
         this.tenantEntitlementRepository = tenantEntitlementRepository;
         this.estateRepository = estateRepository;
+        this.placementRepository = placementRepository;
+        this.foundationVerifier = foundationVerifier;
         this.operationsRepository = operationsRepository;
         this.client = client;
-        this.auditService = auditService;
+        this.tenantMutationOrchestrator = tenantMutationOrchestrator;
+        this.auditRecorder = auditRecorder;
         this.objectMapper = objectMapper;
-        this.transactionTemplate = transactionTemplate;
+        this.workerId = workerId.trim();
+        this.leaseDuration = leaseDuration;
     }
 
     public ProviderOperation execute(
@@ -103,196 +140,221 @@ public class ProviderProvisioningOrchestrator {
         }
         if ("SUCCEEDED".equals(operation.getLifecycleState())) return operation;
         if (retry) {
-            if (!List.of("PARTIAL", "FAILED").contains(operation.getLifecycleState())) {
-                throw new BaseException(ErrorCode.INVALID_STATE, "Only a failed or partial operation can retry.");
+            if (!List.of("PARTIAL", "FAILED", "EXECUTING").contains(operation.getLifecycleState())) {
+                throw new BaseException(
+                        ErrorCode.INVALID_STATE,
+                        "Only a failed, partial, or expired executing operation can retry.");
             }
         } else if (!"PREVIEWED".equals(operation.getLifecycleState())) {
             throw new BaseException(ErrorCode.INVALID_STATE, "Only a previewed operation can execute.");
         }
-        operation.setLifecycleState("EXECUTING");
-        operation.setFailureCode(null);
-        operation.setFailureMessage(null);
-        if (operation.getStartedAt() == null) operation.setStartedAt(Instant.now());
-        operation = operationRepository.saveAndFlush(operation);
+        UUID leaseToken = leaseRepository.claim(
+                operationId, operation.getVersion(), retry, workerId, leaseDuration);
+        if (retry) evidenceRepository.abandonRunning(operationId, leaseToken, leaseDuration);
+        operation = requireOperation(operationId);
 
         JsonNode plan = read(operation.getPlan());
         List<ProviderOperationStep> steps = stepRepository
                 .findByOperationIdOrderByStepOrderAsc(operationId);
         for (ProviderOperationStep step : steps) {
             if ("SUCCEEDED".equals(step.getLifecycleState())) continue;
-            StepResult result = runStep(operation, step, plan);
+            StepResult result = runStep(
+                    operation, step, plan, leaseToken, correlationId);
             if (!result.succeeded()) {
-                return failOperation(operation, step, result, correlationId);
+                return failOperation(operation, step, result, correlationId, leaseToken);
             }
             operation = requireOperation(operationId);
         }
-        operation.setLifecycleState("SUCCEEDED");
-        operation.setCompletedAt(Instant.now());
-        operation.setFailureCode(null);
-        operation.setFailureMessage(null);
-        operation = operationRepository.saveAndFlush(operation);
-        if ("MAINTENANCE_SCHEDULE".equals(operation.getOperationType())) {
-            UUID maintenanceId = operationsRepository.maintenanceWindowId(operation.getOperationId())
-                    .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-            auditService.success(
-                    "provider.maintenance.scheduled",
-                    "MAINTENANCE_WINDOW",
-                    maintenanceId.toString(),
-                    operation.getProviderTenantId(),
-                    organizationId(operation.getProviderTenantId()),
-                    correlationId,
-                    Map.of("operationId", operation.getOperationId(), "planHash", operation.getPlanHash()));
-        } else {
-            ProviderTenant tenant = requireTenant(operation.getProviderTenantId());
-            auditService.success(
-                    "provider.tenant-onboarding.succeeded",
-                    "PROVIDER_TENANT",
-                    tenant.getProviderTenantId().toString(),
-                    tenant.getProviderTenantId(),
-                    tenant.getOrganizationId(),
-                    correlationId,
-                    Map.of("tenantKey", tenant.getTenantKey(), "authTenantId", tenant.getAuthTenantId()));
-        }
-        return operation;
+        return completeOperation(operationId, correlationId, leaseToken);
     }
 
-    private StepResult runStep(ProviderOperation operation, ProviderOperationStep step, JsonNode plan) {
-        int attemptNumber = step.getAttemptCount() + 1;
-        step.setLifecycleState("RUNNING");
-        step.setAttemptCount(attemptNumber);
-        step.setStartedAt(Instant.now());
-        step.setCompletedAt(null);
-        step.setLastErrorCode(null);
-        step.setLastErrorMessage(null);
-        step.setNextRetryAt(null);
-        step = stepRepository.saveAndFlush(step);
-        ProviderOperationStepAttempt attempt = ProviderOperationStepAttempt.builder()
-                .operationStepId(step.getOperationStepId())
-                .attemptNumber(attemptNumber)
-                .lifecycleState("RUNNING")
-                .requestFingerprint(operation.getPlanHash())
-                .build();
-        attempt = attemptRepository.saveAndFlush(attempt);
+    private ProviderOperation completeOperation(
+            UUID operationId,
+            String correlationId,
+            UUID leaseToken) {
         try {
-            StepResult result = executeStep(operation, step.getStepKey(), plan);
-            step.setLifecycleState("SUCCEEDED");
-            step.setExternalReference(result.externalReference());
-            step.setRedactedResult(json(result.redactedResult()));
-            step.setCompletedAt(Instant.now());
-            stepRepository.saveAndFlush(step);
-            attempt.setLifecycleState("SUCCEEDED");
-            attempt.setRedactedResult(json(result.redactedResult()));
-            attempt.setCompletedAt(Instant.now());
-            attemptRepository.saveAndFlush(attempt);
-            return result;
+            projectionCoordinator.complete(
+                    operationId, leaseToken, leaseDuration,
+                    () -> auditRecorder.success(operationId, correlationId));
+        } catch (ProviderOperationLeaseRepository.OperationLeaseLostException exception) {
+            throw leaseConflict("before the terminal result could be recorded", exception);
+        }
+        return requireOperation(operationId);
+    }
+
+    private StepResult runStep(
+            ProviderOperation operation,
+            ProviderOperationStep step,
+            JsonNode plan,
+            UUID leaseToken,
+            String correlationId) {
+        int attemptNumber;
+        try {
+            attemptNumber = evidenceRepository.startAttempt(
+                    operation.getOperationId(), leaseToken, leaseDuration,
+                    step.getOperationStepId(), operation.getPlanHash());
+            step.setAttemptCount(attemptNumber);
+            step.setLifecycleState("RUNNING");
+        } catch (ProviderOperationLeaseRepository.OperationLeaseLostException exception) {
+            throw leaseConflict("before the next step could start", exception);
+        }
+        try {
+            return executeStep(
+                    operation, step, plan, leaseToken, attemptNumber, correlationId);
+        } catch (ProviderOperationLeaseRepository.OperationLeaseLostException exception) {
+            throw leaseConflict("while a step was executing", exception);
         } catch (RuntimeException exception) {
-            String code = exception instanceof RestClientResponseException response
-                    ? "HTTP_" + response.getStatusCode().value()
-                    : "PROVISIONING_FAILED";
-            String message = safeMessage(exception);
-            step.setLifecycleState("FAILED");
-            step.setLastErrorCode(code);
-            step.setLastErrorMessage(message);
-            step.setCompletedAt(Instant.now());
-            stepRepository.saveAndFlush(step);
-            attempt.setLifecycleState("FAILED");
-            attempt.setErrorCode(code);
-            attempt.setErrorMessage(message);
-            attempt.setCompletedAt(Instant.now());
-            attemptRepository.saveAndFlush(attempt);
-            return StepResult.failed(code, message);
+            ProviderProvisioningFailureSanitizer.Failure failure = failureSanitizer.sanitize(exception);
+            return StepResult.failed(failure.code(), failure.message());
         }
     }
 
-    private StepResult executeStep(ProviderOperation operation, String stepKey, JsonNode plan) {
-        return switch (stepKey) {
-            case "CONTROL_RECORD" -> createControlRecord(operation, plan);
-            case "AUTH_TENANT" -> provisionAuth(operation, plan);
-            case "PLATFORM_TENANT" -> provisionPlatform(operation, plan);
-            case "PEOPLE_TENANT" -> provisionPeople(operation, plan);
-            case "ASSET_STORAGE" -> provisionAssetStorage(operation);
-            case "ACTIVATE_TENANT" -> activateTenant(operation);
-            case "SCHEDULE_MAINTENANCE" -> scheduleMaintenance(operation);
+    private BaseException leaseConflict(
+            String phase,
+            ProviderOperationLeaseRepository.OperationLeaseLostException exception) {
+        return new BaseException(
+                ErrorCode.RESOURCE_CONFLICT,
+                "The provider operation lease expired " + phase + ".",
+                exception);
+    }
+
+    private StepResult executeStep(
+            ProviderOperation operation,
+            ProviderOperationStep step,
+            JsonNode plan,
+            UUID leaseToken,
+            int attemptNumber,
+            String correlationId) {
+        Supplier<StepResult> projection = switch (step.getStepKey()) {
+            case "CONTROL_RECORD" -> () -> createControlRecord(operation, plan);
+            case "AUTH_TENANT" -> prepareAuth(operation, plan);
+            case "PLATFORM_TENANT" -> prepareService(operation, "platform", tenant ->
+                    client.provisionPlatform(tenant.getProviderTenantId(), tenant.getAuthTenantId(), plan));
+            case "PEOPLE_TENANT" -> prepareService(operation, "people", tenant ->
+                    client.provisionPeople(tenant.getProviderTenantId(), tenant.getAuthTenantId(), plan));
+            case "ASSET_STORAGE" -> prepareService(operation, "asset-storage", tenant ->
+                    client.provisionAssetStorage(tenant.getProviderTenantId(), tenant.getAuthTenantId()));
+            case "ACTIVATE_TENANT" -> prepareActivation(
+                    operation, leaseToken, correlationId);
+            case "SCHEDULE_MAINTENANCE" -> () -> scheduleMaintenance(operation);
             default -> throw new BaseException(
                     ErrorCode.INVALID_STATE,
-                    "Unsupported provider operation step: " + stepKey);
+                    "Unsupported provider operation step: " + step.getStepKey());
         };
+        ProviderOperationProjectionCoordinator.ProjectionResult committed = projectionCoordinator.succeed(
+                operation.getOperationId(), leaseToken, leaseDuration,
+                step.getOperationStepId(), attemptNumber,
+                () -> projectionResult(projection.get()));
+        step.setLifecycleState("SUCCEEDED");
+        step.setExternalReference(committed.externalReference());
+        step.setRedactedResult(committed.redactedResult());
+        return StepResult.succeeded(committed.externalReference(), Map.of());
     }
 
     private StepResult createControlRecord(ProviderOperation operation, JsonNode plan) {
-        StepResult result = transactionTemplate.execute(status -> {
-            ProviderRequestContext.Actor actor = ProviderRequestContext.require();
-            String organizationKey = plan.path("organizationKey").asText();
-            UUID organizationId = estateRepository.organizationIdByKey(organizationKey)
-                    .orElseGet(() -> estateRepository.createOrganization(
-                            organizationKey,
-                            plan.path("organizationName").asText(),
-                            textOrNull(plan.path("legalName")),
-                            textOrNull(plan.path("customerReference")),
-                            actor.operatorId()));
-            estateRepository.ensureOrganizationSubscription(
-                    organizationId,
-                    plan.path("serviceTier").asText(),
-                    textOrNull(plan.path("customerReference")),
-                    actor.operatorId());
-            if (estateRepository.environmentExists(
-                    organizationId, plan.path("environmentKey").asText())) {
-                throw new BaseException(
-                        ErrorCode.RESOURCE_CONFLICT,
-                        "The organization environment already exists.");
-            }
-            ProviderTenant tenant = ProviderTenant.builder()
-                    .organizationId(organizationId)
-                    .tenantKey(plan.path("tenantKey").asText())
-                    .displayName(plan.path("displayName").asText())
-                    .environmentKey(plan.path("environmentKey").asText())
-                    .serviceTier(plan.path("serviceTier").asText())
-                    .dataRegion(plan.path("dataRegion").asText())
-                    .isolationModel(plan.path("isolationModel").asText())
-                    .defaultLocale(plan.path("defaultLocale").asText())
-                    .timeZone(plan.path("timeZone").asText())
-                    .lifecycleState("PROVISIONING")
-                    .onboardingState("CONTROL_PLANE_READY")
-                    .configuration("{}")
-                    .build();
-            tenant = tenantRepository.saveAndFlush(tenant);
-            operation.setProviderTenantId(tenant.getProviderTenantId());
-            operationRepository.saveAndFlush(operation);
-            estateRepository.initializeTenantExtension(
-                    tenant.getProviderTenantId(), tenant.getConfiguration(), actor.operatorId());
-            assignEntitlements(tenant, plan);
-            estateRepository.initializeServiceInstances(
-                    tenant.getProviderTenantId(), tenant.getDataRegion(), actor.operatorId());
-            String primaryDomain = textOrNull(plan.path("primaryDomain"));
-            estateRepository.createInternalDomain(
-                    tenant.getProviderTenantId(), tenant.getTenantKey(), actor.operatorId());
-            if (primaryDomain != null) {
-                String challenge = "dwp-verification=" + tenant.getProviderTenantId();
-                estateRepository.createDomain(
-                        tenant.getProviderTenantId(), primaryDomain.toLowerCase(), "LOGIN", true,
-                        challenge, sha256(challenge), actor.operatorId());
-            }
-            JsonNode administrator = plan.path("initialAdministrator");
-            estateRepository.createTenantAdministrator(
-                    tenant.getProviderTenantId(),
-                    administrator.path("email").asText(),
-                    administrator.path("displayName").asText(),
-                    actor.operatorId());
-            return StepResult.succeeded(
-                    tenant.getProviderTenantId().toString(),
-                    Map.of(
-                            "providerTenantId", tenant.getProviderTenantId(),
-                            "organizationId", organizationId,
-                            "environmentKey", tenant.getEnvironmentKey()));
-        });
-        if (result == null) throw new IllegalStateException("Control record transaction returned no result.");
-        return result;
+        ProviderRequestContext.Actor actor = ProviderRequestContext.require();
+        if (operation.getProviderTenantId() != null) {
+            ProviderTenant tenant = requireTenant(operation.getProviderTenantId());
+            ProviderTenantPlacementRepository.TenantPlacement placement =
+                    placementRepository.initializeOrValidate(
+                            tenant.getProviderTenantId(), tenant.getDataRegion(),
+                            tenant.getIsolationModel(), ONBOARDING_SERVICES,
+                            actor.operatorId(), false);
+            foundationVerifier.requireExact(tenant, plan);
+            return controlRecordResult(tenant, placement);
+        }
+
+        String organizationKey = plan.path("organizationKey").asText();
+        UUID organizationId = estateRepository.organizationIdByKey(organizationKey)
+                .orElseGet(() -> estateRepository.createOrganization(
+                        organizationKey,
+                        plan.path("organizationName").asText(),
+                        textOrNull(plan.path("legalName")),
+                        textOrNull(plan.path("customerReference")),
+                        actor.operatorId()));
+        estateRepository.ensureOrganizationSubscription(
+                organizationId,
+                plan.path("serviceTier").asText(),
+                textOrNull(plan.path("customerReference")),
+                actor.operatorId());
+        if (estateRepository.environmentExists(
+                organizationId, plan.path("environmentKey").asText())) {
+            throw new BaseException(
+                    ErrorCode.RESOURCE_CONFLICT,
+                    "The organization environment already exists.");
+        }
+        ProviderTenant tenant = ProviderTenant.builder()
+                .organizationId(organizationId)
+                .tenantKey(plan.path("tenantKey").asText())
+                .displayName(plan.path("displayName").asText())
+                .environmentKey(plan.path("environmentKey").asText())
+                .serviceTier(plan.path("serviceTier").asText())
+                .dataRegion(plan.path("dataRegion").asText())
+                .isolationModel(plan.path("isolationModel").asText())
+                .defaultLocale(plan.path("defaultLocale").asText())
+                .timeZone(plan.path("timeZone").asText())
+                .lifecycleState("PROVISIONING")
+                .onboardingState("CONTROL_PLANE_READY")
+                .configuration("{}")
+                .build();
+        tenant = tenantRepository.saveAndFlush(tenant);
+        operation.setProviderTenantId(tenant.getProviderTenantId());
+        operationRepository.saveAndFlush(operation);
+        estateRepository.initializeTenantExtension(
+                tenant.getProviderTenantId(), tenant.getConfiguration(), actor.operatorId());
+        assignEntitlements(tenant, plan);
+        ProviderTenantPlacementRepository.TenantPlacement placement =
+                placementRepository.initializeOrValidate(
+                        tenant.getProviderTenantId(), tenant.getDataRegion(),
+                        tenant.getIsolationModel(), ONBOARDING_SERVICES,
+                        actor.operatorId(), true);
+        String primaryDomain = textOrNull(plan.path("primaryDomain"));
+        estateRepository.createInternalDomain(
+                tenant.getProviderTenantId(), tenant.getTenantKey(), actor.operatorId());
+        if (primaryDomain != null) {
+            String challenge = "dwp-verification=" + tenant.getProviderTenantId();
+            estateRepository.createDomain(
+                    tenant.getProviderTenantId(), primaryDomain.toLowerCase(Locale.ROOT), "LOGIN", true,
+                    challenge, foundationVerifier.verificationTokenHash(challenge), actor.operatorId());
+        }
+        JsonNode administrator = plan.path("initialAdministrator");
+        estateRepository.createTenantAdministrator(
+                tenant.getProviderTenantId(),
+                administrator.path("email").asText(),
+                administrator.path("displayName").asText(),
+                actor.operatorId());
+        foundationVerifier.requireExact(tenant, plan);
+        return controlRecordResult(tenant, placement);
     }
 
-    private StepResult provisionAuth(ProviderOperation operation, JsonNode plan) {
+    private StepResult controlRecordResult(
+            ProviderTenant tenant,
+            ProviderTenantPlacementRepository.TenantPlacement placement) {
+        Map<String, Object> evidence = new LinkedHashMap<>();
+        evidence.put("providerTenantId", tenant.getProviderTenantId());
+        evidence.put("organizationId", tenant.getOrganizationId());
+        evidence.put("environmentKey", tenant.getEnvironmentKey());
+        evidence.put("deploymentCellId", placement.cellId());
+        return StepResult.succeeded(
+                tenant.getProviderTenantId().toString(),
+                evidence);
+    }
+
+    private Supplier<StepResult> prepareAuth(ProviderOperation operation, JsonNode plan) {
         ProviderTenant tenant = requireTenant(operation.getProviderTenantId());
         DownstreamProvisioningClient.AuthProvisioningResult result =
                 client.provisionAuth(tenant.getProviderTenantId(), plan);
+        return () -> persistAuth(operation.getProviderTenantId(), result);
+    }
+
+    private StepResult persistAuth(
+            UUID tenantId,
+            DownstreamProvisioningClient.AuthProvisioningResult result) {
+        ProviderTenant tenant = requireTenant(tenantId);
+        if (tenant.getAuthTenantId() != null
+                && !Objects.equals(tenant.getAuthTenantId(), result.tenantId())) {
+            throw new BaseException(ErrorCode.INVALID_STATE, "The auth tenant binding changed before commit.");
+        }
         tenant.setAuthTenantId(result.tenantId());
         tenant.setOnboardingState("PENDING_EXTERNAL");
         tenantRepository.saveAndFlush(tenant);
@@ -301,8 +363,9 @@ public class ProviderProvisioningOrchestrator {
                 result.administratorEmail(),
                 result.administratorUserId(),
                 ProviderRequestContext.require().operatorId());
-        estateRepository.updateServiceInstance(
+        placementRepository.updateServiceInstance(
                 tenant.getProviderTenantId(), "auth", "READY", String.valueOf(result.tenantId()),
+                result.schemaVersion(),
                 json(Map.of("schemaVersion", result.schemaVersion(), "status", "ready")),
                 ProviderRequestContext.require().operatorId());
         return StepResult.succeeded(
@@ -313,40 +376,48 @@ public class ProviderProvisioningOrchestrator {
                         "schemaVersion", result.schemaVersion()));
     }
 
-    private StepResult provisionPlatform(ProviderOperation operation, JsonNode plan) {
+    private Supplier<StepResult> prepareService(
+            ProviderOperation operation,
+            String serviceKey,
+            Function<ProviderTenant, DownstreamProvisioningClient.ServiceProvisioningResult> downstreamCall) {
         ProviderTenant tenant = requireTenant(operation.getProviderTenantId());
         requireAuthTenant(tenant);
-        DownstreamProvisioningClient.ServiceProvisioningResult result =
-                client.provisionPlatform(tenant.getProviderTenantId(), tenant.getAuthTenantId(), plan);
-        String externalReference = updateService(tenant, "platform", result);
+        Long expectedAuthTenantId = tenant.getAuthTenantId();
+        DownstreamProvisioningClient.ServiceProvisioningResult result = downstreamCall.apply(tenant);
+        return () -> persistService(operation.getProviderTenantId(), expectedAuthTenantId, serviceKey, result);
+    }
+
+    private StepResult persistService(
+            UUID tenantId,
+            Long expectedAuthTenantId,
+            String serviceKey,
+            DownstreamProvisioningClient.ServiceProvisioningResult result) {
+        ProviderTenant tenant = requireTenant(tenantId);
+        if (!Objects.equals(tenant.getAuthTenantId(), expectedAuthTenantId)) {
+            throw new BaseException(ErrorCode.INVALID_STATE, "The auth tenant binding changed before commit.");
+        }
+        String externalReference = updateService(tenant, serviceKey, result);
         return serviceResult(result, externalReference);
     }
 
-    private StepResult provisionPeople(ProviderOperation operation, JsonNode plan) {
+    private Supplier<StepResult> prepareActivation(
+            ProviderOperation operation,
+            UUID leaseToken,
+            String correlationId) {
         ProviderTenant tenant = requireTenant(operation.getProviderTenantId());
-        requireAuthTenant(tenant);
-        DownstreamProvisioningClient.ServiceProvisioningResult result =
-                client.provisionPeople(tenant.getProviderTenantId(), tenant.getAuthTenantId(), plan);
-        String externalReference = updateService(tenant, "people", result);
-        return serviceResult(result, externalReference);
+        TenantMutationOrchestrator.ActivationFence activation =
+                tenantMutationOrchestrator.activateForOnboarding(
+                        tenant, operation.getOperationId(), leaseToken, correlationId);
+        return () -> persistActivation(tenant.getProviderTenantId(), activation);
     }
 
-    private StepResult provisionAssetStorage(ProviderOperation operation) {
-        ProviderTenant tenant = requireTenant(operation.getProviderTenantId());
-        DownstreamProvisioningClient.ServiceProvisioningResult result =
-                client.provisionAssetStorage(tenant.getProviderTenantId());
-        String externalReference = updateService(tenant, "asset-storage", result);
-        return serviceResult(result, externalReference);
-    }
-
-    private StepResult activateTenant(ProviderOperation operation) {
-        ProviderTenant tenant = requireTenant(operation.getProviderTenantId());
-        client.updateLifecycle(tenant.getProviderTenantId(), "ACTIVE");
-        tenant.setLifecycleState("ACTIVE");
-        tenant.setOnboardingState("READY");
-        tenantRepository.saveAndFlush(tenant);
+    private StepResult persistActivation(
+            UUID tenantId,
+            TenantMutationOrchestrator.ActivationFence activation) {
+        tenantMutationOrchestrator.completeOnboardingProjection(
+                activation, ProviderRequestContext.require().operatorId());
         return StepResult.succeeded(
-                tenant.getProviderTenantId().toString(),
+                tenantId.toString(),
                 Map.of("lifecycle", "ACTIVE", "onboarding", "READY"));
     }
 
@@ -365,50 +436,49 @@ public class ProviderProvisioningOrchestrator {
             ProviderOperation operation,
             ProviderOperationStep step,
             StepResult result,
-            String correlationId) {
-        operation = requireOperation(operation.getOperationId());
-        operation.setLifecycleState("PARTIAL");
-        operation.setFailureCode(result.errorCode());
-        operation.setFailureMessage(result.errorMessage());
-        operation = operationRepository.saveAndFlush(operation);
+            String correlationId,
+            UUID leaseToken) {
+        try {
+            projectionCoordinator.fail(
+                    operation.getOperationId(), leaseToken, leaseDuration,
+                    step.getOperationStepId(), step.getAttemptCount(),
+                    result.errorCode(), result.errorMessage(),
+                    () -> applyFailureProjection(operation.getOperationId(), step, result),
+                    () -> auditRecorder.failure(
+                            operation.getOperationId(), step.getStepKey(), result.errorCode(),
+                            step.getAttemptCount(), correlationId));
+        } catch (ProviderOperationLeaseRepository.OperationLeaseLostException exception) {
+            throw leaseConflict("before the failure result could be recorded", exception);
+        }
+        step.setLifecycleState("FAILED");
+        step.setLastErrorCode(result.errorCode());
+        step.setLastErrorMessage(result.errorMessage());
+        return requireOperation(operation.getOperationId());
+    }
+
+    private void applyFailureProjection(
+            UUID operationId,
+            ProviderOperationStep step,
+            StepResult result) {
+        ProviderOperation operation = requireOperation(operationId);
         boolean tenantOnboarding = "TENANT_ONBOARD".equals(operation.getOperationType());
         UUID tenantId = operation.getProviderTenantId();
-        UUID organizationId = null;
         if (tenantOnboarding && tenantId != null) {
+            if ("ACTIVATE_TENANT".equals(step.getStepKey())) return;
             ProviderTenant tenant = requireTenant(tenantId);
-            tenant.setOnboardingState("FAILED");
-            tenantRepository.saveAndFlush(tenant);
-            organizationId = tenant.getOrganizationId();
+            if (!"CONTROL_RECORD".equals(step.getStepKey())) {
+                tenant.setOnboardingState("FAILED");
+                tenantRepository.saveAndFlush(tenant);
+            }
             String serviceKey = serviceKey(step.getStepKey());
             if (serviceKey != null) {
-                estateRepository.updateServiceInstance(
+                placementRepository.updateServiceInstance(
                         tenantId, serviceKey, "FAILED", null,
+                        null,
                         json(Map.of("status", "failed", "errorCode", result.errorCode())),
                         ProviderRequestContext.require().operatorId());
             }
         }
-        if (!tenantOnboarding) {
-            organizationId = organizationId(tenantId);
-        }
-        auditService.failed(
-                tenantOnboarding
-                        ? "provider.tenant-onboarding.step-failed"
-                        : "provider.maintenance.schedule-failed",
-                "PROVIDER_OPERATION",
-                operation.getOperationId().toString(),
-                tenantId,
-                organizationId,
-                correlationId,
-                Map.of(
-                        "step", step.getStepKey(),
-                        "errorCode", result.errorCode(),
-                        "attempt", step.getAttemptCount()));
-        return operation;
-    }
-
-    private UUID organizationId(UUID tenantId) {
-        if (tenantId == null) return null;
-        return tenantRepository.findById(tenantId).map(ProviderTenant::getOrganizationId).orElse(null);
     }
 
     private void assignEntitlements(ProviderTenant tenant, JsonNode plan) {
@@ -428,7 +498,7 @@ public class ProviderProvisioningOrchestrator {
                         .configuration("{}")
                         .build())
                 .toList();
-        tenantEntitlementRepository.saveAll(assignments);
+        tenantEntitlementRepository.saveAllAndFlush(assignments);
     }
 
     private String updateService(
@@ -437,8 +507,9 @@ public class ProviderProvisioningOrchestrator {
             DownstreamProvisioningClient.ServiceProvisioningResult result) {
         String externalReference = safeExternalReference(
                 serviceKey, tenant.getProviderTenantId(), result.externalReference());
-        estateRepository.updateServiceInstance(
+        placementRepository.updateServiceInstance(
                 tenant.getProviderTenantId(), serviceKey, "READY", externalReference,
+                result.schemaVersion(),
                 json(Map.of("schemaVersion", result.schemaVersion(), "status", "ready")),
                 ProviderRequestContext.require().operatorId());
         return externalReference;
@@ -453,6 +524,11 @@ public class ProviderProvisioningOrchestrator {
                         "tenantId", result.tenantId(),
                         "schemaVersion", result.schemaVersion(),
                         "status", "ready"));
+    }
+
+    private ProviderOperationProjectionCoordinator.ProjectionResult projectionResult(StepResult result) {
+        return new ProviderOperationProjectionCoordinator.ProjectionResult(
+                result.externalReference(), json(result.redactedResult()));
     }
 
     private String safeExternalReference(String serviceKey, UUID tenantId, String reference) {
@@ -525,36 +601,6 @@ public class ProviderProvisioningOrchestrator {
 
     private String textOrNull(JsonNode value) {
         return value == null || value.isNull() || value.asText().isBlank() ? null : value.asText().trim();
-    }
-
-    private String safeMessage(RuntimeException exception) {
-        String message;
-        if (exception instanceof RestClientResponseException response
-                && response.getResponseBodyAsString() != null
-                && !response.getResponseBodyAsString().isBlank()) {
-            message = "Downstream service rejected the provisioning contract (HTTP "
-                    + response.getStatusCode().value() + ").";
-        } else if (exception instanceof RestClientResponseException response) {
-            message = "Downstream provisioning failed (HTTP "
-                    + response.getStatusCode().value() + ").";
-        } else if (exception instanceof DataAccessException) {
-            message = "Provider state persistence failed. Review the correlated service trace.";
-        } else if (exception instanceof BaseException) {
-            message = exception.getMessage();
-        } else {
-            message = "Provider step failed. Review the correlated service trace.";
-        }
-        if (message == null || message.isBlank()) message = exception.getClass().getSimpleName();
-        return message.length() > 1000 ? message.substring(0, 1000) : message;
-    }
-
-    private String sha256(String value) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(value.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException(exception);
-        }
     }
 
     private record StepResult(

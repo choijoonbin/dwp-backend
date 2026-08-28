@@ -156,6 +156,11 @@ public class ProductionReadinessAutoConfiguration {
                             environment, failures, "dwp.notification.service-token");
                     requireProductionSecret(
                             environment, failures, "dwp.notification.cursor-secret");
+                    requireProductionSecret(
+                            environment, failures, "dwp.identity-sync.token");
+                    requireProductionEndpoint(
+                            environment, failures, "dwp.identity-sync.auth-url", "https");
+                    requireNotificationAppViewBindings(environment, failures);
                     requireExact(
                             environment, failures,
                             "dwp.notification.gateway-source", "dwp-gateway");
@@ -330,6 +335,34 @@ public class ProductionReadinessAutoConfiguration {
                 || host.matches("\\d{1,3}(?:\\.\\d{1,3}){3}")
                 || host.endsWith(".local") || host.endsWith(".test")) {
             failures.add(property + " must be an explicit production DNS host");
+        }
+    }
+
+    private void requireNotificationAppViewBindings(
+            Environment environment,
+            List<String> failures) {
+        String property = "dwp.notification.recipient-entitlements.app-view-bindings";
+        String value = environment.getProperty(property, "").trim();
+        Map<String, String> bindings = new HashMap<>();
+        for (String entry : value.split(",", -1)) {
+            String[] parts = entry.trim().split("=", 2);
+            if (parts.length != 2
+                    || !parts[0].trim().matches("[a-z][a-z0-9.-]{0,99}")
+                    || !parts[1].trim().matches("APP\\.[A-Z0-9_.-]+:VIEW")
+                    || bindings.putIfAbsent(parts[0].trim(), parts[1].trim()) != null) {
+                failures.add(property + " must use unique owner=APP.*:VIEW entries");
+                return;
+            }
+        }
+        Map<String, String> required = Map.of(
+                "approvals", "APP.APPROVALS:VIEW",
+                "hcm", "APP.HCM:VIEW",
+                "messaging", "APP.MESSAGING:VIEW",
+                "space", "APP.SPACES:VIEW");
+        if (!required.entrySet().stream()
+                .allMatch(entry -> entry.getValue().equals(bindings.get(entry.getKey())))) {
+            failures.add(property
+                    + " must bind every active owner to its exact app VIEW permission");
         }
     }
 

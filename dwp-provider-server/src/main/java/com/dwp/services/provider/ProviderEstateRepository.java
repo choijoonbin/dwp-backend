@@ -145,24 +145,6 @@ public class ProviderEstateRepository {
         return id;
     }
 
-    public void initializeServiceInstances(
-            UUID tenantId,
-            String region,
-            Long operatorId) {
-        jdbc.update("""
-                INSERT INTO prv_tenant_service_instances (
-                    provider_tenant_id, service_key, deployment_cell_id,
-                    lifecycle_state, created_by, updated_by)
-                SELECT ?, service.service_key, cell.deployment_cell_id,
-                       'PROVISIONING', ?, ?
-                  FROM prv_service_catalog service
-                  JOIN prv_deployment_cells cell
-                    ON cell.region_key = ? AND cell.lifecycle_state = 'ACTIVE'
-                 WHERE service.lifecycle_state = 'ACTIVE'
-                ON CONFLICT (provider_tenant_id, service_key) DO NOTHING
-                """, tenantId, operatorId, operatorId, region);
-    }
-
     public void initializeTenantExtension(UUID tenantId, String configuration, Long operatorId) {
         jdbc.update("""
                 INSERT INTO prv_configuration_values (
@@ -375,27 +357,6 @@ public class ProviderEstateRepository {
                  WHERE instance.provider_tenant_id = ?
                  ORDER BY service.provisioning_order
                 """, this::serviceInstance, tenantId);
-    }
-
-    public void updateServiceInstance(
-            UUID tenantId,
-            String serviceKey,
-            String state,
-            String externalReference,
-            String healthSnapshot,
-            Long operatorId) {
-        jdbc.update("""
-                UPDATE prv_tenant_service_instances
-                   SET lifecycle_state = ?,
-                       external_resource_id = COALESCE(?, external_resource_id),
-                       applied_schema_version = CASE WHEN ? = 'READY' THEN 1 ELSE applied_schema_version END,
-                       health_snapshot = CAST(? AS jsonb),
-                       last_reconciled_at = CURRENT_TIMESTAMP,
-                       updated_at = CURRENT_TIMESTAMP,
-                       updated_by = ?,
-                       version = version + 1
-                 WHERE provider_tenant_id = ? AND service_key = ?
-                """, state, externalReference, state, healthSnapshot, operatorId, tenantId, serviceKey);
     }
 
     public List<ProviderDtos.RegionSummary> regions() {

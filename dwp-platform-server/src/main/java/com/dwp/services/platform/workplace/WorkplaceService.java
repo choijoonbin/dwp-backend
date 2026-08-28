@@ -211,7 +211,7 @@ public class WorkplaceService {
         }
         OffsetDateTime opens = current.startsAt().minusMinutes(current.checkInLeadMinutes());
         OffsetDateTime closes = current.startsAt().plusMinutes(current.autoReleaseMinutes());
-        if (now.isBefore(opens) || now.isAfter(closes) || now.isAfter(current.endsAt())) {
+        if (!withinCheckInWindow(now, opens, closes, current.endsAt())) {
             throw invalid("Check-in is outside the allowed arrival window.");
         }
         if (bookings.checkIn(tenantId, userId, bookingId, request.version(), now) == 0) {
@@ -230,6 +230,16 @@ public class WorkplaceService {
                 null,
                 "MEMBER_CHECKED_IN");
         return booking(saved, null, now);
+    }
+
+    static boolean withinCheckInWindow(
+            OffsetDateTime now,
+            OffsetDateTime opens,
+            OffsetDateTime closes,
+            OffsetDateTime endsAt) {
+        return !now.isBefore(opens)
+                && !now.isAfter(closes)
+                && now.isBefore(endsAt);
     }
 
     @Transactional

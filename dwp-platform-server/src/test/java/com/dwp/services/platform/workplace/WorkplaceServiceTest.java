@@ -7,6 +7,7 @@ import com.dwp.services.platform.media.TenantMediaStorage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.MockedStatic;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.ArgumentCaptor;
@@ -30,6 +31,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
+import static org.mockito.Mockito.mockStatic;
 
 @ExtendWith(MockitoExtension.class)
 class WorkplaceServiceTest {
@@ -323,6 +326,43 @@ class WorkplaceServiceTest {
         verify(bookings, never()).checkIn(any(), any(), any(), any(), any());
         verify(bookings, never()).cancel(any(), any(), any(), any(), any());
         verify(bookings, never()).release(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void checkInRejectsTheExactReservationEndWithoutWriting() {
+        UUID siteId = UUID.randomUUID();
+        UUID floorId = UUID.randomUUID();
+        UUID resourceId = UUID.randomUUID();
+        UUID bookingId = UUID.randomUUID();
+        OffsetDateTime endsAt = OffsetDateTime.parse("2026-08-19T01:00:00Z");
+        OffsetDateTime startsAt = endsAt.minusMinutes(15);
+        WorkplaceBookingRepository.BookingRow current =
+                new WorkplaceBookingRepository.BookingRow(
+                        bookingId, resourceId, "좌석", ResourceType.DESK,
+                        "판교", "12층", "집중 업무", startsAt, endsAt,
+                        BookingStatus.RESERVED, true, null, null, 0L);
+        OffsetDateTime opens = startsAt.minusMinutes(current.checkInLeadMinutes());
+        OffsetDateTime closes = startsAt.plusMinutes(current.autoReleaseMinutes());
+        assertThat(WorkplaceService.withinCheckInWindow(
+                endsAt, opens, closes, endsAt)).isFalse();
+
+        when(bookings.booking(1L, 9L, bookingId, true)).thenReturn(Optional.of(current));
+        when(catalog.resource(1L, resourceId, false)).thenReturn(Optional.of(
+                resource(resourceId, floorId,
+                        ResourceType.DESK, BookingMode.RESERVABLE, null)));
+        when(catalog.floor(1L, floorId, false)).thenReturn(Optional.of(floor(siteId, floorId)));
+
+        try (MockedStatic<OffsetDateTime> time =
+                     mockStatic(OffsetDateTime.class, CALLS_REAL_METHODS)) {
+            time.when(OffsetDateTime::now).thenReturn(endsAt);
+
+            assertThatThrownBy(() -> service.checkIn(
+                    1L, 9L, bookingId, "ko-KR", "corr", "group-a",
+                    new WorkplaceDtos.VersionRequest(0L)))
+                    .hasMessageContaining("outside the allowed arrival window");
+        }
+
+        verify(bookings, never()).checkIn(any(), any(), any(), any(), any());
     }
 
     @Test

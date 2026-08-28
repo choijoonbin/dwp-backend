@@ -61,6 +61,9 @@ springdoc:
   paths-to-exclude: /internal/**
 
 dwp:
+  identity-sync:
+    auth-url: ${SERVICE_AUTH_URL:http://localhost:8001}
+    token: ${DWP_IDENTITY_SYNC_TOKEN:}
   audit:
     relay-database-role: dwp_notification_audit_relay
   notification:
@@ -84,6 +87,9 @@ dwp:
       shard-count: ${DWP_NOTIFICATION_REDIS_SHARD_COUNT:32}
     admission:
       window: ${DWP_NOTIFICATION_ADMISSION_WINDOW:PT1H}
+    recipient-entitlements:
+      app-view-bindings: >-
+        ${DWP_NOTIFICATION_APP_VIEW_BINDINGS:approvals=APP.APPROVALS:VIEW,hcm=APP.HCM:VIEW,messaging=APP.MESSAGING:VIEW,space=APP.SPACES:VIEW}
     retention:
       enabled: ${DWP_NOTIFICATION_RETENTION_ENABLED:true}
       default-ttl: ${DWP_NOTIFICATION_DEFAULT_RETENTION_TTL:P0D}
@@ -143,6 +149,36 @@ logging:
   level:
     com.dwp.services.notification: ${LOG_LEVEL_NOTIFICATION:INFO}
 
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-size: 50
+        minimum-number-of-calls: 20
+        failure-rate-threshold: 50
+        slow-call-duration-threshold: 3s
+        slow-call-rate-threshold: 70
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 5
+  bulkhead:
+    configs:
+      default:
+        max-concurrent-calls: 20
+        max-wait-duration: 0
+  retry:
+    configs:
+      notificationIdentity:
+        max-attempts: 2
+        wait-duration: 100ms
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - org.springframework.web.client.ResourceAccessException
+          - org.springframework.web.client.HttpServerErrorException
+    instances:
+      notificationIdentityDirectory:
+        base-config: notificationIdentity
+
 ---
 spring:
   config:
@@ -151,6 +187,8 @@ spring:
   flyway:
     locations: classpath:db/migration,classpath:db/local-seed
 dwp:
+  identity-sync:
+    token: ${DWP_IDENTITY_SYNC_TOKEN:dwp-local-identity-sync-token-change-outside-local}
   notification:
     domain-events:
       enabled: true

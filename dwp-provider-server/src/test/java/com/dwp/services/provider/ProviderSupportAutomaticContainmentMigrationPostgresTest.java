@@ -167,7 +167,7 @@ class ProviderSupportAutomaticContainmentMigrationPostgresTest {
 
         flyway(null).migrate();
 
-        assertThat(latestSuccessfulVersion()).isEqualTo(53);
+        assertThat(latestSuccessfulVersion()).isEqualTo(55);
         assertThat(systemAdminAssignmentCount()).isZero();
         assertThat(jdbc.queryForMap("""
                 SELECT redacted_snapshot ->> 'affectedSystemEventCount' AS affected,
@@ -251,7 +251,7 @@ class ProviderSupportAutomaticContainmentMigrationPostgresTest {
                    AND outbox.event_id = ?
                 """, originalAuditEventId);
         flyway(null).migrate();
-        assertThat(latestSuccessfulVersion()).isEqualTo(53);
+        assertThat(latestSuccessfulVersion()).isEqualTo(55);
         assertThat(systemAdminAssignmentCount()).isZero();
         flyway(null).validate();
     }
@@ -357,7 +357,7 @@ class ProviderSupportAutomaticContainmentMigrationPostgresTest {
         jdbc.execute("DROP FUNCTION prv_test_fail_containment_retirement_audit()");
 
         flyway(null).migrate();
-        assertThat(latestSuccessfulVersion()).isEqualTo(53);
+        assertThat(latestSuccessfulVersion()).isEqualTo(55);
         assertThat(systemAdminAssignmentCount()).isZero();
         flyway(null).validate();
     }

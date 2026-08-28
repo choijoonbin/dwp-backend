@@ -3,6 +3,7 @@ package com.dwp.services.messaging.collaboration;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.messaging.collaboration.CollaborationSearchPort.SearchDocument;
+import com.dwp.services.messaging.domain.MessagingTenantPolicyGuard;
 import com.dwp.services.messaging.security.MessagingRequestContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,18 +34,24 @@ public class CollaborationService {
 
     private final ConversationCreationRepository creationRepository;
     private final CollaborationSearchPort searchPort;
+    private final MessagingTenantPolicyGuard policyGuard;
 
     public CollaborationService(
             ConversationCreationRepository creationRepository,
-            CollaborationSearchPort searchPort) {
+            CollaborationSearchPort searchPort,
+            MessagingTenantPolicyGuard policyGuard) {
         this.creationRepository = creationRepository;
         this.searchPort = searchPort;
+        this.policyGuard = policyGuard;
     }
 
     @Transactional
     public CollaborationDtos.ConversationCreationResponse createConversation(
             CollaborationDtos.CreateConversationRequest request) {
         MessagingRequestContext.Subject subject = MessagingRequestContext.get();
+        if (request.type() == CollaborationDtos.ConversationType.GROUP) {
+            policyGuard.requireDirectMessagingEnabled(subject.tenantId());
+        }
         String name = normalizedName(request.type(), request.name());
         String topic = normalizeNullable(request.topic());
         String idempotencyKey = normalizedIdempotencyKey(request.idempotencyKey());

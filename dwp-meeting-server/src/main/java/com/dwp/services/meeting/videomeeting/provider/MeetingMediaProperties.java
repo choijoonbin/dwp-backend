@@ -11,6 +11,7 @@ public class MeetingMediaProperties {
 
     private String provider = "disabled";
     private Duration tokenTtl = Duration.ofMinutes(5);
+    private Duration lifecycleOperationLease = Duration.ofMinutes(2);
     private int joinCodeLength = 12;
     private String recordingPolicy = "NEVER";
     private final LiveKit livekit = new LiveKit();
@@ -32,6 +33,18 @@ public class MeetingMediaProperties {
 
     public void setTokenTtl(Duration tokenTtl) {
         this.tokenTtl = tokenTtl;
+    }
+
+    public Duration getLifecycleOperationLease() {
+        Duration value = lifecycleOperationLease == null
+                ? Duration.ofMinutes(2) : lifecycleOperationLease;
+        if (value.compareTo(Duration.ofSeconds(15)) < 0) return Duration.ofSeconds(15);
+        if (value.compareTo(Duration.ofMinutes(10)) > 0) return Duration.ofMinutes(10);
+        return value;
+    }
+
+    public void setLifecycleOperationLease(Duration lifecycleOperationLease) {
+        this.lifecycleOperationLease = lifecycleOperationLease;
     }
 
     public int getJoinCodeLength() {

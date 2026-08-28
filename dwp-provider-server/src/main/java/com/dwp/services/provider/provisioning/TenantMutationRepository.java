@@ -132,6 +132,11 @@ public class TenantMutationRepository {
                        last_error_message = 'Command lease expired before acknowledgement.'
                  WHERE lifecycle_state = 'LEASED'
                    AND lease_expires_at < CURRENT_TIMESTAMP
+                   AND NOT EXISTS (
+                       SELECT 1
+                         FROM prv_tenant_mutations mutation
+                        WHERE mutation.mutation_id = command.mutation_id
+                          AND mutation.desired_payload ? 'providerOperationId')
                 """);
     }
 
@@ -147,6 +152,9 @@ public class TenantMutationRepository {
                       FROM prv_tenant_command_outbox command
                       JOIN prv_tenant_mutations mutation ON mutation.mutation_id = command.mutation_id
                      WHERE (?::uuid IS NULL OR mutation.mutation_id = ?::uuid)
+                       AND (?::uuid IS NOT NULL
+                            OR NOT jsonb_exists(
+                                mutation.desired_payload, 'providerOperationId'))
                        AND mutation.lifecycle_state IN (
                            'PENDING', 'EXECUTING', 'RETRY_WAIT', 'COMPENSATING')
                        AND command.lifecycle_state IN (
@@ -177,7 +185,8 @@ public class TenantMutationRepository {
                           command.payload, command.attempt_count,
                           command.compensation, command.lease_token
                 """, this::mapLease,
-                mutationId, mutationId, workerId, leaseToken, leaseDuration.toMillis());
+                mutationId, mutationId, mutationId,
+                workerId, leaseToken, leaseDuration.toMillis());
         if (!claimed.isEmpty()) {
             CommandLease command = claimed.get(0);
             jdbc.update("""
@@ -332,6 +341,7 @@ public class TenantMutationRepository {
                   FROM prv_tenant_mutations mutation
                  WHERE mutation.lifecycle_state IN (
                      'PENDING', 'EXECUTING', 'RETRY_WAIT', 'COMPENSATING')
+                   AND NOT (mutation.desired_payload ? 'providerOperationId')
                    AND NOT EXISTS (
                        SELECT 1 FROM prv_tenant_command_outbox command
                         WHERE command.mutation_id = mutation.mutation_id
@@ -367,7 +377,7 @@ public class TenantMutationRepository {
                 """, String.class, tenantId);
     }
 
-    private Mutation byIdempotencyKey(String key) {
+    public Mutation byIdempotencyKey(String key) {
         return jdbc.query("""
                 SELECT mutation_id, provider_tenant_id, mutation_type, idempotency_key,
                        payload_sha256, expected_tenant_version, target_revision,

@@ -1,5 +1,7 @@
 package com.dwp.services.provider.provisioning;
 
+import com.dwp.core.common.ErrorCode;
+import com.dwp.core.exception.BaseException;
 import com.dwp.core.provisioning.ProviderTenantCommand;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
@@ -101,6 +103,108 @@ class DownstreamProvisioningClientHttpContractTest {
         assertThat(platformCalls).hasValue(1);
     }
 
+    @Test
+    void authProvisioningRejectsAResponseBoundToAnotherProviderTenant() throws Exception {
+        UUID requestedTenant = UUID.randomUUID();
+        DownstreamProvisioningClient.AuthProvisioningResult response =
+                new DownstreamProvisioningClient.AuthProvisioningResult(
+                        UUID.randomUUID(), 41L, 51L, "admin@acme.example.com",
+                        "PROVISIONING", 1);
+        auth.createContext("/internal/provider/v1/tenants", exchange ->
+                respond(exchange, 200, objectMapper.writeValueAsBytes(response)));
+
+        assertThatThrownBy(() -> client.provisionAuth(requestedTenant, onboardingPlan()))
+                .isInstanceOfSatisfying(BaseException.class, failure ->
+                        assertThat(failure.getErrorCode()).isEqualTo(ErrorCode.EXTERNAL_SERVICE_ERROR))
+                .hasMessageContaining("invalid tenant binding");
+    }
+
+    @Test
+    void authProvisioningAcceptsTheExactCanonicalAdministratorAndSupportedSchema() throws Exception {
+        UUID requestedTenant = UUID.randomUUID();
+        DownstreamProvisioningClient.AuthProvisioningResult response =
+                new DownstreamProvisioningClient.AuthProvisioningResult(
+                        requestedTenant, 41L, 51L, "admin@acme.example.com",
+                        "PROVISIONING", 1);
+        auth.createContext("/internal/provider/v1/tenants", exchange ->
+                respond(exchange, 200, objectMapper.writeValueAsBytes(response)));
+
+        DownstreamProvisioningClient.AuthProvisioningResult result =
+                client.provisionAuth(requestedTenant, onboardingPlan());
+
+        assertThat(result.tenantId()).isEqualTo(41L);
+        assertThat(result.administratorUserId()).isEqualTo(51L);
+    }
+
+    @Test
+    void authProvisioningRejectsANonCanonicalAdministratorBinding() throws Exception {
+        UUID requestedTenant = UUID.randomUUID();
+        DownstreamProvisioningClient.AuthProvisioningResult response =
+                new DownstreamProvisioningClient.AuthProvisioningResult(
+                        requestedTenant, 41L, 51L, "ADMIN@ACME.EXAMPLE.COM ",
+                        "PROVISIONING", 1);
+        auth.createContext("/internal/provider/v1/tenants", exchange ->
+                respond(exchange, 200, objectMapper.writeValueAsBytes(response)));
+
+        assertInvalidBinding(() -> client.provisionAuth(requestedTenant, onboardingPlan()));
+    }
+
+    @Test
+    void authProvisioningRejectsNonPositiveIdentityAndLifecycleSchemaDrift() throws Exception {
+        UUID requestedTenant = UUID.randomUUID();
+        DownstreamProvisioningClient.AuthProvisioningResult response =
+                new DownstreamProvisioningClient.AuthProvisioningResult(
+                        requestedTenant, 0L, -1L, "admin@acme.example.com",
+                        "READY", 2);
+        auth.createContext("/internal/provider/v1/tenants", exchange ->
+                respond(exchange, 200, objectMapper.writeValueAsBytes(response)));
+
+        assertInvalidBinding(() -> client.provisionAuth(requestedTenant, onboardingPlan()));
+    }
+
+    @Test
+    void serviceAndStorageProvisioningRejectWrongNumericTenantBindings() throws Exception {
+        UUID requestedTenant = UUID.randomUUID();
+        long expectedAuthTenant = 41L;
+        platform.createContext("/internal/provider/v1/tenants", exchange -> respond(
+                exchange, 200, objectMapper.writeValueAsBytes(
+                        new DownstreamProvisioningClient.ServiceProvisioningResult(
+                                requestedTenant, 99L, "PROVISIONING", 1,
+                                "platform-tenant:99"))));
+        people.createContext("/internal/provider/v1/tenants", exchange -> respond(
+                exchange, 200, objectMapper.writeValueAsBytes(
+                        new DownstreamProvisioningClient.ServiceProvisioningResult(
+                                UUID.randomUUID(), expectedAuthTenant, "PROVISIONING", 1,
+                                "people-tenant:" + expectedAuthTenant))));
+        platform.createContext(
+                "/internal/provider/v1/tenants/" + requestedTenant + "/asset-storage",
+                exchange -> respond(exchange, 200, objectMapper.writeValueAsBytes(
+                        new DownstreamProvisioningClient.ServiceProvisioningResult(
+                                requestedTenant, 99L, "PROVISIONING", 1,
+                                "asset-storage:tenant:99"))));
+
+        assertInvalidBinding(() -> client.provisionPlatform(
+                requestedTenant, expectedAuthTenant, onboardingPlan()));
+        assertInvalidBinding(() -> client.provisionPeople(
+                requestedTenant, expectedAuthTenant, onboardingPlan()));
+        assertInvalidBinding(() -> client.provisionAssetStorage(
+                requestedTenant, expectedAuthTenant));
+    }
+
+    @Test
+    void serviceProvisioningRejectsLifecycleSchemaAndReferenceDrift() throws Exception {
+        UUID requestedTenant = UUID.randomUUID();
+        long expectedAuthTenant = 41L;
+        platform.createContext("/internal/provider/v1/tenants", exchange -> respond(
+                exchange, 200, objectMapper.writeValueAsBytes(
+                        new DownstreamProvisioningClient.ServiceProvisioningResult(
+                                requestedTenant, expectedAuthTenant, "READY", 2,
+                                "unexpected-reference"))));
+
+        assertInvalidBinding(() -> client.provisionPlatform(
+                requestedTenant, expectedAuthTenant, onboardingPlan()));
+    }
+
     private HttpServer server() throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.start();
@@ -111,10 +215,37 @@ class DownstreamProvisioningClientHttpContractTest {
         return "http://127.0.0.1:" + server.getAddress().getPort();
     }
 
+    private ObjectNode onboardingPlan() {
+        ObjectNode plan = objectMapper.createObjectNode();
+        plan.put("tenantKey", "acme");
+        plan.put("displayName", "Acme");
+        plan.put("dataRegion", "ap-northeast-2");
+        plan.put("isolationModel", "POOL");
+        plan.put("defaultLocale", "en");
+        plan.put("timeZone", "Asia/Seoul");
+        plan.putArray("entitlements").add("core.workspace");
+        plan.putObject("initialAdministrator")
+                .put("displayName", "Acme Administrator")
+                .put("email", "admin@acme.example.com");
+        return plan;
+    }
+
+    private void assertInvalidBinding(ThrowingCall call) {
+        assertThatThrownBy(call::run)
+                .isInstanceOfSatisfying(BaseException.class, failure ->
+                        assertThat(failure.getErrorCode()).isEqualTo(ErrorCode.EXTERNAL_SERVICE_ERROR))
+                .hasMessageContaining("invalid tenant binding");
+    }
+
     private static void respond(HttpExchange exchange, int status, byte[] body) throws IOException {
         if (body.length > 0) exchange.getResponseHeaders().add("Content-Type", "application/json");
         exchange.sendResponseHeaders(status, body.length);
         if (body.length > 0) exchange.getResponseBody().write(body);
         exchange.close();
+    }
+
+    @FunctionalInterface
+    private interface ThrowingCall {
+        void run();
     }
 }

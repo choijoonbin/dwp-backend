@@ -1,6 +1,7 @@
 package com.dwp.gateway;
 
 import com.dwp.gateway.filter.ApiHistoryGatewayFilter;
+import com.dwp.gateway.filter.SupportSessionContextFilter;
 import com.dwp.observability.api.ApiHistoryAttributes;
 import com.dwp.observability.api.ApiHistoryEvent;
 import org.junit.jupiter.api.Test;
@@ -83,5 +84,33 @@ class ApiHistoryGatewayFilterTest {
         assertThat(events).hasSize(1);
         assertThat(events.get(0).statusCode()).isEqualTo(499);
         assertThat(events.get(0).outcome()).isEqualTo("CANCELLED");
+    }
+
+    @Test
+    void attributesVerifiedSupportTrafficToTheTargetWithoutChangingActorIdentityTenant() {
+        List<ApiHistoryEvent> events = new ArrayList<>();
+        ApiHistoryGatewayFilter filter = new ApiHistoryGatewayFilter(
+                events::add,
+                "privacy-secret",
+                "dwp-gateway",
+                "1.0.0",
+                "gateway-1",
+                "test");
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
+                .get("/api/platform/v1/admin/tenant-experience-preview")
+                .build());
+        exchange.getAttributes().put(ApiHistoryAttributes.TENANT_ID, "3");
+        exchange.getAttributes().put(ApiHistoryAttributes.ACTOR_ID, "17");
+        exchange.getAttributes().put(ApiHistoryAttributes.ACTOR_TYPE, "USER");
+        exchange.getAttributes().put(
+                SupportSessionContextFilter.SUPPORT_TARGET_TENANT_ATTRIBUTE, "42");
+
+        filter.filter(exchange, observed -> Mono.empty()).block();
+
+        assertThat(events).singleElement().satisfies(event -> {
+            assertThat(event.tenantId()).isEqualTo(42L);
+            assertThat(event.actorId()).isEqualTo("17");
+        });
+        assertThat(exchange.<String>getAttribute(ApiHistoryAttributes.TENANT_ID)).isEqualTo("3");
     }
 }

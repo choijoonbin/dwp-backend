@@ -21,11 +21,13 @@ import java.util.UUID;
 @Service
 public class MessagingService {
 
-    private static final Set<String> SCOPES = Set.of("ALL", "FAVORITES", "SPACES", "DIRECT", "CHANNELS");
+    private static final Set<String> SCOPES =
+            Set.of("ALL", "FAVORITES", "SPACES", "DIRECT", "CHANNELS", "MENTIONS");
     private static final Set<String> NOTIFICATION_LEVELS =
             Set.of("DEFAULT", "ALL", "MENTIONS", "MUTE");
 
     private final MessagingQueryRepository queries;
+    private final MessagingTenantPolicyGuard policyGuard;
     private final MessagingCommandRepository commands;
     private final MessagingMessageQueryRepository messageQueries;
     private final MessagingInteractionCommandRepository interactions;
@@ -36,6 +38,7 @@ public class MessagingService {
     @Autowired
     public MessagingService(
             MessagingQueryRepository queries,
+            MessagingTenantPolicyGuard policyGuard,
             MessagingCommandRepository commands,
             MessagingMessageQueryRepository messageQueries,
             MessagingInteractionCommandRepository interactions,
@@ -43,6 +46,7 @@ public class MessagingService {
             MessagingNotificationEvents notificationEvents,
             AttachmentService attachments) {
         this.queries = queries;
+        this.policyGuard = policyGuard;
         this.commands = commands;
         this.messageQueries = messageQueries;
         this.interactions = interactions;
@@ -59,6 +63,7 @@ public class MessagingService {
             MessagingEventRecorder events) {
         this(
                 queries,
+                new MessagingTenantPolicyGuard(queries),
                 commands,
                 messageQueries,
                 interactions,
@@ -130,6 +135,7 @@ public class MessagingService {
             MessagingDtos.DirectConversationRequest request,
             String correlationId) {
         MessagingRequestContext.Subject subject = MessagingRequestContext.get();
+        policyGuard.requireDirectMessagingEnabled(subject.tenantId());
         if (request.targetUserId() == subject.userId()) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
                     "A direct conversation requires another active person.");
@@ -172,6 +178,7 @@ public class MessagingService {
         if (replay.isPresent()) {
             return message(subject, conversationId, replay.orElseThrow().messageId());
         }
+        policyGuard.requireMessageSendingEnabled(subject.tenantId(), conversation);
         List<MessagingDtos.MentionSummary> mentions = resolveMentions(
                 subject, conversation, request.body(), request.mentionedUserIds());
         MessagingMessageAccess replyParent = validateReplyParent(

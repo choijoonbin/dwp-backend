@@ -6,6 +6,7 @@ import com.dwp.services.messaging.realtime.MessagingEventRecorder;
 import com.dwp.services.messaging.realtime.MessagingRealtimePublisher;
 import com.dwp.services.messaging.realtime.MessagingRealtimeRepository;
 import com.dwp.services.messaging.security.MessagingRequestContext;
+import com.dwp.services.messaging.domain.MessagingTenantPolicyGuard;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterEach;
@@ -78,7 +79,8 @@ class ConversationMembershipRepositoryIntegrationTest {
         service = new ConversationMembershipService(membershipRepository, eventRecorder);
         collaborationService = new CollaborationService(
                 new ConversationCreationRepository(jdbc),
-                new SqlCollaborationSearchRepository(new NamedParameterJdbcTemplate(jdbc)));
+                new SqlCollaborationSearchRepository(new NamedParameterJdbcTemplate(jdbc)),
+                mock(MessagingTenantPolicyGuard.class));
 
         person(TENANT_ID, OWNER_ID, "Owner", "owner@tenant.test", "ACTIVE");
         person(TENANT_ID, SECOND_OWNER_ID, "Second owner", "owner2@tenant.test", "ACTIVE");

@@ -276,15 +276,28 @@ public final class VideoMeetingDtos {
             long version) {
 
         public static ParticipantResponse from(VideoMeetingModels.Participant participant) {
+            return from(participant, true);
+        }
+
+        public static ParticipantResponse from(
+                VideoMeetingModels.Participant participant,
+                boolean includePrivateProfile) {
             return new ParticipantResponse(
-                    participant.participantId(), participant.userId(),
-                    participant.personPublicId(), participant.emailAddress(),
-                    participant.displayName(), participant.jobTitle(),
-                    participant.organizationName(), participant.participantRole().name(),
+                    participant.participantId(),
+                    includePrivateProfile ? participant.userId() : null,
+                    includePrivateProfile ? participant.personPublicId() : null,
+                    includePrivateProfile ? participant.emailAddress() : null,
+                    participant.displayName(),
+                    includePrivateProfile ? participant.jobTitle() : null,
+                    includePrivateProfile ? participant.organizationName() : null,
+                    participant.participantRole().name(),
                     participant.attendanceState().name(), participant.canSelfUnmute(),
-                    participant.joinRequestedAt(), participant.admittedAt(),
-                    participant.joinedAt(), participant.leftAt(),
-                    participant.unmuteRequestedAt(), participant.version());
+                    includePrivateProfile ? participant.joinRequestedAt() : null,
+                    includePrivateProfile ? participant.admittedAt() : null,
+                    includePrivateProfile ? participant.joinedAt() : null,
+                    includePrivateProfile ? participant.leftAt() : null,
+                    includePrivateProfile ? participant.unmuteRequestedAt() : null,
+                    participant.version());
         }
     }
 
@@ -376,8 +389,24 @@ public final class VideoMeetingDtos {
         public static MeetingDetailResponse from(
                 VideoMeetingModels.MeetingDetail detail,
                 VideoMeetingModels.ParticipantRole viewerRole) {
+            return from(detail, viewerRole, true, true);
+        }
+
+        public static MeetingDetailResponse from(
+                VideoMeetingModels.MeetingDetail detail,
+                VideoMeetingModels.ParticipantRole viewerRole,
+                boolean contentVisible,
+                boolean participantAdministrationVisible) {
             VideoMeetingModels.Meeting meeting = detail.meeting();
             VideoMeetingModels.ParticipantRole effectiveRole = effectiveRole(viewerRole);
+            List<VideoMeetingModels.Participant> visibleParticipants =
+                    participantAdministrationVisible
+                            ? detail.participants()
+                            : detail.participants().stream()
+                                    .filter(VideoMeetingModels.Participant::admitted)
+                                    .toList();
+            List<VideoMeetingModels.Artifact> visibleArtifacts = contentVisible
+                    ? detail.artifacts() : List.of();
             return new MeetingDetailResponse(
                     meeting.meetingId(), meeting.title(), meeting.description(), meeting.agenda(),
                     meeting.lifecycleState().name(), meeting.accessScope().name(),
@@ -391,14 +420,22 @@ public final class VideoMeetingDtos {
                     meeting.provider(), meeting.organizerUserId(),
                     meeting.organizerPersonPublicId(), meeting.organizerName(),
                     effectiveRole.name(), effectiveRole.canHost(), effectiveRole.canHost(),
-                    meeting.startedAt(), meeting.endedAt(), meeting.decisions(),
-                    meeting.followUpActions(),
-                    detail.participants().stream().map(ParticipantResponse::from).toList(),
-                    detail.artifacts().stream().map(ArtifactResponse::from).toList(),
-                    artifactAvailable(detail.artifacts(), "RECORDING"),
-                    artifactAvailable(detail.artifacts(), "TRANSCRIPT"),
-                    artifactAvailable(detail.artifacts(), "SUMMARY"),
+                    meeting.startedAt(), meeting.endedAt(),
+                    contentVisible ? meeting.decisions() : emptyArray(),
+                    contentVisible ? meeting.followUpActions() : emptyArray(),
+                    visibleParticipants.stream()
+                            .map(participant -> ParticipantResponse.from(
+                                    participant, participantAdministrationVisible))
+                            .toList(),
+                    visibleArtifacts.stream().map(ArtifactResponse::from).toList(),
+                    artifactAvailable(visibleArtifacts, "RECORDING"),
+                    artifactAvailable(visibleArtifacts, "TRANSCRIPT"),
+                    artifactAvailable(visibleArtifacts, "SUMMARY"),
                     meeting.version());
+        }
+
+        private static JsonNode emptyArray() {
+            return com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.arrayNode();
         }
 
         private static boolean artifactAvailable(

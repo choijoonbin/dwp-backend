@@ -677,11 +677,7 @@ public class ProviderControlPlaneService {
             ProviderDtos.LifecycleRequest request) {
         ProviderRequestContext.requirePermission("TENANT_WRITE");
         ProviderTenant tenant = requireTenant(tenantId);
-        if ("ACTIVE".equals(request.state()) && !"READY".equals(tenant.getOnboardingState())) {
-            throw new BaseException(
-                    ErrorCode.INVALID_STATE,
-                    "A tenant cannot be activated until downstream onboarding is ready.");
-        }
+        if ("ACTIVE".equals(request.state())) requireOnboardingReady(tenant);
         tenantMutationOrchestrator.lifecycle(
                 tenant, request.version(), request.state(), request.justification(), correlationId);
         return tenantSummary(requireTenant(tenantId));
@@ -693,6 +689,7 @@ public class ProviderControlPlaneService {
             ProviderDtos.ReplaceEntitlementsRequest request) {
         ProviderRequestContext.requirePermission("ENTITLEMENT_WRITE");
         ProviderTenant tenant = requireTenant(tenantId);
+        requireOnboardingReady(tenant);
         List<Entitlement> entitlements = requireEntitlements(request.entitlementKeys());
         tenantMutationOrchestrator.replaceEntitlements(
                 tenant, request.version(),
@@ -1402,6 +1399,14 @@ public class ProviderControlPlaneService {
     private ProviderTenant requireTenant(UUID tenantId) {
         return tenantRepository.findById(tenantId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+    }
+
+    private void requireOnboardingReady(ProviderTenant tenant) {
+        if (!"READY".equals(tenant.getOnboardingState())) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "Tenant onboarding must be ready before provider mutations can run.");
+        }
     }
 
     private void requireSupportReadyTenant(ProviderTenant tenant) {

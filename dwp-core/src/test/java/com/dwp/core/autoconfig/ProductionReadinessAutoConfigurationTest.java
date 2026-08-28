@@ -265,6 +265,12 @@ class ProductionReadinessAutoConfigurationTest {
     void rejectsUnsafeNotificationInfrastructureAndIdentityInProduction() {
         MockEnvironment environment = completeNotificationProduction()
                 .withProperty("dwp.notification.service-token", "local-notification-secret-change-me-123456")
+                .withProperty("dwp.identity-sync.token", "")
+                .withProperty("dwp.identity-sync.auth-url", "http://localhost:8001")
+                .withProperty(
+                        "dwp.notification.recipient-entitlements.app-view-bindings",
+                        "approvals=APP.APPROVALS:VIEW,hcm=APP.HCM:VIEW,"
+                                + "messaging=APP.WORK:VIEW,space=APP.SPACES:VIEW")
                 .withProperty("dwp.notification.gateway-source", "unknown-gateway")
                 .withProperty("dwp.notification.producer-tokens",
                         "dwp-messaging-server=local-producer-secret-change-me-123456")
@@ -284,6 +290,10 @@ class ProductionReadinessAutoConfigurationTest {
 
         assertThatIllegalStateException().isThrownBy(() -> runner.run(null))
                 .withMessageContaining("dwp.notification.service-token")
+                .withMessageContaining("dwp.identity-sync.token")
+                .withMessageContaining("dwp.identity-sync.auth-url")
+                .withMessageContaining(
+                        "dwp.notification.recipient-entitlements.app-view-bindings")
                 .withMessageContaining("dwp.notification.gateway-source must be dwp-gateway")
                 .withMessageContaining("dwp.notification.producer-tokens")
                 .withMessageContaining("dwp.notification.realtime.redis-enabled must be true")
@@ -579,6 +589,14 @@ class ProductionReadinessAutoConfigurationTest {
         return productionBase("dwp-notification-server")
                 .withProperty("dwp.notification.service-token", secret("notification"))
                 .withProperty("dwp.notification.cursor-secret", secret("notification-cursor"))
+                .withProperty("dwp.identity-sync.token", secret("identity"))
+                .withProperty(
+                        "dwp.identity-sync.auth-url",
+                        "https://auth.corp.example.com")
+                .withProperty(
+                        "dwp.notification.recipient-entitlements.app-view-bindings",
+                        "approvals=APP.APPROVALS:VIEW,hcm=APP.HCM:VIEW,"
+                                + "messaging=APP.MESSAGING:VIEW,space=APP.SPACES:VIEW")
                 .withProperty("dwp.notification.gateway-source", "dwp-gateway")
                 .withProperty("dwp.notification.allowed-producers",
                         "dwp-approval-server,dwp-people-server,dwp-platform-server,"
