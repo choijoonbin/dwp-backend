@@ -17,6 +17,8 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -170,7 +172,9 @@ class SavedViewRepositoryPostgresIntegrationTest {
 
     @Test
     void retainsThenRecoversExtendsAndArchivesOrphanedViews() {
-        OffsetDateTime initialRetention = OffsetDateTime.now().plusDays(7);
+        OffsetDateTime initialRetention = OffsetDateTime.now(ZoneOffset.UTC)
+                .truncatedTo(ChronoUnit.MICROS)
+                .plusDays(7);
         transactions.executeWithoutResult(status -> {
             List<SavedViewRepository.Row> views =
                     repository.ownedActiveForUpdate(TENANT_ID, SOURCE_USER_ID);
@@ -206,7 +210,9 @@ class SavedViewRepositoryPostgresIntegrationTest {
         SavedViewDtos.OrphanLifecycleResult reassigned = lifecycle(
                 reassign, "postgres-reassign", "REASSIGN", TARGET_USER_ID,
                 "새 담당자", null);
-        OffsetDateTime extendedUntil = OffsetDateTime.now().plusDays(21);
+        OffsetDateTime extendedUntil = OffsetDateTime.now(ZoneOffset.UTC)
+                .truncatedTo(ChronoUnit.MICROS)
+                .plusDays(21);
         SavedViewDtos.OrphanLifecycleResult extended = lifecycle(
                 extend, "postgres-extend", "EXTEND_RETENTION", null,
                 null, extendedUntil);
