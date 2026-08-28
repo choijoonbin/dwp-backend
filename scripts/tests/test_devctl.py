@@ -164,5 +164,43 @@ class AgentLocalEnvironmentTest(unittest.TestCase):
                 devctl.load_agent_local_environment(path)
 
 
+class ServiceStartupTimeoutTest(unittest.TestCase):
+    def test_uses_ci_safe_default(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(
+                devctl.service_startup_timeout_seconds(),
+                devctl.DEFAULT_SERVICE_STARTUP_TIMEOUT_SECONDS,
+            )
+
+    def test_accepts_bounded_canonical_override(self) -> None:
+        with patch.dict(
+            os.environ,
+            {devctl.SERVICE_STARTUP_TIMEOUT_ENVIRONMENT: "420"},
+            clear=True,
+        ):
+            self.assertEqual(devctl.service_startup_timeout_seconds(), 420)
+
+    def test_rejects_non_canonical_or_out_of_range_override(self) -> None:
+        invalid_values = (
+            "",
+            "0",
+            "060",
+            " 300 ",
+            "59",
+            "901",
+            "1.5",
+            "-300",
+        )
+        for value in invalid_values:
+            with self.subTest(value=value):
+                with patch.dict(
+                    os.environ,
+                    {devctl.SERVICE_STARTUP_TIMEOUT_ENVIRONMENT: value},
+                    clear=True,
+                ):
+                    with self.assertRaisesRegex(RuntimeError, "must be"):
+                        devctl.service_startup_timeout_seconds()
+
+
 if __name__ == "__main__":
     unittest.main()

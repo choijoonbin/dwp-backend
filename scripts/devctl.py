@@ -33,6 +33,11 @@ MIN_AGENT_PYTHON = (3, 11)
 MIN_FRONTEND_NODE = (24, 18, 0)
 MAX_FRONTEND_NODE_MAJOR = 25
 ENVIRONMENT_NAME = re.compile(r"^[A-Z][A-Z0-9_]*$")
+CANONICAL_POSITIVE_INTEGER = re.compile(r"^[1-9][0-9]*$")
+SERVICE_STARTUP_TIMEOUT_ENVIRONMENT = "DWP_DEVCTL_STARTUP_TIMEOUT_SECONDS"
+DEFAULT_SERVICE_STARTUP_TIMEOUT_SECONDS = 300
+MIN_SERVICE_STARTUP_TIMEOUT_SECONDS = 60
+MAX_SERVICE_STARTUP_TIMEOUT_SECONDS = 900
 AGENT_MODEL_ENVIRONMENT = frozenset(
     {
         "DWP_MODEL_PROVIDER",
@@ -855,6 +860,29 @@ def health_ready(service: Service) -> bool:
         return False
 
 
+def service_startup_timeout_seconds() -> int:
+    raw_value = os.environ.get(SERVICE_STARTUP_TIMEOUT_ENVIRONMENT)
+    if raw_value is None:
+        return DEFAULT_SERVICE_STARTUP_TIMEOUT_SECONDS
+    if not CANONICAL_POSITIVE_INTEGER.fullmatch(raw_value):
+        raise RuntimeError(
+            f"{SERVICE_STARTUP_TIMEOUT_ENVIRONMENT} must be a canonical positive integer."
+        )
+
+    timeout_seconds = int(raw_value)
+    if not (
+        MIN_SERVICE_STARTUP_TIMEOUT_SECONDS
+        <= timeout_seconds
+        <= MAX_SERVICE_STARTUP_TIMEOUT_SECONDS
+    ):
+        raise RuntimeError(
+            f"{SERVICE_STARTUP_TIMEOUT_ENVIRONMENT} must be between "
+            f"{MIN_SERVICE_STARTUP_TIMEOUT_SECONDS} and "
+            f"{MAX_SERVICE_STARTUP_TIMEOUT_SECONDS} seconds."
+        )
+    return timeout_seconds
+
+
 def start_service(service: Service, state: dict[str, dict[str, object]]) -> None:
     current = state.get(service.name)
     if current and process_alive(int(current["pid"])):
@@ -895,7 +923,7 @@ def wait_for_services(
     services: Iterable[Service], state: dict[str, dict[str, object]]
 ) -> None:
     pending = {service.name: service for service in services}
-    deadline = time.monotonic() + 180
+    deadline = time.monotonic() + service_startup_timeout_seconds()
     while pending and time.monotonic() < deadline:
         for name, service in list(pending.items()):
             process_state = state.get(name)

@@ -84,6 +84,8 @@ jobs:
 
       - name: Validate migrations and code contracts
         shell: bash
+        env:
+          DWP_DEVCTL_STARTUP_TIMEOUT_SECONDS: '300'
         run: |
           set -Eeuo pipefail
 
