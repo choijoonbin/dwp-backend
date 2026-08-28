@@ -5,7 +5,6 @@ import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -18,11 +17,13 @@ class MessagingTypingRedisCodecTest {
 
     @Test
     void roundTripsTheBoundedEphemeralContract() {
-        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        OffsetDateTime now = OffsetDateTime.parse("2026-08-28T10:24:00.123456789Z");
         MessagingTypingSignal signal = new MessagingTypingSignal(
                 UUID.randomUUID(), 1, UUID.randomUUID(), 101, true, now, now.plusSeconds(8));
+        String payload = codec.encode(signal);
 
-        assertThat(codec.decode(codec.encode(signal).getBytes(StandardCharsets.UTF_8)))
+        assertThat(payload).contains("\"changedAt\":\"2026-08-28T10:24:00.123456789Z\"");
+        assertThat(codec.decode(payload.getBytes(StandardCharsets.UTF_8)))
                 .isEqualTo(signal);
     }
 
