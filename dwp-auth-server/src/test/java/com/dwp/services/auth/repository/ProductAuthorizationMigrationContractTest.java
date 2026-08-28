@@ -12,12 +12,8 @@ class ProductAuthorizationMigrationContractTest {
 
     @Test
     void migrationCreatesImmutableRegistryAndCasPointerTables() throws IOException {
-        ClassPathResource resource = new ClassPathResource(
+        String migration = migration(
                 "db/migration/V87__create_product_surface_authorization_registry.sql");
-        String migration;
-        try (var input = resource.getInputStream()) {
-            migration = new String(input.readAllBytes(), StandardCharsets.UTF_8);
-        }
 
         assertThat(migration).contains(
                 "CREATE TABLE auth_product_authorization_bundle",
@@ -33,5 +29,32 @@ class ProductAuthorizationMigrationContractTest {
                 "trg_product_authorization_activation_event_immutable",
                 "resulting_revision = expected_revision + 1");
         assertThat(migration).doesNotContain("ON DELETE CASCADE");
+    }
+
+    @Test
+    void predicateOwnerConstraintIncludesEveryIndependentPepRuntime() throws IOException {
+        String migration = migration(
+                "db/migration/V209__authorize_product_predicate_owner_services.sql");
+
+        assertThat(migration).contains(
+                "DROP CONSTRAINT IF EXISTS ck_product_predicate_owner_service",
+                "ADD CONSTRAINT ck_product_predicate_owner_service",
+                "'agent'",
+                "'approval'",
+                "'auth'",
+                "'meeting'",
+                "'messaging'",
+                "'notification'",
+                "'people'",
+                "'platform'",
+                "'space'",
+                "VALIDATE CONSTRAINT ck_product_predicate_owner_service");
+    }
+
+    private String migration(String path) throws IOException {
+        ClassPathResource resource = new ClassPathResource(path);
+        try (var input = resource.getInputStream()) {
+            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        }
     }
 }

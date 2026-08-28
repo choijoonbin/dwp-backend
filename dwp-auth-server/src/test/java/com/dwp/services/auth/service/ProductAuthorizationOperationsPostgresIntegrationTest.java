@@ -8,6 +8,7 @@ import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.postgresql.ds.PGSimpleDataSource;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
@@ -16,6 +17,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Callable;
@@ -60,6 +62,41 @@ class ProductAuthorizationOperationsPostgresIntegrationTest {
                         jdbc, new ObjectMapper().findAndRegisterModules());
         service = new ProductAuthorizationContractService(
                 repository, mock(ProductAuthorizationContractValidator.class));
+    }
+
+    @Test
+    void v4DraftImportsEveryIndependentPredicateOwnerOnFreshSchema() throws IOException {
+        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+        ProductAuthorizationContractValidator validator =
+                new ProductAuthorizationContractValidator(mapper);
+        ClassPathResource resource = new ClassPathResource(
+                "product-authorization/product-surfaces-v1.bundle-v4.generated.json");
+        ProductAuthorizationContractDtos.BundleContract contract;
+        try (var input = resource.getInputStream()) {
+            contract = validator.validateDocument(input);
+        }
+
+        ProductAuthorizationContractDtos.BundleView imported =
+                inTransaction(() -> service.importDraft(contract));
+
+        assertThat(imported.bundleStatus()).isEqualTo("DRAFT");
+        assertThat(imported.version()).isEqualTo(4);
+        assertThat(jdbc.query("""
+                SELECT DISTINCT owner_service_key
+                  FROM auth_product_predicate_policy
+                 WHERE bundle_id = ?
+                 ORDER BY owner_service_key
+                """, (result, ignored) -> result.getString(1), imported.bundleId()))
+                .containsExactly(
+                        "agent",
+                        "approval",
+                        "auth",
+                        "meeting",
+                        "messaging",
+                        "notification",
+                        "people",
+                        "platform",
+                        "space");
     }
 
     @Test
