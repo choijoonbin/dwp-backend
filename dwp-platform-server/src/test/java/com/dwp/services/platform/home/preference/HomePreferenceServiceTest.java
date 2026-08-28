@@ -5,6 +5,7 @@ import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.audit.PlatformAuditService;
 import com.dwp.services.platform.home.HomeCompositionPolicyReader;
 import com.dwp.services.platform.home.personalization.HomePersonalizationScopeLock;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
@@ -124,8 +125,8 @@ class HomePreferenceServiceTest {
 
         assertThat(result.customized()).isTrue();
         assertThat(result.layout().presentation()).isEqualTo("expressive");
-        assertThat((com.fasterxml.jackson.databind.JsonNode)
-                objectMapper.valueToTree(result.layout().appLayout())).isEqualTo(appLayout);
+        JsonNode actualAppLayout = objectMapper.valueToTree(result.layout().appLayout());
+        assertThat(actualAppLayout).isEqualTo(appLayout);
         assertThat(result.layout().widgets()).hasSize(5);
         assertThat(result.layout().widgets().getFirst().size()).isEqualTo("large");
         assertThat(result.layout().widgets().getFirst().height()).isEqualTo("short");
@@ -313,8 +314,8 @@ class HomePreferenceServiceTest {
                 7L, 11L, HomePreferenceService.WORKSPACE_HOME);
 
         assertThat(result.schemaVersion()).isEqualTo(5);
-        assertThat((com.fasterxml.jackson.databind.JsonNode)
-                objectMapper.valueToTree(result.layout().appLayout())).isEqualTo(validAppLayout());
+        JsonNode actualAppLayout = objectMapper.valueToTree(result.layout().appLayout());
+        assertThat(actualAppLayout).isEqualTo(validAppLayout());
         assertThat(result.layout().presentation()).isEqualTo("balanced");
         assertThat(result.layout().widgets())
                 .allSatisfy(widget -> assertThat(widget.size()).isNotBlank());

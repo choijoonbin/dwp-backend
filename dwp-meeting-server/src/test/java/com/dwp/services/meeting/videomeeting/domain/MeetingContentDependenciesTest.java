@@ -13,6 +13,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@SuppressWarnings("auxiliaryclass")
 class MeetingContentDependenciesTest {
 
     @Test
@@ -112,6 +113,6 @@ class MeetingContentDependenciesTest {
             MeetingIntelligencePayloadProtector protector,
             MeetingIntelligenceHttpProperties intelligenceProperties,
             MeetingTranscriptHttpProperties transcriptProperties,
-            GovernedMeetingContentDependencies dependencies) {
+            MeetingContentDependencies dependencies) {
     }
 }
