@@ -188,6 +188,9 @@ dwp-platform-server/src/main/java/com/dwp/services/platform/announcement/Announc
 dwp-platform-server/src/main/java/com/dwp/services/platform/announcement/AnnouncementSeverity.java|AnnouncementSeverity
 dwp-platform-server/src/main/java/com/dwp/services/platform/apihistory/ApiHistoryWindow.java|ApiHistoryWindow
 dwp-platform-server/src/main/java/com/dwp/services/platform/auditcontrol/AuditWindow.java|AuditWindow
+dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarProductSurfaceAccessPolicy.java|Status
+dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarProductSurfaceContract.java|AccessContractType
+dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarProductSurfaceContract.java|RouteKind
 dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|AttendeeType
 dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|CalendarType
 dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|EventStatus
@@ -197,6 +200,8 @@ dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTyp
 dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|ResourceState
 dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|ResourceType
 dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|ResponseStatus
+dwp-platform-server/src/main/java/com/dwp/services/platform/communication/CommunicationProductSurfacePepFilter.java|Decision
+dwp-platform-server/src/main/java/com/dwp/services/platform/communication/CommunicationProductSurfacePepFilter.java|RouteKind
 dwp-platform-server/src/main/java/com/dwp/services/platform/communication/CommunicationReaction.java|CommunicationReaction
 dwp-platform-server/src/main/java/com/dwp/services/platform/home/overview/HomeOverviewDtos.java|SectionStatus
 dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java|AuthMode
@@ -216,14 +221,27 @@ dwp-platform-server/src/main/java/com/dwp/services/platform/servicecenter/Servic
 dwp-platform-server/src/main/java/com/dwp/services/platform/servicecenter/ServiceCenterTypes.java|DataClassification
 dwp-platform-server/src/main/java/com/dwp/services/platform/servicecenter/ServiceCenterTypes.java|RequestPriority
 dwp-platform-server/src/main/java/com/dwp/services/platform/servicecenter/ServiceCenterTypes.java|RequestStatus
+dwp-platform-server/src/main/java/com/dwp/services/platform/servicecenter/ServicesProductSurfacePepFilter.java|Decision
+dwp-platform-server/src/main/java/com/dwp/services/platform/servicecenter/ServicesProductSurfacePepFilter.java|RouteKind
 dwp-approval-server/src/main/java/com/dwp/services/approval/api/ApprovalController.java|TaskView
 dwp-approval-server/src/main/java/com/dwp/services/approval/security/ApprovalPilotPepRegistry.java|ActiveAccessMode
+dwp-meeting-server/src/main/java/com/dwp/services/meeting/security/MeetingProductAccessPolicy.java|ActiveAccessMode
+dwp-meeting-server/src/main/java/com/dwp/services/meeting/security/MeetingProductAccessPolicy.java|RouteKind
 dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingCollaborationModels.java|ChatMessageState
 dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingCollaborationModels.java|HandRequestState
 dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingContentModels.java|BlockerCode
 dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingContentModels.java|NoticeState
 dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingContentModels.java|PlanState
 dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingContentModels.java|RecordingState
+dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingIntelligenceModels.java|Audience
+dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingIntelligenceModels.java|ContentPermission
+dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingIntelligenceModels.java|ReportState
+dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingIntelligenceModels.java|ReviewDecision
+dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingIntelligenceModels.java|RunState
+dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingLifecycleModels.java|OperationState
+dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingLifecycleModels.java|OperationType
+dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/provider/MeetingIntelligenceProvider.java|ClimateLabel
+dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/provider/MeetingIntelligenceProvider.java|ClimateSignal
 dwp-messaging-server/src/main/java/com/dwp/services/messaging/collaboration/CollaborationDtos.java|ConversationType
 dwp-messaging-server/src/main/java/com/dwp/services/messaging/collaboration/CollaborationDtos.java|MemberRole
 dwp-messaging-server/src/main/java/com/dwp/services/messaging/collaboration/CollaborationDtos.java|SearchType
@@ -240,6 +258,9 @@ dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizatio
 dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java|RuleField
 dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java|RuleMatchMode
 dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java|RuleOperator
+dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailProductSurfaceAccessPolicy.java|Status
+dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailProductSurfaceContract.java|AccessContractType
+dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailProductSurfaceContract.java|RouteKind
 dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|AdapterRuntimeState
 dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|Classification
 dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|ConnectionState
@@ -677,6 +698,36 @@ assert_java_enum_codes 'API history window enum' \
 assert_java_enum_codes 'audit window enum' \
   'dwp-platform-server/src/main/java/com/dwp/services/platform/auditcontrol/AuditWindow.java' \
   'AuditWindow' 'name' 'PLATFORM.AUDIT.WINDOW'
+assert_java_enum_codes 'calendar owner decision status enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarProductSurfaceAccessPolicy.java' \
+  'Status' 'name' 'PLATFORM.PRODUCT_SURFACE.OWNER_DECISION_STATUS'
+assert_java_enum_codes 'calendar access contract type enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarProductSurfaceContract.java' \
+  'AccessContractType' 'name' 'PLATFORM.PRODUCT_SURFACE.ACCESS_CONTRACT_TYPE'
+assert_java_enum_codes 'calendar product surface route kind enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarProductSurfaceContract.java' \
+  'RouteKind' 'name' 'AUTH.AUTH_GOVERNED_ROUTE_CONTRACT.ROUTE_KIND'
+assert_java_enum_codes 'communication owner decision status enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/communication/CommunicationProductSurfacePepFilter.java' \
+  'Decision' 'name' 'PLATFORM.PRODUCT_SURFACE.OWNER_DECISION_STATUS'
+assert_java_enum_codes 'communication product surface route kind enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/communication/CommunicationProductSurfacePepFilter.java' \
+  'RouteKind' 'name' 'AUTH.AUTH_GOVERNED_ROUTE_CONTRACT.ROUTE_KIND'
+assert_java_enum_codes 'mail owner decision status enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailProductSurfaceAccessPolicy.java' \
+  'Status' 'name' 'PLATFORM.PRODUCT_SURFACE.OWNER_DECISION_STATUS'
+assert_java_enum_codes 'mail access contract type enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailProductSurfaceContract.java' \
+  'AccessContractType' 'name' 'PLATFORM.PRODUCT_SURFACE.ACCESS_CONTRACT_TYPE'
+assert_java_enum_codes 'mail product surface route kind enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailProductSurfaceContract.java' \
+  'RouteKind' 'name' 'AUTH.AUTH_GOVERNED_ROUTE_CONTRACT.ROUTE_KIND'
+assert_java_enum_codes 'services owner decision status enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/servicecenter/ServicesProductSurfacePepFilter.java' \
+  'Decision' 'name' 'PLATFORM.PRODUCT_SURFACE.OWNER_DECISION_STATUS'
+assert_java_enum_codes 'services product surface route kind enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/servicecenter/ServicesProductSurfacePepFilter.java' \
+  'RouteKind' 'name' 'AUTH.AUTH_GOVERNED_ROUTE_CONTRACT.ROUTE_KIND'
 assert_java_enum_codes 'calendar type enum' \
   'dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java' \
   'CalendarType' 'name' 'PLATFORM.CAL_CALENDARS.CALENDAR_TYPE'
@@ -866,6 +917,39 @@ assert_java_enum_codes 'mail lifecycle action enum' \
 assert_java_enum_codes 'approval active product surface access mode enum' \
   'dwp-approval-server/src/main/java/com/dwp/services/approval/security/ApprovalPilotPepRegistry.java' \
   'ActiveAccessMode' 'name' 'AUTH.PRODUCT_SURFACE.ACCESS_MODE'
+assert_java_enum_codes 'meeting active product surface access mode enum' \
+  'dwp-meeting-server/src/main/java/com/dwp/services/meeting/security/MeetingProductAccessPolicy.java' \
+  'ActiveAccessMode' 'name' 'AUTH.PRODUCT_SURFACE.ACCESS_MODE'
+assert_java_enum_codes 'meeting product surface route kind enum' \
+  'dwp-meeting-server/src/main/java/com/dwp/services/meeting/security/MeetingProductAccessPolicy.java' \
+  'RouteKind' 'name' 'AUTH.AUTH_GOVERNED_ROUTE_CONTRACT.ROUTE_KIND'
+assert_java_enum_codes 'meeting intelligence audience enum' \
+  'dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingIntelligenceModels.java' \
+  'Audience' 'name' 'MEETING.VM_MEETING_INTELLIGENCE_REPORTS.AUDIENCE'
+assert_java_enum_codes 'meeting intelligence content permission enum' \
+  'dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingIntelligenceModels.java' \
+  'ContentPermission' 'name' 'MEETING.VM_MEETING_CONTENT_ACL.PERMISSION'
+assert_java_enum_codes 'meeting intelligence report state enum' \
+  'dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingIntelligenceModels.java' \
+  'ReportState' 'name' 'MEETING.VM_MEETING_INTELLIGENCE_REPORTS.REPORT_STATE'
+assert_java_enum_codes 'meeting intelligence review decision enum' \
+  'dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingIntelligenceModels.java' \
+  'ReviewDecision' 'name' 'MEETING.VM_MEETING_INTELLIGENCE_REVIEWS.DECISION'
+assert_java_enum_codes 'meeting intelligence run state enum' \
+  'dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingIntelligenceModels.java' \
+  'RunState' 'name' 'MEETING.VM_MEETING_INTELLIGENCE_RUNS.RUN_STATE'
+assert_java_enum_codes 'meeting media operation state enum' \
+  'dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingLifecycleModels.java' \
+  'OperationState' 'name' 'MEETING.VM_MEETING_MEDIA_OPERATIONS.OPERATION_STATE'
+assert_java_enum_codes 'meeting media operation type enum' \
+  'dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingLifecycleModels.java' \
+  'OperationType' 'name' 'MEETING.VM_MEETING_MEDIA_OPERATIONS.OPERATION_TYPE'
+assert_java_enum_codes 'meeting intelligence climate label enum' \
+  'dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/provider/MeetingIntelligenceProvider.java' \
+  'ClimateLabel' 'name' 'MEETING.INTELLIGENCE.CLIMATE_LABEL'
+assert_java_enum_codes 'meeting intelligence climate signal enum' \
+  'dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/provider/MeetingIntelligenceProvider.java' \
+  'ClimateSignal' 'name' 'MEETING.INTELLIGENCE.CLIMATE_SIGNAL'
 assert_java_enum_codes 'Widget Registry ingress failure enum' \
   'dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/internal/security/WidgetRegistryIngressFailure.java' \
   'WidgetRegistryIngressFailure' 'name' 'PLATFORM.WIDGET_REGISTRY.INGRESS_FAILURE'

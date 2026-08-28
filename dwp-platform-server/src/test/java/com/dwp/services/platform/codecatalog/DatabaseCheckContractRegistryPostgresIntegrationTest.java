@@ -108,7 +108,7 @@ class DatabaseCheckContractRegistryPostgresIntegrationTest {
     @Test
     void freshMigrationRegistersTheExactClosedCheckManifestAndIsSemanticallyIdempotent()
             throws Exception {
-        cleanAndMigrate(null);
+        cleanAndMigrate("190");
 
         assertExactManifest();
         String before = registryRevisionFingerprint();
