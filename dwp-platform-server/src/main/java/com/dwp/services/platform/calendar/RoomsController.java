@@ -39,14 +39,17 @@ public class RoomsController {
     public ApiResponse<CalendarDtos.RoomAvailabilityResponse> getRoomAvailability(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
+            @RequestHeader(value = "X-DWP-Person-Public-ID", required = false) UUID personPublicId,
             @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
                     OffsetDateTime from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
-                    OffsetDateTime to) {
+                    OffsetDateTime to,
+            @RequestParam(required = false) UUID excludeEventId) {
         return ApiResponse.success(service.roomAvailability(
-                tenantId, userId, groupRefs, from, to, locale));
+                tenantId, userId, personPublicId, groupRefs,
+                from, to, excludeEventId, locale));
     }
 
     @GetMapping("/bookings")

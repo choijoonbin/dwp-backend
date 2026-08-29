@@ -46,11 +46,13 @@ class MailCommandRepository {
             case COMPLETE -> "workflow_state = 'DONE', snoozed_until = NULL";
         };
         return jdbc.update("""
-                UPDATE mail_threads
-                   SET %s, version = version + 1,
+                UPDATE mail_threads thread
+                   SET %s, version = thread.version + 1,
                        updated_at = CURRENT_TIMESTAMP, updated_by = ?
-                 WHERE tenant_id = ? AND thread_id = ? AND version = ?
-                """.formatted(assignment), userId, tenantId, threadId, version);
+                  FROM mail_accounts account
+                 WHERE thread.tenant_id = ? AND thread.thread_id = ? AND thread.version = ?
+                """.formatted(assignment) + MailAccessSql.THREAD_ACCESS,
+                userId, tenantId, threadId, version, userId, userId);
     }
 
     private int moveToArchive(
@@ -65,13 +67,19 @@ class MailCommandRepository {
                        trashed_at = NULL, spam_reported_at = NULL,
                        version = thread.version + 1,
                        updated_at = CURRENT_TIMESTAMP, updated_by = ?
-                  FROM mail_folders current_folder, mail_folders archive_folder
+                  FROM mail_accounts account,
+                       mail_folders current_folder,
+                       mail_folders archive_folder
                  WHERE thread.tenant_id = ? AND thread.thread_id = ? AND thread.version = ?
+                   AND current_folder.tenant_id = thread.tenant_id
+                   AND current_folder.account_id = thread.account_id
                    AND current_folder.folder_id = thread.folder_id
+                   AND archive_folder.tenant_id = thread.tenant_id
                    AND archive_folder.account_id = thread.account_id
                    AND archive_folder.folder_type = 'ARCHIVE'
                    AND archive_folder.lifecycle_state = 'ACTIVE'
-                """, userId, tenantId, threadId, version);
+                """ + MailAccessSql.THREAD_ACCESS,
+                userId, tenantId, threadId, version, userId, userId);
     }
 
     private int restoreFromLifecycleFolder(
@@ -83,21 +91,29 @@ class MailCommandRepository {
                        snoozed_until = NULL, trashed_at = NULL, spam_reported_at = NULL,
                        version = thread.version + 1,
                        updated_at = CURRENT_TIMESTAMP, updated_by = ?
-                  FROM mail_folders current_folder
+                  FROM mail_accounts account,
+                       mail_folders current_folder
                   JOIN mail_folders inbox_folder
-                    ON inbox_folder.account_id = current_folder.account_id
+                    ON inbox_folder.tenant_id = current_folder.tenant_id
+                   AND inbox_folder.account_id = current_folder.account_id
                    AND inbox_folder.folder_type = 'INBOX'
                    AND inbox_folder.lifecycle_state = 'ACTIVE'
                   LEFT JOIN mail_folders previous_folder
                     ON previous_folder.folder_id = (
-                        SELECT previous_folder_id FROM mail_threads WHERE thread_id = ?)
+                        SELECT source.previous_folder_id
+                          FROM mail_threads source
+                         WHERE source.tenant_id = ? AND source.thread_id = ?)
+                   AND previous_folder.tenant_id = current_folder.tenant_id
                    AND previous_folder.account_id = current_folder.account_id
                    AND previous_folder.lifecycle_state = 'ACTIVE'
                    AND previous_folder.folder_type IN ('INBOX', 'SENT', 'CUSTOM')
                  WHERE thread.tenant_id = ? AND thread.thread_id = ? AND thread.version = ?
+                   AND current_folder.tenant_id = thread.tenant_id
+                   AND current_folder.account_id = thread.account_id
                    AND current_folder.folder_id = thread.folder_id
                    AND current_folder.folder_type IN ('ARCHIVE', 'TRASH', 'SPAM')
-                """, userId, threadId, tenantId, threadId, version);
+                """ + MailAccessSql.THREAD_ACCESS,
+                userId, tenantId, threadId, tenantId, threadId, version, userId, userId);
     }
 
     int snooze(
@@ -107,11 +123,14 @@ class MailCommandRepository {
             OffsetDateTime until,
             long version) {
         return jdbc.update("""
-                UPDATE mail_threads
+                UPDATE mail_threads thread
                    SET workflow_state = 'SNOOZED', snoozed_until = ?, unread = FALSE,
-                       version = version + 1, updated_at = CURRENT_TIMESTAMP, updated_by = ?
-                 WHERE tenant_id = ? AND thread_id = ? AND version = ?
-                """, until, userId, tenantId, threadId, version);
+                       version = thread.version + 1,
+                       updated_at = CURRENT_TIMESTAMP, updated_by = ?
+                  FROM mail_accounts account
+                 WHERE thread.tenant_id = ? AND thread.thread_id = ? AND thread.version = ?
+                """ + MailAccessSql.THREAD_ACCESS,
+                until, userId, tenantId, threadId, version, userId, userId);
     }
 
     int assign(
@@ -122,12 +141,17 @@ class MailCommandRepository {
             String assignedName,
             long version) {
         return jdbc.update("""
-                UPDATE mail_threads
+                UPDATE mail_threads thread
                    SET assigned_user_id = ?, assigned_name = ?, triage_lane = 'ASSIGNED',
-                       version = version + 1, updated_at = CURRENT_TIMESTAMP, updated_by = ?
-                 WHERE tenant_id = ? AND thread_id = ? AND shared_inbox_id IS NOT NULL
-                   AND version = ?
-                """, assignedUserId, assignedName, userId, tenantId, threadId, version);
+                       version = thread.version + 1,
+                       updated_at = CURRENT_TIMESTAMP, updated_by = ?
+                  FROM mail_accounts account
+                 WHERE thread.tenant_id = ? AND thread.thread_id = ?
+                   AND thread.shared_inbox_id IS NOT NULL AND thread.version = ?
+                """ + MailAccessSql.THREAD_ACCESS
+                        + "\n AND " + MailAccessSql.ACTIVE_SHARED_MEMBER,
+                assignedUserId, assignedName, userId, tenantId, threadId, version,
+                userId, userId, assignedUserId);
     }
 
     UUID insertComment(
@@ -138,14 +162,22 @@ class MailCommandRepository {
             String body,
             List<Long> mentions) {
         UUID commentId = UUID.randomUUID();
-        jdbc.update("""
+        List<UUID> inserted = jdbc.query("""
                 INSERT INTO mail_internal_comments (
                     comment_id, tenant_id, thread_id, author_user_id,
                     author_name, body, mentioned_user_ids)
-                VALUES (?, ?, ?, ?, ?, ?, ?::jsonb)
-                """, commentId, tenantId, threadId, userId, authorName,
-                body.trim(), json.write(mentions));
-        return commentId;
+                SELECT ?, thread.tenant_id, thread.thread_id, ?, ?, ?, ?::jsonb
+                  FROM mail_threads thread
+                  JOIN mail_accounts account
+                    ON account.tenant_id = thread.tenant_id
+                   AND account.account_id = thread.account_id
+                 WHERE thread.tenant_id = ? AND thread.thread_id = ?
+                """ + MailAccessSql.THREAD_ACCESS + """
+                RETURNING comment_id
+                """, (result, ignored) -> result.getObject("comment_id", UUID.class),
+                commentId, userId, authorName, body.trim(), json.write(mentions),
+                tenantId, threadId, userId, userId);
+        return inserted.isEmpty() ? null : inserted.get(0);
     }
 
     boolean insertReply(
@@ -165,21 +197,30 @@ class MailCommandRepository {
                        thread.participants, 'OUTBOUND', 'TEXT', ?, '[]'::jsonb,
                        CURRENT_TIMESTAMP, ?
                   FROM mail_threads thread
-                  JOIN mail_accounts account ON account.account_id = thread.account_id
+                  JOIN mail_accounts account
+                    ON account.tenant_id = thread.tenant_id
+                   AND account.account_id = thread.account_id
                  WHERE thread.tenant_id = ? AND thread.thread_id = ?
+                """ + MailAccessSql.THREAD_ACCESS + """
                 ON CONFLICT (thread_id, provider_message_ref) DO NOTHING
                 """, messageId, "dwp:reply:" + idempotencyKey, body.trim(), userId,
-                tenantId, threadId);
+                tenantId, threadId, userId, userId);
         if (inserted == 0) return false;
-        jdbc.update("""
-                UPDATE mail_threads
+        int updated = jdbc.update("""
+                UPDATE mail_threads thread
                    SET preview = ?, latest_message_at = CURRENT_TIMESTAMP,
                        unread = FALSE, triage_lane = 'UPDATES',
                        workflow_state = 'OPEN', snoozed_until = NULL,
-                       message_count = message_count + 1, version = version + 1,
+                       message_count = thread.message_count + 1,
+                       version = thread.version + 1,
                        updated_at = CURRENT_TIMESTAMP, updated_by = ?
-                 WHERE tenant_id = ? AND thread_id = ?
-                """, preview(body), userId, tenantId, threadId);
+                  FROM mail_accounts account
+                 WHERE thread.tenant_id = ? AND thread.thread_id = ?
+                """ + MailAccessSql.THREAD_ACCESS,
+                preview(body), userId, tenantId, threadId, userId, userId);
+        if (updated != 1) {
+            throw new IllegalStateException("Mail thread access changed while replying.");
+        }
         return true;
     }
 
@@ -210,7 +251,8 @@ class MailCommandRepository {
                        'INTERNAL', 1, ?, ?
                   FROM mail_accounts account
                   JOIN mail_folders folder
-                    ON folder.account_id = account.account_id
+                    ON folder.tenant_id = account.tenant_id
+                   AND folder.account_id = account.account_id
                    AND folder.folder_type = ?
                    AND folder.lifecycle_state = 'ACTIVE'
                  WHERE account.tenant_id = ? AND account.owner_user_id = ?
@@ -241,7 +283,9 @@ class MailCommandRepository {
                        thread.participants, ?, 'TEXT', ?, '[]'::jsonb,
                        CURRENT_TIMESTAMP, ?
                   FROM mail_threads thread
-                  JOIN mail_accounts account ON account.account_id = thread.account_id
+                  JOIN mail_accounts account
+                    ON account.tenant_id = thread.tenant_id
+                   AND account.account_id = thread.account_id
                  WHERE thread.tenant_id = ? AND thread.thread_id = ?
                 ON CONFLICT (thread_id, provider_message_ref) DO NOTHING
                 """, UUID.randomUUID(), providerRef + ":message",
@@ -265,7 +309,9 @@ class MailCommandRepository {
         List<UUID> threadIds = jdbc.query("""
                 SELECT thread.thread_id
                   FROM mail_threads thread
-                  JOIN mail_accounts account ON account.account_id = thread.account_id
+                  JOIN mail_accounts account
+                    ON account.tenant_id = thread.tenant_id
+                   AND account.account_id = thread.account_id
                  WHERE thread.tenant_id = ? AND thread.provider_thread_ref = ?
                    AND account.owner_user_id = ?
                  ORDER BY thread.created_at DESC
@@ -279,13 +325,17 @@ class MailCommandRepository {
         List<UUID> threadIds = jdbc.query("""
                 SELECT delivery.thread_id
                   FROM mail_delivery_outbox delivery
-                  JOIN mail_threads thread ON thread.thread_id = delivery.thread_id
-                  JOIN mail_accounts account ON account.account_id = thread.account_id
+                  JOIN mail_threads thread
+                    ON thread.tenant_id = delivery.tenant_id
+                   AND thread.thread_id = delivery.thread_id
+                  JOIN mail_accounts account
+                    ON account.tenant_id = thread.tenant_id
+                   AND account.account_id = thread.account_id
                  WHERE delivery.tenant_id = ? AND delivery.idempotency_key = ?
-                   AND account.owner_user_id = ?
+                """ + MailAccessSql.THREAD_ACCESS + """
                  LIMIT 1
                 """, (result, ignored) -> result.getObject("thread_id", UUID.class),
-                tenantId, idempotencyKey, userId);
+                tenantId, idempotencyKey, userId, userId);
         return threadIds.isEmpty() ? null : threadIds.get(0);
     }
 
@@ -311,8 +361,10 @@ class MailCommandRepository {
                        updated_at = CURRENT_TIMESTAMP, updated_by = ?
                   FROM mail_accounts account, mail_folders folder
                  WHERE thread.tenant_id = ? AND thread.thread_id = ?
+                   AND account.tenant_id = thread.tenant_id
                    AND thread.account_id = account.account_id
                    AND account.owner_user_id = ?
+                   AND folder.tenant_id = thread.tenant_id
                    AND folder.account_id = thread.account_id
                    AND folder.folder_type = ?
                    AND folder.lifecycle_state = 'ACTIVE'
@@ -353,14 +405,18 @@ class MailCommandRepository {
             long version) {
         String status = decision == ProposalDecision.ACCEPT ? "ACCEPTED" : "DISMISSED";
         return jdbc.update("""
-                UPDATE mail_action_proposals
+                UPDATE mail_action_proposals proposal
                    SET proposal_status = ?, decided_at = CURRENT_TIMESTAMP,
-                       decided_by = ?, version = version + 1,
+                       decided_by = ?, version = proposal.version + 1,
                        updated_at = CURRENT_TIMESTAMP, updated_by = ?
-                 WHERE tenant_id = ? AND proposal_id = ?
-                   AND proposal_status = 'PROPOSED' AND version = ?
-                   AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
-                """, status, userId, userId, tenantId, proposalId, version);
+                  FROM mail_threads thread, mail_accounts account
+                 WHERE proposal.tenant_id = ? AND proposal.proposal_id = ?
+                   AND thread.tenant_id = proposal.tenant_id
+                   AND thread.thread_id = proposal.thread_id
+                   AND proposal.proposal_status = 'PROPOSED' AND proposal.version = ?
+                   AND (proposal.expires_at IS NULL OR proposal.expires_at > CURRENT_TIMESTAMP)
+                """ + MailAccessSql.THREAD_ACCESS,
+                status, userId, userId, tenantId, proposalId, version, userId, userId);
     }
 
     void enqueueDelivery(
@@ -376,19 +432,34 @@ class MailCommandRepository {
                 SELECT ?, message.tenant_id, message.thread_id, message.message_id,
                        ?, NULLIF(?, ''), ?
                   FROM mail_messages message
+                  JOIN mail_threads thread
+                    ON thread.tenant_id = message.tenant_id
+                   AND thread.thread_id = message.thread_id
+                  JOIN mail_accounts account
+                    ON account.tenant_id = thread.tenant_id
+                   AND account.account_id = thread.account_id
                  WHERE message.tenant_id = ? AND message.thread_id = ?
                    AND message.message_direction = 'OUTBOUND'
+                """ + MailAccessSql.THREAD_ACCESS + """
                  ORDER BY message.sent_at DESC, message.message_id DESC
                  LIMIT 1
                 ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
                 """, UUID.randomUUID(), idempotencyKey, value(correlationId), userId,
-                tenantId, threadId);
+                tenantId, threadId, userId, userId);
         if (inserted == 0) {
             Integer existing = jdbc.queryForObject("""
                     SELECT COUNT(*)
-                      FROM mail_delivery_outbox
-                     WHERE tenant_id = ? AND idempotency_key = ? AND thread_id = ?
-                    """, Integer.class, tenantId, idempotencyKey, threadId);
+                      FROM mail_delivery_outbox delivery
+                      JOIN mail_threads thread
+                        ON thread.tenant_id = delivery.tenant_id
+                       AND thread.thread_id = delivery.thread_id
+                      JOIN mail_accounts account
+                        ON account.tenant_id = thread.tenant_id
+                       AND account.account_id = thread.account_id
+                     WHERE delivery.tenant_id = ? AND delivery.idempotency_key = ?
+                       AND delivery.thread_id = ?
+                    """ + MailAccessSql.THREAD_ACCESS,
+                    Integer.class, tenantId, idempotencyKey, threadId, userId, userId);
             if (existing == null || existing == 0) {
                 throw new IllegalStateException("Outbound message projection is missing.");
             }

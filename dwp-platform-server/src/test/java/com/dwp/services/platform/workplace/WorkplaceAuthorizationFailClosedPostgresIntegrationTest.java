@@ -17,6 +17,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -32,6 +33,7 @@ class WorkplaceAuthorizationFailClosedPostgresIntegrationTest {
 
     private static final long BOOKING_TENANT = 9_130_001L;
     private static final long ROOM_TENANT = 9_130_002L;
+    private static final long BATCH_TENANT = 9_130_003L;
     private static final long USER_ID = 9_131_001L;
 
     @Container
@@ -170,6 +172,29 @@ class WorkplaceAuthorizationFailClosedPostgresIntegrationTest {
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
     }
 
+    @Test
+    void batchSiteEvaluationPreservesAllowDenyAndNotConfiguredSemantics() {
+        Fixture allowed = fixture(BATCH_TENANT, "BATCH", ResourceType.DESK, null);
+        UUID deniedSiteId = addSite(BATCH_TENANT, "BATCH_DENIED");
+        UUID unconfiguredSiteId = addSite(BATCH_TENANT, "BATCH_UNCONFIGURED");
+        allowUser(BATCH_TENANT, allowed.siteId(), AccessPermission.MANAGE);
+        allowUser(BATCH_TENANT, deniedSiteId, AccessPermission.MANAGE);
+        denyUser(BATCH_TENANT, deniedSiteId, AccessPermission.VIEW);
+
+        Map<UUID, WorkplaceSpatialGovernanceDtos.SiteAccessDecision> result = governance()
+                .evaluateSiteAccesses(
+                        BATCH_TENANT,
+                        USER_ID,
+                        null,
+                        Set.of(allowed.siteId(), deniedSiteId, unconfiguredSiteId),
+                        AccessPermission.VIEW);
+
+        assertThat(result.get(allowed.siteId()).decision()).isEqualTo("ALLOW_EXPLICIT");
+        assertThat(result.get(deniedSiteId).decision()).isEqualTo("DENY_EXPLICIT");
+        assertThat(result.get(unconfiguredSiteId).decision())
+                .isEqualTo("DENY_NOT_CONFIGURED");
+    }
+
     private static WorkplaceSpatialGovernanceService governance() {
         return new WorkplaceSpatialGovernanceService(
                 new WorkplaceSpatialGovernanceRepository(jdbc, objectMapper), objectMapper);
@@ -257,6 +282,30 @@ class WorkplaceAuthorizationFailClosedPostgresIntegrationTest {
                 VALUES (?, ?, ?, 'USER', ?, ?, 'ALLOW', 'ACTIVE', ?, ?)
                 """, ruleId, tenantId, siteId, USER_ID, permission.name(), USER_ID, USER_ID);
         return ruleId;
+    }
+
+    private static UUID denyUser(
+            long tenantId, UUID siteId, AccessPermission permission) {
+        UUID ruleId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO wp_site_access_rules (
+                    access_rule_id, tenant_id, site_id, subject_type, subject_user_id,
+                    permission_code, effect, lifecycle_state, created_by, updated_by)
+                VALUES (?, ?, ?, 'USER', ?, ?, 'DENY', 'ACTIVE', ?, ?)
+                """, ruleId, tenantId, siteId, USER_ID, permission.name(), USER_ID, USER_ID);
+        return ruleId;
+    }
+
+    private static UUID addSite(long tenantId, String suffix) {
+        UUID siteId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO wp_sites (
+                    site_id, tenant_id, site_code, name_ko, name_en, site_type,
+                    time_zone, total_floor_count, created_by, updated_by)
+                VALUES (?, ?, ?, '서울', 'Seoul', 'SHARED_OFFICE',
+                        'Asia/Seoul', 1, ?, ?)
+                """, siteId, tenantId, "SITE_" + suffix, USER_ID, USER_ID);
+        return siteId;
     }
 
     private record Fixture(UUID siteId, UUID floorId, UUID resourceId) {

@@ -6,6 +6,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -24,22 +25,29 @@ class CalendarRoomsSecurityContextMockMvcTest {
         RoomService service = mock(RoomService.class);
         OffsetDateTime from = OffsetDateTime.parse("2026-08-20T09:00:00+09:00");
         OffsetDateTime to = from.plusHours(8);
-        when(service.roomAvailability(3L, 17L, "group-a,group-b", from, to, "ko-KR"))
+        UUID personId = UUID.randomUUID();
+        UUID excludeEventId = UUID.randomUUID();
+        when(service.roomAvailability(
+                3L, 17L, personId, "group-a,group-b",
+                from, to, excludeEventId, "ko-KR"))
                 .thenReturn(new CalendarDtos.RoomAvailabilityResponse(
-                        List.of(), List.of(), OffsetDateTime.now()));
+                        List.of(), List.of(), List.of(), OffsetDateTime.now()));
         MockMvc mvc = standaloneSetup(new RoomsController(service)).build();
 
         mvc.perform(get("/v1/rooms/availability")
                         .header("X-DWP-Tenant-ID", "3")
                         .header("X-DWP-User-ID", "17")
+                        .header("X-DWP-Person-Public-ID", personId.toString())
                         .header("X-DWP-Group-Refs", "group-a,group-b")
                         .header("Accept-Language", "ko-KR")
                         .param("from", from.toString())
-                        .param("to", to.toString()))
+                        .param("to", to.toString())
+                        .param("excludeEventId", excludeEventId.toString()))
                 .andExpect(status().isOk());
 
         verify(service).roomAvailability(
-                3L, 17L, "group-a,group-b", from, to, "ko-KR");
+                3L, 17L, personId, "group-a,group-b",
+                from, to, excludeEventId, "ko-KR");
     }
 
     @Test

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "attestationId": "dwaion-agent-owner-pep.v1",
   "repository": "https://github.com/choijoonbin/aura_agent",
-  "revision": "12360c6223f3e628c5ead3d8f07ff8553224bf56",
+  "revision": "50864f6bfc29c747fb5f30b551d3299fcc27a525",
   "testRoot": "tests",
   "pepSourceReferences": [
     "src/dwp_agent/main.py",
@@ -20,7 +20,7 @@
     },
     {
       "path": "src/dwp_agent/main.py",
-      "sha256": "33ed53d4c1ad196854f4859df841d112d75e6c5e9d9c14033536636e9a91a384"
+      "sha256": "3f905e0dd29d07b10bd4baf3ad37bab7da1d0345d384fd49fde6a5f475cc9e0a"
     },
     {
       "path": "src/dwp_agent/product_surface_pep.py",
@@ -32,7 +32,7 @@
     },
     {
       "path": "tests/test_product_surface_pep.py",
-      "sha256": "ed96cc413bfe872d70d4cc72c140b7a53cd64ed20aa5aee879db330cf62d7224"
+      "sha256": "213f87c1a518d0957a610b359c6955f952f0495637a09dba11002de438568af7"
     }
   ],
   "pytestNodeIds": [
@@ -69,10 +69,10 @@
   "sourceCiRun": {
     "provider": "GITHUB_ACTIONS",
     "workflow": "Agent quality",
-    "runId": "33162256046",
-    "url": "https://github.com/choijoonbin/aura_agent/actions/runs/33162256046",
-    "headSha": "12360c6223f3e628c5ead3d8f07ff8553224bf56",
+    "runId": "33235219522",
+    "url": "https://github.com/choijoonbin/aura_agent/actions/runs/33235219522",
+    "headSha": "50864f6bfc29c747fb5f30b551d3299fcc27a525",
     "conclusion": "success"
   },
-  "checksum": "20ce158f28f0ad6e6a7d5ad7055650d31fd80449bdd850543e85f036f6df3431"
+  "checksum": "f79d541286c7f76cec1ec17bab5ca7d69c54c10b2c8b195230a18218825a5385"
 }

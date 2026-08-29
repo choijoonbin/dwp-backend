@@ -14,7 +14,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static com.dwp.services.platform.workplace.WorkplaceSpatialGovernanceDtos.*;
@@ -123,6 +125,60 @@ class WorkplaceSpatialGovernanceServiceTest {
 
         assertThat(result.allowed()).isFalse();
         assertThat(result.decision()).isEqualTo("DENY_NOT_CONFIGURED");
+    }
+
+    @Test
+    void batchAccessEvaluationPreservesEveryFailClosedDecisionWithOneRuleLookup() {
+        UUID allowedSite = UUID.randomUUID();
+        UUID deniedSite = UUID.randomUUID();
+        UUID unmatchedSite = UUID.randomUUID();
+        UUID unconfiguredSite = UUID.randomUUID();
+        UUID groupRef = UUID.randomUUID();
+        Set<UUID> siteIds = Set.of(
+                allowedSite, deniedSite, unmatchedSite, unconfiguredSite);
+        when(repository.activeAccessRules(eq(1L), eq(siteIds), any()))
+                .thenReturn(List.of(
+                        new AccessRuleRow(UUID.randomUUID(), allowedSite,
+                                AccessSubjectType.USER, 9L, null,
+                                AccessPermission.VIEW, AccessEffect.ALLOW,
+                                null, null, RuleState.ACTIVE, 0),
+                        new AccessRuleRow(UUID.randomUUID(), deniedSite,
+                                AccessSubjectType.GROUP_REF, null, groupRef,
+                                AccessPermission.MANAGE, AccessEffect.ALLOW,
+                                null, null, RuleState.ACTIVE, 0),
+                        new AccessRuleRow(UUID.randomUUID(), deniedSite,
+                                AccessSubjectType.USER, 9L, null,
+                                AccessPermission.VIEW, AccessEffect.DENY,
+                                null, null, RuleState.ACTIVE, 0),
+                        new AccessRuleRow(UUID.randomUUID(), unmatchedSite,
+                                AccessSubjectType.USER, 77L, null,
+                                AccessPermission.VIEW, AccessEffect.ALLOW,
+                                null, null, RuleState.ACTIVE, 0)));
+
+        Map<UUID, SiteAccessDecision> result = service.evaluateSiteAccesses(
+                1L, 9L, groupRef.toString(), siteIds, AccessPermission.VIEW);
+
+        assertThat(result.get(allowedSite).decision()).isEqualTo("ALLOW_EXPLICIT");
+        assertThat(result.get(allowedSite).allowed()).isTrue();
+        assertThat(result.get(deniedSite).decision()).isEqualTo("DENY_EXPLICIT");
+        assertThat(result.get(unmatchedSite).decision()).isEqualTo("DENY_NO_MATCH");
+        assertThat(result.get(unconfiguredSite).decision())
+                .isEqualTo("DENY_NOT_CONFIGURED");
+        verify(repository).activeAccessRules(eq(1L), eq(siteIds), any());
+        verify(repository, never()).activeAccessRules(eq(1L), any(UUID.class), any());
+    }
+
+    @Test
+    void batchAccessEvaluationPropagatesAuthorityStoreFailure() {
+        UUID siteId = UUID.randomUUID();
+        Set<UUID> siteIds = Set.of(siteId);
+        when(repository.activeAccessRules(eq(1L), eq(siteIds), any()))
+                .thenThrow(new IllegalStateException("authority store unavailable"));
+
+        assertThatThrownBy(() -> service.evaluateSiteAccesses(
+                1L, 9L, null, siteIds, AccessPermission.VIEW))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("authority store unavailable");
     }
 
     @Test

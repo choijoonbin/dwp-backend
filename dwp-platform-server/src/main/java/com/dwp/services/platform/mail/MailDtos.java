@@ -199,6 +199,15 @@ public final class MailDtos {
             @NotNull @Min(0) Long version) {
     }
 
+    public record DraftSaveRequest(
+            @Email @Size(max = 255) String toEmail,
+            @Size(max = 160) String toName,
+            @Size(max = 500) String subject,
+            @Size(max = 100_000) String body,
+            @NotNull UUID idempotencyKey,
+            @Min(0) Long version) {
+    }
+
     public record ProposalDecisionRequest(
             @NotNull ProposalDecision decision,
             @NotNull @Min(0) Long version) {

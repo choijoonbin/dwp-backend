@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.UUID;
 
@@ -82,8 +83,10 @@ class VideoMeetingLifecycleTransactions {
         requireVersion(meeting, expectedVersion);
         TenantPolicy policy = requireEnabledPolicy(subject);
         MeetingMediaProvider.Capability capability = requireProvider();
+        UUID incarnation = incarnation(
+                subject.tenantId(), meeting.meetingId(), idempotencyKey);
         MeetingMediaProvider.PreparedRoom room = mediaProvider.planRoom(
-                meeting.meetingId(), meeting.tenantId());
+                meeting.meetingId(), meeting.tenantId(), incarnation);
         validateRoomPlan(capability, room);
         MediaOperation operation = prepareOperation(
                 subject, meeting, OperationType.START, expectedVersion,
@@ -107,12 +110,17 @@ class VideoMeetingLifecycleTransactions {
         if (!meeting.live()) throw invalidState("Only a live meeting can be ended.");
         requireVersion(meeting, expectedVersion);
         MeetingMediaProvider.Capability capability = requireProvider();
+        VideoMeetingRepository.MediaSession media = meetings.mediaSession(
+                subject.tenantId(), meeting.meetingId())
+                .orElseThrow(() -> invalidState("The meeting media session is unavailable."));
         MeetingMediaProvider.PreparedRoom room = new MeetingMediaProvider.PreparedRoom(
-                meeting.provider(), meeting.roomName());
+                meeting.provider(), meeting.roomName(), meeting.tenantId(), meeting.meetingId(),
+                media.incarnation());
         validateRoomPlan(capability, room);
         MediaOperation operation = prepareOperation(
                 subject, meeting, OperationType.END, expectedVersion,
                 idempotencyKey, correlationId, room);
+        meetings.beginEnding(meeting, media.incarnation(), expectedVersion);
         return Preparation.execute(operation, room, 0, host.participantRole());
     }
 
@@ -128,7 +136,8 @@ class VideoMeetingLifecycleTransactions {
         }
         Meeting started = meetings.start(
                 meeting, operation.providerCode(), operation.providerRoomName(),
-                subject.userId(), operation.expectedMeetingVersion());
+                operation.roomIncarnation(), subject.userId(),
+                operation.expectedMeetingVersion());
         Map<String, Object> evidence = Map.of("provider", operation.providerCode());
         meetings.recordEvent(
                 started, null, subject.userId(), "STARTED", operation.correlationId(),
@@ -218,7 +227,7 @@ class VideoMeetingLifecycleTransactions {
                 OperationState.RUNNING, subject.userId(), expectedVersion,
                 idempotencyKey, hash, correlationId, UUID.randomUUID(),
                 now.plus(mediaProperties.getLifecycleOperationLease()), 1,
-                room.provider(), room.roomName());
+                room.provider(), room.roomName(), room.incarnation());
         return operations.insert(created, now)
                 .orElseThrow(() -> conflict("Another meeting media operation already exists."));
     }
@@ -271,11 +280,27 @@ class VideoMeetingLifecycleTransactions {
             MeetingMediaProvider.PreparedRoom room) {
         if (room == null || room.provider() == null || room.roomName() == null
                 || room.provider().isBlank() || room.roomName().isBlank()
+                || room.incarnation() == null || room.meetingId() == null
+                || room.tenantId() <= 0
                 || !capability.provider().equals(room.provider())) {
             throw new BaseException(
                     ErrorCode.EXTERNAL_SERVICE_ERROR,
                     "The realtime provider returned an invalid room plan.");
         }
+    }
+
+    @Transactional(readOnly = true)
+    public int maximumParticipants(long tenantId) {
+        return meetings.policy(tenantId)
+                .orElseThrow(() -> forbidden(
+                        "The tenant meeting policy is unavailable for recovery."))
+                .maximumParticipants();
+    }
+
+    private UUID incarnation(long tenantId, UUID meetingId, String idempotencyKey) {
+        String material = "dwp-meeting-media-v1|" + tenantId + "|" + meetingId
+                + "|" + idempotencyKey;
+        return UUID.nameUUIDFromBytes(material.getBytes(StandardCharsets.UTF_8));
     }
 
     private void requireMatchingRequest(MediaOperation operation, String hash) {

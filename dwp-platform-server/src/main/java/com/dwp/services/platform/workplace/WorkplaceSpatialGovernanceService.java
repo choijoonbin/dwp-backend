@@ -132,6 +132,17 @@ public class WorkplaceSpatialGovernanceService extends WorkplaceSpatialGovernanc
     }
 
     @Transactional(readOnly = true)
+    public Map<UUID, SiteAccessDecision> evaluateSiteAccesses(
+            Long tenantId,
+            Long userId,
+            String verifiedGroupRefs,
+            Set<UUID> siteIds,
+            AccessPermission permission) {
+        return accessPolicy.evaluateSiteAccesses(
+                tenantId, userId, verifiedGroupRefs, siteIds, permission);
+    }
+
+    @Transactional(readOnly = true)
     public List<PolicyOverride> policyOverrides(
             Long tenantId,
             PolicyScopeType scopeType,

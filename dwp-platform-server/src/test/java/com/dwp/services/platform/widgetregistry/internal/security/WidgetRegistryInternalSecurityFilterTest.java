@@ -28,7 +28,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.http.MediaType;
-import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
@@ -49,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -84,6 +84,8 @@ class WidgetRegistryInternalSecurityFilterTest {
     private static final String REASON_DIGEST =
             "ae73fc312b46a81604a5e269f75cfee71d8c9bc9c52f81668bf9c631baa5e499";
     private static final List<String> SOD_ARTIFACT_IDS = List.of("sod_approval_0001", "sod_case_0001");
+    private static final BooleanSupplier VERIFIED_TEST_REQUEST_PERMIT = () -> true;
+    private static final BooleanSupplier DENIED_REQUEST_PERMIT = () -> false;
 
     private ObjectMapper objectMapper;
 
@@ -196,7 +198,12 @@ class WidgetRegistryInternalSecurityFilterTest {
     void failsClosedWhenProductionTrustAdaptersAreNotConfigured() throws Exception {
         TerminalController controller = new TerminalController();
         WidgetRegistryInternalSecurityFilter filter = new WidgetRegistryInternalSecurityFilter(
-                objectMapper, null, null, null, CLOCK);
+                objectMapper,
+                (ServiceTokenVerifier) null,
+                (ProviderAssertionVerifier) null,
+                (AssertionReplayStore) null,
+                VERIFIED_TEST_REQUEST_PERMIT,
+                CLOCK);
         MockMvc mvc = mvc(controller, filter);
 
         mvc.perform(validGet())
@@ -207,40 +214,120 @@ class WidgetRegistryInternalSecurityFilterTest {
     }
 
     @Test
-    void failsClosedWhenPrimaryAndSecondaryTrustAdaptersBothExist() throws Exception {
-        SignedRequestBinding binding = signedBinding("GET", PATH, null, null, null, CORRELATION_ID);
-        ProviderAssertionClaims assertion =
-                validAssertion(binding, "WIDGET_CATALOG_READ", null, null, null);
-        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
-            context.registerBean(
-                    "primaryWidgetServiceVerifier",
-                    ServiceTokenVerifier.class,
-                    () -> compact -> validServiceToken("widget-registry.read"),
-                    definition -> definition.setPrimary(true));
-            context.registerBean(
-                    "secondaryWidgetServiceVerifier",
-                    ServiceTokenVerifier.class,
-                    () -> compact -> validServiceToken("widget-registry.read"));
-            context.registerBean(
-                    ProviderAssertionVerifier.class,
-                    () -> (compact, kind) -> assertion);
-            context.registerBean(
-                    AssertionReplayStore.class,
-                    () -> (key, retainUntil) -> ReplayDecision.ACCEPTED);
-            context.refresh();
+    void disabledReceiverStopsBeforeVerifierBodyReplayAndDownstream() throws Exception {
+        TrustFixture trust = new TrustFixture(null, null);
+        WidgetRegistryInternalSecurityFilter filter = new WidgetRegistryInternalSecurityFilter(
+                objectMapper,
+                trust::verifyServiceToken,
+                trust::verifyAssertion,
+                trust.replayStore,
+                DENIED_REQUEST_PERMIT,
+                CLOCK);
+        MockHttpServletRequest base = new MockHttpServletRequest("POST", COMMAND_PATH);
+        base.setSecure(true);
+        base.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        base.setContent(commandBody(IDEMPOTENCY_KEY, CORRELATION_ID).getBytes(StandardCharsets.UTF_8));
+        base.addHeader("Authorization", "Bearer " + SERVICE_COMPACT);
+        base.addHeader("X-DWP-Widget-Assertion", ASSERTION_COMPACT);
+        base.addHeader("Idempotency-Key", IDEMPOTENCY_KEY);
+        base.addHeader("X-Correlation-ID", CORRELATION_ID);
+        AtomicInteger bodyReads = new AtomicInteger();
+        HttpServletRequestWrapper request = new HttpServletRequestWrapper(base) {
+            @Override
+            public jakarta.servlet.ServletInputStream getInputStream() {
+                bodyReads.incrementAndGet();
+                return base.getInputStream();
+            }
 
-            TerminalController controller = new TerminalController();
-            WidgetRegistryInternalSecurityFilter filter = new WidgetRegistryInternalSecurityFilter(
-                    objectMapper,
-                    context.getBeanProvider(ServiceTokenVerifier.class),
-                    context.getBeanProvider(ProviderAssertionVerifier.class),
-                    context.getBeanProvider(AssertionReplayStore.class));
+            @Override
+            public java.io.BufferedReader getReader() throws java.io.IOException {
+                bodyReads.incrementAndGet();
+                return base.getReader();
+            }
+        };
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        AtomicInteger downstreamCalls = new AtomicInteger();
 
-            mvc(controller, filter).perform(validGet())
+        filter.doFilter(request, response, (ignoredRequest, ignoredResponse) ->
+                downstreamCalls.incrementAndGet());
+
+        assertThat(response.getStatus()).isEqualTo(503);
+        assertThat(objectMapper.readTree(response.getContentAsByteArray()).path("errorCode").textValue())
+                .isEqualTo("WIDGET_REGISTRY_TRUST_UNAVAILABLE");
+        assertThat(trust.serviceVerificationCalls).hasValue(0);
+        assertThat(trust.assertionVerificationCalls).hasValue(0);
+        assertThat(bodyReads).hasValue(0);
+        assertThat(trust.replayStore.calls()).isZero();
+        assertThat(downstreamCalls).hasValue(0);
+    }
+
+    @Test
+    void disabledReceiverIsUniformAcrossProofShapes() throws Exception {
+        TrustFixture trust = new TrustFixture(null, null);
+        Harness harness = harness(trust, DENIED_REQUEST_PERMIT);
+
+        for (MockHttpServletRequestBuilder request : List.of(
+                validGet(),
+                get(PATH).secure(true),
+                get(PATH)
+                        .secure(true)
+                        .header("Authorization", "not-a-bearer")
+                        .header("X-DWP-Widget-Assertion", "not-a-jws"))) {
+            harness.mvc().perform(request)
                     .andExpect(status().isServiceUnavailable())
-                    .andExpect(jsonPath("$.errorCode").value("WIDGET_REGISTRY_TRUST_UNAVAILABLE"));
-            assertThat(controller.terminalCalls()).isZero();
+                    .andExpect(jsonPath("$.errorCode")
+                            .value("WIDGET_REGISTRY_TRUST_UNAVAILABLE"));
         }
+
+        assertThat(trust.serviceVerificationCalls).hasValue(0);
+        assertThat(trust.assertionVerificationCalls).hasValue(0);
+        assertThat(trust.replayStore.calls()).isZero();
+        assertThat(harness.controller().terminalCalls()).isZero();
+    }
+
+    @Test
+    void activationDecisionFailureAlsoFailsClosedBeforeTrustResolution() throws Exception {
+        TrustFixture trust = new TrustFixture(null, null);
+        Harness harness = harness(trust, () -> {
+            throw new IllegalStateException("activation state unavailable");
+        });
+
+        harness.mvc().perform(validGet())
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.errorCode")
+                        .value("WIDGET_REGISTRY_TRUST_UNAVAILABLE"));
+
+        assertThat(trust.serviceVerificationCalls).hasValue(0);
+        assertThat(trust.assertionVerificationCalls).hasValue(0);
+        assertThat(trust.replayStore.calls()).isZero();
+        assertThat(harness.controller().terminalCalls()).isZero();
+    }
+
+    @Test
+    void disabledReceiverPreservesThePreActivationSecurityPrecedence() throws Exception {
+        Harness harness = harness(new TrustFixture(null, null), DENIED_REQUEST_PERMIT);
+
+        harness.mvc().perform(get(WidgetRegistryInternalRoutes.PREFIX + "/unregistered").secure(true))
+                .andExpect(status().isNotFound());
+        harness.mvc().perform(post(PATH).secure(true))
+                .andExpect(status().isMethodNotAllowed());
+        harness.mvc().perform(get(PATH))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("WIDGET_REGISTRY_INTERNAL_TLS_REQUIRED"));
+        harness.mvc().perform(get(PATH)
+                        .secure(true)
+                        .header("X-DWP-Provisioning-Token", "legacy-static-token"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode")
+                        .value("WIDGET_REGISTRY_PROVISIONING_TOKEN_FORBIDDEN"));
+        harness.mvc().perform(get(PATH)
+                        .secure(true)
+                        .header("X-DWP-User", "forged-browser-authority"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode")
+                        .value("WIDGET_REGISTRY_AUTHORITY_HEADERS_FORBIDDEN"));
+
+        assertThat(harness.controller().terminalCalls()).isZero();
     }
 
     @Test
@@ -270,18 +357,21 @@ class WidgetRegistryInternalSecurityFilterTest {
     }
 
     @Test
-    void wrongAssertionPlaneStillFailsAsAnInvalidDualProofCombination() throws Exception {
+    void wrongAssertionPlaneIsRejectedAsAForbiddenAuthorityHeaderBeforeProofParsing()
+            throws Exception {
         Harness widgetHarness = harness(new TrustFixture(null, null));
         widgetHarness.mvc().perform(validGet()
                         .header("X-DWP-Widget-Reconcile-Assertion", ASSERTION_COMPACT))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.errorCode").value("WIDGET_REGISTRY_DUAL_PROOF_REQUIRED"));
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode")
+                        .value("WIDGET_REGISTRY_AUTHORITY_HEADERS_FORBIDDEN"));
 
         Harness reconcileHarness = harness(new TrustFixture(null, null));
         reconcileHarness.mvc().perform(validCompletion()
                         .header("X-DWP-Widget-Assertion", ASSERTION_COMPACT))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.errorCode").value("WIDGET_REGISTRY_DUAL_PROOF_REQUIRED"));
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode")
+                        .value("WIDGET_REGISTRY_AUTHORITY_HEADERS_FORBIDDEN"));
 
         assertThat(widgetHarness.controller().terminalCalls()).isZero();
         assertThat(reconcileHarness.controller().terminalCalls()).isZero();
@@ -298,6 +388,7 @@ class WidgetRegistryInternalSecurityFilterTest {
                 trust::verifyServiceToken,
                 trust::verifyAssertion,
                 trust.replayStore,
+                VERIFIED_TEST_REQUEST_PERMIT,
                 CLOCK);
         MockHttpServletRequest base = new MockHttpServletRequest("GET", PATH);
         base.setSecure(true);
@@ -982,12 +1073,17 @@ class WidgetRegistryInternalSecurityFilterTest {
     }
 
     private Harness harness(TrustFixture trust) {
+        return harness(trust, VERIFIED_TEST_REQUEST_PERMIT);
+    }
+
+    private Harness harness(TrustFixture trust, BooleanSupplier requestPermit) {
         TerminalController controller = new TerminalController();
         WidgetRegistryInternalSecurityFilter filter = new WidgetRegistryInternalSecurityFilter(
                 objectMapper,
                 trust::verifyServiceToken,
                 trust::verifyAssertion,
                 trust.replayStore,
+                requestPermit,
                 CLOCK);
         return new Harness(mvc(controller, filter), controller);
     }
@@ -1582,6 +1678,8 @@ class WidgetRegistryInternalSecurityFilterTest {
         private final ServiceTokenClaims serviceToken;
         private final ProviderAssertionClaims assertion;
         private final InMemoryReplayStore replayStore = new InMemoryReplayStore();
+        private final AtomicInteger serviceVerificationCalls = new AtomicInteger();
+        private final AtomicInteger assertionVerificationCalls = new AtomicInteger();
         private VerificationFailure serviceFailure;
         private VerificationFailure assertionFailure;
 
@@ -1591,12 +1689,14 @@ class WidgetRegistryInternalSecurityFilterTest {
         }
 
         private ServiceTokenClaims verifyServiceToken(String compact) throws VerificationException {
+            serviceVerificationCalls.incrementAndGet();
             if (serviceFailure != null) throw new VerificationException(serviceFailure);
             return serviceToken;
         }
 
         private ProviderAssertionClaims verifyAssertion(String compact, AssertionKind kind)
                 throws VerificationException {
+            assertionVerificationCalls.incrementAndGet();
             if (assertionFailure != null) throw new VerificationException(assertionFailure);
             return assertion;
         }

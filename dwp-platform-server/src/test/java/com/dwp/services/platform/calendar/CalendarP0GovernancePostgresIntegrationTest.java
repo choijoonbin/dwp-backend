@@ -303,7 +303,10 @@ class CalendarP0GovernancePostgresIntegrationTest {
         CalendarRepository repository = new CalendarRepository(jdbc, new ObjectMapper());
         CalendarService calendarService = mock(CalendarService.class);
         RoomService service = new RoomService(
-                calendarService, repository, new RoomRepository(jdbc));
+                calendarService,
+                repository,
+                new RoomRepository(jdbc),
+                mock(RoomBookingPolicyService.class));
         CalendarDtos.UpdateEventRequest update = roomUpdate(resourceId);
         String groupHeader = groupRef.toString();
 
@@ -351,6 +354,45 @@ class CalendarP0GovernancePostgresIntegrationTest {
         verify(calendarService, never()).update(
                 TENANT_A, VIEWER_USER_ID, VIEWER_PERSON_ID, fixture.eventId(),
                 "en-US", "corr-revoked", groupHeader, update);
+    }
+
+    @Test
+    void roomAvailabilityExcludesOnlyTheVerifiedCurrentEvent() {
+        Fixture fixture = fixture("DEFAULT");
+        UUID competingEventId = UUID.randomUUID();
+        UUID resourceId = UUID.randomUUID();
+        insertEvent(
+                TENANT_A,
+                competingEventId,
+                fixture.calendarId(),
+                OWNER_USER_ID,
+                OWNER_PERSON_ID,
+                "Competing room booking",
+                "DEFAULT",
+                QUERY_FROM.plusHours(11),
+                QUERY_FROM.plusHours(12));
+        insertResource(TENANT_A, resourceId, "ELIGIBILITY-ROOM");
+        insertBooking(TENANT_A, fixture.eventId(), resourceId);
+        insertBooking(
+                TENANT_A,
+                competingEventId,
+                resourceId,
+                QUERY_FROM.plusHours(11),
+                QUERY_FROM.plusHours(12));
+        RoomRepository repository = new RoomRepository(jdbc);
+
+        assertThat(repository.resourceOccupancy(
+                TENANT_A,
+                QUERY_FROM.plusHours(9),
+                QUERY_FROM.plusHours(12),
+                fixture.eventId())).singleElement()
+                .extracting(RoomRepository.ResourceOccupancyRow::resourceId)
+                .isEqualTo(resourceId);
+        assertThat(repository.resourceOccupancy(
+                TENANT_A,
+                QUERY_FROM.plusHours(9),
+                QUERY_FROM.plusHours(12),
+                null)).hasSize(2);
     }
 
     @Test
@@ -787,6 +829,28 @@ class CalendarP0GovernancePostgresIntegrationTest {
             UUID organizerPersonId,
             String title,
             String visibility) {
+        insertEvent(
+                tenantId,
+                eventId,
+                calendarId,
+                organizerUserId,
+                organizerPersonId,
+                title,
+                visibility,
+                QUERY_FROM.plusHours(10),
+                QUERY_FROM.plusHours(11));
+    }
+
+    private void insertEvent(
+            long tenantId,
+            UUID eventId,
+            UUID calendarId,
+            long organizerUserId,
+            UUID organizerPersonId,
+            String title,
+            String visibility,
+            OffsetDateTime startsAt,
+            OffsetDateTime endsAt) {
         jdbc.update("""
                 INSERT INTO cal_events (
                     event_id, tenant_id, calendar_id, organizer_user_id,
@@ -798,7 +862,7 @@ class CalendarP0GovernancePostgresIntegrationTest {
                         ?, ?, 'UTC', 'CONFIRMED', ?, 'NONE', 1, FALSE,
                         'NATIVE', ?, ?)
                 """, eventId, tenantId, calendarId, organizerUserId, organizerPersonId,
-                title, QUERY_FROM.plusHours(10), QUERY_FROM.plusHours(11), visibility,
+                title, startsAt, endsAt, visibility,
                 organizerUserId, organizerUserId);
     }
 
@@ -814,13 +878,26 @@ class CalendarP0GovernancePostgresIntegrationTest {
     }
 
     private void insertBooking(long tenantId, UUID eventId, UUID resourceId) {
+        insertBooking(
+                tenantId,
+                eventId,
+                resourceId,
+                QUERY_FROM.plusHours(10),
+                QUERY_FROM.plusHours(11));
+    }
+
+    private void insertBooking(
+            long tenantId,
+            UUID eventId,
+            UUID resourceId,
+            OffsetDateTime startsAt,
+            OffsetDateTime endsAt) {
         jdbc.update("""
                 INSERT INTO cal_resource_bookings (
                     tenant_id, event_id, resource_id, starts_at, ends_at,
                     booking_status, requested_by, created_by, updated_by)
                 VALUES (?, ?, ?, ?, ?, 'CONFIRMED', ?, ?, ?)
-                """, tenantId, eventId, resourceId,
-                QUERY_FROM.plusHours(10), QUERY_FROM.plusHours(11),
+                """, tenantId, eventId, resourceId, startsAt, endsAt,
                 OWNER_USER_ID, OWNER_USER_ID, OWNER_USER_ID);
     }
 

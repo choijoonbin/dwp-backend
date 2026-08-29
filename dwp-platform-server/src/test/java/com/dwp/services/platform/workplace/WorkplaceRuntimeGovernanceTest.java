@@ -9,6 +9,7 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import static com.dwp.services.platform.workplace.WorkplaceSpatialGovernanceDtos.*;
@@ -36,6 +37,26 @@ class WorkplaceRuntimeGovernanceTest {
         assertThatThrownBy(() -> runtime.requireBookAccess(1L, 7L, "group", siteId))
                 .isInstanceOfSatisfying(BaseException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+    }
+
+    @Test
+    void viewableSiteProjectionKeepsOnlyAllowedBatchDecisions() {
+        UUID allowed = UUID.randomUUID();
+        UUID denied = UUID.randomUUID();
+        OffsetDateTime evaluatedAt = OffsetDateTime.now();
+        when(governance.evaluateSiteAccesses(
+                1L, 7L, "group", Set.of(allowed, denied), AccessPermission.VIEW))
+                .thenReturn(Map.of(
+                        allowed, new SiteAccessDecision(
+                                allowed, 7L, AccessPermission.VIEW, true,
+                                "ALLOW_EXPLICIT", List.of(), evaluatedAt),
+                        denied, new SiteAccessDecision(
+                                denied, 7L, AccessPermission.VIEW, false,
+                                "DENY_EXPLICIT", List.of(), evaluatedAt)));
+
+        assertThat(runtime.viewableSiteIds(
+                1L, 7L, "group", Set.of(allowed, denied)))
+                .containsExactly(allowed);
     }
 
     @Test

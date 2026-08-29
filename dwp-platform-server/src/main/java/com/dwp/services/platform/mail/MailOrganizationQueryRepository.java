@@ -77,12 +77,16 @@ class MailOrganizationQueryRepository {
                        COUNT(thread.thread_id) FILTER (WHERE thread.unread)::INTEGER AS unread_count,
                        folder.version
                   FROM mail_folders folder
-                  JOIN mail_accounts account ON account.account_id = folder.account_id
+                  JOIN mail_accounts account
+                    ON account.tenant_id = folder.tenant_id
+                   AND account.account_id = folder.account_id
                   LEFT JOIN mail_thread_folders membership
                     ON membership.tenant_id = folder.tenant_id
+                   AND membership.account_id = folder.account_id
                    AND membership.folder_id = folder.folder_id
                   LEFT JOIN mail_threads thread
                     ON thread.tenant_id = membership.tenant_id
+                   AND thread.account_id = membership.account_id
                    AND thread.thread_id = membership.thread_id
                  WHERE folder.tenant_id = ? AND account.owner_user_id = ?
                    AND folder.lifecycle_state = 'ACTIVE'
@@ -101,12 +105,16 @@ class MailOrganizationQueryRepository {
                        COUNT(thread.thread_id) FILTER (WHERE thread.unread)::INTEGER AS unread_count,
                        folder.version
                   FROM mail_folders folder
-                  JOIN mail_accounts account ON account.account_id = folder.account_id
+                  JOIN mail_accounts account
+                    ON account.tenant_id = folder.tenant_id
+                   AND account.account_id = folder.account_id
                   LEFT JOIN mail_thread_folders membership
                     ON membership.tenant_id = folder.tenant_id
+                   AND membership.account_id = folder.account_id
                    AND membership.folder_id = folder.folder_id
                   LEFT JOIN mail_threads thread
                     ON thread.tenant_id = membership.tenant_id
+                   AND thread.account_id = membership.account_id
                    AND thread.thread_id = membership.thread_id
                  WHERE folder.tenant_id = ? AND account.owner_user_id = ?
                    AND folder.folder_id = ? AND folder.lifecycle_state = 'ACTIVE'
@@ -122,7 +130,9 @@ class MailOrganizationQueryRepository {
                        rule.stop_processing, rule.enabled, rule.synchronization_state,
                        rule.last_run_at, rule.last_match_count, rule.version
                   FROM mail_rules rule
-                  JOIN mail_accounts account ON account.account_id = rule.account_id
+                  JOIN mail_accounts account
+                    ON account.tenant_id = rule.tenant_id
+                   AND account.account_id = rule.account_id
                  WHERE rule.tenant_id = ? AND rule.owner_user_id = ?
                    AND account.owner_user_id = ? AND rule.lifecycle_state = 'ACTIVE'
                  ORDER BY rule.priority, LOWER(rule.display_name), rule.rule_id
@@ -137,7 +147,9 @@ class MailOrganizationQueryRepository {
                        rule.stop_processing, rule.enabled, rule.synchronization_state,
                        rule.last_run_at, rule.last_match_count, rule.version
                   FROM mail_rules rule
-                  JOIN mail_accounts account ON account.account_id = rule.account_id
+                  JOIN mail_accounts account
+                    ON account.tenant_id = rule.tenant_id
+                   AND account.account_id = rule.account_id
                  WHERE rule.tenant_id = ? AND rule.owner_user_id = ?
                    AND account.owner_user_id = ? AND rule.rule_id = ?
                    AND rule.lifecycle_state = 'ACTIVE'
@@ -151,7 +163,9 @@ class MailOrganizationQueryRepository {
                        run.scanned_count, run.matched_count, run.changed_count,
                        run.started_at, run.completed_at
                   FROM mail_rule_runs run
-                  JOIN mail_rules rule ON rule.rule_id = run.rule_id
+                  JOIN mail_rules rule
+                    ON rule.tenant_id = run.tenant_id
+                   AND rule.rule_id = run.rule_id
                  WHERE run.tenant_id = ? AND rule.owner_user_id = ?
                  ORDER BY run.started_at DESC
                  LIMIT 20
@@ -177,7 +191,9 @@ class MailOrganizationQueryRepository {
                        thread.has_attachments,
                        thread.importance
                   FROM mail_threads thread
-                  JOIN mail_accounts account ON account.account_id = thread.account_id
+                  JOIN mail_accounts account
+                    ON account.tenant_id = thread.tenant_id
+                   AND account.account_id = thread.account_id
                   LEFT JOIN LATERAL (
                       SELECT message.sender_email, message.body_content
                         FROM mail_messages message
@@ -191,7 +207,7 @@ class MailOrganizationQueryRepository {
                    AND thread.account_id = ?
                    AND thread.workflow_state NOT IN ('DRAFT', 'TRASHED', 'SPAM')
                  ORDER BY thread.latest_message_at DESC, thread.thread_id
-                 LIMIT 500
+                 LIMIT 501
                 """, (result, ignored) -> new RuleCandidate(
                 result.getObject("thread_id", UUID.class),
                 result.getLong("version"),

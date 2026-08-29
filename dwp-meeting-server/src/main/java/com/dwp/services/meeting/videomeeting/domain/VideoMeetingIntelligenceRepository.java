@@ -243,6 +243,22 @@ public class VideoMeetingIntelligenceRepository {
                 tenantId, meetingId, now, host, userId, now).stream().findFirst();
     }
 
+    public Optional<IntelligenceReport> latestPublishedReport(
+            long tenantId,
+            UUID meetingId,
+            OffsetDateTime now) {
+        return jdbc.query("""
+                SELECT *
+                  FROM vm_meeting_intelligence_reports
+                 WHERE tenant_id = ? AND meeting_id = ?
+                   AND report_state = 'PUBLISHED'
+                   AND audience = 'MEETING_PARTICIPANTS'
+                   AND (legal_hold = TRUE OR retention_until > ?)
+                 ORDER BY published_at DESC NULLS LAST, report_id DESC
+                 LIMIT 1
+                """, this::report, tenantId, meetingId, now).stream().findFirst();
+    }
+
     public IntelligenceReport review(
             IntelligenceReport current,
             ReviewDecision decision,

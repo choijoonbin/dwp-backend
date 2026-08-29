@@ -501,9 +501,22 @@ public final class CalendarDtos {
             String bookingStatus) {
     }
 
+    public record RoomBookingEligibility(
+            UUID resourceId,
+            boolean eligible,
+            RoomBookingEligibilityReason reasonCode,
+            OffsetDateTime evaluatedFrom,
+            OffsetDateTime evaluatedTo,
+            UUID excludedEventId,
+            OffsetDateTime evaluatedAt,
+            long resourceVersion,
+            long policyVersion) {
+    }
+
     public record RoomAvailabilityResponse(
             List<ResourceSummary> rooms,
             List<ResourceOccupancy> occupancy,
+            List<RoomBookingEligibility> bookingEligibility,
             OffsetDateTime generatedAt) {
     }
 

@@ -14,6 +14,7 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -28,9 +29,11 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.head;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -54,6 +57,10 @@ class CalendarProductSurfacePepEvidenceTest {
     @BeforeEach
     void setUp() {
         reset(service);
+        mvc = mockMvc(true);
+    }
+
+    private MockMvc mockMvc(boolean enabled) {
         PlatformSecurityFilter platformSecurity = new PlatformSecurityFilter(
                 "trusted",
                 "runtime",
@@ -62,11 +69,11 @@ class CalendarProductSurfacePepEvidenceTest {
                 new PlatformCanaryPepRegistry(objectMapper),
                 new PlatformApprovalsPepRegistry(objectMapper));
         CalendarProductSurfacePepFilter calendarPep = new CalendarProductSurfacePepFilter(
-                true,
+                enabled,
                 contract,
                 new CalendarProductSurfaceAccessPolicy(),
                 objectMapper);
-        mvc = MockMvcBuilders.standaloneSetup(new CalendarController(service))
+        return MockMvcBuilders.standaloneSetup(new CalendarController(service))
                 .addFilters(platformSecurity, calendarPep)
                 .build();
     }
@@ -91,6 +98,172 @@ class CalendarProductSurfacePepEvidenceTest {
 
         mvc.perform(exactPage(escaped))
                 .andExpect(status().isForbidden());
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void springHeadSemanticsCannotBypassCalendarOwnerPep() throws Exception {
+        mvc.perform(exact(
+                        head("/v1/calendar/home"),
+                        CalendarProductSurfaceContract.HOME_PAGE_ROUTE,
+                        "APP.CALENDAR:VIEW",
+                        scope(TENANT_ID, ACTOR_ID, "SELF")))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void springMatrixParameterSemanticsCannotBypassCalendarOwnerPep() throws Exception {
+        mvc.perform(exact(
+                        get("/v1/calendar/home;source=spoof"),
+                        CalendarProductSurfaceContract.HOME_PAGE_ROUTE,
+                        "APP.CALENDAR:VIEW",
+                        scope(TENANT_ID, ACTOR_ID, "SELF")))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void springPercentEncodedRouteAliasCannotBypassCalendarOwnerPep() throws Exception {
+        mvc.perform(exact(
+                        get(URI.create("/v1/calendar/%65vents"))
+                                .param("from", "2026-08-28T09:00:00+09:00")
+                                .param("to", "2026-08-28T18:00:00+09:00"),
+                        CalendarProductSurfaceContract.SCHEDULE_DATA_ROUTE,
+                        "APP.CALENDAR:VIEW",
+                        scope(TENANT_ID, ACTOR_ID, "SELF")))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void encodedSlashInsideMatrixValueCannotBypassCalendarOwnerPep() throws Exception {
+        mvc.perform(exact(
+                        get(URI.create("/v1/calendar;source=%2Fignored/home")),
+                        CalendarProductSurfaceContract.HOME_PAGE_ROUTE,
+                        "APP.CALENDAR:VIEW",
+                        scope(TENANT_ID, ACTOR_ID, "SELF")))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void nonCanonicalCalendarIdentityNumbersFailClosed() throws Exception {
+        for (String tenantAlias : new String[]{"+7", "007"}) {
+            mvc.perform(replaceHeader(
+                            exactPage(scope(TENANT_ID, ACTOR_ID, "SELF")),
+                            "X-DWP-Tenant-ID",
+                            tenantAlias))
+                    .andExpect(status().isServiceUnavailable());
+        }
+        for (String actorAlias : new String[]{"+101", "00101"}) {
+            mvc.perform(replaceHeader(
+                            exactPage(scope(TENANT_ID, ACTOR_ID, "SELF")),
+                            "X-DWP-User-ID",
+                            actorAlias))
+                    .andExpect(status().isServiceUnavailable());
+        }
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void nonCanonicalCalendarRoleAndPermissionEvidenceFailsClosed() throws Exception {
+        for (String roles : new String[]{
+                "workspace_member", "WORKSPACE_MEMBER,WORKSPACE_MEMBER", "WORKSPACE_MEMBER,"
+        }) {
+            mvc.perform(replaceHeader(
+                            exactPage(scope(TENANT_ID, ACTOR_ID, "SELF")),
+                            "X-DWP-Roles",
+                            roles))
+                    .andExpect(status().isServiceUnavailable());
+        }
+        for (String permissions : new String[]{
+                "app.calendar:view", "APP.CALENDAR:VIEW,APP.CALENDAR:VIEW",
+                "APP.CALENDAR:VIEW,", " APP.CALENDAR:VIEW"
+        }) {
+            mvc.perform(replaceHeader(
+                            exactPage(scope(TENANT_ID, ACTOR_ID, "SELF")),
+                            "X-DWP-Permissions",
+                            permissions))
+                    .andExpect(status().isForbidden());
+        }
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void duplicateCalendarAuthorityHeadersFailClosed() throws Exception {
+        mvc.perform(exactPage(scope(TENANT_ID, ACTOR_ID, "SELF"))
+                        .header("X-DWP-Tenant-ID", Long.toString(TENANT_ID)))
+                .andExpect(status().isServiceUnavailable());
+        mvc.perform(exactPage(scope(TENANT_ID, ACTOR_ID, "SELF"))
+                        .header("X-DWP-User-ID", Long.toString(ACTOR_ID)))
+                .andExpect(status().isServiceUnavailable());
+        mvc.perform(exactPage(scope(TENANT_ID, ACTOR_ID, "SELF"))
+                        .header("X-DWP-Roles", "WORKSPACE_MEMBER"))
+                .andExpect(status().isServiceUnavailable());
+        mvc.perform(exactPage(scope(TENANT_ID, ACTOR_ID, "SELF"))
+                        .header("X-DWP-Permissions", "APP.CALENDAR:VIEW"))
+                .andExpect(status().isForbidden());
+        mvc.perform(exactPage(scope(TENANT_ID, ACTOR_ID, "SELF"))
+                        .header(CalendarProductSurfacePepFilter.CONTEXT_HEADER, CONTEXT_KEY))
+                .andExpect(status().isServiceUnavailable());
+        mvc.perform(exactPage(scope(TENANT_ID, ACTOR_ID, "SELF"))
+                        .header(
+                                CalendarProductSurfacePepFilter.ROUTE_CONTRACT_HEADER,
+                                CalendarProductSurfaceContract.HOME_PAGE_ROUTE))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void calendarRolloutTransitionPreservesLegacyAndFailsClosedAtExactEnforcement()
+            throws Exception {
+        mvc = mockMvc(false);
+        MockHttpServletRequestBuilder noRollout = exactPage(
+                scope(TENANT_ID, ACTOR_ID, "SELF"));
+        noRollout.with(request -> {
+            request.removeHeader(CalendarProductSurfacePepFilter.ROLLOUT_STATE_HEADER);
+            request.removeHeader(CalendarProductSurfacePepFilter.ROLLOUT_REVISION_HEADER);
+            request.removeHeader(CalendarProductSurfacePepFilter.ROLLOUT_COHORT_HEADER);
+            return request;
+        });
+        mvc.perform(noRollout).andExpect(status().isOk());
+        mvc.perform(withRolloutState("000")).andExpect(status().isOk());
+        mvc.perform(withRolloutState("100")).andExpect(status().isOk());
+        mvc.perform(withRolloutState("110")).andExpect(status().isServiceUnavailable());
+        mvc.perform(withRolloutState("111")).andExpect(status().isServiceUnavailable());
+
+        verify(service, times(3)).home(anyLong(), anyLong(), any(), any(), any(), any());
+    }
+
+    @Test
+    void exactCalendarEnforcementRejectsMalformedRolloutAndDecisionEvidence()
+            throws Exception {
+        mvc.perform(replaceHeader(
+                        exactPage(scope(TENANT_ID, ACTOR_ID, "SELF")),
+                        CalendarProductSurfacePepFilter.ROLLOUT_REVISION_HEADER,
+                        "rollout-invalid"))
+                .andExpect(status().isServiceUnavailable());
+        mvc.perform(exactPage(scope(TENANT_ID, ACTOR_ID, "SELF"))
+                        .header(CalendarProductSurfacePepFilter.ROLLOUT_STATE_HEADER, "110"))
+                .andExpect(status().isServiceUnavailable());
+        mvc.perform(replaceHeader(
+                        exactPage(scope(TENANT_ID, ACTOR_ID, "SELF")),
+                        CalendarProductSurfacePepFilter.CURRENT_REVISION_HEADER,
+                        "psr-invalid"))
+                .andExpect(status().isServiceUnavailable());
+        mvc.perform(exactPage(scope(TENANT_ID, ACTOR_ID, "SELF"))
+                        .header(CalendarProductSurfacePepFilter.CURRENT_REVISION_HEADER,
+                                CURRENT_REVISION))
+                .andExpect(status().isServiceUnavailable());
 
         verifyNoInteractions(service);
     }
@@ -121,6 +294,15 @@ class CalendarProductSurfacePepEvidenceTest {
         providerAsNormal.with(request -> {
             request.removeHeader("X-DWP-Roles");
             request.addHeader("X-DWP-Roles", "PROVIDER_SUPPORT");
+            return request;
+        });
+
+        mvc.perform(providerAsNormal)
+                .andExpect(status().isForbidden());
+
+        MockHttpServletRequestBuilder workspaceAsProvider = exactPage(
+                scope(TENANT_ID, ACTOR_ID, "SELF"));
+        workspaceAsProvider.with(request -> {
             request.removeHeader(CalendarProductSurfacePepFilter.ACTIVE_ACCESS_MODE_HEADER);
             request.addHeader(
                     CalendarProductSurfacePepFilter.ACTIVE_ACCESS_MODE_HEADER,
@@ -128,19 +310,32 @@ class CalendarProductSurfacePepEvidenceTest {
             return request;
         });
 
-        mvc.perform(providerAsNormal)
+        mvc.perform(workspaceAsProvider)
                 .andExpect(status().isForbidden());
 
-        MockHttpServletRequestBuilder normalWithSupportSession = exactPage(
-                scope(TENANT_ID, ACTOR_ID, "SELF"));
-        normalWithSupportSession.header("X-DWP-Support-Session-ID", "support-session-1");
-        normalWithSupportSession.header(
-                "X-DWP-Support-Scopes", "TENANT_CONFIGURATION_READ");
-        normalWithSupportSession.header("X-DWP-Actor-Tenant-ID", "3");
+        verifyNoInteractions(service);
+    }
 
-        mvc.perform(normalWithSupportSession)
-                .andExpect(status().isForbidden());
+    @Test
+    void supportSessionCannotBorrowNormalCalendarAuthorityAtOwnerPolicy() {
+        CalendarProductSurfaceContract.Binding binding = contract.resolveOwner(
+                "GET", "/v1/calendar/home").orElseThrow();
+        CalendarProductSurfaceAccessPolicy.Decision decision =
+                new CalendarProductSurfaceAccessPolicy().authorize(
+                        new CalendarProductSurfaceAccessPolicy.Evidence(
+                                TENANT_ID,
+                                ACTOR_ID,
+                                Set.of("WORKSPACE_MEMBER"),
+                                true,
+                                "NORMAL",
+                                CONTEXT_KEY,
+                                scope(TENANT_ID, ACTOR_ID, "SELF"),
+                                Set.of("APP.CALENDAR:VIEW"),
+                                binding));
 
+        assertThat(decision.status())
+                .isEqualTo(CalendarProductSurfaceAccessPolicy.Status.DENIED);
+        assertThat(decision.reasonCode()).isEqualTo("CALENDAR_ACCESS_MODE_DENIED");
         verifyNoInteractions(service);
     }
 
@@ -184,7 +379,10 @@ class CalendarProductSurfacePepEvidenceTest {
             return request;
         });
         mvc.perform(elevatedData)
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        CalendarProductSurfacePepFilter.RESPONSE_REVISION_HEADER,
+                        CURRENT_REVISION));
 
         mvc.perform(exact(
                         post("/v1/calendar/events")
@@ -361,6 +559,22 @@ class CalendarProductSurfacePepEvidenceTest {
                 CalendarProductSurfaceContract.HOME_PAGE_ROUTE,
                 "APP.CALENDAR:VIEW",
                 scope);
+    }
+
+    private MockHttpServletRequestBuilder withRolloutState(String state) {
+        return replaceHeader(
+                exactPage(scope(TENANT_ID, ACTOR_ID, "SELF")),
+                CalendarProductSurfacePepFilter.ROLLOUT_STATE_HEADER,
+                state);
+    }
+
+    private MockHttpServletRequestBuilder replaceHeader(
+            MockHttpServletRequestBuilder request, String name, String value) {
+        return request.with(mockRequest -> {
+            mockRequest.removeHeader(name);
+            mockRequest.addHeader(name, value);
+            return mockRequest;
+        });
     }
 
     private MockHttpServletRequestBuilder exact(

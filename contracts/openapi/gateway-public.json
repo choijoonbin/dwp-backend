@@ -11249,6 +11249,33 @@
         },
         "type": "object"
       },
+      "meeting_ApiResponseReadinessResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/meeting_ReadinessResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "meeting_ApiResponseRecordingCommandResponse": {
         "properties": {
           "correlationId": {
@@ -11716,10 +11743,8 @@
           "signals": {
             "items": {
               "enum": [
-                "BALANCED_TURN_TAKING",
                 "CONSTRUCTIVE_DISAGREEMENT",
                 "UNRESOLVED_DISAGREEMENT",
-                "DOMINANT_MONOLOGUE_PATTERN",
                 "LOW_TRANSCRIPT_EVIDENCE"
               ],
               "type": "string"
@@ -12650,6 +12675,62 @@
         },
         "type": "object"
       },
+      "meeting_ReadinessResponse": {
+        "properties": {
+          "capabilities": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/meeting_ReadinessSignal"
+            },
+            "type": "object"
+          },
+          "dependencies": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/meeting_ReadinessSignal"
+            },
+            "type": "object"
+          },
+          "governance": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/meeting_ReadinessSignal"
+            },
+            "type": "object"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "processingRegion": {
+            "type": "string"
+          },
+          "providerCode": {
+            "type": "string"
+          },
+          "providerModel": {
+            "type": "string"
+          },
+          "readinessVersion": {
+            "type": "string"
+          },
+          "recordingPolicy": {
+            "type": "string"
+          },
+          "retention": {
+            "$ref": "#/components/schemas/meeting_RetentionReadiness"
+          }
+        },
+        "type": "object"
+      },
+      "meeting_ReadinessSignal": {
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "meeting_RecordingCommandResponse": {
         "properties": {
           "accepted": {
@@ -12779,6 +12860,32 @@
           "expectedPlanVersion": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "meeting_RetentionReadiness": {
+        "properties": {
+          "artifactDays": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "chatDays": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "intelligenceWorkerReady": {
+            "type": "boolean"
+          },
+          "meetingDays": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "signals": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/meeting_ReadinessSignal"
+            },
+            "type": "object"
           }
         },
         "type": "object"
@@ -13035,7 +13142,7 @@
           },
           "recordingPolicy": {
             "minLength": 1,
-            "pattern": "NEVER",
+            "pattern": "NEVER|HOST_OPT_IN|ADMIN_REQUIRED",
             "type": "string"
           },
           "requireAuthenticatedInternalUsers": {
@@ -32623,6 +32730,44 @@
         ],
         "type": "object"
       },
+      "platform_DraftSaveRequest": {
+        "properties": {
+          "body": {
+            "maxLength": 100000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "subject": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "toEmail": {
+            "format": "email",
+            "maxLength": 255,
+            "minLength": 0,
+            "type": "string"
+          },
+          "toName": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
       "platform_DraftUpdateRequest": {
         "properties": {
           "body": {
@@ -38010,6 +38155,12 @@
       },
       "platform_RoomAvailabilityResponse": {
         "properties": {
+          "bookingEligibility": {
+            "items": {
+              "$ref": "#/components/schemas/platform_RoomBookingEligibility"
+            },
+            "type": "array"
+          },
           "generatedAt": {
             "format": "date-time",
             "type": "string"
@@ -38025,6 +38176,51 @@
               "$ref": "#/components/schemas/platform_ResourceSummary"
             },
             "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "platform_RoomBookingEligibility": {
+        "properties": {
+          "eligible": {
+            "type": "boolean"
+          },
+          "evaluatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "evaluatedFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "evaluatedTo": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "excludedEventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "policyVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "reasonCode": {
+            "enum": [
+              "ELIGIBLE",
+              "RESOURCE_UNAVAILABLE",
+              "POLICY_BLOCKED",
+              "RESOURCE_CONFLICT"
+            ],
+            "type": "string"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resourceVersion": {
+            "format": "int64",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -56253,6 +56449,26 @@
         ]
       }
     },
+    "/api/meetings/v1/admin/intelligence/readiness": {
+      "get": {
+        "operationId": "meeting_readiness",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/meeting_ApiResponseReadinessResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "meeting"
+        ]
+      }
+    },
     "/api/meetings/v1/admin/overview": {
       "get": {
         "operationId": "meeting_adminOverview",
@@ -57377,6 +57593,37 @@
     "/api/meetings/v1/meetings/{meetingId}/intelligence/reports/latest": {
       "get": {
         "operationId": "meeting_latestReport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/meeting_ApiResponseReportResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "meeting"
+        ]
+      }
+    },
+    "/api/meetings/v1/meetings/{meetingId}/intelligence/reports/latest-published": {
+      "get": {
+        "operationId": "meeting_latestPublishedReport",
         "parameters": [
           {
             "in": "path",
@@ -70376,7 +70623,7 @@
     },
     "/api/platform/v1/admin/localization/bundles/{bundleId}/drafts": {
       "post": {
-        "operationId": "platform_createDraft_1",
+        "operationId": "platform_createDraft_2",
         "parameters": [
           {
             "in": "header",
@@ -70485,7 +70732,7 @@
         ]
       },
       "put": {
-        "operationId": "platform_saveDraft_1",
+        "operationId": "platform_saveDraft_2",
         "parameters": [
           {
             "in": "header",
@@ -71071,7 +71318,7 @@
     },
     "/api/platform/v1/admin/navigation/studio/drafts": {
       "post": {
-        "operationId": "platform_createDraft",
+        "operationId": "platform_createDraft_1",
         "parameters": [
           {
             "in": "header",
@@ -71111,7 +71358,7 @@
     },
     "/api/platform/v1/admin/navigation/studio/drafts/{revisionId}": {
       "put": {
-        "operationId": "platform_saveDraft",
+        "operationId": "platform_saveDraft_1",
         "parameters": [
           {
             "in": "header",
@@ -80439,6 +80686,95 @@
         ]
       }
     },
+    "/api/platform/v1/mail/drafts": {
+      "post": {
+        "operationId": "platform_createDraft",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_DraftSaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseThreadDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/mail/drafts/{threadId}": {
+      "put": {
+        "operationId": "platform_saveDraft",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "threadId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_DraftSaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseThreadDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
     "/api/platform/v1/mail/home": {
       "get": {
         "operationId": "platform_home",
@@ -81859,6 +82195,15 @@
             "required": true,
             "schema": {
               "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "excludeEventId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
               "type": "string"
             }
           }

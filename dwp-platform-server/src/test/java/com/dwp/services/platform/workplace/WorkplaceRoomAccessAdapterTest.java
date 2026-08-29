@@ -11,6 +11,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -41,13 +42,15 @@ class WorkplaceRoomAccessAdapterTest {
                         .<RowMapper<WorkplaceRoomAccessAdapter.ResourceSite>>any()))
                 .thenReturn(List.of(
                         new WorkplaceRoomAccessAdapter.ResourceSite(resourceId, siteId)));
-        when(governance.canViewAccess(1L, 7L, "groups", siteId)).thenReturn(false);
+        when(governance.viewableSiteIds(
+                1L, 7L, "groups", Set.of(siteId))).thenReturn(Set.of());
         WorkplaceRoomAccessAdapter adapter = new WorkplaceRoomAccessAdapter(jdbc, governance);
 
         assertThat(adapter.viewableResourceIds(
                 1L, 7L, "groups", List.of(resourceId))).isEmpty();
         adapter.requireBook(1L, 7L, "groups", resourceId);
 
+        verify(governance).viewableSiteIds(1L, 7L, "groups", Set.of(siteId));
         verify(governance).requireBookAccess(1L, 7L, "groups", siteId);
     }
 
@@ -68,7 +71,7 @@ class WorkplaceRoomAccessAdapterTest {
                 .isInstanceOfSatisfying(BaseException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
 
-        verify(governance, never()).canViewAccess(any(), any(), any(), any());
+        verify(governance, never()).viewableSiteIds(any(), any(), any(), any());
         verify(governance, never()).requireBookAccess(any(), any(), any(), any());
     }
 
@@ -76,23 +79,29 @@ class WorkplaceRoomAccessAdapterTest {
     void bulkLookupEvaluatesEachSiteOnceAndExcludesUnmappedResources() {
         UUID first = UUID.randomUUID();
         UUID second = UUID.randomUUID();
+        UUID third = UUID.randomUUID();
         UUID legacy = UUID.randomUUID();
-        UUID siteId = UUID.randomUUID();
+        UUID allowedSite = UUID.randomUUID();
+        UUID deniedSite = UUID.randomUUID();
         when(jdbc.query(
                 anyString(),
                 any(MapSqlParameterSource.class),
                 org.mockito.ArgumentMatchers
                         .<RowMapper<WorkplaceRoomAccessAdapter.ResourceSite>>any()))
                 .thenReturn(List.of(
-                        new WorkplaceRoomAccessAdapter.ResourceSite(first, siteId),
-                        new WorkplaceRoomAccessAdapter.ResourceSite(second, siteId)));
-        when(governance.canViewAccess(1L, 7L, "groups", siteId)).thenReturn(true);
+                        new WorkplaceRoomAccessAdapter.ResourceSite(first, allowedSite),
+                        new WorkplaceRoomAccessAdapter.ResourceSite(second, allowedSite),
+                        new WorkplaceRoomAccessAdapter.ResourceSite(third, deniedSite)));
+        when(governance.viewableSiteIds(
+                1L, 7L, "groups", Set.of(allowedSite, deniedSite)))
+                .thenReturn(Set.of(allowedSite));
         WorkplaceRoomAccessAdapter adapter = new WorkplaceRoomAccessAdapter(jdbc, governance);
 
         assertThat(adapter.viewableResourceIds(
-                1L, 7L, "groups", List.of(first, second, legacy)))
+                1L, 7L, "groups", List.of(first, second, third, legacy)))
                 .containsExactlyInAnyOrder(first, second);
 
-        verify(governance).canViewAccess(1L, 7L, "groups", siteId);
+        verify(governance).viewableSiteIds(
+                1L, 7L, "groups", Set.of(allowedSite, deniedSite));
     }
 }

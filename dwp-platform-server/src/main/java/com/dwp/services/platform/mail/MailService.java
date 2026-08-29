@@ -176,6 +176,9 @@ public class MailService {
         UUID commentId = commands.insertComment(
                 tenantId, userId, displayName(authorName, userId), threadId,
                 request.body(), request.mentionedUserIds().stream().distinct().toList());
+        if (commentId == null) {
+            conflict();
+        }
         commands.audit(
                 tenantId, userId, "mail.comment.created", "MAIL_THREAD",
                 threadId.toString(), correlationId, Map.of(),
@@ -239,7 +242,7 @@ public class MailService {
             UUID messageId,
             String correlationId) {
         MailDtos.ThreadSummary thread = visibleThread(tenantId, userId, threadId);
-        boolean messageVisible = queries.messages(tenantId, threadId).stream()
+        boolean messageVisible = queries.messages(tenantId, userId, threadId).stream()
                 .anyMatch(message -> message.messageId().equals(messageId)
                         && message.deliveryState() == DeliveryState.FAILED);
         if (!messageVisible) {
@@ -502,8 +505,8 @@ public class MailService {
             Long tenantId, Long userId, MailDtos.ThreadSummary thread) {
         return new MailDtos.ThreadDetail(
                 thread,
-                queries.messages(tenantId, thread.threadId()),
-                queries.comments(tenantId, thread.threadId()),
+                queries.messages(tenantId, userId, thread.threadId()),
+                queries.comments(tenantId, userId, thread.threadId()),
                 queries.proposals(tenantId, userId, thread.threadId(), 20),
                 thread.sharedInboxId() == null
                         ? List.of()

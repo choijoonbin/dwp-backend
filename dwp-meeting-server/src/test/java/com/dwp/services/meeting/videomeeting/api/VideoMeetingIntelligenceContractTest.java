@@ -43,6 +43,7 @@ class VideoMeetingIntelligenceContractTest {
         assertGet("run", "/runs/{runId}");
         assertGet("report", "/reports/{reportId}");
         assertGet("latestReport", "/reports/latest");
+        assertGet("latestPublishedReport", "/reports/latest-published");
         assertPost("review", "/reports/{reportId}/review");
         assertPost("publish", "/reports/{reportId}/publish");
         assertDelete("delete", "/reports/{reportId}");
@@ -126,6 +127,14 @@ class VideoMeetingIntelligenceContractTest {
     }
 
     @Test
+    void conversationClimateSignalsRequireEvidenceAvailableInTheTranscriptContract() {
+        assertThat(ClimateSignal.values()).containsExactly(
+                ClimateSignal.CONSTRUCTIVE_DISAGREEMENT,
+                ClimateSignal.UNRESOLVED_DISAGREEMENT,
+                ClimateSignal.LOW_TRANSCRIPT_EVIDENCE);
+    }
+
+    @Test
     void createRunInputCannotSupplyProviderOrTranscriptText() {
         JsonNode json = new ObjectMapper().valueToTree(
                 new VideoMeetingIntelligenceDtos.CreateRunCommand(
@@ -163,7 +172,7 @@ class VideoMeetingIntelligenceContractTest {
                 List.of(), List.of(), List.of(),
                 new ConversationClimate(
                         ClimateLabel.ALIGNED,
-                        List.of(ClimateSignal.BALANCED_TURN_TAKING),
+                        List.of(ClimateSignal.CONSTRUCTIVE_DISAGREEMENT),
                         List.of(citation)));
         return new ReportView(report, analysis, List.of());
     }

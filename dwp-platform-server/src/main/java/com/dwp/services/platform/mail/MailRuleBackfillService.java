@@ -1,5 +1,6 @@
 package com.dwp.services.platform.mail;
 
+import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import org.springframework.stereotype.Service;
 
@@ -24,6 +25,13 @@ public class MailRuleBackfillService {
             UUID accountId,
             String correlationId,
             MailRuleBackfillDtos.Request request) {
+        MailRuleBackfillDtos.Preview preview = transactions.preview(
+                tenantId, userId, accountId);
+        if (preview.truncated()) {
+            throw new BaseException(
+                    ErrorCode.RESOURCE_CONFLICT,
+                    "The backfill preview is truncated. Narrow the mailbox scope before execution.");
+        }
         MailRuleBackfillRepository.Claim claim =
                 transactions.claim(tenantId, userId, accountId, request);
         if (claim.replayed()) return claim.replay();

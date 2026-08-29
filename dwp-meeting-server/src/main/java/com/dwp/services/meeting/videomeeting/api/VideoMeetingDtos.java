@@ -83,7 +83,8 @@ public final class VideoMeetingDtos {
             boolean participantChatAllowed,
             boolean reactionsAllowed,
             boolean screenShareAllowed,
-            @NotBlank @Pattern(regexp = "NEVER") String recordingPolicy,
+            @NotBlank @Pattern(regexp = "NEVER|HOST_OPT_IN|ADMIN_REQUIRED")
+            String recordingPolicy,
             boolean allowJoinBeforeHost,
             boolean requireAuthenticatedInternalUsers,
             @Min(2) @Max(1000) int maximumParticipants,

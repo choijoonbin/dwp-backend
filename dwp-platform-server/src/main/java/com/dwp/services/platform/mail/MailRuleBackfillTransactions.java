@@ -21,7 +21,8 @@ class MailRuleBackfillTransactions {
             List<MailOrganizationQueryRepository.RuleCandidate> candidates,
             String fingerprint,
             int matchedThreadCount,
-            int plannedApplicationCount) {
+            int plannedApplicationCount,
+            boolean truncated) {
     }
 
     private final MailOrganizationQueryRepository queries;
@@ -56,7 +57,7 @@ class MailRuleBackfillTransactions {
                 snapshot.candidates().size(),
                 snapshot.matchedThreadCount(),
                 snapshot.plannedApplicationCount(),
-                snapshot.candidates().size() == 500,
+                snapshot.truncated(),
                 OffsetDateTime.now());
     }
 
@@ -86,6 +87,11 @@ class MailRuleBackfillTransactions {
         backfills.requireActiveLease(tenantId, userId, claim);
         backfills.requireActivePersonalAccount(tenantId, userId, claim.accountId());
         Snapshot snapshot = snapshot(tenantId, userId, claim.accountId());
+        if (snapshot.truncated()) {
+            throw new BaseException(
+                    ErrorCode.RESOURCE_CONFLICT,
+                    "The backfill preview is truncated. Narrow the mailbox scope before execution.");
+        }
         if (snapshot.rules().isEmpty()) {
             throw new BaseException(ErrorCode.INVALID_STATE, "Enable at least one rule first.");
         }
@@ -109,14 +115,15 @@ class MailRuleBackfillTransactions {
                 threadMatched = true;
                 applications++;
                 matchedByRule.merge(rule.ruleId(), 1, Integer::sum);
-                int applied = commands.applyRuleActions(
+                MailOrganizationCommandRepository.RuleApplication application =
+                        commands.applyRuleActions(
                         tenantId,
                         userId,
                         claim.accountId(),
                         candidate.threadId(),
                         threadVersion,
                         rule.actions());
-                if (applied != 1) {
+                if (!application.eligible()) {
                     throw new BaseException(
                             ErrorCode.RESOURCE_CONFLICT,
                             "A mailbox item changed while the backfill was running.");
@@ -128,10 +135,12 @@ class MailRuleBackfillTransactions {
                         rule.ruleId(),
                         rule.version(),
                         threadVersion,
-                        true);
-                threadVersion++;
-                changed++;
-                changedByRule.merge(rule.ruleId(), 1, Integer::sum);
+                        application.changed());
+                if (application.changed()) {
+                    threadVersion++;
+                    changed++;
+                    changedByRule.merge(rule.ruleId(), 1, Integer::sum);
+                }
                 if (rule.stopProcessing()) break;
             }
             if (threadMatched) matchedThreads++;
@@ -198,8 +207,12 @@ class MailRuleBackfillTransactions {
                         .comparingInt(MailOrganizationDtos.RuleSummary::priority)
                         .thenComparing(MailOrganizationDtos.RuleSummary::ruleId))
                 .toList();
-        List<MailOrganizationQueryRepository.RuleCandidate> candidates =
+        List<MailOrganizationQueryRepository.RuleCandidate> discovered =
                 queries.candidates(tenantId, userId, accountId);
+        boolean truncated = discovered.size() > 500;
+        List<MailOrganizationQueryRepository.RuleCandidate> candidates = truncated
+                ? List.copyOf(discovered.subList(0, 500))
+                : discovered;
         int matchedThreads = 0;
         int applications = 0;
         for (MailOrganizationQueryRepository.RuleCandidate candidate : candidates) {
@@ -217,7 +230,8 @@ class MailRuleBackfillTransactions {
                 candidates,
                 fingerprints.preview(accountId, rules, candidates),
                 matchedThreads,
-                applications);
+                applications,
+                truncated);
     }
 
     private void requireOwnedAccount(Long tenantId, Long userId, UUID accountId) {

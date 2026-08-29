@@ -28,25 +28,33 @@ public class RoomService {
     private final CalendarService calendarService;
     private final CalendarRepository calendarRepository;
     private final RoomRepository roomRepository;
+    private final RoomBookingPolicyService roomBookingPolicy;
 
     public RoomService(
             CalendarService calendarService,
             CalendarRepository calendarRepository,
-            RoomRepository roomRepository) {
+            RoomRepository roomRepository,
+            RoomBookingPolicyService roomBookingPolicy) {
         this.calendarService = calendarService;
         this.calendarRepository = calendarRepository;
         this.roomRepository = roomRepository;
+        this.roomBookingPolicy = roomBookingPolicy;
     }
 
     @Transactional(readOnly = true)
     public CalendarDtos.RoomAvailabilityResponse roomAvailability(
             Long tenantId,
             Long userId,
+            UUID personPublicId,
             String verifiedGroupRefs,
             OffsetDateTime from,
             OffsetDateTime to,
+            UUID excludeEventId,
             String locale) {
         validateAvailabilityRange(from, to);
+        UUID verifiedExcludeEventId = verifiedExcludedEvent(
+                tenantId, userId, personPublicId, verifiedGroupRefs, excludeEventId, locale);
+        CalendarDtos.Policy policy = calendarService.policy(tenantId);
         List<CalendarDtos.ResourceSummary> rooms = calendarService
                 .resources(tenantId, userId, verifiedGroupRefs, from, to, locale).stream()
                 .filter(value -> value.type() == ResourceType.ROOM)
@@ -54,14 +62,41 @@ public class RoomService {
         Set<UUID> roomIds = rooms.stream()
                 .map(CalendarDtos.ResourceSummary::resourceId)
                 .collect(Collectors.toUnmodifiableSet());
-        List<CalendarDtos.ResourceOccupancy> occupancy = roomRepository
-                .resourceOccupancy(tenantId, from, to).stream()
+        List<RoomRepository.ResourceOccupancyRow> bufferedOccupancy = roomRepository
+                .resourceOccupancy(
+                        tenantId,
+                        from.minusMinutes(policy.defaultBufferMinutes()),
+                        to.plusMinutes(policy.defaultBufferMinutes()),
+                        verifiedExcludeEventId).stream()
                 .filter(value -> roomIds.contains(value.resourceId()))
+                .toList();
+        Set<UUID> conflictingRoomIds = bufferedOccupancy.stream()
+                .map(RoomRepository.ResourceOccupancyRow::resourceId)
+                .collect(Collectors.toUnmodifiableSet());
+        List<CalendarDtos.ResourceOccupancy> occupancy = bufferedOccupancy.stream()
+                .filter(value -> value.startsAt().isBefore(to) && value.endsAt().isAfter(from))
                 .map(value -> new CalendarDtos.ResourceOccupancy(
                         value.resourceId(), value.startsAt(), value.endsAt(), value.bookingStatus()))
                 .toList();
+        Set<UUID> occupiedRoomIds = occupancy.stream()
+                .map(CalendarDtos.ResourceOccupancy::resourceId)
+                .collect(Collectors.toUnmodifiableSet());
+        List<CalendarDtos.ResourceSummary> evaluatedRooms = rooms.stream()
+                .map(value -> availabilityRoom(value, !occupiedRoomIds.contains(value.resourceId())))
+                .toList();
+        OffsetDateTime evaluatedAt = OffsetDateTime.now();
+        List<CalendarDtos.RoomBookingEligibility> bookingEligibility = evaluatedRooms.stream()
+                .map(value -> roomBookingPolicy.evaluateAvailability(
+                        value,
+                        policy,
+                        from,
+                        to,
+                        verifiedExcludeEventId,
+                        evaluatedAt,
+                        conflictingRoomIds.contains(value.resourceId())))
+                .toList();
         return new CalendarDtos.RoomAvailabilityResponse(
-                rooms, occupancy, OffsetDateTime.now());
+                evaluatedRooms, occupancy, bookingEligibility, evaluatedAt);
     }
 
     @Transactional(readOnly = true)
@@ -270,6 +305,33 @@ public class RoomService {
             throw new BaseException(ErrorCode.NOT_FOUND, "The room booking was not found.");
         }
         return event;
+    }
+
+    private UUID verifiedExcludedEvent(
+            Long tenantId,
+            Long userId,
+            UUID personPublicId,
+            String verifiedGroupRefs,
+            UUID excludeEventId,
+            String locale) {
+        if (excludeEventId == null) return null;
+        CalendarRepository.EventRow event = requireRoomBooking(
+                tenantId, userId, personPublicId, verifiedGroupRefs, excludeEventId, locale);
+        if (!CalendarAccessPolicy.canEdit(event)) {
+            throw new BaseException(ErrorCode.FORBIDDEN, "This room booking is read-only.");
+        }
+        return event.eventId();
+    }
+
+    private CalendarDtos.ResourceSummary availabilityRoom(
+            CalendarDtos.ResourceSummary value,
+            boolean physicallyOpen) {
+        return new CalendarDtos.ResourceSummary(
+                value.resourceId(), value.code(), value.name(), value.nameKo(), value.nameEn(),
+                value.type(), value.site(), value.floor(), value.capacity(), value.features(),
+                value.timeZone(), value.approvalRequired(), value.state(),
+                physicallyOpen && value.state() == ResourceState.AVAILABLE,
+                value.version());
     }
 
     private CalendarDtos.BookingSummary booking(CalendarRepository.BookingRow value) {

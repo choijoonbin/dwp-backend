@@ -58,6 +58,12 @@ public class VideoMeetingIntelligenceController {
         return ApiResponse.success(service.latestReport(meetingId));
     }
 
+    @GetMapping("/reports/latest-published")
+    public ApiResponse<VideoMeetingIntelligenceDtos.ReportResponse> latestPublishedReport(
+            @PathVariable UUID meetingId) {
+        return ApiResponse.success(service.latestPublishedReport(meetingId));
+    }
+
     @PostMapping("/reports/{reportId}/review")
     public ApiResponse<VideoMeetingIntelligenceDtos.ReportResponse> review(
             @PathVariable UUID meetingId,

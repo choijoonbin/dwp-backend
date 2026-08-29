@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -49,7 +50,8 @@ class CalendarRecurringResourceHorizonTest {
     @Test
     void roomsCreateAcceptsTheLastLocalDayAcrossFallBack() {
         CalendarService calendar = serviceAt("2026-10-25T13:00:00Z");
-        RoomService rooms = new RoomService(calendar, repository, roomRepository);
+        RoomService rooms = new RoomService(
+                calendar, repository, roomRepository, mock(RoomBookingPolicyService.class));
         CalendarDtos.CreateEventRequest request = create(
                 "2026-10-25T10:00:00-04:00",
                 "2026-10-25T11:00:00-04:00",
@@ -106,7 +108,8 @@ class CalendarRecurringResourceHorizonTest {
     @Test
     void roomsCreateRejectsTheNextLocalDate() {
         CalendarService calendar = serviceAt("2026-10-25T13:00:00Z");
-        RoomService rooms = new RoomService(calendar, repository, roomRepository);
+        RoomService rooms = new RoomService(
+                calendar, repository, roomRepository, mock(RoomBookingPolicyService.class));
         CalendarDtos.CreateEventRequest request = create(
                 "2026-10-25T10:00:00-04:00",
                 "2026-10-25T11:00:00-04:00",

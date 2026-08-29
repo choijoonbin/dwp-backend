@@ -162,8 +162,18 @@ class HcmOwnerPepExecutionTest {
                         get("/v1/hr/home"),
                         "route.hcm.personal.home.page",
                         "PROVIDER_SUPPORT",
-                        "",
+                        "APP.HCM:VIEW",
                         selfScope(TENANT_ID, ACTOR_ID)))
+                .andExpect(status().isForbidden());
+
+        mvc.perform(exact(
+                        get("/v1/hr/home"),
+                        "route.hcm.personal.home.page",
+                        "WORKSPACE_MEMBER",
+                        "APP.HCM:VIEW",
+                        selfScope(TENANT_ID, ACTOR_ID),
+                        CONTEXT_KEY,
+                        "PROVIDER_SUPPORT"))
                 .andExpect(status().isForbidden());
 
         verify(hrService, never()).home();
@@ -187,6 +197,7 @@ class HcmOwnerPepExecutionTest {
                         HcmProductSurfacePepFilter.ROUTE_CONTRACT_HEADER,
                         "route.hcm.personal.home.page")
                 .header(HcmProductSurfacePepFilter.CURRENT_CONTEXT_HEADER, CONTEXT_KEY)
+                .header(HcmProductSurfacePepFilter.ACTIVE_ACCESS_MODE_HEADER, "NORMAL")
                 .header(
                         HcmProductSurfacePepFilter.CURRENT_SCOPE_HEADER,
                         selfScope(TENANT_ID, ACTOR_ID))
@@ -282,7 +293,9 @@ class HcmOwnerPepExecutionTest {
                 "route.hcm.personal.time-submit.action",
                 "WORKSPACE_MEMBER",
                 "APP.HCM:VIEW",
-                scope);
+                scope,
+                CONTEXT_KEY,
+                "ELEVATED");
         action.header(
                 HcmProductSurfacePepFilter.EXPECTED_DECISION_REVISION_HEADER,
                 DECISION_REVISION);
@@ -303,7 +316,7 @@ class HcmOwnerPepExecutionTest {
             String roles,
             String permissions,
             String scope) {
-        return exact(request, route, roles, permissions, scope, CONTEXT_KEY);
+        return exact(request, route, roles, permissions, scope, CONTEXT_KEY, "NORMAL");
     }
 
     private MockHttpServletRequestBuilder exact(
@@ -313,6 +326,17 @@ class HcmOwnerPepExecutionTest {
             String permissions,
             String scope,
             String context) {
+        return exact(request, route, roles, permissions, scope, context, "NORMAL");
+    }
+
+    private MockHttpServletRequestBuilder exact(
+            MockHttpServletRequestBuilder request,
+            String route,
+            String roles,
+            String permissions,
+            String scope,
+            String context,
+            String activeAccessMode) {
         return request
                 .header(PeopleSecurityFilter.SERVICE_TOKEN_HEADER, "people-token")
                 .header(PeopleSecurityFilter.USER_HEADER, String.valueOf(ACTOR_ID))
@@ -326,6 +350,7 @@ class HcmOwnerPepExecutionTest {
                 .header(HcmProductSurfacePepFilter.ROUTE_CONTRACT_HEADER, route)
                 .header(HcmProductSurfacePepFilter.CURRENT_CONTEXT_HEADER, context)
                 .header(HcmProductSurfacePepFilter.CURRENT_SCOPE_HEADER, scope)
+                .header(HcmProductSurfacePepFilter.ACTIVE_ACCESS_MODE_HEADER, activeAccessMode)
                 .header(
                         HcmProductSurfacePepFilter.CURRENT_DECISION_REVISION_HEADER,
                         DECISION_REVISION)

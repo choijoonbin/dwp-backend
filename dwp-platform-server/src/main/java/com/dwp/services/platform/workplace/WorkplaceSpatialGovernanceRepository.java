@@ -131,6 +131,22 @@ public class WorkplaceSpatialGovernanceRepository extends WorkplaceSpatialGovern
         return jdbc.query(WorkplaceSpatialGovernanceSql01.ACTIVE_ACCESS_RULES_SELECT_WP_SITE_ACCESS_RULES, this::accessRule, tenantId, siteId, now, now);
     }
 
+    public List<AccessRuleRow> activeAccessRules(
+            Long tenantId, Set<UUID> siteIds, OffsetDateTime now) {
+        if (siteIds.isEmpty()) return List.of();
+        String placeholders = siteIds.stream().map(ignored -> "?")
+                .collect(Collectors.joining(", "));
+        String sql = WorkplaceSpatialGovernanceSql01
+                .ACTIVE_ACCESS_RULES_FOR_SITES_SELECT_WP_SITE_ACCESS_RULES
+                .formatted(placeholders);
+        List<Object> parameters = new ArrayList<>();
+        parameters.add(tenantId);
+        parameters.addAll(siteIds);
+        parameters.add(now);
+        parameters.add(now);
+        return jdbc.query(sql, this::accessRule, parameters.toArray());
+    }
+
     public Optional<AccessRuleRow> accessRule(Long tenantId, UUID accessRuleId) {
         return one(WorkplaceSpatialGovernanceSql01.ACCESS_RULE_SELECT_WP_SITE_ACCESS_RULES, this::accessRule, tenantId, accessRuleId);
     }

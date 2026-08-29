@@ -86,7 +86,7 @@ class LatestProductSurfaceAndMeetingEnumContractRegistryPostgresIntegrationTest 
 
     @Test
     void freshPlatformMigrationRegistersEveryLatestJavaEnumContract() {
-        cleanAndMigrateThrough(null);
+        cleanAndMigrateThrough("210");
 
         assertExpectedCodeSets();
         assertExpectedTypedBindings();

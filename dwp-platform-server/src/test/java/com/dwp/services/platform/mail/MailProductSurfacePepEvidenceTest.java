@@ -46,12 +46,13 @@ class MailProductSurfacePepEvidenceTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     private final MailService service = mock(MailService.class);
+    private final MailDraftService drafts = mock(MailDraftService.class);
     private final MailProductSurfaceContract contract = new MailProductSurfaceContract();
     private MockMvc mvc;
 
     @BeforeEach
     void setUp() {
-        reset(service);
+        reset(service, drafts);
         PlatformSecurityFilter platformSecurity = new PlatformSecurityFilter(
                 "trusted",
                 "runtime",
@@ -64,7 +65,7 @@ class MailProductSurfacePepEvidenceTest {
                 contract,
                 new MailProductSurfaceAccessPolicy(),
                 objectMapper);
-        mvc = MockMvcBuilders.standaloneSetup(new MailController(service))
+        mvc = MockMvcBuilders.standaloneSetup(new MailController(service, drafts))
                 .addFilters(platformSecurity, mailPep)
                 .build();
     }

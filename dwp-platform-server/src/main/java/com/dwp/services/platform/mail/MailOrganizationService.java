@@ -175,33 +175,9 @@ public class MailOrganizationService {
     @Transactional
     public MailOrganizationDtos.RuleRunSummary runRule(
             Long tenantId, Long userId, UUID ruleId, String correlationId) {
-        MailOrganizationDtos.RuleSummary rule = rule(tenantId, userId, ruleId);
-        if (!rule.enabled()) {
-            throw new BaseException(ErrorCode.INVALID_STATE, "Enable the rule before running it.");
-        }
-        UUID runId = commands.startRuleRun(tenantId, userId, ruleId);
-        List<MailOrganizationQueryRepository.RuleCandidate> candidates =
-                queries.candidates(tenantId, userId, rule.accountId());
-        List<MailOrganizationQueryRepository.RuleCandidate> matches = candidates.stream()
-                .filter(candidate -> evaluator.matches(rule, candidate))
-                .toList();
-        int changed = matches.stream()
-                .mapToInt(candidate -> commands.applyRuleActions(
-                        tenantId, userId, rule.accountId(), candidate.threadId(),
-                        candidate.version(), rule.actions()))
-                .sum();
-        commands.completeRuleRun(
-                tenantId, userId, ruleId, runId, candidates.size(), matches.size(), changed);
-        record(tenantId, userId, correlationId, "mail.rule.executed", "MAIL_RULE",
-                ruleId, Map.of("version", rule.version()), Map.of(
-                        "runId", runId,
-                        "scannedCount", candidates.size(),
-                        "matchedCount", matches.size(),
-                        "changedCount", changed));
-        return queries.recentRuns(tenantId, userId).stream()
-                .filter(run -> run.runId().equals(runId))
-                .findFirst()
-                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        throw new BaseException(
+                ErrorCode.INVALID_STATE,
+                "Direct rule execution is disabled. Use preview-bound backfill.");
     }
 
     private void validateRule(

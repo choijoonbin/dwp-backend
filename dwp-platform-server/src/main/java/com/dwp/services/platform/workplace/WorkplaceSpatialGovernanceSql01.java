@@ -173,6 +173,17 @@ final class WorkplaceSpatialGovernanceSql01 {
          ORDER BY subject_type, permission_code, created_at
         """;
 
+    static final String ACTIVE_ACCESS_RULES_FOR_SITES_SELECT_WP_SITE_ACCESS_RULES = """
+        SELECT access_rule_id, site_id, subject_type, subject_user_id,
+               subject_group_ref, permission_code, effect, valid_from,
+               valid_until, lifecycle_state, version
+          FROM wp_site_access_rules
+         WHERE tenant_id = ? AND site_id IN (%s) AND lifecycle_state = 'ACTIVE'
+           AND (valid_from IS NULL OR valid_from <= ?)
+           AND (valid_until IS NULL OR valid_until > ?)
+         ORDER BY site_id, subject_type, permission_code, created_at
+        """;
+
     static final String ACCESS_RULE_SELECT_WP_SITE_ACCESS_RULES = """
         SELECT access_rule_id, site_id, subject_type, subject_user_id,
                subject_group_ref, permission_code, effect, valid_from,

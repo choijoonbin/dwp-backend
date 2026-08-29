@@ -5,6 +5,7 @@ import com.dwp.core.exception.BaseException;
 import com.dwp.services.meeting.security.MeetingRequestContext;
 import com.dwp.services.meeting.videomeeting.api.VideoMeetingIntelligenceDtos;
 import com.dwp.services.meeting.videomeeting.audit.VideoMeetingAuditRecorder;
+import com.dwp.services.meeting.videomeeting.domain.VideoMeetingIntelligenceModels.Audience;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingIntelligenceModels.ContentGrant;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingIntelligenceModels.ContentPermission;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingIntelligenceModels.IntelligenceReport;
@@ -186,8 +187,8 @@ public class VideoMeetingIntelligenceService {
         }
         MeetingIntelligenceRunTransactions.FinalizedExecution finalized =
                 runTransactions.succeed(
-                        subject, prepared.meeting(), canonicalCorrelationId,
-                        running, capability.providerCode(), capability.model(), reportId,
+                        subject, prepared, canonicalCorrelationId,
+                        capability.providerCode(), capability.model(), reportId,
                         encrypted, payloadSha256, prepared.retentionUntil(),
                         subject.userId(), now());
         return VideoMeetingIntelligenceDtos.RunResponse.from(
@@ -239,6 +240,22 @@ public class VideoMeetingIntelligenceService {
                 now);
         if (!access.canView(viewer, report, grant)) {
             throw notFound("The intelligence report was not found.");
+        }
+        return response(report);
+    }
+
+    @Transactional(readOnly = true)
+    public VideoMeetingIntelligenceDtos.ReportResponse latestPublishedReport(UUID meetingId) {
+        MeetingRequestContext.Subject subject = MeetingRequestContext.get();
+        Meeting meeting = accessibleMeeting(subject, meetingId);
+        Participant viewer = member(subject, meeting);
+        IntelligenceReport report = intelligence.latestPublishedReport(
+                        subject.tenantId(), meetingId, now())
+                .orElseThrow(() -> notFound("The published intelligence report was not found."));
+        if (report.state() != ReportState.PUBLISHED
+                || report.audience() != Audience.MEETING_PARTICIPANTS
+                || !access.canView(viewer, report, false)) {
+            throw notFound("The published intelligence report was not found.");
         }
         return response(report);
     }

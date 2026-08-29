@@ -87,10 +87,8 @@ public interface MeetingIntelligenceProvider {
     }
 
     enum ClimateSignal {
-        BALANCED_TURN_TAKING,
         CONSTRUCTIVE_DISAGREEMENT,
         UNRESOLVED_DISAGREEMENT,
-        DOMINANT_MONOLOGUE_PATTERN,
         LOW_TRANSCRIPT_EVIDENCE
     }
 }

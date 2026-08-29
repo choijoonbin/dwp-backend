@@ -8,8 +8,8 @@ Ownership is split deliberately:
 
 - Identity Architecture and Security approve the bundle schema, capabilities,
   access policies, route bindings, version lineage and activation pointer.
-- Platform, Approval, People and Auth own evidence evaluation for predicate
-  descriptors whose `ownerServiceKey` names their service.
+- Each routed owner service and Auth own evidence evaluation for predicate
+  descriptors whose `ownerServiceKey` names that service.
 - Frontend manifests and test fixtures may reference stable contract keys, but
   must not redefine capability codes, profiles, predicates or API bindings.
 
@@ -30,18 +30,19 @@ where that descriptor exists, then preserves it in every later monotonic
 superset. It expands projection bindings and descriptor-to-route reverse
 indexes, validates same-bundle references and computes SHA-256 over canonical
 JSON with the mutable `checksum` and `bundleStatus` members omitted. The
-canonical source contains a version 1 base plus append-only version 2 and
-version 3 waves. It emits complete snapshots rather than deltas:
+canonical source contains a version 1 base plus append-only version 2, 3 and 4
+waves. It emits complete snapshots rather than deltas:
 
 - `product-surfaces-v1.bundle-v1.json` — W0/Canary, checksum `bc34f47b…`
 - `product-surfaces-v1.bundle-v2.json` — W1a Approvals, checksum `5b634a35…`
 - `product-surfaces-v1.bundle-v3.json` — W1b HCM candidate, checksum `f90c4e3a…`
-- `product-surfaces-v1.json` — byte-identical latest/final alias of bundle v3
+- `product-surfaces-v1.bundle-v4.json` — twelve-product exact closure, checksum `a9cd0826…`
+- `product-surfaces-v1.json` — byte-identical latest/final alias of bundle v4
 - `product-surfaces-v1.index.json` — checksummed version/artifact index
 
 Auth classpath resources use the same names with `.generated.json` before the
 extension. Every contract snapshot is byte-identical to its Auth seed peer;
-the latest Auth alias is byte-identical to bundle v3. The generator verifies
+the latest Auth alias is byte-identical to bundle v4. The generator verifies
 all files, checksums, aliases, descriptor preservation and monotonic reverse
 references in both generate and `--check` modes.
 
@@ -53,7 +54,10 @@ command bindings and the Auth step-up authority endpoint. It contains zero HCM
 routes, capabilities or product policies. The Approval and Platform runtime PEP
 resources project version 2 only. Version 3 is the exact monotonic superset that
 adds the HCM descriptors and their enrichments; no HCM runtime PEP or activation
-is wired by this contract generation step.
+is wired by this contract generation step. Version 4 is the exact monotonic
+superset that adds the remaining product descriptors and closes at least one
+`PAGE`, `DATA` and `ACTION` route for every rollout product. Generating or
+loading version 4 does not approve or activate it.
 
 The signed pilot fixture has no authoritative top-level registry reference.
 Its `registryLineage` is informational only; every test case and step-up
@@ -93,17 +97,15 @@ members of the immutable authorization bundle. For product `p`, Gateway composes
 rollout/audit compatibility evidence. New Gateway binaries do not read it or use
 it as a master switch, and operators must not create new rollouts for it.
 
-The v3 candidate bundle contains product routes for Approvals, Communications,
-HCM, and Services while the checksummed rollout inventory covers twelve
-products. X-03 treats a product contract as `EXACT` only when the bundle has at
-least one `PAGE`, `DATA`, and `ACTION` route for that product. Approvals and HCM
-currently meet that contract; Communications and Services are
-`INCOMPLETE_KINDS` because they have no `DATA` route. The other eight products
-are `MISSING`. Therefore only `EXACT` products may use the explicit pilot
-ceiling `111`; `INCOMPLETE_KINDS` and `MISSING` products remain capped at `100`
-with authority not evaluated. Product-scoped activation does not weaken that
-fence or alter any v1-v3 bundle byte/checksum. `MISSING` describes the
-authorization contract, not the product's UI inventory or telemetry.
+The v4 candidate bundle and checksummed rollout inventory cover twelve products.
+X-03 treats a product contract as `EXACT` only when the bundle has at least one
+`PAGE`, `DATA`, and `ACTION` route for that product. All twelve products now meet
+that contract and may use the explicit pilot ceiling `111`; the missing-contract
+guard still caps any future `INCOMPLETE_KINDS` or `MISSING` product at `100` with
+authority not evaluated. Product-scoped activation does not weaken that fence,
+alter any v1-v4 bundle byte/checksum, or turn the DRAFT v4 artifact into release
+approval. `MISSING` describes an authorization contract, not a product's UI
+inventory or telemetry.
 
 The 46-case canonical negative fixture binding proves only catalog integrity:
 the checksum, record count, unique fixture IDs and non-empty signed input and
@@ -113,21 +115,14 @@ requires separately recorded automated execution evidence and owner approval.
 
 X-03 `ownerService` identifies the service that receives the product's public
 Gateway route and owns its independent policy-enforcement filter; it is not a
-generic Platform fallback. The matrix checker derives Notifications from the
-Gateway `SERVICE_NOTIFICATION_URL` routes and `NotificationSecurityFilter`, and
-Spaces from the `SERVICE_SPACE_URL` route and `SpaceSecurityFilter`. Therefore
-their owners are respectively `dwp-notification-server` and
-`dwp-space-server`. Evidence under `dwp-platform-server/src/test` is rejected
-for both products; only a test method below the routed owner module's
-`src/test` tree can become owner-service evidence. This ownership correction
-does not claim missing PEP coverage: both products retain all five `MISSING`
-cells. Three former `SCOPE_ESCAPE` references for Communications, HCM and
-Services exercised route or query alteration rather than canonical opaque-scope
-escape, so they remain missing. The complete matrix is calculation-derived as
-`PARTIAL` with 47 of 60 product/vector cells missing. A future `COMPLETE` state
-is valid only when all twelve products are `EXACT`, all 60 owner-service vector
-cells are classified as evidence, and no product blocker remains. That local
-state does not replace recorded test-run evidence or release approval.
+generic Platform fallback. The matrix checker accepts evidence only from the
+routed owner's executable test boundary. DWAI.ON additionally pins an immutable
+Agent revision and executable pytest attestation rather than accepting a textual
+cross-repository reference. The current calculation-derived matrix has all
+twelve products `EXACT`, all 60 owner-service attack-vector cells evidenced, no
+product blocker, and `completionState=COMPLETE`. That local technical closure
+does not replace provider approval, staging evidence, manual acceptance,
+penetration testing, release approval or any other external production evidence.
 
 Gateway persists the last approved `S/E_p` pair at
 `dwp:gateway:product-surface:se-latch:v2:<tenant>:<product>`. Provider failure
@@ -138,10 +133,10 @@ corrupt or unavailable durable state also fails closed. A higher approved
 revision with `E_p=false` is the only rollout path from `110` to `100`.
 
 Runtime loaders reject `test.*` keys and never read test registry overrides.
-The checksummed seed index imports only versions 1, 2 and 3 in order, all as
-`DRAFT`. It contains no active version field or pointer. Activation is an
-explicit CAS pointer transition after independent approval; loading a seed does
-not approve or activate it.
+The checksummed seed index imports versions 1 through 4 in order, all as `DRAFT`.
+It contains no active version field or pointer. Activation is an explicit CAS
+pointer transition after independent approval; loading a seed does not approve
+or activate it.
 
 ## Production/shared approval, activation and rollback runbook
 

@@ -2,6 +2,7 @@ package com.dwp.services.meeting.security;
 
 import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
+import com.dwp.services.meeting.videomeeting.api.MeetingMediaWebhookController;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -90,6 +91,7 @@ public class MeetingSecurityFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         return path.startsWith("/actuator/health")
                 || path.startsWith("/v3/api-docs")
+                || path.equals(MeetingMediaWebhookController.PATH)
                 || path.equals("/error");
     }
 

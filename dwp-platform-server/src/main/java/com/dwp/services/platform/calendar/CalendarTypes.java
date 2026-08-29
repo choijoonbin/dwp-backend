@@ -34,4 +34,8 @@ public final class CalendarTypes {
     public enum ResourceType { ROOM, DESK, EQUIPMENT }
 
     public enum ResourceState { AVAILABLE, MAINTENANCE, RETIRED }
+
+    public enum RoomBookingEligibilityReason {
+        ELIGIBLE, RESOURCE_UNAVAILABLE, POLICY_BLOCKED, RESOURCE_CONFLICT
+    }
 }

@@ -706,6 +706,33 @@
         },
         "type": "object"
       },
+      "ApiResponseReadinessResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ReadinessResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseRecordingCommandResponse": {
         "properties": {
           "correlationId": {
@@ -1200,10 +1227,8 @@
           "signals": {
             "items": {
               "enum": [
-                "BALANCED_TURN_TAKING",
                 "CONSTRUCTIVE_DISAGREEMENT",
                 "UNRESOLVED_DISAGREEMENT",
-                "DOMINANT_MONOLOGUE_PATTERN",
                 "LOW_TRANSCRIPT_EVIDENCE"
               ],
               "type": "string"
@@ -2202,6 +2227,62 @@
         },
         "type": "object"
       },
+      "ReadinessResponse": {
+        "properties": {
+          "capabilities": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ReadinessSignal"
+            },
+            "type": "object"
+          },
+          "dependencies": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ReadinessSignal"
+            },
+            "type": "object"
+          },
+          "governance": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ReadinessSignal"
+            },
+            "type": "object"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "processingRegion": {
+            "type": "string"
+          },
+          "providerCode": {
+            "type": "string"
+          },
+          "providerModel": {
+            "type": "string"
+          },
+          "readinessVersion": {
+            "type": "string"
+          },
+          "recordingPolicy": {
+            "type": "string"
+          },
+          "retention": {
+            "$ref": "#/components/schemas/RetentionReadiness"
+          }
+        },
+        "type": "object"
+      },
+      "ReadinessSignal": {
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "RecordingCommandResponse": {
         "properties": {
           "accepted": {
@@ -2331,6 +2412,32 @@
           "expectedPlanVersion": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "RetentionReadiness": {
+        "properties": {
+          "artifactDays": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "chatDays": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "intelligenceWorkerReady": {
+            "type": "boolean"
+          },
+          "meetingDays": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "signals": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/ReadinessSignal"
+            },
+            "type": "object"
           }
         },
         "type": "object"
@@ -2587,7 +2694,7 @@
           },
           "recordingPolicy": {
             "minLength": 1,
-            "pattern": "NEVER",
+            "pattern": "NEVER|HOST_OPT_IN|ADMIN_REQUIRED",
             "type": "string"
           },
           "requireAuthenticatedInternalUsers": {
@@ -2765,6 +2872,26 @@
         },
         "tags": [
           "meeting-transcript-artifact-controller"
+        ]
+      }
+    },
+    "/v1/admin/intelligence/readiness": {
+      "get": {
+        "operationId": "readiness",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseReadinessResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-admin-intelligence-controller"
         ]
       }
     },
@@ -3892,6 +4019,37 @@
     "/v1/meetings/{meetingId}/intelligence/reports/latest": {
       "get": {
         "operationId": "latestReport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseReportResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-intelligence-controller"
+        ]
+      }
+    },
+    "/v1/meetings/{meetingId}/intelligence/reports/latest-published": {
+      "get": {
+        "operationId": "latestPublishedReport",
         "parameters": [
           {
             "in": "path",

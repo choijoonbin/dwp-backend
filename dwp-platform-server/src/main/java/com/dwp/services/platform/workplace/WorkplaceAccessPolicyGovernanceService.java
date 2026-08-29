@@ -91,6 +91,39 @@ final class WorkplaceAccessPolicyGovernanceService
         Set<UUID> groupRefs = verifiedGroupRefs(verifiedGroupRefs);
         OffsetDateTime now = OffsetDateTime.now();
         List<AccessRuleRow> active = repository.activeAccessRules(tenantId, siteId, now);
+        return siteAccessDecision(siteId, userId, permission, groupRefs, active, now);
+    }
+
+    Map<UUID, SiteAccessDecision> evaluateSiteAccesses(
+            Long tenantId,
+            Long userId,
+            String verifiedGroupRefs,
+            Set<UUID> siteIds,
+            AccessPermission permission) {
+        if (siteIds == null || siteIds.isEmpty()) return Map.of();
+        Set<UUID> requested = siteIds.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
+        if (requested.isEmpty()) return Map.of();
+        Set<UUID> groupRefs = verifiedGroupRefs(verifiedGroupRefs);
+        OffsetDateTime now = OffsetDateTime.now();
+        Map<UUID, List<AccessRuleRow>> activeBySite = repository
+                .activeAccessRules(tenantId, requested, now).stream()
+                .collect(Collectors.groupingBy(AccessRuleRow::siteId));
+        Map<UUID, SiteAccessDecision> decisions = new LinkedHashMap<>();
+        requested.forEach(siteId -> decisions.put(siteId, siteAccessDecision(
+                siteId, userId, permission, groupRefs,
+                activeBySite.getOrDefault(siteId, List.of()), now)));
+        return Map.copyOf(decisions);
+    }
+
+    private SiteAccessDecision siteAccessDecision(
+            UUID siteId,
+            Long userId,
+            AccessPermission permission,
+            Set<UUID> groupRefs,
+            List<AccessRuleRow> active,
+            OffsetDateTime now) {
         if (active.isEmpty()) {
             return new SiteAccessDecision(siteId, userId, permission, false,
                     "DENY_NOT_CONFIGURED", List.of(), now);

@@ -13,6 +13,7 @@ import org.springframework.jdbc.core.RowMapper;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -179,5 +180,33 @@ class WorkplaceSpatialGovernanceRepositoryTest {
         assertThat(sql.getValue())
                 .contains("site.site_id IN (?)")
                 .contains("COUNT(site.site_id)");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void activeRulesForOneHundredSitesUseOneBoundedQuery() {
+        Set<UUID> siteIds = new LinkedHashSet<>();
+        for (int value = 1; value <= 100; value++) {
+            siteIds.add(new UUID(0L, value));
+        }
+        OffsetDateTime now = OffsetDateTime.parse("2026-08-29T10:00:00+09:00");
+        when(jdbc.query(anyString(), any(RowMapper.class), any(Object[].class)))
+                .thenReturn(List.of());
+        WorkplaceSpatialGovernanceRepository repository =
+                new WorkplaceSpatialGovernanceRepository(jdbc, new ObjectMapper());
+
+        assertThat(repository.activeAccessRules(1L, siteIds, now)).isEmpty();
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Object[]> parameters = ArgumentCaptor.forClass(Object[].class);
+        verify(jdbc).query(sql.capture(), any(RowMapper.class), parameters.capture());
+        assertThat(sql.getValue())
+                .contains("site_id IN (" + "?, ".repeat(99) + "?)")
+                .contains("lifecycle_state = 'ACTIVE'");
+        assertThat(parameters.getValue()).hasSize(103);
+        assertThat(parameters.getValue()[0]).isEqualTo(1L);
+        assertThat(parameters.getValue()).containsAll(siteIds);
+        assertThat(parameters.getValue()[101]).isEqualTo(now);
+        assertThat(parameters.getValue()[102]).isEqualTo(now);
     }
 }

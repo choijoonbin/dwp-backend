@@ -121,7 +121,8 @@ class VideoMeetingServiceTest {
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
 
         verify(mediaProvider, never()).ensureRoom(any(), anyInt());
-        verify(repository, never()).start(any(), any(), any(), anyLong(), anyLong());
+        verify(repository, never()).start(
+                any(), any(), any(), any(), anyLong(), anyLong());
     }
 
     @Test
@@ -192,15 +193,19 @@ class VideoMeetingServiceTest {
         Meeting live = meeting(meetingId, LifecycleState.LIVE, 3);
         Participant admitted = participant(
                 meetingId, ParticipantRole.ATTENDEE, AttendanceState.ADMITTED, 1);
+        UUID incarnation = UUID.randomUUID();
         MeetingRequestContext.set(subject());
-        when(repository.accessibleMeeting(TENANT_ID, meetingId, USER_ID))
+        when(repository.lockAccessibleMeeting(TENANT_ID, meetingId, USER_ID))
                 .thenReturn(Optional.of(live));
+        when(repository.mediaSession(TENANT_ID, meetingId))
+                .thenReturn(Optional.of(new VideoMeetingRepository.MediaSession(
+                        incarnation, "ACTIVE")));
         when(repository.ensurePolicy(TENANT_ID, USER_ID)).thenReturn(policy());
         when(repository.participant(TENANT_ID, meetingId, USER_ID))
                 .thenReturn(Optional.of(admitted));
         when(mediaProvider.capability()).thenReturn(capability());
         when(mediaProvider.issueParticipantToken(
-                live, admitted, subject(), effectivePermissions(), NOW))
+                live, admitted, subject(), effectivePermissions(), NOW, incarnation))
                 .thenReturn(new MeetingMediaProvider.ParticipantToken(
                         "ws://livekit", "secret-participant-token", NOW.plusMinutes(5)));
 
@@ -226,11 +231,29 @@ class VideoMeetingServiceTest {
     }
 
     @Test
-    void mediaConnectionAndLeaveDriveAttendanceInsteadOfTokenIssuance() {
+    void legacyMigratingRoomCannotIssueANewParticipantToken() {
         UUID meetingId = UUID.randomUUID();
         Meeting live = meeting(meetingId, LifecycleState.LIVE, 3);
-        Participant admitted = participant(
-                meetingId, ParticipantRole.ATTENDEE, AttendanceState.ADMITTED, 1);
+        UUID incarnation = UUID.randomUUID();
+        MeetingRequestContext.set(subject());
+        when(repository.lockAccessibleMeeting(TENANT_ID, meetingId, USER_ID))
+                .thenReturn(Optional.of(live));
+        when(repository.mediaSession(TENANT_ID, meetingId))
+                .thenReturn(Optional.of(new VideoMeetingRepository.MediaSession(
+                        incarnation, "MIGRATING")));
+
+        assertThatThrownBy(() -> service().token(meetingId, null, "corr-migrating"))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
+
+        verify(mediaProvider, never()).issueParticipantToken(
+                any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void clientConnectionCallbacksOnlyAcknowledgeProviderConfirmedAttendance() {
+        UUID meetingId = UUID.randomUUID();
+        Meeting live = meeting(meetingId, LifecycleState.LIVE, 3);
         Participant joined = participant(
                 meetingId, ParticipantRole.ATTENDEE, AttendanceState.JOINED, 2);
         Participant left = participant(
@@ -239,12 +262,8 @@ class VideoMeetingServiceTest {
         when(repository.accessibleMeeting(TENANT_ID, meetingId, USER_ID))
                 .thenReturn(Optional.of(live));
         when(repository.participant(TENANT_ID, meetingId, USER_ID))
-                .thenReturn(Optional.of(admitted))
-                .thenReturn(Optional.of(joined));
-        when(repository.markJoined(
-                TENANT_ID, meetingId, admitted.participantId(), USER_ID)).thenReturn(joined);
-        when(repository.markLeft(
-                TENANT_ID, meetingId, joined.participantId(), USER_ID)).thenReturn(left);
+                .thenReturn(Optional.of(joined))
+                .thenReturn(Optional.of(left));
 
         VideoMeetingDtos.ParticipantResponse connected = service().connected(
                 meetingId, "corr-connected");
@@ -253,12 +272,10 @@ class VideoMeetingServiceTest {
 
         assertThat(connected.attendanceState()).isEqualTo("JOINED");
         assertThat(disconnected.attendanceState()).isEqualTo("LEFT");
-        verify(repository).recordEvent(
-                eq(live), eq(joined), eq(USER_ID), eq("PARTICIPANT_JOINED"),
-                eq("corr-connected"), eq(null), anyMap());
-        verify(repository).recordEvent(
-                eq(live), eq(left), eq(USER_ID), eq("PARTICIPANT_LEFT"),
-                eq("corr-left"), eq(null), anyMap());
+        verify(repository, never()).markJoined(anyLong(), any(), any(), anyLong());
+        verify(repository, never()).markLeft(anyLong(), any(), any(), anyLong());
+        verify(repository, never()).recordEvent(
+                any(), any(), any(), any(), any(), any(), anyMap());
     }
 
     @Test

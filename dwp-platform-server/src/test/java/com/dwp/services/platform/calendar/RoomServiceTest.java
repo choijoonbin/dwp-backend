@@ -9,7 +9,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -36,27 +40,34 @@ class RoomServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new RoomService(calendarService, calendarRepository, roomRepository);
+        RoomBookingPolicyService roomBookingPolicy = new RoomBookingPolicyService(
+                calendarRepository,
+                new CalendarSchedulingHorizon(Clock.fixed(
+                        Instant.parse("2026-08-18T00:00:00Z"), ZoneOffset.UTC)));
+        service = new RoomService(
+                calendarService, calendarRepository, roomRepository, roomBookingPolicy);
     }
 
     @Test
     void availabilityReturnsOnlyRoomOccupancyWithoutEventDetails() {
         UUID roomId = UUID.randomUUID();
         UUID equipmentId = UUID.randomUUID();
-        OffsetDateTime from = OffsetDateTime.parse("2026-08-19T08:00:00+09:00");
-        OffsetDateTime to = OffsetDateTime.parse("2026-08-19T20:00:00+09:00");
+        OffsetDateTime from = OffsetDateTime.parse("2026-08-19T09:00:00+09:00");
+        OffsetDateTime to = from.plusHours(1);
         when(calendarService.resources(
                 1L, 7L, "group-refs", from, to, "ko-KR")).thenReturn(List.of(
                 resource(roomId, CalendarTypes.ResourceType.ROOM),
                 resource(equipmentId, CalendarTypes.ResourceType.EQUIPMENT)));
-        when(roomRepository.resourceOccupancy(1L, from, to)).thenReturn(List.of(
+        when(calendarService.policy(1L)).thenReturn(policy());
+        when(roomRepository.resourceOccupancy(
+                1L, from.minusMinutes(15), to.plusMinutes(15), null)).thenReturn(List.of(
                 new RoomRepository.ResourceOccupancyRow(
-                        roomId, from.plusHours(1), from.plusHours(2), "CONFIRMED"),
+                        roomId, from.plusMinutes(30), from.plusMinutes(45), "CONFIRMED"),
                 new RoomRepository.ResourceOccupancyRow(
                         equipmentId, from.plusHours(3), from.plusHours(4), "CONFIRMED")));
 
         CalendarDtos.RoomAvailabilityResponse result = service.roomAvailability(
-                1L, 7L, "group-refs", from, to, "ko-KR");
+                1L, 7L, null, "group-refs", from, to, null, "ko-KR");
 
         assertThat(result.rooms()).singleElement()
                 .extracting(CalendarDtos.ResourceSummary::resourceId)
@@ -66,6 +77,104 @@ class RoomServiceTest {
                     assertThat(slot.resourceId()).isEqualTo(roomId);
                     assertThat(slot.bookingStatus()).isEqualTo("CONFIRMED");
                 });
+        assertThat(result.bookingEligibility()).singleElement()
+                .satisfies(eligibility -> {
+                    assertThat(eligibility.resourceId()).isEqualTo(roomId);
+                    assertThat(eligibility.eligible()).isFalse();
+                    assertThat(eligibility.reasonCode())
+                            .isEqualTo(CalendarTypes.RoomBookingEligibilityReason.RESOURCE_CONFLICT);
+                    assertThat(eligibility.policyVersion()).isEqualTo(1L);
+                });
+    }
+
+    @Test
+    void availabilityExcludesOnlyAnEditableRoomEventFromEligibility() {
+        UUID personId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        UUID roomId = UUID.randomUUID();
+        OffsetDateTime from = OffsetDateTime.parse("2026-08-19T01:00:00Z");
+        OffsetDateTime to = from.plusHours(1);
+        CalendarRepository.ResourceRow room = room(roomId);
+        CalendarDtos.ResourceSummary summary = resource(roomId, CalendarTypes.ResourceType.ROOM);
+        when(calendarRepository.event(
+                1L, 7L, personId, "group-ref", eventId, true))
+                .thenReturn(Optional.of(roomEvent(eventId, personId, room)));
+        when(calendarService.policy(1L)).thenReturn(policy());
+        when(calendarService.resources(
+                1L, 7L, "group-ref", from, to, "ko-KR")).thenReturn(List.of(summary));
+        when(roomRepository.resourceOccupancy(
+                1L, from.minusMinutes(15), to.plusMinutes(15), eventId)).thenReturn(List.of());
+
+        CalendarDtos.RoomAvailabilityResponse result = service.roomAvailability(
+                1L, 7L, personId, "group-ref", from, to, eventId, "ko-KR");
+
+        assertThat(result.rooms()).singleElement()
+                .extracting(CalendarDtos.ResourceSummary::available)
+                .isEqualTo(true);
+        assertThat(result.bookingEligibility()).singleElement()
+                .satisfies(eligibility -> {
+                    assertThat(eligibility.eligible()).isTrue();
+                    assertThat(eligibility.excludedEventId()).isEqualTo(eventId);
+                    assertThat(eligibility.evaluatedFrom()).isEqualTo(from);
+                    assertThat(eligibility.evaluatedTo()).isEqualTo(to);
+                });
+    }
+
+    @Test
+    void availabilityUsesTheTenantBufferForAdjacentRoomConflicts() {
+        UUID roomId = UUID.randomUUID();
+        OffsetDateTime from = OffsetDateTime.parse("2026-08-19T00:00:00Z");
+        OffsetDateTime to = from.plusHours(1);
+        when(calendarService.policy(1L)).thenReturn(policy());
+        when(calendarService.resources(
+                1L, 7L, null, from, to, "en-US")).thenReturn(List.of(
+                resource(roomId, CalendarTypes.ResourceType.ROOM)));
+        when(roomRepository.resourceOccupancy(
+                1L, from.minusMinutes(15), to.plusMinutes(15), null)).thenReturn(List.of(
+                new RoomRepository.ResourceOccupancyRow(
+                        roomId, to.plusMinutes(10), to.plusHours(1), "CONFIRMED")));
+
+        CalendarDtos.RoomAvailabilityResponse result = service.roomAvailability(
+                1L, 7L, null, null, from, to, null, "en-US");
+
+        assertThat(result.occupancy()).isEmpty();
+        assertThat(result.rooms()).singleElement()
+                .extracting(CalendarDtos.ResourceSummary::available)
+                .isEqualTo(true);
+        assertThat(result.bookingEligibility()).singleElement()
+                .satisfies(eligibility -> {
+                    assertThat(eligibility.eligible()).isFalse();
+                    assertThat(eligibility.reasonCode())
+                            .isEqualTo(CalendarTypes.RoomBookingEligibilityReason.RESOURCE_CONFLICT);
+                });
+    }
+
+    @Test
+    void availabilityCannotExcludeARoomEventWithoutEditAuthority() {
+        UUID personId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        CalendarRepository.ResourceRow room = room(UUID.randomUUID());
+        when(calendarRepository.event(
+                1L, 7L, personId, "viewer-group", eventId, false))
+                .thenReturn(Optional.of(roomEvent(
+                        eventId,
+                        personId,
+                        room,
+                        CalendarTypes.CalendarAccessLevel.VIEW_DETAILS)));
+
+        assertThatThrownBy(() -> service.roomAvailability(
+                1L,
+                7L,
+                personId,
+                "viewer-group",
+                OffsetDateTime.parse("2026-08-19T00:00:00Z"),
+                OffsetDateTime.parse("2026-08-19T01:00:00Z"),
+                eventId,
+                "en-US"))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+
+        verify(calendarService, never()).policy(1L);
     }
 
     @Test
@@ -73,7 +182,8 @@ class RoomServiceTest {
         OffsetDateTime from = OffsetDateTime.parse("2026-08-01T00:00:00+09:00");
 
         assertThatThrownBy(() -> service.roomAvailability(
-                1L, 7L, null, from, from.plusDays(32), "ko-KR"))
+                1L, 7L, null, null,
+                from, from.plusDays(32), null, "ko-KR"))
                 .hasMessageContaining("31 days");
     }
 
@@ -155,6 +265,15 @@ class RoomServiceTest {
             UUID eventId,
             UUID personId,
             CalendarRepository.ResourceRow room) {
+        return roomEvent(
+                eventId, personId, room, CalendarTypes.CalendarAccessLevel.OWNER);
+    }
+
+    private CalendarRepository.EventRow roomEvent(
+            UUID eventId,
+            UUID personId,
+            CalendarRepository.ResourceRow room,
+            CalendarTypes.CalendarAccessLevel accessLevel) {
         OffsetDateTime startsAt = OffsetDateTime.parse("2026-09-01T01:00:00Z");
         return new CalendarRepository.EventRow(
                 eventId, UUID.randomUUID(), "Team", "#2563EB",
@@ -163,7 +282,9 @@ class RoomServiceTest {
                 "Asia/Seoul", false, "Focus room", null,
                 CalendarTypes.EventStatus.CONFIRMED, CalendarTypes.EventVisibility.DEFAULT,
                 CalendarTypes.RecurrencePattern.NONE, 1, (LocalDate) null,
-                false, null, room, 0L);
+                false, null, room, CalendarTypes.EventImportance.NORMAL,
+                CalendarTypes.EventDetailLevel.FULL, false, 0,
+                accessLevel, 0L);
     }
 
     private CalendarRepository.ResourceRow room(UUID roomId) {
@@ -192,6 +313,23 @@ class RoomServiceTest {
                 false,
                 CalendarTypes.ResourceState.AVAILABLE,
                 true,
+                1L);
+    }
+
+    private CalendarDtos.Policy policy() {
+        return new CalendarDtos.Policy(
+                1,
+                LocalTime.of(8, 0),
+                LocalTime.of(20, 0),
+                30,
+                30,
+                120,
+                30,
+                15,
+                240,
+                480,
+                true,
+                false,
                 1L);
     }
 }

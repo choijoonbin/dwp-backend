@@ -326,8 +326,16 @@ public class VideoMeetingService {
             VideoMeetingDtos.IssueTokenCommand request,
             String correlationId) {
         MeetingRequestContext.Subject subject = MeetingRequestContext.get();
-        Meeting meeting = accessible(subject, meetingId);
+        Meeting meeting = repository.lockAccessibleMeeting(
+                        subject.tenantId(), meetingId, subject.userId())
+                .orElseThrow(() -> new BaseException(
+                        ErrorCode.ENTITY_NOT_FOUND, "The meeting was not found."));
         if (!meeting.live()) throw invalidState("The meeting is not live.");
+        VideoMeetingRepository.MediaSession mediaSession = repository.mediaSession(
+                        subject.tenantId(), meetingId)
+                .filter(VideoMeetingRepository.MediaSession::active)
+                .orElseThrow(() -> invalidState(
+                        "The meeting media session is closing or unavailable."));
         TenantPolicy policy = requireEnabledPolicy(subject);
         MeetingMediaProvider.Capability capability = requireProvider();
         Participant participant = repository.participant(
@@ -346,7 +354,8 @@ public class VideoMeetingService {
         MeetingMediaProvider.EffectivePermissions permissions = effectivePermissions(
                 capability, policy);
         MeetingMediaProvider.ParticipantToken token = mediaProvider.issueParticipantToken(
-                meeting, participant, subject, permissions, issuedAt);
+                meeting, participant, subject, permissions, issuedAt,
+                mediaSession.incarnation());
         String eventCorrelation = correlation(correlationId);
         Map<String, Object> evidence = Map.of("expiresAt", token.expiresAt().toString());
         repository.recordEvent(
@@ -376,20 +385,11 @@ public class VideoMeetingService {
             throw new BaseException(ErrorCode.FORBIDDEN, "Meeting admission is required.");
         }
         requireCurrentContentNotice(subject, meetingId, participant);
-        if (participant.attendanceState() == AttendanceState.JOINED) {
-            return VideoMeetingDtos.ParticipantResponse.from(participant);
+        if (participant.attendanceState() != AttendanceState.JOINED) {
+            throw invalidState(
+                    "The media provider has not confirmed this participant connection.");
         }
-        Participant joined = repository.markJoined(
-                subject.tenantId(), meetingId, participant.participantId(), subject.userId());
-        String eventCorrelation = correlation(correlationId);
-        Map<String, Object> evidence = Map.of("joinedAt", joined.joinedAt().toString());
-        repository.recordEvent(
-                meeting, joined, subject.userId(), "PARTICIPANT_JOINED", eventCorrelation,
-                null, evidence);
-        audit.participantAccess(
-                subject, meeting, joined, "meeting.participant.joined",
-                eventCorrelation, "SUCCESS", evidence);
-        return VideoMeetingDtos.ParticipantResponse.from(joined);
+        return VideoMeetingDtos.ParticipantResponse.from(participant);
     }
 
     private void requireCurrentContentNotice(
@@ -410,23 +410,11 @@ public class VideoMeetingService {
                         subject.tenantId(), meetingId, subject.userId())
                 .orElseThrow(() -> new BaseException(
                         ErrorCode.FORBIDDEN, "The meeting participant was not found."));
-        if (participant.attendanceState() == AttendanceState.LEFT) {
-            return VideoMeetingDtos.ParticipantResponse.from(participant);
+        if (participant.attendanceState() != AttendanceState.LEFT) {
+            throw invalidState(
+                    "The media provider has not confirmed this participant departure.");
         }
-        if (participant.attendanceState() != AttendanceState.JOINED) {
-            throw invalidState("Only a joined participant can leave the meeting.");
-        }
-        Participant left = repository.markLeft(
-                subject.tenantId(), meetingId, participant.participantId(), subject.userId());
-        String eventCorrelation = correlation(correlationId);
-        Map<String, Object> evidence = Map.of("leftAt", left.leftAt().toString());
-        repository.recordEvent(
-                meeting, left, subject.userId(), "PARTICIPANT_LEFT", eventCorrelation,
-                null, evidence);
-        audit.participantAccess(
-                subject, meeting, left, "meeting.participant.left",
-                eventCorrelation, "SUCCESS", evidence);
-        return VideoMeetingDtos.ParticipantResponse.from(left);
+        return VideoMeetingDtos.ParticipantResponse.from(participant);
     }
 
     public VideoMeetingDtos.MeetingDetailResponse end(

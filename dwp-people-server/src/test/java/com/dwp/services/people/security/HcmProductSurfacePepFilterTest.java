@@ -202,6 +202,7 @@ class HcmProductSurfacePepFilterTest {
                 .header(HcmProductSurfacePepFilter.ROUTE_CONTRACT_HEADER, route)
                 .header(HcmProductSurfacePepFilter.CURRENT_CONTEXT_HEADER, CONTEXT_KEY)
                 .header(HcmProductSurfacePepFilter.CURRENT_SCOPE_HEADER, "hcm-scope-current")
+                .header(HcmProductSurfacePepFilter.ACTIVE_ACCESS_MODE_HEADER, "NORMAL")
                 .header(HcmProductSurfacePepFilter.CURRENT_DECISION_REVISION_HEADER,
                         DECISION_REVISION)
                 .header(HcmProductSurfacePepFilter.CURRENT_DECISION_REVALIDATE_AT_HEADER,

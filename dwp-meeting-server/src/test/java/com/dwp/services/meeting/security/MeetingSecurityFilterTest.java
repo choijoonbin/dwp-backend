@@ -125,6 +125,27 @@ class MeetingSecurityFilterTest {
     }
 
     @Test
+    void onlyTheExactProviderSignedWebhookRouteBypassesGatewayIdentity()
+            throws ServletException, IOException {
+        MeetingSecurityFilter filter = new MeetingSecurityFilter(
+                "trusted-token", new ObjectMapper().findAndRegisterModules());
+        MockHttpServletRequest webhook = request(
+                "POST", "/internal/v1/media/livekit/webhook");
+        AtomicBoolean invoked = new AtomicBoolean();
+
+        filter.doFilter(webhook, new MockHttpServletResponse(),
+                (servletRequest, servletResponse) -> invoked.set(true));
+
+        assertThat(invoked).isTrue();
+
+        MockHttpServletResponse siblingResponse = new MockHttpServletResponse();
+        filter.doFilter(request(
+                        "POST", "/internal/v1/media/livekit/webhook/extra"),
+                siblingResponse, new MockFilterChain());
+        assertThat(siblingResponse.getStatus()).isEqualTo(401);
+    }
+
+    @Test
     void activeExactRolloutLeavesUnmodeledSiblingRoutesOnTheLegacyPermissionBoundary()
             throws ServletException, IOException {
         MeetingSecurityFilter filter = exactFilter();

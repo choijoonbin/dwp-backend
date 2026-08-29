@@ -16,20 +16,6 @@ import static com.dwp.services.platform.mail.MailTypes.*;
 @Repository
 class MailQueryRepository {
 
-    private static final String VISIBLE_THREAD_PREDICATE = """
-             AND (
-                 account.owner_user_id = ?
-                 OR EXISTS (
-                     SELECT 1
-                       FROM mail_shared_inbox_members membership
-                      WHERE membership.tenant_id = thread.tenant_id
-                        AND membership.shared_inbox_id = thread.shared_inbox_id
-                        AND membership.user_id = ?
-                        AND membership.lifecycle_state = 'ACTIVE'
-                 )
-             )
-            """;
-
     private final JdbcTemplate jdbc;
     private final MailJsonCodec json;
 
@@ -46,21 +32,10 @@ class MailQueryRepository {
                        account.is_default
                   FROM mail_accounts account
                   JOIN mail_provider_connections connection
-                    ON connection.connection_id = account.connection_id
+                    ON connection.tenant_id = account.tenant_id
+                   AND connection.connection_id = account.connection_id
                  WHERE account.tenant_id = ?
-                   AND (
-                       account.owner_user_id = ?
-                       OR EXISTS (
-                           SELECT 1
-                             FROM mail_shared_inboxes inbox
-                             JOIN mail_shared_inbox_members membership
-                               ON membership.shared_inbox_id = inbox.shared_inbox_id
-                              AND membership.tenant_id = inbox.tenant_id
-                            WHERE inbox.account_id = account.account_id
-                              AND membership.user_id = ?
-                              AND membership.lifecycle_state = 'ACTIVE'
-                       )
-                   )
+                """ + MailAccessSql.ACCOUNT_ACCESS + """
                  ORDER BY account.is_default DESC, account.account_kind, account.display_name
                 """, (result, ignored) -> new MailDtos.AccountSummary(
                 result.getObject("account_id", UUID.class),
@@ -99,15 +74,16 @@ class MailQueryRepository {
             String search,
             int page,
             int pageSize) {
-        return jdbc.query(threadSelect() + VISIBLE_THREAD_PREDICATE + """
+        return jdbc.query(threadSelect() + MailAccessSql.THREAD_ACCESS + """
                    AND (? = '' OR thread.triage_lane = ?)
-                   AND ((? = '' AND thread.workflow_state NOT IN ('ARCHIVED', 'TRASHED', 'SPAM'))
-                        OR (? <> '' AND thread.workflow_state = ?))
+                """ + MailAccessSql.WORKFLOW_FILTER + """
                    AND (? = '' OR EXISTS (
                        SELECT 1
                          FROM mail_thread_folders membership
                          JOIN mail_folders member_folder
-                           ON member_folder.folder_id = membership.folder_id
+                           ON member_folder.tenant_id = membership.tenant_id
+                          AND member_folder.account_id = thread.account_id
+                          AND member_folder.folder_id = membership.folder_id
                         WHERE membership.tenant_id = thread.tenant_id
                           AND membership.thread_id = thread.thread_id
                           AND member_folder.folder_type = ?
@@ -115,6 +91,10 @@ class MailQueryRepository {
                    AND (?::uuid IS NULL OR EXISTS (
                        SELECT 1
                          FROM mail_thread_folders selected_membership
+                         JOIN mail_folders selected_folder
+                           ON selected_folder.tenant_id = selected_membership.tenant_id
+                          AND selected_folder.account_id = thread.account_id
+                          AND selected_folder.folder_id = selected_membership.folder_id
                         WHERE selected_membership.tenant_id = thread.tenant_id
                           AND selected_membership.thread_id = thread.thread_id
                           AND selected_membership.folder_id = ?::uuid
@@ -163,18 +143,24 @@ class MailQueryRepository {
         Long value = jdbc.queryForObject("""
                 SELECT COUNT(*)
                   FROM mail_threads thread
-                  JOIN mail_accounts account ON account.account_id = thread.account_id
-                  JOIN mail_folders folder ON folder.folder_id = thread.folder_id
+                  JOIN mail_accounts account
+                    ON account.tenant_id = thread.tenant_id
+                   AND account.account_id = thread.account_id
+                  JOIN mail_folders folder
+                    ON folder.tenant_id = thread.tenant_id
+                   AND folder.account_id = thread.account_id
+                   AND folder.folder_id = thread.folder_id
                  WHERE thread.tenant_id = ?
-                """ + VISIBLE_THREAD_PREDICATE + """
+                """ + MailAccessSql.THREAD_ACCESS + """
                    AND (? = '' OR thread.triage_lane = ?)
-                   AND ((? = '' AND thread.workflow_state NOT IN ('ARCHIVED', 'TRASHED', 'SPAM'))
-                        OR (? <> '' AND thread.workflow_state = ?))
+                """ + MailAccessSql.WORKFLOW_FILTER + """
                    AND (? = '' OR EXISTS (
                        SELECT 1
                          FROM mail_thread_folders membership
                          JOIN mail_folders member_folder
-                           ON member_folder.folder_id = membership.folder_id
+                           ON member_folder.tenant_id = membership.tenant_id
+                          AND member_folder.account_id = thread.account_id
+                          AND member_folder.folder_id = membership.folder_id
                         WHERE membership.tenant_id = thread.tenant_id
                           AND membership.thread_id = thread.thread_id
                           AND member_folder.folder_type = ?
@@ -182,6 +168,10 @@ class MailQueryRepository {
                    AND (?::uuid IS NULL OR EXISTS (
                        SELECT 1
                          FROM mail_thread_folders selected_membership
+                         JOIN mail_folders selected_folder
+                           ON selected_folder.tenant_id = selected_membership.tenant_id
+                          AND selected_folder.account_id = thread.account_id
+                          AND selected_folder.folder_id = selected_membership.folder_id
                         WHERE selected_membership.tenant_id = thread.tenant_id
                           AND selected_membership.thread_id = thread.thread_id
                           AND selected_membership.folder_id = ?::uuid
@@ -201,13 +191,13 @@ class MailQueryRepository {
     }
 
     Optional<MailDtos.ThreadSummary> thread(Long tenantId, Long userId, UUID threadId) {
-        return jdbc.query(threadSelect() + VISIBLE_THREAD_PREDICATE + """
+        return jdbc.query(threadSelect() + MailAccessSql.THREAD_ACCESS + """
                    AND thread.thread_id = ?
                 """, (result, ignored) -> thread(result), tenantId, userId, userId, threadId)
                 .stream().findFirst();
     }
 
-    List<MailDtos.Message> messages(Long tenantId, UUID threadId) {
+    List<MailDtos.Message> messages(Long tenantId, Long userId, UUID threadId) {
         return jdbc.query("""
                 SELECT message.message_id, message.sender_email, message.sender_name,
                        message.recipients::text, message.message_direction,
@@ -224,10 +214,17 @@ class MailQueryRepository {
                        END AS delivery_state,
                        delivery.accepted_at, delivery.last_error_code
                   FROM mail_messages message
+                  JOIN mail_threads thread
+                    ON thread.tenant_id = message.tenant_id
+                   AND thread.thread_id = message.thread_id
+                  JOIN mail_accounts account
+                    ON account.tenant_id = thread.tenant_id
+                   AND account.account_id = thread.account_id
                   LEFT JOIN mail_delivery_outbox delivery
                     ON delivery.message_id = message.message_id
                    AND delivery.tenant_id = message.tenant_id
                  WHERE message.tenant_id = ? AND message.thread_id = ?
+                """ + MailAccessSql.THREAD_ACCESS + """
                  ORDER BY message.sent_at, message.message_id
                 """, (result, ignored) -> new MailDtos.Message(
                 result.getObject("message_id", UUID.class),
@@ -241,32 +238,49 @@ class MailQueryRepository {
                 result.getObject("sent_at", OffsetDateTime.class),
                 DeliveryState.valueOf(result.getString("delivery_state")),
                 result.getObject("accepted_at", OffsetDateTime.class),
-                result.getString("last_error_code")), tenantId, threadId);
+                result.getString("last_error_code")), tenantId, threadId, userId, userId);
     }
 
-    List<MailDtos.InternalComment> comments(Long tenantId, UUID threadId) {
+    List<MailDtos.InternalComment> comments(Long tenantId, Long userId, UUID threadId) {
         return jdbc.query("""
-                SELECT comment_id, author_user_id, author_name, body,
-                       mentioned_user_ids::text, created_at
-                  FROM mail_internal_comments
-                 WHERE tenant_id = ? AND thread_id = ?
-                 ORDER BY created_at, comment_id
+                SELECT comment.comment_id, comment.author_user_id, comment.author_name,
+                       comment.body, comment.mentioned_user_ids::text, comment.created_at
+                  FROM mail_internal_comments comment
+                  JOIN mail_threads thread
+                    ON thread.tenant_id = comment.tenant_id
+                   AND thread.thread_id = comment.thread_id
+                  JOIN mail_accounts account
+                    ON account.tenant_id = thread.tenant_id
+                   AND account.account_id = thread.account_id
+                 WHERE comment.tenant_id = ? AND comment.thread_id = ?
+                """ + MailAccessSql.THREAD_ACCESS + """
+                 ORDER BY comment.created_at, comment.comment_id
                 """, (result, ignored) -> new MailDtos.InternalComment(
                 result.getObject("comment_id", UUID.class),
                 result.getLong("author_user_id"),
                 result.getString("author_name"),
                 result.getString("body"),
                 json.longList(result.getString("mentioned_user_ids")),
-                result.getObject("created_at", OffsetDateTime.class)), tenantId, threadId);
+                result.getObject("created_at", OffsetDateTime.class)),
+                tenantId, threadId, userId, userId);
     }
 
     boolean isActiveSharedInboxMember(Long tenantId, UUID sharedInboxId, Long userId) {
         Long count = jdbc.queryForObject("""
                 SELECT COUNT(*)
-                  FROM mail_shared_inbox_members
-                 WHERE tenant_id = ? AND shared_inbox_id = ? AND user_id = ?
-                   AND lifecycle_state = 'ACTIVE'
-                """, Long.class, tenantId, sharedInboxId, userId);
+                  FROM mail_tenant_policies policy
+                  JOIN mail_shared_inboxes inbox
+                    ON inbox.tenant_id = policy.tenant_id
+                   AND inbox.shared_inbox_id = ?
+                   AND inbox.lifecycle_state = 'ACTIVE'
+                  JOIN mail_shared_inbox_members membership
+                    ON membership.tenant_id = inbox.tenant_id
+                   AND membership.account_id = inbox.account_id
+                   AND membership.shared_inbox_id = inbox.shared_inbox_id
+                   AND membership.user_id = ?
+                   AND membership.lifecycle_state = 'ACTIVE'
+                 WHERE policy.tenant_id = ? AND policy.allow_shared_inboxes = TRUE
+                """, Long.class, sharedInboxId, userId, tenantId);
         return count != null && count > 0;
     }
 
@@ -276,6 +290,14 @@ class MailQueryRepository {
                 SELECT membership.user_id, account.display_name,
                        account.email_address, membership.member_role
                   FROM mail_shared_inbox_members membership
+                  JOIN mail_shared_inboxes inbox
+                    ON inbox.tenant_id = membership.tenant_id
+                   AND inbox.account_id = membership.account_id
+                   AND inbox.shared_inbox_id = membership.shared_inbox_id
+                   AND inbox.lifecycle_state = 'ACTIVE'
+                  JOIN mail_tenant_policies policy
+                    ON policy.tenant_id = inbox.tenant_id
+                   AND policy.allow_shared_inboxes = TRUE
                   JOIN mail_accounts account
                     ON account.tenant_id = membership.tenant_id
                    AND account.owner_user_id = membership.user_id
@@ -304,13 +326,17 @@ class MailQueryRepository {
                        proposal.required_resource_key, proposal.required_permission_code,
                        proposal.target_route, proposal.expires_at, proposal.version
                   FROM mail_action_proposals proposal
-                  JOIN mail_threads thread ON thread.thread_id = proposal.thread_id
-                  JOIN mail_accounts account ON account.account_id = thread.account_id
+                  JOIN mail_threads thread
+                    ON thread.tenant_id = proposal.tenant_id
+                   AND thread.thread_id = proposal.thread_id
+                  JOIN mail_accounts account
+                    ON account.tenant_id = thread.tenant_id
+                   AND account.account_id = thread.account_id
                  WHERE proposal.tenant_id = ?
                    AND (CAST(? AS UUID) IS NULL OR proposal.thread_id = ?)
                    AND proposal.proposal_status = 'PROPOSED'
                    AND (proposal.expires_at IS NULL OR proposal.expires_at > CURRENT_TIMESTAMP)
-                """ + VISIBLE_THREAD_PREDICATE + """
+                """ + MailAccessSql.THREAD_ACCESS + """
                  ORDER BY
                        CASE proposal.risk_level WHEN 'HIGH' THEN 0 WHEN 'MEDIUM' THEN 1 ELSE 2 END,
                        proposal.confidence DESC, proposal.created_at DESC
@@ -330,60 +356,67 @@ class MailQueryRepository {
                        proposal.required_resource_key, proposal.required_permission_code,
                        proposal.target_route, proposal.expires_at, proposal.version
                   FROM mail_action_proposals proposal
-                  JOIN mail_threads thread ON thread.thread_id = proposal.thread_id
-                  JOIN mail_accounts account ON account.account_id = thread.account_id
+                  JOIN mail_threads thread
+                    ON thread.tenant_id = proposal.tenant_id
+                   AND thread.thread_id = proposal.thread_id
+                  JOIN mail_accounts account
+                    ON account.tenant_id = thread.tenant_id
+                   AND account.account_id = thread.account_id
                  WHERE proposal.tenant_id = ? AND proposal.proposal_id = ?
-                """ + VISIBLE_THREAD_PREDICATE,
+                """ + MailAccessSql.THREAD_ACCESS,
                 (result, ignored) -> proposal(result), tenantId, proposalId, userId, userId)
                 .stream().findFirst();
     }
 
     MailDtos.HomeMetrics metrics(Long tenantId, Long userId) {
         return jdbc.query("""
+                WITH visible_threads AS (
+                    SELECT thread.*
+                      FROM mail_threads thread
+                      JOIN mail_accounts account
+                        ON account.tenant_id = thread.tenant_id
+                       AND account.account_id = thread.account_id
+                     WHERE thread.tenant_id = ?
+                """ + MailAccessSql.THREAD_ACCESS + """
+                ), visible_proposals AS (
+                    SELECT proposal.proposal_id
+                      FROM mail_action_proposals proposal
+                      JOIN visible_threads thread
+                        ON thread.tenant_id = proposal.tenant_id
+                       AND thread.thread_id = proposal.thread_id
+                     WHERE proposal.tenant_id = ?
+                       AND proposal.proposal_status = 'PROPOSED'
+                       AND (proposal.expires_at IS NULL OR proposal.expires_at > CURRENT_TIMESTAMP)
+                )
                 SELECT COUNT(*) FILTER (
-                           WHERE thread.unread AND thread.workflow_state <> 'ARCHIVED') AS unread,
+                           WHERE thread.unread
+                             AND (%s) NOT IN ('ARCHIVED', 'TRASHED', 'SPAM', 'SNOOZED')) AS unread,
                        COUNT(*) FILTER (
                            WHERE thread.importance = 'URGENT'
-                             AND thread.workflow_state = 'OPEN') AS urgent,
+                             AND (%s) = 'OPEN') AS urgent,
                        COUNT(*) FILTER (
                            WHERE thread.triage_lane = 'NEEDS_REPLY'
-                             AND thread.workflow_state = 'OPEN') AS needs_reply,
+                             AND (%s) = 'OPEN') AS needs_reply,
                        COUNT(*) FILTER (
                            WHERE thread.assigned_user_id = ?
-                             AND thread.workflow_state = 'OPEN') AS assigned,
+                             AND (%s) = 'OPEN') AS assigned,
                        COUNT(*) FILTER (
-                           WHERE thread.workflow_state = 'SNOOZED') AS snoozed,
-                       (SELECT COUNT(*)
-                          FROM mail_action_proposals proposal
-                          JOIN mail_threads proposal_thread
-                            ON proposal_thread.thread_id = proposal.thread_id
-                          JOIN mail_accounts proposal_account
-                            ON proposal_account.account_id = proposal_thread.account_id
-                         WHERE proposal.tenant_id = ?
-                           AND proposal.proposal_status = 'PROPOSED'
-                           AND (proposal.expires_at IS NULL OR proposal.expires_at > CURRENT_TIMESTAMP)
-                           AND (
-                               proposal_account.owner_user_id = ?
-                               OR EXISTS (
-                                   SELECT 1
-                                     FROM mail_shared_inbox_members proposal_membership
-                                    WHERE proposal_membership.tenant_id = proposal_thread.tenant_id
-                                      AND proposal_membership.shared_inbox_id = proposal_thread.shared_inbox_id
-                                      AND proposal_membership.user_id = ?
-                                      AND proposal_membership.lifecycle_state = 'ACTIVE'
-                               )
-                           )) AS active_proposals
-                  FROM mail_threads thread
-                  JOIN mail_accounts account ON account.account_id = thread.account_id
-                 WHERE thread.tenant_id = ?
-                """ + VISIBLE_THREAD_PREDICATE,
+                           WHERE thread.workflow_state = 'SNOOZED'
+                             AND thread.snoozed_until > CURRENT_TIMESTAMP) AS snoozed,
+                       (SELECT COUNT(*) FROM visible_proposals) AS active_proposals
+                  FROM visible_threads thread
+                """.formatted(
+                        MailAccessSql.EFFECTIVE_WORKFLOW_STATE,
+                        MailAccessSql.EFFECTIVE_WORKFLOW_STATE,
+                        MailAccessSql.EFFECTIVE_WORKFLOW_STATE,
+                        MailAccessSql.EFFECTIVE_WORKFLOW_STATE),
                 result -> {
                     if (!result.next()) return new MailDtos.HomeMetrics(0, 0, 0, 0, 0, 0);
                     return new MailDtos.HomeMetrics(
                             result.getInt("unread"), result.getInt("urgent"),
                             result.getInt("needs_reply"), result.getInt("assigned"),
                             result.getInt("snoozed"), result.getInt("active_proposals"));
-                }, userId, tenantId, userId, userId, tenantId, userId, userId);
+                }, tenantId, userId, userId, tenantId, userId);
     }
 
     List<MailDtos.SharedInboxPulse> sharedInboxPulse(Long tenantId, Long userId) {
@@ -401,16 +434,15 @@ class MailQueryRepository {
                                  < CURRENT_TIMESTAMP
                                    - inbox.service_target_minutes * INTERVAL '1 minute') AS overdue_count
                   FROM mail_shared_inboxes inbox
-                  JOIN mail_accounts account ON account.account_id = inbox.account_id
-                  JOIN mail_shared_inbox_members membership
-                    ON membership.shared_inbox_id = inbox.shared_inbox_id
-                   AND membership.tenant_id = inbox.tenant_id
-                   AND membership.user_id = ?
-                   AND membership.lifecycle_state = 'ACTIVE'
+                  JOIN mail_accounts account
+                    ON account.tenant_id = inbox.tenant_id
+                   AND account.account_id = inbox.account_id
                   LEFT JOIN mail_threads thread
                     ON thread.shared_inbox_id = inbox.shared_inbox_id
                    AND thread.tenant_id = inbox.tenant_id
+                   AND thread.account_id = inbox.account_id
                  WHERE inbox.tenant_id = ? AND inbox.lifecycle_state = 'ACTIVE'
+                """ + MailAccessSql.ACCOUNT_ACCESS + """
                  GROUP BY inbox.shared_inbox_id, inbox.display_name,
                           account.email_address, inbox.service_target_minutes
                  ORDER BY overdue_count DESC, open_count DESC, inbox.display_name
@@ -421,7 +453,7 @@ class MailQueryRepository {
                 result.getInt("open_count"),
                 result.getInt("unassigned_count"),
                 result.getInt("overdue_count"),
-                result.getInt("service_target_minutes")), userId, tenantId);
+                result.getInt("service_target_minutes")), tenantId, userId, userId);
     }
 
     MailDtos.TenantPolicy policy(Long tenantId) {
@@ -484,10 +516,13 @@ class MailQueryRepository {
                                  < CURRENT_TIMESTAMP
                                    - inbox.service_target_minutes * INTERVAL '1 minute') AS overdue_count
                   FROM mail_shared_inboxes inbox
-                  JOIN mail_accounts account ON account.account_id = inbox.account_id
+                  JOIN mail_accounts account
+                    ON account.tenant_id = inbox.tenant_id
+                   AND account.account_id = inbox.account_id
                   LEFT JOIN mail_threads thread
                     ON thread.shared_inbox_id = inbox.shared_inbox_id
                    AND thread.tenant_id = inbox.tenant_id
+                   AND thread.account_id = inbox.account_id
                  WHERE inbox.tenant_id = ?
                  GROUP BY inbox.shared_inbox_id, inbox.inbox_key, inbox.display_name,
                           account.email_address, inbox.purpose,
@@ -544,18 +579,28 @@ class MailQueryRepository {
                        thread.shared_inbox_id, inbox.display_name AS shared_inbox_name,
                        thread.subject, thread.preview, thread.participants::text,
                        thread.latest_message_at, thread.unread, thread.starred,
-                       thread.importance, thread.triage_lane, thread.workflow_state,
-                       thread.snoozed_until, thread.assigned_user_id,
+                       thread.importance, thread.triage_lane,
+                       %s AS workflow_state,
+                       %s AS snoozed_until, thread.assigned_user_id,
                        thread.assigned_name, thread.has_attachments,
                        thread.external_sender, thread.classification,
                        thread.message_count, thread.version
                   FROM mail_threads thread
-                  JOIN mail_accounts account ON account.account_id = thread.account_id
-                  JOIN mail_folders folder ON folder.folder_id = thread.folder_id
+                  JOIN mail_accounts account
+                    ON account.tenant_id = thread.tenant_id
+                   AND account.account_id = thread.account_id
+                  JOIN mail_folders folder
+                    ON folder.tenant_id = thread.tenant_id
+                   AND folder.account_id = thread.account_id
+                   AND folder.folder_id = thread.folder_id
                   LEFT JOIN mail_shared_inboxes inbox
-                    ON inbox.shared_inbox_id = thread.shared_inbox_id
+                    ON inbox.tenant_id = thread.tenant_id
+                   AND inbox.account_id = thread.account_id
+                   AND inbox.shared_inbox_id = thread.shared_inbox_id
                  WHERE thread.tenant_id = ?
-                """;
+                """.formatted(
+                        MailAccessSql.EFFECTIVE_WORKFLOW_STATE,
+                        MailAccessSql.EFFECTIVE_SNOOZED_UNTIL);
     }
 
     private MailDtos.ThreadSummary thread(ResultSet result) throws SQLException {

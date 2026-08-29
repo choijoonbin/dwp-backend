@@ -31,11 +31,19 @@ class MailDeliveryRepository {
                 WITH candidates AS (
                     SELECT delivery.delivery_id
                       FROM mail_delivery_outbox delivery
-                      JOIN mail_messages message ON message.message_id = delivery.message_id
-                      JOIN mail_threads thread ON thread.thread_id = delivery.thread_id
-                      JOIN mail_accounts account ON account.account_id = thread.account_id
+                      JOIN mail_messages message
+                        ON message.tenant_id = delivery.tenant_id
+                       AND message.thread_id = delivery.thread_id
+                       AND message.message_id = delivery.message_id
+                      JOIN mail_threads thread
+                        ON thread.tenant_id = delivery.tenant_id
+                       AND thread.thread_id = delivery.thread_id
+                      JOIN mail_accounts account
+                        ON account.tenant_id = thread.tenant_id
+                       AND account.account_id = thread.account_id
                       JOIN mail_provider_connections connection
-                        ON connection.connection_id = account.connection_id
+                        ON connection.tenant_id = account.tenant_id
+                       AND connection.connection_id = account.connection_id
                      WHERE delivery.delivery_status IN ('QUEUED', 'RETRY_WAIT')
                        AND delivery.next_attempt_at <= CURRENT_TIMESTAMP
                        AND connection.connection_state = 'ACTIVE'
@@ -75,11 +83,19 @@ class MailDeliveryRepository {
                             LIMIT 1
                        ) AS reply_to_provider_message_ref
                   FROM leased
-                  JOIN mail_messages message ON message.message_id = leased.message_id
-                  JOIN mail_threads thread ON thread.thread_id = leased.thread_id
-                  JOIN mail_accounts account ON account.account_id = thread.account_id
+                  JOIN mail_messages message
+                    ON message.tenant_id = leased.tenant_id
+                   AND message.thread_id = leased.thread_id
+                   AND message.message_id = leased.message_id
+                  JOIN mail_threads thread
+                    ON thread.tenant_id = leased.tenant_id
+                   AND thread.thread_id = leased.thread_id
+                  JOIN mail_accounts account
+                    ON account.tenant_id = thread.tenant_id
+                   AND account.account_id = thread.account_id
                   JOIN mail_provider_connections connection
-                    ON connection.connection_id = account.connection_id
+                    ON connection.tenant_id = account.tenant_id
+                   AND connection.connection_id = account.connection_id
                  ORDER BY leased.created_at, leased.delivery_id
                 """, (result, ignored) -> new DeliveryJob(
                 result.getObject("delivery_id", UUID.class),
@@ -155,15 +171,19 @@ class MailDeliveryRepository {
                 """, status, errorCode, nextAttemptAt, job.deliveryId(), workerId);
     }
 
-    int retry(Long tenantId, UUID threadId, UUID messageId) {
+    int retry(Long tenantId, Long userId, UUID threadId, UUID messageId) {
         return jdbc.update("""
-                UPDATE mail_delivery_outbox
+                UPDATE mail_delivery_outbox delivery
                    SET delivery_status = 'QUEUED', attempt_count = 0,
                        next_attempt_at = CURRENT_TIMESTAMP,
                        last_error_code = NULL, updated_at = CURRENT_TIMESTAMP
-                 WHERE tenant_id = ? AND thread_id = ? AND message_id = ?
-                   AND delivery_status = 'FAILED'
-                """, tenantId, threadId, messageId);
+                  FROM mail_threads thread, mail_accounts account
+                 WHERE delivery.tenant_id = ? AND delivery.thread_id = ?
+                   AND delivery.message_id = ? AND delivery.delivery_status = 'FAILED'
+                   AND thread.tenant_id = delivery.tenant_id
+                   AND thread.thread_id = delivery.thread_id
+                """ + MailAccessSql.THREAD_ACCESS,
+                tenantId, threadId, messageId, userId, userId);
     }
 
     void releaseExpiredLeases() {
@@ -198,11 +218,13 @@ class MailDeliveryRepository {
                            'INTERNAL', 1, ?, ?
                       FROM mail_accounts account
                       JOIN mail_provider_connections connection
-                        ON connection.connection_id = account.connection_id
+                        ON connection.tenant_id = account.tenant_id
+                       AND connection.connection_id = account.connection_id
                        AND connection.provider_type = 'DWP_SANDBOX'
                        AND connection.connection_state = 'ACTIVE'
                       JOIN mail_folders folder
-                        ON folder.account_id = account.account_id
+                        ON folder.tenant_id = account.tenant_id
+                       AND folder.account_id = account.account_id
                        AND folder.folder_type = 'INBOX'
                        AND folder.lifecycle_state = 'ACTIVE'
                      WHERE account.tenant_id = ?

@@ -16,6 +16,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Enumeration;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 /** Calendar owner-service PEP layered after the generated Platform route PEP. */
@@ -58,7 +60,7 @@ public final class CalendarProductSurfacePepFilter extends OncePerRequestFilter 
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return contract.resolveOwner(request.getMethod(), request.getRequestURI()).isEmpty();
+        return !contract.ownsOwnerCandidate(request.getMethod(), request.getRequestURI());
     }
 
     @Override
@@ -98,16 +100,18 @@ public final class CalendarProductSurfacePepFilter extends OncePerRequestFilter 
                     "The exact Calendar route authority is required.");
             return;
         }
+        Set<String> roles = exactValues(request, "X-DWP-Roles");
+        Set<String> permissions = exactValues(request, "X-DWP-Permissions");
         CalendarProductSurfaceAccessPolicy.Decision decision = accessPolicy.authorize(
                 new CalendarProductSurfaceAccessPolicy.Evidence(
-                        positiveLong(request.getHeader("X-DWP-Tenant-ID")),
-                        positiveLong(request.getHeader("X-DWP-User-ID")),
-                        values(request.getHeader("X-DWP-Roles")),
+                        positiveLong(exactHeader(request, "X-DWP-Tenant-ID")),
+                        positiveLong(exactHeader(request, "X-DWP-User-ID")),
+                        roles,
                         request.getHeader("X-DWP-Support-Session-ID") != null,
                         exactHeader(request, ACTIVE_ACCESS_MODE_HEADER),
                         exactHeader(request, CONTEXT_HEADER),
                         exactHeader(request, SCOPE_HEADER),
-                        upperValues(request.getHeader("X-DWP-Permissions")),
+                        permissions,
                         binding));
         if (decision.status() == CalendarProductSurfaceAccessPolicy.Status.UNAVAILABLE) {
             writeError(response, ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
@@ -148,18 +152,24 @@ public final class CalendarProductSurfacePepFilter extends OncePerRequestFilter 
                 && cohort != null && ROLLOUT_COHORTS.contains(cohort);
     }
 
-    private Set<String> values(String header) {
-        if (header == null || header.isBlank()) return Set.of();
-        return Arrays.stream(header.split(",", -1))
-                .map(String::trim)
-                .filter(value -> !value.isBlank())
-                .collect(java.util.stream.Collectors.toUnmodifiableSet());
-    }
-
-    private Set<String> upperValues(String header) {
-        return values(header).stream()
-                .map(value -> value.toUpperCase(java.util.Locale.ROOT))
-                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+    private Set<String> exactValues(HttpServletRequest request, String name) {
+        Enumeration<String> headers = request.getHeaders(name);
+        if (headers == null || !headers.hasMoreElements()) return Set.of();
+        String value = headers.nextElement();
+        if (headers.hasMoreElements() || value == null || value.isBlank()
+                || !value.equals(value.trim()) || value.length() > 4_000
+                || value.indexOf('\r') >= 0 || value.indexOf('\n') >= 0) {
+            return null;
+        }
+        LinkedHashSet<String> values = new LinkedHashSet<>();
+        for (String token : Arrays.asList(value.split(",", -1))) {
+            if (token.isBlank() || !token.equals(token.trim())
+                    || !token.equals(token.toUpperCase(java.util.Locale.ROOT))
+                    || !values.add(token)) {
+                return null;
+            }
+        }
+        return Set.copyOf(values);
     }
 
     private String exactHeader(HttpServletRequest request, String name) {
@@ -176,6 +186,7 @@ public final class CalendarProductSurfacePepFilter extends OncePerRequestFilter 
     }
 
     private long positiveLong(String value) {
+        if (value == null || !value.matches("[1-9][0-9]*")) return -1;
         try {
             long parsed = Long.parseLong(value);
             return parsed > 0 ? parsed : -1;

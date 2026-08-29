@@ -22,8 +22,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Propagation;
 
 import java.time.OffsetDateTime;
-import java.util.Optional;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 import static com.dwp.services.meeting.videomeeting.domain.VideoMeetingCommandPolicy.requestHashesMatch;
@@ -33,6 +34,9 @@ import static com.dwp.services.meeting.videomeeting.domain.VideoMeetingCommandPo
 public class MeetingIntelligenceRunTransactions {
 
     private static final String PENDING_PROVIDER = "PENDING";
+    private static final String GOVERNANCE_POLICY_CHANGED = "GOVERNANCE_POLICY_CHANGED";
+    private static final String REQUESTER_AUTHORITY_REVOKED =
+            "REQUESTER_AUTHORITY_REVOKED";
 
     private final VideoMeetingRepository meetings;
     private final VideoMeetingContentRepository content;
@@ -114,7 +118,8 @@ public class MeetingIntelligenceRunTransactions {
                     expired, UUID.randomUUID(), now, now.plusMinutes(2));
             if (reclaimed.isPresent()) {
                 return new PreparedExecution(
-                        meeting, reclaimed.get(), source, retentionUntil, true);
+                        meeting, reclaimed.get(), source, retentionUntil,
+                        plan.version(), notice.revision(), true);
             }
             StoredRun winner = intelligence.byIdempotency(
                             subject.tenantId(), meetingId, subject.userId(), idempotencyKey)
@@ -127,7 +132,9 @@ public class MeetingIntelligenceRunTransactions {
                 subject.tenantId(), meetingId, source.artifactId(), source.sha256(),
                 VideoMeetingIntelligenceModels.PROFILE, notice.noticeId());
         if (active.isPresent()) {
-            return resumeActive(meeting, active.get(), source, retentionUntil, now);
+            return resumeActive(
+                    meeting, active.get(), source, retentionUntil,
+                    plan.version(), notice.revision(), now);
         }
 
         IntelligenceRun candidate = new IntelligenceRun(
@@ -142,20 +149,25 @@ public class MeetingIntelligenceRunTransactions {
         Optional<IntelligenceRun> inserted = intelligence.tryCreateRunning(candidate);
         if (inserted.isPresent()) {
             return new PreparedExecution(
-                    meeting, inserted.get(), source, retentionUntil, true);
+                    meeting, inserted.get(), source, retentionUntil,
+                    plan.version(), notice.revision(), true);
         }
         Optional<StoredRun> concurrent = intelligence.byIdempotency(
                 subject.tenantId(), meetingId, subject.userId(), idempotencyKey);
         if (concurrent.isPresent()) {
             PreparedExecution replay = replay(concurrent.get(), requestSha256);
-            return resumeActive(meeting, replay.run(), source, retentionUntil, now);
+            return resumeActive(
+                    meeting, replay.run(), source, retentionUntil,
+                    plan.version(), notice.revision(), now);
         }
         IntelligenceRun sourceWinner = intelligence.activeForSource(
                         subject.tenantId(), meetingId, source.artifactId(), source.sha256(),
                         VideoMeetingIntelligenceModels.PROFILE, notice.noticeId())
                 .orElseThrow(() -> conflict(
                         "The intelligence command could not be resolved."));
-        return resumeActive(meeting, sourceWinner, source, retentionUntil, now);
+        return resumeActive(
+                meeting, sourceWinner, source, retentionUntil,
+                plan.version(), notice.revision(), now);
     }
 
     public void ensureExecutionReadiness() {
@@ -172,9 +184,8 @@ public class MeetingIntelligenceRunTransactions {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public FinalizedExecution succeed(
             MeetingRequestContext.Subject subject,
-            Meeting meeting,
+            PreparedExecution prepared,
             String correlationId,
-            IntelligenceRun prepared,
             String providerCode,
             String providerModel,
             UUID reportId,
@@ -183,19 +194,28 @@ public class MeetingIntelligenceRunTransactions {
             OffsetDateTime retentionUntil,
             long actorUserId,
             OffsetDateTime completedAt) {
-        IntelligenceRun current = currentPrepared(prepared);
+        IntelligenceRun current = currentPrepared(prepared.run());
         if (current.state() != RunState.RUNNING) {
             return new FinalizedExecution(
                     current,
                     intelligence.reportForRun(
                             current.tenantId(), current.meetingId(), current.runId()).orElse(null));
         }
+        TerminalGovernance governance = terminalGovernance(
+                subject, current, prepared.contentPlanVersion(),
+                prepared.noticeRevision(), completedAt);
+        if (governance.failureCode() != null) {
+            IntelligenceRun failed = intelligence.fail(
+                    current, governance.failureCode(), completedAt);
+            auditTerminal(subject, governance.meeting(), failed, null, correlationId);
+            return new FinalizedExecution(failed, null);
+        }
         IntelligenceReport report = intelligence.createDraft(
                 reportId, current, encryptedPayload, payloadSha256,
                 retentionUntil, actorUserId, completedAt);
         IntelligenceRun succeeded = intelligence.succeed(
                 current, providerCode, providerModel, completedAt);
-        auditTerminal(subject, meeting, succeeded, report, correlationId);
+        auditTerminal(subject, governance.meeting(), succeeded, report, correlationId);
         return new FinalizedExecution(succeeded, report);
     }
 
@@ -237,7 +257,7 @@ public class MeetingIntelligenceRunTransactions {
         if (!requestHashesMatch(stored.requestSha256(), requestSha256)) {
             throw conflict("The idempotency key was used for a different intelligence request.");
         }
-        return new PreparedExecution(null, stored.run(), null, null, false);
+        return new PreparedExecution(null, stored.run(), null, null, null, null, false);
     }
 
     private ContentNotice validateGovernance(
@@ -299,20 +319,94 @@ public class MeetingIntelligenceRunTransactions {
             IntelligenceRun active,
             SourceArtifact source,
             OffsetDateTime retentionUntil,
+            long contentPlanVersion,
+            int noticeRevision,
             OffsetDateTime now) {
         if (active.state() != RunState.RUNNING || active.leaseExpiresAt().isAfter(now)) {
-            return new PreparedExecution(meeting, active, null, null, false);
+            return new PreparedExecution(
+                    meeting, active, null, null, null, null, false);
         }
         Optional<IntelligenceRun> reclaimed = intelligence.reclaimExpired(
                 active, UUID.randomUUID(), now, now.plusMinutes(2));
         return reclaimed
                 .map(run -> new PreparedExecution(
-                        meeting, run, source, retentionUntil, true))
+                        meeting, run, source, retentionUntil,
+                        contentPlanVersion, noticeRevision, true))
                 .orElseGet(() -> new PreparedExecution(meeting,
                         intelligence.run(active.tenantId(), active.meetingId(), active.runId())
                                 .orElseThrow(() -> conflict(
                                         "The intelligence recovery winner is unavailable.")),
-                        null, null, false));
+                        null, null, null, null, false));
+    }
+
+    private TerminalGovernance terminalGovernance(
+            MeetingRequestContext.Subject subject,
+            IntelligenceRun run,
+            Long expectedContentPlanVersion,
+            Integer expectedNoticeRevision,
+            OffsetDateTime completedAt) {
+        Meeting meeting = meetings.lockMeeting(run.tenantId(), run.meetingId());
+        if (subject == null || subject.tenantId() != run.tenantId()
+                || subject.userId() != run.requestedBy()) {
+            return TerminalGovernance.failed(meeting, REQUESTER_AUTHORITY_REVOKED);
+        }
+        Participant requester = meetings.participant(
+                        run.tenantId(), run.meetingId(), run.requestedBy())
+                .filter(candidate -> candidate.attendanceState()
+                        != VideoMeetingModels.AttendanceState.DENIED)
+                .orElse(null);
+        if (requester == null || !requester.canHost()) {
+            return TerminalGovernance.failed(meeting, REQUESTER_AUTHORITY_REVOKED);
+        }
+        if (expectedContentPlanVersion == null || expectedNoticeRevision == null
+                || meeting.lifecycleState() != LifecycleState.ENDED) {
+            return TerminalGovernance.failed(meeting, GOVERNANCE_POLICY_CHANGED);
+        }
+        TenantPolicy policy = meetings.policy(run.tenantId()).orElse(null);
+        ContentPlan plan = content.plan(run.tenantId(), run.meetingId()).orElse(null);
+        SourceArtifact source = intelligence.sourceTranscript(
+                        run.tenantId(), run.meetingId(), run.sourceArtifactId())
+                .orElse(null);
+        ContentNotice notice = content.currentNotice(run.tenantId(), run.meetingId())
+                .orElse(null);
+        ConsentEvidence consent = intelligence.consentEvidence(
+                run.tenantId(), run.meetingId(), run.contentNoticeId());
+        boolean current = policy != null
+                && policy.meetingsEnabled()
+                && !"NEVER".equals(policy.recordingPolicy())
+                && plan != null
+                && plan.version() == expectedContentPlanVersion
+                && plan.state() == VideoMeetingContentModels.PlanState.READY
+                && plan.transcriptionRequested()
+                && plan.aiSummaryRequested()
+                && !plan.e2eeEnabled()
+                && run.contentNoticeId().equals(plan.currentNoticeId())
+                && plan.noticeRevision() == expectedNoticeRevision
+                && notice != null
+                && notice.noticeId().equals(run.contentNoticeId())
+                && notice.revision() == expectedNoticeRevision
+                && notice.transcriptionDisclosed()
+                && notice.aiSummaryDisclosed()
+                && source != null
+                && "AVAILABLE".equals(source.artifactState())
+                && source.serverSideProcessingAllowed()
+                && source.sha256() != null
+                && requestHashesMatch(run.sourceSha256(), source.sha256())
+                && Objects.equals(run.processingRegion(), source.processingRegion())
+                && run.contentNoticeId().equals(source.contentNoticeId())
+                && source.consentSnapshotSha256() != null
+                && requestHashesMatch(
+                        run.consentSnapshotSha256(), source.consentSnapshotSha256())
+                && source.retentionUntil() != null
+                && source.retentionUntil().isAfter(completedAt)
+                && consent != null
+                && consent.complete()
+                && consent.snapshotSha256() != null
+                && requestHashesMatch(
+                        run.consentSnapshotSha256(), consent.snapshotSha256());
+        return current
+                ? TerminalGovernance.current(meeting)
+                : TerminalGovernance.failed(meeting, GOVERNANCE_POLICY_CHANGED);
     }
 
     private Participant member(MeetingRequestContext.Subject subject, Meeting meeting) {
@@ -351,7 +445,20 @@ public class MeetingIntelligenceRunTransactions {
             IntelligenceRun run,
             SourceArtifact source,
             OffsetDateTime retentionUntil,
+            Long contentPlanVersion,
+            Integer noticeRevision,
             boolean execute) {
+    }
+
+    private record TerminalGovernance(Meeting meeting, String failureCode) {
+
+        private static TerminalGovernance current(Meeting meeting) {
+            return new TerminalGovernance(meeting, null);
+        }
+
+        private static TerminalGovernance failed(Meeting meeting, String failureCode) {
+            return new TerminalGovernance(meeting, failureCode);
+        }
     }
 
     public record FinalizedExecution(

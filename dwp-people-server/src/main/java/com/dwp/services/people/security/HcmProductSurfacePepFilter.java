@@ -3,6 +3,7 @@ package com.dwp.services.people.security;
 import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.core.security.RolePlaneBoundary;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -33,6 +34,7 @@ import java.util.stream.Collectors;
 public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
 
     static final String RESOURCE_ROLES_HEADER = "X-DWP-Resource-Roles";
+    static final String ACTIVE_ACCESS_MODE_HEADER = "X-DWP-Active-Access-Mode";
     static final String ROUTE_CONTRACT_HEADER = "X-DWP-Route-Contract-Key";
     static final String CURRENT_DECISION_REVISION_HEADER =
             "X-DWP-Current-Decision-Revision";
@@ -51,6 +53,7 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
     private static final Set<String> ROLLOUT_COHORTS = Set.of(
             "baseline", "holdout", "full", "eligible-10", "eligible-25",
             "eligible-50", "eligible-90");
+    private static final Set<String> TENANT_ACCESS_MODES = Set.of("NORMAL", "ELEVATED");
 
     private final boolean productAuthorizationV3Enabled;
     private final HcmV3PepRegistry registry;
@@ -121,19 +124,26 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
         String trustedRoute = exactHeader(request, ROUTE_CONTRACT_HEADER);
         String trustedContext = exactHeader(request, CURRENT_CONTEXT_HEADER);
         String trustedScope = exactHeader(request, CURRENT_SCOPE_HEADER);
+        String activeAccessMode = exactHeader(request, ACTIVE_ACCESS_MODE_HEADER);
         if (!trustedText(trustedRoute) || !validContext(trustedContext)
-                || !trustedText(trustedScope)) {
+                || !trustedText(trustedScope) || activeAccessMode == null) {
             writeError(response, ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
-                    "Trusted HCM route, context, and scope evidence is missing or invalid.");
+                    "Trusted HCM route, context, scope, and access mode evidence is invalid.");
+            return;
+        }
+        Set<String> roles = parse(request.getHeader(PeopleSecurityFilter.ROLES_HEADER));
+        if (!TENANT_ACCESS_MODES.contains(activeAccessMode)
+                || RolePlaneBoundary.isProviderIdentity(roles)) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "Provider support cannot assume normal HCM authority.");
             return;
         }
         Set<String> permissions = parse(request.getHeader(PeopleSecurityFilter.PERMISSIONS_HEADER));
-        boolean support = request.getHeader(PeopleSecurityFilter.SUPPORT_SESSION_HEADER) != null;
         HcmV3PepRegistry.Decision decision = registry.authorize(
                 new HcmV3PepRegistry.RequestEvidence(
                         request.getMethod(), request.getRequestURI(), permissions,
                         request.getHeader(RESOURCE_ROLES_HEADER),
-                        support ? "PROVIDER_SUPPORT" : "NORMAL",
+                        activeAccessMode,
                         parse(request.getHeader(PeopleSecurityFilter.SUPPORT_SCOPES_HEADER)),
                         trustedRoute, request.getQueryString()));
         if (!decision.allowed()) {

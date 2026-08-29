@@ -82,6 +82,8 @@ dwp:
   platform:
     service-token: ${DWP_PLATFORM_SERVICE_TOKEN:}
     runtime-service-token: ${DWP_PLATFORM_RUNTIME_SERVICE_TOKEN:}
+    # Deny-only interlock: true intentionally fails startup until the authoritative runtime exists.
+    widget-registry-enabled: ${DWP_WIDGET_REGISTRY_ENABLED:false}
     home:
       flow-enabled: ${DWP_HOME_FLOW_ENABLED:false}
       personalization-v2-enabled: ${DWP_HOME_PERSONALIZATION_V2_ENABLED:false}

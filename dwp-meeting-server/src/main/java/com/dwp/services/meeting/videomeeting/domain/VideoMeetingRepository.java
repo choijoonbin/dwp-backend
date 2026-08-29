@@ -271,6 +271,18 @@ public class VideoMeetingRepository {
                 parameters, meetingMapper).stream().findFirst();
     }
 
+    public Optional<Meeting> lockAccessibleMeeting(
+            long tenantId, UUID meetingId, long userId) {
+        MapSqlParameterSource parameters = accessParameters(tenantId, meetingId, userId);
+        return namedJdbc.query("""
+                SELECT meeting.* FROM vm_meetings meeting
+                 WHERE meeting.tenant_id = :tenantId
+                   AND meeting.meeting_id = :meetingId
+                   AND
+                """ + ACCESS_PREDICATE + " FOR UPDATE OF meeting",
+                parameters, meetingMapper).stream().findFirst();
+    }
+
     public Optional<Meeting> resolveCode(long tenantId, String joinCode) {
         return jdbc.query("""
                 SELECT * FROM vm_meetings
@@ -355,19 +367,47 @@ public class VideoMeetingRepository {
             Meeting meeting,
             String provider,
             String roomName,
+            UUID mediaIncarnation,
             long actorUserId,
             long expectedVersion) {
         return jdbc.query("""
                 UPDATE vm_meetings
                    SET lifecycle_state = 'LIVE', provider = ?, room_name = ?,
+                       media_incarnation = ?, media_access_state = 'ACTIVE',
+                       provider_room_closed_at = NULL,
                        started_at = CURRENT_TIMESTAMP, version = version + 1,
                        updated_at = CURRENT_TIMESTAMP, updated_by = ?
                  WHERE tenant_id = ? AND meeting_id = ? AND version = ?
                    AND lifecycle_state IN ('DRAFT', 'SCHEDULED', 'LOBBY')
                 RETURNING *
-                """, meetingMapper, provider, roomName, actorUserId,
+                """, meetingMapper, provider, roomName, mediaIncarnation, actorUserId,
                 meeting.tenantId(), meeting.meetingId(), expectedVersion)
                 .stream().findFirst().orElseThrow(this::versionConflict);
+    }
+
+    public Optional<MediaSession> mediaSession(long tenantId, UUID meetingId) {
+        return jdbc.query("""
+                SELECT media_incarnation, media_access_state
+                  FROM vm_meetings
+                 WHERE tenant_id = ? AND meeting_id = ?
+                   AND media_incarnation IS NOT NULL
+                """, (row, index) -> new MediaSession(
+                        row.getObject("media_incarnation", UUID.class),
+                        row.getString("media_access_state")), tenantId, meetingId)
+                .stream().findFirst();
+    }
+
+    public void beginEnding(
+            Meeting meeting, UUID mediaIncarnation, long expectedVersion) {
+        int updated = jdbc.update("""
+                UPDATE vm_meetings
+                   SET media_access_state = 'ENDING', updated_at = CURRENT_TIMESTAMP
+                 WHERE tenant_id = ? AND meeting_id = ? AND version = ?
+                   AND lifecycle_state = 'LIVE' AND media_incarnation = ?
+                   AND media_access_state IN ('ACTIVE', 'ENDING')
+                """, meeting.tenantId(), meeting.meetingId(), expectedVersion,
+                mediaIncarnation);
+        if (updated != 1) throw versionConflict();
     }
 
     public Participant markJoined(
@@ -405,6 +445,8 @@ public class VideoMeetingRepository {
         return jdbc.query("""
                 UPDATE vm_meetings
                    SET lifecycle_state = 'ENDED', ended_at = CURRENT_TIMESTAMP, ended_by = ?,
+                       media_access_state = 'ENDED',
+                       provider_room_closed_at = CURRENT_TIMESTAMP,
                        version = version + 1, updated_at = CURRENT_TIMESTAMP, updated_by = ?
                  WHERE tenant_id = ? AND meeting_id = ? AND lifecycle_state = 'LIVE'
                    AND version = ?
@@ -550,6 +592,13 @@ public class VideoMeetingRepository {
     }
 
     public record PagedMeetings(List<MeetingCard> items, long total) {
+    }
+
+    public record MediaSession(UUID incarnation, String accessState) {
+
+        public boolean active() {
+            return "ACTIVE".equals(accessState);
+        }
     }
 
     public record AdminOverviewData(

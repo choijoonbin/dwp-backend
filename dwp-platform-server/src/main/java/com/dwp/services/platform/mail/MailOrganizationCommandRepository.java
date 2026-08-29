@@ -164,7 +164,7 @@ class MailOrganizationCommandRepository {
                 """, matched, userId, tenantId, userId, ruleId);
     }
 
-    int applyRuleActions(
+    RuleApplication applyRuleActions(
             Long tenantId,
             Long userId,
             UUID accountId,
@@ -183,7 +183,23 @@ class MailOrganizationCommandRepository {
                 .filter(value -> value != null)
                 .map(Enum::name)
                 .findFirst().orElse(null);
-        return jdbc.update("""
+        Integer outcome = jdbc.queryForObject("""
+                WITH eligible AS MATERIALIZED (
+                    SELECT thread.tenant_id, thread.account_id, thread.thread_id
+                      FROM mail_threads thread
+                     WHERE thread.tenant_id = ? AND thread.account_id = ?
+                       AND thread.thread_id = ? AND thread.version = ?
+                       AND (?::uuid IS NULL OR EXISTS (
+                           SELECT 1 FROM mail_folders target
+                            WHERE target.tenant_id = thread.tenant_id
+                              AND target.account_id = thread.account_id
+                              AND target.folder_id = ?::uuid
+                              AND target.lifecycle_state = 'ACTIVE'
+                              AND target.folder_type IN ('INBOX', 'ARCHIVE', 'CUSTOM')
+                       ))
+                       AND thread.workflow_state NOT IN ('DRAFT', 'TRASHED', 'SPAM')
+                     FOR UPDATE
+                ), changed AS (
                 UPDATE mail_threads thread
                    SET previous_folder_id = CASE WHEN ?::uuid IS NULL
                            THEN thread.previous_folder_id ELSE thread.folder_id END,
@@ -204,20 +220,39 @@ class MailOrganizationCommandRepository {
                        trashed_at = NULL, spam_reported_at = NULL,
                        version = thread.version + 1,
                        updated_at = CURRENT_TIMESTAMP, updated_by = ?
-                 WHERE thread.tenant_id = ? AND thread.account_id = ?
-                   AND thread.thread_id = ?
-                   AND thread.version = ?
-                   AND (?::uuid IS NULL OR EXISTS (
-                       SELECT 1 FROM mail_folders target
-                        WHERE target.tenant_id = thread.tenant_id
-                          AND target.account_id = thread.account_id
-                          AND target.folder_id = ?::uuid
-                          AND target.lifecycle_state = 'ACTIVE'
-                          AND target.folder_type IN ('INBOX', 'ARCHIVE', 'CUSTOM')
-                   ))
-                   AND thread.workflow_state NOT IN ('DRAFT', 'TRASHED', 'SPAM')
-                """, targetFolderId, targetFolderId, markRead, star, importance,
-                targetFolderId, targetFolderId, userId, tenantId, accountId, threadId,
-                expectedVersion, targetFolderId, targetFolderId);
+                  FROM eligible
+                 WHERE thread.tenant_id = eligible.tenant_id
+                   AND thread.account_id = eligible.account_id
+                   AND thread.thread_id = eligible.thread_id
+                   AND (
+                       (?::uuid IS NOT NULL AND (
+                           thread.folder_id IS DISTINCT FROM ?::uuid
+                           OR thread.workflow_state IS DISTINCT FROM 'OPEN'
+                           OR thread.snoozed_until IS NOT NULL
+                       ))
+                       OR (? AND thread.unread)
+                       OR (? AND NOT thread.starred)
+                       OR (?::varchar IS NOT NULL
+                           AND thread.importance IS DISTINCT FROM ?::varchar)
+                       OR thread.trashed_at IS NOT NULL
+                       OR thread.spam_reported_at IS NOT NULL
+                   )
+                 RETURNING 1
+                )
+                SELECT CASE
+                    WHEN EXISTS (SELECT 1 FROM changed) THEN 1
+                    WHEN EXISTS (SELECT 1 FROM eligible) THEN 0
+                    ELSE -1
+                END
+                """, Integer.class,
+                tenantId, accountId, threadId, expectedVersion, targetFolderId, targetFolderId,
+                targetFolderId, targetFolderId, markRead, star, importance,
+                targetFolderId, targetFolderId, userId,
+                targetFolderId, targetFolderId, markRead, star, importance, importance);
+        int resolved = outcome == null ? -1 : outcome;
+        return new RuleApplication(resolved >= 0, resolved == 1);
+    }
+
+    record RuleApplication(boolean eligible, boolean changed) {
     }
 }

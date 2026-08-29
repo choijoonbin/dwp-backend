@@ -92,7 +92,7 @@ class MailDeliveryCompletionService {
     @Transactional
     boolean retry(Long tenantId, Long userId, java.util.UUID threadId, java.util.UUID messageId,
                   String correlationId) {
-        if (deliveries.retry(tenantId, threadId, messageId) == 0) return false;
+        if (deliveries.retry(tenantId, userId, threadId, messageId) == 0) return false;
         commands.audit(
                 tenantId, userId, "mail.message.delivery.retried", "MAIL_MESSAGE",
                 messageId.toString(), correlationId, Map.of("deliveryState", "FAILED"),

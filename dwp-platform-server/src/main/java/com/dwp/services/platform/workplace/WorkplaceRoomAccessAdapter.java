@@ -44,10 +44,10 @@ class WorkplaceRoomAccessAdapter implements WorkplaceRoomAccessPort {
                         ResourceSite::calendarResourceId,
                         ResourceSite::siteId,
                         (left, right) -> left));
-        Set<UUID> allowedSites = sitesByResource.values().stream().distinct()
-                .filter(siteId -> governance.canViewAccess(
-                        tenantId, userId, verifiedGroupRefs, siteId))
-                .collect(Collectors.toUnmodifiableSet());
+        if (sitesByResource.isEmpty()) return Set.of();
+        Set<UUID> allowedSites = governance.viewableSiteIds(
+                tenantId, userId, verifiedGroupRefs,
+                Set.copyOf(sitesByResource.values()));
         return requested.stream()
                 .filter(resourceId -> {
                     UUID siteId = sitesByResource.get(resourceId);

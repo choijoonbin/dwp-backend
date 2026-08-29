@@ -200,6 +200,7 @@ dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTyp
 dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|ResourceState
 dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|ResourceType
 dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|ResponseStatus
+dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|RoomBookingEligibilityReason
 dwp-platform-server/src/main/java/com/dwp/services/platform/communication/CommunicationProductSurfacePepFilter.java|Decision
 dwp-platform-server/src/main/java/com/dwp/services/platform/communication/CommunicationProductSurfacePepFilter.java|RouteKind
 dwp-platform-server/src/main/java/com/dwp/services/platform/communication/CommunicationReaction.java|CommunicationReaction
@@ -242,6 +243,7 @@ dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/Vi
 dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingLifecycleModels.java|OperationType
 dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/provider/MeetingIntelligenceProvider.java|ClimateLabel
 dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/provider/MeetingIntelligenceProvider.java|ClimateSignal
+dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/provider/MeetingMediaWebhook.java|EventType
 dwp-messaging-server/src/main/java/com/dwp/services/messaging/collaboration/CollaborationDtos.java|ConversationType
 dwp-messaging-server/src/main/java/com/dwp/services/messaging/collaboration/CollaborationDtos.java|MemberRole
 dwp-messaging-server/src/main/java/com/dwp/services/messaging/collaboration/CollaborationDtos.java|SearchType
@@ -251,6 +253,7 @@ dwp-notification-server/src/main/java/com/dwp/services/notification/integration/
 dwp-platform-contracts/src/main/java/com/dwp/platform/contract/MailConnectorPort.java|Capability
 dwp-platform-contracts/src/main/java/com/dwp/platform/contract/MailConnectorPort.java|ProviderFamily
 dwp-platform-contracts/src/main/java/com/dwp/platform/contract/MailConnectorPort.java|ReadinessState
+dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailDraftCommandReceiptRepository.java|CommandType
 dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java|FolderColor
 dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java|LifecycleAction
 dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java|ProviderSyncState
@@ -755,6 +758,9 @@ assert_java_enum_codes 'calendar resource type enum' \
 assert_java_enum_codes 'calendar resource state enum' \
   'dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java' \
   'ResourceState' 'name' 'PLATFORM.CAL_RESOURCES.LIFECYCLE_STATE'
+assert_java_enum_codes 'room booking eligibility reason enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java' \
+  'RoomBookingEligibilityReason' 'name' 'PLATFORM.CALENDAR.ROOM_BOOKING_ELIGIBILITY_REASON'
 assert_java_enum_codes 'home overview section status enum' \
   'dwp-platform-server/src/main/java/com/dwp/services/platform/home/overview/HomeOverviewDtos.java' \
   'SectionStatus' 'name' 'PLATFORM.HOME_OVERVIEW.SECTION_STATUS'
@@ -914,6 +920,9 @@ assert_java_enum_codes 'mail rule action type enum' \
 assert_java_enum_codes 'mail lifecycle action enum' \
   'dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java' \
   'LifecycleAction' 'name' 'PLATFORM.MAIL_ORGANIZATION.LIFECYCLE_ACTION'
+assert_java_enum_codes 'mail draft command receipt type enum' \
+  'dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailDraftCommandReceiptRepository.java' \
+  'CommandType' 'name' 'PLATFORM.MAIL_DRAFT_COMMAND_RECEIPTS.COMMAND_TYPE'
 assert_java_enum_codes 'approval active product surface access mode enum' \
   'dwp-approval-server/src/main/java/com/dwp/services/approval/security/ApprovalPilotPepRegistry.java' \
   'ActiveAccessMode' 'name' 'AUTH.PRODUCT_SURFACE.ACCESS_MODE'
@@ -950,6 +959,9 @@ assert_java_enum_codes 'meeting intelligence climate label enum' \
 assert_java_enum_codes 'meeting intelligence climate signal enum' \
   'dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/provider/MeetingIntelligenceProvider.java' \
   'ClimateSignal' 'name' 'MEETING.INTELLIGENCE.CLIMATE_SIGNAL'
+assert_java_enum_codes 'meeting media webhook event type enum' \
+  'dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/provider/MeetingMediaWebhook.java' \
+  'EventType' 'name' 'MEETING.VM_MEETING_PROVIDER_EVENTS.EVENT_TYPE'
 assert_java_enum_codes 'Widget Registry ingress failure enum' \
   'dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/internal/security/WidgetRegistryIngressFailure.java' \
   'WidgetRegistryIngressFailure' 'name' 'PLATFORM.WIDGET_REGISTRY.INGRESS_FAILURE'

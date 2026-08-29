@@ -17,15 +17,21 @@ import java.math.BigDecimal;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static com.dwp.services.platform.workplace.WorkplaceTypes.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -75,6 +81,9 @@ class WorkplaceServiceTest {
                 catalog, bookings, calendarService, mediaStorage,
                 floorPlanValidator, mediaCleanup, spatialGovernance,
                 releaseWindows, domainEvents, runtimeGovernance);
+        lenient().when(runtimeGovernance.viewableSiteIds(
+                        anyLong(), anyLong(), nullable(String.class), anySet()))
+                .thenAnswer(invocation -> invocation.getArgument(3));
     }
 
     @Test
@@ -251,6 +260,29 @@ class WorkplaceServiceTest {
                 .containsExactly(activeSiteId);
         assertThat(result.floors()).extracting(WorkplaceDtos.Floor::floorId)
                 .containsExactly(activeFloorId);
+    }
+
+    @Test
+    void exploreEvaluatesOneHundredActiveSitesInOneAuthorityBatch() {
+        List<WorkplaceCatalogRepository.SiteRow> sites = new java.util.ArrayList<>();
+        Set<UUID> siteIds = new LinkedHashSet<>();
+        for (int value = 1; value <= 100; value++) {
+            UUID siteId = new UUID(0L, value);
+            siteIds.add(siteId);
+            sites.add(site(siteId));
+        }
+        OffsetDateTime from = OffsetDateTime.now().plusHours(1);
+        when(catalog.sites(1L, false)).thenReturn(sites);
+        when(catalog.floors(1L, null, false)).thenReturn(List.of());
+        when(catalog.policy(1L)).thenReturn(policy(true));
+
+        WorkplaceDtos.ExploreResponse result = service.explore(
+                1L, 9L, null, null, from, from.plusHours(1), "en-US", "groups");
+
+        assertThat(result.sites()).hasSize(100);
+        verify(runtimeGovernance).viewableSiteIds(1L, 9L, "groups", siteIds);
+        verify(runtimeGovernance, never()).requireViewAccess(
+                anyLong(), anyLong(), nullable(String.class), any(UUID.class));
     }
 
     @Test

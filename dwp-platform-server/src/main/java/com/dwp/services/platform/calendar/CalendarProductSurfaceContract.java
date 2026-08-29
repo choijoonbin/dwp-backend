@@ -1,6 +1,9 @@
 package com.dwp.services.platform.calendar;
 
+import org.springframework.http.server.PathContainer;
 import org.springframework.stereotype.Component;
+import org.springframework.web.util.pattern.PathPattern;
+import org.springframework.web.util.pattern.PathPatternParser;
 
 import java.util.List;
 import java.util.Optional;
@@ -8,6 +11,8 @@ import java.util.Optional;
 /** Immutable owner-service projection for the Calendar v4 PAGE/DATA/ACTION draft. */
 @Component
 public final class CalendarProductSurfaceContract {
+
+    private static final PathPatternParser OWNER_PATTERN_PARSER = new PathPatternParser();
 
     public static final String POLICY_ID = "P-CALENDAR";
     public static final String PRODUCT_ID = "calendar";
@@ -54,6 +59,11 @@ public final class CalendarProductSurfaceContract {
                     EVENT_CREATE_CAPABILITY_KEY,
                     "APP.CALENDAR:CREATE",
                     false));
+    private static final List<OwnerCandidate> OWNER_CANDIDATES = BINDINGS.stream()
+            .map(binding -> new OwnerCandidate(
+                    binding,
+                    OWNER_PATTERN_PARSER.parse(binding.servicePath())))
+            .toList();
 
     public Optional<Binding> resolveOwner(String method, String path) {
         if (method == null || path == null) return Optional.empty();
@@ -61,6 +71,23 @@ public final class CalendarProductSurfaceContract {
                 .filter(binding -> binding.method().equals(method))
                 .filter(binding -> binding.servicePath().equals(path))
                 .findFirst();
+    }
+
+    /**
+     * Recognizes paths Spring MVC can dispatch to a Calendar route while leaving exact
+     * canonical-path acceptance to {@link #resolveOwner(String, String)}.
+     */
+    public boolean ownsOwnerCandidate(String method, String path) {
+        if (method == null || path == null) return false;
+        String effectiveMethod = "HEAD".equals(method) ? "GET" : method;
+        try {
+            PathContainer candidatePath = PathContainer.parsePath(path);
+            return OWNER_CANDIDATES.stream()
+                    .anyMatch(candidate -> candidate.binding().method().equals(effectiveMethod)
+                            && candidate.pattern().matches(candidatePath));
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
     }
 
     public List<BindingContract> bindingContracts() {
@@ -102,6 +129,9 @@ public final class CalendarProductSurfaceContract {
             String accessContractKey,
             String resolvedAuthority,
             boolean readOnly) {
+    }
+
+    private record OwnerCandidate(Binding binding, PathPattern pattern) {
     }
 
     public record BindingContract(

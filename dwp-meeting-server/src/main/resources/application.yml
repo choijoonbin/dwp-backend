@@ -52,6 +52,12 @@ dwp:
     token-ttl: ${DWP_MEETING_TOKEN_TTL:PT5M}
     join-code-length: ${DWP_MEETING_JOIN_CODE_LENGTH:12}
     recording-policy: ${DWP_MEETING_RECORDING_POLICY:NEVER}
+    lifecycle-recovery:
+      enabled: ${DWP_MEETING_LIFECYCLE_RECOVERY_ENABLED:true}
+      poll-delay: ${DWP_MEETING_LIFECYCLE_RECOVERY_POLL_DELAY:PT10S}
+      retry-delay: ${DWP_MEETING_LIFECYCLE_RECOVERY_RETRY_DELAY:PT5S}
+      batch-size: ${DWP_MEETING_LIFECYCLE_RECOVERY_BATCH_SIZE:20}
+      maximum-attempts: ${DWP_MEETING_LIFECYCLE_RECOVERY_MAXIMUM_ATTEMPTS:8}
     intelligence:
       provider: ${DWP_MEETING_INTELLIGENCE_PROVIDER:disabled}
       base-url: ${DWP_MEETING_INTELLIGENCE_BASE_URL:}

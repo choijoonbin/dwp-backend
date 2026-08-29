@@ -44,8 +44,11 @@ class VideoMeetingLifecycleCoordinatorTest {
 
     private static final UUID MEETING_ID =
             UUID.fromString("01fc0ccf-2f9b-4e53-a76d-31dad67434cf");
+    private static final UUID INCARNATION =
+            UUID.fromString("0cbe6f67-63d6-4c68-b63c-7f27bbcecb91");
     private static final MeetingMediaProvider.PreparedRoom ROOM =
-            new MeetingMediaProvider.PreparedRoom("LIVEKIT", "dwp-meeting-t77-room");
+            new MeetingMediaProvider.PreparedRoom(
+                    "LIVEKIT", "dwp-meeting-t77-room", 77L, MEETING_ID, INCARNATION);
 
     @Mock
     private VideoMeetingLifecycleTransactions transactions;
@@ -218,7 +221,7 @@ class VideoMeetingLifecycleCoordinatorTest {
                 OperationState.RUNNING, 101L, 2, "start-command-002",
                 "a".repeat(64), "corr-start", fence,
                 OffsetDateTime.of(2026, 8, 28, 1, 2, 0, 0, ZoneOffset.UTC),
-                attempt, ROOM.provider(), ROOM.roomName());
+                attempt, ROOM.provider(), ROOM.roomName(), ROOM.incarnation());
     }
 
     private Meeting meeting(LifecycleState state, long version) {

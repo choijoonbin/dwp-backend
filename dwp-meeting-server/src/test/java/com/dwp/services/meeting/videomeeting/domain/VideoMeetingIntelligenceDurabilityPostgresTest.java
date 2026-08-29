@@ -116,6 +116,76 @@ class VideoMeetingIntelligenceDurabilityPostgresTest {
     }
 
     @Test
+    void lateProviderSuccessAfterPlanMutationClosesFailedWithTerminalAudit() {
+        var prepared = prepare("durability-key-late-plan", fixture.now());
+        jdbc.update("""
+                UPDATE vm_meeting_content_plans
+                   SET ai_summary_requested = FALSE, plan_state = 'READY',
+                       version = version + 1, updated_at = ?
+                 WHERE tenant_id = 1 AND meeting_id = ?
+                """, fixture.now().plusSeconds(1), fixture.meetingId());
+
+        var finalized = runs.succeed(
+                fixture.subject(), prepared, "corr-late-plan", "agent", "model-v1",
+                UUID.randomUUID(), "ciphertext", "e".repeat(64),
+                prepared.retentionUntil(), fixture.actor(), fixture.now().plusSeconds(2));
+
+        assertThat(finalized.run().state())
+                .isEqualTo(VideoMeetingIntelligenceModels.RunState.FAILED);
+        assertThat(finalized.run().failureCode()).isEqualTo("GOVERNANCE_POLICY_CHANGED");
+        assertThat(finalized.report()).isNull();
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM vm_meeting_intelligence_reports WHERE run_id = ?
+                """, Integer.class, prepared.run().runId())).isZero();
+        assertThat(auditCount(prepared.run().runId())).isOne();
+        assertThat(jdbc.queryForObject("""
+                SELECT payload ->> 'action' FROM sys_audit_outbox
+                 WHERE payload ->> 'targetId' = ?
+                """, String.class, prepared.run().runId().toString()))
+                .isEqualTo("meeting.intelligence.failed");
+    }
+
+    @Test
+    void expiredLeaseFencesLateSuccessAndRollsBackDraftAndAudit() {
+        var prepared = prepare("durability-key-expired-success", fixture.now());
+        jdbc.update("""
+                UPDATE vm_meeting_intelligence_runs
+                   SET lease_expires_at = ? WHERE run_id = ?
+                """, fixture.now().plusSeconds(1), prepared.run().runId());
+
+        assertThatThrownBy(() -> runs.succeed(
+                fixture.subject(), prepared, "corr-expired-success", "agent", "model-v1",
+                UUID.randomUUID(), "ciphertext", "e".repeat(64),
+                prepared.retentionUntil(), fixture.actor(), fixture.now().plusSeconds(2)))
+                .isInstanceOf(RuntimeException.class);
+
+        assertRunningWithoutReportOrAudit(prepared.run().runId());
+    }
+
+    @Test
+    void expiredLeaseFencesGovernanceFailureAndRollsBackTerminalAudit() {
+        var prepared = prepare("durability-key-expired-policy", fixture.now());
+        jdbc.update("""
+                UPDATE vm_meeting_content_plans
+                   SET ai_summary_requested = FALSE, version = version + 1,
+                       updated_at = ?
+                 WHERE tenant_id = 1 AND meeting_id = ?
+                """, fixture.now().plusSeconds(1), fixture.meetingId());
+        jdbc.update("""
+                UPDATE vm_meeting_intelligence_runs
+                   SET lease_expires_at = ? WHERE run_id = ?
+                """, fixture.now().plusSeconds(1), prepared.run().runId());
+
+        assertThatThrownBy(() -> runs.succeed(
+                fixture.subject(), prepared, "corr-expired-policy", "agent", "model-v1",
+                UUID.randomUUID(), "ciphertext", "e".repeat(64),
+                prepared.retentionUntil(), fixture.actor(), fixture.now().plusSeconds(2)))
+                .isInstanceOf(RuntimeException.class);
+
+        assertRunningWithoutReportOrAudit(prepared.run().runId());
+    }
+
+    @Test
     void reclaimedWorkerFencesStaleFinalizeWithoutReportOrAudit() {
         var stale = prepare("durability-key-0003", fixture.now());
         jdbc.update("""
@@ -127,7 +197,7 @@ class VideoMeetingIntelligenceDurabilityPostgresTest {
         assertThat(reclaimed.run().runId()).isEqualTo(stale.run().runId());
 
         assertThatThrownBy(() -> runs.succeed(
-                fixture.subject(), stale.meeting(), "corr-stale", stale.run(),
+                fixture.subject(), stale, "corr-stale",
                 "agent", "model-v1", UUID.randomUUID(), "ciphertext",
                 "e".repeat(64), stale.retentionUntil(), fixture.actor(),
                 fixture.now().plusSeconds(3)))
@@ -174,6 +244,40 @@ class VideoMeetingIntelligenceDurabilityPostgresTest {
                 SELECT COUNT(*) FROM vm_meeting_intelligence_reports WHERE run_id = ?
                 """, Integer.class, runId)).isZero();
         assertThat(auditCount(runId)).isZero();
+    }
+
+    @Test
+    void failedTerminalAuditInsertFailureRollsBackGovernanceFailureProjection() {
+        var prepared = prepare("durability-key-failed-audit", fixture.now());
+        jdbc.update("""
+                UPDATE vm_meeting_content_plans
+                   SET ai_summary_requested = FALSE, version = version + 1,
+                       updated_at = ?
+                 WHERE tenant_id = 1 AND meeting_id = ?
+                """, fixture.now().plusSeconds(1), fixture.meetingId());
+        jdbc.execute("""
+                CREATE FUNCTION fail_intelligence_failed_audit() RETURNS trigger
+                LANGUAGE plpgsql AS $$
+                BEGIN
+                    IF NEW.payload ->> 'action' = 'meeting.intelligence.failed' THEN
+                        RAISE EXCEPTION 'simulated failed audit outage';
+                    END IF;
+                    RETURN NEW;
+                END $$
+                """);
+        jdbc.execute("""
+                CREATE TRIGGER fail_intelligence_failed_audit_trigger
+                BEFORE INSERT ON sys_audit_outbox
+                FOR EACH ROW EXECUTE FUNCTION fail_intelligence_failed_audit()
+                """);
+
+        assertThatThrownBy(() -> runs.succeed(
+                fixture.subject(), prepared, "corr-failed-audit", "agent", "model-v1",
+                UUID.randomUUID(), "ciphertext", "e".repeat(64),
+                prepared.retentionUntil(), fixture.actor(), fixture.now().plusSeconds(2)))
+                .isInstanceOf(RuntimeException.class);
+
+        assertRunningWithoutReportOrAudit(prepared.run().runId());
     }
 
     @Test
@@ -333,6 +437,16 @@ class VideoMeetingIntelligenceDurabilityPostgresTest {
                 SELECT COUNT(*) FROM sys_audit_outbox
                  WHERE payload ->> 'targetId' = ?
                 """, Integer.class, runId.toString());
+    }
+
+    private void assertRunningWithoutReportOrAudit(UUID runId) {
+        assertThat(jdbc.queryForObject("""
+                SELECT run_state FROM vm_meeting_intelligence_runs WHERE run_id = ?
+                """, String.class, runId)).isEqualTo("RUNNING");
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM vm_meeting_intelligence_reports WHERE run_id = ?
+                """, Integer.class, runId)).isZero();
+        assertThat(auditCount(runId)).isZero();
     }
 
     private MeetingIntelligenceRunTransactions transactional(

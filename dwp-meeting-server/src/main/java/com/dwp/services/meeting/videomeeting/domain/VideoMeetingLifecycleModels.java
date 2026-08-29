@@ -35,7 +35,8 @@ final class VideoMeetingLifecycleModels {
             OffsetDateTime leaseExpiresAt,
             int attemptCount,
             String providerCode,
-            String providerRoomName) {
+            String providerRoomName,
+            UUID roomIncarnation) {
     }
 
     record Preparation(

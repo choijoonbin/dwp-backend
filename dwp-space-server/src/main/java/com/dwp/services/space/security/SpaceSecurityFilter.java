@@ -105,13 +105,29 @@ public class SpaceSecurityFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         String method = request.getMethod();
         if (path.startsWith("/v1/admin/templates")) {
-            return has(permissions, "ADMIN.SPACE_TEMPLATES", readOnly(method) ? "VIEW" : "MANAGE");
+            if (readOnly(method) && path.equals("/v1/admin/templates")) {
+                return has(permissions, "ADMIN.SPACE_TEMPLATES", "VIEW", "MANAGE");
+            }
+            if ("POST".equals(method) && path.equals("/v1/admin/templates")) {
+                return has(permissions, "ADMIN.SPACE_TEMPLATES", "CREATE", "MANAGE");
+            }
+            if ("PUT".equals(method) && directChild(path, "/v1/admin/templates")) {
+                return has(permissions, "ADMIN.SPACE_TEMPLATES", "UPDATE", "MANAGE");
+            }
+            return false;
         }
         if (path.startsWith("/v1/admin/content-reviews")) {
             return has(permissions, "ADMIN.SPACE_COMPLIANCE", readOnly(method) ? "VIEW" : "APPROVE", "MANAGE");
         }
         if (path.startsWith("/v1/admin/lifecycle")) {
-            return has(permissions, "ADMIN.SPACE_ACCESS_REVIEW", readOnly(method) ? "VIEW" : "MANAGE");
+            if (readOnly(method) && path.equals("/v1/admin/lifecycle")) {
+                return has(permissions, "ADMIN.SPACE_ACCESS_REVIEW", "VIEW", "APPROVE", "MANAGE");
+            }
+            if ("POST".equals(method)
+                    && itemAction(path, "/v1/admin/lifecycle", "decision")) {
+                return has(permissions, "ADMIN.SPACE_ACCESS_REVIEW", "APPROVE", "MANAGE");
+            }
+            return false;
         }
         if (path.startsWith("/v1/admin/")) {
             return has(permissions, "ADMIN.SPACE_GOVERNANCE", readOnly(method) ? "VIEW" : "MANAGE");
@@ -123,6 +139,21 @@ public class SpaceSecurityFilter extends OncePerRequestFilter {
             return has(permissions, "ACTION.SPACE_CONTENT", "CREATE", "UPDATE", "MANAGE");
         }
         return has(permissions, "APP.SPACES", "VIEW");
+    }
+
+    private boolean directChild(String path, String collection) {
+        String prefix = collection + "/";
+        if (!path.startsWith(prefix)) return false;
+        String child = path.substring(prefix.length());
+        return !child.isBlank() && !child.contains("/");
+    }
+
+    private boolean itemAction(String path, String collection, String action) {
+        String prefix = collection + "/";
+        String suffix = "/" + action;
+        if (!path.startsWith(prefix) || !path.endsWith(suffix)) return false;
+        String item = path.substring(prefix.length(), path.length() - suffix.length());
+        return !item.isBlank() && !item.contains("/");
     }
 
     private boolean has(Set<String> permissions, String resource, String... actions) {

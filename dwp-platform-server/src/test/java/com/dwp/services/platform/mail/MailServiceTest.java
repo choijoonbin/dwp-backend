@@ -140,8 +140,8 @@ class MailServiceTest {
         when(commands.compose(1L, 7L, request))
                 .thenReturn(new MailCommandRepository.ComposeResult(threadId, false));
         when(queries.thread(1L, 7L, threadId)).thenReturn(Optional.of(existing));
-        when(queries.messages(1L, threadId)).thenReturn(List.of());
-        when(queries.comments(1L, threadId)).thenReturn(List.of());
+        when(queries.messages(1L, 7L, threadId)).thenReturn(List.of());
+        when(queries.comments(1L, 7L, threadId)).thenReturn(List.of());
         when(queries.proposals(1L, 7L, threadId, 20)).thenReturn(List.of());
 
         MailDtos.ThreadDetail result = service.compose(
@@ -163,8 +163,8 @@ class MailServiceTest {
         MailDtos.ThreadSummary existing = thread(threadId, false, 1L);
         when(queries.thread(1L, 7L, threadId)).thenReturn(Optional.of(existing));
         when(commands.deliveryThread(1L, 7L, idempotencyKey)).thenReturn(threadId);
-        when(queries.messages(1L, threadId)).thenReturn(List.of());
-        when(queries.comments(1L, threadId)).thenReturn(List.of());
+        when(queries.messages(1L, 7L, threadId)).thenReturn(List.of());
+        when(queries.comments(1L, 7L, threadId)).thenReturn(List.of());
         when(queries.proposals(1L, 7L, threadId, 20)).thenReturn(List.of());
 
         MailDtos.ThreadDetail result = service.reply(
@@ -186,8 +186,8 @@ class MailServiceTest {
                 DeliveryMode.SEND, idempotencyKey, 1L);
         when(queries.thread(1L, 7L, threadId)).thenReturn(Optional.of(existing));
         when(commands.deliveryThread(1L, 7L, idempotencyKey)).thenReturn(threadId);
-        when(queries.messages(1L, threadId)).thenReturn(List.of());
-        when(queries.comments(1L, threadId)).thenReturn(List.of());
+        when(queries.messages(1L, 7L, threadId)).thenReturn(List.of());
+        when(queries.comments(1L, 7L, threadId)).thenReturn(List.of());
         when(queries.proposals(1L, 7L, threadId, 20)).thenReturn(List.of());
 
         MailDtos.ThreadDetail result = service.updateDraft(
@@ -207,8 +207,8 @@ class MailServiceTest {
                 .thenReturn(Optional.of(after));
         when(commands.applyAction(
                 1L, 7L, threadId, ThreadAction.MARK_READ, 4L)).thenReturn(1);
-        when(queries.messages(1L, threadId)).thenReturn(List.of());
-        when(queries.comments(1L, threadId)).thenReturn(List.of());
+        when(queries.messages(1L, 7L, threadId)).thenReturn(List.of());
+        when(queries.comments(1L, 7L, threadId)).thenReturn(List.of());
         when(queries.proposals(1L, 7L, threadId, 20)).thenReturn(List.of());
 
         MailDtos.ThreadDetail result = service.applyAction(

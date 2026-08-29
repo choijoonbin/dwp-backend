@@ -78,6 +78,58 @@ public class VideoMeetingAuditRecorder {
                 merge(afterState, Map.of("meetingId", meeting.meetingId().toString())));
     }
 
+    public void providerLifecycle(
+            long tenantId,
+            Meeting meeting,
+            String action,
+            String providerEventId,
+            Map<String, Object> afterState) {
+        providerEvent(
+                tenantId, action, "VIDEO_MEETING", meeting.meetingId().toString(),
+                providerEventId, merge(afterState,
+                        Map.of("meetingId", meeting.meetingId().toString())));
+    }
+
+    public void providerParticipant(
+            long tenantId,
+            Meeting meeting,
+            Participant participant,
+            String action,
+            String providerEventId,
+            Map<String, Object> afterState) {
+        providerEvent(
+                tenantId, action, "VIDEO_MEETING_PARTICIPANT",
+                participant.participantId().toString(), providerEventId,
+                merge(afterState, Map.of(
+                        "meetingId", meeting.meetingId().toString(),
+                        "attendanceState", participant.attendanceState().name())));
+    }
+
+    private void providerEvent(
+            long tenantId,
+            String action,
+            String targetType,
+            String targetId,
+            String providerEventId,
+            Map<String, Object> afterState) {
+        outbox.record(AuditEvent.builder()
+                .tenantId(tenantId)
+                .category("SYSTEM_EVENT")
+                .action(action)
+                .actorType("SERVICE")
+                .actorId("LIVEKIT")
+                .sourceService("dwp-meeting-server")
+                .sourceModule(MODULE)
+                .correlationId(providerEventId)
+                .outcome("SUCCESS")
+                .severity("INFO")
+                .targetType(targetType)
+                .targetId(targetId)
+                .afterState(afterState)
+                .retentionClass("EXTENDED")
+                .build());
+    }
+
     private void record(
             MeetingRequestContext.Subject subject,
             String category,

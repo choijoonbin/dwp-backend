@@ -193,7 +193,7 @@ class MeetingIntelligenceOutputValidatorTest {
     void rejectsUncitedDefinitiveClimate() {
         Analysis analysis = withClimate(new ConversationClimate(
                 ClimateLabel.ALIGNED,
-                List.of(ClimateSignal.BALANCED_TURN_TAKING), List.of()));
+                List.of(ClimateSignal.CONSTRUCTIVE_DISAGREEMENT), List.of()));
 
         assertThatThrownBy(() -> validator.validate(analysis, transcript()))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -222,8 +222,8 @@ class MeetingIntelligenceOutputValidatorTest {
     void rejectsDuplicateClimateSignals() {
         Analysis analysis = withClimate(new ConversationClimate(
                 ClimateLabel.ALIGNED,
-                List.of(ClimateSignal.BALANCED_TURN_TAKING,
-                        ClimateSignal.BALANCED_TURN_TAKING), citations()));
+                List.of(ClimateSignal.CONSTRUCTIVE_DISAGREEMENT,
+                        ClimateSignal.CONSTRUCTIVE_DISAGREEMENT), citations()));
 
         assertThatThrownBy(() -> validator.validate(analysis, transcript()))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -267,7 +267,7 @@ class MeetingIntelligenceOutputValidatorTest {
     void rejectsClimateCitationsAboveAgentContractLimit() {
         Analysis analysis = withClimate(new ConversationClimate(
                 ClimateLabel.ALIGNED,
-                List.of(ClimateSignal.BALANCED_TURN_TAKING),
+                List.of(ClimateSignal.CONSTRUCTIVE_DISAGREEMENT),
                 java.util.Collections.nCopies(21, new Citation("s1", 0, 900))));
 
         assertThatThrownBy(() -> validator.validate(analysis, transcript()))

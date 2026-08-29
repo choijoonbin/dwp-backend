@@ -20,6 +20,14 @@ class RoomRepository {
             Long tenantId,
             OffsetDateTime from,
             OffsetDateTime to) {
+        return resourceOccupancy(tenantId, from, to, null);
+    }
+
+    List<ResourceOccupancyRow> resourceOccupancy(
+            Long tenantId,
+            OffsetDateTime from,
+            OffsetDateTime to,
+            UUID excludingEventId) {
         return jdbc.query("""
                 SELECT booking.resource_id,
                        occurrence.local_starts_at AT TIME ZONE event.time_zone AS starts_at,
@@ -48,6 +56,7 @@ class RoomRepository {
                        END
                   ) occurrence(local_starts_at)
                  WHERE booking.tenant_id = ?
+                   AND (?::uuid IS NULL OR booking.event_id <> ?::uuid)
                    AND booking.booking_status IN ('PENDING', 'CONFIRMED')
                    AND event.status <> 'CANCELLED'
                    AND resource.lifecycle_state <> 'RETIRED'
@@ -60,7 +69,7 @@ class RoomRepository {
                         result.getObject("starts_at", OffsetDateTime.class),
                         result.getObject("ends_at", OffsetDateTime.class),
                         result.getString("booking_status")),
-                to, to, tenantId, to, from);
+                to, to, tenantId, excludingEventId, excludingEventId, to, from);
     }
 
     record ResourceOccupancyRow(

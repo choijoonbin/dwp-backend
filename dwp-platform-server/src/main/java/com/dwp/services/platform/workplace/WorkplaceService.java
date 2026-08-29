@@ -71,10 +71,15 @@ public class WorkplaceService {
             String verifiedGroupRefs) {
         validateRange(from, to, MAX_EXPLORE_SPAN, "Workplace searches are limited to 31 days.");
         boolean ko = korean(locale);
-        List<WorkplaceCatalogRepository.SiteRow> siteRows = catalog.sites(tenantId, ko).stream()
+        List<WorkplaceCatalogRepository.SiteRow> activeSites = catalog.sites(tenantId, ko).stream()
                 .filter(value -> value.state() == SiteState.ACTIVE)
-                .filter(value -> canViewSite(
-                        tenantId, userId, verifiedGroupRefs, value.siteId()))
+                .toList();
+        Set<UUID> viewableSiteIds = runtimeGovernance.viewableSiteIds(
+                tenantId, userId, verifiedGroupRefs,
+                activeSites.stream().map(WorkplaceCatalogRepository.SiteRow::siteId)
+                        .collect(java.util.stream.Collectors.toUnmodifiableSet()));
+        List<WorkplaceCatalogRepository.SiteRow> siteRows = activeSites.stream()
+                .filter(value -> viewableSiteIds.contains(value.siteId()))
                 .toList();
         Set<UUID> activeSiteIds = siteRows.stream()
                 .map(WorkplaceCatalogRepository.SiteRow::siteId)
@@ -612,18 +617,6 @@ public class WorkplaceService {
         completed.forEach(value -> recordLifecycleEvent(
                 WorkplaceDomainEvents.COMPLETED, value, "workplace:lifecycle-sweep"));
         return noShows.size() + completed.size();
-    }
-
-    private boolean canViewSite(
-            Long tenantId, Long userId, String verifiedGroupRefs, UUID siteId) {
-        try {
-            runtimeGovernance.requireViewAccess(
-                    tenantId, userId, verifiedGroupRefs, siteId);
-            return true;
-        } catch (BaseException exception) {
-            if (exception.getErrorCode() == ErrorCode.FORBIDDEN) return false;
-            throw exception;
-        }
     }
 
     private WorkplaceCatalogRepository.PolicyRow effectivePolicy(

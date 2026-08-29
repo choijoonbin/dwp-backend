@@ -20,7 +20,6 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -37,6 +36,7 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 import java.util.regex.Pattern;
 
 /** Receiver-first dual-proof trust boundary for exact internal Widget Registry routes. */
@@ -59,19 +59,19 @@ public class WidgetRegistryInternalSecurityFilter extends OncePerRequestFilter {
     private final ServiceTokenVerifier serviceTokenVerifier;
     private final ProviderAssertionVerifier assertionVerifier;
     private final AssertionReplayStore replayStore;
+    private final BooleanSupplier requestPermit;
     private final Clock clock;
 
     @Autowired
     public WidgetRegistryInternalSecurityFilter(
             ObjectMapper objectMapper,
-            ObjectProvider<ServiceTokenVerifier> serviceTokenVerifiers,
-            ObjectProvider<ProviderAssertionVerifier> assertionVerifiers,
-            ObjectProvider<AssertionReplayStore> replayStores) {
+            WidgetRegistryActivationInterlock activationInterlock) {
         this(
                 objectMapper,
-                exactlyOne(serviceTokenVerifiers),
-                exactlyOne(assertionVerifiers),
-                exactlyOne(replayStores),
+                null,
+                null,
+                null,
+                activationInterlock::permitsRequest,
                 Clock.systemUTC());
     }
 
@@ -80,12 +80,14 @@ public class WidgetRegistryInternalSecurityFilter extends OncePerRequestFilter {
             ServiceTokenVerifier serviceTokenVerifier,
             ProviderAssertionVerifier assertionVerifier,
             AssertionReplayStore replayStore,
+            BooleanSupplier requestPermit,
             Clock clock) {
         this.objectMapper = objectMapper;
         this.requestBinding = new WidgetRegistryRequestBinding(objectMapper);
         this.serviceTokenVerifier = serviceTokenVerifier;
         this.assertionVerifier = assertionVerifier;
         this.replayStore = replayStore;
+        this.requestPermit = Objects.requireNonNull(requestPermit, "requestPermit");
         this.clock = clock;
     }
 
@@ -118,13 +120,17 @@ public class WidgetRegistryInternalSecurityFilter extends OncePerRequestFilter {
             writeError(response, request, WidgetRegistryIngressFailure.PROVISIONING_TOKEN_FORBIDDEN);
             return;
         }
+        if (hasUnexpectedDwpHeader(request, match)) {
+            writeError(response, request, WidgetRegistryIngressFailure.AUTHORITY_HEADERS_FORBIDDEN);
+            return;
+        }
+        if (!permitsRequest()) {
+            writeError(response, request, WidgetRegistryIngressFailure.TRUST_UNAVAILABLE);
+            return;
+        }
         ProofHeaders proofHeaders = proofHeaders(request, match);
         if (proofHeaders == null) {
             writeError(response, request, WidgetRegistryIngressFailure.DUAL_PROOF_REQUIRED);
-            return;
-        }
-        if (hasUnexpectedDwpHeader(request, match)) {
-            writeError(response, request, WidgetRegistryIngressFailure.AUTHORITY_HEADERS_FORBIDDEN);
             return;
         }
         if (serviceTokenVerifier == null || assertionVerifier == null || replayStore == null) {
@@ -331,9 +337,12 @@ public class WidgetRegistryInternalSecurityFilter extends OncePerRequestFilter {
         return false;
     }
 
-    private static <T> T exactlyOne(ObjectProvider<T> provider) {
-        List<T> candidates = provider.stream().limit(2).toList();
-        return candidates.size() == 1 ? candidates.get(0) : null;
+    private boolean permitsRequest() {
+        try {
+            return requestPermit.getAsBoolean();
+        } catch (RuntimeException exception) {
+            return false;
+        }
     }
 
     private void writeVerificationError(

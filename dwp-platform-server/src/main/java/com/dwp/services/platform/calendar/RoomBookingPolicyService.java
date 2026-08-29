@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -15,6 +16,8 @@ import java.util.UUID;
 
 import static com.dwp.services.platform.calendar.CalendarTypes.EventType;
 import static com.dwp.services.platform.calendar.CalendarTypes.RecurrencePattern;
+import static com.dwp.services.platform.calendar.CalendarTypes.ResourceState;
+import static com.dwp.services.platform.calendar.CalendarTypes.RoomBookingEligibilityReason;
 
 @Service
 class RoomBookingPolicyService {
@@ -36,7 +39,7 @@ class RoomBookingPolicyService {
             CalendarRepository.ResourceRow resource,
             CalendarRepository.PolicyRow policy,
             CalendarDtos.CreateEventRequest request) {
-        validate(tenantId, resource, policy, null, booking(request));
+        validate(tenantId, resource, policy(policy), null, booking(request));
     }
 
     void validateLockedUpdate(
@@ -45,13 +48,54 @@ class RoomBookingPolicyService {
             CalendarRepository.PolicyRow policy,
             UUID excludingEventId,
             CalendarDtos.UpdateEventRequest request) {
-        validate(tenantId, resource, policy, excludingEventId, booking(request));
+        validate(tenantId, resource, policy(policy), excludingEventId, booking(request));
+    }
+
+    CalendarDtos.RoomBookingEligibility evaluateAvailability(
+            CalendarDtos.ResourceSummary resource,
+            CalendarDtos.Policy policy,
+            OffsetDateTime from,
+            OffsetDateTime to,
+            UUID excludedEventId,
+            OffsetDateTime evaluatedAt,
+            boolean conflict) {
+        RoomBookingEligibilityReason reason = RoomBookingEligibilityReason.ELIGIBLE;
+        if (resource.type() != CalendarTypes.ResourceType.ROOM
+                || resource.state() != ResourceState.AVAILABLE) {
+            reason = RoomBookingEligibilityReason.RESOURCE_UNAVAILABLE;
+        } else {
+            try {
+                ZoneId resourceZone = zone(resource.timeZone());
+                bookingWindows(new RoomBookingRequest(
+                        EventType.MEETING,
+                        from,
+                        to,
+                        resource.timeZone(),
+                        false,
+                        RecurrencePattern.NONE,
+                        1,
+                        null), resourceZone, policy(policy));
+                if (conflict) reason = RoomBookingEligibilityReason.RESOURCE_CONFLICT;
+            } catch (BaseException exception) {
+                reason = RoomBookingEligibilityReason.POLICY_BLOCKED;
+            }
+        }
+        return new CalendarDtos.RoomBookingEligibility(
+                resource.resourceId(),
+                reason == RoomBookingEligibilityReason.ELIGIBLE,
+                reason,
+                from,
+                to,
+                excludedEventId,
+                evaluatedAt,
+                resource.version(),
+                policy.version());
     }
 
     private void validate(
             Long tenantId,
             CalendarRepository.ResourceRow resource,
-            CalendarRepository.PolicyRow policy,
+            RoomPolicy policy,
             UUID excludingEventId,
             RoomBookingRequest request) {
         if (resource == null || resource.type() != CalendarTypes.ResourceType.ROOM) return;
@@ -83,7 +127,7 @@ class RoomBookingPolicyService {
     private List<BookingWindow> bookingWindows(
             RoomBookingRequest request,
             ZoneId resourceZone,
-            CalendarRepository.PolicyRow policy) {
+            RoomPolicy policy) {
         if (!request.endsAt().isAfter(request.startsAt())) {
             throw invalid("The room reservation must end after it starts.");
         }
@@ -129,7 +173,7 @@ class RoomBookingPolicyService {
             BookingWindow window,
             ZoneId resourceZone,
             CalendarSchedulingHorizon.Horizon horizon,
-            CalendarRepository.PolicyRow policy) {
+            RoomPolicy policy) {
         if (horizon.isPast(window.startsAt())) {
             throw invalid("Meeting rooms cannot be reserved in the past.");
         }
@@ -181,6 +225,26 @@ class RoomBookingPolicyService {
                 request.recurrenceUntil());
     }
 
+    private RoomPolicy policy(CalendarRepository.PolicyRow value) {
+        return new RoomPolicy(
+                value.workingDayStart(),
+                value.workingDayEnd(),
+                value.minimumEventMinutes(),
+                value.maximumEventMinutes(),
+                value.maximumAdvanceDays(),
+                value.defaultBufferMinutes());
+    }
+
+    private RoomPolicy policy(CalendarDtos.Policy value) {
+        return new RoomPolicy(
+                value.workingDayStart(),
+                value.workingDayEnd(),
+                value.minimumEventMinutes(),
+                value.maximumEventMinutes(),
+                value.maximumAdvanceDays(),
+                value.defaultBufferMinutes());
+    }
+
     private BaseException invalid(String message) {
         return new BaseException(ErrorCode.INVALID_INPUT_VALUE, message);
     }
@@ -194,6 +258,15 @@ class RoomBookingPolicyService {
             RecurrencePattern recurrence,
             int recurrenceInterval,
             LocalDate recurrenceUntil) {
+    }
+
+    private record RoomPolicy(
+            LocalTime workingDayStart,
+            LocalTime workingDayEnd,
+            int minimumEventMinutes,
+            int maximumEventMinutes,
+            int maximumAdvanceDays,
+            int defaultBufferMinutes) {
     }
 
     private record BookingWindow(OffsetDateTime startsAt, OffsetDateTime endsAt) {

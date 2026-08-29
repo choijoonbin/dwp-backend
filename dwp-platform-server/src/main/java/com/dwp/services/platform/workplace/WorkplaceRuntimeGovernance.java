@@ -6,7 +6,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalTime;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static com.dwp.services.platform.workplace.WorkplaceSpatialGovernanceDtos.AccessPermission;
 import static com.dwp.services.platform.workplace.WorkplaceSpatialGovernanceDtos.PolicyScopeType;
@@ -25,10 +27,17 @@ class WorkplaceRuntimeGovernance {
         requireAccess(tenantId, userId, verifiedGroupRefs, siteId, AccessPermission.VIEW);
     }
 
-    boolean canViewAccess(
-            Long tenantId, Long userId, String verifiedGroupRefs, UUID siteId) {
-        return governance.evaluateSiteAccess(
-                tenantId, userId, verifiedGroupRefs, siteId, AccessPermission.VIEW).allowed();
+    Set<UUID> viewableSiteIds(
+            Long tenantId,
+            Long userId,
+            String verifiedGroupRefs,
+            Set<UUID> siteIds) {
+        return governance.evaluateSiteAccesses(
+                        tenantId, userId, verifiedGroupRefs, siteIds, AccessPermission.VIEW)
+                .entrySet().stream()
+                .filter(entry -> entry.getValue().allowed())
+                .map(java.util.Map.Entry::getKey)
+                .collect(Collectors.toUnmodifiableSet());
     }
 
     void requireBookAccess(

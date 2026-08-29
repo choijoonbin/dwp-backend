@@ -88,7 +88,7 @@ class MailLifecycleServiceTest {
     }
 
     @Test
-    void sharedMailboxMemberCannotPermanentlyDeleteWithoutManagerAuthority() {
+    void permanentDeleteIsDisabledUntilRetentionAndLegalHoldAreGoverned() {
         UUID threadId = UUID.randomUUID();
         var before = new MailLifecycleRepository.LifecycleThread(
                 threadId, UUID.randomUUID(), UUID.randomUUID(),
@@ -100,7 +100,7 @@ class MailLifecycleServiceTest {
                 new MailOrganizationDtos.LifecycleRequest(
                         LifecycleAction.DELETE_FOREVER, null, 2L)))
                 .isInstanceOf(BaseException.class)
-                .hasMessageContaining("manager");
+                .hasMessageContaining("retention and legal-hold");
 
         verify(lifecycle, never()).deleteForever(1L, 7L, before, 2L);
     }

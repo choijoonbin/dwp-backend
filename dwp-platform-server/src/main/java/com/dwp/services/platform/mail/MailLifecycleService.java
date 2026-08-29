@@ -40,7 +40,9 @@ public class MailLifecycleService {
             conflict();
         }
         if (request.action() == LifecycleAction.DELETE_FOREVER) {
-            return deleteForever(tenantId, userId, correlationId, before, request.version());
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "Permanent mail deletion is disabled until retention and legal-hold policy is governed.");
         }
         MailLifecycleRepository.FolderTarget target = target(
                 tenantId, userId, before, request.action(), request.targetFolderId());
@@ -60,25 +62,6 @@ public class MailLifecycleService {
                         "workflowState", after.workflowState().name(),
                         "version", after.version()));
         return new MailOrganizationDtos.LifecycleResult(after, false);
-    }
-
-    private MailOrganizationDtos.LifecycleResult deleteForever(
-            Long tenantId,
-            Long userId,
-            String correlationId,
-            MailLifecycleRepository.LifecycleThread before,
-            long version) {
-        if (!"TRASH".equals(before.folderType()) || !before.permanentDeleteAllowed()) {
-            throw new BaseException(
-                    ErrorCode.INVALID_STATE,
-                    "Only an owner or shared-mailbox manager can permanently delete trash.");
-        }
-        if (lifecycle.deleteForever(tenantId, userId, before, version) == 0) {
-            conflict();
-        }
-        record(tenantId, userId, correlationId, "mail.thread.deleted", before.threadId(),
-                state(before), Map.of("deleted", true));
-        return new MailOrganizationDtos.LifecycleResult(null, true);
     }
 
     private MailLifecycleRepository.FolderTarget target(

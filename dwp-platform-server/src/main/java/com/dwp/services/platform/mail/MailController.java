@@ -21,9 +21,11 @@ import java.util.UUID;
 public class MailController {
 
     private final MailService service;
+    private final MailDraftService drafts;
 
-    public MailController(MailService service) {
+    public MailController(MailService service, MailDraftService drafts) {
         this.service = service;
+        this.drafts = drafts;
     }
 
     @GetMapping("/home")
@@ -58,6 +60,27 @@ public class MailController {
             @Valid @RequestBody MailDtos.ComposeRequest request) {
         return ApiResponse.success(service.compose(
                 tenantId, userId, correlationId, request));
+    }
+
+    @PostMapping("/drafts")
+    public ApiResponse<MailDtos.ThreadDetail> createDraft(
+            @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
+            @RequestHeader("X-DWP-User-ID") Long userId,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @Valid @RequestBody MailDtos.DraftSaveRequest request) {
+        return ApiResponse.success(drafts.create(
+                tenantId, userId, correlationId, request));
+    }
+
+    @PutMapping("/drafts/{threadId}")
+    public ApiResponse<MailDtos.ThreadDetail> saveDraft(
+            @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
+            @RequestHeader("X-DWP-User-ID") Long userId,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @PathVariable UUID threadId,
+            @Valid @RequestBody MailDtos.DraftSaveRequest request) {
+        return ApiResponse.success(drafts.save(
+                tenantId, userId, threadId, correlationId, request));
     }
 
     @PutMapping("/threads/{threadId}/draft")
