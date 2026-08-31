@@ -683,6 +683,36 @@ class ProductSurfaceFeatureRolloutContractTest {
     }
 
     @Test
+    void incrementalWorkplaceReadSiblingBypassesRolloutAndStripsSpoofedEvidence() {
+        FeatureRolloutEvaluationClient client = mock(FeatureRolloutEvaluationClient.class);
+        ProductSurfaceRolloutHeaderFilter filter =
+                new ProductSurfaceRolloutHeaderFilter(
+                        client, productRouteCatalog(), new ObjectMapper());
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/platform/v1/workplace/bookings")
+                        .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "111")
+                        .header(ProductSurfaceRolloutHeaderFilter.COHORT_HEADER, "attacker")
+                        .header(ProductSurfaceRolloutHeaderFilter.REVISION_HEADER, "attacker"));
+        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                new AtomicReference<>();
+
+        filter.filter(exchange, filtered -> {
+            forwarded.set(filtered.getRequest());
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwarded.get()).isNotNull();
+        assertThat(forwarded.get().getHeaders().containsKey(
+                ProductSurfaceRolloutHeaderFilter.STATE_HEADER)).isFalse();
+        assertThat(forwarded.get().getHeaders().containsKey(
+                ProductSurfaceRolloutHeaderFilter.COHORT_HEADER)).isFalse();
+        assertThat(forwarded.get().getHeaders().containsKey(
+                ProductSurfaceRolloutHeaderFilter.REVISION_HEADER)).isFalse();
+        verify(client, org.mockito.Mockito.never())
+                .evaluateProducts(anyLong(), any(), any());
+    }
+
+    @Test
     void legacyWorkforceAccessPathDriftStillFailsClosedBeforeRolloutEvaluation() {
         FeatureRolloutEvaluationClient client = mock(FeatureRolloutEvaluationClient.class);
         ProductSurfaceRolloutHeaderFilter filter =

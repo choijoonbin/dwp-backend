@@ -521,6 +521,29 @@ class ProductSurfaceDecisionContextFilterTest {
     }
 
     @Test
+    void incrementalWorkplaceReadSiblingBypassesProductDecisionContext() {
+        ProductSurfaceContextAggregationService authority = mock(
+                ProductSurfaceContextAggregationService.class);
+        ProductSurfaceDecisionContextFilter filter = filter(authority);
+        MockServerWebExchange exchange = exchange(MockServerHttpRequest.get(
+                "/api/platform/v1/workplace/bookings"));
+        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                new AtomicReference<>();
+
+        filter.filter(exchange, filtered -> {
+            forwarded.set(filtered.getRequest());
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwarded.get()).isNotNull();
+        assertThat(forwarded.get().getHeaders().containsKey(
+                ProductSurfaceDecisionContextFilter.ROUTE_HEADER)).isFalse();
+        assertThat(forwarded.get().getHeaders().containsKey(
+                ProductSurfaceDecisionContextFilter.CURRENT_REVISION_HEADER)).isFalse();
+        verify(authority, never()).evaluateProductTrusted(any(), any());
+    }
+
+    @Test
     void invalidRolloutAndUnknownProductRouteFailClosedButNonProductPasses() {
         ProductSurfaceContextAggregationService authority = mock(
                 ProductSurfaceContextAggregationService.class);

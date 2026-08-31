@@ -113,6 +113,30 @@ class GeneratedProductRouteCatalogTest {
     }
 
     @Test
+    void incrementalProductSiblingsPassThroughWithoutRelaxingGovernedCandidates() {
+        GeneratedProductRouteCatalog incremental = catalog(4);
+        for (var request : List.of(
+                List.of("GET", "/api/platform/v1/workplace/bookings"),
+                List.of("GET", "/api/spaces/v1/spaces"),
+                List.of("GET", "/api/spaces/v1/requests"),
+                List.of("POST", "/api/spaces/v1/spaces/company-square/content"))) {
+            assertThat(incremental.match(request.get(0), request.get(1), null).status())
+                    .as(request.get(0) + " " + request.get(1))
+                    .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.UNGOVERNED);
+        }
+
+        assertThat(incremental.match(
+                        "GET", "/api/platform/v1/workplace/explore", null).status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+        assertThat(incremental.match(
+                        "GET", "/api/spaces/v1/spaces/company-square/content", null).status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+        assertThat(catalog.match(
+                        "GET", "/api/approvals/v1/not-registered", null).status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+    }
+
+    @Test
     void exposesOnlyTheFourExactLegacyWorkforceAccessBindings() {
         assertThat(catalog.match(
                         "GET", "/api/people/v1/admin/workforce/access-policies", null).status())

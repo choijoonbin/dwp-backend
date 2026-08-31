@@ -22,6 +22,21 @@ import java.util.regex.Pattern;
 @Component
 public final class GeneratedProductRouteCatalog {
 
+    /**
+     * Products introduced through the representative PAGE/DATA/ACTION v4 closure. Their
+     * generated bindings are intentionally incremental, so unmodeled sibling routes remain
+     * protected by the existing service PEP until the product registry is exhaustive.
+     */
+    private static final Set<String> INCREMENTAL_PRODUCT_KEYS = Set.of(
+            "calendar",
+            "dwaion",
+            "mail",
+            "meetings",
+            "messaging",
+            "notifications",
+            "spaces",
+            "workplace");
+
     private static final Set<String> AUTHORITY_ENDPOINT_FIELDS = Set.of(
             "endpointKey", "method", "publicPath", "serviceKey", "servicePath",
             "requiresAuthentication", "requiresCsrf",
@@ -57,8 +72,8 @@ public final class GeneratedProductRouteCatalog {
     }
 
     /**
-     * Resolves an exact generated binding. A known PRODUCT namespace, path shape, method, or
-     * fixed-parameter mismatch is INVALID rather than silently falling through to legacy routing.
+     * Resolves an exact generated binding. Governed candidate and mature-product namespace drift
+     * is INVALID; incremental products leave unmodeled siblings to the existing service PEP.
      */
     public Match match(String method, String path) {
         return match(method, path, null);
@@ -76,8 +91,10 @@ public final class GeneratedProductRouteCatalog {
         List<Route> structural = routes.stream()
                 .filter(route -> route.structuralPattern().matcher(normalizedPath).matches())
                 .toList();
-        List<Route> exact = structural.stream()
+        List<Route> methodStructural = structural.stream()
                 .filter(route -> route.method().equals(normalizedMethod))
+                .toList();
+        List<Route> exact = methodStructural.stream()
                 .filter(route -> route.exactPattern().matcher(normalizedPath).matches())
                 .filter(route -> queryMatches(route.queryConstraints(), query))
                 .toList();
@@ -85,8 +102,14 @@ public final class GeneratedProductRouteCatalog {
             if (legacyExempt(normalizedMethod, normalizedPath)) {
                 return new Match(MatchStatus.LEGACY_EXEMPT, List.of());
             }
+            boolean governedCandidateDrift = !methodStructural.isEmpty();
+            boolean matureProductMethodDrift = structural.stream()
+                    .map(Route::productKey)
+                    .anyMatch(product -> !INCREMENTAL_PRODUCT_KEYS.contains(product));
             return new Match(
-                    structural.isEmpty() && !claimedNamespace(normalizedPath)
+                    !governedCandidateDrift
+                                    && !matureProductMethodDrift
+                                    && !claimedNamespace(normalizedPath)
                             ? MatchStatus.UNGOVERNED : MatchStatus.INVALID,
                     List.of());
         }
@@ -116,6 +139,8 @@ public final class GeneratedProductRouteCatalog {
     private boolean claimedNamespace(String path) {
         return ownedNamespaces.entrySet().stream()
                 .filter(entry -> entry.getValue().size() == 1)
+                .filter(entry -> entry.getValue().stream()
+                        .noneMatch(INCREMENTAL_PRODUCT_KEYS::contains))
                 .anyMatch(entry -> path.startsWith(entry.getKey()));
     }
 
