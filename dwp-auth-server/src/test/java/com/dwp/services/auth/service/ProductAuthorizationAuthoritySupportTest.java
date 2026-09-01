@@ -2,6 +2,7 @@ package com.dwp.services.auth.service;
 
 import com.dwp.services.auth.dto.ProductAuthorizationContractDtos;
 import com.dwp.services.auth.dto.ProductSurfaceAuthorityDtos;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
@@ -49,6 +50,23 @@ class ProductAuthorizationAuthoritySupportTest {
                 request(), ambiguous)).isNull();
         assertThat(ProductAuthorizationAuthoritySupport.productResourceKey(
                 request(), noCommon)).isNull();
+    }
+
+    @Test
+    void exactEntitlementEvaluationHonorsOnlyTheDeclaredHcmCompatibilityAlias() throws Exception {
+        JsonNode hcmView = objectMapper.readTree(
+                "{\"type\":\"LEAF\",\"entitlement\":\"APP.HCM:VIEW\"}");
+        JsonNode hcmManage = objectMapper.readTree(
+                "{\"type\":\"LEAF\",\"entitlement\":\"APP.HCM:MANAGE\"}");
+        ProductAuthorizationIdentityEvidenceService.IdentityEvidence legacyIdentity =
+                identity(Set.of("APP.HRIS:VIEW"));
+
+        assertThat(ProductAuthorizationAuthoritySupport.evaluateEntitlement(
+                hcmView, legacyIdentity)).isTrue();
+        assertThat(ProductAuthorizationAuthoritySupport.evaluateEntitlement(
+                hcmManage, legacyIdentity)).isFalse();
+        assertThat(legacyIdentity.hasPermission("APP.HCM:VIEW")).isTrue();
+        assertThat(legacyIdentity.hasPermission("APP.PEOPLE_DIRECTORY:VIEW")).isFalse();
     }
 
     @Test
@@ -148,5 +166,11 @@ class ProductAuthorizationAuthoritySupportTest {
                 null,
                 null,
                 List.of());
+    }
+
+    private ProductAuthorizationIdentityEvidenceService.IdentityEvidence identity(
+            Set<String> permissions) {
+        return new ProductAuthorizationIdentityEvidenceService.IdentityEvidence(
+                permissions, Set.of(), List.of(), List.of(), "auth-test-revision");
     }
 }

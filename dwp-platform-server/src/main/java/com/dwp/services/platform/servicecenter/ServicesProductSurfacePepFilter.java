@@ -2,6 +2,7 @@ package com.dwp.services.platform.servicecenter;
 
 import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
+import com.dwp.core.security.HcmEligibilityScopeKey;
 import com.dwp.core.security.ProductSurfaceScopeKey;
 import com.dwp.core.security.RolePlaneBoundary;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -10,6 +11,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletRequestWrapper;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -18,6 +20,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.OffsetDateTime;
@@ -25,6 +28,7 @@ import java.time.format.DateTimeParseException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Enumeration;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -34,11 +38,11 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
- * Employee Services-only v4 owner PEP layered in front of the immutable Platform v1 PEP.
+ * Platform-owned Services route PEP layered in front of the immutable Platform v1 PEP.
  *
- * <p>The filter is disabled by default while the v4 bundle remains a draft. When enabled, it
- * validates the final v4 route and opaque SELF scope, then bridges the DATA route to its immutable
- * v1 compatibility identity for the downstream Platform filter. No other product is matched.</p>
+ * <p>It always protects the active HCM v3 personal-services route. Draft Services v4 routes remain
+ * feature-gated. Enforced requests validate the final route and trusted owner scope, then bridge
+ * compatible routes to their immutable v1 identity for the downstream Platform filter.</p>
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 15)
@@ -49,6 +53,10 @@ public final class ServicesProductSurfacePepFilter extends OncePerRequestFilter 
             "route.services.work.request-detail.data";
     static final String REQUEST_CREATE_ACTION_ROUTE =
             "route.services.work.request-create.action";
+    static final String HCM_PERSONAL_SERVICES_PAGE_ROUTE =
+            "route.hcm.personal.services.page";
+    private static final String SERVICE_TOKEN_HEADER = "X-DWP-Service-Token";
+    private static final Set<String> HCM_BRIDGE_QUERY_PARAMETERS = Set.of("surface");
 
     static final Binding HOME_PAGE = new Binding(
             HOME_PAGE_ROUTE,
@@ -58,7 +66,10 @@ public final class ServicesProductSurfacePepFilter extends OncePerRequestFilter 
             "/api/platform/v1/services/catalog",
             "/v1/services/catalog",
             Map.of(),
-            Set.of("surface", "view"));
+            Set.of("surface", "view"),
+            "services",
+            "services.work",
+            false);
     static final Binding REQUEST_DETAIL_DATA = new Binding(
             REQUEST_DETAIL_DATA_ROUTE,
             "route.services.work.my-detail.page",
@@ -67,7 +78,10 @@ public final class ServicesProductSurfacePepFilter extends OncePerRequestFilter 
             "/api/platform/v1/services/requests/{requestId}",
             "/v1/services/requests/{requestId}",
             Map.of("view", "detail"),
-            Set.of());
+            Set.of(),
+            "services",
+            "services.work",
+            false);
     static final Binding REQUEST_CREATE_ACTION = new Binding(
             REQUEST_CREATE_ACTION_ROUTE,
             REQUEST_CREATE_ACTION_ROUTE,
@@ -76,23 +90,59 @@ public final class ServicesProductSurfacePepFilter extends OncePerRequestFilter 
             "/api/platform/v1/services/requests",
             "/v1/services/requests",
             Map.of(),
-            Set.of());
+            Set.of(),
+            "services",
+            "services.work",
+            false);
+    static final Binding HCM_CATALOG_PAGE = new Binding(
+            HCM_PERSONAL_SERVICES_PAGE_ROUTE,
+            HOME_PAGE_ROUTE,
+            RouteKind.PAGE,
+            "GET",
+            "/api/platform/v1/services/catalog",
+            "/v1/services/catalog",
+            Map.of("surface", "hcm"),
+            Set.of(),
+            "hcm",
+            "hcm.personal",
+            true);
+    static final Binding HCM_REQUESTS_PAGE = new Binding(
+            HCM_PERSONAL_SERVICES_PAGE_ROUTE,
+            HOME_PAGE_ROUTE,
+            RouteKind.PAGE,
+            "GET",
+            "/api/platform/v1/services/requests",
+            "/v1/services/requests",
+            Map.of("surface", "hcm"),
+            Set.of(),
+            "hcm",
+            "hcm.personal",
+            true);
     private static final List<Binding> BINDINGS = List.of(
-            HOME_PAGE, REQUEST_DETAIL_DATA, REQUEST_CREATE_ACTION);
+            HOME_PAGE, REQUEST_DETAIL_DATA, REQUEST_CREATE_ACTION,
+            HCM_CATALOG_PAGE, HCM_REQUESTS_PAGE);
     private static final Set<String> ROLLOUT_STATES = Set.of("000", "100", "110", "111");
     private static final Set<String> ROLLOUT_COHORTS = Set.of(
             "baseline", "holdout", "full", "eligible-10", "eligible-25",
             "eligible-50", "eligible-90");
 
     private final boolean enabled;
+    private final String serviceToken;
     private final ObjectMapper objectMapper;
 
+    @Autowired
     public ServicesProductSurfacePepFilter(
             @Value("${dwp.platform.product-authorization-services-v4-enabled:false}")
             boolean enabled,
+            @Value("${dwp.platform.service-token:}") String serviceToken,
             ObjectMapper objectMapper) {
         this.enabled = enabled;
+        this.serviceToken = serviceToken == null ? "" : serviceToken.trim();
         this.objectMapper = objectMapper;
+    }
+
+    ServicesProductSurfacePepFilter(boolean enabled, ObjectMapper objectMapper) {
+        this(enabled, "trusted", objectMapper);
     }
 
     List<Binding> bindingContracts() {
@@ -101,7 +151,9 @@ public final class ServicesProductSurfacePepFilter extends OncePerRequestFilter 
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !enabled || candidateBindings(request).isEmpty();
+        List<Binding> candidates = candidateBindings(request);
+        return candidates.isEmpty() || (!enabled && candidates.stream()
+                .noneMatch(Binding::requiresHcmApplication));
     }
 
     @Override
@@ -109,14 +161,15 @@ public final class ServicesProductSurfacePepFilter extends OncePerRequestFilter 
             HttpServletRequest request,
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
-        String routeKey = exactHeader(request, "X-DWP-Route-Contract-Key");
-        Binding binding = candidateBindings(request).stream()
-                .filter(candidate -> candidate.routeContractKey().equals(routeKey))
-                .findFirst()
-                .orElse(null);
-        if (binding == null) {
-            writeError(response, ErrorCode.FORBIDDEN,
-                    "The exact Employee Services route authority is required.");
+        if (serviceToken.isBlank()) {
+            writeError(response, ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "Trusted Platform service identity is not configured.");
+            return;
+        }
+        if (!constantTimeEquals(
+                serviceToken, exactHeader(request, SERVICE_TOKEN_HEADER))) {
+            writeError(response, ErrorCode.UNAUTHORIZED,
+                    "Trusted Platform service identity is required.");
             return;
         }
         String rolloutState = exactHeader(request, "X-DWP-Rollout-State");
@@ -130,6 +183,16 @@ public final class ServicesProductSurfacePepFilter extends OncePerRequestFilter 
         }
         if (rolloutState.charAt(1) == '0') {
             filterChain.doFilter(request, response);
+            return;
+        }
+        String routeKey = exactHeader(request, "X-DWP-Route-Contract-Key");
+        Binding binding = candidateBindings(request).stream()
+                .filter(candidate -> candidate.routeContractKey().equals(routeKey))
+                .findFirst()
+                .orElse(null);
+        if (binding == null) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "The exact Employee Services route authority is required.");
             return;
         }
 
@@ -166,7 +229,10 @@ public final class ServicesProductSurfacePepFilter extends OncePerRequestFilter 
                 binding.platformV1RouteContractKey())
                 ? request
                 : new RouteContractBridgeRequest(
-                request, binding.platformV1RouteContractKey());
+                request,
+                binding.platformV1RouteContractKey(),
+                binding.requiresHcmApplication()
+                        ? HCM_BRIDGE_QUERY_PARAMETERS : Set.of());
         filterChain.doFilter(downstream, response);
     }
 
@@ -186,18 +252,32 @@ public final class ServicesProductSurfacePepFilter extends OncePerRequestFilter 
                 || RolePlaneBoundary.isProviderIdentity(roles)) {
             return Decision.DENIED;
         }
-        if (!upperValues(request.getHeader("X-DWP-Permissions"))
-                .contains("APP.EMPLOYEE_SERVICES:VIEW")) {
+        Set<String> permissions = upperValues(request.getHeader("X-DWP-Permissions"));
+        if (!permissions.contains("APP.EMPLOYEE_SERVICES:VIEW")) {
             return Decision.DENIED;
         }
-        String expectedScope = ProductSurfaceScopeKey.key(
-                tenantId,
-                actorId,
-                "services",
-                "services.work",
-                "SELF",
-                "SELF");
-        if (!constantTimeEquals(expectedScope, scopeKey)) return Decision.DENIED;
+        if (binding.requiresHcmApplication()
+                && !permissions.contains("APP.HCM:VIEW")
+                && !permissions.contains("APP.HRIS:VIEW")) {
+            return Decision.DENIED;
+        }
+        if (binding.requiresHcmApplication()) {
+            // HCM eligibility replaces Auth's SELF selector with a People-derived scope.
+            // The exact route/current-decision evidence is Gateway-only and this owner PEP also
+            // verifies its service identity before accepting the canonical derived selector.
+            if (!HcmEligibilityScopeKey.isCanonical(scopeKey)) {
+                return Decision.DENIED;
+            }
+        } else {
+            String expectedScope = ProductSurfaceScopeKey.key(
+                    tenantId,
+                    actorId,
+                    binding.productKey(),
+                    binding.surfaceKey(),
+                    "SELF",
+                    "SELF");
+            if (!constantTimeEquals(expectedScope, scopeKey)) return Decision.DENIED;
+        }
         return binding.routeContractKey().equals(
                 exactHeader(request, "X-DWP-Route-Contract-Key"))
                 ? Decision.ALLOWED : Decision.DENIED;
@@ -259,6 +339,7 @@ public final class ServicesProductSurfacePepFilter extends OncePerRequestFilter 
     }
 
     private boolean constantTimeEquals(String expected, String actual) {
+        if (expected == null || actual == null) return false;
         return MessageDigest.isEqual(
                 expected.getBytes(StandardCharsets.UTF_8),
                 actual.getBytes(StandardCharsets.UTF_8));
@@ -291,7 +372,10 @@ public final class ServicesProductSurfacePepFilter extends OncePerRequestFilter 
             String gatewayPath,
             String servicePath,
             Map<String, String> fixedQuery,
-            Set<String> absentQuery) {
+            Set<String> absentQuery,
+            String productKey,
+            String surfaceKey,
+            boolean requiresHcmApplication) {
 
         boolean matches(HttpServletRequest request) {
             if (!method.equals(request.getMethod())
@@ -330,11 +414,15 @@ public final class ServicesProductSurfacePepFilter extends OncePerRequestFilter 
 
         private static final String ROUTE_HEADER = "X-DWP-Route-Contract-Key";
         private final String downstreamRouteKey;
+        private final Set<String> removedQueryParameters;
 
         private RouteContractBridgeRequest(
-                HttpServletRequest request, String downstreamRouteKey) {
+                HttpServletRequest request,
+                String downstreamRouteKey,
+                Set<String> removedQueryParameters) {
             super(request);
             this.downstreamRouteKey = downstreamRouteKey;
+            this.removedQueryParameters = Set.copyOf(removedQueryParameters);
         }
 
         @Override
@@ -348,6 +436,54 @@ public final class ServicesProductSurfacePepFilter extends OncePerRequestFilter 
             return ROUTE_HEADER.equalsIgnoreCase(name)
                     ? Collections.enumeration(List.of(downstreamRouteKey))
                     : super.getHeaders(name);
+        }
+
+        @Override
+        public String getParameter(String name) {
+            return removedQueryParameters.contains(name) ? null : super.getParameter(name);
+        }
+
+        @Override
+        public String[] getParameterValues(String name) {
+            if (removedQueryParameters.contains(name)) return null;
+            String[] values = super.getParameterValues(name);
+            return values == null ? null : values.clone();
+        }
+
+        @Override
+        public Map<String, String[]> getParameterMap() {
+            Map<String, String[]> retained = new LinkedHashMap<>();
+            super.getParameterMap().forEach((name, values) -> {
+                if (!removedQueryParameters.contains(name)) {
+                    retained.put(name, values == null ? null : values.clone());
+                }
+            });
+            return Collections.unmodifiableMap(retained);
+        }
+
+        @Override
+        public Enumeration<String> getParameterNames() {
+            return Collections.enumeration(getParameterMap().keySet());
+        }
+
+        @Override
+        public String getQueryString() {
+            String raw = super.getQueryString();
+            if (raw == null || raw.isEmpty() || removedQueryParameters.isEmpty()) return raw;
+            String retained = Arrays.stream(raw.split("&", -1))
+                    .filter(pair -> !removedQueryParameters.contains(queryName(pair)))
+                    .collect(Collectors.joining("&"));
+            return retained.isEmpty() ? null : retained;
+        }
+
+        private String queryName(String pair) {
+            int separator = pair.indexOf('=');
+            String rawName = separator < 0 ? pair : pair.substring(0, separator);
+            try {
+                return URLDecoder.decode(rawName, StandardCharsets.UTF_8);
+            } catch (IllegalArgumentException exception) {
+                return rawName;
+            }
         }
     }
 }

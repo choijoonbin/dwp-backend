@@ -4,10 +4,12 @@ import com.dwp.services.meeting.videomeeting.provider.MeetingIntelligenceHttpPro
 import com.dwp.services.meeting.videomeeting.provider.MeetingIntelligencePayloadProtector;
 import com.dwp.services.meeting.videomeeting.provider.MeetingTranscriptHttpProperties;
 import com.dwp.services.meeting.videomeeting.provider.MeetingTranscriptSource;
+import com.dwp.services.meeting.videomeeting.provider.MeetingRecordingProvider;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -35,6 +37,20 @@ class MeetingContentDependenciesTest {
         assertThat(status.auditAvailable()).isTrue();
         assertThat(status.egressAvailable()).isFalse();
         assertThat(status.speechToTextAvailable()).isFalse();
+    }
+
+    @Test
+    void governedAdapterUsesTheActualRecordingProbeForEgressStorageAndSpeechToText() {
+        Fixture fixture = readyFixture();
+        when(fixture.recording.capability()).thenReturn(new MeetingRecordingProvider.Capability(
+                true, true, true, true, true, true,
+                "ap-northeast-2", "GOVERNED_EGRESS"));
+
+        var status = fixture.dependencies.status();
+
+        assertThat(status.egressAvailable()).isTrue();
+        assertThat(status.storageAvailable()).isTrue();
+        assertThat(status.speechToTextAvailable()).isTrue();
     }
 
     @Test
@@ -89,6 +105,9 @@ class MeetingContentDependenciesTest {
     private Fixture readyFixture() {
         JdbcTemplate jdbc = mock(JdbcTemplate.class);
         MeetingTranscriptSource source = mock(MeetingTranscriptSource.class);
+        MeetingRecordingProvider recording = mock(MeetingRecordingProvider.class);
+        MeetingRecordingDeletionReadiness deletion =
+                mock(MeetingRecordingDeletionReadiness.class);
         MeetingIntelligencePayloadProtector protector =
                 mock(MeetingIntelligencePayloadProtector.class);
         MeetingIntelligenceHttpProperties intelligence =
@@ -99,18 +118,22 @@ class MeetingContentDependenciesTest {
         when(source.available()).thenReturn(true);
         when(protector.available()).thenReturn(true);
         when(protector.ready()).thenReturn(true);
+        when(recording.capability()).thenReturn(MeetingRecordingProvider.Capability.unavailable());
+        when(deletion.ready(any())).thenReturn(true);
         when(jdbc.queryForObject(anyString(), eq(Boolean.class))).thenReturn(true);
         GovernedMeetingContentDependencies dependencies =
                 new GovernedMeetingContentDependencies(
-                        jdbc, intelligence, transcript, source, protector);
+                        jdbc, intelligence, transcript, source, protector,
+                        recording, deletion);
         return new Fixture(
-                jdbc, source, protector, intelligence, transcript, dependencies);
+                jdbc, source, protector, recording, intelligence, transcript, dependencies);
     }
 
     private record Fixture(
             JdbcTemplate jdbc,
             MeetingTranscriptSource transcriptSource,
             MeetingIntelligencePayloadProtector protector,
+            MeetingRecordingProvider recording,
             MeetingIntelligenceHttpProperties intelligenceProperties,
             MeetingTranscriptHttpProperties transcriptProperties,
             MeetingContentDependencies dependencies) {

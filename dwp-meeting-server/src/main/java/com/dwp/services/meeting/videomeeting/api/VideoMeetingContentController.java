@@ -3,6 +3,7 @@ package com.dwp.services.meeting.videomeeting.api;
 import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingContentService;
+import com.dwp.services.meeting.videomeeting.domain.VideoMeetingRecordingService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,9 +22,13 @@ import java.util.UUID;
 public class VideoMeetingContentController {
 
     private final VideoMeetingContentService service;
+    private final VideoMeetingRecordingService recording;
 
-    public VideoMeetingContentController(VideoMeetingContentService service) {
+    public VideoMeetingContentController(
+            VideoMeetingContentService service,
+            VideoMeetingRecordingService recording) {
         this.service = service;
+        this.recording = recording;
     }
 
     @GetMapping("/content-plan")
@@ -60,7 +65,7 @@ public class VideoMeetingContentController {
                     @RequestHeader("Idempotency-Key") String idempotencyKey,
                     @RequestHeader(value = "X-Correlation-ID", required = false)
                     String correlationId) {
-        return commandResponse(service.requestRecording(
+        return commandResponse(recording.requestRecording(
                 meetingId, request, idempotencyKey, correlationId), correlationId);
     }
 
@@ -72,7 +77,7 @@ public class VideoMeetingContentController {
                     @RequestHeader("Idempotency-Key") String idempotencyKey,
                     @RequestHeader(value = "X-Correlation-ID", required = false)
                     String correlationId) {
-        return commandResponse(service.stopRecording(
+        return commandResponse(recording.stopRecording(
                 meetingId, request, idempotencyKey, correlationId), correlationId);
     }
 

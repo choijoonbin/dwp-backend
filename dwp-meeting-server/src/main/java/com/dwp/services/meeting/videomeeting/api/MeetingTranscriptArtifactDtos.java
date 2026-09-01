@@ -15,10 +15,20 @@ public final class MeetingTranscriptArtifactDtos {
     private MeetingTranscriptArtifactDtos() {
     }
 
+    public record RegisterTranscriptCommand(
+            @NotNull UUID artifactId,
+            @NotNull @Min(0) Long expectedContentPlanVersion,
+            @NotNull UUID contentNoticeId,
+            @NotBlank @Pattern(regexp = "^[0-9a-f]{64}$") String consentSnapshotSha256,
+            @NotBlank @Pattern(regexp = "^[0-9a-f]{64}$") String sourceSha256,
+            @NotBlank @Pattern(regexp = "^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$")
+            String processingRegion) {
+    }
+
     public record FinalizeTranscriptCommand(
             @NotNull UUID artifactId,
-            @Min(0) long expectedArtifactVersion,
-            @Min(0) long expectedContentPlanVersion,
+            @NotNull @Min(0) Long expectedArtifactVersion,
+            @NotNull @Min(0) Long expectedContentPlanVersion,
             @NotNull UUID contentNoticeId,
             @NotBlank @Pattern(regexp = "^[0-9a-f]{64}$") String consentSnapshotSha256,
             @NotBlank @Pattern(regexp = "^[0-9a-f]{64}$") String sourceSha256,

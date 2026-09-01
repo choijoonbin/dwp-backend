@@ -29,25 +29,29 @@ import java.util.stream.Collectors;
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
 public class PlatformSecurityFilter extends OncePerRequestFilter {
 
-    static final String SERVICE_TOKEN_HEADER = "X-DWP-Service-Token";
-    static final String USER_HEADER = "X-DWP-User-ID";
-    static final String TENANT_HEADER = "X-DWP-Tenant-ID";
-    static final String ROLES_HEADER = "X-DWP-Roles";
-    static final String PERMISSIONS_HEADER = "X-DWP-Permissions";
-    static final String RESOURCE_ROLES_HEADER = "X-DWP-Resource-Roles";
-    static final String SUPPORT_SESSION_HEADER = "X-DWP-Support-Session-ID";
-    static final String SUPPORT_SCOPES_HEADER = "X-DWP-Support-Scopes";
-    static final String ACTOR_TENANT_HEADER = "X-DWP-Actor-Tenant-ID";
-    static final String ROUTE_CONTRACT_HEADER = "X-DWP-Route-Contract-Key";
-    static final String CURRENT_DECISION_REVISION_HEADER = "X-DWP-Current-Decision-Revision";
-    static final String CURRENT_REVALIDATE_AT_HEADER = "X-DWP-Current-Revalidate-At";
-    static final String EXPECTED_DECISION_REVISION_HEADER = "X-DWP-Expected-Decision-Revision";
-    static final String CONTEXT_HEADER = "X-DWP-Context-Key";
-    static final String SCOPE_HEADER = "X-DWP-Context-Scope-Key";
-    static final String RESPONSE_DECISION_REVISION_HEADER = "X-DWP-Decision-Revision";
-    static final String ROLLOUT_COHORT_HEADER = "X-DWP-Rollout-Cohort";
-    static final String ROLLOUT_REVISION_HEADER = "X-DWP-Rollout-Revision";
-    static final String ROLLOUT_STATE_HEADER = "X-DWP-Rollout-State";
+    static final String SERVICE_TOKEN_HEADER = PlatformSecurityHeaders.SERVICE_TOKEN;
+    static final String USER_HEADER = PlatformSecurityHeaders.USER;
+    static final String TENANT_HEADER = PlatformSecurityHeaders.TENANT;
+    static final String ROLES_HEADER = PlatformSecurityHeaders.ROLES;
+    static final String PERMISSIONS_HEADER = PlatformSecurityHeaders.PERMISSIONS;
+    static final String RESOURCE_ROLES_HEADER = PlatformSecurityHeaders.RESOURCE_ROLES;
+    static final String SUPPORT_SESSION_HEADER = PlatformSecurityHeaders.SUPPORT_SESSION;
+    static final String SUPPORT_SCOPES_HEADER = PlatformSecurityHeaders.SUPPORT_SCOPES;
+    static final String ACTOR_TENANT_HEADER = PlatformSecurityHeaders.ACTOR_TENANT;
+    static final String ROUTE_CONTRACT_HEADER = PlatformSecurityHeaders.ROUTE_CONTRACT;
+    static final String CURRENT_DECISION_REVISION_HEADER =
+            PlatformSecurityHeaders.CURRENT_DECISION_REVISION;
+    static final String CURRENT_REVALIDATE_AT_HEADER =
+            PlatformSecurityHeaders.CURRENT_REVALIDATE_AT;
+    static final String EXPECTED_DECISION_REVISION_HEADER =
+            PlatformSecurityHeaders.EXPECTED_DECISION_REVISION;
+    static final String CONTEXT_HEADER = PlatformSecurityHeaders.CONTEXT;
+    static final String SCOPE_HEADER = PlatformSecurityHeaders.SCOPE;
+    static final String RESPONSE_DECISION_REVISION_HEADER =
+            PlatformSecurityHeaders.RESPONSE_DECISION_REVISION;
+    static final String ROLLOUT_COHORT_HEADER = PlatformSecurityHeaders.ROLLOUT_COHORT;
+    static final String ROLLOUT_REVISION_HEADER = PlatformSecurityHeaders.ROLLOUT_REVISION;
+    static final String ROLLOUT_STATE_HEADER = PlatformSecurityHeaders.ROLLOUT_STATE;
     private static final Set<String> ADMIN_ROLES = Set.of("ADMIN", "TENANT_ADMIN", "PLATFORM_ADMIN");
     private static final String SUPPORT_EXPERIENCE_PREVIEW_PATH =
             "/v1/admin/tenant-experience-preview";
@@ -569,10 +573,6 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
                 .map(String::trim)
                 .filter(value -> !value.isBlank())
                 .collect(Collectors.toUnmodifiableSet());
-    }
-
-    private boolean matches(String path, List<String> prefixes) {
-        return prefixes.stream().anyMatch(prefix -> path.equals(prefix) || path.startsWith(prefix + "/"));
     }
 
     private boolean isRuntimeRead(HttpServletRequest request) {

@@ -30,10 +30,10 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
     static final String SERVICE_IDENTITY_HEADER = "X-DWP-Service-Identity";
     static final String USER_HEADER = "X-DWP-User-ID";
     static final String TENANT_HEADER = "X-DWP-Tenant-ID";
-    static final String ROLES_HEADER = "X-DWP-Roles";
-    static final String PERMISSIONS_HEADER = "X-DWP-Permissions";
-    static final String SUPPORT_SESSION_HEADER = "X-DWP-Support-Session-ID";
-    static final String SUPPORT_SCOPES_HEADER = "X-DWP-Support-Scopes";
+    static final String ROLES_HEADER = PeopleSecurityHeaders.ROLES;
+    static final String PERMISSIONS_HEADER = PeopleSecurityHeaders.PERMISSIONS;
+    static final String SUPPORT_SESSION_HEADER = PeopleSecurityHeaders.SUPPORT_SESSION;
+    static final String SUPPORT_SCOPES_HEADER = PeopleSecurityHeaders.SUPPORT_SCOPES;
     static final String ACTOR_TENANT_HEADER = "X-DWP-Actor-Tenant-ID";
     static final String PERSON_PUBLIC_ID_HEADER = "X-DWP-Person-Public-ID";
     static final String LEGACY_ROLE_FALLBACK_HEADER = "X-DWP-Legacy-Role-Fallback-Allowed";
@@ -160,8 +160,8 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
     }
 
     private boolean exactHcmEvidence(HttpServletRequest request) {
-        String state = request.getHeader(HcmProductSurfacePepFilter.ROLLOUT_STATE_HEADER);
-        String route = request.getHeader(HcmProductSurfacePepFilter.ROUTE_CONTRACT_HEADER);
+        String state = request.getHeader(PeopleSecurityHeaders.ROLLOUT_STATE);
+        String route = request.getHeader(PeopleSecurityHeaders.ROUTE_CONTRACT);
         return state != null && state.matches("1[1][01]")
                 && route != null && route.startsWith("route.hcm.");
     }

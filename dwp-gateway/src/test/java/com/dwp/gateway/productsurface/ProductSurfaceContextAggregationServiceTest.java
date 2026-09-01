@@ -23,6 +23,19 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static com.dwp.gateway.productsurface.ProductSurfaceContextTestFixtures.allowed;
+import static com.dwp.gateway.productsurface.ProductSurfaceContextTestFixtures.allowedWithAppResourceKey;
+import static com.dwp.gateway.productsurface.ProductSurfaceContextTestFixtures.allowedWithScopes;
+import static com.dwp.gateway.productsurface.ProductSurfaceContextTestFixtures.challenged;
+import static com.dwp.gateway.productsurface.ProductSurfaceContextTestFixtures.denied;
+import static com.dwp.gateway.productsurface.ProductSurfaceContextTestFixtures.eligibleScope;
+import static com.dwp.gateway.productsurface.ProductSurfaceContextTestFixtures.evaluationRequest;
+import static com.dwp.gateway.productsurface.ProductSurfaceContextTestFixtures.productNotRegistered;
+import static com.dwp.gateway.productsurface.ProductSurfaceContextTestFixtures.requestContext;
+import static com.dwp.gateway.productsurface.ProductSurfaceContextTestFixtures.rollout;
+import static com.dwp.gateway.productsurface.ProductSurfaceContextTestFixtures.scope;
+import static com.dwp.gateway.productsurface.ProductSurfaceContextTestFixtures.surfaceNotRegistered;
+import static com.dwp.gateway.productsurface.ProductSurfaceContextTestFixtures.unavailable;
 
 class ProductSurfaceContextAggregationServiceTest {
 
@@ -120,8 +133,7 @@ class ProductSurfaceContextAggregationServiceTest {
         when(catalog.activeCandidates()).thenReturn(List.of(candidate, candidate));
 
         assertThatThrownBy(() -> service.listContexts(requestContext()).block())
-                .isInstanceOf(ProductSurfaceContextAggregationService
-                        .AuthorityUnavailableException.class);
+                .isInstanceOf(ProductSurfaceAuthorityUnavailableException.class);
 
         verify(authority, never()).evaluate(any(), any(), any(), any(), any(), any());
         verify(rollout, never()).evaluateProducts(anyLong(), any(), any());
@@ -171,8 +183,7 @@ class ProductSurfaceContextAggregationServiceTest {
                         "people-evidence")));
 
         assertThatThrownBy(() -> service.listContexts(requestContext()).block())
-                .isInstanceOf(ProductSurfaceContextAggregationService
-                        .AuthorityUnavailableException.class);
+                .isInstanceOf(ProductSurfaceAuthorityUnavailableException.class);
     }
 
     @Test
@@ -193,8 +204,7 @@ class ProductSurfaceContextAggregationServiceTest {
                         "people-evidence")));
 
         assertThatThrownBy(() -> service.listContexts(requestContext()).block())
-                .isInstanceOf(ProductSurfaceContextAggregationService
-                        .AuthorityUnavailableException.class);
+                .isInstanceOf(ProductSurfaceAuthorityUnavailableException.class);
     }
 
     @Test
@@ -239,8 +249,7 @@ class ProductSurfaceContextAggregationServiceTest {
 
         assertThatThrownBy(() -> service.evaluateProductTrusted(
                         requestContext(), evaluationRequest()).block())
-                .isInstanceOf(ProductSurfaceContextAggregationService
-                        .AuthorityUnavailableException.class);
+                .isInstanceOf(ProductSurfaceAuthorityUnavailableException.class);
     }
 
     @Test
@@ -255,8 +264,7 @@ class ProductSurfaceContextAggregationServiceTest {
                 null);
 
         assertThatThrownBy(() -> service.evaluateProduct(requestContext(), request).block())
-                .isInstanceOf(ProductSurfaceContextAggregationService
-                        .AuthorityUnavailableException.class);
+                .isInstanceOf(ProductSurfaceAuthorityUnavailableException.class);
     }
 
     @Test
@@ -271,8 +279,7 @@ class ProductSurfaceContextAggregationServiceTest {
                 null);
 
         assertThatThrownBy(() -> service.evaluateProduct(requestContext(), request).block())
-                .isInstanceOf(ProductSurfaceContextAggregationService
-                        .AuthorityUnavailableException.class);
+                .isInstanceOf(ProductSurfaceAuthorityUnavailableException.class);
     }
 
     @Test
@@ -292,8 +299,7 @@ class ProductSurfaceContextAggregationServiceTest {
                         null)));
 
         assertThatThrownBy(() -> service.listContexts(requestContext()).block())
-                .isInstanceOf(ProductSurfaceContextAggregationService
-                        .AuthorityUnavailableException.class);
+                .isInstanceOf(ProductSurfaceAuthorityUnavailableException.class);
     }
 
     @Test
@@ -305,8 +311,7 @@ class ProductSurfaceContextAggregationServiceTest {
                         .RolloutAuthorityUnavailableException()));
 
         assertThatThrownBy(() -> service.listContexts(requestContext()).block())
-                .isInstanceOf(ProductSurfaceContextAggregationService
-                        .AuthorityUnavailableException.class);
+                .isInstanceOf(ProductSurfaceAuthorityUnavailableException.class);
     }
 
     @Test
@@ -374,8 +379,7 @@ class ProductSurfaceContextAggregationServiceTest {
                         .map(product -> rollout(product, "110"))
                         .toList()));
         assertThatThrownBy(() -> service.listContexts(requestContext()).block())
-                .isInstanceOf(ProductSurfaceContextAggregationService
-                        .AuthorityUnavailableException.class);
+                .isInstanceOf(ProductSurfaceAuthorityUnavailableException.class);
 
         verify(authority, never()).evaluate(any(), any(), any(), any(), any(), any());
     }
@@ -418,8 +422,7 @@ class ProductSurfaceContextAggregationServiceTest {
                         .toList()));
 
         assertThatThrownBy(() -> service.listContexts(requestContext()).block())
-                .isInstanceOf(ProductSurfaceContextAggregationService
-                        .AuthorityUnavailableException.class);
+                .isInstanceOf(ProductSurfaceAuthorityUnavailableException.class);
 
         verify(authority, never()).evaluate(any(), any(), any(), any(), any(), any());
     }
@@ -443,8 +446,7 @@ class ProductSurfaceContextAggregationServiceTest {
                         productNotRegistered("hcm", "hcm.management")));
 
         assertThatThrownBy(() -> service.listContexts(requestContext()).block())
-                .isInstanceOf(ProductSurfaceContextAggregationService
-                        .AuthorityUnavailableException.class);
+                .isInstanceOf(ProductSurfaceAuthorityUnavailableException.class);
     }
 
     @Test
@@ -477,8 +479,7 @@ class ProductSurfaceContextAggregationServiceTest {
                 .thenReturn(Mono.just(unavailable()));
 
         assertThatThrownBy(() -> service.listContexts(requestContext()).block())
-                .isInstanceOf(ProductSurfaceContextAggregationService
-                        .AuthorityUnavailableException.class);
+                .isInstanceOf(ProductSurfaceAuthorityUnavailableException.class);
     }
 
     @Test
@@ -552,8 +553,7 @@ class ProductSurfaceContextAggregationServiceTest {
                         rollout("hcm", "110"))));
 
         assertThatThrownBy(() -> service.listContexts(requestContext()).block())
-                .isInstanceOf(ProductSurfaceContextAggregationService
-                        .AuthorityUnavailableException.class);
+                .isInstanceOf(ProductSurfaceAuthorityUnavailableException.class);
 
         verify(authority, never()).evaluate(any(), any(), any(), any(), any(), any());
     }
@@ -601,8 +601,7 @@ class ProductSurfaceContextAggregationServiceTest {
                 noCatalogService.listContexts(requestContext());
 
         assertThatThrownBy(result::block)
-                .isInstanceOf(ProductSurfaceContextAggregationService
-                        .AuthorityUnavailableException.class);
+                .isInstanceOf(ProductSurfaceAuthorityUnavailableException.class);
     }
 
     @Test
@@ -663,8 +662,7 @@ class ProductSurfaceContextAggregationServiceTest {
 
         assertThatThrownBy(() -> service.evaluateProduct(
                 requestContext(), evaluationRequest()).block())
-                .isInstanceOf(ProductSurfaceContextAggregationService
-                        .AuthorityUnavailableException.class);
+                .isInstanceOf(ProductSurfaceAuthorityUnavailableException.class);
     }
 
     @Test
@@ -760,8 +758,7 @@ class ProductSurfaceContextAggregationServiceTest {
 
         assertThatThrownBy(() -> service.evaluateProduct(
                 requestContext(), evaluationRequest()).block())
-                .isInstanceOf(ProductSurfaceContextAggregationService
-                        .AuthorityUnavailableException.class);
+                .isInstanceOf(ProductSurfaceAuthorityUnavailableException.class);
     }
 
     @Test
@@ -772,8 +769,7 @@ class ProductSurfaceContextAggregationServiceTest {
 
         assertThatThrownBy(() -> service.evaluateProduct(
                 requestContext(), evaluationRequest()).block())
-                .isInstanceOf(ProductSurfaceContextAggregationService
-                        .AuthorityUnavailableException.class);
+                .isInstanceOf(ProductSurfaceAuthorityUnavailableException.class);
     }
 
     @Test
@@ -792,275 +788,4 @@ class ProductSurfaceContextAggregationServiceTest {
         assertThat(result.context()).isNull();
     }
 
-    private ProductSurfaceContextDtos.RequestContext requestContext() {
-        return new ProductSurfaceContextDtos.RequestContext(
-                1L,
-                7L,
-                ProductSurfaceContextDtos.AccessMode.NORMAL,
-                null,
-                null,
-                List.of(),
-                "corr-1",
-                null,
-                null);
-    }
-
-    private ProductSurfaceContextDtos.ProductEvaluationRequest evaluationRequest() {
-        return new ProductSurfaceContextDtos.ProductEvaluationRequest(
-                new ProductSurfaceContextDtos.Subject(
-                        "PRODUCT", "approvals", "approvals.admin"),
-                "route.approvals.admin.forms.page",
-                null,
-                null);
-    }
-
-    private ProductSurfaceContextDtos.AuthorityResult allowed(boolean requiresEligibility) {
-        OffsetDateTime expires = OffsetDateTime.parse("2026-08-24T02:00:00Z");
-        return new ProductSurfaceContextDtos.AuthorityResult(
-                ProductSurfaceContextDtos.Decision.ALLOWED,
-                null,
-                "auth-4",
-                "policy-8",
-                "context-1",
-                "approvals",
-                "approvals.admin",
-                "management",
-                ProductSurfaceContextDtos.AccessMode.NORMAL,
-                ProductSurfaceContextDtos.AccessSource.MANAGEMENT,
-                "APP.APPROVALS",
-                List.of(new ProductSurfaceContextDtos.CapabilityGrant(
-                        "approvals.design.read",
-                        "ADMIN.APPROVAL_DESIGN:VIEW",
-                        ProductSurfaceContextDtos.CapabilityAuthorityMode.PERMISSION,
-                        List.of(),
-                        "REQUIRED",
-                        new ProductSurfaceContextDtos.Responsibility(
-                                "APP_CONFIG_ADMIN", "APPROVALS"),
-                        List.of("scope-1"),
-                        false,
-                        false,
-                        "ACTIVE",
-                        expires)),
-                List.of(new ProductSurfaceContextDtos.EffectiveScope(
-                        "scope-1", "RESOURCE_SET", "Approvals", true, false, expires)),
-                "route-grant-1",
-                false,
-                requiresEligibility,
-                expires,
-                null,
-                null,
-                null,
-                OffsetDateTime.parse("2026-08-24T01:10:00Z"),
-                "auth-evidence");
-    }
-
-    private ProductSurfaceContextDtos.AuthorityResult allowed(
-            String productKey,
-            String surfaceKey) {
-        ProductSurfaceContextDtos.AuthorityResult base = allowed(false);
-        return new ProductSurfaceContextDtos.AuthorityResult(
-                base.decision(), base.reasonCode(), base.authRevision(), base.policyRevision(),
-                base.contextKey(), productKey, surfaceKey, base.plane(), base.accessMode(),
-                base.accessSource(), base.appResourceKey(), base.effectiveGrants(), base.scopes(),
-                base.routeGrantRef(), base.effectiveReadOnly(), base.requiresProductEligibility(),
-                base.validUntil(), base.expiredAt(), base.requiredAssurance(),
-                base.requestPolicyRef(), base.revalidateAt(), base.evidenceRef());
-    }
-
-    private ProductSurfaceContextDtos.AuthorityResult allowedWithAppResourceKey(String key) {
-        ProductSurfaceContextDtos.AuthorityResult base = allowed(false);
-        return new ProductSurfaceContextDtos.AuthorityResult(
-                base.decision(), base.reasonCode(), base.authRevision(), base.policyRevision(),
-                base.contextKey(), base.productKey(), base.surfaceKey(), base.plane(),
-                base.accessMode(), base.accessSource(), key, base.effectiveGrants(), base.scopes(),
-                base.routeGrantRef(), base.effectiveReadOnly(), base.requiresProductEligibility(),
-                base.validUntil(), base.expiredAt(), base.requiredAssurance(),
-                base.requestPolicyRef(), base.revalidateAt(), base.evidenceRef());
-    }
-
-    private ProductSurfaceContextDtos.AuthorityResult challenged(boolean requiresEligibility) {
-        OffsetDateTime expires = OffsetDateTime.parse("2026-08-24T02:00:00Z");
-        return new ProductSurfaceContextDtos.AuthorityResult(
-                ProductSurfaceContextDtos.Decision.STEP_UP_REQUIRED,
-                "STEP_UP_REQUIRED",
-                "auth-4",
-                "policy-8",
-                null,
-                "approvals",
-                "approvals.admin",
-                null,
-                ProductSurfaceContextDtos.AccessMode.NORMAL,
-                ProductSurfaceContextDtos.AccessSource.MANAGEMENT,
-                "ADMIN.APPROVAL_DESIGN",
-                List.of(new ProductSurfaceContextDtos.CapabilityGrant(
-                        "approvals.design.publish",
-                        "ADMIN.APPROVAL_DESIGN:PUBLISH",
-                        ProductSurfaceContextDtos.CapabilityAuthorityMode.PERMISSION,
-                        List.of("predicate.people.object-version.v1"),
-                        "REQUIRED",
-                        new ProductSurfaceContextDtos.Responsibility(
-                                "APP_CONFIG_ADMIN", "RS_APPROVALS"),
-                        List.of("scope-1"),
-                        false,
-                        false,
-                        "ELIGIBLE",
-                        expires)),
-                List.of(scope("scope-1", true)),
-                null,
-                true,
-                requiresEligibility,
-                expires,
-                null,
-                "urn:dwp:acr:mfa",
-                "STEPUP-MGMT-HIGH-V1",
-                null,
-                "auth-evidence");
-    }
-
-    private ProductSurfaceContextDtos.AuthorityResult denied() {
-        return denied("approvals", "approvals.admin", "SURFACE_DENIED");
-    }
-
-    private ProductSurfaceContextDtos.AuthorityResult surfaceNotRegistered(
-            String productKey,
-            String surfaceKey) {
-        return denied(productKey, surfaceKey, "SURFACE_NOT_REGISTERED");
-    }
-
-    private ProductSurfaceContextDtos.AuthorityResult productNotRegistered(
-            String productKey,
-            String surfaceKey) {
-        return denied(productKey, surfaceKey, "PRODUCT_NOT_REGISTERED");
-    }
-
-    private ProductSurfaceContextDtos.AuthorityResult denied(
-            String productKey,
-            String surfaceKey,
-            String reasonCode) {
-        return new ProductSurfaceContextDtos.AuthorityResult(
-                ProductSurfaceContextDtos.Decision.SURFACE_DENIED,
-                reasonCode,
-                "auth-4",
-                "policy-8",
-                null,
-                productKey,
-                surfaceKey,
-                null,
-                ProductSurfaceContextDtos.AccessMode.NORMAL,
-                null,
-                null,
-                List.of(),
-                List.of(),
-                null,
-                true,
-                false,
-                null,
-                null,
-                null,
-                null,
-                OffsetDateTime.parse("2026-08-24T01:10:00Z"),
-                "auth-evidence");
-    }
-
-    private ProductSurfaceContextDtos.ProductRollout rollout(String state) {
-        return rollout("approvals", state);
-    }
-
-    private ProductSurfaceContextDtos.ProductRollout rollout(
-            String productKey,
-            String state) {
-        return new ProductSurfaceContextDtos.ProductRollout(
-                productKey,
-                state,
-                new ProductSurfaceContextDtos.RolloutFlags(
-                        state.charAt(0) == '1',
-                        state.charAt(1) == '1',
-                        state.charAt(2) == '1'),
-                "baseline",
-                "rollout-test",
-                ProductSurfaceContextDtos.AuthorityStatus.NOT_EVALUATED);
-    }
-
-    private ProductSurfaceContextDtos.AuthorityResult allowedWithScopes(
-            List<ProductSurfaceContextDtos.EffectiveScope> scopes) {
-        return allowedWithScopes(scopes, false);
-    }
-
-    private ProductSurfaceContextDtos.AuthorityResult allowedWithScopes(
-            List<ProductSurfaceContextDtos.EffectiveScope> scopes,
-            boolean requiresEligibility) {
-        ProductSurfaceContextDtos.AuthorityResult base = allowed(requiresEligibility);
-        return new ProductSurfaceContextDtos.AuthorityResult(
-                base.decision(),
-                base.reasonCode(),
-                base.authRevision(),
-                base.policyRevision(),
-                base.contextKey(),
-                base.productKey(),
-                base.surfaceKey(),
-                base.plane(),
-                base.accessMode(),
-                base.accessSource(),
-                base.appResourceKey(),
-                base.effectiveGrants(),
-                scopes,
-                base.routeGrantRef(),
-                base.effectiveReadOnly(),
-                base.requiresProductEligibility(),
-                base.validUntil(),
-                base.expiredAt(),
-                base.requiredAssurance(),
-                base.requestPolicyRef(),
-                base.revalidateAt(),
-                base.evidenceRef());
-    }
-
-    private ProductSurfaceContextDtos.EffectiveScope scope(String key, boolean isDefault) {
-        return new ProductSurfaceContextDtos.EffectiveScope(
-                key,
-                "RESOURCE_SET",
-                key,
-                isDefault,
-                false,
-                OffsetDateTime.parse("2026-08-24T02:00:00Z"));
-    }
-
-    private ProductSurfaceContextDtos.EligibleScope eligibleScope(
-            String sourceScopeKey, String key, boolean isDefault, boolean readOnly) {
-        return new ProductSurfaceContextDtos.EligibleScope(
-                sourceScopeKey, key, "RESOURCE_SET", key, isDefault, readOnly,
-                OffsetDateTime.parse("2026-08-24T02:00:00Z"));
-    }
-
-    private ProductSurfaceContextDtos.AuthorityResult unavailable() {
-        return unavailable("approvals", "approvals.admin");
-    }
-
-    private ProductSurfaceContextDtos.AuthorityResult unavailable(
-            String productKey,
-            String surfaceKey) {
-        return new ProductSurfaceContextDtos.AuthorityResult(
-                ProductSurfaceContextDtos.Decision.AUTHORITY_UNAVAILABLE,
-                "AUTHORITY_RESOLUTION_UNAVAILABLE",
-                null,
-                null,
-                null,
-                productKey,
-                surfaceKey,
-                null,
-                ProductSurfaceContextDtos.AccessMode.NORMAL,
-                null,
-                null,
-                List.of(),
-                List.of(),
-                null,
-                true,
-                false,
-                null,
-                null,
-                null,
-                null,
-                null,
-                null);
-    }
 }

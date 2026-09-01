@@ -1,11 +1,13 @@
 package com.dwp.services.platform.servicecenter;
 
+import com.dwp.core.security.HcmEligibilityScopeKey;
 import com.dwp.core.security.ProductSurfaceScopeKey;
 import com.dwp.services.platform.security.PlatformApprovalsPepRegistry;
 import com.dwp.services.platform.security.PlatformCanaryPepRegistry;
 import com.dwp.services.platform.security.PlatformSecurityFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.Filter;
+import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -14,9 +16,13 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -49,18 +55,37 @@ class ServicesProductSurfacePepEvidenceTest {
     private static final String ROLLOUT_REVISION =
             "rollout-" + "0123456789abcdef".repeat(4);
     private static final String CONTEXT_KEY = "psc-" + "b".repeat(64);
+    private static final String HCM_SOURCE_SCOPE = ProductSurfaceScopeKey.key(
+            TENANT_ID, ACTOR_ID, "hcm", "hcm.personal", "SELF", "SELF");
+    private static final String HCM_DERIVED_SCOPE = HcmEligibilityScopeKey.derived(
+            TENANT_ID,
+            ACTOR_ID,
+            "hcm.personal",
+            HCM_SOURCE_SCOPE,
+            "worker-revision-7",
+            "self:101:worker-revision-7");
 
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     private final ServiceCenterService service = mock(ServiceCenterService.class);
-    private final ServicesProductSurfacePepFilter ownerPep =
-            new ServicesProductSurfacePepFilter(true, objectMapper);
     private final AtomicInteger downstreamInvocations = new AtomicInteger();
+    private final List<DownstreamEvidence> downstreamEvidence =
+            new CopyOnWriteArrayList<>();
+    private ServicesProductSurfacePepFilter ownerPep;
     private MockMvc mvc;
 
     @BeforeEach
     void setUp() {
         reset(service);
         downstreamInvocations.set(0);
+        downstreamEvidence.clear();
+        PepChainFixture fixture = ownerChain(true);
+        ownerPep = fixture.ownerPep();
+        mvc = fixture.mvc();
+    }
+
+    private PepChainFixture ownerChain(boolean enabled) {
+        ServicesProductSurfacePepFilter ownerPep =
+                new ServicesProductSurfacePepFilter(enabled, objectMapper);
         PlatformSecurityFilter platformSecurity = new PlatformSecurityFilter(
                 "trusted",
                 "runtime",
@@ -70,11 +95,22 @@ class ServicesProductSurfacePepEvidenceTest {
                 new PlatformApprovalsPepRegistry(objectMapper));
         Filter downstreamProbe = (request, response, chain) -> {
             downstreamInvocations.incrementAndGet();
+            HttpServletRequest http = (HttpServletRequest) request;
+            String[] surfaceValues = http.getParameterValues("surface");
+            downstreamEvidence.add(new DownstreamEvidence(
+                    http.getHeader("X-DWP-Route-Contract-Key"),
+                    http.getQueryString(),
+                    http.getParameter("surface"),
+                    surfaceValues == null ? List.of() : Arrays.asList(surfaceValues),
+                    Set.copyOf(http.getParameterMap().keySet()),
+                    Collections.list(http.getParameterNames()),
+                    http.getParameter("status")));
             chain.doFilter(request, response);
         };
-        mvc = MockMvcBuilders.standaloneSetup(new ServiceCenterController(service))
+        MockMvc mvc = MockMvcBuilders.standaloneSetup(new ServiceCenterController(service))
                 .addFilters(ownerPep, downstreamProbe, platformSecurity)
                 .build();
+        return new PepChainFixture(ownerPep, mvc);
     }
 
     @Test
@@ -147,6 +183,7 @@ class ServicesProductSurfacePepEvidenceTest {
                 .andExpect(status().isUnauthorized());
 
         verifyNoInteractions(service);
+        assertThat(downstreamInvocations).hasValue(0);
     }
 
     @Test
@@ -159,6 +196,145 @@ class ServicesProductSurfacePepEvidenceTest {
     void rejectsUnknownRouteContractHeaderForEveryServicesConsumerBeforeDownstream()
             throws Exception {
         assertRejectedRouteHeader("route.services.work.unknown.page");
+    }
+
+    @Test
+    void executesBothHcmPersonalServicesReadsThroughThePlatformOwnerChain()
+            throws Exception {
+        mvc.perform(hcmPage(
+                        ServicesProductSurfacePepFilter.HCM_CATALOG_PAGE,
+                        "APP.HCM:VIEW,APP.EMPLOYEE_SERVICES:VIEW"))
+                .andExpect(status().isOk());
+
+        mvc.perform(hcmPage(
+                        ServicesProductSurfacePepFilter.HCM_REQUESTS_PAGE,
+                        "APP.HRIS:VIEW,APP.EMPLOYEE_SERVICES:VIEW"))
+                .andExpect(status().isOk());
+
+        verify(service).catalog(anyLong(), any());
+        verify(service).myRequests(anyLong(), anyLong(), any());
+        assertThat(downstreamInvocations).hasValue(2);
+    }
+
+    @Test
+    void rejectsThePreEligibilityAuthScopeAndMalformedHcmDerivedScopes()
+            throws Exception {
+        for (String scope : List.of(
+                HCM_SOURCE_SCOPE,
+                "hcm-scope-" + "A".repeat(40),
+                "hcm-scope-" + "a".repeat(39),
+                "hcm-scope-" + "a".repeat(41))) {
+            MockHttpServletRequestBuilder request = hcmPage(
+                    ServicesProductSurfacePepFilter.HCM_CATALOG_PAGE,
+                    "APP.HCM:VIEW,APP.EMPLOYEE_SERVICES:VIEW");
+            request.with(mockRequest -> replaceHeader(
+                    mockRequest, "X-DWP-Context-Scope-Key", scope));
+
+            mvc.perform(request).andExpect(status().isForbidden());
+        }
+
+        verifyNoInteractions(service);
+        assertThat(downstreamInvocations).hasValue(0);
+    }
+
+    @Test
+    void hcmCatalogBridgeRemovesSurfaceFromEveryDownstreamQueryView()
+            throws Exception {
+        mvc.perform(hcmPage(
+                        ServicesProductSurfacePepFilter.HCM_CATALOG_PAGE,
+                        "APP.HCM:VIEW,APP.EMPLOYEE_SERVICES:VIEW"))
+                .andExpect(status().isOk());
+
+        assertThat(downstreamEvidence).singleElement().satisfies(evidence -> {
+            assertThat(evidence.routeContractKey())
+                    .isEqualTo(ServicesProductSurfacePepFilter.HOME_PAGE_ROUTE);
+            assertThat(evidence.queryString()).isNull();
+            assertThat(evidence.surface()).isNull();
+            assertThat(evidence.surfaceValues()).isEmpty();
+            assertThat(evidence.parameterMapKeys()).doesNotContain("surface");
+            assertThat(evidence.parameterNames()).doesNotContain("surface");
+        });
+        verify(service).catalog(TENANT_ID, null);
+    }
+
+    @Test
+    void hcmRequestsBridgeRemovesSurfaceButPreservesStatusForTheController()
+            throws Exception {
+        MockHttpServletRequestBuilder request = exact(
+                get("/v1/services/requests?surface=hcm&status=SUBMITTED"),
+                ServicesProductSurfacePepFilter.HCM_REQUESTS_PAGE,
+                HCM_DERIVED_SCOPE);
+        request.with(mockRequest -> replaceHeader(
+                mockRequest,
+                "X-DWP-Permissions",
+                "APP.HCM:VIEW,APP.EMPLOYEE_SERVICES:VIEW"));
+
+        mvc.perform(request).andExpect(status().isOk());
+
+        assertThat(downstreamEvidence).singleElement().satisfies(evidence -> {
+            assertThat(evidence.routeContractKey())
+                    .isEqualTo(ServicesProductSurfacePepFilter.HOME_PAGE_ROUTE);
+            assertThat(evidence.queryString()).isEqualTo("status=SUBMITTED");
+            assertThat(evidence.surface()).isNull();
+            assertThat(evidence.surfaceValues()).isEmpty();
+            assertThat(evidence.parameterMapKeys())
+                    .containsExactly("status");
+            assertThat(evidence.parameterNames())
+                    .containsExactly("status");
+            assertThat(evidence.status()).isEqualTo("SUBMITTED");
+        });
+        verify(service).myRequests(
+                TENANT_ID, ACTOR_ID, ServiceCenterTypes.RequestStatus.SUBMITTED);
+    }
+
+    @Test
+    void activeHcmV3ServicesRouteDoesNotDependOnTheServicesV4ReadinessFlag()
+            throws Exception {
+        MockMvc disabledV4 = ownerChain(false).mvc();
+
+        disabledV4.perform(hcmPage(
+                        ServicesProductSurfacePepFilter.HCM_CATALOG_PAGE,
+                        "APP.HCM:VIEW,APP.EMPLOYEE_SERVICES:VIEW"))
+                .andExpect(status().isOk());
+
+        verify(service).catalog(anyLong(), any());
+        assertThat(downstreamInvocations).hasValue(1);
+    }
+
+    @Test
+    void hcmServicesBaselineDoesNotRequireExactRouteEvidenceBeforeEnforcement()
+            throws Exception {
+        MockMvc disabledV4 = ownerChain(false).mvc();
+        MockHttpServletRequestBuilder baseline = hcmPage(
+                ServicesProductSurfacePepFilter.HCM_CATALOG_PAGE,
+                "APP.HCM:VIEW,APP.EMPLOYEE_SERVICES:VIEW");
+        baseline.with(request -> {
+            request.removeHeader("X-DWP-Route-Contract-Key");
+            replaceHeader(request, "X-DWP-Rollout-State", "100");
+            return request;
+        });
+
+        disabledV4.perform(baseline)
+                .andExpect(status().isOk());
+
+        verify(service).catalog(anyLong(), any());
+        assertThat(downstreamInvocations).hasValue(1);
+    }
+
+    @Test
+    void hcmPersonalServicesRequiresBothProductAndEmployeeServiceEntitlements()
+            throws Exception {
+        for (String permissions : List.of(
+                "APP.EMPLOYEE_SERVICES:VIEW",
+                "APP.HCM:VIEW")) {
+            mvc.perform(hcmPage(
+                            ServicesProductSurfacePepFilter.HCM_CATALOG_PAGE,
+                            permissions))
+                    .andExpect(status().isForbidden());
+        }
+
+        verifyNoInteractions(service);
+        assertThat(downstreamInvocations).hasValue(0);
     }
 
     @Test
@@ -216,7 +392,21 @@ class ServicesProductSurfacePepEvidenceTest {
                                 "POST",
                                 "/api/platform/v1/services/requests",
                                 "/v1/services/requests",
-                                Map.of()));
+                                Map.of()),
+                        tuple(
+                                "route.hcm.personal.services.page",
+                                ServicesProductSurfacePepFilter.RouteKind.PAGE,
+                                "GET",
+                                "/api/platform/v1/services/catalog",
+                                "/v1/services/catalog",
+                                Map.of("surface", "hcm")),
+                        tuple(
+                                "route.hcm.personal.services.page",
+                                ServicesProductSurfacePepFilter.RouteKind.PAGE,
+                                "GET",
+                                "/api/platform/v1/services/requests",
+                                "/v1/services/requests",
+                                Map.of("surface", "hcm")));
     }
 
     private MockHttpServletRequestBuilder page(String scope) {
@@ -224,6 +414,17 @@ class ServicesProductSurfacePepEvidenceTest {
                 get("/v1/services/catalog"),
                 ServicesProductSurfacePepFilter.HOME_PAGE,
                 scope);
+    }
+
+    private MockHttpServletRequestBuilder hcmPage(
+            ServicesProductSurfacePepFilter.Binding binding,
+            String permissions) {
+        MockHttpServletRequestBuilder request = exact(
+                get(binding.servicePath()).param("surface", "hcm"),
+                binding,
+                HCM_DERIVED_SCOPE);
+        return request.with(mockRequest -> replaceHeader(
+                mockRequest, "X-DWP-Permissions", permissions));
     }
 
     private MockHttpServletRequestBuilder exact(
@@ -293,7 +494,13 @@ class ServicesProductSurfacePepEvidenceTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(createRequestBody()),
                         ServicesProductSurfacePepFilter.REQUEST_CREATE_ACTION,
-                        scope()));
+                        scope()),
+                hcmPage(
+                        ServicesProductSurfacePepFilter.HCM_CATALOG_PAGE,
+                        "APP.HCM:VIEW,APP.EMPLOYEE_SERVICES:VIEW"),
+                hcmPage(
+                        ServicesProductSurfacePepFilter.HCM_REQUESTS_PAGE,
+                        "APP.HCM:VIEW,APP.EMPLOYEE_SERVICES:VIEW"));
         for (MockHttpServletRequestBuilder candidate : candidates) {
             candidate.with(request -> {
                 request.removeHeader("X-DWP-Route-Contract-Key");
@@ -308,6 +515,21 @@ class ServicesProductSurfacePepEvidenceTest {
 
         assertThat(downstreamInvocations.get()).isZero();
         verifyNoInteractions(service);
+    }
+
+    private record DownstreamEvidence(
+            String routeContractKey,
+            String queryString,
+            String surface,
+            List<String> surfaceValues,
+            Set<String> parameterMapKeys,
+            List<String> parameterNames,
+            String status) {
+    }
+
+    private record PepChainFixture(
+            ServicesProductSurfacePepFilter ownerPep,
+            MockMvc mvc) {
     }
 
 }

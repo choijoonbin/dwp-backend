@@ -52,6 +52,32 @@ dwp:
     token-ttl: ${DWP_MEETING_TOKEN_TTL:PT5M}
     join-code-length: ${DWP_MEETING_JOIN_CODE_LENGTH:12}
     recording-policy: ${DWP_MEETING_RECORDING_POLICY:NEVER}
+    recording:
+      provider: ${DWP_MEETING_RECORDING_PROVIDER:disabled}
+      base-url: ${DWP_MEETING_RECORDING_BASE_URL:}
+      allowed-hosts: ${DWP_MEETING_RECORDING_ALLOWED_HOSTS:}
+      access-ticket-allowed-hosts: ${DWP_MEETING_RECORDING_ACCESS_TICKET_ALLOWED_HOSTS:}
+      access-ticket-path-prefix: ${DWP_MEETING_RECORDING_ACCESS_TICKET_PATH_PREFIX:/playback/}
+      service-token: ${DWP_MEETING_RECORDING_SERVICE_TOKEN:}
+      processing-region: ${DWP_MEETING_RECORDING_PROCESSING_REGION:}
+      assertion-key-id: ${DWP_MEETING_RECORDING_ASSERTION_KEY_ID:}
+      assertion-secret-base64: ${DWP_MEETING_RECORDING_ASSERTION_SECRET_BASE64:}
+      assertion-ttl: ${DWP_MEETING_RECORDING_ASSERTION_TTL:PT30S}
+      connect-timeout: ${DWP_MEETING_RECORDING_CONNECT_TIMEOUT:PT2S}
+      request-timeout: ${DWP_MEETING_RECORDING_REQUEST_TIMEOUT:PT10S}
+      maximum-response-bytes: ${DWP_MEETING_RECORDING_MAX_RESPONSE_BYTES:16384}
+      command-lease: ${DWP_MEETING_RECORDING_COMMAND_LEASE:PT2M}
+      access-ticket-ttl: ${DWP_MEETING_RECORDING_ACCESS_TICKET_TTL:PT2M}
+      deletion:
+        enabled: ${DWP_MEETING_RECORDING_DELETION_ENABLED:false}
+        batch-size: ${DWP_MEETING_RECORDING_DELETION_BATCH_SIZE:50}
+        poll-delay: ${DWP_MEETING_RECORDING_DELETION_POLL_DELAY:PT5M}
+        lease-duration: ${DWP_MEETING_RECORDING_DELETION_LEASE_DURATION:PT1M}
+        worker-id: ${DWP_MEETING_RECORDING_DELETION_WORKER_ID:meeting-recording-retention}
+    recording-finalization:
+      service-token: ${DWP_MEETING_RECORDING_FINALIZATION_TOKEN:}
+      assertion-key-id: ${DWP_MEETING_RECORDING_FINALIZATION_ASSERTION_KEY_ID:}
+      assertion-secret-base64: ${DWP_MEETING_RECORDING_FINALIZATION_ASSERTION_SECRET_BASE64:}
     lifecycle-recovery:
       enabled: ${DWP_MEETING_LIFECYCLE_RECOVERY_ENABLED:true}
       poll-delay: ${DWP_MEETING_LIFECYCLE_RECOVERY_POLL_DELAY:PT10S}

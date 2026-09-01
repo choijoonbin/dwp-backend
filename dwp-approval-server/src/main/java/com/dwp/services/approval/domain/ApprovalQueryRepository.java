@@ -587,11 +587,6 @@ public class ApprovalQueryRepository {
                 (result, rowNumber) -> taskSummary(result));
     }
 
-    private int overdueCount(long tenantId) {
-        Integer count = jdbc.queryForObject(ApprovalQuerySql02.OVERDUE_COUNT_SELECT_APR_TASKS, managementParams(tenantId), Integer.class);
-        return count == null ? 0 : count;
-    }
-
     private MapSqlParameterSource actorParams(ApprovalRequestContext.Actor actor) {
         Set<String> roles = actor.roles().isEmpty() ? Set.of("__NO_ROLE__") : actor.roles();
         return new MapSqlParameterSource()

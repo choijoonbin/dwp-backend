@@ -1,6 +1,5 @@
 package com.dwp.services.platform.widgetregistry.internal.security;
 
-import com.dwp.services.platform.widgetregistry.internal.security.WidgetRegistryRequestBinding.BindingException;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import java.time.Instant;
@@ -38,7 +37,7 @@ final class WidgetRegistryJsonContract {
     }
 
     static void exactObject(JsonNode value, Set<String> required, Set<String> optional)
-            throws BindingException {
+            throws WidgetRegistryBindingException {
         require(value != null && value.isObject());
         Set<String> fields = new HashSet<>();
         value.fieldNames().forEachRemaining(fields::add);
@@ -47,14 +46,14 @@ final class WidgetRegistryJsonContract {
         require(fields.containsAll(required) && allowed.containsAll(fields));
     }
 
-    static JsonNode requiredNode(JsonNode object, String field) throws BindingException {
+    static JsonNode requiredNode(JsonNode object, String field) throws WidgetRegistryBindingException {
         JsonNode value = object.get(field);
         require(value != null);
         return value;
     }
 
     static String text(JsonNode object, String field, int minimum, int maximum, Pattern pattern)
-            throws BindingException {
+            throws WidgetRegistryBindingException {
         JsonNode node = requiredNode(object, field);
         require(node.isTextual());
         String value = node.textValue();
@@ -69,53 +68,53 @@ final class WidgetRegistryJsonContract {
             String field,
             int minimum,
             int maximum,
-            Pattern pattern) throws BindingException {
+            Pattern pattern) throws WidgetRegistryBindingException {
         if (!object.has(field)) return null;
         return text(object, field, minimum, maximum, pattern);
     }
 
-    static String opaque(JsonNode object, String field) throws BindingException {
+    static String opaque(JsonNode object, String field) throws WidgetRegistryBindingException {
         String value = text(object, field, 1, 128, null);
         require(noControlCharacters(value));
         return value;
     }
 
-    static String optionalOpaque(JsonNode object, String field) throws BindingException {
+    static String optionalOpaque(JsonNode object, String field) throws WidgetRegistryBindingException {
         if (!object.has(field)) return null;
         return opaque(object, field);
     }
 
-    static String reasonText(JsonNode object, String field) throws BindingException {
+    static String reasonText(JsonNode object, String field) throws WidgetRegistryBindingException {
         String value = text(object, field, 1, 500, null);
         require(noControlCharacters(value));
         return value;
     }
 
-    static String optionalReasonText(JsonNode object, String field) throws BindingException {
+    static String optionalReasonText(JsonNode object, String field) throws WidgetRegistryBindingException {
         if (!object.has(field)) return null;
         return reasonText(object, field);
     }
 
-    static String uuid(JsonNode object, String field) throws BindingException {
+    static String uuid(JsonNode object, String field) throws WidgetRegistryBindingException {
         return text(object, field, 36, 36, UUID);
     }
 
-    static String optionalUuid(JsonNode object, String field) throws BindingException {
+    static String optionalUuid(JsonNode object, String field) throws WidgetRegistryBindingException {
         if (!object.has(field)) return null;
         return uuid(object, field);
     }
 
-    static String nullableUuid(JsonNode object, String field) throws BindingException {
+    static String nullableUuid(JsonNode object, String field) throws WidgetRegistryBindingException {
         JsonNode value = requiredNode(object, field);
         if (value.isNull()) return null;
         return uuid(object, field);
     }
 
-    static String sha256(JsonNode object, String field) throws BindingException {
+    static String sha256(JsonNode object, String field) throws WidgetRegistryBindingException {
         return text(object, field, 64, 64, SHA256);
     }
 
-    static long nonNegativeInteger(JsonNode object, String field) throws BindingException {
+    static long nonNegativeInteger(JsonNode object, String field) throws WidgetRegistryBindingException {
         JsonNode value = requiredNode(object, field);
         require(value.isNumber());
         try {
@@ -128,26 +127,26 @@ final class WidgetRegistryJsonContract {
     }
 
     static long integerBetween(JsonNode object, String field, long minimum, long maximum)
-            throws BindingException {
+            throws WidgetRegistryBindingException {
         long value = nonNegativeInteger(object, field);
         require(value >= minimum && value <= maximum);
         return value;
     }
 
-    static boolean bool(JsonNode object, String field) throws BindingException {
+    static boolean bool(JsonNode object, String field) throws WidgetRegistryBindingException {
         JsonNode value = requiredNode(object, field);
         require(value.isBoolean());
         return value.booleanValue();
     }
 
     static String enumText(JsonNode object, String field, Set<String> allowed)
-            throws BindingException {
+            throws WidgetRegistryBindingException {
         String value = text(object, field, 1, 160, null);
         require(allowed.contains(value));
         return value;
     }
 
-    static Instant timestamp(JsonNode object, String field) throws BindingException {
+    static Instant timestamp(JsonNode object, String field) throws WidgetRegistryBindingException {
         String value = text(object, field, 20, 30, TIMESTAMP);
         try {
             return Instant.parse(value);
@@ -156,7 +155,7 @@ final class WidgetRegistryJsonContract {
         }
     }
 
-    static Instant optionalTimestamp(JsonNode object, String field) throws BindingException {
+    static Instant optionalTimestamp(JsonNode object, String field) throws WidgetRegistryBindingException {
         if (!object.has(field)) return null;
         return timestamp(object, field);
     }
@@ -168,7 +167,7 @@ final class WidgetRegistryJsonContract {
             int maximumItems,
             int minimumLength,
             int maximumLength,
-            Pattern pattern) throws BindingException {
+            Pattern pattern) throws WidgetRegistryBindingException {
         JsonNode values = requiredNode(object, field);
         require(values.isArray() && values.size() >= minimumItems && values.size() <= maximumItems);
         Set<String> result = new HashSet<>();
@@ -184,19 +183,19 @@ final class WidgetRegistryJsonContract {
     }
 
     static Set<String> opaqueArray(JsonNode object, String field, int maximumItems)
-            throws BindingException {
+            throws WidgetRegistryBindingException {
         Set<String> values = textArray(object, field, 0, maximumItems, 1, 128, null);
         require(values.stream().allMatch(WidgetRegistryJsonContract::noControlCharacters));
         return values;
     }
 
     static Set<String> uuidArray(JsonNode object, String field, int maximumItems)
-            throws BindingException {
+            throws WidgetRegistryBindingException {
         return textArray(object, field, 0, maximumItems, 36, 36, UUID);
     }
 
     static void requireSorted(JsonNode object, String field, List<String> rank)
-            throws BindingException {
+            throws WidgetRegistryBindingException {
         JsonNode values = requiredNode(object, field);
         require(values.isArray());
         String previous = null;
@@ -215,16 +214,16 @@ final class WidgetRegistryJsonContract {
         }
     }
 
-    static void require(boolean valid) throws BindingException {
+    static void require(boolean valid) throws WidgetRegistryBindingException {
         if (!valid) throw invalid();
     }
 
-    static BindingException invalid() {
-        return new BindingException(WidgetRegistryIngressFailure.REQUEST_BINDING_INVALID);
+    static WidgetRegistryBindingException invalid() {
+        return new WidgetRegistryBindingException(WidgetRegistryIngressFailure.REQUEST_BINDING_INVALID);
     }
 
-    private static BindingException invalid(Exception cause) {
-        return new BindingException(WidgetRegistryIngressFailure.REQUEST_BINDING_INVALID, cause);
+    private static WidgetRegistryBindingException invalid(Exception cause) {
+        return new WidgetRegistryBindingException(WidgetRegistryIngressFailure.REQUEST_BINDING_INVALID, cause);
     }
 
     private static boolean noControlCharacters(String value) {

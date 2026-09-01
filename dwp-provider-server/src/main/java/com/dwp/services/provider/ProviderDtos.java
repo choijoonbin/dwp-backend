@@ -568,7 +568,7 @@ public final class ProviderDtos {
             Long postReviewedBy,
             String postReviewedByName,
             String postReviewSummary,
-            long version) {
+            long version) implements com.dwp.services.provider.support.ProviderSupportRequestView {
     }
 
     public record AuditEventSummary(

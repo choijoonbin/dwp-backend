@@ -70,10 +70,10 @@ public final class VideoMeetingDtos {
     public record IssueTokenCommand(UUID joinRequestId) {
     }
 
-    public record VersionedCommand(@PositiveOrZero long expectedVersion) {
+    public record VersionedCommand(@NotNull @PositiveOrZero Long expectedVersion) {
     }
 
-    public record AdmissionCommand(@PositiveOrZero long expectedVersion) {
+    public record AdmissionCommand(@NotNull @PositiveOrZero Long expectedVersion) {
     }
 
     public record TenantPolicyUpdateRequest(
@@ -91,7 +91,7 @@ public final class VideoMeetingDtos {
             @Min(1) @Max(3650) int retentionDays,
             @Min(1) @Max(3650) int artifactRetentionDays,
             @Min(0) @Max(365) Integer chatRetentionDays,
-            @PositiveOrZero @JsonAlias("version") long expectedVersion) {
+            @NotNull @PositiveOrZero @JsonAlias("version") Long expectedVersion) {
 
         public TenantPolicyUpdateRequest(
                 boolean meetingsEnabled,

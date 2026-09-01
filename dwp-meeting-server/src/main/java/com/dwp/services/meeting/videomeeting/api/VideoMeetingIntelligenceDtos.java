@@ -5,6 +5,7 @@ import com.dwp.services.meeting.videomeeting.domain.VideoMeetingIntelligenceMode
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingIntelligenceModels.IntelligenceReview;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingIntelligenceModels.IntelligenceRun;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingIntelligenceModels.ReportView;
+import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.Participant;
 import com.dwp.services.meeting.videomeeting.provider.MeetingIntelligenceProvider.Analysis;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotBlank;
@@ -25,20 +26,21 @@ public final class VideoMeetingIntelligenceDtos {
     public record CreateRunCommand(
             @NotNull UUID sourceArtifactId,
             @NotBlank @Pattern(regexp = "^[a-z]{2}(-[A-Z]{2})?$") String outputLanguage,
-            @PositiveOrZero long expectedContentPlanVersion) {
+            @NotNull @PositiveOrZero Long expectedContentPlanVersion) {
     }
 
     public record ReviewCommand(
-            @PositiveOrZero long expectedVersion,
+            @NotNull @PositiveOrZero Long expectedVersion,
             @NotBlank @Pattern(regexp = "APPROVE|REJECT") String decision,
             @NotBlank @Size(max = 48)
             @Pattern(regexp = "^[A-Z][A-Z0-9_]{2,47}$") String reasonCode) {
     }
 
-    public record VersionCommand(@PositiveOrZero long expectedVersion) {
+    public record VersionCommand(@NotNull @PositiveOrZero Long expectedVersion) {
     }
 
     public record GrantCommand(
+            @NotNull @PositiveOrZero Long expectedReportVersion,
             @NotBlank @Pattern(regexp = "VIEW|REVIEW|MANAGE") String permission,
             @Future OffsetDateTime expiresAt,
             @NotBlank @Size(max = 48)
@@ -136,5 +138,35 @@ public final class VideoMeetingIntelligenceDtos {
                     grant.permission().name(), grant.grantedAt(), grant.grantedBy(),
                     grant.expiresAt(), grant.reasonCode());
         }
+    }
+
+    public record ReviewerCandidateResponse(
+            long userId,
+            UUID participantId,
+            String displayName,
+            String participantRole,
+            String attendanceState,
+            boolean assignmentEligible,
+            String ineligibleReason) {
+
+        public static ReviewerCandidateResponse from(
+                Participant participant,
+                long currentManagerUserId,
+                long requesterUserId) {
+            boolean self = participant.userId() == currentManagerUserId;
+            boolean requester = participant.userId() == requesterUserId;
+            return new ReviewerCandidateResponse(
+                    participant.userId(), participant.participantId(), participant.displayName(),
+                    participant.participantRole().name(), participant.attendanceState().name(),
+                    !self && !requester,
+                    self ? "CURRENT_MANAGER" : requester ? "INTELLIGENCE_REQUESTER" : null);
+        }
+    }
+
+    public record ReviewerAssignmentsResponse(
+            UUID reportId,
+            long reportVersion,
+            List<ReviewerCandidateResponse> eligibleParticipants,
+            List<GrantResponse> activeGrants) {
     }
 }

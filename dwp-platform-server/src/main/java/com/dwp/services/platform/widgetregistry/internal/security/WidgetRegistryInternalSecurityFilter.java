@@ -4,7 +4,6 @@ import com.dwp.services.platform.widgetregistry.internal.security.WidgetRegistry
 import com.dwp.services.platform.widgetregistry.internal.security.WidgetRegistryInternalRoutes.Match;
 import com.dwp.services.platform.widgetregistry.internal.security.WidgetRegistryInternalRoutes.Resolution;
 import com.dwp.services.platform.widgetregistry.internal.security.WidgetRegistryInternalRoutes.ResolutionStatus;
-import com.dwp.services.platform.widgetregistry.internal.security.WidgetRegistryRequestBinding.BindingException;
 import com.dwp.services.platform.widgetregistry.internal.security.WidgetRegistryRequestBinding.PreparedRequest;
 import com.dwp.services.platform.widgetregistry.internal.security.WidgetRegistryTrustPorts.AssertionReplayStore;
 import com.dwp.services.platform.widgetregistry.internal.security.WidgetRegistryTrustPorts.ProviderAssertionClaims;
@@ -162,7 +161,7 @@ public class WidgetRegistryInternalSecurityFilter extends OncePerRequestFilter {
         PreparedRequest prepared;
         try {
             prepared = requestBinding.prepare(request, match);
-        } catch (BindingException exception) {
+        } catch (WidgetRegistryBindingException exception) {
             writeError(response, request, exception.failure());
             return;
         }

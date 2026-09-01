@@ -100,11 +100,23 @@ class MeetingTranscriptArtifactFinalizationPostgresTest {
 
     @Test
     void trustedFinalizationBindsNoticeConsentHashRegionAndMakesRunReachable() {
-        String assertion = assertion(UUID.randomUUID(), fixture.command());
+        var registered = service.registerTranscript(
+                fixture.meetingId(), fixture.registration(), "artifact-register-0001",
+                "corr-register", TOKEN,
+                registrationAssertion(UUID.randomUUID(), fixture.registration()));
+        String registrationAudit = jdbc.queryForObject("""
+                SELECT payload::text FROM sys_audit_outbox
+                 WHERE payload ->> 'action' = 'meeting.transcript-artifact.registered'
+                """, String.class);
+        assertThat(registrationAudit).doesNotContain(
+                fixture.registration().sourceSha256(),
+                fixture.registration().consentSnapshotSha256(),
+                "objectKey", "opaque/transcript/source");
+        var command = finalization(registered.version());
 
         var response = service.finalizeTranscript(
-                fixture.meetingId(), fixture.command(), "artifact-finalize-0001",
-                "corr-finalize", TOKEN, assertion);
+                fixture.meetingId(), command, "artifact-finalize-0001",
+                "corr-finalize", TOKEN, finalizationAssertion(UUID.randomUUID(), command));
 
         assertThat(response.state()).isEqualTo("AVAILABLE");
         assertThat(response.processingRegion()).isEqualTo("ap-northeast-2");
@@ -130,20 +142,54 @@ class MeetingTranscriptArtifactFinalizationPostgresTest {
     }
 
     @Test
+    void registrationReplayNeedsANewAssertionAndNeverDuplicatesTheArtifact() {
+        UUID jti = UUID.randomUUID();
+        String assertion = registrationAssertion(jti, fixture.registration());
+        var first = service.registerTranscript(
+                fixture.meetingId(), fixture.registration(), "artifact-register-0005",
+                "corr-register-first", TOKEN, assertion);
+
+        assertThatThrownBy(() -> service.registerTranscript(
+                fixture.meetingId(), fixture.registration(), "artifact-register-0005",
+                "corr-register-replayed-jti", TOKEN, assertion))
+                .isInstanceOf(BaseException.class);
+        var replay = service.registerTranscript(
+                fixture.meetingId(), fixture.registration(), "artifact-register-0005",
+                "corr-register-new-jti", TOKEN,
+                registrationAssertion(UUID.randomUUID(), fixture.registration()));
+
+        assertThat(replay.artifactId()).isEqualTo(first.artifactId());
+        assertThat(replay.version()).isEqualTo(first.version());
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM vm_meeting_artifacts
+                 WHERE tenant_id = 1 AND meeting_id = ? AND artifact_type = 'TRANSCRIPT'
+                """, Integer.class, fixture.meetingId())).isOne();
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM sys_audit_outbox
+                 WHERE payload ->> 'action' = 'meeting.transcript-artifact.registered'
+                """, Integer.class)).isOne();
+    }
+
+    @Test
     void replayJtiIsDeniedWhileNewJtiCanReplaySameIdempotentCommand() {
-        String assertion = assertion(UUID.randomUUID(), fixture.command());
+        var registered = service.registerTranscript(
+                fixture.meetingId(), fixture.registration(), "artifact-register-0002",
+                "corr-register", TOKEN,
+                registrationAssertion(UUID.randomUUID(), fixture.registration()));
+        var command = finalization(registered.version());
+        String assertion = finalizationAssertion(UUID.randomUUID(), command);
         var first = service.finalizeTranscript(
-                fixture.meetingId(), fixture.command(), "artifact-finalize-0002",
+                fixture.meetingId(), command, "artifact-finalize-0002",
                 "corr-first", TOKEN, assertion);
 
         assertThatThrownBy(() -> service.finalizeTranscript(
-                fixture.meetingId(), fixture.command(), "artifact-finalize-0002",
+                fixture.meetingId(), command, "artifact-finalize-0002",
                 "corr-replay", TOKEN, assertion))
                 .isInstanceOf(BaseException.class);
         var replay = service.finalizeTranscript(
-                fixture.meetingId(), fixture.command(), "artifact-finalize-0002",
+                fixture.meetingId(), command, "artifact-finalize-0002",
                 "corr-new-assertion", TOKEN,
-                assertion(UUID.randomUUID(), fixture.command()));
+                finalizationAssertion(UUID.randomUUID(), command));
 
         assertThat(replay.artifactId()).isEqualTo(first.artifactId());
         assertThat(replay.version()).isEqualTo(first.version());
@@ -155,20 +201,19 @@ class MeetingTranscriptArtifactFinalizationPostgresTest {
 
     @Test
     void invalidProducerCredentialOrConsentCannotMutateArtifact() {
-        assertThatThrownBy(() -> service.finalizeTranscript(
-                fixture.meetingId(), fixture.command(), "artifact-finalize-0003",
+        assertThatThrownBy(() -> service.registerTranscript(
+                fixture.meetingId(), fixture.registration(), "artifact-register-0003",
                 "corr-invalid", "wrong-token",
-                assertion(UUID.randomUUID(), fixture.command())))
+                registrationAssertion(UUID.randomUUID(), fixture.registration())))
                 .isInstanceOf(BaseException.class);
-        var invalidConsent = new MeetingTranscriptArtifactDtos.FinalizeTranscriptCommand(
-                fixture.artifactId(), fixture.command().expectedArtifactVersion(),
-                fixture.planVersion(), fixture.noticeId(), "b".repeat(64),
-                fixture.command().sourceSha256(), fixture.command().processingRegion(),
-                fixture.command().storageProvider(), fixture.command().objectKey(),
-                fixture.command().contentType(), fixture.command().sizeBytes());
-        assertThatThrownBy(() -> service.finalizeTranscript(
-                fixture.meetingId(), invalidConsent, "artifact-finalize-0004",
-                "corr-consent", TOKEN, assertion(UUID.randomUUID(), invalidConsent)))
+        var invalidConsent = new MeetingTranscriptArtifactDtos.RegisterTranscriptCommand(
+                fixture.artifactId(), fixture.planVersion(), fixture.noticeId(),
+                "b".repeat(64), fixture.registration().sourceSha256(),
+                fixture.registration().processingRegion());
+        assertThatThrownBy(() -> service.registerTranscript(
+                fixture.meetingId(), invalidConsent, "artifact-register-0004",
+                "corr-consent", TOKEN,
+                registrationAssertion(UUID.randomUUID(), invalidConsent)))
                 .isInstanceOf(BaseException.class);
 
         assertThat(jdbc.queryForObject("""
@@ -245,36 +290,61 @@ class MeetingTranscriptArtifactFinalizationPostgresTest {
                 """, Long.class, meetingId);
         String consentHash = intelligence.consentEvidence(1, meetingId, noticeId)
                 .snapshotSha256();
-        var command = new MeetingTranscriptArtifactDtos.FinalizeTranscriptCommand(
-                artifactId, artifactVersion, planVersion, noticeId, consentHash,
-                "a".repeat(64), "ap-northeast-2", "BROKER",
-                "opaque/transcript/source", "application/json", 1_024);
+        var registration = new MeetingTranscriptArtifactDtos.RegisterTranscriptCommand(
+                artifactId, planVersion, noticeId, consentHash,
+                "a".repeat(64), "ap-northeast-2");
         var subject = new MeetingRequestContext.Subject(
                 actor, 1, personId, "Artifact producer", Set.of("SERVICE"),
                 Set.of("APP.MEETINGS:UPDATE"), Set.of());
         return new Fixture(
-                meetingId, artifactId, noticeId, planVersion, now, subject, command);
+                meetingId, artifactId, noticeId, planVersion, artifactVersion,
+                now, subject, registration);
+    }
+
+    private MeetingTranscriptArtifactDtos.FinalizeTranscriptCommand finalization(
+            long artifactVersion) {
+        return new MeetingTranscriptArtifactDtos.FinalizeTranscriptCommand(
+                fixture.artifactId(), artifactVersion, fixture.planVersion(),
+                fixture.noticeId(), fixture.registration().consentSnapshotSha256(),
+                fixture.registration().sourceSha256(), fixture.registration().processingRegion(),
+                "BROKER", "opaque/transcript/source", "application/json", 1_024);
+    }
+
+    private String finalizationAssertion(
+            UUID jti,
+            MeetingTranscriptArtifactDtos.FinalizeTranscriptCommand command) {
+        String bodySha256 = VideoMeetingCommandPolicy.requestHash(
+                fixture.meetingId(), command.artifactId(), command.expectedArtifactVersion(),
+                command.expectedContentPlanVersion(), command.contentNoticeId(),
+                command.consentSnapshotSha256(), command.sourceSha256(),
+                command.processingRegion(), command.storageProvider(), command.objectKey(),
+                command.contentType(), command.sizeBytes());
+        return assertion(jti, command.artifactId(), bodySha256, "finalize");
+    }
+
+    private String registrationAssertion(
+            UUID jti,
+            MeetingTranscriptArtifactDtos.RegisterTranscriptCommand command) {
+        String bodySha256 = VideoMeetingCommandPolicy.requestHash(
+                fixture.meetingId(), command.artifactId(),
+                command.expectedContentPlanVersion(), command.contentNoticeId(),
+                command.consentSnapshotSha256(), command.sourceSha256(),
+                command.processingRegion());
+        return assertion(jti, command.artifactId(), bodySha256, "register");
     }
 
     private String assertion(
-            UUID jti,
-            MeetingTranscriptArtifactDtos.FinalizeTranscriptCommand command) {
+            UUID jti, UUID artifactId, String bodySha256, String operation) {
         try {
-            String bodySha256 = VideoMeetingCommandPolicy.requestHash(
-                    fixture.meetingId(), command.artifactId(), command.expectedArtifactVersion(),
-                    command.expectedContentPlanVersion(), command.contentNoticeId(),
-                    command.consentSnapshotSha256(), command.sourceSha256(),
-                    command.processingRegion(), command.storageProvider(), command.objectKey(),
-                    command.contentType(), command.sizeBytes());
             LinkedHashMap<String, Object> payload = new LinkedHashMap<>();
             payload.put("v", 1);
             payload.put("kid", KEY_ID);
             payload.put("method", "POST");
             payload.put("path", "/internal/v1/meetings/" + fixture.meetingId()
-                    + "/artifacts/transcript/finalize");
+                    + "/artifacts/transcript/" + operation);
             payload.put("tenantId", 1);
             payload.put("meetingId", fixture.meetingId());
-            payload.put("artifactId", command.artifactId());
+            payload.put("artifactId", artifactId);
             payload.put("iat", fixture.now().toEpochSecond());
             payload.put("exp", fixture.now().plusSeconds(30).toEpochSecond());
             payload.put("jti", jti);
@@ -306,8 +376,9 @@ class MeetingTranscriptArtifactFinalizationPostgresTest {
             UUID artifactId,
             UUID noticeId,
             long planVersion,
+            long artifactVersion,
             OffsetDateTime now,
             MeetingRequestContext.Subject subject,
-            MeetingTranscriptArtifactDtos.FinalizeTranscriptCommand command) {
+            MeetingTranscriptArtifactDtos.RegisterTranscriptCommand registration) {
     }
 }

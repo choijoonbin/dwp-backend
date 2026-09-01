@@ -419,6 +419,109 @@
       ]
     },
     {
+      "id": "notification-auth-recipient-entitlement-directory",
+      "classification": "notification-recipient-identity-validation",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-notification-server",
+      "targetServices": [
+        "dwp-auth-server"
+      ],
+      "path": "dwp-notification-server/src/main/java/com/dwp/services/notification/integration/AuthNotificationRecipientEntitlementDirectory.java",
+      "purpose": "Validate the tenant and user binding for a notification recipient before materialization.",
+      "auth": "Uses the purpose-specific identity-sync token and propagates observability context.",
+      "retryMode": "idempotent-only",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "${dwp.identity-sync.auth-url:http://localhost:8001}",
+        "/internal/identity/v1/",
+        "X-DWP-Identity-Sync-Token",
+        "@CircuitBreaker",
+        "@Bulkhead",
+        "@Retry",
+        "OutboundHttpHeaders.propagateObservability"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Service-Token",
+        "X-DWP-Provisioning-Token"
+      ]
+    },
+    {
+      "id": "meeting-agent-intelligence-workload",
+      "classification": "meeting-agent-intelligence-workload",
+      "interfaceType": "external-connector",
+      "sourceService": "dwp-meeting-server",
+      "targetServices": [
+        "dwp-agent"
+      ],
+      "path": "dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/provider/GovernedHttpMeetingIntelligenceProvider.java",
+      "purpose": "Call the separately deployed DWP Agent intelligence workload through an HTTPS-only, signed, bounded adapter.",
+      "auth": "Uses a purpose-specific meeting intelligence token plus a signed workload assertion; DWP service tokens are forbidden.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "validatedOrigin",
+        "getAllowedHosts",
+        "HttpClient.Redirect.NEVER",
+        "X-DWP-Meeting-Intelligence-Token",
+        "X-DWP-Meeting-Workload-Assertion",
+        "BoundedHttpResponseReader.read"
+      ],
+      "forbiddenMarkers": [
+        "X-DWP-Service-Token"
+      ]
+    },
+    {
+      "id": "meeting-agent-transcript-workload",
+      "classification": "meeting-agent-transcript-workload",
+      "interfaceType": "external-connector",
+      "sourceService": "dwp-meeting-server",
+      "targetServices": [
+        "dwp-agent"
+      ],
+      "path": "dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/provider/GovernedHttpMeetingTranscriptSource.java",
+      "purpose": "Read transcript artifacts from the separately deployed DWP Agent broker through an HTTPS-only, signed, bounded adapter.",
+      "auth": "Uses a purpose-specific transcript token plus a signed workload assertion; DWP service tokens are forbidden.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "validatedOrigin",
+        "getAllowedHosts",
+        "HttpClient.Redirect.NEVER",
+        "X-DWP-Meeting-Transcript-Token",
+        "X-DWP-Meeting-Workload-Assertion",
+        "BoundedHttpResponseReader.read"
+      ],
+      "forbiddenMarkers": [
+        "X-DWP-Service-Token"
+      ]
+    },
+    {
+      "id": "meeting-agent-recording-workload",
+      "classification": "meeting-agent-recording-workload",
+      "interfaceType": "external-connector",
+      "sourceService": "dwp-meeting-server",
+      "targetServices": [
+        "dwp-agent"
+      ],
+      "path": "dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/provider/GovernedHttpMeetingRecordingProvider.java",
+      "purpose": "Control recording lifecycle and scoped artifact access through the separately deployed DWP Agent broker.",
+      "auth": "Uses a purpose-specific recording token plus signed workload assertions; DWP service tokens are forbidden.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "validatedOrigin",
+        "getAllowedHosts",
+        "HttpClient.Redirect.NEVER",
+        "X-DWP-Meeting-Recording-Token",
+        "X-DWP-Meeting-Workload-Assertion",
+        "BoundedHttpResponseReader.read"
+      ],
+      "forbiddenMarkers": [
+        "X-DWP-Service-Token"
+      ]
+    },
+    {
       "id": "platform-microsoft-graph-connector",
       "classification": "external-productivity-connector",
       "interfaceType": "external-connector",

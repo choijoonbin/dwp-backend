@@ -406,7 +406,7 @@ public class AuthService {
                 .forEach(permission -> collectPermission(permission, allowed, denied));
         denied.forEach(allowed::remove);
         return new PermissionResolution(
-                List.copyOf(allowed.values()),
+                expandCompatibilityAliases(allowed.values()),
                 !assignments.isEmpty() || !principalGrants.isEmpty());
     }
 
@@ -458,7 +458,47 @@ public class AuthService {
     }
 
     private String permissionKey(PermissionDTO permission) {
-        return permission.getResourceKey() + ":" + permission.getPermissionCode();
+        // Resolve the compatibility pair as one conflict key so an explicit DENY on either
+        // resource wins before the surviving ALLOW is expanded back to both client-visible names.
+        return canonicalResourceKey(permission.getResourceKey())
+                + ":" + permission.getPermissionCode();
+    }
+
+    private String canonicalResourceKey(String resourceKey) {
+        return "APP.HCM".equalsIgnoreCase(resourceKey)
+                || "APP.HRIS".equalsIgnoreCase(resourceKey)
+                ? "APP.HCM" : resourceKey;
+    }
+
+    private List<PermissionDTO> expandCompatibilityAliases(
+            java.util.Collection<PermissionDTO> permissions) {
+        LinkedHashMap<String, PermissionDTO> expanded = new LinkedHashMap<>();
+        for (PermissionDTO permission : permissions) {
+            if ("APP.HCM".equals(canonicalResourceKey(permission.getResourceKey()))) {
+                addExpandedPermission(expanded, permission, "APP.HCM");
+                addExpandedPermission(expanded, permission, "APP.HRIS");
+            } else {
+                expanded.putIfAbsent(
+                        permission.getResourceKey() + ":" + permission.getPermissionCode(),
+                        permission);
+            }
+        }
+        return List.copyOf(expanded.values());
+    }
+
+    private void addExpandedPermission(
+            Map<String, PermissionDTO> expanded,
+            PermissionDTO source,
+            String resourceKey) {
+        String key = resourceKey + ":" + source.getPermissionCode();
+        expanded.putIfAbsent(key, PermissionDTO.builder()
+                .resourceType(source.getResourceType())
+                .resourceKey(resourceKey)
+                .resourceName(source.getResourceName())
+                .permissionCode(source.getPermissionCode())
+                .permissionName(source.getPermissionName())
+                .effect(source.getEffect())
+                .build());
     }
 
     @Transactional

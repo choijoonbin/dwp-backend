@@ -5,6 +5,7 @@ import com.dwp.services.meeting.videomeeting.domain.VideoMeetingContentModels.Re
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingContentModels.RecordingState;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.Artifact;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingContentService;
+import com.dwp.services.meeting.videomeeting.domain.VideoMeetingRecordingService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
@@ -54,7 +55,8 @@ class VideoMeetingContentContractTest {
         RecordingSession session = new RecordingSession(
                 UUID.randomUUID(), 77, UUID.randomUUID(), 3, UUID.randomUUID(),
                 RecordingState.REQUESTED, now, 101L, null, null,
-                null, null, null, null, 0);
+                null, null, null, null, 30,
+                "GOVERNED_EGRESS", "ap-northeast-2", null, 0);
 
         JsonNode json = new ObjectMapper().findAndRegisterModules().valueToTree(
                 VideoMeetingContentDtos.RecordingSessionResponse.from(session));
@@ -106,14 +108,17 @@ class VideoMeetingContentContractTest {
     void mapsGovernanceAndDependencyBlockersTo409And503ErrorEnvelopes() {
         UUID meetingId = UUID.randomUUID();
         VideoMeetingContentService service = mock(VideoMeetingContentService.class);
-        VideoMeetingContentController controller = new VideoMeetingContentController(service);
-        var request = new VideoMeetingContentDtos.RequestRecordingCommand(3);
-        var stop = new VideoMeetingContentDtos.StopRecordingCommand(0);
+        VideoMeetingRecordingService recording = mock(VideoMeetingRecordingService.class);
+        VideoMeetingContentController controller =
+                new VideoMeetingContentController(service, recording);
+        var request = new VideoMeetingContentDtos.RequestRecordingCommand(3L);
+        var stop = new VideoMeetingContentDtos.StopRecordingCommand(0L);
         var dependency = blocked(503, BlockerCode.EGRESS);
         var governance = blocked(409, BlockerCode.POLICY_NEVER);
-        when(service.requestRecording(meetingId, request, "recording-http-01", "corr-503"))
+        when(recording.requestRecording(
+                meetingId, request, "recording-http-01", "corr-503"))
                 .thenReturn(dependency);
-        when(service.stopRecording(meetingId, stop, "recording-http-02", "corr-409"))
+        when(recording.stopRecording(meetingId, stop, "recording-http-02", "corr-409"))
                 .thenReturn(governance);
 
         var unavailable = controller.requestRecording(

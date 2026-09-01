@@ -2,7 +2,6 @@ package com.dwp.services.notification.domain;
 
 import com.dwp.services.notification.domain.NotificationDeliveryAdmissionRepository.AdmissionClaim;
 import com.dwp.services.notification.domain.NotificationDeliveryAdmissionRepository.SuppressionMatch;
-import com.dwp.services.notification.domain.NotificationMaterializationRepository.TemplateContract;
 import com.dwp.services.notification.domain.NotificationModels.DirectMaterializationRequest;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;

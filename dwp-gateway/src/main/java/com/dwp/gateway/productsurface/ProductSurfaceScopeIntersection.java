@@ -116,9 +116,8 @@ final class ProductSurfaceScopeIntersection {
         return value == null || value.isBlank();
     }
 
-    private static ProductSurfaceContextAggregationService.AuthorityUnavailableException
-            unavailable() {
-        return new ProductSurfaceContextAggregationService.AuthorityUnavailableException();
+    private static ProductSurfaceAuthorityUnavailableException unavailable() {
+        return new ProductSurfaceAuthorityUnavailableException();
     }
 
     record Intersection(

@@ -69,17 +69,17 @@ public class ProductSurfaceContextAggregationService {
                             requestContext.traceState());
                     return rolloutClient.evaluateProducts(
                                     requestContext.tenantId(), products, metadata)
-                            .switchIfEmpty(Mono.error(new AuthorityUnavailableException()))
+                            .switchIfEmpty(Mono.error(new ProductSurfaceAuthorityUnavailableException()))
                             .map(values -> requireRollouts(products, values))
                             .flatMap(rollouts -> resolveListContexts(
                                     requestContext, catalog.candidates(), rollouts));
                 })
                 .onErrorMap(
                         FeatureRolloutEvaluationClient.InvalidRolloutStateException.class,
-                        ignored -> new AuthorityUnavailableException())
+                        ignored -> new ProductSurfaceAuthorityUnavailableException())
                 .onErrorMap(
                         FeatureRolloutEvaluationClient.RolloutAuthorityUnavailableException.class,
-                        ignored -> new AuthorityUnavailableException());
+                        ignored -> new ProductSurfaceAuthorityUnavailableException());
     }
 
     private Mono<ProductSurfaceContextDtos.ContextListData> resolveListContexts(
@@ -110,14 +110,14 @@ public class ProductSurfaceContextAggregationService {
                 .anyMatch(value -> missingCandidateProducts.contains(value.productKey())
                         && (value.flags().capabilityEnforcement()
                             || value.flags().surfaceUi()));
-        if (missingEnforcedProductAuthority) throw new AuthorityUnavailableException();
+        if (missingEnforcedProductAuthority) throw new ProductSurfaceAuthorityUnavailableException();
         return Flux.fromIterable(candidates)
                 .filter(candidate -> evaluatedProducts.contains(candidate.productKey()))
                 .concatMap(candidate -> resolveCandidate(
                                 requestContext, candidate, null, null, null)
                         .map(value -> CandidateResolution.available(candidate, value))
                         .onErrorResume(
-                                AuthorityUnavailableException.class,
+                                ProductSurfaceAuthorityUnavailableException.class,
                                 ignored -> Mono.just(CandidateResolution.unavailable(candidate))))
                 .collectList()
                 .map(results -> {
@@ -137,7 +137,7 @@ public class ProductSurfaceContextAggregationService {
                                     && (value.flags().capabilityEnforcement()
                                         || value.flags().surfaceUi()));
                     if (missingActiveEnforcedProductAuthority) {
-                        throw new AuthorityUnavailableException();
+                        throw new ProductSurfaceAuthorityUnavailableException();
                     }
                     Set<String> resolutionUnavailableProducts = results.stream()
                             .filter(value -> value.resolution() == null)
@@ -148,7 +148,7 @@ public class ProductSurfaceContextAggregationService {
                     boolean enforcedUnavailable = rollouts.stream()
                             .anyMatch(value -> value.flags().capabilityEnforcement()
                                     && unavailableProducts.contains(value.productKey()));
-                    if (enforcedUnavailable) throw new AuthorityUnavailableException();
+                    if (enforcedUnavailable) throw new ProductSurfaceAuthorityUnavailableException();
                     List<Resolution> resolutions = results.stream()
                             .filter(value -> value.resolution() != null)
                             .filter(value -> !unavailableProducts.contains(
@@ -214,7 +214,7 @@ public class ProductSurfaceContextAggregationService {
             List<String> products,
             List<ProductSurfaceContextDtos.ProductRollout> values) {
         if (values == null || values.size() != products.size()) {
-            throw new AuthorityUnavailableException();
+            throw new ProductSurfaceAuthorityUnavailableException();
         }
         Map<String, ProductSurfaceContextDtos.ProductRollout> byProduct = values.stream()
                 .filter(Objects::nonNull)
@@ -222,17 +222,17 @@ public class ProductSurfaceContextAggregationService {
                         ProductSurfaceContextDtos.ProductRollout::productKey,
                         Function.identity(),
                         (left, right) -> {
-                            throw new AuthorityUnavailableException();
+                            throw new ProductSurfaceAuthorityUnavailableException();
                         }));
         if (!byProduct.keySet().equals(Set.copyOf(products))) {
-            throw new AuthorityUnavailableException();
+            throw new ProductSurfaceAuthorityUnavailableException();
         }
         List<ProductSurfaceContextDtos.ProductRollout> ordered = products.stream()
                 .map(byProduct::get).peek(value -> {
                     if (value.flags() == null
                             || !Set.of("000", "100", "110", "111")
                                     .contains(value.state())) {
-                        throw new AuthorityUnavailableException();
+                        throw new ProductSurfaceAuthorityUnavailableException();
                     }
                     String state = (value.flags().contextShadow() ? "1" : "0")
                             + (value.flags().capabilityEnforcement() ? "1" : "0")
@@ -241,13 +241,13 @@ public class ProductSurfaceContextAggregationService {
                             || value.authorityStatus()
                                     != ProductSurfaceContextDtos.AuthorityStatus.NOT_EVALUATED
                             || blank(value.cohort()) || blank(value.opaqueRevision())) {
-                        throw new AuthorityUnavailableException();
+                        throw new ProductSurfaceAuthorityUnavailableException();
                     }
                 }).toList();
         ProductSurfaceContextDtos.RolloutFlags shared = ordered.getFirst().flags();
         if (ordered.stream().map(ProductSurfaceContextDtos.ProductRollout::flags)
                 .anyMatch(flags -> flags.contextShadow() != shared.contextShadow())) {
-            throw new AuthorityUnavailableException();
+            throw new ProductSurfaceAuthorityUnavailableException();
         }
         return ordered;
     }
@@ -302,13 +302,13 @@ public class ProductSurfaceContextAggregationService {
             ProductSurfaceContextDtos.RequestContext requestContext,
             ProductSurfaceContextDtos.GovernedEvaluationRequest request) {
         return governedClient.evaluate(requestContext, request)
-                .switchIfEmpty(Mono.error(new AuthorityUnavailableException()))
+                .switchIfEmpty(Mono.error(new ProductSurfaceAuthorityUnavailableException()))
                 .flatMap(result -> result.decision()
                         == ProductSurfaceContextDtos.GovernedDecision.AUTHORITY_UNAVAILABLE
-                        ? Mono.error(new AuthorityUnavailableException())
+                        ? Mono.error(new ProductSurfaceAuthorityUnavailableException())
                         : validGoverned(result, requestContext, request)
                                 ? Mono.just(result)
-                                : Mono.error(new AuthorityUnavailableException()))
+                                : Mono.error(new ProductSurfaceAuthorityUnavailableException()))
                 .map(result -> {
                     ProductSurfaceContextDtos.SourceRevisions revisions =
                             new ProductSurfaceContextDtos.SourceRevisions(
@@ -355,14 +355,14 @@ public class ProductSurfaceContextAggregationService {
                         routeContractKey,
                         contextKey,
                         contextScopeKey)
-                .switchIfEmpty(Mono.error(new AuthorityUnavailableException()))
+                .switchIfEmpty(Mono.error(new ProductSurfaceAuthorityUnavailableException()))
                 .flatMap(authority -> {
                     if (authority.decision()
                             == ProductSurfaceContextDtos.Decision.AUTHORITY_UNAVAILABLE) {
-                        return Mono.error(new AuthorityUnavailableException());
+                        return Mono.error(new ProductSurfaceAuthorityUnavailableException());
                     }
                     if (!validAuthority(authority, requestContext, candidate, routeContractKey)) {
-                        return Mono.error(new AuthorityUnavailableException());
+                        return Mono.error(new ProductSurfaceAuthorityUnavailableException());
                     }
                     if (!authority.requiresProductEligibility()) {
                         return Mono.just(resolution(requestContext, authority, null));
@@ -372,12 +372,12 @@ public class ProductSurfaceContextAggregationService {
                                     authority,
                                     contextScopeKey,
                                     OffsetDateTime.now(clock))
-                            .switchIfEmpty(Mono.error(new AuthorityUnavailableException()))
+                            .switchIfEmpty(Mono.error(new ProductSurfaceAuthorityUnavailableException()))
                             .flatMap(eligibility -> {
                                 if (eligibility.decision()
                                         == ProductSurfaceContextDtos.Decision.AUTHORITY_UNAVAILABLE
                                         || !validEligibility(eligibility)) {
-                                    return Mono.error(new AuthorityUnavailableException());
+                                    return Mono.error(new ProductSurfaceAuthorityUnavailableException());
                                 }
                                 return Mono.just(resolution(
                                         requestContext, authority, eligibility));
@@ -412,7 +412,7 @@ public class ProductSurfaceContextAggregationService {
         }
         scopes = ProductSurfaceScopeIntersection.normalizeReadOnly(scopes, grants);
         if (!ProductSurfaceScopeIntersection.closed(grants, scopes)) {
-            throw new AuthorityUnavailableException();
+            throw new ProductSurfaceAuthorityUnavailableException();
         }
         OffsetDateTime revalidateAt = earliest(
                 authority.revalidateAt(),
@@ -510,20 +510,20 @@ public class ProductSurfaceContextAggregationService {
         long defaults = context.scopes().stream()
                 .filter(ProductSurfaceContextDtos.EffectiveScope::isDefault)
                 .count();
-        if (defaults > 1) throw new AuthorityUnavailableException();
+        if (defaults > 1) throw new ProductSurfaceAuthorityUnavailableException();
     }
 
     private CatalogProjection catalog() {
         List<ProductSurfaceCandidateCatalog> catalogs = candidateCatalogs.orderedStream().toList();
-        if (catalogs.size() != 1) throw new AuthorityUnavailableException();
+        if (catalogs.size() != 1) throw new ProductSurfaceAuthorityUnavailableException();
         ProductSurfaceCandidateCatalog catalog = catalogs.getFirst();
         List<ProductSurfaceContextDtos.ProductCandidate> values = catalog.activeCandidates();
-        if (values == null || values.isEmpty()) throw new AuthorityUnavailableException();
+        if (values == null || values.isEmpty()) throw new ProductSurfaceAuthorityUnavailableException();
         LinkedHashSet<ProductSurfaceContextDtos.ProductCandidate> unique = new LinkedHashSet<>();
         for (ProductSurfaceContextDtos.ProductCandidate value : values) {
             if (value == null || blank(value.productKey()) || blank(value.surfaceKey())
                     || !unique.add(value)) {
-                throw new AuthorityUnavailableException();
+                throw new ProductSurfaceAuthorityUnavailableException();
             }
         }
         List<String> rolloutProducts = catalog.rolloutProductKeys();
@@ -532,7 +532,7 @@ public class ProductSurfaceContextAggregationService {
                 || rolloutProducts.size() != new LinkedHashSet<>(rolloutProducts).size()
                 || unique.stream().map(ProductSurfaceContextDtos.ProductCandidate::productKey)
                         .anyMatch(product -> !rolloutProducts.contains(product))) {
-            throw new AuthorityUnavailableException();
+            throw new ProductSurfaceAuthorityUnavailableException();
         }
         return new CatalogProjection(
                 List.copyOf(unique), rolloutProducts.stream().sorted().toList());
@@ -628,26 +628,6 @@ public class ProductSurfaceContextAggregationService {
         return defaults <= 1 && (result.scopes().size() != 1 || defaults == 1);
     }
 
-    record Resolution(
-            ProductSurfaceContextDtos.Decision decision,
-            String reasonCode,
-            ProductSurfaceContextDtos.AuthorityResult authority,
-            ProductSurfaceContextDtos.EffectiveContext context,
-            ProductSurfaceContextDtos.SourceRevisions revisions,
-            List<ProductSurfaceContextDtos.EffectiveScope> scopes,
-            OffsetDateTime revalidateAt) {
-
-        boolean authSurfaceProductNotRegistered() {
-            return authority.decision() == ProductSurfaceContextDtos.Decision.SURFACE_DENIED
-                    && PRODUCT_NOT_REGISTERED.equals(authority.reasonCode());
-        }
-
-        boolean authRouteProductNotRegistered() {
-            return authority.decision() == ProductSurfaceContextDtos.Decision.ROUTE_DENIED
-                    && PRODUCT_NOT_REGISTERED.equals(authority.reasonCode());
-        }
-    }
-
     private record CandidateResolution(
             ProductSurfaceContextDtos.ProductCandidate candidate,
             Resolution resolution) {
@@ -662,10 +642,6 @@ public class ProductSurfaceContextAggregationService {
                 ProductSurfaceContextDtos.ProductCandidate candidate) {
             return new CandidateResolution(candidate, null);
         }
-    }
-
-    public static final class AuthorityUnavailableException extends RuntimeException {
-        private static final long serialVersionUID = 1L;
     }
 
     public record TrustedProductEvaluation(

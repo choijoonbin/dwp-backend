@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+  "cycles": [
+    {
+      "id": "approval-command-repository-split",
+      "owner": "approval-domain",
+      "reason": "A source-size split keeps the public repository as the nested record owner while package-private JDBC, lifecycle, management and payload helpers implement it.",
+      "reviewBy": "2026-12-15",
+      "runtimeComponentCycle": false,
+      "members": [
+        "com.dwp.services.approval.domain.ApprovalCommandJdbcRepository",
+        "com.dwp.services.approval.domain.ApprovalCommandLifecycleRepository",
+        "com.dwp.services.approval.domain.ApprovalCommandManagementRepository",
+        "com.dwp.services.approval.domain.ApprovalCommandPayloadSupport",
+        "com.dwp.services.approval.domain.ApprovalCommandRepository",
+        "com.dwp.services.approval.domain.ApprovalDelegationCommandSupport"
+      ]
+    },
+    {
+      "id": "meeting-query-repository-helper",
+      "owner": "meeting-domain",
+      "reason": "The manually constructed query helper returns owner-nested paging records and uses the owner's shared access predicate.",
+      "reviewBy": "2026-12-15",
+      "runtimeComponentCycle": false,
+      "members": [
+        "com.dwp.services.meeting.videomeeting.domain.VideoMeetingQueryRepository",
+        "com.dwp.services.meeting.videomeeting.domain.VideoMeetingRepository"
+      ]
+    },
+    {
+      "id": "people-hr-repository-split",
+      "owner": "people-hr",
+      "reason": "Manually constructed HR persistence helpers use records owned by the public repository facade.",
+      "reviewBy": "2026-12-15",
+      "runtimeComponentCycle": false,
+      "members": [
+        "com.dwp.services.people.hr.HrAbsenceRepository",
+        "com.dwp.services.people.hr.HrRepository",
+        "com.dwp.services.people.hr.HrTimeRepository",
+        "com.dwp.services.people.hr.HrWorkerRepository"
+      ]
+    },
+    {
+      "id": "people-hris-repository-split",
+      "owner": "people-integration",
+      "reason": "The package-private inheritance split implements the public HRIS repository while retaining its nested result contracts.",
+      "reviewBy": "2026-12-15",
+      "runtimeComponentCycle": false,
+      "members": [
+        "com.dwp.services.people.integration.HrisIntegrationIngestionRepository",
+        "com.dwp.services.people.integration.HrisIntegrationManagementRepository",
+        "com.dwp.services.people.integration.HrisIntegrationProjectionRepository",
+        "com.dwp.services.people.integration.HrisIntegrationRepository"
+      ]
+    },
+    {
+      "id": "people-organization-scenario-repository-split",
+      "owner": "people-organization",
+      "reason": "The package-private lifecycle, change, projection and validation inheritance split retains records on the public scenario repository.",
+      "reviewBy": "2026-12-15",
+      "runtimeComponentCycle": false,
+      "members": [
+        "com.dwp.services.people.organization.OrganizationScenarioChangeRepository",
+        "com.dwp.services.people.organization.OrganizationScenarioLifecycleRepository",
+        "com.dwp.services.people.organization.OrganizationScenarioProjectionRepository",
+        "com.dwp.services.people.organization.OrganizationScenarioRepository",
+        "com.dwp.services.people.organization.OrganizationScenarioValidationRepository"
+      ]
+    },
+    {
+      "id": "platform-calendar-row-mapper",
+      "owner": "platform-calendar",
+      "reason": "The manually constructed row mapper creates records nested on the public calendar repository.",
+      "reviewBy": "2026-12-15",
+      "runtimeComponentCycle": false,
+      "members": [
+        "com.dwp.services.platform.calendar.CalendarRepository",
+        "com.dwp.services.platform.calendar.CalendarRowMapper"
+      ]
+    },
+    {
+      "id": "platform-home-layout-deserializer",
+      "owner": "platform-home",
+      "reason": "Jackson's DTO annotation selects the deserializer and the deserializer necessarily constructs the annotated nested DTO contract.",
+      "reviewBy": "2026-12-15",
+      "runtimeComponentCycle": false,
+      "members": [
+        "com.dwp.services.platform.home.preference.HomeLayoutPayloadDeserializer",
+        "com.dwp.services.platform.home.preference.HomePreferenceDtos"
+      ]
+    },
+    {
+      "id": "platform-workplace-catalog-helper",
+      "owner": "platform-workplace",
+      "reason": "WorkplaceService manually constructs the catalog administration helper, which returns the service's nested floor background projection.",
+      "reviewBy": "2026-12-15",
+      "runtimeComponentCycle": false,
+      "members": [
+        "com.dwp.services.platform.workplace.WorkplaceCatalogAdminService",
+        "com.dwp.services.platform.workplace.WorkplaceService"
+      ]
+    },
+    {
+      "id": "provider-operations-repository-split",
+      "owner": "provider-operations",
+      "reason": "The public repository manually owns package-private approval, health, incident and support helpers that return owner-nested records.",
+      "reviewBy": "2026-12-15",
+      "runtimeComponentCycle": false,
+      "members": [
+        "com.dwp.services.provider.ProviderOperationsApprovalRepository",
+        "com.dwp.services.provider.ProviderOperationsHealthRepository",
+        "com.dwp.services.provider.ProviderOperationsIncidentRepository",
+        "com.dwp.services.provider.ProviderOperationsRepository",
+        "com.dwp.services.provider.ProviderOperationsSupportRepository"
+      ]
+    },
+    {
+      "id": "provider-tenant-mutation-compensation",
+      "owner": "provider-provisioning",
+      "reason": "The mutation repository injects a compensation planner whose source coupling back is limited to repository-owned immutable command records.",
+      "reviewBy": "2026-12-15",
+      "runtimeComponentCycle": false,
+      "members": [
+        "com.dwp.services.provider.provisioning.TenantMutationCompensationPlanner",
+        "com.dwp.services.provider.provisioning.TenantMutationRepository"
+      ]
+    }
+  ]
+}

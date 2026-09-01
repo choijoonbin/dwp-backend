@@ -39,7 +39,7 @@ public class HomePreference extends BaseEntity {
 
     @Builder.Default
     @Column(name = "surface_key", nullable = false, length = 80)
-    private String surfaceKey = HomePreferenceService.WORKSPACE_HOME;
+    private String surfaceKey = HomeSurfaceKeys.WORKSPACE_HOME;
 
     @Builder.Default
     @Column(name = "schema_version", nullable = false)

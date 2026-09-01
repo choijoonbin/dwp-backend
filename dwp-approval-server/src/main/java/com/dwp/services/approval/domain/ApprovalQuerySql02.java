@@ -188,15 +188,4 @@ final class ApprovalQuerySql02 {
         LIMIT :limit
         """;
 
-    static final String OVERDUE_COUNT_SELECT_APR_TASKS = """
-        SELECT COUNT(*)::INTEGER FROM apr_tasks task
-         WHERE task.tenant_id = :tenantId
-           AND task.status IN ('PENDING', 'CLAIMED')
-           AND task.due_at < CURRENT_TIMESTAMP
-           AND EXISTS (
-               SELECT 1 FROM apr_requests request
-                WHERE request.tenant_id = task.tenant_id
-                  AND request.request_id = task.request_id
-                  AND request.management_resource_set_key = :managementScope)
-        """;
 }

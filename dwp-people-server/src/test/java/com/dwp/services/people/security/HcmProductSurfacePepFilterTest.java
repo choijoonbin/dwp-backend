@@ -144,6 +144,18 @@ class HcmProductSurfacePepFilterTest {
     }
 
     @Test
+    void legacyHrisAliasPassesTheExactHcmOwnerPep() throws Exception {
+        mvc.perform(exact(
+                        get("/v1/hr/home"),
+                        "route.hcm.personal.home.page",
+                        "APP.HRIS:VIEW",
+                        null))
+                .andExpect(status().isOk());
+
+        verify(service).home();
+    }
+
+    @Test
     void providerPeopleBindingsRemainForbiddenAfterSupportScopeRetirement()
             throws Exception {
         List<SupportBinding> bindings = List.of(

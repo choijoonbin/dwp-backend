@@ -73,6 +73,8 @@ class AgentLocalEnvironmentTest(unittest.TestCase):
         agent_key_settings = {
             "DWP_AGENT_KEY_PROVIDER": "local-inline",
             "DWP_AGENT_DATA_KEY_VERSION": "local-v1",
+            "DWP_AGENT_LOCAL_GOVERNANCE_SEED_ENABLED": "true",
+            "DWP_AGENT_LOCAL_GOVERNANCE_TENANT_IDS": "1",
         }
         for key, value in agent_key_settings.items():
             self.assertEqual(environments["agent"][key], value)

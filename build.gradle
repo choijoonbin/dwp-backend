@@ -15,13 +15,79 @@ allprojects {
 }
 
 tasks.register('checkServiceBoundaries', Exec) {
+    dependsOn 'serviceBoundaryRatchetTest'
     workingDir rootDir
     commandLine 'python3', 'scripts/check-service-boundaries.py'
 }
 
+tasks.register('serviceBoundaryRatchetTest', Exec) {
+    group = 'verification'
+    description = 'Runs fail-closed service and application-layer boundary regressions.'
+    workingDir rootDir
+    commandLine 'python3', '-m', 'unittest', 'discover',
+            '-s', 'scripts/tests', '-p', 'test_service_boundaries.py', '-v'
+}
+
 tasks.register('checkSourceSize', Exec) {
+    dependsOn 'sourceSizeRatchetTest'
     workingDir rootDir
     commandLine 'python3', 'scripts/check-source-size.py'
+}
+
+tasks.register('sourceSizeRatchetTest', Exec) {
+    group = 'verification'
+    description = 'Runs source-size exact-ratchet and fail-closed baseline regressions.'
+    workingDir rootDir
+    commandLine 'python3', '-m', 'unittest', 'discover',
+            '-s', 'scripts/tests', '-p', 'test_source_size.py', '-v'
+}
+
+tasks.register('checkTestSourceSize', Exec) {
+    dependsOn 'testSourceSizeRatchetTest'
+    group = 'verification'
+    description = 'Checks exact line-count ratchets for oversized Java test files.'
+    workingDir rootDir
+    commandLine 'python3', 'scripts/check-test-source-size.py'
+}
+
+tasks.register('testSourceSizeRatchetTest', Exec) {
+    group = 'verification'
+    description = 'Runs fail-closed Java test source-size baseline regressions.'
+    workingDir rootDir
+    commandLine 'python3', '-m', 'unittest', 'discover',
+            '-s', 'scripts/tests', '-p', 'test_test_source_size.py', '-v'
+}
+
+tasks.register('checkJavaDependencyCycles', Exec) {
+    dependsOn 'javaDependencyCycleRatchetTest'
+    group = 'verification'
+    description = 'Rejects new or changed Java SCCs and every Spring constructor cycle.'
+    workingDir rootDir
+    commandLine 'python3', 'scripts/check-java-dependency-cycles.py'
+}
+
+tasks.register('javaDependencyCycleRatchetTest', Exec) {
+    group = 'verification'
+    description = 'Runs exact SCC baseline and fail-closed Spring cycle regressions.'
+    workingDir rootDir
+    commandLine 'python3', '-m', 'unittest', 'discover',
+            '-s', 'scripts/tests', '-p', 'test_java_dependency_cycles.py', '-v'
+}
+
+tasks.register('checkUnusedPrivateMethods', Exec) {
+    dependsOn 'unusedPrivateMethodRatchetTest'
+    group = 'verification'
+    description = 'Rejects trivially unreachable unannotated private Java methods.'
+    workingDir rootDir
+    commandLine 'python3', 'scripts/check-unused-private-methods.py'
+}
+
+tasks.register('unusedPrivateMethodRatchetTest', Exec) {
+    group = 'verification'
+    description = 'Runs unused-private-method fail-closed scanner regressions.'
+    workingDir rootDir
+    commandLine 'python3', '-m', 'unittest', 'discover',
+            '-s', 'scripts/tests', '-p', 'test_unused_private_methods.py', '-v'
 }
 
 tasks.register('productAuthorizationRegistryGenerate', Exec) {
@@ -79,6 +145,9 @@ tasks.register('authorizationNegativeMatrixTest', Exec) {
 tasks.named('check') {
     dependsOn tasks.named('checkServiceBoundaries')
     dependsOn tasks.named('checkSourceSize')
+    dependsOn tasks.named('checkTestSourceSize')
+    dependsOn tasks.named('checkJavaDependencyCycles')
+    dependsOn tasks.named('checkUnusedPrivateMethods')
     dependsOn tasks.named('productAuthorizationRegistryCheck')
     dependsOn tasks.named('approvalProjectionSchemaCheck')
     dependsOn tasks.named('pilotFixturesCheck')

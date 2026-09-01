@@ -155,7 +155,7 @@ class ProductSurfaceContextHandlerTest {
     @Test
     void exposesAuthorityOutagesAs503() {
         when(aggregation.listContexts(any())).thenReturn(Mono.error(
-                new ProductSurfaceContextAggregationService.AuthorityUnavailableException()));
+                new ProductSurfaceAuthorityUnavailableException()));
 
         client.get().uri(ProductSurfaceContextRouterConfiguration.CONTEXTS_HANDLER_PATH)
                 .header(VerifiedIdentityFilter.USER_HEADER, "7")

@@ -99,22 +99,6 @@ public class HomeViewService extends HomeViewServiceSupport {
         }
         HomePreferenceDtos.HomeLayoutPayload requestedLayout = preferenceService.normalizeForSurface(
                 HomePreferenceService.WORKSPACE_HOME, request.layout());
-        HomePreferenceDtos.HomeLayoutPayload fixedBaseline = views
-                .findByTenantIdAndUserIdAndSurfaceKeyOrderByUpdatedAtDesc(
-                        tenantId, userId, HomePreferenceService.WORKSPACE_HOME).stream()
-                .filter(HomeView::isDefaultView)
-                .findFirst()
-                .map(this::currentLayout)
-                .orElseGet(() -> preferenceService.normalizeForSurface(
-                        HomePreferenceService.WORKSPACE_HOME,
-                        new HomePreferenceDtos.HomeLayoutPayload(
-                                requestedLayout.appLayout(),
-                                requestedLayout.presentation(),
-                                List.of())));
-        requireFixedWidgetNotOverridden(
-                fixedBaseline, request.layout(), "command-rail", true);
-        HomePreferenceDtos.HomeLayoutPayload layout = preserveClassicFixedWidget(
-                fixedBaseline, requestedLayout, "command-rail");
         boolean first = views.countByTenantIdAndUserIdAndSurfaceKey(
                 tenantId, userId, HomePreferenceService.WORKSPACE_HOME) == 0;
         if (first || request.makeDefault()) clearDefaults(
@@ -129,7 +113,7 @@ public class HomeViewService extends HomeViewServiceSupport {
                 .defaultView(first || request.makeDefault())
                 .customized(true)
                 .schemaVersion(HomePreferenceDtos.SCHEMA_VERSION)
-                .layoutPayload(objectMapper.valueToTree(layout))
+                .layoutPayload(objectMapper.valueToTree(requestedLayout))
                 .build();
         save(view);
         mirrorDefaultView(view);
@@ -169,12 +153,8 @@ public class HomeViewService extends HomeViewServiceSupport {
         HomeView view = requireOwnedForUpdate(tenantId, userId, viewId);
         requireVersion(view, request.version());
         Object before = snapshot(view);
-        requireFixedWidgetUnchanged(
-                currentLayout(view), request.layout(), "command-rail");
-        HomePreferenceDtos.HomeLayoutPayload layout = preserveClassicFixedWidget(
-                currentLayout(view),
-                preferenceService.normalizeForSurface(view.getSurfaceKey(), request.layout()),
-                "command-rail");
+        HomePreferenceDtos.HomeLayoutPayload layout = preferenceService.normalizeForSurface(
+                view.getSurfaceKey(), request.layout());
         view.setName(request.name().trim());
         view.setLayoutPayload(objectMapper.valueToTree(layout));
         view.setSchemaVersion(HomePreferenceDtos.SCHEMA_VERSION);
@@ -390,10 +370,8 @@ public class HomeViewService extends HomeViewServiceSupport {
         HomeViewSnapshotCodec.DecodedSnapshot decoded = snapshotCodec.decode(
                 source.getSnapshot(), source.getSchemaVersion());
         HomePreferenceDtos.HomeLayoutPayload revisionLayout = decoded.snapshot().view().layout();
-        HomePreferenceDtos.HomeLayoutPayload restored = preserveClassicFixedWidget(
-                revisionLayout,
-                preferenceService.normalizeForSurface(view.getSurfaceKey(), revisionLayout),
-                "command-rail");
+        HomePreferenceDtos.HomeLayoutPayload restored = preferenceService.normalizeForSurface(
+                view.getSurfaceKey(), revisionLayout);
         Object before = snapshot(view);
         view.setLayoutPayload(objectMapper.valueToTree(restored));
         view.setSchemaVersion(HomePreferenceDtos.SCHEMA_VERSION);
@@ -581,8 +559,6 @@ public class HomeViewService extends HomeViewServiceSupport {
         Object before = snapshot(view);
         HomePreferenceDtos.HomeLayoutPayload layout = preferenceService.normalizeForSurface(
                 view.getSurfaceKey(), requested);
-        layout = preserveClassicFixedWidget(
-                currentLayout(view), layout, "command-rail");
         view.setLayoutPayload(objectMapper.valueToTree(layout));
         view.setSchemaVersion(HomePreferenceDtos.SCHEMA_VERSION);
         view.setIntegrityState("VALID");

@@ -49,7 +49,7 @@ public class ProductSurfaceContextHandler {
         return aggregationService.listContexts(requestContext)
                 .flatMap(data -> ok(ProductSurfaceContextDtos.ApiResponse.success(data)))
                 .onErrorResume(
-                        ProductSurfaceContextAggregationService.AuthorityUnavailableException.class,
+                        ProductSurfaceAuthorityUnavailableException.class,
                         ignored -> error(
                                 HttpStatus.SERVICE_UNAVAILABLE,
                                 "AUTHORITY_RESOLUTION_UNAVAILABLE",
@@ -77,7 +77,7 @@ public class ProductSurfaceContextHandler {
                         InvalidRequestException.class,
                         ignored -> error(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", request))
                 .onErrorResume(
-                        ProductSurfaceContextAggregationService.AuthorityUnavailableException.class,
+                        ProductSurfaceAuthorityUnavailableException.class,
                         ignored -> error(
                                 HttpStatus.SERVICE_UNAVAILABLE,
                                 "AUTHORITY_RESOLUTION_UNAVAILABLE",
@@ -108,7 +108,7 @@ public class ProductSurfaceContextHandler {
                         InvalidRequestException.class,
                         ignored -> error(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", request))
                 .onErrorResume(
-                        ProductSurfaceContextAggregationService.AuthorityUnavailableException.class,
+                        ProductSurfaceAuthorityUnavailableException.class,
                         ignored -> error(
                                 HttpStatus.SERVICE_UNAVAILABLE,
                                 "AUTHORITY_RESOLUTION_UNAVAILABLE",

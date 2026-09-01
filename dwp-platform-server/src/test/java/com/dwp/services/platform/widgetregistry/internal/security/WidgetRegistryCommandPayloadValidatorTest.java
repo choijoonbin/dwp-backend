@@ -63,15 +63,15 @@ class WidgetRegistryCommandPayloadValidatorTest {
             assertThatThrownBy(() -> WidgetRegistryCommandPayloadValidator.validate(
                     entry.getKey(), entry.getValue().commandType(), unknown))
                     .as(entry.getKey() + " additionalProperties:false")
-                    .isInstanceOf(WidgetRegistryRequestBinding.BindingException.class);
+                    .isInstanceOf(WidgetRegistryBindingException.class);
             assertThatThrownBy(() -> WidgetRegistryCommandPayloadValidator.validate(
                     entry.getKey(), entry.getValue().commandType(), missing))
                     .as(entry.getKey() + " required expectedVersion")
-                    .isInstanceOf(WidgetRegistryRequestBinding.BindingException.class);
+                    .isInstanceOf(WidgetRegistryBindingException.class);
             assertThatThrownBy(() -> WidgetRegistryCommandPayloadValidator.validate(
                     entry.getKey(), "WRONG_TYPE", payload))
                     .as(entry.getKey() + " exact operation/type branch")
-                    .isInstanceOf(WidgetRegistryRequestBinding.BindingException.class);
+                    .isInstanceOf(WidgetRegistryBindingException.class);
         }
     }
 
@@ -166,7 +166,7 @@ class WidgetRegistryCommandPayloadValidatorTest {
     private void assertRejected(ObjectNode payload, String operationId, String commandType) {
         assertThatThrownBy(() -> WidgetRegistryCommandPayloadValidator.validate(
                 operationId, commandType, payload))
-                .isInstanceOf(WidgetRegistryRequestBinding.BindingException.class);
+                .isInstanceOf(WidgetRegistryBindingException.class);
     }
 
     private ObjectNode payload(String operationId) throws Exception {

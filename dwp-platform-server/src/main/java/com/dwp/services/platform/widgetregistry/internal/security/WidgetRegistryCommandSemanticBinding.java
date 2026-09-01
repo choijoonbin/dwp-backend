@@ -1,6 +1,5 @@
 package com.dwp.services.platform.widgetregistry.internal.security;
 
-import com.dwp.services.platform.widgetregistry.internal.security.WidgetRegistryRequestBinding.BindingException;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import java.util.Set;
@@ -25,7 +24,8 @@ final class WidgetRegistryCommandSemanticBinding {
     private WidgetRegistryCommandSemanticBinding() {
     }
 
-    static Fields preserve(String operationId, JsonNode payload) throws BindingException {
+    static Fields preserve(String operationId, JsonNode payload)
+            throws WidgetRegistryBindingException {
         if (operationId == null || payload == null || !payload.isObject()) throw invalid();
         return switch (operationId) {
             case "createWidgetDefinition" -> new Fields(
@@ -37,7 +37,7 @@ final class WidgetRegistryCommandSemanticBinding {
         };
     }
 
-    private static Fields runtime(JsonNode payload) throws BindingException {
+    private static Fields runtime(JsonNode payload) throws WidgetRegistryBindingException {
         String scope = required(payload, "scope", 64, null);
         String targetType = required(payload, "targetType", 32, null);
         if (!CONTROL_SCOPES.contains(scope) || !RUNTIME_TARGET_TYPES.contains(targetType)
@@ -53,7 +53,7 @@ final class WidgetRegistryCommandSemanticBinding {
     }
 
     private static String required(JsonNode payload, String field, int maximum, Pattern pattern)
-            throws BindingException {
+            throws WidgetRegistryBindingException {
         JsonNode node = payload.get(field);
         if (node == null || !node.isTextual()) throw invalid();
         String value = node.textValue();
@@ -64,8 +64,9 @@ final class WidgetRegistryCommandSemanticBinding {
         return value;
     }
 
-    private static BindingException invalid() {
-        return new BindingException(WidgetRegistryIngressFailure.REQUEST_BINDING_INVALID);
+    private static WidgetRegistryBindingException invalid() {
+        return new WidgetRegistryBindingException(
+                WidgetRegistryIngressFailure.REQUEST_BINDING_INVALID);
     }
 
     record Fields(

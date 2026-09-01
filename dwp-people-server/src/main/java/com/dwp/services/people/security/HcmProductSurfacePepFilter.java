@@ -35,7 +35,7 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
 
     static final String RESOURCE_ROLES_HEADER = "X-DWP-Resource-Roles";
     static final String ACTIVE_ACCESS_MODE_HEADER = "X-DWP-Active-Access-Mode";
-    static final String ROUTE_CONTRACT_HEADER = "X-DWP-Route-Contract-Key";
+    static final String ROUTE_CONTRACT_HEADER = PeopleSecurityHeaders.ROUTE_CONTRACT;
     static final String CURRENT_DECISION_REVISION_HEADER =
             "X-DWP-Current-Decision-Revision";
     static final String CURRENT_DECISION_REVALIDATE_AT_HEADER =
@@ -47,7 +47,7 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
     static final String RESPONSE_DECISION_REVISION_HEADER = "X-DWP-Decision-Revision";
     static final String ROLLOUT_COHORT_HEADER = "X-DWP-Rollout-Cohort";
     static final String ROLLOUT_REVISION_HEADER = "X-DWP-Rollout-Revision";
-    static final String ROLLOUT_STATE_HEADER = "X-DWP-Rollout-State";
+    static final String ROLLOUT_STATE_HEADER = PeopleSecurityHeaders.ROLLOUT_STATE;
 
     private static final Set<String> ROLLOUT_STATES = Set.of("000", "100", "110", "111");
     private static final Set<String> ROLLOUT_COHORTS = Set.of(
@@ -85,9 +85,9 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
             FilterChain filterChain) throws ServletException, IOException {
         HcmPepContext.clear();
         boolean supportHeaderPresent =
-                request.getHeader(PeopleSecurityFilter.SUPPORT_SESSION_HEADER) != null;
+                request.getHeader(PeopleSecurityHeaders.SUPPORT_SESSION) != null;
         String supportSession = exactHeader(
-                request, PeopleSecurityFilter.SUPPORT_SESSION_HEADER);
+                request, PeopleSecurityHeaders.SUPPORT_SESSION);
         if (supportHeaderPresent && supportSession == null) {
             writeError(response, ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
                     "Trusted HCM support-session evidence is invalid.");
@@ -131,20 +131,20 @@ public final class HcmProductSurfacePepFilter extends OncePerRequestFilter {
                     "Trusted HCM route, context, scope, and access mode evidence is invalid.");
             return;
         }
-        Set<String> roles = parse(request.getHeader(PeopleSecurityFilter.ROLES_HEADER));
+        Set<String> roles = parse(request.getHeader(PeopleSecurityHeaders.ROLES));
         if (!TENANT_ACCESS_MODES.contains(activeAccessMode)
                 || RolePlaneBoundary.isProviderIdentity(roles)) {
             writeError(response, ErrorCode.FORBIDDEN,
                     "Provider support cannot assume normal HCM authority.");
             return;
         }
-        Set<String> permissions = parse(request.getHeader(PeopleSecurityFilter.PERMISSIONS_HEADER));
+        Set<String> permissions = parse(request.getHeader(PeopleSecurityHeaders.PERMISSIONS));
         HcmV3PepRegistry.Decision decision = registry.authorize(
                 new HcmV3PepRegistry.RequestEvidence(
                         request.getMethod(), request.getRequestURI(), permissions,
                         request.getHeader(RESOURCE_ROLES_HEADER),
                         activeAccessMode,
-                        parse(request.getHeader(PeopleSecurityFilter.SUPPORT_SCOPES_HEADER)),
+                        parse(request.getHeader(PeopleSecurityHeaders.SUPPORT_SCOPES)),
                         trustedRoute, request.getQueryString()));
         if (!decision.allowed()) {
             writeError(response, ErrorCode.FORBIDDEN,

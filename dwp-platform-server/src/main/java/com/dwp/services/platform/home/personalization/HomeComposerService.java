@@ -31,7 +31,7 @@ import java.util.UUID;
 public class HomeComposerService {
     private static final int MAX_ACTIVE_PROPOSALS_PER_VIEW = 20;
     private static final Set<String> LOCKED_WIDGETS = Set.of(
-            "command-rail", "announcements", "now", "my-app-dock");
+            "announcements", "now", "my-app-dock");
     private static final Set<String> WIDTHS = Set.of(
             "fifth", "quarter", "compact", "medium", "large", "full");
     private static final Set<String> DENSITIES = Set.of(
@@ -322,7 +322,7 @@ public class HomeComposerService {
                     layout, HomePreferenceDtos.HomeLayoutPayload.class);
             HomePreferenceDtos.HomeLayoutPayload normalized =
                     preferenceService.normalizeForSurface(surfaceKey, candidate);
-            return views.preserveClassicCompatibilitySnapshot(original, normalized);
+            return normalized;
         } catch (JsonProcessingException exception) {
             throw invalid("The composer patch did not produce a valid home layout.");
         }

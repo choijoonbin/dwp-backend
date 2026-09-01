@@ -594,7 +594,7 @@ class WidgetRegistryInternalSecurityFilterTest {
                 objectMapper.writeValueAsString(oversized));
 
         assertThatThrownBy(() -> preparedCommand(oversizedBody))
-                .isInstanceOf(WidgetRegistryRequestBinding.BindingException.class);
+                .isInstanceOf(WidgetRegistryBindingException.class);
     }
 
     @Test
@@ -690,7 +690,7 @@ class WidgetRegistryInternalSecurityFilterTest {
         assertThat(preparedCommand(accepted).command().operatorRef().codePointCount(0, 256))
                 .isEqualTo(128);
         assertThatThrownBy(() -> preparedCommand(rejected))
-                .isInstanceOf(WidgetRegistryRequestBinding.BindingException.class);
+                .isInstanceOf(WidgetRegistryBindingException.class);
     }
 
     @Test

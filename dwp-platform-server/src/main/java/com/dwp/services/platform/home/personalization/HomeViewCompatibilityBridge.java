@@ -2,14 +2,13 @@ package com.dwp.services.platform.home.personalization;
 
 import com.dwp.services.platform.home.preference.HomePreference;
 import com.dwp.services.platform.home.preference.HomePreferenceDtos;
-import com.dwp.services.platform.home.preference.HomePreferenceService;
+import com.dwp.services.platform.home.preference.HomeLayoutPolicy;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -35,7 +34,7 @@ public class HomeViewCompatibilityBridge {
     private final JdbcTemplate jdbc;
     private final MeterRegistry meters;
     private final ObjectMapper objectMapper;
-    private final ObjectProvider<HomePreferenceService> preferenceServices;
+    private final HomeLayoutPolicy layoutPolicy;
     private final ConcurrentHashMap<Long, CachedReadiness> readinessCache =
             new ConcurrentHashMap<>();
 
@@ -50,18 +49,18 @@ public class HomeViewCompatibilityBridge {
             JdbcTemplate jdbc,
             MeterRegistry meters,
             ObjectMapper objectMapper,
-            ObjectProvider<HomePreferenceService> preferenceServices) {
+            HomeLayoutPolicy layoutPolicy) {
         this.jdbc = jdbc;
         this.meters = meters;
         this.objectMapper = objectMapper;
-        this.preferenceServices = preferenceServices;
+        this.layoutPolicy = layoutPolicy;
     }
 
     HomeViewCompatibilityBridge(
             JdbcTemplate jdbc,
             MeterRegistry meters,
             ObjectMapper objectMapper) {
-        this(jdbc, meters, objectMapper, null);
+        this(jdbc, meters, objectMapper, new HomeLayoutPolicy(objectMapper));
     }
 
     public void mirrorLegacyPreference(HomePreference preference) {
@@ -265,9 +264,6 @@ public class HomeViewCompatibilityBridge {
     }
 
     boolean normalizedRowsMatch(Long tenantId) {
-        HomePreferenceService validator = preferenceServices == null
-                ? null : preferenceServices.getIfAvailable();
-        if (validator == null) return false;
         RowMapper<LayoutCandidate> mapper = (result, row) -> new LayoutCandidate(
                 result.getLong("user_id"), result.getString("surface_key"),
                 result.getString("legacy_layout"), result.getString("view_layout"));
@@ -327,18 +323,15 @@ public class HomeViewCompatibilityBridge {
     }
 
     boolean sameNormalizedLayout(String surfaceKey, JsonNode left, JsonNode right) {
-        HomePreferenceService validator = preferenceServices == null
-                ? null : preferenceServices.getIfAvailable();
-        if (validator == null) return sameLayout(left, right);
         try {
             HomePreferenceDtos.HomeLayoutPayload leftLayout = objectMapper.treeToValue(
                     left, HomePreferenceDtos.HomeLayoutPayload.class);
             HomePreferenceDtos.HomeLayoutPayload rightLayout = objectMapper.treeToValue(
                     right, HomePreferenceDtos.HomeLayoutPayload.class);
             JsonNode leftNormalized = objectMapper.valueToTree(
-                    validator.reconcileStoredForSurface(surfaceKey, leftLayout));
+                    layoutPolicy.reconcileStoredForSurface(surfaceKey, leftLayout));
             JsonNode rightNormalized = objectMapper.valueToTree(
-                    validator.reconcileStoredForSurface(surfaceKey, rightLayout));
+                    layoutPolicy.reconcileStoredForSurface(surfaceKey, rightLayout));
             return leftNormalized.equals(rightNormalized);
         } catch (Exception exception) {
             return false;

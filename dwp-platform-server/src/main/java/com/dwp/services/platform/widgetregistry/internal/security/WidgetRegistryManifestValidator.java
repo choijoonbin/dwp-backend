@@ -1,6 +1,5 @@
 package com.dwp.services.platform.widgetregistry.internal.security;
 
-import com.dwp.services.platform.widgetregistry.internal.security.WidgetRegistryRequestBinding.BindingException;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import java.nio.charset.StandardCharsets;
@@ -32,8 +31,8 @@ final class WidgetRegistryManifestValidator {
     private WidgetRegistryManifestValidator() {
     }
 
-    static String validate(JsonNode manifest) throws BindingException {
-        byte[] canonical = WidgetRegistryRequestBinding.canonicalJson(
+    static String validate(JsonNode manifest) throws WidgetRegistryBindingException {
+        byte[] canonical = WidgetRegistryCanonicalJson.encode(
                 manifest.toString().getBytes(StandardCharsets.UTF_8));
         WidgetRegistryJsonContract.require(canonical.length <= 32 * 1024);
         WidgetRegistryJsonContract.exactObject(manifest, MANIFEST_FIELDS, Set.of());
@@ -73,7 +72,7 @@ final class WidgetRegistryManifestValidator {
         return ownerProductKey;
     }
 
-    private static String validateOwner(JsonNode owner) throws BindingException {
+    private static String validateOwner(JsonNode owner) throws WidgetRegistryBindingException {
         WidgetRegistryJsonContract.exactObject(
                 owner, Set.of("productKey", "sourceAppResourceKey"), Set.of());
         String productKey = WidgetRegistryJsonContract.text(
@@ -87,7 +86,7 @@ final class WidgetRegistryManifestValidator {
         return productKey;
     }
 
-    private static void validateRenderer(JsonNode renderer) throws BindingException {
+    private static void validateRenderer(JsonNode renderer) throws WidgetRegistryBindingException {
         WidgetRegistryJsonContract.exactObject(
                 renderer,
                 Set.of("kind", "rendererKey", "minimumHostApiVersion"),
@@ -100,7 +99,7 @@ final class WidgetRegistryManifestValidator {
                 renderer, "minimumHostApiVersion", 1, 65_535);
     }
 
-    private static void validatePlacement(JsonNode placement) throws BindingException {
+    private static void validatePlacement(JsonNode placement) throws WidgetRegistryBindingException {
         Set<String> fields = Set.of(
                 "supportedContexts", "policyClass", "canHide", "defaultSize", "allowedSizes",
                 "defaultHeight", "allowedHeights");
@@ -134,7 +133,7 @@ final class WidgetRegistryManifestValidator {
         WidgetRegistryJsonContract.require(heights.contains(defaultHeight));
     }
 
-    private static void validateConfiguration(JsonNode configuration) throws BindingException {
+    private static void validateConfiguration(JsonNode configuration) throws WidgetRegistryBindingException {
         if (configuration.isNull()) return;
         WidgetRegistryJsonContract.exactObject(
                 configuration,
@@ -159,12 +158,12 @@ final class WidgetRegistryManifestValidator {
         WidgetRegistryJsonContract.require(minimum <= maximum);
     }
 
-    private static void validateSharing(JsonNode sharing) throws BindingException {
+    private static void validateSharing(JsonNode sharing) throws WidgetRegistryBindingException {
         WidgetRegistryJsonContract.exactObject(sharing, Set.of("presetEligible"), Set.of());
         WidgetRegistryJsonContract.bool(sharing, "presetEligible");
     }
 
-    private static void validateOperations(JsonNode operations) throws BindingException {
+    private static void validateOperations(JsonNode operations) throws WidgetRegistryBindingException {
         WidgetRegistryJsonContract.exactObject(
                 operations, Set.of("freshnessSeconds", "analyticsKey"), Set.of());
         WidgetRegistryJsonContract.integerBetween(operations, "freshnessSeconds", 5, 3_600);
@@ -172,7 +171,7 @@ final class WidgetRegistryManifestValidator {
                 operations, "analyticsKey", 3, 128, WidgetRegistryJsonContract.LOWER_KEY);
     }
 
-    private static void validatePrivacy(JsonNode privacy) throws BindingException {
+    private static void validatePrivacy(JsonNode privacy) throws WidgetRegistryBindingException {
         WidgetRegistryJsonContract.exactObject(
                 privacy,
                 Set.of("classification", "retention", "recipientContextBinding"),

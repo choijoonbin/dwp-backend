@@ -317,6 +317,17 @@ public class VideoMeetingRepository {
                 .stream().findFirst();
     }
 
+    public List<Participant> participants(long tenantId, UUID meetingId) {
+        return jdbc.query("""
+                SELECT * FROM vm_meeting_participants
+                 WHERE tenant_id = ? AND meeting_id = ?
+                 ORDER BY CASE participant_role
+                    WHEN 'ORGANIZER' THEN 1 WHEN 'CO_HOST' THEN 2
+                    WHEN 'PRESENTER' THEN 3 WHEN 'ATTENDEE' THEN 4 ELSE 5 END,
+                    display_name, participant_id
+                """, participantMapper, tenantId, meetingId);
+    }
+
     public Participant requestJoin(
             long tenantId,
             UUID meetingId,
@@ -468,8 +479,12 @@ public class VideoMeetingRepository {
         List<Artifact> artifacts = jdbc.query("""
                 SELECT artifact_id, tenant_id, meeting_id, artifact_type, artifact_state,
                        content_type, size_bytes, retention_until, metadata, version
-                  FROM vm_meeting_artifacts
+                 FROM vm_meeting_artifacts
                  WHERE tenant_id = ? AND meeting_id = ?
+                   AND NOT (artifact_type = 'RECORDING'
+                       AND artifact_state = 'AVAILABLE'
+                       AND (retention_until IS NULL
+                            OR retention_until <= CURRENT_TIMESTAMP))
                  ORDER BY artifact_type
                 """, codec::artifact, meeting.tenantId(), meeting.meetingId());
         return new MeetingDetail(meeting, participants, artifacts);

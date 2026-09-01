@@ -375,6 +375,71 @@ class AuthSessionVerifierTest {
     }
 
     @Test
+    void forwardsDirectoryAuthorityEvidenceFromAuthToThePeopleRoute() {
+        AtomicReference<ClientRequest> capturedAuthRequest = new AtomicReference<>();
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+            capturedAuthRequest.set(request);
+            return Mono.just(ClientResponse.create(HttpStatus.OK)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .body("""
+                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            "identityPlane":"TENANT","roles":["WORKSPACE_MEMBER"],
+                            "permissions":[
+                              {"resourceKey":"APP.HCM","permissionCode":"VIEW","effect":"ALLOW"},
+                              {"resourceKey":"APP.HRIS","permissionCode":"VIEW","effect":"ALLOW"},
+                              {"resourceKey":"APP.PEOPLE_DIRECTORY","permissionCode":"VIEW","effect":"ALLOW"}
+                            ]}}
+                            """)
+                    .build());
+        });
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+        VerifiedIdentityFilter filter = new VerifiedIdentityFilter(verifier);
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
+                .get("/api/people/v1/people/42")
+                .build());
+        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                new AtomicReference<>();
+
+        filter.filter(exchange, filteredExchange -> {
+            forwarded.set(filteredExchange.getRequest());
+            return Mono.empty();
+        }).block();
+
+        assertThat(capturedAuthRequest.get().url().getQuery())
+                .isEqualTo("permissionPrefix=APP.HCM,APP.HRIS,APP.PEOPLE_DIRECTORY");
+        assertThat(forwarded.get()).isNotNull();
+        assertThat(forwarded.get().getHeaders().getFirst(
+                VerifiedIdentityFilter.PERMISSIONS_HEADER))
+                .isEqualTo("APP.HCM:VIEW,APP.HRIS:VIEW,APP.PEOPLE_DIRECTORY:VIEW");
+    }
+
+    @Test
+    void requestsTheDirectoryAuthorityFamilyForOrgChartRoutes() {
+        AtomicReference<ClientRequest> captured = new AtomicReference<>();
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+            captured.set(request);
+            return Mono.just(ClientResponse.create(HttpStatus.OK)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .body("""
+                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            "identityPlane":"TENANT","roles":["WORKSPACE_MEMBER"],
+                            "permissions":[]}}
+                            """)
+                    .build());
+        });
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+
+        verifier.verify(MockServerHttpRequest
+                .get("/api/people/v1/org-chart")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery())
+                .isEqualTo("permissionPrefix=APP.HCM,APP.HRIS,APP.PEOPLE_DIRECTORY");
+    }
+
+    @Test
     void requestsEveryHcmPepAuthorityForPeopleWorkforceRoutes() {
         AtomicReference<ClientRequest> captured = new AtomicReference<>();
         WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
@@ -667,6 +732,38 @@ class AuthSessionVerifierTest {
 
         verifier.verify(MockServerHttpRequest
                 .get("/api/platform/v1/services/catalog")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery())
+                .isEqualTo("permissionPrefix=APP.EMPLOYEE_SERVICES");
+    }
+
+    @Test
+    void requestsHcmAndEmployeeServiceAuthoritiesOnlyForTheHcmServicesSurface() {
+        AtomicReference<ClientRequest> captured = new AtomicReference<>();
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+            captured.set(request);
+            return Mono.just(ClientResponse.create(HttpStatus.OK)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .body("""
+                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            "identityPlane":"TENANT","roles":["WORKSPACE_MEMBER"],
+                            "permissions":[]}}
+                            """)
+                    .build());
+        });
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+
+        verifier.verify(MockServerHttpRequest
+                .get("/api/platform/v1/services/catalog?surface=hcm")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery())
+                .isEqualTo("permissionPrefix=APP.HCM,APP.HRIS,APP.EMPLOYEE_SERVICES");
+
+        verifier.verify(MockServerHttpRequest
+                .get("/api/platform/v1/services/catalog?surface=hcm&surface=hcm")
                 .build()).block();
 
         assertThat(captured.get().url().getQuery())

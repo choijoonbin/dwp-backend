@@ -37,6 +37,7 @@ class ProductSurfaceDecisionContextFilterTest {
     private static final String REVISION = "psr-" + "a".repeat(64);
     private static final OffsetDateTime REVALIDATE_AT =
             OffsetDateTime.parse("2036-08-24T00:00:00Z");
+    private static final String HCM_DERIVED_SCOPE = "hcm-scope-" + "c".repeat(40);
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final GeneratedProductRouteCatalog catalog = new GeneratedProductRouteCatalog(
             objectMapper,
@@ -79,6 +80,39 @@ class ProductSurfaceDecisionContextFilterTest {
         assertThat(exchange.getResponse().getHeaders().getFirst(
                 ProductSurfaceDecisionContextFilter.RESPONSE_REVISION_HEADER))
                 .isEqualTo(REVISION);
+    }
+
+    @Test
+    void generatedHcmServicesRouteForwardsThePeopleMaterializedScope() {
+        ProductSurfaceContextAggregationService authority = authority(allowedHcm());
+        ProductSurfaceDecisionContextFilter filter = filter(authority);
+        MockServerWebExchange exchange = exchange(MockServerHttpRequest.get(
+                        "/api/platform/v1/services/catalog?surface=hcm")
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "110")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7"));
+        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                new AtomicReference<>();
+        ArgumentCaptor<ProductSurfaceContextDtos.ProductEvaluationRequest> evaluation =
+                ArgumentCaptor.forClass(ProductSurfaceContextDtos.ProductEvaluationRequest.class);
+
+        filter.filter(exchange, filtered -> {
+            forwarded.set(filtered.getRequest());
+            return Mono.empty();
+        }).block();
+
+        verify(authority).evaluateProductTrusted(any(), evaluation.capture());
+        assertThat(evaluation.getValue().subject().productKey()).isEqualTo("hcm");
+        assertThat(evaluation.getValue().subject().surfaceKey()).isEqualTo("hcm.personal");
+        assertThat(evaluation.getValue().routeContractKey())
+                .isEqualTo("route.hcm.personal.services.page");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.ROUTE_HEADER))
+                .isEqualTo("route.hcm.personal.services.page");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.SCOPE_HEADER))
+                .isEqualTo(HCM_DERIVED_SCOPE);
+        assertThat(forwarded.get().getURI().getRawQuery()).isEqualTo("surface=hcm");
     }
 
     @Test
@@ -638,6 +672,25 @@ class ProductSurfaceDecisionContextFilterTest {
                         context, "grant-1", scope, false, REVALIDATE_AT, null,
                         null, null, REVALIDATE_AT),
                 "ctx-approval", scope, false);
+    }
+
+    private ProductSurfaceContextAggregationService.TrustedProductEvaluation allowedHcm() {
+        ProductSurfaceContextDtos.EffectiveScope scope =
+                new ProductSurfaceContextDtos.EffectiveScope(
+                        HCM_DERIVED_SCOPE, "SELF", "Self", true, false, REVALIDATE_AT);
+        String contextKey = "psc-" + "b".repeat(64);
+        ProductSurfaceContextDtos.EffectiveContext context =
+                new ProductSurfaceContextDtos.EffectiveContext(
+                        contextKey, "hcm", "hcm.personal", "work",
+                        ProductSurfaceContextDtos.AccessMode.NORMAL,
+                        ProductSurfaceContextDtos.AccessSource.RELATIONSHIP,
+                        "APP.HCM", List.of(), List.of(scope), REVALIDATE_AT);
+        return new ProductSurfaceContextAggregationService.TrustedProductEvaluation(
+                new ProductSurfaceContextDtos.ProductEvaluationData(
+                        ProductSurfaceContextDtos.Decision.ALLOWED, "ALLOWED", REVISION,
+                        context, "grant-hcm-services", scope, false, REVALIDATE_AT,
+                        null, null, null, REVALIDATE_AT),
+                contextKey, scope, false);
     }
 
     private ProductSurfaceContextAggregationService.TrustedProductEvaluation stepUp() {

@@ -27,13 +27,13 @@ final class PlatformProductAuthorizationSupport {
     }
 
     TrustedAuthorityEvidence trustedAuthority(HttpServletRequest request) {
-        String route = exactHeader(request, PlatformSecurityFilter.ROUTE_CONTRACT_HEADER);
+        String route = exactHeader(request, PlatformSecurityHeaders.ROUTE_CONTRACT);
         String revision = exactHeader(
-                request, PlatformSecurityFilter.CURRENT_DECISION_REVISION_HEADER);
-        String context = exactHeader(request, PlatformSecurityFilter.CONTEXT_HEADER);
-        String scope = exactHeader(request, PlatformSecurityFilter.SCOPE_HEADER);
+                request, PlatformSecurityHeaders.CURRENT_DECISION_REVISION);
+        String context = exactHeader(request, PlatformSecurityHeaders.CONTEXT);
+        String scope = exactHeader(request, PlatformSecurityHeaders.SCOPE);
         OffsetDateTime revalidateAt = instant(exactHeader(
-                request, PlatformSecurityFilter.CURRENT_REVALIDATE_AT_HEADER));
+                request, PlatformSecurityHeaders.CURRENT_REVALIDATE_AT));
         if (!trustedText(route) || revision == null
                 || !revision.matches("psr-[a-f0-9]{64}")
                 || !trustedText(context) || !trustedText(scope)
@@ -69,7 +69,7 @@ final class PlatformProductAuthorizationSupport {
         if (supportAccess) return true;
         String path = request.getRequestURI();
         String method = request.getMethod();
-        String permission = request.getHeader(PlatformSecurityFilter.PERMISSIONS_HEADER);
+        String permission = request.getHeader(PlatformSecurityHeaders.PERMISSIONS);
         if (path.startsWith("/v1/communications")) {
             return hasAuthority(permission, "APP.COMMUNICATIONS",
                     read(method) ? "VIEW" : "UPDATE");
@@ -109,7 +109,7 @@ final class PlatformProductAuthorizationSupport {
 
     private boolean hasResponsibility(HttpServletRequest request, String resourceSetKey) {
         return ResourceRoleAuthorization.has(
-                request.getHeader(PlatformSecurityFilter.RESOURCE_ROLES_HEADER),
+                request.getHeader(PlatformSecurityHeaders.RESOURCE_ROLES),
                 "APP_CONFIG_ADMIN", resourceSetKey);
     }
 

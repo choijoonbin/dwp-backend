@@ -15,7 +15,7 @@ final class ProductSurfaceContextAggregationSupport {
 
     static ProductSurfaceContextDtos.SourceRevisions aggregateRevisions(
             ProductSurfaceContextDtos.RequestContext requestContext,
-            List<ProductSurfaceContextAggregationService.Resolution> resolutions) {
+            List<Resolution> resolutions) {
         return new ProductSurfaceContextDtos.SourceRevisions(
                 collapse(resolutions.stream().map(value -> value.revisions().auth()).toList()),
                 collapse(resolutions.stream().map(value -> value.revisions().policy()).toList()),

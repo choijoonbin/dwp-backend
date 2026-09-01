@@ -103,14 +103,25 @@ public class VideoMeetingIntelligenceController {
                 meetingId, reportId, principalUserId, request, correlationId));
     }
 
+    @GetMapping("/reports/{reportId}/reviewer-assignments")
+    public ApiResponse<VideoMeetingIntelligenceDtos.ReviewerAssignmentsResponse>
+            reviewerAssignments(
+                    @PathVariable UUID meetingId,
+                    @PathVariable UUID reportId) {
+        return ApiResponse.success(service.reviewerAssignments(meetingId, reportId));
+    }
+
     @DeleteMapping("/reports/{reportId}/acl/{principalUserId}/{permission}")
     public ApiResponse<Void> revoke(
             @PathVariable UUID meetingId,
             @PathVariable UUID reportId,
             @PathVariable long principalUserId,
             @PathVariable String permission,
+            @RequestParam("expectedReportVersion") long expectedReportVersion,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId) {
-        service.revoke(meetingId, reportId, principalUserId, permission, correlationId);
+        service.revoke(
+                meetingId, reportId, principalUserId, permission,
+                expectedReportVersion, correlationId);
         return ApiResponse.success(null);
     }
 }

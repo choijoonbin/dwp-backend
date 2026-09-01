@@ -3,7 +3,6 @@ package com.dwp.services.notification.domain;
 import com.dwp.services.notification.common.NotificationErrorCode;
 import com.dwp.services.notification.common.NotificationException;
 import com.dwp.services.notification.domain.NotificationMaterializationRepository.PersistenceResult;
-import com.dwp.services.notification.domain.NotificationMaterializationRepository.TemplateContract;
 import com.dwp.services.notification.domain.NotificationModels.DirectMaterializationRequest;
 import com.dwp.services.notification.domain.NotificationModels.MaterializationResult;
 import com.dwp.services.notification.security.NotificationRequestContext;

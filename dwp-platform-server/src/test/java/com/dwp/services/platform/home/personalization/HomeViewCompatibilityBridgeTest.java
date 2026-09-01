@@ -1,10 +1,7 @@
 package com.dwp.services.platform.home.personalization;
 
 import com.dwp.services.platform.home.preference.HomePreference;
-import com.dwp.services.platform.home.preference.HomePreferenceRepository;
-import com.dwp.services.platform.home.preference.HomePreferenceService;
-import com.dwp.services.platform.home.HomeCompositionPolicyReader;
-import com.dwp.services.platform.audit.PlatformAuditService;
+import com.dwp.services.platform.home.preference.HomeLayoutPolicy;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -13,7 +10,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 import org.mockito.ArgumentCaptor;
@@ -28,7 +24,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.mock;
 
 @ExtendWith(MockitoExtension.class)
 class HomeViewCompatibilityBridgeTest {
@@ -156,15 +151,9 @@ class HomeViewCompatibilityBridgeTest {
 
     @Test
     void normalizedCutoverValidationRejectsSemanticallyUnknownWidgets() throws Exception {
-        HomePreferenceService validator = new HomePreferenceService(
-                mock(HomePreferenceRepository.class), objectMapper,
-                mock(PlatformAuditService.class), mock(HomeCompositionPolicyReader.class),
-                mock(HomePersonalizationScopeLock.class));
-        @SuppressWarnings("unchecked")
-        ObjectProvider<HomePreferenceService> provider = mock(ObjectProvider.class);
-        when(provider.getIfAvailable()).thenReturn(validator);
         HomeViewCompatibilityBridge normalizedBridge = new HomeViewCompatibilityBridge(
-                jdbc, new SimpleMeterRegistry(), objectMapper, provider);
+                jdbc, new SimpleMeterRegistry(), objectMapper,
+                new HomeLayoutPolicy(objectMapper));
         var bogus = objectMapper.readTree("""
                 {"appLayout":{"version":1,"groups":{},"folders":{},"hiddenAppIds":[]},
                  "presentation":"balanced",
@@ -178,15 +167,9 @@ class HomeViewCompatibilityBridgeTest {
 
     @Test
     void normalizedCutoverValidationRejectsNullWidgetVisibility() throws Exception {
-        HomePreferenceService validator = new HomePreferenceService(
-                mock(HomePreferenceRepository.class), objectMapper,
-                mock(PlatformAuditService.class), mock(HomeCompositionPolicyReader.class),
-                mock(HomePersonalizationScopeLock.class));
-        @SuppressWarnings("unchecked")
-        ObjectProvider<HomePreferenceService> provider = mock(ObjectProvider.class);
-        when(provider.getIfAvailable()).thenReturn(validator);
         HomeViewCompatibilityBridge normalizedBridge = new HomeViewCompatibilityBridge(
-                jdbc, new SimpleMeterRegistry(), objectMapper, provider);
+                jdbc, new SimpleMeterRegistry(), objectMapper,
+                new HomeLayoutPolicy(objectMapper));
         var incomplete = objectMapper.readTree("""
                 {"appLayout":{"version":1,"groups":{},"folders":{},"hiddenAppIds":[]},
                  "presentation":"balanced",
@@ -201,14 +184,9 @@ class HomeViewCompatibilityBridgeTest {
     @Test
     @SuppressWarnings("unchecked")
     void normalizedReadinessPagesBeyondTenThousandRows() throws Exception {
-        HomePreferenceService validator = new HomePreferenceService(
-                mock(HomePreferenceRepository.class), objectMapper,
-                mock(PlatformAuditService.class), mock(HomeCompositionPolicyReader.class),
-                mock(HomePersonalizationScopeLock.class));
-        ObjectProvider<HomePreferenceService> provider = mock(ObjectProvider.class);
-        when(provider.getIfAvailable()).thenReturn(validator);
         HomeViewCompatibilityBridge pagingBridge = new HomeViewCompatibilityBridge(
-                jdbc, new SimpleMeterRegistry(), objectMapper, provider);
+                jdbc, new SimpleMeterRegistry(), objectMapper,
+                new HomeLayoutPolicy(objectMapper));
         String validLayout = """
                 {"appLayout":{"version":1,"groups":{},"folders":{},"hiddenAppIds":[]},
                  "presentation":"balanced",
@@ -245,15 +223,9 @@ class HomeViewCompatibilityBridgeTest {
     @Test
     @SuppressWarnings("unchecked")
     void resetMetadataCanRemainCutoverReadyWhenBothStoresMatch() throws Exception {
-        HomePreferenceService validator = new HomePreferenceService(
-                mock(HomePreferenceRepository.class), objectMapper,
-                mock(PlatformAuditService.class), mock(HomeCompositionPolicyReader.class),
-                mock(HomePersonalizationScopeLock.class));
-        @SuppressWarnings("unchecked")
-        ObjectProvider<HomePreferenceService> provider = mock(ObjectProvider.class);
-        when(provider.getIfAvailable()).thenReturn(validator);
         HomeViewCompatibilityBridge readinessBridge = new HomeViewCompatibilityBridge(
-                jdbc, new SimpleMeterRegistry(), objectMapper, provider);
+                jdbc, new SimpleMeterRegistry(), objectMapper,
+                new HomeLayoutPolicy(objectMapper));
         ReflectionTestUtils.setField(readinessBridge, "dualWriteEnabled", true);
         ReflectionTestUtils.setField(readinessBridge, "shadowCompareEnabled", true);
         when(jdbc.queryForObject(anyString(),

@@ -8,6 +8,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import com.dwp.services.meeting.videomeeting.provider.MeetingIntelligenceHttpProperties;
 import com.dwp.services.meeting.videomeeting.provider.MeetingIntelligencePayloadProtector;
+import com.dwp.services.meeting.videomeeting.provider.MeetingRecordingProvider;
 import com.dwp.services.meeting.videomeeting.provider.MeetingTranscriptHttpProperties;
 import com.dwp.services.meeting.videomeeting.provider.MeetingTranscriptSource;
 
@@ -15,6 +16,11 @@ import com.dwp.services.meeting.videomeeting.provider.MeetingTranscriptSource;
 public interface MeetingContentDependencies {
 
     Status status();
+
+    /** Uses the already-probed recording capability to keep one command on one readiness view. */
+    default Status status(MeetingRecordingProvider.Capability recordingCapability) {
+        return status();
+    }
 
     static Status failClosedStatus() {
         return new Status(false, false, false, false, false, false);
@@ -30,11 +36,7 @@ public interface MeetingContentDependencies {
     }
 }
 
-/**
- * P1 ships the truthful control plane, not fake media processing. A production
- * adapter must replace this component only after every governed dependency has
- * an operational readiness probe and tested credentials.
- */
+/** Fail-closed fallback used unless governed providers and their probes are configured. */
 final class DisabledMeetingContentDependencies implements MeetingContentDependencies {
 
     @Override
@@ -51,27 +53,47 @@ final class GovernedMeetingContentDependencies implements MeetingContentDependen
     private final MeetingTranscriptHttpProperties transcript;
     private final MeetingTranscriptSource transcriptSource;
     private final MeetingIntelligencePayloadProtector protector;
+    private final MeetingRecordingProvider recording;
+    private final MeetingRecordingDeletionReadiness deletionReadiness;
 
     GovernedMeetingContentDependencies(
             JdbcTemplate jdbc,
             MeetingIntelligenceHttpProperties intelligence,
             MeetingTranscriptHttpProperties transcript,
             MeetingTranscriptSource transcriptSource,
-            MeetingIntelligencePayloadProtector protector) {
+            MeetingIntelligencePayloadProtector protector,
+            MeetingRecordingProvider recording,
+            MeetingRecordingDeletionReadiness deletionReadiness) {
         this.jdbc = jdbc;
         this.intelligence = intelligence;
         this.transcript = transcript;
         this.transcriptSource = transcriptSource;
         this.protector = protector;
+        this.recording = recording;
+        this.deletionReadiness = deletionReadiness;
     }
 
     @Override
     public Status status() {
-        boolean storage = "http".equals(transcript.getProvider())
+        return status(recording.capability());
+    }
+
+    @Override
+    public Status status(MeetingRecordingProvider.Capability recordingCapability) {
+        boolean trustedTranscriptStorage = "http".equals(transcript.getProvider())
                 && transcriptSource.available();
         boolean languageModel = "http".equals(intelligence.getProvider());
         boolean kms = protector.available() && protector.ready();
-        return new Status(false, storage, kms, false, languageModel, auditWritable());
+        boolean governedRecording = deletionReadiness.ready(recordingCapability);
+        return new Status(
+                governedRecording && recordingCapability.egressAvailable(),
+                (governedRecording && recordingCapability.storageAvailable())
+                        || trustedTranscriptStorage,
+                kms,
+                governedRecording
+                        && recordingCapability.speechToTextAvailable(),
+                languageModel,
+                auditWritable());
     }
 
     private boolean auditWritable() {
@@ -93,17 +115,21 @@ class MeetingContentDependencyConfiguration {
 
     @Bean
     @ConditionalOnExpression(
-            "'${dwp.meeting.intelligence.provider:disabled}' == 'http' && "
-                    + "'${dwp.meeting.transcript-source.provider:disabled}' == 'http'")
+            "'${dwp.meeting.recording.provider:disabled}' == 'http' || "
+                    + "('${dwp.meeting.intelligence.provider:disabled}' == 'http' && "
+                    + "'${dwp.meeting.transcript-source.provider:disabled}' == 'http')")
     @ConditionalOnMissingBean(MeetingContentDependencies.class)
     MeetingContentDependencies governedMeetingContentDependencies(
             JdbcTemplate jdbc,
             MeetingIntelligenceHttpProperties intelligence,
             MeetingTranscriptHttpProperties transcript,
             MeetingTranscriptSource transcriptSource,
-            MeetingIntelligencePayloadProtector protector) {
+            MeetingIntelligencePayloadProtector protector,
+            MeetingRecordingProvider recording,
+            MeetingRecordingDeletionReadiness deletionReadiness) {
         return new GovernedMeetingContentDependencies(
-                jdbc, intelligence, transcript, transcriptSource, protector);
+                jdbc, intelligence, transcript, transcriptSource, protector,
+                recording, deletionReadiness);
     }
 
     @Bean

@@ -398,7 +398,7 @@ class MeetingIntelligenceRunTransactionsTest {
 
     private VideoMeetingIntelligenceDtos.CreateRunCommand command() {
         return new VideoMeetingIntelligenceDtos.CreateRunCommand(
-                SOURCE_ID, "ko-KR", 3);
+                SOURCE_ID, "ko-KR", 3L);
     }
 
     private MeetingRequestContext.Subject subject() {

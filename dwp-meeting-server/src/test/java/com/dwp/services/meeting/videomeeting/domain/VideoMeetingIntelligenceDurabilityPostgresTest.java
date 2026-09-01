@@ -1,6 +1,8 @@
 package com.dwp.services.meeting.videomeeting.domain;
 
 import com.dwp.core.audit.AuditOutboxRecorder;
+import com.dwp.core.common.ErrorCode;
+import com.dwp.core.exception.BaseException;
 import com.dwp.services.meeting.security.MeetingRequestContext;
 import com.dwp.services.meeting.videomeeting.api.VideoMeetingIntelligenceDtos;
 import com.dwp.services.meeting.videomeeting.audit.VideoMeetingAuditRecorder;
@@ -311,6 +313,172 @@ class VideoMeetingIntelligenceDurabilityPostgresTest {
     }
 
     @Test
+    void reviewerAssignmentProjectsEligibleParticipantsAndActiveGrants() {
+        var created = service.createRun(
+                fixture.meetingId(), fixture.command(),
+                "reviewer-assignment-run-0001", "corr-reviewer-assignment");
+        long reviewerUserId = candidateUserId();
+
+        var grant = service.grant(
+                fixture.meetingId(), created.reportId(), reviewerUserId,
+                new VideoMeetingIntelligenceDtos.GrantCommand(
+                        reportVersion(created.reportId()),
+                        "REVIEW", null, "HOST_ASSIGNED_REVIEWER"),
+                "corr-reviewer-grant");
+        var assignments = service.reviewerAssignments(
+                fixture.meetingId(), created.reportId());
+
+        assertThat(grant.principalUserId()).isEqualTo(reviewerUserId);
+        assertThat(assignments.activeGrants())
+                .extracting(VideoMeetingIntelligenceDtos.GrantResponse::principalUserId)
+                .containsExactly(reviewerUserId);
+        assertThat(assignments.eligibleParticipants())
+                .anySatisfy(candidate -> {
+                    assertThat(candidate.userId()).isEqualTo(reviewerUserId);
+                    assertThat(candidate.assignmentEligible()).isTrue();
+                    assertThat(candidate.ineligibleReason()).isNull();
+                })
+                .anySatisfy(candidate -> {
+                    assertThat(candidate.userId()).isEqualTo(fixture.actor());
+                    assertThat(candidate.assignmentEligible()).isFalse();
+                    assertThat(candidate.ineligibleReason()).isEqualTo("CURRENT_MANAGER");
+                });
+    }
+
+    @Test
+    void selfGrantAndNonParticipantGrantAreRejected() {
+        var created = service.createRun(
+                fixture.meetingId(), fixture.command(),
+                "reviewer-assignment-run-0002", "corr-reviewer-guard");
+        var command = new VideoMeetingIntelligenceDtos.GrantCommand(
+                reportVersion(created.reportId()),
+                "REVIEW", null, "HOST_ASSIGNED_REVIEWER");
+
+        assertThatThrownBy(() -> service.grant(
+                fixture.meetingId(), created.reportId(), fixture.actor(), command,
+                "corr-self-grant"))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.SOD_CONFLICT));
+        assertThatThrownBy(() -> service.grant(
+                fixture.meetingId(), created.reportId(), 999_999L, command,
+                "corr-nonparticipant-grant"))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.ENTITY_NOT_FOUND));
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM vm_meeting_content_acl
+                 WHERE tenant_id = 1 AND meeting_id = ? AND content_id = ?
+                """, Integer.class, fixture.meetingId(), created.reportId())).isZero();
+    }
+
+    @Test
+    void differentHostCannotAssignTheIntelligenceRequesterAsReviewer() {
+        var created = service.createRun(
+                fixture.meetingId(), fixture.command(),
+                "reviewer-assignment-run-0003", "corr-reviewer-sod");
+        long secondHost = candidateUserId();
+        jdbc.update("""
+                UPDATE vm_meeting_participants SET participant_role = 'CO_HOST'
+                 WHERE tenant_id = 1 AND meeting_id = ? AND user_id = ?
+                """, fixture.meetingId(), secondHost);
+        UUID personId = jdbc.queryForObject("""
+                SELECT person_public_id FROM vm_meeting_participants
+                 WHERE tenant_id = 1 AND meeting_id = ? AND user_id = ?
+                """, UUID.class, fixture.meetingId(), secondHost);
+        MeetingRequestContext.set(new MeetingRequestContext.Subject(
+                secondHost, 1, personId, "Second host", Set.of("USER"),
+                Set.of("APP.MEETINGS:UPDATE"), Set.of()));
+
+        assertThatThrownBy(() -> service.grant(
+                fixture.meetingId(), created.reportId(), fixture.actor(),
+                new VideoMeetingIntelligenceDtos.GrantCommand(
+                        reportVersion(created.reportId()),
+                        "REVIEW", null, "HOST_ASSIGNED_REVIEWER"),
+                "corr-requester-sod"))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.SOD_CONFLICT));
+    }
+
+    @Test
+    void staleReviewerGrantAfterDraftApprovalLeavesAclAndAuditUnchanged() {
+        var created = service.createRun(
+                fixture.meetingId(), fixture.command(),
+                "reviewer-version-run-0001", "corr-reviewer-version-grant");
+        long observedVersion = service.reviewerAssignments(
+                fixture.meetingId(), created.reportId()).reportVersion();
+        approveReport(created.reportId());
+
+        assertThatThrownBy(() -> service.grant(
+                fixture.meetingId(), created.reportId(), candidateUserId(),
+                new VideoMeetingIntelligenceDtos.GrantCommand(
+                        observedVersion, "REVIEW", null, "HOST_ASSIGNED_REVIEWER"),
+                "corr-stale-reviewer-grant"))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.OBJECT_VERSION_CONFLICT));
+
+        assertThat(activeGrantCount(created.reportId())).isZero();
+        assertThat(accessAuditCount(created.reportId(),
+                "meeting.intelligence.access-granted")).isZero();
+    }
+
+    @Test
+    void staleReviewerRevokeAfterDraftApprovalLeavesGrantAndAuditUnchanged() {
+        var created = service.createRun(
+                fixture.meetingId(), fixture.command(),
+                "reviewer-version-run-0002", "corr-reviewer-version-revoke");
+        long reviewerUserId = candidateUserId();
+        long observedVersion = reportVersion(created.reportId());
+        service.grant(
+                fixture.meetingId(), created.reportId(), reviewerUserId,
+                new VideoMeetingIntelligenceDtos.GrantCommand(
+                        observedVersion, "REVIEW", null, "HOST_ASSIGNED_REVIEWER"),
+                "corr-current-reviewer-grant");
+        approveReport(created.reportId());
+
+        assertThatThrownBy(() -> service.revoke(
+                fixture.meetingId(), created.reportId(), reviewerUserId,
+                "REVIEW", observedVersion, "corr-stale-reviewer-revoke"))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.OBJECT_VERSION_CONFLICT));
+
+        assertThat(activeGrantCount(created.reportId())).isOne();
+        assertThat(accessAuditCount(created.reportId(),
+                "meeting.intelligence.access-revoked")).isZero();
+    }
+
+    @Test
+    void reviewAndManageAssignmentsRequireDraftWhileViewPreservesReadAccess() {
+        var created = service.createRun(
+                fixture.meetingId(), fixture.command(),
+                "reviewer-version-run-0003", "corr-reviewer-draft-scope");
+        long reviewerUserId = candidateUserId();
+        approveReport(created.reportId());
+        long currentVersion = reportVersion(created.reportId());
+
+        for (String permission : List.of("REVIEW", "MANAGE")) {
+            assertThatThrownBy(() -> service.grant(
+                    fixture.meetingId(), created.reportId(), reviewerUserId,
+                    new VideoMeetingIntelligenceDtos.GrantCommand(
+                            currentVersion, permission, null,
+                            "HOST_ASSIGNED_REVIEWER"),
+                    "corr-nondraft-" + permission.toLowerCase()))
+                    .isInstanceOfSatisfying(BaseException.class, exception ->
+                            assertThat(exception.getErrorCode())
+                                    .isEqualTo(ErrorCode.RESOURCE_CONFLICT));
+        }
+
+        var view = service.grant(
+                fixture.meetingId(), created.reportId(), reviewerUserId,
+                new VideoMeetingIntelligenceDtos.GrantCommand(
+                        currentVersion, "VIEW", null, "HOST_ASSIGNED_VIEWER"),
+                "corr-approved-view-grant");
+        assertThat(view.permission()).isEqualTo("VIEW");
+        assertThat(activeGrantCount(created.reportId())).isOne();
+    }
+
+    @Test
     void reloadWithADifferentKeyReusesTheSameActiveSourceRun() {
         var first = prepare("durability-key-0006", fixture.now());
         var reload = prepare("durability-key-0007", fixture.now().plusSeconds(1));
@@ -333,6 +501,48 @@ class VideoMeetingIntelligenceDurabilityPostgresTest {
                 "f".repeat(64), UUID.randomUUID(), now);
     }
 
+    private long candidateUserId() {
+        return jdbc.queryForObject("""
+                SELECT user_id FROM vm_meeting_participants
+                 WHERE tenant_id = 1 AND meeting_id = ? AND user_id <> ?
+                   AND attendance_state IN ('ADMITTED', 'JOINED', 'LEFT')
+                 ORDER BY user_id LIMIT 1
+                """, Long.class, fixture.meetingId(), fixture.actor());
+    }
+
+    private long reportVersion(UUID reportId) {
+        return jdbc.queryForObject("""
+                SELECT version FROM vm_meeting_intelligence_reports
+                 WHERE tenant_id = 1 AND meeting_id = ? AND report_id = ?
+                """, Long.class, fixture.meetingId(), reportId);
+    }
+
+    private int activeGrantCount(UUID reportId) {
+        return jdbc.queryForObject("""
+                SELECT COUNT(*) FROM vm_meeting_content_acl
+                 WHERE tenant_id = 1 AND meeting_id = ? AND content_id = ?
+                   AND revoked_at IS NULL
+                """, Integer.class, fixture.meetingId(), reportId);
+    }
+
+    private int accessAuditCount(UUID reportId, String action) {
+        return jdbc.queryForObject("""
+                SELECT COUNT(*) FROM sys_audit_outbox
+                 WHERE payload ->> 'targetId' = ? AND payload ->> 'action' = ?
+                """, Integer.class, reportId.toString(), action);
+    }
+
+    private void approveReport(UUID reportId) {
+        jdbc.update("""
+                UPDATE vm_meeting_intelligence_reports
+                   SET report_state = 'APPROVED', approved_at = ?, approved_by = ?,
+                       updated_at = ?, updated_by = ?, version = version + 1
+                 WHERE tenant_id = 1 AND meeting_id = ? AND report_id = ?
+                """, fixture.now().plusSeconds(1), fixture.actor(),
+                fixture.now().plusSeconds(1), fixture.actor(),
+                fixture.meetingId(), reportId);
+    }
+
     private void wireRuntime() {
         MeetingTranscriptSource transcript = new FakeTranscriptSource();
         MeetingIntelligencePayloadProtector protector = new FakeProtector();
@@ -350,11 +560,11 @@ class VideoMeetingIntelligenceDurabilityPostgresTest {
                 new MeetingContentAccessPolicy(), dependencies, retention,
                 transcript, protector, audit);
         runs = transactional(target);
-        service = new VideoMeetingIntelligenceService(
+        service = transactional(new VideoMeetingIntelligenceService(
                 meetings, intelligence, new FakeProvider(), transcript, protector,
                 new MeetingIntelligenceOutputValidator(), new MeetingContentAccessPolicy(),
                 runs, audit, mapper,
-                Clock.fixed(fixture.now().toInstant(), ZoneOffset.UTC));
+                Clock.fixed(fixture.now().toInstant(), ZoneOffset.UTC)));
     }
 
     private Fixture governedFixture() {
@@ -457,6 +667,16 @@ class VideoMeetingIntelligenceDurabilityPostgresTest {
         ProxyFactory proxy = new ProxyFactory(target);
         proxy.addAdvice(interceptor);
         return (MeetingIntelligenceRunTransactions) proxy.getProxy();
+    }
+
+    private VideoMeetingIntelligenceService transactional(
+            VideoMeetingIntelligenceService target) {
+        TransactionInterceptor interceptor = new TransactionInterceptor();
+        interceptor.setTransactionManager(transactionManager);
+        interceptor.setTransactionAttributeSource(new AnnotationTransactionAttributeSource());
+        ProxyFactory proxy = new ProxyFactory(target);
+        proxy.addAdvice(interceptor);
+        return (VideoMeetingIntelligenceService) proxy.getProxy();
     }
 
     private record Fixture(

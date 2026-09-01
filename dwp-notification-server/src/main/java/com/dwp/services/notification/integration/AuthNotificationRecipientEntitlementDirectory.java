@@ -42,7 +42,7 @@ public class AuthNotificationRecipientEntitlementDirectory
             Subject subject = auth.get()
                     .uri("/internal/identity/v1/tenants/{tenantId}/users/{userId}",
                             tenantId, userId)
-                    .headers(OutboundHttpHeaders::propagateObservability)
+                    .headers(headers -> OutboundHttpHeaders.propagateObservability(headers))
                     .header(TOKEN_HEADER, token)
                     .retrieve()
                     .body(Subject.class);

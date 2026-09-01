@@ -40,6 +40,23 @@ class MeetingTranscriptArtifactContractTest {
         assertThat(headers).contains(
                 "Idempotency-Key", "X-DWP-Transcript-Finalization-Token",
                 "X-DWP-Transcript-Artifact-Assertion");
+
+        Method registration = java.util.Arrays.stream(
+                        MeetingTranscriptArtifactController.class.getDeclaredMethods())
+                .filter(candidate -> candidate.getName().equals("registerTranscript"))
+                .findFirst().orElseThrow();
+        assertThat(registration.getAnnotation(PostMapping.class).value())
+                .containsExactly("/register");
+        Set<String> registrationHeaders = java.util.Arrays.stream(
+                        registration.getParameterAnnotations())
+                .flatMap(java.util.Arrays::stream)
+                .filter(RequestHeader.class::isInstance)
+                .map(RequestHeader.class::cast)
+                .map(RequestHeader::value)
+                .collect(java.util.stream.Collectors.toSet());
+        assertThat(registrationHeaders).contains(
+                "Idempotency-Key", "X-DWP-Transcript-Finalization-Token",
+                "X-DWP-Transcript-Artifact-Assertion");
     }
 
     @Test
@@ -49,7 +66,8 @@ class MeetingTranscriptArtifactContractTest {
                 UUID.randomUUID(), 77, UUID.randomUUID(), "AVAILABLE",
                 "a".repeat(64), now.plusDays(30), true, "ap-northeast-2",
                 UUID.randomUUID(), "b".repeat(64), "idempotency-key",
-                "c".repeat(64), now, 101L, 1);
+                "c".repeat(64), now, 101L, 1,
+                "registration-key", "d".repeat(64), now.minusMinutes(1), 101L);
         JsonNode json = new ObjectMapper().findAndRegisterModules().valueToTree(
                 MeetingTranscriptArtifactDtos.TranscriptArtifactResponse.from(artifact));
         Set<String> fields = json.properties().stream()

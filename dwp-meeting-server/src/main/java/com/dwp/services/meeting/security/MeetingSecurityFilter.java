@@ -26,6 +26,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Component
@@ -63,6 +64,11 @@ public class MeetingSecurityFilter extends OncePerRequestFilter {
             EXPECTED_DECISION_REVISION, CURRENT_CONTEXT, CURRENT_SCOPE,
             ACTIVE_ACCESS_MODE, ROLLOUT_STATE, ROLLOUT_REVISION, ROLLOUT_COHORT,
             SUPPORT_SESSION, ACTOR_TENANT);
+    private static final Pattern RECORDING_ACCESS_TICKET = Pattern.compile(
+            "^/v1/meetings/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-"
+                    + "[0-9a-f]{4}-[0-9a-f]{12}/artifacts/[0-9a-f]{8}-"
+                    + "[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/"
+                    + "access-ticket$");
 
     private final String serviceToken;
     private final ObjectMapper objectMapper;
@@ -269,6 +275,9 @@ public class MeetingSecurityFilter extends OncePerRequestFilter {
             return has(permissions, "ADMIN.MEETINGS", readOnly(method) ? "VIEW" : "MANAGE");
         }
         if (readOnly(method)) return has(permissions, "APP.MEETINGS", "VIEW");
+        if ("POST".equals(method) && RECORDING_ACCESS_TICKET.matcher(path).matches()) {
+            return has(permissions, "APP.MEETINGS", "VIEW");
+        }
         if (path.equals("/v1/meetings") || path.equals("/v1/meetings/instant")) {
             return has(permissions, "APP.MEETINGS", "CREATE", "MANAGE");
         }

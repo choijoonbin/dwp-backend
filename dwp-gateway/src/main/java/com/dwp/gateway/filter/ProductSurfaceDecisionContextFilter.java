@@ -165,7 +165,7 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                         canonicalExchange, canonical, chain, route, result, expected,
                         requestContext.activeAccessMode()))
                 .onErrorResume(
-                        ProductSurfaceContextAggregationService.AuthorityUnavailableException.class,
+                        com.dwp.gateway.productsurface.ProductSurfaceAuthorityUnavailableException.class,
                         ignored -> error(canonicalExchange, HttpStatus.SERVICE_UNAVAILABLE,
                                 "AUTHORITY_RESOLUTION_UNAVAILABLE", null));
     }

@@ -78,23 +78,6 @@ class HomeComposerServiceTest {
         });
         lenient().when(preferenceService.normalizeForSurface(eq("workspace-home"), any()))
                 .thenAnswer(invocation -> invocation.getArgument(1));
-        lenient().when(views.preserveClassicCompatibilitySnapshot(any(), any()))
-                .thenAnswer(invocation -> {
-                    HomePreferenceDtos.HomeLayoutPayload current = invocation.getArgument(0);
-                    HomePreferenceDtos.HomeLayoutPayload requested = invocation.getArgument(1);
-                    var fixed = current.widgets().stream()
-                            .filter(widget -> "command-rail".equals(widget.widgetKey()))
-                            .findFirst().orElse(null);
-                    List<HomePreferenceDtos.WidgetPreference> widgets = new ArrayList<>(
-                            requested.widgets().stream()
-                                    .filter(widget -> !"command-rail".equals(widget.widgetKey()))
-                                    .toList());
-                    if (fixed != null) {
-                        widgets.add(Math.min(current.widgets().indexOf(fixed), widgets.size()), fixed);
-                    }
-                    return new HomePreferenceDtos.HomeLayoutPayload(
-                            requested.appLayout(), requested.presentation(), List.copyOf(widgets));
-                });
         lenient().when(proposals.saveAndFlush(any(HomeComposerProposal.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         when(views.fingerprint(any())).thenReturn("a".repeat(64));
@@ -261,25 +244,50 @@ class HomeComposerServiceTest {
     }
 
     @Test
-    void rejectsChangesToManagedFlowZonesBeforeSavingAProposal() {
+    void allowsPersonalCommandRailVisibilityPositionAndWidthChanges() {
         UUID command = UUID.randomUUID();
         when(proposals.findByTenantIdAndUserIdAndCreationCommandId(7L, 11L, command))
                 .thenReturn(Optional.empty());
         when(views.requireOwnedForUpdate(7L, 11L, view.getViewId())).thenReturn(view);
         HomeComposerDtos.CreateComposerProposalRequest request =
                 new HomeComposerDtos.CreateComposerProposalRequest(
-                        view.getViewId(), 0L, List.of("HIDE_NOW"),
-                        List.of(new HomeComposerDtos.ComposerChange(
-                                "HIDE_WIDGET", "command-rail", null, null, null, null)));
+                        view.getViewId(), 0L, List.of("PERSONAL_PRIORITY_LAYOUT"),
+                        List.of(
+                                new HomeComposerDtos.ComposerChange(
+                                        "MOVE_WIDGET", "command-rail", null, 0, 2, null),
+                                new HomeComposerDtos.ComposerChange(
+                                        "SET_WIDTH", "command-rail", null, null, null, "full"),
+                                new HomeComposerDtos.ComposerChange(
+                                        "HIDE_WIDGET", "command-rail", null, null, null, null)));
+
+        HomeComposerDtos.ComposerProposalResponse preview = service.create(
+                7L, 11L, null, command, null, request);
+
+        assertThat(preview.proposedLayout().widgets())
+                .extracting(HomePreferenceDtos.WidgetPreference::widgetKey)
+                .containsExactly("focus", "schedule", "command-rail");
+        assertThat(preview.proposedLayout().widgets().getLast())
+                .isEqualTo(new HomePreferenceDtos.WidgetPreference(
+                        "command-rail", false, "full", "short"));
+    }
+
+    @Test
+    void stillRejectsTenantManagedFlowZones() {
+        UUID command = UUID.randomUUID();
+        when(proposals.findByTenantIdAndUserIdAndCreationCommandId(7L, 11L, command))
+                .thenReturn(Optional.empty());
+        when(views.requireOwnedForUpdate(7L, 11L, view.getViewId())).thenReturn(view);
 
         assertThatThrownBy(() -> service.create(
-                7L, 11L, null, command, null, request))
+                7L, 11L, null, command, null,
+                new HomeComposerDtos.CreateComposerProposalRequest(
+                        view.getViewId(), 0L, List.of("MANAGED_ZONE"),
+                        List.of(new HomeComposerDtos.ComposerChange(
+                                "HIDE_WIDGET", "announcements", null,
+                                null, null, null)))))
                 .isInstanceOfSatisfying(BaseException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(
                                 ErrorCode.INVALID_INPUT_VALUE));
-        verify(views, never()).applyExternalLayout(
-                anyLong(), anyLong(), any(), anyLong(), any(), anyString(), anyString(),
-                any(), anyString(), anyLong(), any());
     }
 
     @Test
@@ -310,7 +318,7 @@ class HomeComposerServiceTest {
     }
 
     @Test
-    void previewAndApplyNormalizationPreserveAnAbsentClassicCommandRail() {
+    void previewNormalizationRestoresAnAbsentLegacyCommandRail() {
         HomePreferenceDtos.HomeLayoutPayload legacyWithoutRail =
                 new HomePreferenceDtos.HomeLayoutPayload(
                         layout.appLayout(), layout.presentation(),
@@ -342,7 +350,7 @@ class HomeComposerServiceTest {
 
         assertThat(preview.proposedLayout().widgets())
                 .extracting(HomePreferenceDtos.WidgetPreference::widgetKey)
-                .doesNotContain("command-rail");
+                .containsExactly("command-rail", "schedule", "focus");
     }
 
     @Test

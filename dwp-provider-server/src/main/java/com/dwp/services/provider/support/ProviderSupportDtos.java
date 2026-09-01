@@ -1,7 +1,5 @@
 package com.dwp.services.provider.support;
 
-import com.dwp.services.provider.ProviderDtos;
-
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
@@ -21,7 +19,7 @@ public final class ProviderSupportDtos {
     }
 
     public static AccessRequestLedgerItem accessRequestLedgerItem(
-            ProviderDtos.SupportAccessRequestSummary request,
+            ProviderSupportRequestView request,
             boolean requesterOwned) {
         return new AccessRequestLedgerItem(
                 request.supportAccessRequestId(), request.tenantId(), request.tenantKey(),

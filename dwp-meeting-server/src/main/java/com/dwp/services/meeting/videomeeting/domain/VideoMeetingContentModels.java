@@ -114,6 +114,10 @@ public final class VideoMeetingContentModels {
             OffsetDateTime stoppedAt,
             OffsetDateTime failedAt,
             String failureCode,
+            Integer artifactRetentionDays,
+            String recordingProviderCode,
+            String recordingProcessingRegion,
+            String stopConsentSnapshotSha256,
             long version) {
     }
 

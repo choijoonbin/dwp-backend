@@ -275,6 +275,42 @@ class AuthServiceTest {
     }
 
     @Test
+    void explicitDenyWinsAcrossTheHcmAndHrisCompatibilityAlias() {
+        PrincipalResourceGrantRepository.EffectiveGrant hcmDeny =
+                new PrincipalResourceGrantRepository.EffectiveGrant(
+                        UUID.randomUUID().toString(), "APP", "app.hcm",
+                        "DWP HCM", "VIEW", "View", "DENY");
+        PrincipalResourceGrantRepository.EffectiveGrant hrisAllow =
+                new PrincipalResourceGrantRepository.EffectiveGrant(
+                        UUID.randomUUID().toString(), "APP", "App.HrIs",
+                        "HRIS compatibility alias", "VIEW", "View", "ALLOW");
+        when(principalGrants.findEffective(1L, 10L))
+                .thenReturn(List.of(hcmDeny, hrisAllow));
+
+        assertThat(service.getPermissions(10L, 1L)).isEmpty();
+
+        PrincipalResourceGrantRepository.EffectiveGrant hrisDeny =
+                new PrincipalResourceGrantRepository.EffectiveGrant(
+                        UUID.randomUUID().toString(), "APP", "APP.HRIS",
+                        "HRIS compatibility alias", "VIEW", "View", "DENY");
+        PrincipalResourceGrantRepository.EffectiveGrant hcmAllow =
+                new PrincipalResourceGrantRepository.EffectiveGrant(
+                        UUID.randomUUID().toString(), "APP", "APP.HCM",
+                        "DWP HCM", "VIEW", "View", "ALLOW");
+        when(principalGrants.findEffective(1L, 10L))
+                .thenReturn(List.of(hrisDeny, hcmAllow));
+
+        assertThat(service.getPermissions(10L, 1L)).isEmpty();
+
+        when(principalGrants.findEffective(1L, 10L))
+                .thenReturn(List.of(hrisAllow));
+
+        assertThat(service.getPermissions(10L, 1L))
+                .extracting(PermissionDTO::getResourceKey)
+                .containsExactly("APP.HCM", "APP.HRIS");
+    }
+
+    @Test
     void projectsScopedDutyAuthorityAndResourceSetButPreservesExplicitDenyPrecedence() {
         UUID setId = UUID.randomUUID();
         PermissionDTO scoped = PermissionDTO.builder()

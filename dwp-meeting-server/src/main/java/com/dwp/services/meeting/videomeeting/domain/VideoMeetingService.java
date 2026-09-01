@@ -602,9 +602,4 @@ public class VideoMeetingService {
         return new BaseException(ErrorCode.INVALID_STATE, message);
     }
 
-    private BaseException versionConflict() {
-        return new BaseException(
-                ErrorCode.OBJECT_VERSION_CONFLICT,
-                "The meeting version changed. Refresh and retry.");
-    }
 }

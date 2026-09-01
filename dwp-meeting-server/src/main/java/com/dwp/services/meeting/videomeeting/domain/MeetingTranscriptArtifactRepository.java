@@ -28,13 +28,104 @@ public class MeetingTranscriptArtifactRepository {
                        sha256, retention_until, server_side_processing_allowed,
                        processing_region, content_notice_id, consent_snapshot_sha256,
                        finalization_idempotency_key, finalization_request_sha256,
-                       finalized_at, finalized_by, version
+                       finalized_at, finalized_by, version,
+                       registration_idempotency_key, registration_request_sha256,
+                       registered_at, registered_by
                   FROM vm_meeting_artifacts
                  WHERE tenant_id = ? AND meeting_id = ? AND artifact_id = ?
                    AND artifact_type = 'TRANSCRIPT'
                  FOR UPDATE
                 """, this::artifact, tenantId, meetingId, artifactId)
                 .stream().findFirst();
+    }
+
+    public Optional<TranscriptArtifact> lockTranscript(long tenantId, UUID meetingId) {
+        return jdbc.query("""
+                SELECT artifact_id, tenant_id, meeting_id, artifact_state,
+                       sha256, retention_until, server_side_processing_allowed,
+                       processing_region, content_notice_id, consent_snapshot_sha256,
+                       finalization_idempotency_key, finalization_request_sha256,
+                       finalized_at, finalized_by, version,
+                       registration_idempotency_key, registration_request_sha256,
+                       registered_at, registered_by
+                  FROM vm_meeting_artifacts
+                 WHERE tenant_id = ? AND meeting_id = ? AND artifact_type = 'TRANSCRIPT'
+                 FOR UPDATE
+                """, this::artifact, tenantId, meetingId).stream().findFirst();
+    }
+
+    public TranscriptArtifact registerProcessing(
+            TranscriptArtifact current,
+            UUID artifactId,
+            long tenantId,
+            UUID meetingId,
+            String sourceSha256,
+            OffsetDateTime retentionUntil,
+            String processingRegion,
+            UUID noticeId,
+            String consentSnapshotSha256,
+            String idempotencyKey,
+            String requestSha256,
+            long actorUserId,
+            OffsetDateTime registeredAt) {
+        if (current == null) {
+            return jdbc.query("""
+                    INSERT INTO vm_meeting_artifacts (
+                        artifact_id, tenant_id, meeting_id, artifact_type, artifact_state,
+                        sha256, retention_until, server_side_processing_allowed,
+                        processing_region, content_notice_id, consent_snapshot_sha256,
+                        registration_idempotency_key, registration_request_sha256,
+                        registered_at, registered_by, created_at, created_by,
+                        updated_at, updated_by)
+                    VALUES (?, ?, ?, 'TRANSCRIPT', 'PROCESSING', ?, ?, TRUE,
+                            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    RETURNING artifact_id, tenant_id, meeting_id, artifact_state,
+                              sha256, retention_until, server_side_processing_allowed,
+                              processing_region, content_notice_id, consent_snapshot_sha256,
+                              finalization_idempotency_key, finalization_request_sha256,
+                              finalized_at, finalized_by, version,
+                              registration_idempotency_key, registration_request_sha256,
+                              registered_at, registered_by
+                    """, this::artifact,
+                    artifactId, tenantId, meetingId, sourceSha256, retentionUntil,
+                    processingRegion, noticeId, consentSnapshotSha256,
+                    idempotencyKey, requestSha256, registeredAt, actorUserId,
+                    registeredAt, actorUserId, registeredAt, actorUserId)
+                    .stream().findFirst().orElseThrow(() -> new BaseException(
+                            ErrorCode.RESOURCE_CONFLICT,
+                            "The transcript artifact registration conflicted."));
+        }
+        return jdbc.query("""
+                UPDATE vm_meeting_artifacts
+                   SET artifact_state = 'PROCESSING', sha256 = ?, retention_until = ?,
+                       server_side_processing_allowed = TRUE, processing_region = ?,
+                       content_notice_id = ?, consent_snapshot_sha256 = ?,
+                       registration_idempotency_key = ?, registration_request_sha256 = ?,
+                       registered_at = ?, registered_by = ?,
+                       storage_provider = NULL, object_key = NULL, content_type = NULL,
+                       size_bytes = NULL, finalization_idempotency_key = NULL,
+                       finalization_request_sha256 = NULL, finalized_at = NULL,
+                       finalized_by = NULL, version = version + 1,
+                       updated_at = ?, updated_by = ?
+                 WHERE tenant_id = ? AND meeting_id = ? AND artifact_id = ?
+                   AND artifact_type = 'TRANSCRIPT'
+                   AND artifact_state IN ('NONE', 'UNAVAILABLE', 'FAILED')
+                   AND registration_idempotency_key IS NULL AND version = ?
+                RETURNING artifact_id, tenant_id, meeting_id, artifact_state,
+                          sha256, retention_until, server_side_processing_allowed,
+                          processing_region, content_notice_id, consent_snapshot_sha256,
+                          finalization_idempotency_key, finalization_request_sha256,
+                          finalized_at, finalized_by, version,
+                          registration_idempotency_key, registration_request_sha256,
+                          registered_at, registered_by
+                """, this::artifact,
+                sourceSha256, retentionUntil, processingRegion, noticeId,
+                consentSnapshotSha256, idempotencyKey, requestSha256,
+                registeredAt, actorUserId, registeredAt, actorUserId,
+                tenantId, meetingId, current.artifactId(), current.version())
+                .stream().findFirst().orElseThrow(() -> new BaseException(
+                        ErrorCode.OBJECT_VERSION_CONFLICT,
+                        "The transcript artifact changed. Refresh and retry."));
     }
 
     public TranscriptArtifact finalizeAvailable(
@@ -62,19 +153,23 @@ public class MeetingTranscriptArtifactRepository {
                        finalized_at = ?, finalized_by = ?, version = version + 1,
                        updated_at = ?, updated_by = ?
                  WHERE tenant_id = ? AND meeting_id = ? AND artifact_id = ?
-                   AND artifact_state IN ('NONE', 'PROCESSING', 'UNAVAILABLE', 'FAILED')
+                   AND artifact_state IN ('PROCESSING', 'FAILED')
+                   AND registration_idempotency_key IS NOT NULL
+                   AND sha256 = ?
                    AND version = ?
                 RETURNING artifact_id, tenant_id, meeting_id, artifact_state,
                           sha256, retention_until, server_side_processing_allowed,
                           processing_region, content_notice_id, consent_snapshot_sha256,
                           finalization_idempotency_key, finalization_request_sha256,
-                          finalized_at, finalized_by, version
+                          finalized_at, finalized_by, version,
+                          registration_idempotency_key, registration_request_sha256,
+                          registered_at, registered_by
                 """, this::artifact,
                 storageProvider, objectKey, contentType, sizeBytes, sourceSha256,
                 retentionUntil, processingRegion, noticeId, consentSnapshotSha256,
                 idempotencyKey, requestSha256, finalizedAt, actorUserId,
                 finalizedAt, actorUserId, current.tenantId(), current.meetingId(),
-                current.artifactId(), current.version())
+                current.artifactId(), sourceSha256, current.version())
                 .stream().findFirst().orElseThrow(() -> new BaseException(
                         ErrorCode.OBJECT_VERSION_CONFLICT,
                         "The transcript artifact changed. Refresh and retry."));
@@ -119,7 +214,11 @@ public class MeetingTranscriptArtifactRepository {
                 rs.getString("finalization_idempotency_key"),
                 rs.getString("finalization_request_sha256"),
                 rs.getObject("finalized_at", OffsetDateTime.class),
-                finalizedByValue, rs.getLong("version"));
+                finalizedByValue, rs.getLong("version"),
+                rs.getString("registration_idempotency_key"),
+                rs.getString("registration_request_sha256"),
+                rs.getObject("registered_at", OffsetDateTime.class),
+                rs.getObject("registered_by", Long.class));
     }
 
     public record TranscriptArtifact(
@@ -137,6 +236,10 @@ public class MeetingTranscriptArtifactRepository {
             String requestSha256,
             OffsetDateTime finalizedAt,
             Long finalizedBy,
-            long version) {
+            long version,
+            String registrationIdempotencyKey,
+            String registrationRequestSha256,
+            OffsetDateTime registeredAt,
+            Long registeredBy) {
     }
 }

@@ -406,6 +406,18 @@ public class VideoMeetingIntelligenceRepository {
                 expiresAt, reasonCode).stream().findFirst().orElseThrow();
     }
 
+    public List<ContentGrant> activeGrants(
+            long tenantId, UUID meetingId, UUID reportId, OffsetDateTime now) {
+        return jdbc.query("""
+                SELECT * FROM vm_meeting_content_acl
+                 WHERE tenant_id = ? AND meeting_id = ?
+                   AND content_type = 'INTELLIGENCE_REPORT' AND content_id = ?
+                   AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?)
+                 ORDER BY principal_user_id, CASE permission
+                    WHEN 'MANAGE' THEN 1 WHEN 'REVIEW' THEN 2 ELSE 3 END, acl_id
+                """, this::grant, tenantId, meetingId, reportId, now);
+    }
+
     public void revoke(
             IntelligenceReport report,
             long principalUserId,

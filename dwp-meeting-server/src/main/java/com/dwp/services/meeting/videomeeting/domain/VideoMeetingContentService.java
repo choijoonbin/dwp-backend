@@ -21,7 +21,9 @@ import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.TenantPol
 import com.dwp.services.meeting.videomeeting.provider.MeetingMediaProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -30,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import static com.dwp.services.meeting.videomeeting.domain.VideoMeetingCommandPolicy.commandKey;
 import static com.dwp.services.meeting.videomeeting.domain.VideoMeetingCommandPolicy.correlation;
@@ -50,6 +53,7 @@ public class VideoMeetingContentService {
     private final MeetingContentDependencies dependencies;
     private final VideoMeetingAuditRecorder audit;
     private final Clock clock;
+    private final TransactionTemplate transactions;
 
     @Autowired
     public VideoMeetingContentService(
@@ -57,8 +61,10 @@ public class VideoMeetingContentService {
             VideoMeetingContentRepository content,
             MeetingMediaProvider mediaProvider,
             MeetingContentDependencies dependencies,
-            VideoMeetingAuditRecorder audit) {
+            VideoMeetingAuditRecorder audit,
+            PlatformTransactionManager transactionManager) {
         this(meetings, content, mediaProvider, dependencies, audit, Clock.systemUTC());
+        this.transactions.setTransactionManager(transactionManager);
     }
 
     VideoMeetingContentService(
@@ -74,10 +80,19 @@ public class VideoMeetingContentService {
         this.dependencies = dependencies;
         this.audit = audit;
         this.clock = clock;
+        this.transactions = new TransactionTemplate();
     }
 
-    @Transactional
     public VideoMeetingContentDtos.ContentPlanResponse contentPlan(UUID meetingId) {
+        MeetingContentDependencies.Status status = dependencies.status();
+        MeetingMediaProvider.Capability media = mediaProvider.capability();
+        return inTransaction(() -> contentPlan(meetingId, status, media));
+    }
+
+    private VideoMeetingContentDtos.ContentPlanResponse contentPlan(
+            UUID meetingId,
+            MeetingContentDependencies.Status status,
+            MeetingMediaProvider.Capability media) {
         MeetingRequestContext.Subject subject = MeetingRequestContext.get();
         Meeting meeting = meetings.accessibleMeeting(
                         subject.tenantId(), meetingId, subject.userId())
@@ -86,15 +101,27 @@ public class VideoMeetingContentService {
         TenantPolicy policy = meetings.ensurePolicy(subject.tenantId(), subject.userId());
         ContentPlan plan = content.ensurePlan(
                 subject.tenantId(), meetingId, subject.userId());
-        return response(meeting, viewer, policy, plan);
+        return response(subject, meeting, viewer, policy, plan, status, media);
     }
 
-    @Transactional
     public VideoMeetingContentDtos.ContentPlanResponse updateContentPlan(
             UUID meetingId,
             VideoMeetingContentDtos.UpdateContentPlanCommand request,
             String idempotencyKey,
             String correlationId) {
+        MeetingContentDependencies.Status status = dependencies.status();
+        MeetingMediaProvider.Capability media = mediaProvider.capability();
+        return inTransaction(() -> updateContentPlan(
+                meetingId, request, idempotencyKey, correlationId, status, media));
+    }
+
+    private VideoMeetingContentDtos.ContentPlanResponse updateContentPlan(
+            UUID meetingId,
+            VideoMeetingContentDtos.UpdateContentPlanCommand request,
+            String idempotencyKey,
+            String correlationId,
+            MeetingContentDependencies.Status dependencyStatus,
+            MeetingMediaProvider.Capability mediaCapability) {
         MeetingRequestContext.Subject subject = MeetingRequestContext.get();
         Meeting meeting = meetings.lockMeeting(subject.tenantId(), meetingId);
         Participant host = requireHost(subject, meeting);
@@ -106,8 +133,10 @@ public class VideoMeetingContentService {
                 meetingId, request.recordingRequested(), request.transcriptionRequested(),
                 request.aiSummaryRequested(), request.e2eeEnabled(), request.expectedVersion());
         Optional<StoredCommand> prior = priorCommand(subject, meetingId, PLAN_UPDATE, key, hash);
-        if (prior.isPresent()) return response(meeting, host, policy,
-                content.plan(subject.tenantId(), meetingId).orElse(current));
+        if (prior.isPresent()) return response(
+                subject, meeting, host, policy,
+                content.plan(subject.tenantId(), meetingId).orElse(current),
+                dependencyStatus, mediaCapability);
         if (current.version() != request.expectedVersion()) throw versionConflict();
 
         boolean changed = changed(current, request);
@@ -120,10 +149,10 @@ public class VideoMeetingContentService {
         if (changed) {
             boolean processingRequested = request.recordingRequested()
                     || request.transcriptionRequested() || request.aiSummaryRequested();
-            MeetingContentDependencies.Status dependencyStatus = dependencies.status();
             ContentPlan candidate = candidate(current, request);
             List<BlockerCode> staticBlockers = blockers(
-                    meeting, policy, candidate, dependencyStatus, false, false);
+                    meeting, policy, candidate, dependencyStatus, mediaCapability,
+                    false, false);
             PlanState state = processingRequested
                     ? staticBlockers.isEmpty() ? PlanState.READY : PlanState.BLOCKED
                     : PlanState.DISABLED;
@@ -148,7 +177,9 @@ public class VideoMeetingContentService {
         content.saveCommand(
                 subject.tenantId(), meetingId, subject.userId(), PLAN_UPDATE, key, hash,
                 true, 200, List.of(), updated.planId(), updated.version());
-        return response(meeting, host, policy, updated);
+        return response(
+                subject, meeting, host, policy, updated,
+                dependencyStatus, mediaCapability);
     }
 
     @Transactional
@@ -222,7 +253,8 @@ public class VideoMeetingContentService {
 
         MeetingContentDependencies.Status dependencyStatus = dependencies.status();
         List<BlockerCode> blockers = blockers(
-                meeting, policy, plan, dependencyStatus, true, true);
+                meeting, policy, plan, dependencyStatus, mediaProvider.capability(),
+                true, true);
         Optional<RecordingSession> active = content.activeSession(
                 subject.tenantId(), meetingId);
         if (!blockers.isEmpty()) {
@@ -299,11 +331,13 @@ public class VideoMeetingContentService {
     }
 
     private VideoMeetingContentDtos.ContentPlanResponse response(
+            MeetingRequestContext.Subject subject,
             Meeting meeting,
             Participant viewer,
             TenantPolicy policy,
-            ContentPlan plan) {
-        MeetingContentDependencies.Status status = dependencies.status();
+            ContentPlan plan,
+            MeetingContentDependencies.Status status,
+            MeetingMediaProvider.Capability media) {
         ContentNotice notice = content.currentNotice(plan.tenantId(), plan.meetingId())
                 .orElse(null);
         ConsentCounts consent = notice == null ? new ConsentCounts(0, 0)
@@ -311,10 +345,21 @@ public class VideoMeetingContentService {
         boolean acknowledged = notice != null && content.acknowledgedBy(
                 plan.tenantId(), plan.meetingId(), notice.noticeId(), viewer.participantId());
         List<BlockerCode> blockers = blockers(
-                meeting, policy, plan, status, false, meeting.live());
+                meeting, policy, plan, status, media, false, meeting.live());
         PlanState effectiveState = !plan.processingRequested() ? PlanState.DISABLED
                 : blockers.isEmpty() ? PlanState.READY : PlanState.BLOCKED;
-        ContentPlan effectivePlan = withState(plan, effectiveState);
+        ContentPlan effectivePlan = plan.state() == effectiveState ? plan
+                : content.reconcilePlanState(plan, effectiveState, subject.userId(), now());
+        if (effectivePlan.state() != plan.state()) {
+            audit.collaboration(
+                    subject, meeting, "meeting.content-plan.readiness-reconciled",
+                    "MEETING_CONTENT_PLAN", effectivePlan.planId().toString(),
+                    correlation(null), true,
+                    Map.of("planVersion", effectivePlan.version(),
+                            "previousState", plan.state().name(),
+                            "planState", effectivePlan.state().name(),
+                            "blockerCodes", blockers.stream().map(Enum::name).toList()));
+        }
         RecordingSession session = content.activeSession(plan.tenantId(), plan.meetingId())
                 .orElse(null);
         return VideoMeetingContentDtos.ContentPlanResponse.from(
@@ -326,6 +371,7 @@ public class VideoMeetingContentService {
             TenantPolicy policy,
             ContentPlan plan,
             MeetingContentDependencies.Status status,
+            MeetingMediaProvider.Capability mediaCapability,
             boolean requireLiveRecording,
             boolean requireConsent) {
         if (!plan.processingRequested()) return List.of();
@@ -333,7 +379,7 @@ public class VideoMeetingContentService {
         if (!policy.meetingsEnabled()) blockers.add(BlockerCode.MEETINGS_DISABLED);
         if ("NEVER".equals(policy.recordingPolicy())) blockers.add(BlockerCode.POLICY_NEVER);
         if (plan.e2eeEnabled()) blockers.add(BlockerCode.E2EE);
-        if (!mediaProvider.capability().available()) blockers.add(BlockerCode.MEDIA_PROVIDER);
+        if (!mediaCapability.available()) blockers.add(BlockerCode.MEDIA_PROVIDER);
         if (!status.auditAvailable()) blockers.add(BlockerCode.AUDIT);
         if (plan.recordingRequested() || plan.transcriptionRequested()) {
             if (!status.egressAvailable()) blockers.add(BlockerCode.EGRESS);
@@ -509,16 +555,13 @@ public class VideoMeetingContentService {
                 current.updatedAt());
     }
 
-    private ContentPlan withState(ContentPlan plan, PlanState state) {
-        return new ContentPlan(
-                plan.planId(), plan.tenantId(), plan.meetingId(),
-                plan.recordingRequested(), plan.transcriptionRequested(),
-                plan.aiSummaryRequested(), plan.e2eeEnabled(), state,
-                plan.currentNoticeId(), plan.noticeRevision(), plan.version(), plan.updatedAt());
-    }
-
     private OffsetDateTime now() {
         return OffsetDateTime.now(clock);
+    }
+
+    private <T> T inTransaction(Supplier<T> work) {
+        if (transactions.getTransactionManager() == null) return work.get();
+        return transactions.execute(status -> work.get());
     }
 
     private BaseException notFound() {

@@ -182,6 +182,12 @@ public class AuthSessionVerifier implements SessionVerifier {
         if (path.startsWith("/api/people/v1/hr")) {
             return "APP.HCM,APP.HRIS,DATA.HR_";
         }
+        if (path.equals("/api/people/v1/people")
+                || path.startsWith("/api/people/v1/people/")
+                || path.equals("/api/people/v1/org-chart")
+                || path.startsWith("/api/people/v1/org-chart/")) {
+            return "APP.HCM,APP.HRIS,APP.PEOPLE_DIRECTORY";
+        }
         if (path.equals("/api/platform/v1/home/overview")) {
             return "APP.WORK,APP.ACTIVITY,APP.CALENDAR,APP.COMMUNICATIONS";
         }
@@ -274,6 +280,9 @@ public class AuthSessionVerifier implements SessionVerifier {
             return "APP.NOTIFICATIONS";
         }
         if (path.startsWith("/api/platform/v1/services")) {
+            if (hasSingleQueryValue(request, "surface", "hcm")) {
+                return "APP.HCM,APP.HRIS,APP.EMPLOYEE_SERVICES";
+            }
             return "APP.EMPLOYEE_SERVICES";
         }
         if (path.startsWith("/api/agent/v1/admin/evaluations/")
@@ -292,6 +301,12 @@ public class AuthSessionVerifier implements SessionVerifier {
             return "APP.,ACTION.";
         }
         return null;
+    }
+
+    private boolean hasSingleQueryValue(
+            ServerHttpRequest request, String name, String expected) {
+        List<String> values = request.getQueryParams().get(name);
+        return values != null && values.size() == 1 && expected.equals(values.getFirst());
     }
 
     private List<String> authorities(List<PermissionData> permissions) {

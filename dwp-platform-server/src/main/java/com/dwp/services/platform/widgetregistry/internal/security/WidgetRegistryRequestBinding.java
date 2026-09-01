@@ -13,7 +13,6 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
-import org.erdtman.jcs.JsonCanonicalizer;
 import org.springframework.http.InvalidMediaTypeException;
 import org.springframework.http.MediaType;
 
@@ -89,7 +88,8 @@ final class WidgetRegistryRequestBinding {
                 .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
     }
 
-    PreparedRequest prepare(HttpServletRequest request, Match match) throws IOException, BindingException {
+    PreparedRequest prepare(HttpServletRequest request, Match match)
+            throws IOException, WidgetRegistryBindingException {
         validateContentEncoding(request);
         validateRawQuery(request.getQueryString(), match.route().allowedQueryKeys());
 
@@ -108,7 +108,7 @@ final class WidgetRegistryRequestBinding {
         byte[] canonicalBody = bodyNode == null ? new byte[0] : canonicalJson(body);
         if (match.route() == WidgetRegistryInternalRoutes.Route.EXECUTE_COMMAND
                 && canonicalBody.length > MAX_TYPED_CANONICAL_BODY_BYTES) {
-            throw new BindingException(WidgetRegistryIngressFailure.PAYLOAD_TOO_LARGE);
+            throw new WidgetRegistryBindingException(WidgetRegistryIngressFailure.PAYLOAD_TOO_LARGE);
         }
         ActualBinding binding = new ActualBinding(
                 match.method(),
@@ -123,7 +123,8 @@ final class WidgetRegistryRequestBinding {
                 new WidgetRegistryCachedBodyRequest(request, downstreamBody), binding, command, seal);
     }
 
-    private static void validateContentEncoding(HttpServletRequest request) throws BindingException {
+    private static void validateContentEncoding(HttpServletRequest request)
+            throws WidgetRegistryBindingException {
         List<String> values = headerValues(request, "Content-Encoding");
         if (values.size() > 1) throw invalidBinding();
         if (!values.isEmpty() && !"identity".equalsIgnoreCase(values.get(0).trim())) {
@@ -132,7 +133,7 @@ final class WidgetRegistryRequestBinding {
     }
 
     private static String resolveIdempotencyKey(HttpServletRequest request, Match match)
-            throws BindingException {
+            throws WidgetRegistryBindingException {
         List<String> values = headerValues(request, IDEMPOTENCY_HEADER);
         if (match.route() == WidgetRegistryInternalRoutes.Route.EXECUTE_COMMAND) {
             if (values.size() != 1 || !UUID.matcher(values.get(0)).matches()) throw invalidBinding();
@@ -142,7 +143,8 @@ final class WidgetRegistryRequestBinding {
         return null;
     }
 
-    private static String requiredUuidHeader(HttpServletRequest request, String name) throws BindingException {
+    private static String requiredUuidHeader(HttpServletRequest request, String name)
+            throws WidgetRegistryBindingException {
         List<String> values = headerValues(request, name);
         if (values.size() != 1 || !UUID.matcher(values.get(0)).matches()) throw invalidBinding();
         return values.get(0);
@@ -153,7 +155,8 @@ final class WidgetRegistryRequestBinding {
         return headers == null ? List.of() : Collections.list(headers);
     }
 
-    private static void validateRawQuery(String rawQuery, Set<String> allowedKeys) throws BindingException {
+    private static void validateRawQuery(String rawQuery, Set<String> allowedKeys)
+            throws WidgetRegistryBindingException {
         if (rawQuery == null) return;
         if (rawQuery.isEmpty() || rawQuery.indexOf('#') >= 0 || rawQuery.indexOf('\r') >= 0
                 || rawQuery.indexOf('\n') >= 0) {
@@ -171,7 +174,8 @@ final class WidgetRegistryRequestBinding {
         }
     }
 
-    private static void validatePercentEncoding(String value) throws BindingException {
+    private static void validatePercentEncoding(String value)
+            throws WidgetRegistryBindingException {
         ByteArrayOutputStream decoded = new ByteArrayOutputStream(value.length());
         for (int index = 0; index < value.length(); index++) {
             char current = value.charAt(index);
@@ -200,9 +204,9 @@ final class WidgetRegistryRequestBinding {
     }
 
     private static byte[] readBody(HttpServletRequest request, int maximumBytes)
-            throws IOException, BindingException {
+            throws IOException, WidgetRegistryBindingException {
         if (request.getContentLengthLong() > maximumBytes) {
-            throw new BindingException(WidgetRegistryIngressFailure.PAYLOAD_TOO_LARGE);
+            throw new WidgetRegistryBindingException(WidgetRegistryIngressFailure.PAYLOAD_TOO_LARGE);
         }
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         byte[] buffer = new byte[8192];
@@ -210,14 +214,16 @@ final class WidgetRegistryRequestBinding {
         while ((read = request.getInputStream().read(buffer)) >= 0) {
             if (read == 0) continue;
             if (output.size() + read > maximumBytes) {
-                throw new BindingException(WidgetRegistryIngressFailure.PAYLOAD_TOO_LARGE);
+                throw new WidgetRegistryBindingException(
+                        WidgetRegistryIngressFailure.PAYLOAD_TOO_LARGE);
             }
             output.write(buffer, 0, read);
         }
         return output.toByteArray();
     }
 
-    private JsonNode validateBody(HttpServletRequest request, Match match, byte[] body) throws BindingException {
+    private JsonNode validateBody(HttpServletRequest request, Match match, byte[] body)
+            throws WidgetRegistryBindingException {
         if ("GET".equals(match.method()) || "HEAD".equals(match.method())) {
             if (body.length != 0) throw invalidBinding();
             return null;
@@ -238,7 +244,7 @@ final class WidgetRegistryRequestBinding {
         }
     }
 
-    private static void validateIJson(JsonNode value) throws BindingException {
+    private static void validateIJson(JsonNode value) throws WidgetRegistryBindingException {
         if (value.isObject()) {
             var fields = value.properties().iterator();
             while (fields.hasNext()) {
@@ -279,7 +285,8 @@ final class WidgetRegistryRequestBinding {
         if (!value.isBoolean() && !value.isNull()) throw invalidBinding();
     }
 
-    private static void validateUnicodeScalarSequence(String value) throws BindingException {
+    private static void validateUnicodeScalarSequence(String value)
+            throws WidgetRegistryBindingException {
         for (int index = 0; index < value.length(); index++) {
             char current = value.charAt(index);
             if (Character.isHighSurrogate(current)) {
@@ -304,7 +311,7 @@ final class WidgetRegistryRequestBinding {
         }
     }
 
-    private static void validateUtf8(byte[] body) throws BindingException {
+    private static void validateUtf8(byte[] body) throws WidgetRegistryBindingException {
         if (body.length == 0 || startsWithUtf8Bom(body)) throw invalidBinding();
         try {
             StandardCharsets.UTF_8.newDecoder()
@@ -316,7 +323,7 @@ final class WidgetRegistryRequestBinding {
         }
     }
 
-    private void validateRawNumbers(byte[] body) throws BindingException {
+    private void validateRawNumbers(byte[] body) throws WidgetRegistryBindingException {
         try (JsonParser parser = strictObjectMapper.getFactory().createParser(body)) {
             while (parser.nextToken() != null) {
                 if (parser.currentToken().isNumeric()
@@ -337,7 +344,7 @@ final class WidgetRegistryRequestBinding {
             Match match,
             JsonNode body,
             String idempotencyKey,
-            String correlationId) throws BindingException {
+            String correlationId) throws WidgetRegistryBindingException {
         if (match.route() != WidgetRegistryInternalRoutes.Route.EXECUTE_COMMAND) return null;
         if (!hasExactFields(body, COMMAND_FIELDS)
                 || nonNegativeLong(body, "schemaVersion") != 1) {
@@ -381,7 +388,7 @@ final class WidgetRegistryRequestBinding {
     }
 
     private static SealMetadata validateRouteSpecificBody(Match match, JsonNode body)
-            throws BindingException {
+            throws WidgetRegistryBindingException {
         if (match.route() != WidgetRegistryInternalRoutes.Route.SEAL_COMMAND_NOT_EXECUTED) return null;
         if (!hasExactFields(body, SEAL_FIELDS)
                 || nonNegativeLong(body, "schemaVersion") != 1) {
@@ -418,7 +425,8 @@ final class WidgetRegistryRequestBinding {
         return new SealMetadata(reconcile);
     }
 
-    private static String validateAsciiCompact(JsonNode value, int maximumBytes) throws BindingException {
+    private static String validateAsciiCompact(JsonNode value, int maximumBytes)
+            throws WidgetRegistryBindingException {
         if (value == null || !value.isTextual()) throw invalidBinding();
         String compact = value.textValue();
         if (compact.isEmpty()
@@ -429,26 +437,29 @@ final class WidgetRegistryRequestBinding {
         return compact;
     }
 
-    private static String requiredText(JsonNode body, String field) throws BindingException {
+    private static String requiredText(JsonNode body, String field)
+            throws WidgetRegistryBindingException {
         JsonNode value = body.get(field);
         if (value == null || !value.isTextual() || value.textValue().isBlank()) throw invalidBinding();
         return value.textValue();
     }
 
-    private static String requiredUuid(JsonNode body, String field) throws BindingException {
+    private static String requiredUuid(JsonNode body, String field)
+            throws WidgetRegistryBindingException {
         String value = requiredText(body, field);
         if (!UUID.matcher(value).matches()) throw invalidBinding();
         return value;
     }
 
-    private static String requiredSha256(JsonNode body, String field) throws BindingException {
+    private static String requiredSha256(JsonNode body, String field)
+            throws WidgetRegistryBindingException {
         String value = requiredText(body, field);
         if (!SHA256.matcher(value).matches()) throw invalidBinding();
         return value;
     }
 
     private static String requiredOpaque(JsonNode body, String field, int maximumLength)
-            throws BindingException {
+            throws WidgetRegistryBindingException {
         String value = requiredText(body, field);
         if (value.codePointCount(0, value.length()) > maximumLength
                 || value.chars().anyMatch(character -> character < 0x20 || character == 0x7f)) {
@@ -457,11 +468,13 @@ final class WidgetRegistryRequestBinding {
         return value;
     }
 
-    private static long nonNegativeLong(JsonNode body, String field) throws BindingException {
+    private static long nonNegativeLong(JsonNode body, String field)
+            throws WidgetRegistryBindingException {
         return WidgetRegistryJsonContract.nonNegativeInteger(body, field);
     }
 
-    private static Instant requiredInstant(JsonNode body, String field) throws BindingException {
+    private static Instant requiredInstant(JsonNode body, String field)
+            throws WidgetRegistryBindingException {
         String value = requiredText(body, field);
         try {
             return Instant.parse(value);
@@ -474,7 +487,7 @@ final class WidgetRegistryRequestBinding {
             JsonNode body,
             String field,
             int maximumItemLength,
-            int maximumItems) throws BindingException {
+            int maximumItems) throws WidgetRegistryBindingException {
         JsonNode values = body.get(field);
         if (values == null || !values.isArray() || values.size() > maximumItems) {
             throw invalidBinding();
@@ -496,7 +509,8 @@ final class WidgetRegistryRequestBinding {
         return List.copyOf(result);
     }
 
-    private static CommandTargetBinding commandTarget(JsonNode target) throws BindingException {
+    private static CommandTargetBinding commandTarget(JsonNode target)
+            throws WidgetRegistryBindingException {
         if (target == null || !target.isObject()) throw invalidBinding();
         Set<String> fields = fieldNames(target);
         if (!fields.containsAll(Set.of("targetType", "targetId")) || !TARGET_FIELDS.containsAll(fields)) {
@@ -517,14 +531,14 @@ final class WidgetRegistryRequestBinding {
     }
 
     private static String optionalOpaque(JsonNode body, String field, boolean nullable)
-            throws BindingException {
+            throws WidgetRegistryBindingException {
         if (!body.has(field)) return null;
         JsonNode value = body.get(field);
         if (nullable && value.isNull()) return null;
         return requiredOpaque(body, field, 128);
     }
 
-    private String reasonDigest(JsonNode payload) throws BindingException {
+    private String reasonDigest(JsonNode payload) throws WidgetRegistryBindingException {
         var reason = objectMapper.createObjectNode();
         reason.put("reasonCode", requiredOpaque(payload, "reasonCode", 128));
         reason.put("reasonText", requiredOpaque(payload, "reasonText", 4096));
@@ -551,12 +565,13 @@ final class WidgetRegistryRequestBinding {
                     || assertion.ownerProductKeys() != null
                     && assertion.ownerProductKeys().contains(actual.ownerProductKey()))
                     && Objects.equals(authorityHash(assertion), actual.permissionSetHash());
-        } catch (BindingException exception) {
+        } catch (WidgetRegistryBindingException exception) {
             return false;
         }
     }
 
-    private String authorityHash(ProviderAssertionClaims assertion) throws BindingException {
+    private String authorityHash(ProviderAssertionClaims assertion)
+            throws WidgetRegistryBindingException {
         if (assertion.permissionCodes() == null
                 || assertion.ownerProductKeys() == null
                 || assertion.providerAuthorityRevision() == null) {
@@ -586,12 +601,8 @@ final class WidgetRegistryRequestBinding {
         return Set.copyOf(fields);
     }
 
-    static byte[] canonicalJson(byte[] rawJson) throws BindingException {
-        try {
-            return new JsonCanonicalizer(rawJson).getEncodedUTF8();
-        } catch (IOException | RuntimeException exception) {
-            throw invalidBinding(exception);
-        }
+    static byte[] canonicalJson(byte[] rawJson) throws WidgetRegistryBindingException {
+        return WidgetRegistryCanonicalJson.encode(rawJson);
     }
 
     private static String sha256(byte[] value) {
@@ -602,12 +613,14 @@ final class WidgetRegistryRequestBinding {
         }
     }
 
-    private static BindingException invalidBinding() {
-        return new BindingException(WidgetRegistryIngressFailure.REQUEST_BINDING_INVALID);
+    private static WidgetRegistryBindingException invalidBinding() {
+        return new WidgetRegistryBindingException(
+                WidgetRegistryIngressFailure.REQUEST_BINDING_INVALID);
     }
 
-    private static BindingException invalidBinding(Exception cause) {
-        return new BindingException(WidgetRegistryIngressFailure.REQUEST_BINDING_INVALID, cause);
+    private static WidgetRegistryBindingException invalidBinding(Exception cause) {
+        return new WidgetRegistryBindingException(
+                WidgetRegistryIngressFailure.REQUEST_BINDING_INVALID, cause);
     }
 
     record ActualBinding(
@@ -644,25 +657,6 @@ final class WidgetRegistryRequestBinding {
             ActualBinding binding,
             CommandMetadata command,
             SealMetadata seal) {
-    }
-
-    static final class BindingException extends Exception {
-        private static final long serialVersionUID = 1L;
-        private final WidgetRegistryIngressFailure failure;
-
-        BindingException(WidgetRegistryIngressFailure failure) {
-            super(failure.message());
-            this.failure = failure;
-        }
-
-        BindingException(WidgetRegistryIngressFailure failure, Throwable cause) {
-            super(failure.message(), cause);
-            this.failure = failure;
-        }
-
-        WidgetRegistryIngressFailure failure() {
-            return failure;
-        }
     }
 
 }

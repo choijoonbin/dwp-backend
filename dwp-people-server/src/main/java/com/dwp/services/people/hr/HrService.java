@@ -555,16 +555,6 @@ public class HrService {
         }
     }
 
-    private void requireDecisionAuthority(Context context, String domain, long targetWorkerId) {
-        boolean delegated = hasDomainPermission(context.actor(), domain, "APPROVE", "MANAGE");
-        boolean manager = repository.manages(
-                context.actor().tenantId(), context.worker().assignmentKey(), targetWorkerId);
-        if (!delegated && !manager) {
-            throw new BaseException(ErrorCode.FORBIDDEN,
-                    "The request is outside the manager or delegated HR population.");
-        }
-    }
-
     private void requireDomainPermission(
             PeopleRequestContext.Actor actor,
             String domain,

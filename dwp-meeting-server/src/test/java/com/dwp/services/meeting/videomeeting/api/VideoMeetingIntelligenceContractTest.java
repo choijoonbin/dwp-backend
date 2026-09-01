@@ -47,6 +47,7 @@ class VideoMeetingIntelligenceContractTest {
         assertPost("review", "/reports/{reportId}/review");
         assertPost("publish", "/reports/{reportId}/publish");
         assertDelete("delete", "/reports/{reportId}");
+        assertGet("reviewerAssignments", "/reports/{reportId}/reviewer-assignments");
         assertPut("grant", "/reports/{reportId}/acl/{principalUserId}");
         assertDelete("revoke", "/reports/{reportId}/acl/{principalUserId}/{permission}");
     }
@@ -61,6 +62,34 @@ class VideoMeetingIntelligenceContractTest {
         assertThat(method.getParameterAnnotations()[2])
                 .noneMatch(annotation -> annotation.annotationType().getSimpleName()
                         .equals("RequestBody"));
+    }
+
+    @Test
+    void reviewerMutationsRequireTheObservedReportVersion() throws Exception {
+        JsonNode command = new ObjectMapper().valueToTree(
+                new VideoMeetingIntelligenceDtos.GrantCommand(
+                        7L, "REVIEW", null, "HOST_ASSIGNED_REVIEWER"));
+        Method revoke = VideoMeetingIntelligenceController.class.getDeclaredMethod(
+                "revoke", UUID.class, UUID.class, long.class, String.class,
+                long.class, String.class);
+        Method grantService = VideoMeetingIntelligenceService.class.getDeclaredMethod(
+                "grant", UUID.class, UUID.class, long.class,
+                VideoMeetingIntelligenceDtos.GrantCommand.class, String.class);
+        Method revokeService = VideoMeetingIntelligenceService.class.getDeclaredMethod(
+                "revoke", UUID.class, UUID.class, long.class, String.class,
+                long.class, String.class);
+
+        assertThat(fieldNames(command)).containsExactlyInAnyOrder(
+                "expectedReportVersion", "permission", "expiresAt", "reasonCode");
+        assertThat(revoke.getParameterAnnotations()[4])
+                .anyMatch(annotation -> annotation instanceof RequestParam requestParam
+                        && requestParam.required()
+                        && requestParam.value().equals("expectedReportVersion"));
+        assertThat(revoke.getParameterAnnotations()[4])
+                .noneMatch(annotation -> annotation.annotationType().getSimpleName()
+                        .equals("RequestBody"));
+        assertThat(grantService.getAnnotation(Transactional.class)).isNotNull();
+        assertThat(revokeService.getAnnotation(Transactional.class)).isNotNull();
     }
 
     @Test
@@ -138,7 +167,7 @@ class VideoMeetingIntelligenceContractTest {
     void createRunInputCannotSupplyProviderOrTranscriptText() {
         JsonNode json = new ObjectMapper().valueToTree(
                 new VideoMeetingIntelligenceDtos.CreateRunCommand(
-                        UUID.randomUUID(), "ko-KR", 3));
+                        UUID.randomUUID(), "ko-KR", 3L));
 
         assertThat(fieldNames(json)).containsExactlyInAnyOrder(
                 "sourceArtifactId", "outputLanguage", "expectedContentPlanVersion");
@@ -150,7 +179,7 @@ class VideoMeetingIntelligenceContractTest {
     @Test
     void reviewContractUsesReasonCodeInsteadOfFreeTextNotes() {
         JsonNode json = new ObjectMapper().valueToTree(
-                new VideoMeetingIntelligenceDtos.ReviewCommand(0, "APPROVE", "VERIFIED"));
+                new VideoMeetingIntelligenceDtos.ReviewCommand(0L, "APPROVE", "VERIFIED"));
 
         assertThat(fieldNames(json)).containsExactlyInAnyOrder(
                 "expectedVersion", "decision", "reasonCode");

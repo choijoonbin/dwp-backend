@@ -115,7 +115,7 @@ class VideoMeetingServiceTest {
                         ErrorCode.FORBIDDEN, "A meeting host role is required."));
 
         assertThatThrownBy(() -> service().start(
-                meetingId, new VideoMeetingDtos.VersionedCommand(2),
+                meetingId, new VideoMeetingDtos.VersionedCommand(2L),
                 "start-command-001", "corr-start"))
                 .isInstanceOfSatisfying(BaseException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
@@ -141,7 +141,7 @@ class VideoMeetingServiceTest {
                 .thenReturn(expected);
 
         VideoMeetingDtos.MeetingDetailResponse response = service().start(
-                meetingId, new VideoMeetingDtos.VersionedCommand(2),
+                meetingId, new VideoMeetingDtos.VersionedCommand(2L),
                 "start-command-002", "corr-start");
 
         assertThat(response.lifecycleState()).isEqualTo("LIVE");

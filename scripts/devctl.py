@@ -393,6 +393,8 @@ def local_environment() -> dict[str, str]:
             "dwp-local-agent-safety-secret-change-outside-local"
         ),
         "DWP_AGENT_REGISTRY_MODE": "enforced",
+        "DWP_AGENT_LOCAL_GOVERNANCE_SEED_ENABLED": "true",
+        "DWP_AGENT_LOCAL_GOVERNANCE_TENANT_IDS": "1",
         "DWP_PLATFORM_SERVICE_TOKEN": "dwp-local-platform-service-token",
         "DWP_PLATFORM_RUNTIME_SERVICE_TOKEN": "dwp-local-platform-runtime-token",
         "DWP_PLATFORM_PRODUCT_AUTHORIZATION_APPROVALS_V2_ENABLED": "true",
@@ -541,6 +543,8 @@ def service_environment(service_name: str) -> dict[str, str]:
         environment.pop("DWP_AGENT_PRIVACY_HASH_SECRET", None)
         environment.pop("DWP_AGENT_SAFETY_SECRET", None)
         environment.pop("DWP_AGENT_REGISTRY_MODE", None)
+        environment.pop("DWP_AGENT_LOCAL_GOVERNANCE_SEED_ENABLED", None)
+        environment.pop("DWP_AGENT_LOCAL_GOVERNANCE_TENANT_IDS", None)
     if service_name != "platform":
         environment.pop("DWP_PRODUCTIVITY_DATA_KEY", None)
     if service_name not in {"gateway", "people"}:

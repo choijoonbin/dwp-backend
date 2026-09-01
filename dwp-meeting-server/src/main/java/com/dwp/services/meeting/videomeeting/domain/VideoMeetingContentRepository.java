@@ -98,6 +98,31 @@ public class VideoMeetingContentRepository {
                         "The meeting content plan changed. Refresh and retry."));
     }
 
+    /**
+     * Operational readiness is a server-derived projection, not a user intent edit. Reconcile it
+     * without changing the optimistic intent version used by clients and intelligence fences.
+     */
+    public ContentPlan reconcilePlanState(
+            ContentPlan current,
+            PlanState state,
+            long actorUserId,
+            OffsetDateTime occurredAt) {
+        if (current.state() == state) return current;
+        return jdbc.query("""
+                UPDATE vm_meeting_content_plans
+                   SET plan_state = ?, updated_at = ?, updated_by = ?
+                 WHERE tenant_id = ? AND meeting_id = ? AND version = ?
+                   AND plan_state = ?
+                RETURNING *
+                """, this::plan,
+                state.name(), occurredAt, actorUserId,
+                current.tenantId(), current.meetingId(), current.version(),
+                current.state().name())
+                .stream().findFirst().orElseThrow(() -> new BaseException(
+                        ErrorCode.OBJECT_VERSION_CONFLICT,
+                        "The meeting content readiness changed. Refresh and retry."));
+    }
+
     public Optional<ContentNotice> currentNotice(long tenantId, UUID meetingId) {
         return jdbc.query("""
                 SELECT notice.*
@@ -223,22 +248,123 @@ public class VideoMeetingContentRepository {
                 .stream().findFirst().orElseThrow();
     }
 
+    public RecordingSession startRecordingCommand(
+            ContentPlan plan,
+            ContentNotice notice,
+            int artifactRetentionDays,
+            String recordingProviderCode,
+            String recordingProcessingRegion,
+            long actorUserId,
+            OffsetDateTime requestedAt) {
+        return jdbc.query("""
+                INSERT INTO vm_meeting_recording_sessions (
+                    recording_session_id, tenant_id, meeting_id, plan_version,
+                    notice_id, recording_state, artifact_retention_days,
+                    recording_provider_code, recording_processing_region,
+                    requested_at, requested_by, updated_at)
+                VALUES (?, ?, ?, ?, ?, 'STARTING', ?, ?, ?, ?, ?, ?)
+                RETURNING *
+                """, this::recordingSession,
+                UUID.randomUUID(), plan.tenantId(), plan.meetingId(), plan.version(),
+                notice.noticeId(), artifactRetentionDays,
+                recordingProviderCode, recordingProcessingRegion,
+                requestedAt, actorUserId, requestedAt)
+                .stream().findFirst().orElseThrow();
+    }
+
+    public RecordingSession resumeRecordingStart(
+            RecordingSession session, OffsetDateTime resumedAt) {
+        return jdbc.query("""
+                UPDATE vm_meeting_recording_sessions
+                   SET recording_state = 'STARTING', failed_at = NULL, failure_code = NULL,
+                       version = version + 1, updated_at = ?
+                 WHERE tenant_id = ? AND meeting_id = ? AND recording_session_id = ?
+                   AND recording_state = 'FAILED' AND version = ?
+                RETURNING *
+                """, this::recordingSession,
+                resumedAt, session.tenantId(), session.meetingId(),
+                session.recordingSessionId(), session.version())
+                .stream().findFirst().orElseThrow(() -> new BaseException(
+                        ErrorCode.OBJECT_VERSION_CONFLICT,
+                        "The recording session changed. Refresh and retry."));
+    }
+
+    public RecordingSession markRecording(
+            RecordingSession session, OffsetDateTime startedAt) {
+        return jdbc.query("""
+                UPDATE vm_meeting_recording_sessions
+                   SET recording_state = 'RECORDING', started_at = COALESCE(started_at, ?),
+                       version = version + 1, updated_at = ?
+                 WHERE tenant_id = ? AND meeting_id = ? AND recording_session_id = ?
+                   AND recording_state = 'STARTING' AND version = ?
+                RETURNING *
+                """, this::recordingSession,
+                startedAt, startedAt, session.tenantId(), session.meetingId(),
+                session.recordingSessionId(), session.version())
+                .stream().findFirst().orElseThrow(() -> new BaseException(
+                        ErrorCode.OBJECT_VERSION_CONFLICT,
+                        "The recording start completion is stale."));
+    }
+
+    public RecordingSession failRecordingStart(
+            RecordingSession session, String failureCode, OffsetDateTime failedAt) {
+        return jdbc.query("""
+                UPDATE vm_meeting_recording_sessions
+                   SET recording_state = 'FAILED', failed_at = ?, failure_code = ?,
+                       version = version + 1, updated_at = ?
+                 WHERE tenant_id = ? AND meeting_id = ? AND recording_session_id = ?
+                   AND recording_state = 'STARTING' AND version = ?
+                RETURNING *
+                """, this::recordingSession,
+                failedAt, failureCode, failedAt, session.tenantId(), session.meetingId(),
+                session.recordingSessionId(), session.version())
+                .stream().findFirst().orElseThrow(() -> new BaseException(
+                        ErrorCode.OBJECT_VERSION_CONFLICT,
+                        "The recording failure completion is stale."));
+    }
+
     public RecordingSession requestStop(
             RecordingSession session, long actorUserId, OffsetDateTime requestedAt) {
+        return requestStop(session, null, actorUserId, requestedAt);
+    }
+
+    public RecordingSession requestStop(
+            RecordingSession session,
+            String consentSnapshotSha256,
+            long actorUserId,
+            OffsetDateTime requestedAt) {
         return jdbc.query("""
                 UPDATE vm_meeting_recording_sessions
                    SET recording_state = 'STOP_REQUESTED', stop_requested_at = ?,
-                       stop_requested_by = ?, version = version + 1, updated_at = ?
+                       stop_requested_by = ?, stop_consent_snapshot_sha256 = ?,
+                       version = version + 1, updated_at = ?
                  WHERE tenant_id = ? AND meeting_id = ? AND recording_session_id = ?
                    AND recording_state IN ('REQUESTED', 'STARTING', 'RECORDING')
                 RETURNING *
                 """, this::recordingSession,
-                requestedAt, actorUserId, requestedAt,
+                requestedAt, actorUserId, consentSnapshotSha256, requestedAt,
                 session.tenantId(), session.meetingId(), session.recordingSessionId())
                 .stream().findFirst()
                 .orElseGet(() -> recordingSession(
                         session.tenantId(), session.meetingId(),
                         session.recordingSessionId()).orElseThrow());
+    }
+
+    public RecordingSession markStopped(
+            RecordingSession session, OffsetDateTime stoppedAt) {
+        return jdbc.query("""
+                UPDATE vm_meeting_recording_sessions
+                   SET recording_state = 'STOPPED', stopped_at = ?,
+                       version = version + 1, updated_at = ?
+                 WHERE tenant_id = ? AND meeting_id = ? AND recording_session_id = ?
+                   AND recording_state = 'STOP_REQUESTED' AND version = ?
+                RETURNING *
+                """, this::recordingSession,
+                stoppedAt, stoppedAt, session.tenantId(), session.meetingId(),
+                session.recordingSessionId(), session.version())
+                .stream().findFirst().orElseThrow(() -> new BaseException(
+                        ErrorCode.OBJECT_VERSION_CONFLICT,
+                        "The recording stop completion is stale."));
     }
 
     public Optional<StoredCommand> command(
@@ -332,7 +458,12 @@ public class VideoMeetingContentRepository {
                 resultSet.getObject("started_at", OffsetDateTime.class),
                 resultSet.getObject("stopped_at", OffsetDateTime.class),
                 resultSet.getObject("failed_at", OffsetDateTime.class),
-                resultSet.getString("failure_code"), resultSet.getLong("version"));
+                resultSet.getString("failure_code"),
+                resultSet.getObject("artifact_retention_days", Integer.class),
+                resultSet.getString("recording_provider_code"),
+                resultSet.getString("recording_processing_region"),
+                resultSet.getString("stop_consent_snapshot_sha256"),
+                resultSet.getLong("version"));
     }
 
     private NoticeAcknowledgement acknowledgement(

@@ -65,8 +65,7 @@ class ProductSurfaceContractEligibilityIntegrationTest {
                                 null,
                                 null))
                 .block())
-                .isInstanceOf(ProductSurfaceContextAggregationService
-                        .AuthorityUnavailableException.class);
+                .isInstanceOf(ProductSurfaceAuthorityUnavailableException.class);
 
         verify(authority, never()).evaluate(any(), any(), any(), any(), any(), any());
     }

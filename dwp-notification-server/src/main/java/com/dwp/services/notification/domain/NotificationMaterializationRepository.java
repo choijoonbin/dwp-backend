@@ -595,23 +595,6 @@ public class NotificationMaterializationRepository {
         }
     }
 
-    public record TemplateContract(
-            UUID typeVersionId,
-            long typeScopeTenantId,
-            UUID templateVersionId,
-            long templateScopeTenantId,
-            UUID templateOverrideRevisionId,
-            String typeKey,
-            String ownerAppKey,
-            String priority,
-            String urgency,
-            String locale,
-            String titleTemplate,
-            String previewTemplate,
-            String bodyTemplate,
-            Map<String, Object> actionTemplate) {
-    }
-
     public record RenderedContent(
             String title,
             String preview,

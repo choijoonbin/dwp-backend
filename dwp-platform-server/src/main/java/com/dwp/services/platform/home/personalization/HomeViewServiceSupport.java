@@ -87,9 +87,7 @@ abstract class HomeViewServiceSupport {
             HomePreferenceDtos.HomeLayoutPayload stored = layout(view.getLayoutPayload());
             HomePreferenceDtos.HomeLayoutPayload reconciled =
                     preferenceService.reconcileStoredForSurface(view.getSurfaceKey(), stored);
-            return reconciled == null
-                    ? stored
-                    : preserveClassicCompatibilitySnapshot(stored, reconciled);
+            return reconciled == null ? stored : reconciled;
         } catch (RuntimeException exception) {
             HomePreferenceDtos.HomeLayoutPayload fallback =
                     preferenceService.defaultLayoutForSurface(view.getSurfaceKey());
@@ -167,9 +165,7 @@ abstract class HomeViewServiceSupport {
                 .collect(java.util.stream.Collectors.toSet());
         if (overlay.widgetOrder().size() != Set.copyOf(overlay.widgetOrder()).size()
                 || !widgets.containsAll(overlay.widgetOrder())
-                || !widgets.containsAll(overlay.widgetSizes().keySet())
-                || overlay.widgetOrder().contains("command-rail")
-                || overlay.widgetSizes().containsKey("command-rail")) {
+                || !widgets.containsAll(overlay.widgetSizes().keySet())) {
             throw invalid("A device overlay may reference only unique registered widgets.");
         }
         if (overlay.widgetSizes().entrySet().stream().anyMatch(entry ->
@@ -180,66 +176,14 @@ abstract class HomeViewServiceSupport {
         List<String> semanticOrder = current.widgets().stream()
                 .filter(widget -> Boolean.TRUE.equals(widget.visible()))
                 .map(HomePreferenceDtos.WidgetPreference::widgetKey)
+                .toList();
+        List<String> legacySemanticOrder = semanticOrder.stream()
                 .filter(widgetKey -> !"command-rail".equals(widgetKey))
                 .toList();
-        if (!semanticOrder.equals(overlay.widgetOrder())) {
+        if (!semanticOrder.equals(overlay.widgetOrder())
+                && !legacySemanticOrder.equals(overlay.widgetOrder())) {
             throw invalid("A device overlay cannot change semantic widget order.");
         }
-    }
-
-    protected HomePreferenceDtos.HomeLayoutPayload preserveClassicFixedWidget(
-            HomePreferenceDtos.HomeLayoutPayload current,
-            HomePreferenceDtos.HomeLayoutPayload requested,
-            String widgetKey) {
-        HomePreferenceDtos.WidgetPreference preserved = current.widgets().stream()
-                .filter(widget -> widgetKey.equals(widget.widgetKey()))
-                .findFirst().orElse(null);
-        List<HomePreferenceDtos.WidgetPreference> widgets = new ArrayList<>(
-                requested.widgets().stream()
-                        .filter(widget -> !widgetKey.equals(widget.widgetKey()))
-                        .toList());
-        if (preserved != null) {
-            int originalIndex = current.widgets().indexOf(preserved);
-            widgets.add(Math.min(originalIndex, widgets.size()), preserved);
-        }
-        return new HomePreferenceDtos.HomeLayoutPayload(
-                requested.appLayout(), requested.presentation(), List.copyOf(widgets));
-    }
-
-    HomePreferenceDtos.HomeLayoutPayload preserveClassicCompatibilitySnapshot(
-            HomePreferenceDtos.HomeLayoutPayload current,
-            HomePreferenceDtos.HomeLayoutPayload requested) {
-        return preserveClassicFixedWidget(current, requested, "command-rail");
-    }
-
-    protected void requireFixedWidgetUnchanged(
-            HomePreferenceDtos.HomeLayoutPayload current,
-            HomePreferenceDtos.HomeLayoutPayload requested,
-            String widgetKey) {
-        HomePreferenceDtos.WidgetPreference currentWidget = current.widgets().stream()
-                .filter(widget -> widgetKey.equals(widget.widgetKey()))
-                .findFirst().orElse(null);
-        HomePreferenceDtos.WidgetPreference requestedWidget = requested.widgets().stream()
-                .filter(widget -> widgetKey.equals(widget.widgetKey()))
-                .findFirst().orElse(null);
-        if (!java.util.Objects.equals(currentWidget, requestedWidget)
-                || (currentWidget != null
-                && current.widgets().indexOf(currentWidget)
-                != requested.widgets().indexOf(requestedWidget))) {
-            throw invalid("A managed Classic compatibility zone cannot be changed.");
-        }
-    }
-
-    protected void requireFixedWidgetNotOverridden(
-            HomePreferenceDtos.HomeLayoutPayload baseline,
-            HomePreferenceDtos.HomeLayoutPayload requested,
-            String widgetKey,
-            boolean omissionAllowed) {
-        HomePreferenceDtos.WidgetPreference requestedWidget = requested.widgets().stream()
-                .filter(widget -> widgetKey.equals(widget.widgetKey()))
-                .findFirst().orElse(null);
-        if (requestedWidget == null && omissionAllowed) return;
-        requireFixedWidgetUnchanged(baseline, requested, widgetKey);
     }
 
     protected void reconcileWidgetConfigurations(

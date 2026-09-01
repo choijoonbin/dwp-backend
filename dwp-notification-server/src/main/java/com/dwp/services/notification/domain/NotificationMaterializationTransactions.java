@@ -2,7 +2,6 @@ package com.dwp.services.notification.domain;
 
 import com.dwp.services.notification.domain.NotificationMaterializationRepository.PersistenceResult;
 import com.dwp.services.notification.domain.NotificationMaterializationRepository.RenderedContent;
-import com.dwp.services.notification.domain.NotificationMaterializationRepository.TemplateContract;
 import com.dwp.services.notification.domain.NotificationModels.DirectMaterializationRequest;
 import com.dwp.services.notification.operations.NotificationRetentionService;
 import com.dwp.services.notification.realtime.NotificationChangePublisher;

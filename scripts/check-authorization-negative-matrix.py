@@ -174,7 +174,7 @@ ROUTED_PRODUCT_PEPS = {
         },
     },
     "meetings": {
-        "routes": {"meeting-server": "/api/meetings/**"},
+        "routes": {"meeting-server": "/api/meetings/v1/**"},
         "securityFilter": (
             "dwp-meeting-server/src/main/java/com/dwp/services/meeting/security/"
             "MeetingSecurityFilter.java"

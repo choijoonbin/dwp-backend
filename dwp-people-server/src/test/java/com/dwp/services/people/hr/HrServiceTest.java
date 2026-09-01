@@ -98,12 +98,6 @@ class HrServiceTest {
                         "Asia/Seoul", 480, "REFERENCE")));
         when(repository.leaveBalances(eq(TENANT_ID), eq(WORKER_ID), any(LocalDate.class)))
                 .thenReturn(List.of());
-        when(repository.teamPendingCount(
-                eq(TENANT_ID), eq("ASSIGN-1"), eq("TIME"), any(LocalDate.class)))
-                .thenReturn(1);
-        when(repository.teamPendingCount(
-                eq(TENANT_ID), eq("ASSIGN-1"), eq("ABSENCE"), any(LocalDate.class)))
-                .thenReturn(2);
         HrDtos.EnrollmentWindow openWindow = new HrDtos.EnrollmentWindow(
                 UUID.randomUUID(), "Annual enrollment", "OPEN_ENROLLMENT",
                 Instant.now().minusSeconds(3600), Instant.now().plusSeconds(86_400), "OPEN");
@@ -174,8 +168,6 @@ class HrServiceTest {
         assertThat(home.teamPendingCount()).isZero();
         assertThat(home.domainStates().get("TEAM").dataOrigin())
                 .isEqualTo(HrDtos.HomeDataOrigin.NONE);
-        verify(repository, never()).teamPendingCount(
-                anyLong(), any(), any(), any(LocalDate.class));
     }
 
     @Test
@@ -223,8 +215,6 @@ class HrServiceTest {
         assertThat(result.metrics()).isEqualTo(metrics);
         assertThat(result.workQueue()).hasSize(1);
         assertThat(result.dataBoundary()).isEqualTo(HrDtos.DataBoundary.ORGANIZATION_SET);
-        verify(repository, never()).metrics(anyLong(), any());
-        verify(repository, never()).submittedQueue(anyLong(), any());
     }
 
     @Test

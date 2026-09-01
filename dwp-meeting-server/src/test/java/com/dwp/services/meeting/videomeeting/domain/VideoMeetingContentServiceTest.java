@@ -30,7 +30,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.InOrder;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionStatus;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -53,6 +56,8 @@ import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -115,6 +120,91 @@ class VideoMeetingContentServiceTest {
     }
 
     @Test
+    void contentPlanAtomicallyReconcilesBlockedToReadyWhenRealDependenciesRecover() {
+        UUID meetingId = UUID.randomUUID();
+        Meeting meeting = meeting(meetingId, LifecycleState.LIVE);
+        Participant host = participant(meetingId, USER_ID, ParticipantRole.ORGANIZER);
+        ContentNotice notice = notice(meetingId, 1);
+        ContentPlan blocked = requestedPlan(meetingId, notice.noticeId(), false);
+        ContentPlan ready = new ContentPlan(
+                blocked.planId(), blocked.tenantId(), blocked.meetingId(),
+                blocked.recordingRequested(), blocked.transcriptionRequested(),
+                blocked.aiSummaryRequested(), blocked.e2eeEnabled(), PlanState.READY,
+                blocked.currentNoticeId(), blocked.noticeRevision(), blocked.version(), NOW);
+        when(meetings.accessibleMeeting(TENANT_ID, meetingId, USER_ID))
+                .thenReturn(Optional.of(meeting));
+        when(meetings.participant(TENANT_ID, meetingId, USER_ID))
+                .thenReturn(Optional.of(host));
+        when(meetings.ensurePolicy(TENANT_ID, USER_ID)).thenReturn(policy("HOST_OPT_IN"));
+        when(content.ensurePlan(TENANT_ID, meetingId, USER_ID)).thenReturn(blocked);
+        when(content.currentNotice(TENANT_ID, meetingId)).thenReturn(Optional.of(notice));
+        when(content.consentCounts(TENANT_ID, meetingId, notice.noticeId()))
+                .thenReturn(new ConsentCounts(1, 1));
+        when(content.acknowledgedBy(
+                TENANT_ID, meetingId, notice.noticeId(), host.participantId()))
+                .thenReturn(true);
+        when(content.activeSession(TENANT_ID, meetingId)).thenReturn(Optional.empty());
+        when(dependencies.status()).thenReturn(readyDependencies());
+        when(mediaProvider.capability()).thenReturn(availableMedia());
+        when(content.reconcilePlanState(
+                blocked, PlanState.READY, USER_ID, NOW)).thenReturn(ready);
+
+        var response = service().contentPlan(meetingId);
+
+        assertThat(response.state()).isEqualTo("READY");
+        assertThat(response.blockers()).isEmpty();
+        verify(content).reconcilePlanState(blocked, PlanState.READY, USER_ID, NOW);
+        verify(audit).collaboration(
+                eq(subject(USER_ID)), eq(meeting),
+                eq("meeting.content-plan.readiness-reconciled"),
+                eq("MEETING_CONTENT_PLAN"), eq(blocked.planId().toString()),
+                anyString(), eq(true), anyMap());
+    }
+
+    @Test
+    void readinessProbesCompleteBeforeTheContentTransactionStarts() {
+        UUID meetingId = UUID.randomUUID();
+        Meeting meeting = meeting(meetingId, LifecycleState.LIVE);
+        Participant host = participant(meetingId, USER_ID, ParticipantRole.ORGANIZER);
+        ContentNotice notice = notice(meetingId, 1);
+        ContentPlan ready = requestedPlan(meetingId, notice.noticeId(), false);
+        ready = new ContentPlan(
+                ready.planId(), ready.tenantId(), ready.meetingId(),
+                ready.recordingRequested(), ready.transcriptionRequested(),
+                ready.aiSummaryRequested(), ready.e2eeEnabled(), PlanState.READY,
+                ready.currentNoticeId(), ready.noticeRevision(), ready.version(), ready.updatedAt());
+        PlatformTransactionManager transactionManager =
+                mock(PlatformTransactionManager.class);
+        when(transactionManager.getTransaction(any()))
+                .thenReturn(mock(TransactionStatus.class));
+        when(dependencies.status()).thenReturn(readyDependencies());
+        when(mediaProvider.capability()).thenReturn(availableMedia());
+        when(meetings.accessibleMeeting(TENANT_ID, meetingId, USER_ID))
+                .thenReturn(Optional.of(meeting));
+        when(meetings.participant(TENANT_ID, meetingId, USER_ID))
+                .thenReturn(Optional.of(host));
+        when(meetings.ensurePolicy(TENANT_ID, USER_ID)).thenReturn(policy("HOST_OPT_IN"));
+        when(content.ensurePlan(TENANT_ID, meetingId, USER_ID)).thenReturn(ready);
+        when(content.currentNotice(TENANT_ID, meetingId)).thenReturn(Optional.of(notice));
+        when(content.consentCounts(TENANT_ID, meetingId, notice.noticeId()))
+                .thenReturn(new ConsentCounts(1, 1));
+        when(content.acknowledgedBy(
+                TENANT_ID, meetingId, notice.noticeId(), host.participantId()))
+                .thenReturn(true);
+        when(content.activeSession(TENANT_ID, meetingId)).thenReturn(Optional.empty());
+        var service = new VideoMeetingContentService(
+                meetings, content, mediaProvider, dependencies, audit, transactionManager);
+
+        assertThat(service.contentPlan(meetingId).state()).isEqualTo("READY");
+
+        InOrder order = inOrder(dependencies, mediaProvider, transactionManager, meetings);
+        order.verify(dependencies).status();
+        order.verify(mediaProvider).capability();
+        order.verify(transactionManager).getTransaction(any());
+        order.verify(meetings).accessibleMeeting(TENANT_ID, meetingId, USER_ID);
+    }
+
+    @Test
     void attendeeCannotChangeTheServerAuthoritativeContentPlan() {
         UUID meetingId = UUID.randomUUID();
         Meeting meeting = meeting(meetingId, LifecycleState.LIVE);
@@ -123,7 +213,7 @@ class VideoMeetingContentServiceTest {
 
         assertThatThrownBy(() -> service().updateContentPlan(
                 meetingId, new VideoMeetingContentDtos.UpdateContentPlanCommand(
-                        true, true, true, false, 0),
+                        true, true, true, false, 0L),
                 "content-plan-0001", null))
                 .isInstanceOfSatisfying(BaseException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
@@ -158,7 +248,7 @@ class VideoMeetingContentServiceTest {
 
         VideoMeetingContentDtos.ContentPlanResponse response = service().updateContentPlan(
                 meetingId, new VideoMeetingContentDtos.UpdateContentPlanCommand(
-                        true, true, true, false, 0),
+                        true, true, true, false, 0L),
                 "content-plan-0002", "corr-plan");
 
         assertThat(response.state()).isEqualTo("BLOCKED");
@@ -381,7 +471,9 @@ class VideoMeetingContentServiceTest {
         RecordingSession stopRequested = new RecordingSession(
                 recording.recordingSessionId(), TENANT_ID, meetingId, plan.version(),
                 notice.noticeId(), RecordingState.STOP_REQUESTED, recording.requestedAt(),
-                USER_ID, NOW, USER_ID, recording.startedAt(), null, null, null, 3);
+                USER_ID, NOW, USER_ID, recording.startedAt(), null, null, null,
+                recording.artifactRetentionDays(), recording.recordingProviderCode(),
+                recording.recordingProcessingRegion(), "a".repeat(64), 3);
         lockAs(meeting, host);
         when(content.ensurePlan(TENANT_ID, meetingId, USER_ID)).thenReturn(plan);
         when(content.activeSession(TENANT_ID, meetingId)).thenReturn(Optional.of(recording));
@@ -389,7 +481,7 @@ class VideoMeetingContentServiceTest {
         when(dependencies.status()).thenReturn(unavailableDependencies());
 
         VideoMeetingContentDtos.RecordingCommandResult result = service().stopRecording(
-                meetingId, new VideoMeetingContentDtos.StopRecordingCommand(2),
+                meetingId, new VideoMeetingContentDtos.StopRecordingCommand(2L),
                 "recording-stop-0001", "corr-stop");
 
         assertThat(result.httpStatus()).isEqualTo(503);
@@ -496,7 +588,8 @@ class VideoMeetingContentServiceTest {
                 UUID.randomUUID(), TENANT_ID, meetingId, plan.version(), notice.noticeId(),
                 state, NOW.minusMinutes(2), USER_ID, null, null,
                 state == RecordingState.RECORDING ? NOW.minusMinutes(1) : null,
-                null, null, null, version);
+                null, null, null, 30, "GOVERNED_EGRESS", "ap-northeast-2",
+                null, version);
     }
 
     private MeetingContentDependencies.Status readyDependencies() {

@@ -151,6 +151,20 @@ class HcmV3PepRegistryTest {
     }
 
     @Test
+    void legacyHrisApplicationPermissionRemainsAnExactHcmEntitlementAlias() {
+        HcmV3PepRegistry.RequestEvidence legacy = new HcmV3PepRegistry.RequestEvidence(
+                "GET", "/v1/hr/home", Set.of("APP.HRIS:VIEW"), null,
+                "NORMAL", Set.of(), "route.hcm.personal.home.page", null);
+
+        assertThat(registry.authorize(legacy).allowed()).isTrue();
+
+        HcmV3PepRegistry.RequestEvidence wrongAction = new HcmV3PepRegistry.RequestEvidence(
+                "GET", "/v1/hr/home", Set.of("APP.HRIS:MANAGE"), null,
+                "NORMAL", Set.of(), "route.hcm.personal.home.page", null);
+        assertThat(registry.authorize(wrongAction).allowed()).isFalse();
+    }
+
+    @Test
     void declaredProviderSupportProfilesCarryClosedProjectionsButNotRuntimeReadiness() {
         List<SupportBinding> bindings = List.of(
                 new SupportBinding(

@@ -75,7 +75,7 @@ class VideoMeetingLifecycleCoordinatorTest {
         when(transactions.completeStart(subject(), operation)).thenReturn(result);
 
         VideoMeetingDtos.MeetingDetailResponse response = coordinator().start(
-                MEETING_ID, new VideoMeetingDtos.VersionedCommand(2),
+                MEETING_ID, new VideoMeetingDtos.VersionedCommand(2L),
                 "start-command-001", "corr-start");
 
         assertThat(response.lifecycleState()).isEqualTo("LIVE");
@@ -130,11 +130,11 @@ class VideoMeetingLifecycleCoordinatorTest {
         when(transactions.completeStart(subject(), reclaimed)).thenReturn(result);
 
         assertThatThrownBy(() -> coordinator().start(
-                MEETING_ID, new VideoMeetingDtos.VersionedCommand(2),
+                MEETING_ID, new VideoMeetingDtos.VersionedCommand(2L),
                 "start-command-002", "corr-start"))
                 .isInstanceOf(BaseException.class);
         VideoMeetingDtos.MeetingDetailResponse recovered = coordinator().start(
-                MEETING_ID, new VideoMeetingDtos.VersionedCommand(2),
+                MEETING_ID, new VideoMeetingDtos.VersionedCommand(2L),
                 "start-command-002", "corr-start");
 
         assertThat(recovered.lifecycleState()).isEqualTo("LIVE");
@@ -165,11 +165,11 @@ class VideoMeetingLifecycleCoordinatorTest {
         when(transactions.completeEnd(subject(), reclaimed)).thenReturn(result);
 
         assertThatThrownBy(() -> coordinator().end(
-                MEETING_ID, new VideoMeetingDtos.VersionedCommand(3),
+                MEETING_ID, new VideoMeetingDtos.VersionedCommand(3L),
                 "end-command-001", "corr-end"))
                 .isInstanceOf(BaseException.class);
         VideoMeetingDtos.MeetingDetailResponse recovered = coordinator().end(
-                MEETING_ID, new VideoMeetingDtos.VersionedCommand(3),
+                MEETING_ID, new VideoMeetingDtos.VersionedCommand(3L),
                 "end-command-001", "corr-end");
 
         assertThat(recovered.lifecycleState()).isEqualTo("ENDED");
@@ -191,7 +191,7 @@ class VideoMeetingLifecycleCoordinatorTest {
         org.mockito.Mockito.doThrow(failure).when(mediaProvider).ensureRoom(ROOM, 100);
 
         assertThatThrownBy(() -> coordinator().start(
-                MEETING_ID, new VideoMeetingDtos.VersionedCommand(2),
+                MEETING_ID, new VideoMeetingDtos.VersionedCommand(2L),
                 "start-command-003", "corr-start"))
                 .isSameAs(failure);
 

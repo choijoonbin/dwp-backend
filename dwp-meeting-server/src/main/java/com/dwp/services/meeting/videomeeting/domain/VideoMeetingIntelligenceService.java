@@ -343,6 +343,40 @@ public class VideoMeetingIntelligenceService {
                         subject.tenantId(), meetingId, reportId)));
     }
 
+    @Transactional(readOnly = true)
+    public VideoMeetingIntelligenceDtos.ReviewerAssignmentsResponse reviewerAssignments(
+            UUID meetingId,
+            UUID reportId) {
+        MeetingRequestContext.Subject subject = MeetingRequestContext.get();
+        Meeting meeting = accessibleMeeting(subject, meetingId);
+        Participant manager = member(subject, meeting);
+        if (!manager.canHost()) {
+            throw forbidden("Only a meeting host can manage report reviewers.");
+        }
+        IntelligenceReport report = report(subject, meetingId, reportId);
+        if (report.state() == ReportState.DELETED || report.expiredAt(now())) {
+            throw conflict("Reviewers cannot be managed for an unavailable report.");
+        }
+        IntelligenceRun run = intelligence.run(subject.tenantId(), meetingId, report.runId())
+                .orElseThrow(() -> conflict(
+                        "The report execution evidence is unavailable."));
+        List<VideoMeetingIntelligenceDtos.ReviewerCandidateResponse> candidates =
+                meetings.participants(subject.tenantId(), meetingId).stream()
+                        .filter(participant -> participant.userId() != null)
+                        .filter(Participant::admitted)
+                        .map(participant ->
+                                VideoMeetingIntelligenceDtos.ReviewerCandidateResponse.from(
+                                        participant, subject.userId(), run.requestedBy()))
+                        .toList();
+        List<VideoMeetingIntelligenceDtos.GrantResponse> grants =
+                intelligence.activeGrants(
+                                subject.tenantId(), meetingId, reportId, now()).stream()
+                        .map(VideoMeetingIntelligenceDtos.GrantResponse::from)
+                        .toList();
+        return new VideoMeetingIntelligenceDtos.ReviewerAssignmentsResponse(
+                reportId, report.version(), candidates, grants);
+    }
+
     @Transactional
     public VideoMeetingIntelligenceDtos.GrantResponse grant(
             UUID meetingId,
@@ -355,14 +389,48 @@ public class VideoMeetingIntelligenceService {
         Participant manager = member(subject, meeting);
         if (!manager.canHost()) throw forbidden("Only a meeting host can grant report access.");
         IntelligenceReport report = report(subject, meetingId, reportId);
-        Participant principal = meetings.participant(
-                        subject.tenantId(), meetingId, principalUserId)
-                .filter(candidate -> candidate.attendanceState() != AttendanceState.DENIED)
-                .orElseThrow(() -> notFound("The report principal is not a meeting member."));
+        Long expectedReportVersion = request.expectedReportVersion();
+        if (expectedReportVersion == null) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "The expected report version is required.");
+        }
+        requireVersion(report, expectedReportVersion);
         if (report.state() == ReportState.DELETED || report.expiredAt(now())) {
             throw conflict("Access cannot be granted to an unavailable report.");
         }
-        ContentPermission permission = ContentPermission.valueOf(request.permission());
+        ContentPermission permission;
+        try {
+            permission = ContentPermission.valueOf(request.permission());
+        } catch (RuntimeException exception) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE, "The content permission is invalid.");
+        }
+        if ((permission == ContentPermission.REVIEW
+                || permission == ContentPermission.MANAGE)
+                && report.state() != ReportState.DRAFT) {
+            throw conflict(
+                    "Reviewer or manager access can only be assigned to a draft report.");
+        }
+        Participant principal = meetings.participant(
+                        subject.tenantId(), meetingId, principalUserId)
+                .filter(candidate -> candidate.userId() != null && candidate.admitted())
+                .orElseThrow(() -> notFound("The report principal is not a meeting member."));
+        if (principal.userId() == subject.userId()) {
+            throw new BaseException(
+                    ErrorCode.SOD_CONFLICT,
+                    "A report manager cannot grant report access to themselves.");
+        }
+        IntelligenceRun run = intelligence.run(subject.tenantId(), meetingId, report.runId())
+                .orElseThrow(() -> conflict(
+                        "The report execution evidence is unavailable."));
+        if ((permission == ContentPermission.REVIEW
+                || permission == ContentPermission.MANAGE)
+                && run.requestedBy() == principal.userId()) {
+            throw new BaseException(
+                    ErrorCode.SOD_CONFLICT,
+                    "The intelligence requester cannot be assigned as a reviewer or manager.");
+        }
         ContentGrant grant = intelligence.grant(
                 report, principal.userId(), permission, request.expiresAt(),
                 request.reasonCode(), subject.userId(), now());
@@ -381,12 +449,14 @@ public class VideoMeetingIntelligenceService {
             UUID reportId,
             long principalUserId,
             String permissionValue,
+            long expectedReportVersion,
             String correlationId) {
         MeetingRequestContext.Subject subject = MeetingRequestContext.get();
         Meeting meeting = meetings.lockMeeting(subject.tenantId(), meetingId);
         Participant manager = member(subject, meeting);
         if (!manager.canHost()) throw forbidden("Only a meeting host can revoke report access.");
         IntelligenceReport report = report(subject, meetingId, reportId);
+        requireVersion(report, expectedReportVersion);
         ContentPermission permission;
         try {
             permission = ContentPermission.valueOf(permissionValue);

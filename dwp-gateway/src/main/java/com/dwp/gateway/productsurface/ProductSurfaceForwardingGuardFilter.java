@@ -120,17 +120,17 @@ public final class ProductSurfaceForwardingGuardFilter implements GlobalFilter, 
                 "product-surface-contexts",
                 HttpMethod.GET,
                 "/api/auth/product-surface-contexts",
-                ProductSurfaceContextRouterConfiguration.CONTEXTS_HANDLER_PATH),
+                ProductSurfaceGatewayRoutes.CONTEXTS_HANDLER_PATH),
         PRODUCT_EVALUATION(
                 "product-surface-access-evaluation",
                 HttpMethod.POST,
                 "/api/auth/product-surface-access/evaluate",
-                ProductSurfaceContextRouterConfiguration.PRODUCT_EVALUATION_HANDLER_PATH),
+                ProductSurfaceGatewayRoutes.PRODUCT_EVALUATION_HANDLER_PATH),
         GOVERNED_EVALUATION(
                 "governed-route-access-evaluation",
                 HttpMethod.POST,
                 "/api/auth/governed-route-access/evaluate",
-                ProductSurfaceContextRouterConfiguration.GOVERNED_EVALUATION_HANDLER_PATH);
+                ProductSurfaceGatewayRoutes.GOVERNED_EVALUATION_HANDLER_PATH);
 
         private final String routeId;
         private final HttpMethod method;

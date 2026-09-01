@@ -1,6 +1,5 @@
 package com.dwp.services.platform.widgetregistry.internal.security;
 
-import com.dwp.services.platform.widgetregistry.internal.security.WidgetRegistryRequestBinding.BindingException;
 import com.fasterxml.jackson.databind.JsonNode;
 
 import java.util.Map;
@@ -43,7 +42,7 @@ final class WidgetRegistryCommandPayloadValidator {
     }
 
     static Validation validate(String operationId, String commandType, JsonNode payload)
-            throws BindingException {
+            throws WidgetRegistryBindingException {
         WidgetRegistryJsonContract.require(
                 commandType != null && commandType.equals(COMMAND_TYPES.get(operationId)));
         String ownerProductKey = switch (operationId) {
@@ -77,7 +76,7 @@ final class WidgetRegistryCommandPayloadValidator {
         return COMMAND_TYPES.size();
     }
 
-    private static String validateDefinitionCreate(JsonNode payload) throws BindingException {
+    private static String validateDefinitionCreate(JsonNode payload) throws WidgetRegistryBindingException {
         exact(payload, Set.of(
                 "definitionKey", "ownerProductKey", "ownerTeamKey", "riskTier",
                 "dataClassification", "reasonCode", "reasonText", "expectedVersion"));
@@ -95,7 +94,7 @@ final class WidgetRegistryCommandPayloadValidator {
         return ownerProductKey;
     }
 
-    private static String validateVersionCreate(JsonNode payload) throws BindingException {
+    private static String validateVersionCreate(JsonNode payload) throws WidgetRegistryBindingException {
         exact(payload,
                 Set.of("semanticVersion", "manifest", "reasonCode", "reasonText", "expectedVersion"),
                 Set.of("predecessorVersionId"));
@@ -108,7 +107,7 @@ final class WidgetRegistryCommandPayloadValidator {
         return ownerProductKey;
     }
 
-    private static String validateVersionUpdate(JsonNode payload) throws BindingException {
+    private static String validateVersionUpdate(JsonNode payload) throws WidgetRegistryBindingException {
         exact(payload,
                 Set.of("manifest", "reasonCode", "reasonText", "expectedVersion"),
                 Set.of("predecessorVersionId"));
@@ -119,20 +118,20 @@ final class WidgetRegistryCommandPayloadValidator {
         return ownerProductKey;
     }
 
-    private static String validateManifestHash(JsonNode payload) throws BindingException {
+    private static String validateManifestHash(JsonNode payload) throws WidgetRegistryBindingException {
         exact(payload, Set.of("manifestHash", "reasonCode", "reasonText", "expectedVersion"));
         WidgetRegistryJsonContract.sha256(payload, "manifestHash");
         common(payload);
         return null;
     }
 
-    private static String validateTransition(JsonNode payload) throws BindingException {
+    private static String validateTransition(JsonNode payload) throws WidgetRegistryBindingException {
         exact(payload, Set.of("reasonCode", "reasonText", "expectedVersion"));
         common(payload);
         return null;
     }
 
-    private static String validateDecision(JsonNode payload) throws BindingException {
+    private static String validateDecision(JsonNode payload) throws WidgetRegistryBindingException {
         exact(payload, Set.of(
                 "decision", "validationRunId", "evidenceIds", "reasonCode", "reasonText",
                 "expectedVersion"));
@@ -143,7 +142,7 @@ final class WidgetRegistryCommandPayloadValidator {
         return null;
     }
 
-    private static String validateRework(JsonNode payload) throws BindingException {
+    private static String validateRework(JsonNode payload) throws WidgetRegistryBindingException {
         exact(payload, Set.of(
                 "rejectedDecisionId", "reasonCode", "reasonText", "expectedVersion"));
         WidgetRegistryJsonContract.uuid(payload, "rejectedDecisionId");
@@ -151,7 +150,7 @@ final class WidgetRegistryCommandPayloadValidator {
         return null;
     }
 
-    private static String validateEvidence(JsonNode payload) throws BindingException {
+    private static String validateEvidence(JsonNode payload) throws WidgetRegistryBindingException {
         exact(payload,
                 Set.of("evidenceType", "decision", "manifestHash", "evidenceRef",
                         "evidenceSha256", "reasonCode", "reasonText", "expectedVersion"),
@@ -167,7 +166,7 @@ final class WidgetRegistryCommandPayloadValidator {
         return null;
     }
 
-    private static String validateWaiver(JsonNode payload) throws BindingException {
+    private static String validateWaiver(JsonNode payload) throws WidgetRegistryBindingException {
         exact(payload, Set.of(
                 "manifestHash", "waiverExpiresAt", "waiverReason", "trackingTicketRef",
                 "reasonCode", "reasonText", "expectedVersion"));
@@ -179,7 +178,7 @@ final class WidgetRegistryCommandPayloadValidator {
         return null;
     }
 
-    private static String validatePublish(JsonNode payload) throws BindingException {
+    private static String validatePublish(JsonNode payload) throws WidgetRegistryBindingException {
         exact(payload, Set.of(
                 "channel", "validationRunId", "evidenceIds", "manifestHash", "reasonCode",
                 "reasonText", "expectedVersion"));
@@ -191,7 +190,7 @@ final class WidgetRegistryCommandPayloadValidator {
         return null;
     }
 
-    private static String validateDeprecate(JsonNode payload) throws BindingException {
+    private static String validateDeprecate(JsonNode payload) throws WidgetRegistryBindingException {
         exact(payload, Set.of(
                 "replacementVersionId", "deprecationEndsAt", "reasonCode", "reasonText",
                 "expectedVersion"));
@@ -201,7 +200,7 @@ final class WidgetRegistryCommandPayloadValidator {
         return null;
     }
 
-    private static String validateSafetyTransition(JsonNode payload) throws BindingException {
+    private static String validateSafetyTransition(JsonNode payload) throws WidgetRegistryBindingException {
         exact(payload,
                 Set.of("publicReasonCode", "internalIncidentRef", "reasonCode", "reasonText",
                         "expectedVersion"),
@@ -214,7 +213,7 @@ final class WidgetRegistryCommandPayloadValidator {
         return null;
     }
 
-    private static String validateClearanceApproval(JsonNode payload) throws BindingException {
+    private static String validateClearanceApproval(JsonNode payload) throws WidgetRegistryBindingException {
         exact(payload, Set.of(
                 "quarantineEventId", "reviewDecision", "evidenceRefs", "reasonCode",
                 "reasonText", "expectedVersion"));
@@ -226,7 +225,7 @@ final class WidgetRegistryCommandPayloadValidator {
         return null;
     }
 
-    private static String validateClearanceExecution(JsonNode payload) throws BindingException {
+    private static String validateClearanceExecution(JsonNode payload) throws WidgetRegistryBindingException {
         exact(payload, Set.of(
                 "clearanceApprovalId", "quarantineEventId", "reasonCode", "reasonText",
                 "expectedVersion"));
@@ -236,7 +235,7 @@ final class WidgetRegistryCommandPayloadValidator {
         return null;
     }
 
-    private static String validateDefinitionRetire(JsonNode payload) throws BindingException {
+    private static String validateDefinitionRetire(JsonNode payload) throws WidgetRegistryBindingException {
         exact(payload,
                 Set.of("impactRevision", "reasonCode", "reasonText", "expectedVersion"),
                 Set.of("replacementDefinitionId"));
@@ -249,7 +248,7 @@ final class WidgetRegistryCommandPayloadValidator {
         return null;
     }
 
-    private static String validateChannelTransition(JsonNode payload) throws BindingException {
+    private static String validateChannelTransition(JsonNode payload) throws WidgetRegistryBindingException {
         exact(payload, Set.of(
                 "versionId", "validationRunId", "manifestHash", "reasonCode", "reasonText",
                 "expectedVersion"));
@@ -260,7 +259,7 @@ final class WidgetRegistryCommandPayloadValidator {
         return null;
     }
 
-    private static String validateChannelRollback(JsonNode payload) throws BindingException {
+    private static String validateChannelRollback(JsonNode payload) throws WidgetRegistryBindingException {
         exact(payload, Set.of(
                 "restoreVersionId", "expectedCurrentVersionId", "reasonCode", "reasonText",
                 "expectedVersion"));
@@ -270,7 +269,7 @@ final class WidgetRegistryCommandPayloadValidator {
         return null;
     }
 
-    private static String validateRuntimeDisable(JsonNode payload) throws BindingException {
+    private static String validateRuntimeDisable(JsonNode payload) throws WidgetRegistryBindingException {
         exact(payload,
                 Set.of("scope", "targetType", "targetId", "publicReasonCode",
                         "internalIncidentRef", "reasonCode", "reasonText", "expectedVersion"),
@@ -287,7 +286,7 @@ final class WidgetRegistryCommandPayloadValidator {
         return null;
     }
 
-    private static String validateRuntimeEnableApproval(JsonNode payload) throws BindingException {
+    private static String validateRuntimeEnableApproval(JsonNode payload) throws WidgetRegistryBindingException {
         exact(payload, Set.of(
                 "controlRevision", "evidenceRefs", "reasonCode", "reasonText", "expectedVersion"));
         WidgetRegistryJsonContract.nonNegativeInteger(payload, "controlRevision");
@@ -296,7 +295,7 @@ final class WidgetRegistryCommandPayloadValidator {
         return null;
     }
 
-    private static String validateRuntimeEnable(JsonNode payload) throws BindingException {
+    private static String validateRuntimeEnable(JsonNode payload) throws WidgetRegistryBindingException {
         exact(payload, Set.of(
                 "enableApprovalId", "controlRevision", "reasonCode", "reasonText",
                 "expectedVersion"));
@@ -306,23 +305,23 @@ final class WidgetRegistryCommandPayloadValidator {
         return null;
     }
 
-    private static void common(JsonNode payload) throws BindingException {
+    private static void common(JsonNode payload) throws WidgetRegistryBindingException {
         upperCode(payload, "reasonCode");
         WidgetRegistryJsonContract.reasonText(payload, "reasonText");
         WidgetRegistryJsonContract.nonNegativeInteger(payload, "expectedVersion");
     }
 
-    private static void upperCode(JsonNode payload, String field) throws BindingException {
+    private static void upperCode(JsonNode payload, String field) throws WidgetRegistryBindingException {
         WidgetRegistryJsonContract.text(
                 payload, field, 1, 64, WidgetRegistryJsonContract.UPPER_CODE);
     }
 
-    private static void exact(JsonNode payload, Set<String> required) throws BindingException {
+    private static void exact(JsonNode payload, Set<String> required) throws WidgetRegistryBindingException {
         exact(payload, required, Set.of());
     }
 
     private static void exact(JsonNode payload, Set<String> required, Set<String> optional)
-            throws BindingException {
+            throws WidgetRegistryBindingException {
         WidgetRegistryJsonContract.exactObject(payload, required, optional);
     }
 

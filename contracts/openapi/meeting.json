@@ -1,6 +1,41 @@
 {
   "components": {
     "schemas": {
+      "AccessTicketCommand": {
+        "properties": {
+          "expectedArtifactVersion": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expectedArtifactVersion"
+        ],
+        "type": "object"
+      },
+      "AccessTicketResponse": {
+        "properties": {
+          "accessUrl": {
+            "type": "string"
+          },
+          "artifactId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "artifactVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "AdminCapabilitiesResponse": {
         "properties": {
           "aiNotesConfigured": {
@@ -66,6 +101,9 @@
             "type": "integer"
           }
         },
+        "required": [
+          "expectedVersion"
+        ],
         "type": "object"
       },
       "Analysis": {
@@ -105,6 +143,33 @@
               "$ref": "#/components/schemas/CitedText"
             },
             "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseAccessTicketResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AccessTicketResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
           }
         },
         "type": "object"
@@ -787,6 +852,33 @@
         },
         "type": "object"
       },
+      "ApiResponseReviewerAssignmentsResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ReviewerAssignmentsResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseRunResponse": {
         "properties": {
           "correlationId": {
@@ -1255,6 +1347,7 @@
           }
         },
         "required": [
+          "expectedContentPlanVersion",
           "outputLanguage",
           "sourceArtifactId"
         ],
@@ -1357,6 +1450,8 @@
           "consentSnapshotSha256",
           "contentNoticeId",
           "contentType",
+          "expectedArtifactVersion",
+          "expectedContentPlanVersion",
           "objectKey",
           "processingRegion",
           "sourceSha256",
@@ -1366,6 +1461,10 @@
       },
       "GrantCommand": {
         "properties": {
+          "expectedReportVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
           "expiresAt": {
             "format": "date-time",
             "type": "string"
@@ -1383,6 +1482,7 @@
           }
         },
         "required": [
+          "expectedReportVersion",
           "permission",
           "reasonCode"
         ],
@@ -2350,6 +2450,47 @@
         },
         "type": "object"
       },
+      "RegisterTranscriptCommand": {
+        "properties": {
+          "artifactId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "consentSnapshotSha256": {
+            "minLength": 1,
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "contentNoticeId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "expectedContentPlanVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "processingRegion": {
+            "minLength": 1,
+            "pattern": "^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$",
+            "type": "string"
+          },
+          "sourceSha256": {
+            "minLength": 1,
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId",
+          "consentSnapshotSha256",
+          "contentNoticeId",
+          "expectedContentPlanVersion",
+          "processingRegion",
+          "sourceSha256"
+        ],
+        "type": "object"
+      },
       "ReportResponse": {
         "properties": {
           "analysis": {
@@ -2414,6 +2555,9 @@
             "type": "integer"
           }
         },
+        "required": [
+          "expectedPlanVersion"
+        ],
         "type": "object"
       },
       "RetentionReadiness": {
@@ -2462,6 +2606,7 @@
         },
         "required": [
           "decision",
+          "expectedVersion",
           "reasonCode"
         ],
         "type": "object"
@@ -2487,6 +2632,59 @@
             "type": "integer"
           },
           "reviewedReportVersion": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ReviewerAssignmentsResponse": {
+        "properties": {
+          "activeGrants": {
+            "items": {
+              "$ref": "#/components/schemas/GrantResponse"
+            },
+            "type": "array"
+          },
+          "eligibleParticipants": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewerCandidateResponse"
+            },
+            "type": "array"
+          },
+          "reportId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reportVersion": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ReviewerCandidateResponse": {
+        "properties": {
+          "assignmentEligible": {
+            "type": "boolean"
+          },
+          "attendanceState": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "ineligibleReason": {
+            "type": "string"
+          },
+          "participantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "participantRole": {
+            "type": "string"
+          },
+          "userId": {
             "format": "int64",
             "type": "integer"
           }
@@ -2651,6 +2849,9 @@
             "type": "integer"
           }
         },
+        "required": [
+          "expectedSessionVersion"
+        ],
         "type": "object"
       },
       "TenantPolicyUpdateRequest": {
@@ -2714,6 +2915,7 @@
           }
         },
         "required": [
+          "expectedVersion",
           "recordingPolicy"
         ],
         "type": "object"
@@ -2774,6 +2976,9 @@
             "type": "boolean"
           }
         },
+        "required": [
+          "expectedVersion"
+        ],
         "type": "object"
       },
       "VersionCommand": {
@@ -2783,6 +2988,9 @@
             "type": "integer"
           }
         },
+        "required": [
+          "expectedVersion"
+        ],
         "type": "object"
       },
       "VersionedCommand": {
@@ -2792,6 +3000,9 @@
             "type": "integer"
           }
         },
+        "required": [
+          "expectedVersion"
+        ],
         "type": "object"
       }
     }
@@ -2853,6 +3064,79 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/FinalizeTranscriptCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTranscriptArtifactResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "meeting-transcript-artifact-controller"
+        ]
+      }
+    },
+    "/internal/v1/meetings/{meetingId}/artifacts/transcript/register": {
+      "post": {
+        "operationId": "registerTranscript",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Transcript-Finalization-Token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Transcript-Artifact-Assertion",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterTranscriptCommand"
               }
             }
           },
@@ -3285,6 +3569,64 @@
         },
         "tags": [
           "video-meeting-controller"
+        ]
+      }
+    },
+    "/v1/meetings/{meetingId}/artifacts/{artifactId}/access-ticket": {
+      "post": {
+        "operationId": "issueAccessTicket",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "artifactId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessTicketCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAccessTicketResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "meeting-recording-access-controller"
         ]
       }
     },
@@ -4280,6 +4622,15 @@
             }
           },
           {
+            "in": "query",
+            "name": "expectedReportVersion",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
             "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
@@ -4410,6 +4761,46 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseReportResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-intelligence-controller"
+        ]
+      }
+    },
+    "/v1/meetings/{meetingId}/intelligence/reports/{reportId}/reviewer-assignments": {
+      "get": {
+        "operationId": "reviewerAssignments",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "reportId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseReviewerAssignmentsResponse"
                 }
               }
             },

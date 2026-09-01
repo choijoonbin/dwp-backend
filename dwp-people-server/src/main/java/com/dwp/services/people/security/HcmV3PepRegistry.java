@@ -221,8 +221,8 @@ public final class HcmV3PepRegistry {
             return false;
         }
         if (capability.path("requiresProductEntitlement").asBoolean()
-                && !evidence.permissions().contains("APP.HCM:VIEW")
-                && !evidence.permissions().contains("APP.HCM:MANAGE")) {
+                && !containsPermission(evidence.permissions(), "APP.HCM:VIEW")
+                && !containsPermission(evidence.permissions(), "APP.HCM:MANAGE")) {
             return false;
         }
         if ("REQUIRED".equals(capability.path("responsibilityRequirement").asText())
@@ -238,7 +238,8 @@ public final class HcmV3PepRegistry {
     private boolean expressionAllows(JsonNode expression, Set<String> permissions) {
         String type = expression.path("type").asText();
         if ("LEAF".equals(type)) {
-            return permissions.contains(
+            return containsPermission(
+                    permissions,
                     expression.path("entitlement").asText().toUpperCase(Locale.ROOT));
         }
         List<Boolean> children = new ArrayList<>();
@@ -248,6 +249,19 @@ public final class HcmV3PepRegistry {
         return !children.isEmpty() && ("ALL".equals(type)
                 ? children.stream().allMatch(Boolean::booleanValue)
                 : "ANY".equals(type) && children.stream().anyMatch(Boolean::booleanValue));
+    }
+
+    private boolean containsPermission(Set<String> permissions, String expected) {
+        if (permissions.contains(expected)) return true;
+        if (expected.startsWith("APP.HCM:")) {
+            return permissions.contains(
+                    "APP.HRIS:" + expected.substring("APP.HCM:".length()));
+        }
+        if (expected.startsWith("APP.HRIS:")) {
+            return permissions.contains(
+                    "APP.HCM:" + expected.substring("APP.HRIS:".length()));
+        }
+        return false;
     }
 
     private boolean hasResourceRole(String header, JsonNode capability) {

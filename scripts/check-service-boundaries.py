@@ -18,6 +18,9 @@ SERVICE_PACKAGES = {
     "dwp-provider-server": "com.dwp.services.provider",
     "dwp-approval-server": "com.dwp.services.approval",
     "dwp-space-server": "com.dwp.services.space",
+    "dwp-messaging-server": "com.dwp.services.messaging",
+    "dwp-notification-server": "com.dwp.services.notification",
+    "dwp-meeting-server": "com.dwp.services.meeting",
     "dwp-gateway": "com.dwp.gateway",
 }
 
@@ -49,6 +52,12 @@ HTTP_CLIENT_IMPORT_RE = re.compile(
 APP_YML_CROSS_DB_RE = re.compile(
     r"\$\{(?P<db>AUTH|PLATFORM|PEOPLE|PROVIDER)_DB_NAME:"
 )
+JAVA_NON_CODE_RE = re.compile(
+    r'""".*?"""|"(?:\\.|[^"\\])*"|\'(?:\\.|[^\'\\])*\'|/\*.*?\*/|//[^\r\n]*',
+    re.DOTALL,
+)
+REPOSITORY_TYPE_RE = re.compile(r"\b[A-Z][A-Za-z0-9_$]*Repository\b")
+CONTROLLER_TYPE_RE = re.compile(r"\b[A-Z][A-Za-z0-9_$]*Controller\b")
 
 def load_policy() -> tuple[dict[str, Any] | None, list[str]]:
     if not POLICY_FILE.exists():
@@ -260,7 +269,9 @@ def policy_manifest_violations(policy: dict[str, Any]) -> list[str]:
                         violations.append(
                             f"{section}:{entry_id} external-connector contracts must forbid X-DWP-Service-Token"
                         )
-                    if not any(marker in required_markers for marker in ("requireHost", "requireAllowed")):
+                    if not any(marker in required_markers for marker in (
+                        "requireHost", "requireAllowed", "validatedOrigin"
+                    )):
                         violations.append(
                             f"{section}:{entry_id} external-connector contracts must require host allowlist validation"
                         )
@@ -319,6 +330,33 @@ def java_import_violations() -> list[str]:
                         violations.append(
                             f"{source_file.relative_to(ROOT)} imports {imported} from {other_module}"
                         )
+    return violations
+
+
+def application_layer_violations() -> list[str]:
+    """Reject direct HTTP-to-persistence and persistence-to-HTTP dependencies."""
+    violations: list[str] = []
+    for module in SERVICE_PACKAGES:
+        source_root = ROOT / module / "src/main/java"
+        if not source_root.exists():
+            continue
+        for source_file in sorted(source_root.rglob("*.java")):
+            source = JAVA_NON_CODE_RE.sub(" ", source_file.read_text(encoding="utf-8"))
+            if source_file.stem.endswith("Controller"):
+                repository_types = sorted(set(REPOSITORY_TYPE_RE.findall(source)))
+                if repository_types:
+                    violations.append(
+                        f"{source_file.relative_to(ROOT)} is an HTTP controller that depends "
+                        f"directly on persistence types {repository_types}; depend on an "
+                        "application service instead"
+                    )
+            if source_file.stem.endswith("Repository"):
+                controller_types = sorted(set(CONTROLLER_TYPE_RE.findall(source)))
+                if controller_types:
+                    violations.append(
+                        f"{source_file.relative_to(ROOT)} is a persistence type that depends "
+                        f"on HTTP controller types {controller_types}"
+                    )
     return violations
 
 
@@ -445,6 +483,7 @@ def main() -> int:
         else:
             violations = (
                 java_import_violations()
+                + application_layer_violations()
                 + gradle_dependency_violations()
                 + http_client_policy_violations(policy)
                 + cross_database_policy_violations(policy)
@@ -459,7 +498,9 @@ def main() -> int:
             print(f"- {violation}", file=sys.stderr)
         return 1
     print(
-        f"PASS service boundaries: backend modules, direct service HTTP clients, and cross-database metadata exceptions match {POLICY_FILE.relative_to(ROOT)}."
+        f"PASS service boundaries: backend modules, HTTP/application/persistence layering, "
+        f"direct service HTTP clients, and cross-database metadata exceptions match "
+        f"{POLICY_FILE.relative_to(ROOT)}."
     )
     return 0
 

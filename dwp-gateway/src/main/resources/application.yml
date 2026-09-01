@@ -263,7 +263,7 @@ spring:
             - id: meeting-server
               uri: ${SERVICE_MEETING_URL:http://localhost:8009}
               predicates:
-                - Path=/api/meetings/**
+                - Path=/api/meetings/v1/**
               filters:
                 - RewritePath=/api/meetings/?(?<remaining>.*), /$\{remaining}
                 - name: RequestRateLimiter

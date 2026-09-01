@@ -234,6 +234,9 @@ dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/Vi
 dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingContentModels.java|NoticeState
 dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingContentModels.java|PlanState
 dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingContentModels.java|RecordingState
+dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/MeetingRecordingCommandModels.java|CommandState
+dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/MeetingRecordingCommandModels.java|CommandType
+dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/MeetingRecordingDeletionModels.java|CommandState
 dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingIntelligenceModels.java|Audience
 dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingIntelligenceModels.java|ContentPermission
 dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingIntelligenceModels.java|ReportState
@@ -896,6 +899,15 @@ assert_java_enum_codes 'video meeting recording state enum' \
 assert_java_enum_codes 'video meeting content blocker code enum' \
   'dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingContentModels.java' \
   'BlockerCode' 'name' 'MEETING.VIDEO_MEETING.CONTENT_BLOCKER_CODE'
+assert_java_enum_codes 'meeting recording provider command state enum' \
+  'dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/MeetingRecordingCommandModels.java' \
+  'CommandState' 'name' 'MEETING.VM_MEETING_RECORDING_PROVIDER_COMMANDS.COMMAND_STATE'
+assert_java_enum_codes 'meeting recording provider command type enum' \
+  'dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/MeetingRecordingCommandModels.java' \
+  'CommandType' 'name' 'MEETING.VM_MEETING_RECORDING_PROVIDER_COMMANDS.COMMAND_TYPE'
+assert_java_enum_codes 'meeting recording deletion command state enum' \
+  'dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/MeetingRecordingDeletionModels.java' \
+  'CommandState' 'name' 'MEETING.VM_MEETING_RECORDING_DELETION_COMMANDS.COMMAND_STATE'
 assert_java_enum_codes 'mail folder color enum' \
   'dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java' \
   'FolderColor' 'name' 'PLATFORM.MAIL_FOLDERS.COLOR_TOKEN'

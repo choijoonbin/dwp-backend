@@ -1,7 +1,6 @@
 package com.dwp.services.notification.domain;
 
 import com.dwp.services.notification.domain.NotificationMaterializationRepository.RenderedContent;
-import com.dwp.services.notification.domain.NotificationMaterializationRepository.TemplateContract;
 import com.dwp.services.notification.domain.NotificationModels.DirectMaterializationRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;

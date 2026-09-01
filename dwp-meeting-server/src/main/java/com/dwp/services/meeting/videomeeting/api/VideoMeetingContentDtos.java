@@ -7,6 +7,7 @@ import com.dwp.services.meeting.videomeeting.domain.VideoMeetingContentModels.Co
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingContentModels.ContentPlan;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingContentModels.RecordingSession;
 import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 
 import java.time.OffsetDateTime;
@@ -23,7 +24,7 @@ public final class VideoMeetingContentDtos {
             boolean transcriptionRequested,
             boolean aiSummaryRequested,
             boolean e2eeEnabled,
-            @PositiveOrZero long expectedVersion) {
+            @NotNull @PositiveOrZero Long expectedVersion) {
 
         @AssertTrue(message = "AI summary requires transcription.")
         public boolean isAiSummaryDependencyValid() {
@@ -31,10 +32,12 @@ public final class VideoMeetingContentDtos {
         }
     }
 
-    public record RequestRecordingCommand(@PositiveOrZero long expectedPlanVersion) {
+    public record RequestRecordingCommand(
+            @NotNull @PositiveOrZero Long expectedPlanVersion) {
     }
 
-    public record StopRecordingCommand(@PositiveOrZero long expectedSessionVersion) {
+    public record StopRecordingCommand(
+            @NotNull @PositiveOrZero Long expectedSessionVersion) {
     }
 
     public record BlockerResponse(

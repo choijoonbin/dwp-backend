@@ -23,6 +23,19 @@ public class MeetingTranscriptArtifactController {
         this.service = service;
     }
 
+    @PostMapping("/register")
+    public ApiResponse<MeetingTranscriptArtifactDtos.TranscriptArtifactResponse> registerTranscript(
+            @PathVariable UUID meetingId,
+            @Valid @RequestBody MeetingTranscriptArtifactDtos.RegisterTranscriptCommand request,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader("X-DWP-Transcript-Finalization-Token") String producerToken,
+            @RequestHeader("X-DWP-Transcript-Artifact-Assertion") String producerAssertion) {
+        return ApiResponse.success(service.registerTranscript(
+                meetingId, request, idempotencyKey, correlationId,
+                producerToken, producerAssertion));
+    }
+
     @PostMapping("/finalize")
     public ApiResponse<MeetingTranscriptArtifactDtos.TranscriptArtifactResponse> finalizeTranscript(
             @PathVariable UUID meetingId,

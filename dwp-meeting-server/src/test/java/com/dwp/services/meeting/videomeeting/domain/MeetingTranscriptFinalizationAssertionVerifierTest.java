@@ -41,6 +41,26 @@ class MeetingTranscriptFinalizationAssertionVerifierTest {
     }
 
     @Test
+    void registrationAssertionIsBoundToTheExactRegisterPath() {
+        UUID jti = UUID.randomUUID();
+        String registration = assertion(
+                jti, NOW.getEpochSecond(), NOW.plusSeconds(30).getEpochSecond(),
+                "a".repeat(64), "register");
+
+        var verified = verifier().verifyRegistration(
+                TOKEN, registration, 77, meetingId, artifactId, "a".repeat(64));
+
+        assertThat(verified.jti()).isEqualTo(jti);
+        assertDenied(() -> verifier().verify(
+                TOKEN, registration, 77, meetingId, artifactId, "a".repeat(64)));
+        assertDenied(() -> verifier().verifyRegistration(
+                TOKEN,
+                assertion(UUID.randomUUID(), NOW.getEpochSecond(),
+                        NOW.plusSeconds(30).getEpochSecond(), "a".repeat(64)),
+                77, meetingId, artifactId, "a".repeat(64)));
+    }
+
+    @Test
     void rejectsWrongTokenBodyBindingAndExpiredAssertionWithStableError() {
         String valid = assertion(
                 UUID.randomUUID(), NOW.getEpochSecond(),
@@ -77,8 +97,16 @@ class MeetingTranscriptFinalizationAssertionVerifierTest {
     }
 
     private String assertion(UUID jti, long iat, long exp, String bodySha256) {
+        return assertion(jti, iat, exp, bodySha256, "finalize");
+    }
+
+    private String assertion(
+            UUID jti, long iat, long exp, String bodySha256, String operation) {
         try {
-            return sign(payload(jti, iat, exp, bodySha256));
+            LinkedHashMap<String, Object> payload = payload(jti, iat, exp, bodySha256);
+            payload.put("path", "/internal/v1/meetings/" + meetingId
+                    + "/artifacts/transcript/" + operation);
+            return sign(payload);
         } catch (Exception exception) {
             throw new IllegalStateException(exception);
         }

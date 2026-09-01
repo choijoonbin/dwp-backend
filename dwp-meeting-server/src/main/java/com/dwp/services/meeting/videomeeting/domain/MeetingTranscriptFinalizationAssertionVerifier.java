@@ -60,6 +60,31 @@ public class MeetingTranscriptFinalizationAssertionVerifier {
             UUID meetingId,
             UUID artifactId,
             String semanticBodySha256) {
+        return verify(
+                presentedToken, assertion, tenantId, meetingId, artifactId,
+                semanticBodySha256, "finalize");
+    }
+
+    VerifiedAssertion verifyRegistration(
+            String presentedToken,
+            String assertion,
+            long tenantId,
+            UUID meetingId,
+            UUID artifactId,
+            String semanticBodySha256) {
+        return verify(
+                presentedToken, assertion, tenantId, meetingId, artifactId,
+                semanticBodySha256, "register");
+    }
+
+    private VerifiedAssertion verify(
+            String presentedToken,
+            String assertion,
+            long tenantId,
+            UUID meetingId,
+            UUID artifactId,
+            String semanticBodySha256,
+            String operation) {
         if (!configured() || !constantTime(token, normalized(presentedToken))) {
             throw denied();
         }
@@ -74,7 +99,7 @@ public class MeetingTranscriptFinalizationAssertionVerifier {
                     Base64.getUrlDecoder().decode(compact[1]), AssertionPayload.class);
             Instant now = clock.instant();
             String path = "/internal/v1/meetings/" + meetingId
-                    + "/artifacts/transcript/finalize";
+                    + "/artifacts/transcript/" + operation;
             if (payload.v() != 1 || !keyId.equals(payload.kid())
                     || !METHOD.equals(payload.method()) || !path.equals(payload.path())
                     || payload.tenantId() != tenantId

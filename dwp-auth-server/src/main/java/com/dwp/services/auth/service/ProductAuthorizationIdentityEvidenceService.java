@@ -101,7 +101,21 @@ class ProductAuthorizationIdentityEvidenceService {
         }
 
         boolean hasPermission(String key) {
-            return key != null && permissions.contains(key.toUpperCase(Locale.ROOT));
+            if (key == null) return false;
+            String expected = key.toUpperCase(Locale.ROOT);
+            if (permissions.contains(expected)) return true;
+            String compatibilityAlias = hcmCompatibilityAlias(expected);
+            return compatibilityAlias != null && permissions.contains(compatibilityAlias);
+        }
+
+        private String hcmCompatibilityAlias(String permission) {
+            if (permission.startsWith("APP.HCM:")) {
+                return "APP.HRIS:" + permission.substring("APP.HCM:".length());
+            }
+            if (permission.startsWith("APP.HRIS:")) {
+                return "APP.HCM:" + permission.substring("APP.HRIS:".length());
+            }
+            return null;
         }
 
         boolean hasRole(String code) {

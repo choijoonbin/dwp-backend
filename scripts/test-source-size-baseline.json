@@ -1,0 +1,9 @@
+{
+  "dwp-auth-server/src/test/java/com/dwp/services/auth/service/AppAdminPresetPostgresIntegrationTest.java": 1957,
+  "dwp-auth-server/src/test/java/com/dwp/services/auth/service/ProductAuthorizationAuthorityAdapterTest.java": 1046,
+  "dwp-gateway/src/test/java/com/dwp/gateway/AuthSessionVerifierTest.java": 1139,
+  "dwp-platform-server/src/test/java/com/dwp/services/platform/calendar/CalendarP0GovernancePostgresIntegrationTest.java": 1015,
+  "dwp-platform-server/src/test/java/com/dwp/services/platform/security/PlatformSecurityFilterTest.java": 1050,
+  "dwp-platform-server/src/test/java/com/dwp/services/platform/widgetregistry/internal/security/WidgetRegistryInternalSecurityFilterTest.java": 1762,
+  "dwp-provider-server/src/test/java/com/dwp/services/provider/ProviderSupportSessionInvariantPostgresTest.java": 1989
+}

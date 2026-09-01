@@ -10,11 +10,11 @@ import org.springframework.web.reactive.function.server.ServerResponse;
 public class ProductSurfaceContextRouterConfiguration {
 
     public static final String CONTEXTS_HANDLER_PATH =
-            "/_gateway/product-surface-contexts";
+            ProductSurfaceGatewayRoutes.CONTEXTS_HANDLER_PATH;
     public static final String PRODUCT_EVALUATION_HANDLER_PATH =
-            "/_gateway/product-surface-access/evaluate";
+            ProductSurfaceGatewayRoutes.PRODUCT_EVALUATION_HANDLER_PATH;
     public static final String GOVERNED_EVALUATION_HANDLER_PATH =
-            "/_gateway/governed-route-access/evaluate";
+            ProductSurfaceGatewayRoutes.GOVERNED_EVALUATION_HANDLER_PATH;
 
     @Bean
     RouterFunction<ServerResponse> productSurfaceContextRoutes(
