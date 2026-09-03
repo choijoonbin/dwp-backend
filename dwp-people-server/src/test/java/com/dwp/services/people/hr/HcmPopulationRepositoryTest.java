@@ -96,6 +96,39 @@ class HcmPopulationRepositoryTest {
         assertThat(repository.actorForMutation(19L, null)).isEmpty();
     }
 
+    @Test
+    void approvalQueuesProjectDecisionEvidenceForTimeAndAbsence() {
+        NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
+        AtomicReference<String> sql = new AtomicReference<>();
+        when(jdbc.query(
+                anyString(), any(MapSqlParameterSource.class),
+                ArgumentMatchers.<RowMapper<HrDtos.ApprovalItem>>any()))
+                .thenAnswer(invocation -> {
+                    sql.set(invocation.getArgument(0));
+                    return List.of();
+                });
+        HcmPopulationRepository repository = new HcmPopulationRepository(jdbc);
+        HcmPopulationRepository.PopulationScope scope =
+                new HcmPopulationRepository.PopulationScope(
+                        31L, "MANAGER-31", true, Set.of(),
+                        Set.of("EMPLOYMENT"), "policy-v9");
+
+        repository.teamQueue(19L, scope, "TIME");
+
+        assertThat(normalized(sql.get()))
+                .contains("card.period_start_date, card.period_end_date")
+                .contains("card.scheduled_minutes, card.recorded_minutes")
+                .contains("card.exception_count");
+
+        repository.teamQueue(19L, scope, "ABSENCE");
+
+        assertThat(normalized(sql.get()))
+                .contains("request.start_at, request.end_at, request.requested_minutes")
+                .contains("request.reason")
+                .contains("LEFT JOIN abs_leave_balances balance")
+                .contains("AS available_minutes");
+    }
+
     private String normalized(String sql) {
         return sql.replaceAll("\\s+", " ").trim();
     }

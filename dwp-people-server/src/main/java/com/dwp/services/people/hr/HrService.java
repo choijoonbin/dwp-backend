@@ -255,7 +255,7 @@ public class HrService {
         return new HrDtos.ApprovalItem(
                 cardId, "TIME", target.personId(), target.displayName(), target.businessTitle(),
                 target.recordedMinutes() + " minutes recorded", status, Instant.now(),
-                request.version() + 1);
+                request.version() + 1, null);
     }
 
     @Transactional(readOnly = true)
@@ -368,7 +368,8 @@ public class HrService {
         return new HrDtos.ApprovalItem(
                 requestId, "ABSENCE", target.personId(), target.displayName(),
                 target.businessTitle(), target.planName() + " · " + target.requestedMinutes()
-                        + " minutes", status, Instant.now(), request.version() + 1);
+                        + " minutes", status, Instant.now(), request.version() + 1, null);
+
     }
 
     @Transactional

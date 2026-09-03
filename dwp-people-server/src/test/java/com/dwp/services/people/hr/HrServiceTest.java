@@ -276,6 +276,6 @@ class HrServiceTest {
     private HrDtos.ApprovalItem approval(String domain) {
         return new HrDtos.ApprovalItem(
                 UUID.randomUUID(), domain, UUID.randomUUID(), "Employee", "Analyst",
-                "Waiting for review", "SUBMITTED", Instant.now(), 1L);
+                "Waiting for review", "SUBMITTED", Instant.now(), 1L, null);
     }
 }

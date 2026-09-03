@@ -435,7 +435,10 @@ public class HcmPopulationRepository {
                 SELECT card.public_id, person.public_id AS person_public_id,
                        person.display_name, assignment.business_title,
                        card.recorded_minutes || ' minutes recorded' AS summary,
-                       card.status, card.submitted_at, card.version
+                       card.status, card.submitted_at, card.version,
+                       card.period_start_date, card.period_end_date,
+                       card.scheduled_minutes, card.recorded_minutes,
+                       card.exception_count
                   FROM tme_time_cards card
                   JOIN ppl_workers worker
                     ON worker.tenant_id = card.tenant_id AND worker.worker_id = card.worker_id
@@ -476,7 +479,11 @@ public class HcmPopulationRepository {
                 SELECT request.public_id, person.public_id AS person_public_id,
                        person.display_name, assignment.business_title,
                        plan.name || ' · ' || request.requested_minutes || ' minutes' AS summary,
-                       request.status, request.submitted_at, request.version
+                       request.status, request.submitted_at, request.version,
+                       request.start_at, request.end_at, request.requested_minutes,
+                       request.reason,
+                       balance.granted_minutes + balance.adjustment_minutes
+                         - balance.used_minutes - balance.pending_minutes AS available_minutes
                   FROM abs_leave_requests request
                   JOIN abs_leave_plans plan
                     ON plan.tenant_id = request.tenant_id
@@ -505,6 +512,11 @@ public class HcmPopulationRepository {
                   LEFT JOIN ppl_organizations organization
                     ON organization.tenant_id = request.tenant_id
                    AND organization.organization_id = assignment.organization_id
+                  LEFT JOIN abs_leave_balances balance
+                    ON balance.tenant_id = request.tenant_id
+                   AND balance.worker_id = request.worker_id
+                   AND balance.leave_plan_id = request.leave_plan_id
+                   AND balance.balance_year = EXTRACT(YEAR FROM request.start_at)::INTEGER
                  WHERE request.tenant_id = :tenantId AND request.status = 'SUBMITTED'
                    AND worker.worker_id <> :actorWorkerId
                    AND (:tenantWide OR assignment.manager_assignment_key = :managerAssignmentKey
@@ -517,12 +529,29 @@ public class HcmPopulationRepository {
 
     private HrDtos.ApprovalItem approval(java.sql.ResultSet result, String domain)
             throws java.sql.SQLException {
+        HrDtos.ApprovalEvidence evidence = "TIME".equals(domain)
+                ? new HrDtos.ApprovalEvidence(
+                        result.getObject("period_start_date", java.time.LocalDate.class),
+                        result.getObject("period_end_date", java.time.LocalDate.class),
+                        null, null,
+                        result.getObject("scheduled_minutes", Integer.class),
+                        result.getObject("recorded_minutes", Integer.class),
+                        result.getObject("exception_count", Integer.class),
+                        null, null, null)
+                : new HrDtos.ApprovalEvidence(
+                        null, null,
+                        instant(result.getTimestamp("start_at")),
+                        instant(result.getTimestamp("end_at")),
+                        null, null, null,
+                        result.getObject("requested_minutes", Integer.class),
+                        result.getObject("available_minutes", Integer.class),
+                        result.getString("reason"));
         return new HrDtos.ApprovalItem(
                 result.getObject("public_id", UUID.class), domain,
                 result.getObject("person_public_id", UUID.class),
                 result.getString("display_name"), result.getString("business_title"),
                 result.getString("summary"), result.getString("status"),
-                instant(result.getTimestamp("submitted_at")), result.getLong("version"));
+                instant(result.getTimestamp("submitted_at")), result.getLong("version"), evidence);
     }
 
     private MapSqlParameterSource populationParameters(Long tenantId, PopulationScope scope) {

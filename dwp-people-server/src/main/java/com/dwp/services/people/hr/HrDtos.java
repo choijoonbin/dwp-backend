@@ -205,6 +205,19 @@ public final class HrDtos {
             List<Learning> learning) {
     }
 
+    public record ApprovalEvidence(
+            LocalDate periodStart,
+            LocalDate periodEnd,
+            Instant startAt,
+            Instant endAt,
+            Integer scheduledMinutes,
+            Integer recordedMinutes,
+            Integer exceptionCount,
+            Integer requestedMinutes,
+            Integer availableMinutes,
+            String reason) {
+    }
+
     public record ApprovalItem(
             UUID itemId,
             String domain,
@@ -214,7 +227,8 @@ public final class HrDtos {
             String summary,
             String status,
             Instant submittedAt,
-            long version) {
+            long version,
+            ApprovalEvidence evidence) {
     }
 
     public record TeamMember(

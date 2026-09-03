@@ -375,7 +375,7 @@ class AuthSessionVerifierTest {
     }
 
     @Test
-    void forwardsDirectoryAuthorityEvidenceFromAuthToThePeopleRoute() {
+    void forwardsDirectoryAuthorityEvidenceForListDetailAndOrgChartRoutes() {
         AtomicReference<ClientRequest> capturedAuthRequest = new AtomicReference<>();
         WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
             capturedAuthRequest.set(request);
@@ -395,48 +395,27 @@ class AuthSessionVerifierTest {
         AuthSessionVerifier verifier = new AuthSessionVerifier(
                 builder, "http://auth.test", Duration.ofSeconds(1));
         VerifiedIdentityFilter filter = new VerifiedIdentityFilter(verifier);
-        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
-                .get("/api/people/v1/people/42")
-                .build());
-        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
-                new AtomicReference<>();
+        for (String path : new String[] {
+                "/api/people/v1/people",
+                "/api/people/v1/people/42",
+                "/api/people/v1/org-chart"}) {
+            AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                    new AtomicReference<>();
+            MockServerWebExchange exchange = MockServerWebExchange.from(
+                    MockServerHttpRequest.get(path).build());
 
-        filter.filter(exchange, filteredExchange -> {
-            forwarded.set(filteredExchange.getRequest());
-            return Mono.empty();
-        }).block();
+            filter.filter(exchange, filteredExchange -> {
+                forwarded.set(filteredExchange.getRequest());
+                return Mono.empty();
+            }).block();
 
-        assertThat(capturedAuthRequest.get().url().getQuery())
-                .isEqualTo("permissionPrefix=APP.HCM,APP.HRIS,APP.PEOPLE_DIRECTORY");
-        assertThat(forwarded.get()).isNotNull();
-        assertThat(forwarded.get().getHeaders().getFirst(
-                VerifiedIdentityFilter.PERMISSIONS_HEADER))
-                .isEqualTo("APP.HCM:VIEW,APP.HRIS:VIEW,APP.PEOPLE_DIRECTORY:VIEW");
-    }
-
-    @Test
-    void requestsTheDirectoryAuthorityFamilyForOrgChartRoutes() {
-        AtomicReference<ClientRequest> captured = new AtomicReference<>();
-        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
-            captured.set(request);
-            return Mono.just(ClientResponse.create(HttpStatus.OK)
-                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                    .body("""
-                            {"success":true,"data":{"userId":7,"tenantId":1,
-                            "identityPlane":"TENANT","roles":["WORKSPACE_MEMBER"],
-                            "permissions":[]}}
-                            """)
-                    .build());
-        });
-        AuthSessionVerifier verifier = new AuthSessionVerifier(
-                builder, "http://auth.test", Duration.ofSeconds(1));
-
-        verifier.verify(MockServerHttpRequest
-                .get("/api/people/v1/org-chart")
-                .build()).block();
-
-        assertThat(captured.get().url().getQuery())
-                .isEqualTo("permissionPrefix=APP.HCM,APP.HRIS,APP.PEOPLE_DIRECTORY");
+            assertThat(capturedAuthRequest.get().url().getQuery())
+                    .isEqualTo("permissionPrefix=APP.HCM,APP.HRIS,APP.PEOPLE_DIRECTORY");
+            assertThat(forwarded.get()).isNotNull();
+            assertThat(forwarded.get().getHeaders().getFirst(
+                    VerifiedIdentityFilter.PERMISSIONS_HEADER))
+                    .isEqualTo("APP.HCM:VIEW,APP.HRIS:VIEW,APP.PEOPLE_DIRECTORY:VIEW");
+        }
     }
 
     @Test

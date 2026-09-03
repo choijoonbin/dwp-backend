@@ -181,6 +181,7 @@ public class PeopleDirectoryRepository {
                     LOWER(p.display_name) LIKE :query
                     OR LOWER(COALESCE(contact.display_value, '')) LIKE :query
                     OR LOWER(COALESCE(w.worker_number, '')) LIKE :query
+                    OR LOWER(COALESCE(a.assignment_key, '')) LIKE :query
                     OR LOWER(COALESCE(a.business_title, '')) LIKE :query
                     OR LOWER(COALESCE(org.name, '')) LIKE :query
                     OR LOWER(COALESCE(job.name, '')) LIKE :query
