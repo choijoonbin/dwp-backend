@@ -237,6 +237,7 @@ dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/Vi
 dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/MeetingRecordingCommandModels.java|CommandState
 dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/MeetingRecordingCommandModels.java|CommandType
 dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/MeetingRecordingDeletionModels.java|CommandState
+dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/MeetingTranscriptDeletionModels.java|CommandState
 dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingIntelligenceModels.java|Audience
 dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingIntelligenceModels.java|ContentPermission
 dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingIntelligenceModels.java|ReportState
@@ -908,6 +909,9 @@ assert_java_enum_codes 'meeting recording provider command type enum' \
 assert_java_enum_codes 'meeting recording deletion command state enum' \
   'dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/MeetingRecordingDeletionModels.java' \
   'CommandState' 'name' 'MEETING.VM_MEETING_RECORDING_DELETION_COMMANDS.COMMAND_STATE'
+assert_java_enum_codes 'meeting transcript deletion command state enum' \
+  'dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/MeetingTranscriptDeletionModels.java' \
+  'CommandState' 'name' 'MEETING.VM_MEETING_TRANSCRIPT_DELETION_COMMANDS.COMMAND_STATE'
 assert_java_enum_codes 'mail folder color enum' \
   'dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java' \
   'FolderColor' 'name' 'PLATFORM.MAIL_FOLDERS.COLOR_TOKEN'
