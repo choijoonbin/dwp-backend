@@ -6,6 +6,7 @@ import com.dwp.services.meeting.security.MeetingRequestContext;
 import com.dwp.services.meeting.videomeeting.api.MeetingTranscriptArtifactDtos;
 import com.dwp.services.meeting.videomeeting.api.VideoMeetingIntelligenceDtos;
 import com.dwp.services.meeting.videomeeting.audit.VideoMeetingAuditRecorder;
+import com.dwp.services.meeting.videomeeting.provider.MeetingTranscriptSource;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterEach;
@@ -36,6 +37,8 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @Testcontainers(disabledWithoutDocker = true)
 class MeetingTranscriptArtifactFinalizationPostgresTest {
@@ -87,8 +90,19 @@ class MeetingTranscriptArtifactFinalizationPostgresTest {
         var verifier = new MeetingTranscriptFinalizationAssertionVerifier(
                 TOKEN, KEY_ID, Base64.getEncoder().encodeToString(SECRET), mapper,
                 Clock.fixed(fixture.now().toInstant(), ZoneOffset.UTC));
+        MeetingTranscriptDeletionReadiness deletionReadiness =
+                mock(MeetingTranscriptDeletionReadiness.class);
+        MeetingTranscriptSource transcriptSource = mock(MeetingTranscriptSource.class);
+        var capability = new MeetingTranscriptSource.RetentionCapability(
+                true, true, true, true, true, true, 300, true,
+                "TRANSCRIPT_BROKER", "BROKER");
+        var retention = new MeetingTranscriptDeletionReadiness.RetentionSnapshot(
+                "TRANSCRIPT_BROKER", "BROKER", fixture.now());
+        when(transcriptSource.retentionCapability()).thenReturn(capability);
+        when(deletionReadiness.requireSnapshot(capability)).thenReturn(retention);
         service = transactional(new MeetingTranscriptArtifactFinalizationService(
                 meetings, content, intelligence, artifacts, verifier, audit,
+                deletionReadiness, transcriptSource, transactionManager,
                 Clock.fixed(fixture.now().toInstant(), ZoneOffset.UTC)));
         MeetingRequestContext.set(fixture.subject());
     }

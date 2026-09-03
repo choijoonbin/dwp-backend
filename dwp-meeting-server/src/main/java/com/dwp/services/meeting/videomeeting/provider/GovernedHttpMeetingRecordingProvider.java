@@ -67,7 +67,12 @@ final class GovernedHttpMeetingRecordingProvider implements MeetingRecordingProv
                 || properties.getMaximumResponseBytes() > 1_000_000) {
             throw new IllegalArgumentException("Recording provider response size is invalid.");
         }
-        bounded(properties.getCommandLease(), Duration.ofSeconds(30), Duration.ofMinutes(10));
+        Duration commandLease = bounded(
+                properties.getCommandLease(), Duration.ofSeconds(30), Duration.ofMinutes(10));
+        if (commandLease.compareTo(requestTimeout.plusSeconds(5)) < 0) {
+            throw new IllegalArgumentException(
+                    "Recording command lease must outlive the request timeout.");
+        }
         this.accessTicketTtl = bounded(
                 properties.getAccessTicketTtl(), Duration.ofSeconds(30), Duration.ofMinutes(10));
         this.accessTicketAllowedHosts = properties.getAccessTicketAllowedHosts().stream()
@@ -88,6 +93,8 @@ final class GovernedHttpMeetingRecordingProvider implements MeetingRecordingProv
                 .timeout(requestTimeout)
                 .header("Accept", "application/json")
                 .header("X-DWP-Meeting-Recording-Token", token)
+                .header("X-DWP-Meeting-Workload-Assertion",
+                        signer.signService("GET", CAPABILITY_PATH, null))
                 .GET().build();
         try {
             CapabilityResponse response = send(request, 200, CapabilityResponse.class);
@@ -99,6 +106,9 @@ final class GovernedHttpMeetingRecordingProvider implements MeetingRecordingProv
             boolean ready = response.available()
                     && response.egressAvailable() && response.storageAvailable()
                     && response.deletionAvailable() && response.cryptoShredAvailable()
+                    && response.orphanCleanupAvailable()
+                    && response.maximumOrphanTtlSeconds() >= 30
+                    && response.maximumOrphanTtlSeconds() <= 3_600
                     && response.customerManagedStorage()
                     && response.providerRetentionDisabled()
                     && processingRegion.equals(response.processingRegion());
@@ -109,6 +119,9 @@ final class GovernedHttpMeetingRecordingProvider implements MeetingRecordingProv
                     response.speechToTextAvailable(),
                     response.deletionAvailable(),
                     response.cryptoShredAvailable(),
+                    response.orphanCleanupAvailable(),
+                    response.maximumOrphanTtlSeconds(),
+                    response.legacyLocatorDeletionAvailable(),
                     response.processingRegion(),
                     response.providerCode());
         } catch (RuntimeException exception) {
@@ -336,6 +349,8 @@ final class GovernedHttpMeetingRecordingProvider implements MeetingRecordingProv
                 || command.objectKey().length() > 1_000
                 || command.objectKey().chars().anyMatch(Character::isISOControl)
                 || command.objectKey().contains("://")
+                || command.objectKey().contains("?")
+                || command.objectKey().contains("#")
                 || command.deletionBindingSha256() == null
                 || !command.deletionBindingSha256().matches("^[0-9a-f]{64}$")
                 || command.artifactVersion() < 0
@@ -468,6 +483,9 @@ final class GovernedHttpMeetingRecordingProvider implements MeetingRecordingProv
             boolean speechToTextAvailable,
             boolean deletionAvailable,
             boolean cryptoShredAvailable,
+            boolean orphanCleanupAvailable,
+            int maximumOrphanTtlSeconds,
+            boolean legacyLocatorDeletionAvailable,
             boolean customerManagedStorage,
             boolean providerRetentionDisabled,
             String processingRegion,

@@ -13,7 +13,16 @@ import java.util.HexFormat;
 import java.util.UUID;
 import java.util.function.Supplier;
 
-/** Compact dwp1.payload.signature HMAC assertion bound to one exact internal request. */
+/**
+ * Compact dwp1.payload.signature HMAC assertion bound to one exact internal request.
+ *
+ * <p>Resource assertions ({@link #sign(MeetingIntelligenceProvider.ExecutionContext, String,
+ * String, byte[])}) and service capability assertions ({@link #signService(String, String,
+ * byte[])}) are intentionally different contracts. The external broker must independently
+ * validate the service scope, exact request binding, expiry, and single-use JTI before this
+ * capability path may be enabled; absent that verifier and replay evidence, operations remain
+ * NO-GO.</p>
+ */
 public final class MeetingWorkloadAssertionSigner {
 
     private static final Base64.Encoder BASE64 = Base64.getUrlEncoder().withoutPadding();
@@ -72,6 +81,28 @@ public final class MeetingWorkloadAssertionSigner {
                 "\"tenantId\":" + context.tenantId() + "," +
                 "\"meetingId\":\"" + context.meetingId() + "\"," +
                 "\"runId\":\"" + context.runId() + "\"," +
+                "\"iat\":" + iat + "," +
+                "\"exp\":" + exp + "," +
+                "\"jti\":\"" + jtiSupplier.get() + "\"," +
+                "\"bodySha256\":\"" + sha256(body == null ? new byte[0] : body) + "\"}";
+        String encoded = BASE64.encodeToString(payload.getBytes(StandardCharsets.UTF_8));
+        String signingInput = "dwp1." + encoded;
+        return signingInput + "." + BASE64.encodeToString(hmac(signingInput));
+    }
+
+    /** Signs a broker capability probe that has no tenant resource context. */
+    public String signService(String method, String path, byte[] body) {
+        String canonicalMethod = requiredMethod(method);
+        String canonicalPath = requiredPath(path);
+        Instant issuedAt = clock.instant();
+        long iat = issuedAt.getEpochSecond();
+        long exp = issuedAt.plus(ttl).getEpochSecond();
+        String payload = "{" +
+                "\"v\":1," +
+                "\"kid\":\"" + keyId + "\"," +
+                "\"scope\":\"SERVICE\"," +
+                "\"method\":\"" + canonicalMethod + "\"," +
+                "\"path\":\"" + canonicalPath + "\"," +
                 "\"iat\":" + iat + "," +
                 "\"exp\":" + exp + "," +
                 "\"jti\":\"" + jtiSupplier.get() + "\"," +

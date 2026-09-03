@@ -534,8 +534,13 @@ class MeetingRecordingCommandTransactions {
 
     private Duration commandLease() {
         Duration lease = properties.getCommandLease();
+        Duration requestTimeout = properties.getRequestTimeout();
         if (lease == null || lease.compareTo(Duration.ofSeconds(30)) < 0
-                || lease.compareTo(Duration.ofMinutes(10)) > 0) {
+                || lease.compareTo(Duration.ofMinutes(10)) > 0
+                || requestTimeout == null
+                || requestTimeout.compareTo(Duration.ofMillis(250)) < 0
+                || requestTimeout.compareTo(Duration.ofSeconds(30)) > 0
+                || lease.compareTo(requestTimeout.plusSeconds(5)) < 0) {
             throw new BaseException(
                     ErrorCode.EXTERNAL_SERVICE_ERROR,
                     "The recording command lease is not configured safely.");

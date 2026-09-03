@@ -109,6 +109,12 @@ dwp:
       connect-timeout: ${DWP_MEETING_TRANSCRIPT_CONNECT_TIMEOUT:PT2S}
       request-timeout: ${DWP_MEETING_TRANSCRIPT_REQUEST_TIMEOUT:PT10S}
       maximum-response-bytes: ${DWP_MEETING_TRANSCRIPT_MAX_RESPONSE_BYTES:5000000}
+      deletion:
+        enabled: ${DWP_MEETING_TRANSCRIPT_DELETION_ENABLED:false}
+        batch-size: ${DWP_MEETING_TRANSCRIPT_DELETION_BATCH_SIZE:50}
+        poll-delay: ${DWP_MEETING_TRANSCRIPT_DELETION_POLL_DELAY:PT5M}
+        lease-duration: ${DWP_MEETING_TRANSCRIPT_DELETION_LEASE_DURATION:PT1M}
+        worker-id: ${DWP_MEETING_TRANSCRIPT_DELETION_WORKER_ID:meeting-transcript-retention}
     transcript-finalization:
       service-token: ${DWP_MEETING_TRANSCRIPT_FINALIZATION_TOKEN:}
       assertion-key-id: ${DWP_MEETING_TRANSCRIPT_FINALIZATION_ASSERTION_KEY_ID:}

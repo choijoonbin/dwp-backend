@@ -55,6 +55,7 @@ final class GovernedMeetingContentDependencies implements MeetingContentDependen
     private final MeetingIntelligencePayloadProtector protector;
     private final MeetingRecordingProvider recording;
     private final MeetingRecordingDeletionReadiness deletionReadiness;
+    private final MeetingTranscriptDeletionReadiness transcriptDeletionReadiness;
 
     GovernedMeetingContentDependencies(
             JdbcTemplate jdbc,
@@ -63,7 +64,8 @@ final class GovernedMeetingContentDependencies implements MeetingContentDependen
             MeetingTranscriptSource transcriptSource,
             MeetingIntelligencePayloadProtector protector,
             MeetingRecordingProvider recording,
-            MeetingRecordingDeletionReadiness deletionReadiness) {
+            MeetingRecordingDeletionReadiness deletionReadiness,
+            MeetingTranscriptDeletionReadiness transcriptDeletionReadiness) {
         this.jdbc = jdbc;
         this.intelligence = intelligence;
         this.transcript = transcript;
@@ -71,6 +73,7 @@ final class GovernedMeetingContentDependencies implements MeetingContentDependen
         this.protector = protector;
         this.recording = recording;
         this.deletionReadiness = deletionReadiness;
+        this.transcriptDeletionReadiness = transcriptDeletionReadiness;
     }
 
     @Override
@@ -81,7 +84,7 @@ final class GovernedMeetingContentDependencies implements MeetingContentDependen
     @Override
     public Status status(MeetingRecordingProvider.Capability recordingCapability) {
         boolean trustedTranscriptStorage = "http".equals(transcript.getProvider())
-                && transcriptSource.available();
+                && transcriptSource.available() && transcriptDeletionReadiness.ready();
         boolean languageModel = "http".equals(intelligence.getProvider());
         boolean kms = protector.available() && protector.ready();
         boolean governedRecording = deletionReadiness.ready(recordingCapability);
@@ -126,10 +129,11 @@ class MeetingContentDependencyConfiguration {
             MeetingTranscriptSource transcriptSource,
             MeetingIntelligencePayloadProtector protector,
             MeetingRecordingProvider recording,
-            MeetingRecordingDeletionReadiness deletionReadiness) {
+            MeetingRecordingDeletionReadiness deletionReadiness,
+            MeetingTranscriptDeletionReadiness transcriptDeletionReadiness) {
         return new GovernedMeetingContentDependencies(
                 jdbc, intelligence, transcript, transcriptSource, protector,
-                recording, deletionReadiness);
+                recording, deletionReadiness, transcriptDeletionReadiness);
     }
 
     @Bean

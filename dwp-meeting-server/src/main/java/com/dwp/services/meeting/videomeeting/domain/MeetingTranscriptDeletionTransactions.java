@@ -3,14 +3,14 @@ package com.dwp.services.meeting.videomeeting.domain;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.meeting.videomeeting.audit.VideoMeetingAuditRecorder;
-import com.dwp.services.meeting.videomeeting.domain.MeetingRecordingDeletionModels.CommandState;
-import com.dwp.services.meeting.videomeeting.domain.MeetingRecordingDeletionModels.DeletionArtifact;
-import com.dwp.services.meeting.videomeeting.domain.MeetingRecordingDeletionModels.DeletionCommand;
-import com.dwp.services.meeting.videomeeting.domain.MeetingRecordingDeletionModels.DeletionCycle;
-import com.dwp.services.meeting.videomeeting.domain.MeetingRecordingDeletionModels.Health;
-import com.dwp.services.meeting.videomeeting.domain.MeetingRecordingDeletionModels.PreparedDeletion;
-import com.dwp.services.meeting.videomeeting.provider.MeetingRecordingProvider.DeletionReceipt;
-import com.dwp.services.meeting.videomeeting.provider.MeetingRecordingHttpProperties;
+import com.dwp.services.meeting.videomeeting.domain.MeetingTranscriptDeletionModels.CommandState;
+import com.dwp.services.meeting.videomeeting.domain.MeetingTranscriptDeletionModels.DeletionArtifact;
+import com.dwp.services.meeting.videomeeting.domain.MeetingTranscriptDeletionModels.DeletionCommand;
+import com.dwp.services.meeting.videomeeting.domain.MeetingTranscriptDeletionModels.DeletionCycle;
+import com.dwp.services.meeting.videomeeting.domain.MeetingTranscriptDeletionModels.Health;
+import com.dwp.services.meeting.videomeeting.domain.MeetingTranscriptDeletionModels.PreparedDeletion;
+import com.dwp.services.meeting.videomeeting.provider.MeetingTranscriptHttpProperties;
+import com.dwp.services.meeting.videomeeting.provider.MeetingTranscriptSource.DeletionReceipt;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
@@ -26,56 +26,34 @@ import static com.dwp.services.meeting.videomeeting.domain.VideoMeetingCommandPo
 import static com.dwp.services.meeting.videomeeting.domain.VideoMeetingCommandPolicy.requestHashesMatch;
 
 @Component
-class MeetingRecordingDeletionTransactions {
+class MeetingTranscriptDeletionTransactions {
 
-    private final MeetingRecordingDeletionRepository repository;
-    private final MeetingRecordingDeletionProperties properties;
-    private final MeetingRecordingHttpProperties recordingProperties;
+    private final MeetingTranscriptDeletionRepository repository;
+    private final MeetingTranscriptDeletionProperties properties;
+    private final MeetingTranscriptHttpProperties transcriptProperties;
     private final VideoMeetingAuditRecorder audit;
     private final Clock clock;
 
     @Autowired
-    MeetingRecordingDeletionTransactions(
-            MeetingRecordingDeletionRepository repository,
-            MeetingRecordingDeletionProperties properties,
-            MeetingRecordingHttpProperties recordingProperties,
+    MeetingTranscriptDeletionTransactions(
+            MeetingTranscriptDeletionRepository repository,
+            MeetingTranscriptDeletionProperties properties,
+            MeetingTranscriptHttpProperties transcriptProperties,
             VideoMeetingAuditRecorder audit) {
-        this(repository, properties, recordingProperties, audit, Clock.systemUTC());
+        this(repository, properties, transcriptProperties, audit, Clock.systemUTC());
     }
 
-    MeetingRecordingDeletionTransactions(
-            MeetingRecordingDeletionRepository repository,
-            MeetingRecordingDeletionProperties properties,
-            VideoMeetingAuditRecorder audit,
-            Clock clock) {
-        this(repository, properties, new MeetingRecordingHttpProperties(), audit, clock);
-    }
-
-    MeetingRecordingDeletionTransactions(
-            MeetingRecordingDeletionRepository repository,
-            MeetingRecordingDeletionProperties properties,
-            MeetingRecordingHttpProperties recordingProperties,
+    MeetingTranscriptDeletionTransactions(
+            MeetingTranscriptDeletionRepository repository,
+            MeetingTranscriptDeletionProperties properties,
+            MeetingTranscriptHttpProperties transcriptProperties,
             VideoMeetingAuditRecorder audit,
             Clock clock) {
         this.repository = repository;
         this.properties = properties;
-        this.recordingProperties = recordingProperties;
+        this.transcriptProperties = transcriptProperties;
         this.audit = audit;
         this.clock = clock;
-    }
-
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public DeletionCycle renewCycle(DeletionCycle cycle) {
-        OffsetDateTime now = now();
-        requireCycle(cycle, now);
-        OffsetDateTime renewedLease = now.plus(properties.getLeaseDuration());
-        Health health = repository.renewCycle(
-                        cycle.fence(), cycle.workerId(), cycle.leaseExpiresAt(),
-                        now, renewedLease)
-                .orElseThrow(() -> conflict(
-                        "The recording retention worker lease could not be renewed."));
-        return new DeletionCycle(
-                cycle.fence(), cycle.workerId(), health.activeLeaseExpiresAt());
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -92,21 +70,44 @@ class MeetingRecordingDeletionTransactions {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public DeletionCycle renewCycle(DeletionCycle cycle) {
+        OffsetDateTime now = now();
+        requireCycle(cycle, now);
+        OffsetDateTime renewedLease = now.plus(properties.getLeaseDuration());
+        Health health = repository.renewCycle(
+                        cycle.fence(), cycle.workerId(), cycle.leaseExpiresAt(),
+                        now, renewedLease)
+                .orElseThrow(() -> conflict(
+                        "The transcript retention worker lease could not be renewed."));
+        return new DeletionCycle(
+                cycle.fence(), cycle.workerId(), health.activeLeaseExpiresAt());
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public PreparedDeletion prepareNext(
             DeletionCycle cycle,
             String providerCode,
+            String storageProviderCode,
             boolean legacyLocatorDeletionAvailable) {
         OffsetDateTime now = now();
         requireCycle(cycle, now);
         DeletionArtifact artifact = repository.expiredCandidateForUpdate(now).orElse(null);
         if (artifact == null) return null;
         validateArtifact(artifact);
+        if (providerCode == null
+                || !providerCode.matches("^[A-Z][A-Z0-9_-]{2,47}$")) {
+            throw unavailable("The transcript deletion provider is unavailable.");
+        }
         if ((artifact.provenanceProviderCode() != null
-                && !artifact.provenanceProviderCode().equals(providerCode))
+                && (artifact.provenanceStorageProviderCode() == null
+                    || !artifact.provenanceProviderCode().equals(providerCode)
+                    || !artifact.provenanceStorageProviderCode().equals(
+                            storageProviderCode)
+                    || !artifact.storageProvider().equals(storageProviderCode)))
                 || (artifact.provenanceProviderCode() == null
                     && !legacyLocatorDeletionAvailable)) {
             throw unavailable(
-                    "The recording artifact provider provenance cannot be deleted safely.");
+                    "The transcript artifact provider provenance cannot be deleted safely.");
         }
         String hash = requestHash(
                 artifact.tenantId(), artifact.meetingId(), artifact.artifactId(),
@@ -124,16 +125,16 @@ class MeetingRecordingDeletionTransactions {
             if (current.artifactVersion() != artifact.version()
                     || !requestHashesMatch(current.requestSha256(), hash)
                     || !current.providerCode().equals(providerCode)) {
-                throw conflict("The recording deletion command no longer matches the artifact.");
+                throw conflict("The transcript deletion command no longer matches the artifact.");
             }
             command = repository.reclaim(
                     current, cycle.fence(), cycle.workerId(), now,
                     cycle.leaseExpiresAt());
         }
-        String correlationId = "recording-delete:" + command.commandId();
-        audit.recordingDeletion(
+        String correlationId = "transcript-delete:" + command.commandId();
+        audit.transcriptDeletion(
                 artifact.tenantId(), artifact.meetingId(), artifact.artifactId(),
-                "meeting.recording-deletion.claimed", correlationId, "SUCCESS",
+                "meeting.transcript-deletion.claimed", correlationId, "SUCCESS",
                 Map.of("artifactVersion", artifact.version(),
                         "attempt", command.attemptCount(),
                         "retentionDue", artifact.retentionUntil() == null
@@ -149,7 +150,7 @@ class MeetingRecordingDeletionTransactions {
         DeletionCommand command = current(prepared, completedAt);
         DeletionArtifact artifact = repository.artifactForUpdate(
                         command.tenantId(), command.meetingId(), command.artifactId())
-                .orElseThrow(() -> conflict("The recording artifact is unavailable."));
+                .orElseThrow(() -> conflict("The transcript artifact is unavailable."));
         requireSameArtifact(prepared.artifact(), artifact);
         if (receipt == null || receipt.artifactId() == null
                 || !receipt.artifactId().equals(artifact.artifactId())
@@ -161,13 +162,13 @@ class MeetingRecordingDeletionTransactions {
                 || receipt.deletedAt().isBefore(
                         command.requestedAt().minusSeconds(30))
                 || receipt.deletedAt().isAfter(completedAt.plusMinutes(5))) {
-            throw unavailable("The recording deletion receipt is invalid.");
+            throw unavailable("The transcript deletion receipt is invalid.");
         }
         repository.markArtifactDeleted(artifact, command, completedAt);
         repository.succeedCommand(command, receipt.providerDeletionId(), completedAt);
-        audit.recordingDeletion(
+        audit.transcriptDeletion(
                 artifact.tenantId(), artifact.meetingId(), artifact.artifactId(),
-                "meeting.recording-deletion.completed", prepared.correlationId(),
+                "meeting.transcript-deletion.completed", prepared.correlationId(),
                 "SUCCESS", Map.of(
                         "artifactVersion", artifact.version() + 1,
                         "attempt", command.attemptCount(),
@@ -181,9 +182,9 @@ class MeetingRecordingDeletionTransactions {
         requireCycle(prepared.cycle(), failedAt);
         DeletionCommand command = current(prepared, failedAt);
         repository.failCommand(command, failureCode, failedAt);
-        audit.recordingDeletion(
+        audit.transcriptDeletion(
                 command.tenantId(), command.meetingId(), command.artifactId(),
-                "meeting.recording-deletion.failed", prepared.correlationId(),
+                "meeting.transcript-deletion.failed", prepared.correlationId(),
                 "FAILED", Map.of(
                         "artifactVersion", command.artifactVersion(),
                         "attempt", command.attemptCount(),
@@ -192,10 +193,14 @@ class MeetingRecordingDeletionTransactions {
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void completeCycle(DeletionCycle cycle, String providerCode) {
+    public void completeCycle(
+            DeletionCycle cycle,
+            String providerCode,
+            String storageProviderCode) {
         OffsetDateTime completedAt = now();
         requireCycle(cycle, completedAt);
-        repository.completeCycle(cycle.fence(), providerCode, completedAt);
+        repository.completeCycle(
+                cycle.fence(), providerCode, storageProviderCode, completedAt);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -209,12 +214,13 @@ class MeetingRecordingDeletionTransactions {
         DeletionCommand current = repository.commandForUpdate(
                         prepared.command().tenantId(), prepared.command().meetingId(),
                         prepared.command().artifactId())
-                .orElseThrow(() -> conflict("The recording deletion command is unavailable."));
+                .orElseThrow(() -> conflict(
+                        "The transcript deletion command is unavailable."));
         if (current.state() != CommandState.RUNNING
                 || !current.executionFence().equals(prepared.cycle().fence())
                 || !current.executionFence().equals(prepared.command().executionFence())
                 || !current.leaseExpiresAt().isAfter(now)) {
-            throw conflict("The recording deletion command lease changed or expired.");
+            throw conflict("The transcript deletion command lease changed or expired.");
         }
         return current;
     }
@@ -227,7 +233,7 @@ class MeetingRecordingDeletionTransactions {
                 || health.activeLeaseExpiresAt() == null
                 || !health.activeLeaseExpiresAt().equals(cycle.leaseExpiresAt())
                 || !health.activeLeaseExpiresAt().isAfter(now)) {
-            throw conflict("The recording retention worker lease changed or expired.");
+            throw conflict("The transcript retention worker lease changed or expired.");
         }
     }
 
@@ -242,7 +248,7 @@ class MeetingRecordingDeletionTransactions {
                 current.version(), current.storageProvider(), current.objectKey(),
                 current.deletionBindingSha256());
         if (!requestHashesMatch(preparedHash, currentHash)) {
-            throw conflict("The recording artifact changed during deletion.");
+            throw conflict("The transcript artifact changed during deletion.");
         }
     }
 
@@ -259,14 +265,14 @@ class MeetingRecordingDeletionTransactions {
                 || artifact.objectKey().contains("#")
                 || artifact.deletionBindingSha256() == null
                 || !artifact.deletionBindingSha256().matches("^[0-9a-f]{64}$")) {
-            throw unavailable("The recording artifact deletion evidence is invalid.");
+            throw unavailable("The transcript artifact deletion evidence is invalid.");
         }
     }
 
     private void validateConfiguration() {
-        if (!new MeetingRecordingDeletionReadiness(
-                repository, properties, recordingProperties, clock).validConfiguration()) {
-            throw unavailable("Recording retention is not configured.");
+        if (!new MeetingTranscriptDeletionReadiness(
+                repository, properties, transcriptProperties, clock).validConfiguration()) {
+            throw unavailable("Transcript retention is not configured.");
         }
     }
 

@@ -157,11 +157,13 @@ class MeetingRecordingDeletionPostgresTest {
     void expiredCycleIsReclaimedAndTheOldWorkerCannotDeleteOrTerminate() {
         MeetingRecordingDeletionTransactions oldWorker = transactionsAt(now, audit);
         DeletionCycle oldCycle = oldWorker.claimCycle();
-        PreparedDeletion oldPrepared = oldWorker.prepareNext(oldCycle, "GOVERNED_EGRESS");
+        PreparedDeletion oldPrepared = oldWorker.prepareNext(
+                oldCycle, "GOVERNED_EGRESS", true);
         OffsetDateTime recoveredAt = now.plusMinutes(2);
         MeetingRecordingDeletionTransactions newWorker = transactionsAt(recoveredAt, audit);
         DeletionCycle newCycle = newWorker.claimCycle();
-        PreparedDeletion newPrepared = newWorker.prepareNext(newCycle, "GOVERNED_EGRESS");
+        PreparedDeletion newPrepared = newWorker.prepareNext(
+                newCycle, "GOVERNED_EGRESS", true);
 
         assertThat(newPrepared.command().attemptCount()).isEqualTo(2);
         assertThat(newPrepared.command().commandId())
@@ -174,10 +176,44 @@ class MeetingRecordingDeletionPostgresTest {
                 """, String.class, fixture.artifactId())).isEqualTo("AVAILABLE");
 
         newWorker.succeed(newPrepared, receipt(newPrepared, recoveredAt));
-        newWorker.completeCycle(newCycle);
+        newWorker.completeCycle(newCycle, "GOVERNED_EGRESS");
         assertThat(jdbc.queryForObject("""
                 SELECT artifact_state FROM vm_meeting_artifacts WHERE artifact_id = ?
                 """, String.class, fixture.artifactId())).isEqualTo("DELETED");
+    }
+
+    @Test
+    void crashAfterProviderSuccessReusesTheOriginalReceiptAfterLeaseReclaim() {
+        MeetingRecordingDeletionTransactions crashedWorker = transactionsAt(now, audit);
+        DeletionCycle crashedCycle = crashedWorker.claimCycle();
+        PreparedDeletion crashedPrepared = crashedWorker.prepareNext(
+                crashedCycle, "GOVERNED_EGRESS", true);
+        MeetingRecordingProvider.DeletionReceipt durableProviderReceipt =
+                receipt(crashedPrepared, now);
+
+        OffsetDateTime recoveredAt = now.plusMinutes(2);
+        MeetingRecordingDeletionTransactions recoveredWorker =
+                transactionsAt(recoveredAt, audit);
+        DeletionCycle recoveredCycle = recoveredWorker.claimCycle();
+        PreparedDeletion recoveredPrepared = recoveredWorker.prepareNext(
+                recoveredCycle, "GOVERNED_EGRESS", true);
+
+        assertThat(recoveredPrepared.command().commandId())
+                .isEqualTo(crashedPrepared.command().commandId());
+        assertThat(recoveredPrepared.command().attemptCount()).isEqualTo(2);
+        assertThat(recoveredPrepared.command().requestedAt())
+                .isEqualTo(crashedPrepared.command().requestedAt());
+
+        recoveredWorker.succeed(recoveredPrepared, durableProviderReceipt);
+        recoveredWorker.completeCycle(recoveredCycle, "GOVERNED_EGRESS");
+
+        assertThat(jdbc.queryForObject("""
+                SELECT artifact_state FROM vm_meeting_artifacts WHERE artifact_id = ?
+                """, String.class, fixture.artifactId())).isEqualTo("DELETED");
+        assertThat(jdbc.queryForObject("""
+                SELECT command_state FROM vm_meeting_recording_deletion_commands
+                 WHERE artifact_id = ?
+                """, String.class, fixture.artifactId())).isEqualTo("SUCCEEDED");
     }
 
     @Test
@@ -193,7 +229,8 @@ class MeetingRecordingDeletionPostgresTest {
         DeletionCycle cycle = first.claimCycle();
 
         assertThat(second.claimCycle()).isNull();
-        PreparedDeletion prepared = first.prepareNext(cycle, "GOVERNED_EGRESS");
+        PreparedDeletion prepared = first.prepareNext(
+                cycle, "GOVERNED_EGRESS", true);
         assertThatThrownBy(() -> first.succeed(prepared, receipt(prepared, now)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("audit unavailable");
@@ -273,7 +310,8 @@ class MeetingRecordingDeletionPostgresTest {
                 """, now.plusDays(1), fixture.artifactId());
         jdbc.update("""
                 UPDATE vm_meeting_recording_deletion_health
-                   SET last_success_at = ?, last_attempt_at = ?, updated_at = ?
+                   SET last_success_at = ?, last_attempt_at = ?, updated_at = ?,
+                       last_provider_code = 'GOVERNED_EGRESS'
                  WHERE health_key = 'RECORDING_RETENTION'
                 """, now, now, now);
         assertThat(deletionReadiness.ready()).isTrue();
@@ -303,6 +341,21 @@ class MeetingRecordingDeletionPostgresTest {
                 repository, properties, http,
                 Clock.fixed(now.toInstant(), ZoneOffset.UTC)).validConfiguration())
                 .isFalse();
+    }
+
+    @Test
+    void staleProviderReceiptBeforeCommandRequestIsRejected() {
+        MeetingRecordingDeletionTransactions transactions = transactionsAt(now, audit);
+        DeletionCycle cycle = transactions.claimCycle();
+        PreparedDeletion prepared = transactions.prepareNext(
+                cycle, "GOVERNED_EGRESS", true);
+
+        assertThatThrownBy(() -> transactions.succeed(
+                prepared, receipt(prepared, now.minusMinutes(1))))
+                .isInstanceOf(BaseException.class);
+        assertThat(jdbc.queryForObject("""
+                SELECT artifact_state FROM vm_meeting_artifacts WHERE artifact_id = ?
+                """, String.class, fixture.artifactId())).isEqualTo("AVAILABLE");
     }
 
     private Fixture fixture() {
@@ -432,6 +485,7 @@ class MeetingRecordingDeletionPostgresTest {
                     || TransactionSynchronizationManager.isActualTransactionActive();
             return new Capability(
                     true, true, true, true, true, true,
+                    true, 3_600, true,
                     "ap-northeast-2", "GOVERNED_EGRESS");
         }
 

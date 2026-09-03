@@ -42,6 +42,8 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @Testcontainers(disabledWithoutDocker = true)
 class MeetingRecordingArtifactFinalizationPostgresTest {
@@ -65,6 +67,7 @@ class MeetingRecordingArtifactFinalizationPostgresTest {
     private MeetingRecordingArtifactRepository artifacts;
     private VideoMeetingAuditRecorder audit;
     private MeetingRecordingArtifactFinalizationService finalization;
+    private MeetingRecordingProvider recordingProvider;
     private Fixture fixture;
 
     @BeforeEach
@@ -88,7 +91,8 @@ class MeetingRecordingArtifactFinalizationPostgresTest {
         MeetingRecordingDeletionProperties deletionProperties = deletionProperties();
         jdbc.update("""
                 UPDATE vm_meeting_recording_deletion_health
-                   SET last_success_at = ?, last_attempt_at = ?, updated_at = ?
+                   SET last_success_at = ?, last_attempt_at = ?, updated_at = ?,
+                       last_provider_code = 'GOVERNED_EGRESS'
                  WHERE health_key = 'RECORDING_RETENTION'
                 """, fixture.now(), fixture.now(), fixture.now());
         MeetingRecordingDeletionReadiness deletionReadiness =
@@ -99,8 +103,15 @@ class MeetingRecordingArtifactFinalizationPostgresTest {
         var verifier = new MeetingRecordingArtifactAssertionVerifier(
                 TOKEN, KEY_ID, Base64.getEncoder().encodeToString(SECRET), mapper,
                 Clock.fixed(fixture.now().toInstant(), ZoneOffset.UTC));
+        recordingProvider = mock(MeetingRecordingProvider.class);
+        when(recordingProvider.capability()).thenReturn(
+                new MeetingRecordingProvider.Capability(
+                        true, true, true, true, true, true,
+                        true, 300, true,
+                        "ap-northeast-2", "GOVERNED_EGRESS"));
         finalization = transactional(new MeetingRecordingArtifactFinalizationService(
                 meetings, content, artifacts, verifier, audit, deletionReadiness,
+                recordingProvider, transactionManager,
                 Clock.fixed(fixture.now().toInstant(), ZoneOffset.UTC)));
         MeetingRequestContext.set(fixture.producer());
     }
@@ -159,6 +170,27 @@ class MeetingRecordingArtifactFinalizationPostgresTest {
                 """, String.class);
         assertThat(accessAudit).doesNotContain(
                 command.objectKey(), command.sourceSha256(), ticket.accessUrl());
+    }
+
+    @Test
+    void liveProviderProcessingRegionChangeBlocksFinalization() {
+        when(recordingProvider.capability()).thenReturn(
+                new MeetingRecordingProvider.Capability(
+                        true, true, true, true, true, true,
+                        true, 300, true,
+                        "us-east-1", "GOVERNED_EGRESS"));
+        MeetingRecordingArtifactDtos.FinalizeRecordingCommand command = command(
+                fixture.artifactId(), fixture.sessionId(), fixture.artifactVersion(),
+                fixture.planVersion(), fixture.noticeId(), fixture.consentSha256(),
+                fixture.now().plusDays(20));
+
+        assertThatThrownBy(() -> finalize(
+                command, "recording-finalize-region-change", UUID.randomUUID()))
+                .isInstanceOf(BaseException.class)
+                .hasMessage("Recording provider governance changed before finalization.");
+        assertThat(jdbc.queryForObject("""
+                SELECT artifact_state FROM vm_meeting_artifacts WHERE artifact_id = ?
+                """, String.class, fixture.artifactId())).isNotEqualTo("AVAILABLE");
     }
 
     @Test
@@ -558,11 +590,11 @@ class MeetingRecordingArtifactFinalizationPostgresTest {
                         Clock.fixed(cleanupAt.toInstant(), ZoneOffset.UTC)));
         var cycle = deletion.claimCycle();
         cycle = deletion.renewCycle(cycle);
-        var prepared = deletion.prepareNext(cycle, "GOVERNED_EGRESS");
+        var prepared = deletion.prepareNext(cycle, "GOVERNED_EGRESS", true);
         deletion.succeed(prepared, new MeetingRecordingProvider.DeletionReceipt(
                 artifactId, prepared.artifact().version(),
                 "provider-legacy-cleanup", cleanupAt));
-        deletion.completeCycle(cycle);
+        deletion.completeCycle(cycle, "GOVERNED_EGRESS");
 
         assertThat(legacy.queryForObject("""
                 SELECT artifact_state = 'DELETED'

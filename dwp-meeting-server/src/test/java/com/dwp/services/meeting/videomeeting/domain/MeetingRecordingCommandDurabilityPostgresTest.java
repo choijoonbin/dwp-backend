@@ -40,6 +40,7 @@ import static com.dwp.services.meeting.videomeeting.domain.VideoMeetingCommandPo
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -115,7 +116,8 @@ class MeetingRecordingCommandDurabilityPostgresTest {
         when(media.capability()).thenReturn(mediaCapability());
         MeetingContentDependencies dependencies = () -> dependencies();
         VideoMeetingRecordingService service = new VideoMeetingRecordingService(
-                transactionsAt(fixture.now()), provider, media, dependencies);
+                transactionsAt(fixture.now()), provider, media, dependencies,
+                recordingReadiness(fixture.now()));
 
         var started = service.requestRecording(
                 fixture.meetingId(),
@@ -142,6 +144,29 @@ class MeetingRecordingCommandDurabilityPostgresTest {
     }
 
     @Test
+    void startFailsClosedBeforeCommandTransactionWhenRetentionReadinessIsStale() {
+        MeetingRecordingProvider provider = mock(MeetingRecordingProvider.class);
+        when(provider.capability()).thenReturn(recordingCapability());
+        MeetingMediaProvider media = mock(MeetingMediaProvider.class);
+        when(media.capability()).thenReturn(mediaCapability());
+        VideoMeetingRecordingService service = new VideoMeetingRecordingService(
+                transactionsAt(fixture.now()), provider, media, () -> dependencies(),
+                notReadyRecordingReadiness(fixture.now()));
+
+        assertThatThrownBy(() -> service.requestRecording(
+                fixture.meetingId(),
+                new VideoMeetingContentDtos.RequestRecordingCommand(fixture.planVersion()),
+                "recording-retention-stale-0001", "corr-retention-stale"))
+                .isInstanceOf(BaseException.class)
+                .hasMessage("The governed recording provider is unavailable.");
+        verify(provider, never()).start(org.mockito.ArgumentMatchers.any());
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM vm_meeting_recording_provider_commands
+                 WHERE meeting_id = ?
+                """, Integer.class, fixture.meetingId())).isZero();
+    }
+
+    @Test
     void retentionReadinessBlocksNewStartButNeverPreventsAProviderBoundStop() {
         AtomicBoolean retentionReady = new AtomicBoolean(true);
         MeetingRecordingProvider provider = mock(MeetingRecordingProvider.class);
@@ -163,7 +188,8 @@ class MeetingRecordingCommandDurabilityPostgresTest {
                 : new MeetingContentDependencies.Status(
                         false, false, true, false, true, true);
         VideoMeetingRecordingService service = new VideoMeetingRecordingService(
-                transactionsAt(fixture.now()), provider, media, dependencies);
+                transactionsAt(fixture.now()), provider, media, dependencies,
+                recordingReadiness(fixture.now()));
 
         var started = service.requestRecording(
                 fixture.meetingId(),
@@ -199,6 +225,7 @@ class MeetingRecordingCommandDurabilityPostgresTest {
         MeetingRecordingProvider.Capability original = recordingCapability();
         MeetingRecordingProvider.Capability switched = new MeetingRecordingProvider.Capability(
                 true, true, true, true, true, true,
+                true, 3_600, true,
                 "us-east-1", "GOVERNED_EGRESS");
         String key = "recording-region-recovery-0001";
         String hash = requestHash(fixture.meetingId(), fixture.planVersion());
@@ -225,6 +252,7 @@ class MeetingRecordingCommandDurabilityPostgresTest {
         MeetingRecordingProvider.Capability original = recordingCapability();
         MeetingRecordingProvider.Capability switched = new MeetingRecordingProvider.Capability(
                 true, true, true, true, true, true,
+                true, 3_600, true,
                 "us-east-1", "GOVERNED_EGRESS");
         MeetingRecordingCommandTransactions transactions = transactionsAt(fixture.now());
         Preparation prepared = transactions.prepareStart(
@@ -323,7 +351,8 @@ class MeetingRecordingCommandDurabilityPostgresTest {
         MeetingMediaProvider media = mock(MeetingMediaProvider.class);
         when(media.capability()).thenReturn(mediaCapability());
         VideoMeetingRecordingService service = new VideoMeetingRecordingService(
-                transactionsAt(fixture.now()), provider, media, () -> dependencies());
+                transactionsAt(fixture.now()), provider, media, () -> dependencies(),
+                recordingReadiness(fixture.now()));
         var request = new VideoMeetingContentDtos.RequestRecordingCommand(
                 fixture.planVersion());
 
@@ -420,6 +449,37 @@ class MeetingRecordingCommandDurabilityPostgresTest {
         return (MeetingRecordingCommandTransactions) proxy.getProxy();
     }
 
+    private MeetingRecordingDeletionReadiness recordingReadiness(OffsetDateTime now) {
+        MeetingRecordingDeletionProperties retention = new MeetingRecordingDeletionProperties();
+        retention.setEnabled(true);
+        retention.setBatchSize(10);
+        retention.setPollDelay(Duration.ofMinutes(5));
+        retention.setLeaseDuration(Duration.ofMinutes(1));
+        retention.setWorkerId("recording-command-test");
+        jdbc.update("""
+                UPDATE vm_meeting_recording_deletion_health
+                   SET last_success_at = ?, last_attempt_at = ?,
+                       last_provider_code = 'GOVERNED_EGRESS', updated_at = ?
+                 WHERE health_key = 'RECORDING_RETENTION'
+                """, now, now, now);
+        return new MeetingRecordingDeletionReadiness(
+                new MeetingRecordingDeletionRepository(jdbc), retention,
+                properties, Clock.fixed(now.toInstant(), ZoneOffset.UTC));
+    }
+
+    private MeetingRecordingDeletionReadiness notReadyRecordingReadiness(
+            OffsetDateTime now) {
+        MeetingRecordingDeletionProperties retention = new MeetingRecordingDeletionProperties();
+        retention.setEnabled(true);
+        retention.setBatchSize(10);
+        retention.setPollDelay(Duration.ofMinutes(5));
+        retention.setLeaseDuration(Duration.ofMinutes(1));
+        retention.setWorkerId("recording-stale-test");
+        return new MeetingRecordingDeletionReadiness(
+                new MeetingRecordingDeletionRepository(jdbc), retention,
+                properties, Clock.fixed(now.toInstant(), ZoneOffset.UTC));
+    }
+
     private Fixture fixture() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         UUID meetingId = jdbc.queryForObject("""
@@ -488,6 +548,7 @@ class MeetingRecordingCommandDurabilityPostgresTest {
     private MeetingRecordingProvider.Capability recordingCapability() {
         return new MeetingRecordingProvider.Capability(
                 true, true, true, true, true, true,
+                true, 3_600, true,
                 "ap-northeast-2", "GOVERNED_EGRESS");
     }
 

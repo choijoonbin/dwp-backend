@@ -2,6 +2,7 @@ package com.dwp.services.meeting.videomeeting.api;
 
 import com.dwp.core.common.ApiResponse;
 import com.dwp.services.meeting.videomeeting.domain.MeetingTranscriptArtifactFinalizationService;
+import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.UUID;
 
 @RestController
+@Hidden
 @RequestMapping("/internal/v1/meetings/{meetingId}/artifacts/transcript")
 public class MeetingTranscriptArtifactController {
 

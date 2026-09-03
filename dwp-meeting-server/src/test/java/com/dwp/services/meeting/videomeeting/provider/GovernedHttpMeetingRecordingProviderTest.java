@@ -29,7 +29,9 @@ class GovernedHttpMeetingRecordingProviderTest {
                 {"schemaVersion":"meeting-recording-capability-v1","available":true,
                  "egressAvailable":true,"storageAvailable":true,
                  "speechToTextAvailable":true,"deletionAvailable":true,
-                 "cryptoShredAvailable":true,"customerManagedStorage":true,
+                 "cryptoShredAvailable":true,"orphanCleanupAvailable":true,
+                 "maximumOrphanTtlSeconds":300,"legacyLocatorDeletionAvailable":true,
+                 "customerManagedStorage":true,
                  "providerRetentionDisabled":true,"processingRegion":"ap-northeast-2",
                  "providerCode":"GOVERNED_EGRESS"}
                 """).getBytes());
@@ -42,6 +44,8 @@ class GovernedHttpMeetingRecordingProviderTest {
         assertThat(capability.speechToTextAvailable()).isTrue();
         assertThat(capability.deletionAvailable()).isTrue();
         assertThat(capability.cryptoShredAvailable()).isTrue();
+        assertThat(capability.orphanCleanupAvailable()).isTrue();
+        assertThat(capability.maximumOrphanTtlSeconds()).isEqualTo(300);
         assertThat(client.request().method()).isEqualTo("GET");
         assertThat(client.request().uri().toString()).isEqualTo(
                 "https://recording.example.test/internal/v1/meeting-recording/capability");
@@ -87,7 +91,9 @@ class GovernedHttpMeetingRecordingProviderTest {
                 {"schemaVersion":"meeting-recording-capability-v1","available":true,
                  "egressAvailable":true,"storageAvailable":true,
                  "speechToTextAvailable":true,"deletionAvailable":true,
-                 "cryptoShredAvailable":true,"customerManagedStorage":true,
+                 "cryptoShredAvailable":true,"orphanCleanupAvailable":true,
+                 "maximumOrphanTtlSeconds":300,"legacyLocatorDeletionAvailable":true,
+                 "customerManagedStorage":true,
                  "providerRetentionDisabled":true,"processingRegion":"ap-northeast-2",
                  "providerCode":"GOVERNED_EGRESS",
                  "objectKey":"must-not-exist"}
@@ -104,7 +110,9 @@ class GovernedHttpMeetingRecordingProviderTest {
                 {"schemaVersion":"meeting-recording-capability-v1","available":true,
                  "egressAvailable":true,"storageAvailable":true,
                  "speechToTextAvailable":true,"deletionAvailable":false,
-                 "cryptoShredAvailable":false,"customerManagedStorage":false,
+                 "cryptoShredAvailable":false,"orphanCleanupAvailable":false,
+                 "maximumOrphanTtlSeconds":0,"legacyLocatorDeletionAvailable":false,
+                 "customerManagedStorage":false,
                  "providerRetentionDisabled":false,"processingRegion":"us-east-1",
                  "providerCode":"GOVERNED_EGRESS"}
                 """).getBytes());
@@ -342,6 +350,20 @@ class GovernedHttpMeetingRecordingProviderTest {
         unsigned.setAssertionSecretBase64("");
         assertThatThrownBy(() -> provider(unsigned, new CapturingHttpClient()))
                 .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void commandLeaseMustOutliveTheBoundedProviderRequest() {
+        MeetingRecordingHttpProperties unsafe = properties();
+        unsafe.setRequestTimeout(Duration.ofSeconds(30));
+        unsafe.setCommandLease(Duration.ofSeconds(30));
+
+        assertThatThrownBy(() -> provider(unsafe, new CapturingHttpClient()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Recording command lease must outlive the request timeout.");
+
+        unsafe.setCommandLease(Duration.ofSeconds(35));
+        assertThat(provider(unsafe, new CapturingHttpClient())).isNotNull();
     }
 
     private GovernedHttpMeetingRecordingProvider provider(

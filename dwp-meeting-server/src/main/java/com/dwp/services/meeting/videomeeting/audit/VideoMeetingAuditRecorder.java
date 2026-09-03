@@ -118,6 +118,33 @@ public class VideoMeetingAuditRecorder {
                 .build());
     }
 
+    public void transcriptDeletion(
+            long tenantId,
+            UUID meetingId,
+            UUID artifactId,
+            String action,
+            String correlationId,
+            String outcome,
+            Map<String, Object> afterState) {
+        outbox.record(AuditEvent.builder()
+                .tenantId(tenantId)
+                .category("SYSTEM_EVENT")
+                .action(action)
+                .actorType("SERVICE")
+                .actorId("MEETING_TRANSCRIPT_RETENTION")
+                .actorRoles(List.of("SYSTEM_RETENTION"))
+                .sourceService("dwp-meeting-server")
+                .sourceModule(MODULE)
+                .correlationId(correlationId)
+                .outcome(outcome)
+                .severity("FAILED".equals(outcome) ? "MEDIUM" : "INFO")
+                .targetType("MEETING_TRANSCRIPT_ARTIFACT")
+                .targetId(artifactId.toString())
+                .afterState(merge(afterState, Map.of("meetingId", meetingId.toString())))
+                .retentionClass("EXTENDED")
+                .build());
+    }
+
     public void providerLifecycle(
             long tenantId,
             Meeting meeting,

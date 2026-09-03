@@ -30,7 +30,9 @@ public class MeetingTranscriptArtifactRepository {
                        finalization_idempotency_key, finalization_request_sha256,
                        finalized_at, finalized_by, version,
                        registration_idempotency_key, registration_request_sha256,
-                       registered_at, registered_by
+                       registered_at, registered_by, transcript_plan_version,
+                       transcript_provider_code, transcript_storage_provider_code,
+                       transcript_deletion_command_id, storage_provider, object_key
                   FROM vm_meeting_artifacts
                  WHERE tenant_id = ? AND meeting_id = ? AND artifact_id = ?
                    AND artifact_type = 'TRANSCRIPT'
@@ -47,7 +49,9 @@ public class MeetingTranscriptArtifactRepository {
                        finalization_idempotency_key, finalization_request_sha256,
                        finalized_at, finalized_by, version,
                        registration_idempotency_key, registration_request_sha256,
-                       registered_at, registered_by
+                       registered_at, registered_by, transcript_plan_version,
+                       transcript_provider_code, transcript_storage_provider_code,
+                       transcript_deletion_command_id, storage_provider, object_key
                   FROM vm_meeting_artifacts
                  WHERE tenant_id = ? AND meeting_id = ? AND artifact_type = 'TRANSCRIPT'
                  FOR UPDATE
@@ -64,6 +68,9 @@ public class MeetingTranscriptArtifactRepository {
             String processingRegion,
             UUID noticeId,
             String consentSnapshotSha256,
+            long contentPlanVersion,
+            String providerCode,
+            String storageProviderCode,
             String idempotencyKey,
             String requestSha256,
             long actorUserId,
@@ -75,20 +82,25 @@ public class MeetingTranscriptArtifactRepository {
                         sha256, retention_until, server_side_processing_allowed,
                         processing_region, content_notice_id, consent_snapshot_sha256,
                         registration_idempotency_key, registration_request_sha256,
+                        transcript_plan_version, transcript_provider_code,
+                        transcript_storage_provider_code,
                         registered_at, registered_by, created_at, created_by,
                         updated_at, updated_by)
                     VALUES (?, ?, ?, 'TRANSCRIPT', 'PROCESSING', ?, ?, TRUE,
-                            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     RETURNING artifact_id, tenant_id, meeting_id, artifact_state,
                               sha256, retention_until, server_side_processing_allowed,
                               processing_region, content_notice_id, consent_snapshot_sha256,
                               finalization_idempotency_key, finalization_request_sha256,
                               finalized_at, finalized_by, version,
                               registration_idempotency_key, registration_request_sha256,
-                              registered_at, registered_by
+                              registered_at, registered_by, transcript_plan_version,
+                              transcript_provider_code, transcript_storage_provider_code,
+                              transcript_deletion_command_id, storage_provider, object_key
                     """, this::artifact,
                     artifactId, tenantId, meetingId, sourceSha256, retentionUntil,
                     processingRegion, noticeId, consentSnapshotSha256,
+                    contentPlanVersion, providerCode, storageProviderCode,
                     idempotencyKey, requestSha256, registeredAt, actorUserId,
                     registeredAt, actorUserId, registeredAt, actorUserId)
                     .stream().findFirst().orElseThrow(() -> new BaseException(
@@ -100,27 +112,37 @@ public class MeetingTranscriptArtifactRepository {
                    SET artifact_state = 'PROCESSING', sha256 = ?, retention_until = ?,
                        server_side_processing_allowed = TRUE, processing_region = ?,
                        content_notice_id = ?, consent_snapshot_sha256 = ?,
+                       transcript_plan_version = ?, transcript_provider_code = ?,
+                       transcript_storage_provider_code = ?,
                        registration_idempotency_key = ?, registration_request_sha256 = ?,
                        registered_at = ?, registered_by = ?,
                        storage_provider = NULL, object_key = NULL, content_type = NULL,
                        size_bytes = NULL, finalization_idempotency_key = NULL,
                        finalization_request_sha256 = NULL, finalized_at = NULL,
-                       finalized_by = NULL, version = version + 1,
+                       finalized_by = NULL, transcript_deletion_command_id = NULL,
+                       transcript_deleted_at = NULL,
+                       transcript_deletion_provider_code = NULL,
+                       version = version + 1,
                        updated_at = ?, updated_by = ?
                  WHERE tenant_id = ? AND meeting_id = ? AND artifact_id = ?
                    AND artifact_type = 'TRANSCRIPT'
                    AND artifact_state IN ('NONE', 'UNAVAILABLE', 'FAILED')
                    AND registration_idempotency_key IS NULL AND version = ?
+                   AND storage_provider IS NULL AND object_key IS NULL
+                   AND transcript_deletion_command_id IS NULL
                 RETURNING artifact_id, tenant_id, meeting_id, artifact_state,
                           sha256, retention_until, server_side_processing_allowed,
                           processing_region, content_notice_id, consent_snapshot_sha256,
                           finalization_idempotency_key, finalization_request_sha256,
                           finalized_at, finalized_by, version,
                           registration_idempotency_key, registration_request_sha256,
-                          registered_at, registered_by
+                          registered_at, registered_by, transcript_plan_version,
+                          transcript_provider_code, transcript_storage_provider_code,
+                          transcript_deletion_command_id, storage_provider, object_key
                 """, this::artifact,
                 sourceSha256, retentionUntil, processingRegion, noticeId,
-                consentSnapshotSha256, idempotencyKey, requestSha256,
+                consentSnapshotSha256, contentPlanVersion, providerCode,
+                storageProviderCode, idempotencyKey, requestSha256,
                 registeredAt, actorUserId, registeredAt, actorUserId,
                 tenantId, meetingId, current.artifactId(), current.version())
                 .stream().findFirst().orElseThrow(() -> new BaseException(
@@ -155,6 +177,8 @@ public class MeetingTranscriptArtifactRepository {
                  WHERE tenant_id = ? AND meeting_id = ? AND artifact_id = ?
                    AND artifact_state IN ('PROCESSING', 'FAILED')
                    AND registration_idempotency_key IS NOT NULL
+                   AND transcript_deletion_command_id IS NULL
+                   AND storage_provider IS NULL AND object_key IS NULL
                    AND sha256 = ?
                    AND version = ?
                 RETURNING artifact_id, tenant_id, meeting_id, artifact_state,
@@ -163,7 +187,9 @@ public class MeetingTranscriptArtifactRepository {
                           finalization_idempotency_key, finalization_request_sha256,
                           finalized_at, finalized_by, version,
                           registration_idempotency_key, registration_request_sha256,
-                          registered_at, registered_by
+                          registered_at, registered_by, transcript_plan_version,
+                          transcript_provider_code, transcript_storage_provider_code,
+                          transcript_deletion_command_id, storage_provider, object_key
                 """, this::artifact,
                 storageProvider, objectKey, contentType, sizeBytes, sourceSha256,
                 retentionUntil, processingRegion, noticeId, consentSnapshotSha256,
@@ -218,7 +244,12 @@ public class MeetingTranscriptArtifactRepository {
                 rs.getString("registration_idempotency_key"),
                 rs.getString("registration_request_sha256"),
                 rs.getObject("registered_at", OffsetDateTime.class),
-                rs.getObject("registered_by", Long.class));
+                rs.getObject("registered_by", Long.class),
+                rs.getObject("transcript_plan_version", Long.class),
+                rs.getString("transcript_provider_code"),
+                rs.getString("transcript_storage_provider_code"),
+                rs.getObject("transcript_deletion_command_id", UUID.class),
+                rs.getString("storage_provider"), rs.getString("object_key"));
     }
 
     public record TranscriptArtifact(
@@ -240,6 +271,12 @@ public class MeetingTranscriptArtifactRepository {
             String registrationIdempotencyKey,
             String registrationRequestSha256,
             OffsetDateTime registeredAt,
-            Long registeredBy) {
+            Long registeredBy,
+            Long contentPlanVersion,
+            String providerCode,
+            String storageProviderCode,
+            UUID deletionCommandId,
+            String storageProvider,
+            String objectKey) {
     }
 }

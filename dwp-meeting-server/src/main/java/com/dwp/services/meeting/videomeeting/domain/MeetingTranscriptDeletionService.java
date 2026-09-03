@@ -1,31 +1,32 @@
 package com.dwp.services.meeting.videomeeting.domain;
 
-import com.dwp.services.meeting.videomeeting.domain.MeetingRecordingDeletionModels.DeletionCycle;
-import com.dwp.services.meeting.videomeeting.domain.MeetingRecordingDeletionModels.PreparedDeletion;
-import com.dwp.services.meeting.videomeeting.provider.MeetingRecordingProvider;
+import com.dwp.services.meeting.videomeeting.domain.MeetingTranscriptDeletionModels.DeletionCycle;
+import com.dwp.services.meeting.videomeeting.domain.MeetingTranscriptDeletionModels.PreparedDeletion;
+import com.dwp.services.meeting.videomeeting.provider.MeetingTranscriptSource;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 @Service
-public class MeetingRecordingDeletionService {
+public class MeetingTranscriptDeletionService {
 
-    private final MeetingRecordingDeletionTransactions transactions;
-    private final MeetingRecordingDeletionProperties properties;
-    private final MeetingRecordingProvider provider;
-    private final MeetingRecordingDeletionReadiness readiness;
+    private final MeetingTranscriptDeletionTransactions transactions;
+    private final MeetingTranscriptDeletionProperties properties;
+    private final MeetingTranscriptSource transcripts;
+    private final MeetingTranscriptDeletionReadiness readiness;
 
-    public MeetingRecordingDeletionService(
-            MeetingRecordingDeletionTransactions transactions,
-            MeetingRecordingDeletionProperties properties,
-            MeetingRecordingProvider provider,
-            MeetingRecordingDeletionReadiness readiness) {
+    public MeetingTranscriptDeletionService(
+            MeetingTranscriptDeletionTransactions transactions,
+            MeetingTranscriptDeletionProperties properties,
+            MeetingTranscriptSource transcripts,
+            MeetingTranscriptDeletionReadiness readiness) {
         this.transactions = transactions;
         this.properties = properties;
-        this.provider = provider;
+        this.transcripts = transcripts;
         this.readiness = readiness;
     }
 
-    @Scheduled(fixedDelayString = "${dwp.meeting.recording.deletion.poll-delay:PT5M}")
+    @Scheduled(fixedDelayString =
+            "${dwp.meeting.transcript-source.deletion.poll-delay:PT5M}")
     public int purgeExpired() {
         if (!properties.isEnabled()) return 0;
         DeletionCycle cycle;
@@ -38,7 +39,8 @@ public class MeetingRecordingDeletionService {
         if (cycle == null) return 0;
         int deleted = 0;
         try {
-            MeetingRecordingProvider.Capability capability = provider.capability();
+            MeetingTranscriptSource.RetentionCapability capability =
+                    transcripts.retentionCapability();
             if (!deletionCapable(capability)) {
                 transactions.failCycle(cycle, "DELETION_PROVIDER_UNAVAILABLE");
                 readiness.markLocalFailure();
@@ -48,11 +50,12 @@ public class MeetingRecordingDeletionService {
                 cycle = transactions.renewCycle(cycle);
                 PreparedDeletion prepared = transactions.prepareNext(
                         cycle, capability.providerCode(),
+                        capability.storageProviderCode(),
                         capability.legacyLocatorDeletionAvailable());
                 if (prepared == null) break;
                 try {
-                    MeetingRecordingProvider.DeletionReceipt receipt = provider.delete(
-                            new MeetingRecordingProvider.DeleteRequest(
+                    MeetingTranscriptSource.DeletionReceipt receipt = transcripts.delete(
+                            new MeetingTranscriptSource.DeleteRequest(
                                     prepared.artifact().tenantId(),
                                     prepared.artifact().meetingId(),
                                     prepared.artifact().artifactId(),
@@ -65,17 +68,18 @@ public class MeetingRecordingDeletionService {
                     deleted++;
                 } catch (RuntimeException providerFailure) {
                     failDeletion(prepared, providerFailure);
-                    transactions.failCycle(cycle, "RECORDING_DELETION_FAILURE");
+                    transactions.failCycle(cycle, "TRANSCRIPT_DELETION_FAILURE");
                     readiness.markLocalFailure();
                     return deleted;
                 }
             }
-            transactions.completeCycle(cycle, capability.providerCode());
+            transactions.completeCycle(
+                    cycle, capability.providerCode(), capability.storageProviderCode());
             readiness.markLocalSuccess();
             return deleted;
         } catch (RuntimeException failure) {
             try {
-                transactions.failCycle(cycle, "RECORDING_RETENTION_FAILURE");
+                transactions.failCycle(cycle, "TRANSCRIPT_RETENTION_FAILURE");
             } catch (RuntimeException staleCycle) {
                 failure.addSuppressed(staleCycle);
             }
@@ -92,13 +96,18 @@ public class MeetingRecordingDeletionService {
         }
     }
 
-    private boolean deletionCapable(MeetingRecordingProvider.Capability capability) {
+    private boolean deletionCapable(
+            MeetingTranscriptSource.RetentionCapability capability) {
         return capability != null && capability.available()
                 && capability.deletionAvailable() && capability.cryptoShredAvailable()
+                && capability.customerManagedStorage()
+                && capability.providerRetentionDisabled()
                 && capability.orphanCleanupAvailable()
                 && capability.maximumOrphanTtlSeconds() >= 30
                 && capability.maximumOrphanTtlSeconds() <= 3_600
                 && capability.providerCode() != null
-                && capability.providerCode().matches("^[A-Z][A-Z0-9_-]{2,47}$");
+                && capability.providerCode().matches("^[A-Z][A-Z0-9_-]{2,47}$")
+                && capability.storageProviderCode() != null
+                && capability.storageProviderCode().matches("^[A-Z][A-Z0-9_-]{1,31}$");
     }
 }

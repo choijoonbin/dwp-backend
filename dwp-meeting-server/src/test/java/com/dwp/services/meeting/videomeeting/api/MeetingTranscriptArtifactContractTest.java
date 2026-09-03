@@ -18,6 +18,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 class MeetingTranscriptArtifactContractTest {
 
     @Test
+    void internalProducerEndpointIsExcludedFromThePublicOpenApiContract() {
+        assertThat(MeetingTranscriptArtifactController.class
+                .isAnnotationPresent(io.swagger.v3.oas.annotations.Hidden.class)).isTrue();
+    }
+
+    @Test
     void exposesInternalFinalizationWithDedicatedCredentialAndAssertionHeaders()
             throws Exception {
         RequestMapping root = MeetingTranscriptArtifactController.class
@@ -67,7 +73,8 @@ class MeetingTranscriptArtifactContractTest {
                 "a".repeat(64), now.plusDays(30), true, "ap-northeast-2",
                 UUID.randomUUID(), "b".repeat(64), "idempotency-key",
                 "c".repeat(64), now, 101L, 1,
-                "registration-key", "d".repeat(64), now.minusMinutes(1), 101L);
+                "registration-key", "d".repeat(64), now.minusMinutes(1), 101L,
+                4L, "TRANSCRIPT_BROKER", "GOVERNED_STORE", null, null, null);
         JsonNode json = new ObjectMapper().findAndRegisterModules().valueToTree(
                 MeetingTranscriptArtifactDtos.TranscriptArtifactResponse.from(artifact));
         Set<String> fields = json.properties().stream()

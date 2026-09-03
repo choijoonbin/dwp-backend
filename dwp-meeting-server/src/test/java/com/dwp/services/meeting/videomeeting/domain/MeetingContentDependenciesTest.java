@@ -44,6 +44,7 @@ class MeetingContentDependenciesTest {
         Fixture fixture = readyFixture();
         when(fixture.recording.capability()).thenReturn(new MeetingRecordingProvider.Capability(
                 true, true, true, true, true, true,
+                true, 3_600, true,
                 "ap-northeast-2", "GOVERNED_EGRESS"));
 
         var status = fixture.dependencies.status();
@@ -108,6 +109,8 @@ class MeetingContentDependenciesTest {
         MeetingRecordingProvider recording = mock(MeetingRecordingProvider.class);
         MeetingRecordingDeletionReadiness deletion =
                 mock(MeetingRecordingDeletionReadiness.class);
+        MeetingTranscriptDeletionReadiness transcriptDeletion =
+                mock(MeetingTranscriptDeletionReadiness.class);
         MeetingIntelligencePayloadProtector protector =
                 mock(MeetingIntelligencePayloadProtector.class);
         MeetingIntelligenceHttpProperties intelligence =
@@ -120,11 +123,12 @@ class MeetingContentDependenciesTest {
         when(protector.ready()).thenReturn(true);
         when(recording.capability()).thenReturn(MeetingRecordingProvider.Capability.unavailable());
         when(deletion.ready(any())).thenReturn(true);
+        when(transcriptDeletion.ready()).thenReturn(true);
         when(jdbc.queryForObject(anyString(), eq(Boolean.class))).thenReturn(true);
         GovernedMeetingContentDependencies dependencies =
                 new GovernedMeetingContentDependencies(
                         jdbc, intelligence, transcript, source, protector,
-                        recording, deletion);
+                        recording, deletion, transcriptDeletion);
         return new Fixture(
                 jdbc, source, protector, recording, intelligence, transcript, dependencies);
     }

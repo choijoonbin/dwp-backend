@@ -55,7 +55,10 @@ public class MeetingRecordingDeletionReadiness {
             if (localFailureAt.get() != null) return false;
             Health health = repository.health().orElse(null);
             if (health == null || health.lastSuccessAt() == null
-                    || !health.lastSuccessAt().isAfter(now.minus(staleAfter()))) {
+                    || !health.lastSuccessAt().isAfter(now.minus(staleAfter()))
+                    || health.lastProviderCode() == null
+                    || !health.lastProviderCode().matches(
+                            "^[A-Z][A-Z0-9_-]{2,47}$")) {
                 return false;
             }
             if (health.lastFailureAt() != null
@@ -76,7 +79,14 @@ public class MeetingRecordingDeletionReadiness {
     public boolean ready(MeetingRecordingProvider.Capability capability) {
         return capability != null && capability.available()
                 && capability.deletionAvailable() && capability.cryptoShredAvailable()
-                && ready();
+                && capability.orphanCleanupAvailable()
+                && capability.maximumOrphanTtlSeconds() >= 30
+                && capability.maximumOrphanTtlSeconds() <= 3_600
+                && ready()
+                && repository.health()
+                        .map(health -> capability.providerCode().equals(
+                                health.lastProviderCode()))
+                        .orElse(false);
     }
 
     public void requireReady() {
@@ -84,6 +94,18 @@ public class MeetingRecordingDeletionReadiness {
             throw new BaseException(
                     ErrorCode.EXTERNAL_SERVICE_ERROR,
                     "Governed recording retention is not ready.");
+        }
+    }
+
+    public void requireProviderReady(String providerCode) {
+        if (providerCode == null || !providerCode.matches("^[A-Z][A-Z0-9_-]{2,47}$")
+                || !ready()
+                || repository.health()
+                        .map(health -> !providerCode.equals(health.lastProviderCode()))
+                        .orElse(true)) {
+            throw new BaseException(
+                    ErrorCode.EXTERNAL_SERVICE_ERROR,
+                    "Governed recording retention provider is not ready.");
         }
     }
 

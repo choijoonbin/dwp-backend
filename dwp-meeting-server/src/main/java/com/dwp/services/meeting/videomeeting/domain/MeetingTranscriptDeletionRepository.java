@@ -2,10 +2,10 @@ package com.dwp.services.meeting.videomeeting.domain;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
-import com.dwp.services.meeting.videomeeting.domain.MeetingRecordingDeletionModels.CommandState;
-import com.dwp.services.meeting.videomeeting.domain.MeetingRecordingDeletionModels.DeletionArtifact;
-import com.dwp.services.meeting.videomeeting.domain.MeetingRecordingDeletionModels.DeletionCommand;
-import com.dwp.services.meeting.videomeeting.domain.MeetingRecordingDeletionModels.Health;
+import com.dwp.services.meeting.videomeeting.domain.MeetingTranscriptDeletionModels.CommandState;
+import com.dwp.services.meeting.videomeeting.domain.MeetingTranscriptDeletionModels.DeletionArtifact;
+import com.dwp.services.meeting.videomeeting.domain.MeetingTranscriptDeletionModels.DeletionCommand;
+import com.dwp.services.meeting.videomeeting.domain.MeetingTranscriptDeletionModels.Health;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -16,11 +16,11 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-class MeetingRecordingDeletionRepository {
+class MeetingTranscriptDeletionRepository {
 
     private final JdbcTemplate jdbc;
 
-    MeetingRecordingDeletionRepository(JdbcTemplate jdbc) {
+    MeetingTranscriptDeletionRepository(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
 
@@ -30,10 +30,10 @@ class MeetingRecordingDeletionRepository {
             OffsetDateTime now,
             OffsetDateTime leaseExpiresAt) {
         return jdbc.query("""
-                UPDATE vm_meeting_recording_deletion_health
+                UPDATE vm_meeting_transcript_deletion_health
                    SET active_fence = ?, active_lease_expires_at = ?,
                        active_worker_id = ?, last_attempt_at = ?, updated_at = ?
-                 WHERE health_key = 'RECORDING_RETENTION'
+                 WHERE health_key = 'TRANSCRIPT_RETENTION'
                    AND (active_fence IS NULL OR active_lease_expires_at <= ?)
                 RETURNING *
                 """, this::health,
@@ -43,8 +43,8 @@ class MeetingRecordingDeletionRepository {
 
     Optional<Health> health() {
         return jdbc.query("""
-                SELECT * FROM vm_meeting_recording_deletion_health
-                 WHERE health_key = 'RECORDING_RETENTION'
+                SELECT * FROM vm_meeting_transcript_deletion_health
+                 WHERE health_key = 'TRANSCRIPT_RETENTION'
                 """, this::health).stream().findFirst();
     }
 
@@ -55,9 +55,9 @@ class MeetingRecordingDeletionRepository {
             OffsetDateTime now,
             OffsetDateTime renewedLeaseExpiresAt) {
         return jdbc.query("""
-                UPDATE vm_meeting_recording_deletion_health
+                UPDATE vm_meeting_transcript_deletion_health
                    SET active_lease_expires_at = ?, last_attempt_at = ?, updated_at = ?
-                 WHERE health_key = 'RECORDING_RETENTION'
+                 WHERE health_key = 'TRANSCRIPT_RETENTION'
                    AND active_fence = ? AND active_worker_id = ?
                    AND active_lease_expires_at = ? AND active_lease_expires_at > ?
                 RETURNING *
@@ -68,34 +68,40 @@ class MeetingRecordingDeletionRepository {
 
     Health healthForUpdate() {
         return jdbc.query("""
-                SELECT * FROM vm_meeting_recording_deletion_health
-                 WHERE health_key = 'RECORDING_RETENTION'
+                SELECT * FROM vm_meeting_transcript_deletion_health
+                 WHERE health_key = 'TRANSCRIPT_RETENTION'
                  FOR UPDATE
                 """, this::health).stream().findFirst()
-                .orElseThrow(() -> unavailable("Recording retention health is unavailable."));
+                .orElseThrow(() -> unavailable(
+                        "Transcript retention health is unavailable."));
     }
 
-    void completeCycle(UUID fence, String providerCode, OffsetDateTime completedAt) {
+    void completeCycle(
+            UUID fence,
+            String providerCode,
+            String storageProviderCode,
+            OffsetDateTime completedAt) {
         int updated = jdbc.update("""
-                UPDATE vm_meeting_recording_deletion_health
+                UPDATE vm_meeting_transcript_deletion_health
                    SET last_success_at = ?, last_failure_at = NULL,
                        last_failure_code = NULL, last_provider_code = ?,
-                       active_fence = NULL,
-                       active_lease_expires_at = NULL, active_worker_id = NULL,
-                       updated_at = ?
-                 WHERE health_key = 'RECORDING_RETENTION'
+                       last_storage_provider_code = ?,
+                       active_fence = NULL, active_lease_expires_at = NULL,
+                       active_worker_id = NULL, updated_at = ?
+                 WHERE health_key = 'TRANSCRIPT_RETENTION'
                    AND active_fence = ? AND active_lease_expires_at > ?
-                """, completedAt, providerCode, completedAt, fence, completedAt);
+                """, completedAt, providerCode, storageProviderCode,
+                completedAt, fence, completedAt);
         if (updated != 1) throw staleFence();
     }
 
     void failCycle(UUID fence, String failureCode, OffsetDateTime failedAt) {
         int updated = jdbc.update("""
-                UPDATE vm_meeting_recording_deletion_health
+                UPDATE vm_meeting_transcript_deletion_health
                    SET last_failure_at = ?, last_failure_code = ?,
                        active_fence = NULL, active_lease_expires_at = NULL,
                        active_worker_id = NULL, updated_at = ?
-                 WHERE health_key = 'RECORDING_RETENTION'
+                 WHERE health_key = 'TRANSCRIPT_RETENTION'
                    AND active_fence = ? AND active_lease_expires_at > ?
                 """, failedAt, failureCode, failedAt, fence, failedAt);
         if (updated != 1) throw staleFence();
@@ -104,9 +110,10 @@ class MeetingRecordingDeletionRepository {
     Optional<DeletionArtifact> expiredCandidateForUpdate(OffsetDateTime now) {
         return jdbc.query("""
                 SELECT artifact.artifact_id, artifact.tenant_id, artifact.meeting_id,
-                       artifact.artifact_state, artifact.recording_provider_code,
+                       artifact.artifact_state, artifact.transcript_provider_code,
+                       artifact.transcript_storage_provider_code,
                        artifact.storage_provider,
-                       artifact.object_key, artifact.content_type, artifact.size_bytes,
+                       artifact.object_key,
                        encode(digest(
                            artifact.storage_provider || ':'
                            || char_length(artifact.object_key)::text || ':'
@@ -114,11 +121,11 @@ class MeetingRecordingDeletionRepository {
                            AS deletion_binding_sha256,
                        artifact.retention_until, artifact.version
                   FROM vm_meeting_artifacts artifact
-                  LEFT JOIN vm_meeting_recording_deletion_commands command
+                  LEFT JOIN vm_meeting_transcript_deletion_commands command
                     ON command.tenant_id = artifact.tenant_id
                    AND command.meeting_id = artifact.meeting_id
                    AND command.artifact_id = artifact.artifact_id
-                 WHERE artifact.artifact_type = 'RECORDING'
+                 WHERE artifact.artifact_type = 'TRANSCRIPT'
                    AND artifact.artifact_state IN (
                        'AVAILABLE', 'UNAVAILABLE', 'FAILED', 'DELETED')
                    AND artifact.storage_provider IS NOT NULL
@@ -140,8 +147,8 @@ class MeetingRecordingDeletionRepository {
             long tenantId, UUID meetingId, UUID artifactId) {
         return jdbc.query("""
                 SELECT artifact_id, tenant_id, meeting_id, artifact_state,
-                       recording_provider_code,
-                       storage_provider, object_key, content_type, size_bytes,
+                       transcript_provider_code, transcript_storage_provider_code,
+                       storage_provider, object_key,
                        encode(digest(
                            storage_provider || ':' || char_length(object_key)::text
                            || ':' || object_key, 'sha256'), 'hex')
@@ -149,7 +156,7 @@ class MeetingRecordingDeletionRepository {
                        retention_until, version
                   FROM vm_meeting_artifacts
                  WHERE tenant_id = ? AND meeting_id = ? AND artifact_id = ?
-                   AND artifact_type = 'RECORDING'
+                   AND artifact_type = 'TRANSCRIPT'
                  FOR UPDATE
                 """, this::artifact, tenantId, meetingId, artifactId)
                 .stream().findFirst();
@@ -158,7 +165,7 @@ class MeetingRecordingDeletionRepository {
     Optional<DeletionCommand> commandForUpdate(
             long tenantId, UUID meetingId, UUID artifactId) {
         return jdbc.query("""
-                SELECT * FROM vm_meeting_recording_deletion_commands
+                SELECT * FROM vm_meeting_transcript_deletion_commands
                  WHERE tenant_id = ? AND meeting_id = ? AND artifact_id = ?
                  FOR UPDATE
                 """, this::command, tenantId, meetingId, artifactId)
@@ -174,7 +181,7 @@ class MeetingRecordingDeletionRepository {
             OffsetDateTime now,
             OffsetDateTime leaseExpiresAt) {
         return jdbc.query("""
-                INSERT INTO vm_meeting_recording_deletion_commands (
+                INSERT INTO vm_meeting_transcript_deletion_commands (
                     deletion_command_id, tenant_id, meeting_id, artifact_id,
                     artifact_version, request_sha256, command_state,
                     execution_fence, lease_expires_at, attempt_count,
@@ -195,7 +202,7 @@ class MeetingRecordingDeletionRepository {
             OffsetDateTime now,
             OffsetDateTime leaseExpiresAt) {
         return jdbc.query("""
-                UPDATE vm_meeting_recording_deletion_commands
+                UPDATE vm_meeting_transcript_deletion_commands
                    SET command_state = 'RUNNING', execution_fence = ?,
                        lease_expires_at = ?, attempt_count = attempt_count + 1,
                        worker_id = ?, provider_deletion_id = NULL,
@@ -218,11 +225,13 @@ class MeetingRecordingDeletionRepository {
         int updated = jdbc.update("""
                 UPDATE vm_meeting_artifacts
                    SET artifact_state = 'DELETED', storage_provider = NULL,
-                       object_key = NULL, recording_deletion_command_id = ?,
-                       recording_deleted_at = ?, recording_deletion_provider_code = ?,
+                       object_key = NULL, server_side_processing_allowed = FALSE,
+                       transcript_deletion_command_id = ?,
+                       transcript_deleted_at = ?,
+                       transcript_deletion_provider_code = ?,
                        version = version + 1, updated_at = ?
                  WHERE tenant_id = ? AND meeting_id = ? AND artifact_id = ?
-                   AND artifact_type = 'RECORDING' AND version = ?
+                   AND artifact_type = 'TRANSCRIPT' AND version = ?
                    AND artifact_state IN (
                        'AVAILABLE', 'UNAVAILABLE', 'FAILED', 'DELETED')
                    AND storage_provider = ? AND object_key = ?
@@ -237,7 +246,7 @@ class MeetingRecordingDeletionRepository {
             String providerDeletionId,
             OffsetDateTime completedAt) {
         int updated = jdbc.update("""
-                UPDATE vm_meeting_recording_deletion_commands
+                UPDATE vm_meeting_transcript_deletion_commands
                    SET command_state = 'SUCCEEDED', execution_fence = NULL,
                        lease_expires_at = NULL, provider_deletion_id = ?,
                        failure_code = NULL, completed_at = ?, updated_at = ?
@@ -253,7 +262,7 @@ class MeetingRecordingDeletionRepository {
             String failureCode,
             OffsetDateTime failedAt) {
         int updated = jdbc.update("""
-                UPDATE vm_meeting_recording_deletion_commands
+                UPDATE vm_meeting_transcript_deletion_commands
                    SET command_state = 'FAILED', execution_fence = NULL,
                        lease_expires_at = NULL, provider_deletion_id = NULL,
                        failure_code = ?, completed_at = ?, updated_at = ?
@@ -267,7 +276,7 @@ class MeetingRecordingDeletionRepository {
     int overdueLocatorCount(OffsetDateTime now) {
         Integer count = jdbc.queryForObject("""
                 SELECT COUNT(*) FROM vm_meeting_artifacts
-                 WHERE artifact_type = 'RECORDING'
+                 WHERE artifact_type = 'TRANSCRIPT'
                    AND storage_provider IS NOT NULL AND object_key IS NOT NULL
                    AND (retention_until IS NULL OR retention_until <= ?)
                 """, Integer.class, now);
@@ -275,14 +284,12 @@ class MeetingRecordingDeletionRepository {
     }
 
     private DeletionArtifact artifact(ResultSet row, int index) throws SQLException {
-        long sizeBytes = row.getLong("size_bytes");
-        Long nullableSizeBytes = row.wasNull() ? null : sizeBytes;
         return new DeletionArtifact(
                 row.getObject("artifact_id", UUID.class), row.getLong("tenant_id"),
                 row.getObject("meeting_id", UUID.class), row.getString("artifact_state"),
-                row.getString("recording_provider_code"),
+                row.getString("transcript_provider_code"),
+                row.getString("transcript_storage_provider_code"),
                 row.getString("storage_provider"), row.getString("object_key"),
-                row.getString("content_type"), nullableSizeBytes,
                 row.getString("deletion_binding_sha256"),
                 row.getObject("retention_until", OffsetDateTime.class),
                 row.getLong("version"));
@@ -311,13 +318,14 @@ class MeetingRecordingDeletionRepository {
                 row.getString("last_failure_code"),
                 row.getObject("active_fence", UUID.class),
                 row.getObject("active_lease_expires_at", OffsetDateTime.class),
-                row.getString("active_worker_id"), row.getString("last_provider_code"));
+                row.getString("active_worker_id"), row.getString("last_provider_code"),
+                row.getString("last_storage_provider_code"));
     }
 
     private BaseException staleFence() {
         return new BaseException(
                 ErrorCode.RESOURCE_CONFLICT,
-                "The recording deletion lease changed or expired.");
+                "The transcript deletion lease changed or expired.");
     }
 
     private BaseException unavailable(String message) {

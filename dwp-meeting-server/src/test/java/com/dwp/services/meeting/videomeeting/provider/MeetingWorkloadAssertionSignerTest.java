@@ -58,6 +58,34 @@ class MeetingWorkloadAssertionSignerTest {
     }
 
     @Test
+    void serviceCapabilityAssertionIsASeparateUnscopedCanonicalContract() {
+        String assertion = signer(Duration.ofSeconds(30)).signService(
+                "GET", CAPABILITY_PATH, null);
+        String[] parts = assertion.split("\\.", -1);
+        String payload = new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8);
+
+        assertThat(parts).hasSize(3);
+        assertThat(payload).isEqualTo(
+                "{\"v\":1,\"kid\":\"meeting-workload-v1\",\"scope\":\"SERVICE\","
+                        + "\"method\":\"GET\","
+                        + "\"path\":\"/internal/v1/meeting-intelligence/capabilities\","
+                        + "\"iat\":1787878800,\"exp\":1787878830,"
+                        + "\"jti\":\"e0aa6c62-6cd1-45d0-bf94-547934369eb8\","
+                        + "\"bodySha256\":\"e3b0c44298fc1c149afbf4c8996fb924"
+                        + "27ae41e4649b934ca495991b7852b855\"}");
+        assertThat(payload).doesNotContain("tenantId", "meetingId", "runId");
+    }
+
+    @Test
+    void serviceAndContextAssertionsCannotBeInterchanged() {
+        MeetingWorkloadAssertionSigner signer = signer(Duration.ofSeconds(30));
+        ExecutionContext context = new ExecutionContext(77, MEETING_ID, RUN_ID, "corr");
+
+        assertThat(signer.sign(context, "GET", CAPABILITY_PATH, null))
+                .isNotEqualTo(signer.signService("GET", CAPABILITY_PATH, null));
+    }
+
+    @Test
     void changingBodyChangesTheBoundAssertion() {
         MeetingWorkloadAssertionSigner signer = signer(Duration.ofSeconds(30));
         ExecutionContext context = new ExecutionContext(77, MEETING_ID, RUN_ID, "corr");

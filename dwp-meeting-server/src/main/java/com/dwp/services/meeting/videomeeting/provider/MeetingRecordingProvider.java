@@ -28,12 +28,16 @@ public interface MeetingRecordingProvider {
             boolean speechToTextAvailable,
             boolean deletionAvailable,
             boolean cryptoShredAvailable,
+            boolean orphanCleanupAvailable,
+            int maximumOrphanTtlSeconds,
+            boolean legacyLocatorDeletionAvailable,
             String processingRegion,
             String providerCode) {
 
         public static Capability unavailable() {
             return new Capability(
-                    false, false, false, false, false, false, "none", "DISABLED");
+                    false, false, false, false, false, false,
+                    false, 0, false, "none", "DISABLED");
         }
     }
 

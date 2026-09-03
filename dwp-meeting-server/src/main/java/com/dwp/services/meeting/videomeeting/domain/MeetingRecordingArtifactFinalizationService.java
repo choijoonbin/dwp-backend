@@ -11,9 +11,11 @@ import com.dwp.services.meeting.videomeeting.domain.VideoMeetingContentModels.Co
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingContentModels.RecordingState;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.LifecycleState;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.Meeting;
+import com.dwp.services.meeting.videomeeting.provider.MeetingRecordingProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -40,6 +42,8 @@ public class MeetingRecordingArtifactFinalizationService {
     private final MeetingRecordingArtifactAssertionVerifier assertionVerifier;
     private final VideoMeetingAuditRecorder audit;
     private final MeetingRecordingDeletionReadiness deletionReadiness;
+    private final MeetingRecordingProvider recordingProvider;
+    private final TransactionTemplate transactions;
     private final Clock clock;
 
     @Autowired
@@ -49,9 +53,12 @@ public class MeetingRecordingArtifactFinalizationService {
             MeetingRecordingArtifactRepository artifacts,
             MeetingRecordingArtifactAssertionVerifier assertionVerifier,
             VideoMeetingAuditRecorder audit,
-            MeetingRecordingDeletionReadiness deletionReadiness) {
+            MeetingRecordingDeletionReadiness deletionReadiness,
+            MeetingRecordingProvider recordingProvider,
+            PlatformTransactionManager transactionManager) {
         this(meetings, content, artifacts, assertionVerifier, audit,
-                deletionReadiness, Clock.systemUTC());
+                deletionReadiness, recordingProvider, transactionManager,
+                Clock.systemUTC());
     }
 
     MeetingRecordingArtifactFinalizationService(
@@ -61,6 +68,8 @@ public class MeetingRecordingArtifactFinalizationService {
             MeetingRecordingArtifactAssertionVerifier assertionVerifier,
             VideoMeetingAuditRecorder audit,
             MeetingRecordingDeletionReadiness deletionReadiness,
+            MeetingRecordingProvider recordingProvider,
+            PlatformTransactionManager transactionManager,
             Clock clock) {
         this.meetings = meetings;
         this.content = content;
@@ -68,6 +77,8 @@ public class MeetingRecordingArtifactFinalizationService {
         this.assertionVerifier = assertionVerifier;
         this.audit = audit;
         this.deletionReadiness = deletionReadiness;
+        this.recordingProvider = recordingProvider;
+        this.transactions = new TransactionTemplate(transactionManager);
         this.clock = clock;
     }
 
@@ -75,7 +86,6 @@ public class MeetingRecordingArtifactFinalizationService {
      * Atomically registers and finalizes only content-free recording provenance after a
      * separately committed, provider-evidenced STOP. Raw media and URLs never cross this API.
      */
-    @Transactional
     public MeetingRecordingArtifactDtos.RecordingArtifactResponse finalizeRecording(
             UUID meetingId,
             MeetingRecordingArtifactDtos.FinalizeRecordingCommand request,
@@ -83,9 +93,8 @@ public class MeetingRecordingArtifactFinalizationService {
             String correlationId,
             String producerToken,
             String producerAssertion) {
-        MeetingRequestContext.Subject subject = trustedProducer();
         validateRequest(request);
-        deletionReadiness.requireReady();
+        MeetingRequestContext.Subject subject = trustedProducer();
         String safeCorrelationId = safeCorrelation(correlationId);
         String key = commandKey(idempotencyKey);
         String hash = requestHash(
@@ -98,6 +107,24 @@ public class MeetingRecordingArtifactFinalizationService {
         var assertion = assertionVerifier.verify(
                 producerToken, producerAssertion, subject.tenantId(), meetingId,
                 request.recordingSessionId(), request.artifactId(), hash);
+        MeetingRecordingProvider.Capability capability = recordingProvider.capability();
+        if (!deletionReadiness.ready(capability)) {
+            throw unavailable("Governed recording retention is not ready.");
+        }
+        return transactions.execute(status -> finalizeInTransaction(
+                meetingId, request, safeCorrelationId, subject, key, hash,
+                assertion, capability));
+    }
+
+    private MeetingRecordingArtifactDtos.RecordingArtifactResponse finalizeInTransaction(
+            UUID meetingId,
+            MeetingRecordingArtifactDtos.FinalizeRecordingCommand request,
+            String safeCorrelationId,
+            MeetingRequestContext.Subject subject,
+            String key,
+            String hash,
+            MeetingRecordingArtifactAssertionVerifier.VerifiedAssertion assertion,
+            MeetingRecordingProvider.Capability liveCapability) {
         Meeting meeting = meetings.lockMeeting(subject.tenantId(), meetingId);
         RecordingArtifact current = artifacts.lock(
                 subject.tenantId(), meetingId, request.artifactId()).orElse(null);
@@ -128,6 +155,12 @@ public class MeetingRecordingArtifactFinalizationService {
                         subject.tenantId(), meetingId, request.recordingSessionId())
                 .orElseThrow(() -> conflict(
                         "A completed governed recording STOP is required."));
+        deletionReadiness.requireProviderReady(provenance.providerCode());
+        if (liveCapability == null
+                || !provenance.providerCode().equals(liveCapability.providerCode())
+                || !provenance.processingRegion().equals(liveCapability.processingRegion())) {
+            throw unavailable("Recording provider governance changed before finalization.");
+        }
         ContentNotice notice = validateGovernance(meeting, provenance, request);
         if (!requestHashesMatch(
                 provenance.stopConsentSnapshotSha256(),

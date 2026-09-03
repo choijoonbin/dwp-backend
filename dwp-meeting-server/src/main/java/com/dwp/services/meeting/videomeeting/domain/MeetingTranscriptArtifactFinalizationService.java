@@ -12,9 +12,11 @@ import com.dwp.services.meeting.videomeeting.domain.VideoMeetingIntelligenceMode
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.LifecycleState;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.Meeting;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.TenantPolicy;
+import com.dwp.services.meeting.videomeeting.provider.MeetingTranscriptSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Clock;
 import java.time.OffsetDateTime;
@@ -35,6 +37,9 @@ public class MeetingTranscriptArtifactFinalizationService {
     private final MeetingTranscriptArtifactRepository artifacts;
     private final MeetingTranscriptFinalizationAssertionVerifier assertionVerifier;
     private final VideoMeetingAuditRecorder audit;
+    private final MeetingTranscriptDeletionReadiness deletionReadiness;
+    private final MeetingTranscriptSource transcriptSource;
+    private final TransactionTemplate transactions;
     private final Clock clock;
 
     @Autowired
@@ -44,9 +49,13 @@ public class MeetingTranscriptArtifactFinalizationService {
             VideoMeetingIntelligenceRepository intelligence,
             MeetingTranscriptArtifactRepository artifacts,
             MeetingTranscriptFinalizationAssertionVerifier assertionVerifier,
-            VideoMeetingAuditRecorder audit) {
+            VideoMeetingAuditRecorder audit,
+            MeetingTranscriptDeletionReadiness deletionReadiness,
+            MeetingTranscriptSource transcriptSource,
+            PlatformTransactionManager transactionManager) {
         this(meetings, content, intelligence, artifacts,
-                assertionVerifier, audit, Clock.systemUTC());
+                assertionVerifier, audit, deletionReadiness, transcriptSource,
+                transactionManager, Clock.systemUTC());
     }
 
     MeetingTranscriptArtifactFinalizationService(
@@ -56,6 +65,9 @@ public class MeetingTranscriptArtifactFinalizationService {
             MeetingTranscriptArtifactRepository artifacts,
             MeetingTranscriptFinalizationAssertionVerifier assertionVerifier,
             VideoMeetingAuditRecorder audit,
+            MeetingTranscriptDeletionReadiness deletionReadiness,
+            MeetingTranscriptSource transcriptSource,
+            PlatformTransactionManager transactionManager,
             Clock clock) {
         this.meetings = meetings;
         this.content = content;
@@ -63,6 +75,9 @@ public class MeetingTranscriptArtifactFinalizationService {
         this.artifacts = artifacts;
         this.assertionVerifier = assertionVerifier;
         this.audit = audit;
+        this.deletionReadiness = deletionReadiness;
+        this.transcriptSource = transcriptSource;
+        this.transactions = new TransactionTemplate(transactionManager);
         this.clock = clock;
     }
 
@@ -71,7 +86,6 @@ public class MeetingTranscriptArtifactFinalizationService {
      * object. Signature verification happens before any mutation; the artifact registration,
      * replay consumption and audit evidence commit atomically.
      */
-    @Transactional
     public MeetingTranscriptArtifactDtos.TranscriptArtifactResponse registerTranscript(
             UUID meetingId,
             MeetingTranscriptArtifactDtos.RegisterTranscriptCommand request,
@@ -79,8 +93,8 @@ public class MeetingTranscriptArtifactFinalizationService {
             String correlationId,
             String producerToken,
             String producerAssertion) {
-        MeetingRequestContext.Subject subject = trustedProducer();
         validateRegistration(request);
+        MeetingRequestContext.Subject subject = trustedProducer();
         String key = commandKey(idempotencyKey);
         String hash = requestHash(
                 meetingId, request.artifactId(), request.expectedContentPlanVersion(),
@@ -89,12 +103,35 @@ public class MeetingTranscriptArtifactFinalizationService {
         var verifiedAssertion = assertionVerifier.verifyRegistration(
                 producerToken, producerAssertion, subject.tenantId(), meetingId,
                 request.artifactId(), hash);
+        MeetingTranscriptSource.RetentionCapability capability =
+                transcriptSource.retentionCapability();
+        deletionReadiness.requireSnapshot(capability);
+        return transactions.execute(status -> registerInTransaction(
+                meetingId, request, correlationId, subject, key, hash,
+                verifiedAssertion, capability));
+    }
+
+    private MeetingTranscriptArtifactDtos.TranscriptArtifactResponse registerInTransaction(
+            UUID meetingId,
+            MeetingTranscriptArtifactDtos.RegisterTranscriptCommand request,
+            String correlationId,
+            MeetingRequestContext.Subject subject,
+            String key,
+            String hash,
+            MeetingTranscriptFinalizationAssertionVerifier.VerifiedAssertion verifiedAssertion,
+            MeetingTranscriptSource.RetentionCapability liveCapability) {
+        MeetingTranscriptDeletionReadiness.RetentionSnapshot retention =
+                deletionReadiness.requireSnapshot(liveCapability);
         Meeting meeting = meetings.lockMeeting(subject.tenantId(), meetingId);
         TranscriptArtifact current = artifacts.lockTranscript(subject.tenantId(), meetingId)
                 .orElse(null);
         if (current != null && current.registrationIdempotencyKey() != null) {
             consumeAssertion(verifiedAssertion, subject, meetingId, request.artifactId());
             return registrationReplay(current, request, key, hash);
+        }
+        if (current != null && (current.storageProvider() != null
+                || current.objectKey() != null || current.deletionCommandId() != null)) {
+            throw conflict("A retained transcript locator must be deleted before registration.");
         }
         if (current != null && !current.artifactId().equals(request.artifactId())) {
             throw conflict("A transcript artifact is already reserved for the meeting.");
@@ -114,6 +151,7 @@ public class MeetingTranscriptArtifactFinalizationService {
                 current, request.artifactId(), subject.tenantId(), meetingId,
                 request.sourceSha256(), now.plusDays(policy.artifactRetentionDays()),
                 request.processingRegion(), notice.noticeId(), consent.snapshotSha256(),
+                plan.version(), retention.providerCode(), retention.storageProviderCode(),
                 key, hash, subject.userId(), now);
         consumeAssertion(verifiedAssertion, subject, meetingId, request.artifactId());
         audit.collaboration(
@@ -127,7 +165,6 @@ public class MeetingTranscriptArtifactFinalizationService {
         return MeetingTranscriptArtifactDtos.TranscriptArtifactResponse.from(registered);
     }
 
-    @Transactional
     public MeetingTranscriptArtifactDtos.TranscriptArtifactResponse finalizeTranscript(
             UUID meetingId,
             MeetingTranscriptArtifactDtos.FinalizeTranscriptCommand request,
@@ -135,6 +172,7 @@ public class MeetingTranscriptArtifactFinalizationService {
             String correlationId,
             String producerToken,
             String producerAssertion) {
+        validateRequest(request);
         MeetingRequestContext.Subject subject = trustedProducer();
         String key = commandKey(idempotencyKey);
         String hash = requestHash(
@@ -146,6 +184,25 @@ public class MeetingTranscriptArtifactFinalizationService {
         var verifiedAssertion = assertionVerifier.verify(
                 producerToken, producerAssertion, subject.tenantId(), meetingId,
                 request.artifactId(), hash);
+        MeetingTranscriptSource.RetentionCapability capability =
+                transcriptSource.retentionCapability();
+        deletionReadiness.requireSnapshot(capability);
+        return transactions.execute(status -> finalizeInTransaction(
+                meetingId, request, correlationId, subject, key, hash,
+                verifiedAssertion, capability));
+    }
+
+    private MeetingTranscriptArtifactDtos.TranscriptArtifactResponse finalizeInTransaction(
+            UUID meetingId,
+            MeetingTranscriptArtifactDtos.FinalizeTranscriptCommand request,
+            String correlationId,
+            MeetingRequestContext.Subject subject,
+            String key,
+            String hash,
+            MeetingTranscriptFinalizationAssertionVerifier.VerifiedAssertion verifiedAssertion,
+            MeetingTranscriptSource.RetentionCapability liveCapability) {
+        MeetingTranscriptDeletionReadiness.RetentionSnapshot retention =
+                deletionReadiness.requireSnapshot(liveCapability);
         Meeting meeting = meetings.lockMeeting(subject.tenantId(), meetingId);
         TranscriptArtifact current = artifacts.lock(
                         subject.tenantId(), meetingId, request.artifactId())
@@ -156,21 +213,12 @@ public class MeetingTranscriptArtifactFinalizationService {
         if (current.idempotencyKey() != null) {
             return replay(current, key, hash);
         }
-        validateRequest(request);
         if (current.version() != request.expectedArtifactVersion()) {
             throw new BaseException(ErrorCode.OBJECT_VERSION_CONFLICT,
                     "The transcript artifact changed. Refresh and retry.");
         }
-        TenantPolicy policy = meetings.ensurePolicy(subject.tenantId(), subject.userId());
-        ContentPlan plan = content.plan(subject.tenantId(), meetingId)
-                .orElseThrow(() -> conflict("The meeting content plan is unavailable."));
-        ContentNotice notice = validateGovernance(meeting, policy, plan, request);
-        ConsentEvidence consent = intelligence.consentEvidence(
-                subject.tenantId(), meetingId, notice.noticeId());
-        if (!consent.complete() || !requestHashesMatch(
-                consent.snapshotSha256(), request.consentSnapshotSha256())) {
-            throw conflict("Participant consent evidence is incomplete or does not match.");
-        }
+        ContentNotice notice = validateFinalizationSnapshot(
+                meeting, current, request, retention, now);
         if (current.registrationIdempotencyKey() == null
                 || current.registeredAt() == null
                 || !requestHashesMatch(current.sourceSha256(), request.sourceSha256())
@@ -180,14 +228,11 @@ public class MeetingTranscriptArtifactFinalizationService {
                         current.consentSnapshotSha256(), request.consentSnapshotSha256())) {
             throw conflict("The transcript finalization does not match its registration.");
         }
-        OffsetDateTime retentionUntil = current.retentionUntil().isBefore(
-                now.plusDays(policy.artifactRetentionDays()))
-                ? current.retentionUntil() : now.plusDays(policy.artifactRetentionDays());
         TranscriptArtifact finalized = artifacts.finalizeAvailable(
                 current, request.storageProvider(), request.objectKey(), request.contentType(),
                 request.sizeBytes(), request.sourceSha256(),
-                retentionUntil, request.processingRegion(),
-                notice.noticeId(), consent.snapshotSha256(), key, hash,
+                current.retentionUntil(), current.processingRegion(),
+                current.contentNoticeId(), current.consentSnapshotSha256(), key, hash,
                 subject.userId(), now);
         audit.collaboration(
                 subject, meeting, "meeting.transcript-artifact.finalized",
@@ -200,39 +245,52 @@ public class MeetingTranscriptArtifactFinalizationService {
         return MeetingTranscriptArtifactDtos.TranscriptArtifactResponse.from(finalized);
     }
 
-    private ContentNotice validateGovernance(
+    private ContentNotice validateFinalizationSnapshot(
             Meeting meeting,
-            TenantPolicy policy,
-            ContentPlan plan,
-            MeetingTranscriptArtifactDtos.FinalizeTranscriptCommand request) {
+            TranscriptArtifact current,
+            MeetingTranscriptArtifactDtos.FinalizeTranscriptCommand request,
+            MeetingTranscriptDeletionReadiness.RetentionSnapshot retention,
+            OffsetDateTime now) {
         if (meeting.lifecycleState() != LifecycleState.ENDED
-                || !policy.meetingsEnabled() || "NEVER".equals(policy.recordingPolicy())) {
-            throw conflict("Meeting policy does not permit transcript finalization.");
+                || current.contentPlanVersion() == null
+                || current.contentPlanVersion() != request.expectedContentPlanVersion()
+                || current.retentionUntil() == null
+                || !current.retentionUntil().isAfter(now)
+                || current.providerCode() == null
+                || !current.providerCode().equals(retention.providerCode())
+                || current.storageProviderCode() == null
+                || !current.storageProviderCode().equals(retention.storageProviderCode())
+                || !current.storageProviderCode().equals(request.storageProvider())
+                || current.deletionCommandId() != null) {
+            throw conflict("The transcript finalization snapshot is unavailable or expired.");
         }
-        if (plan.version() != request.expectedContentPlanVersion()
-                || plan.state() != VideoMeetingContentModels.PlanState.READY
-                || !plan.transcriptionRequested() || plan.e2eeEnabled()
-                || !request.contentNoticeId().equals(plan.currentNoticeId())) {
-            throw conflict("The current content plan does not permit transcript finalization.");
-        }
-        return content.currentNotice(plan.tenantId(), plan.meetingId())
-                .filter(notice -> notice.noticeId().equals(request.contentNoticeId())
-                        && notice.transcriptionDisclosed())
+        return content.notice(meeting.tenantId(), meeting.meetingId(),
+                        current.contentNoticeId())
+                .filter(ContentNotice::transcriptionDisclosed)
                 .orElseThrow(() -> conflict(
-                        "The current content notice does not permit transcript finalization."));
+                        "The registered content notice does not permit finalization."));
     }
 
     private void validateRequest(
             MeetingTranscriptArtifactDtos.FinalizeTranscriptCommand request) {
-        if (!request.sourceSha256().matches("^[0-9a-f]{64}$")
+        if (request == null || request.artifactId() == null
+                || request.expectedArtifactVersion() == null
+                || request.expectedArtifactVersion() < 0
+                || request.expectedContentPlanVersion() == null
+                || request.expectedContentPlanVersion() < 0
+                || request.contentNoticeId() == null
+                || request.sourceSha256() == null
+                || !request.sourceSha256().matches("^[0-9a-f]{64}$")
+                || request.consentSnapshotSha256() == null
                 || !request.consentSnapshotSha256().matches("^[0-9a-f]{64}$")
+                || request.processingRegion() == null
                 || !request.processingRegion().matches(
                         "^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$")
+                || request.storageProvider() == null
                 || !request.storageProvider().matches("^[A-Z][A-Z0-9_-]{1,31}$")
                 || !"application/json".equals(request.contentType())
                 || request.sizeBytes() <= 0 || request.sizeBytes() > 1_000_000_000L
-                || request.objectKey().isBlank() || request.objectKey().length() > 1_000
-                || request.objectKey().chars().anyMatch(Character::isISOControl)) {
+                || !safeObjectKey(request.objectKey())) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
                     "Transcript artifact finalization input is invalid.");
         }
@@ -263,13 +321,26 @@ public class MeetingTranscriptArtifactFinalizationService {
 
     private void validateRegistration(
             MeetingTranscriptArtifactDtos.RegisterTranscriptCommand request) {
-        if (!request.sourceSha256().matches("^[0-9a-f]{64}$")
+        if (request == null || request.artifactId() == null
+                || request.expectedContentPlanVersion() == null
+                || request.expectedContentPlanVersion() < 0
+                || request.contentNoticeId() == null
+                || request.sourceSha256() == null
+                || !request.sourceSha256().matches("^[0-9a-f]{64}$")
+                || request.consentSnapshotSha256() == null
                 || !request.consentSnapshotSha256().matches("^[0-9a-f]{64}$")
+                || request.processingRegion() == null
                 || !request.processingRegion().matches(
                         "^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$")) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
                     "Transcript artifact registration input is invalid.");
         }
+    }
+
+    private boolean safeObjectKey(String value) {
+        return value != null && !value.isBlank() && value.length() <= 1_000
+                && !value.contains("://") && !value.contains("?") && !value.contains("#")
+                && value.chars().noneMatch(Character::isISOControl);
     }
 
     private MeetingTranscriptArtifactDtos.TranscriptArtifactResponse registrationReplay(

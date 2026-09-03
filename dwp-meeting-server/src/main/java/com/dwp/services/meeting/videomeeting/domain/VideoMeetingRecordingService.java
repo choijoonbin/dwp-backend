@@ -23,16 +23,20 @@ public class VideoMeetingRecordingService {
     private final MeetingRecordingProvider recordingProvider;
     private final MeetingMediaProvider mediaProvider;
     private final MeetingContentDependencies dependencies;
+    private final MeetingRecordingDeletionReadiness deletionReadiness;
 
     public VideoMeetingRecordingService(
             MeetingRecordingCommandTransactions transactions,
             MeetingRecordingProvider recordingProvider,
             MeetingMediaProvider mediaProvider,
-            MeetingContentDependencies dependencies) {
+            MeetingContentDependencies dependencies,
+            MeetingRecordingDeletionReadiness deletionReadiness) {
         this.transactions = transactions;
         this.recordingProvider = recordingProvider;
         this.mediaProvider = mediaProvider;
         this.dependencies = dependencies;
+        this.deletionReadiness = java.util.Objects.requireNonNull(
+                deletionReadiness, "deletionReadiness");
     }
 
     public VideoMeetingContentDtos.RecordingCommandResult requestRecording(
@@ -46,6 +50,7 @@ public class VideoMeetingRecordingService {
         String canonicalCorrelation = correlation(correlationId);
         MeetingRecordingProvider.Capability recordingCapability =
                 recordingProvider.capability();
+        requireRetentionReady(recordingCapability);
         Preparation prepared = transactions.prepareStart(
                 subject, meetingId, request.expectedPlanVersion(), key, hash,
                 canonicalCorrelation, dependencies.status(recordingCapability),
@@ -61,6 +66,12 @@ public class VideoMeetingRecordingService {
             throw unavailable();
         }
         return transactions.succeed(subject, prepared, receipt.providerCommandId());
+    }
+
+    private void requireRetentionReady(MeetingRecordingProvider.Capability capability) {
+        if (!deletionReadiness.ready(capability)) {
+            throw unavailable();
+        }
     }
 
     public VideoMeetingContentDtos.RecordingCommandResult stopRecording(

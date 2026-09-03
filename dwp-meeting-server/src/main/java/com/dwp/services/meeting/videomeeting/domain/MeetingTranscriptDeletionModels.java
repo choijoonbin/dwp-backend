@@ -3,9 +3,9 @@ package com.dwp.services.meeting.videomeeting.domain;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
-final class MeetingRecordingDeletionModels {
+final class MeetingTranscriptDeletionModels {
 
-    private MeetingRecordingDeletionModels() {
+    private MeetingTranscriptDeletionModels() {
     }
 
     enum CommandState {
@@ -18,10 +18,9 @@ final class MeetingRecordingDeletionModels {
             UUID meetingId,
             String artifactState,
             String provenanceProviderCode,
+            String provenanceStorageProviderCode,
             String storageProvider,
             String objectKey,
-            String contentType,
-            Long sizeBytes,
             String deletionBindingSha256,
             OffsetDateTime retentionUntil,
             long version) {
@@ -66,6 +65,7 @@ final class MeetingRecordingDeletionModels {
             UUID activeFence,
             OffsetDateTime activeLeaseExpiresAt,
             String activeWorkerId,
-            String lastProviderCode) {
+            String lastProviderCode,
+            String lastStorageProviderCode) {
     }
 }

@@ -1,13 +1,17 @@
 package com.dwp.services.meeting.videomeeting.provider;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.dwp.services.meeting.videomeeting.domain.MeetingTranscriptDeletionProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(MeetingTranscriptHttpProperties.class)
+@EnableConfigurationProperties({
+        MeetingTranscriptHttpProperties.class,
+        MeetingTranscriptDeletionProperties.class
+})
 public class MeetingTranscriptSourceConfiguration {
 
     @Bean

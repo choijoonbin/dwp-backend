@@ -1,9 +1,16 @@
 package com.dwp.services.meeting.videomeeting.provider;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.Duration;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Base64;
 import java.util.Set;
 import java.util.UUID;
@@ -13,10 +20,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class GovernedHttpMeetingTranscriptSourceTest {
 
-    private final ObjectMapper mapper = new ObjectMapper();
+    private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
 
     @Test
-    void readsStrictHashBoundTranscriptWithoutObjectKey() {
+    void readsStrictHashBoundTranscriptWithoutObjectKey() throws Exception {
         String hash = "a".repeat(64);
         CapturingHttpClient client = new CapturingHttpClient();
         client.respond(200, "application/json", ("""
@@ -29,7 +36,7 @@ class GovernedHttpMeetingTranscriptSourceTest {
         var segments = source(properties(), client).read(context);
 
         assertThat(segments).hasSize(1);
-        assertThat(client.request().method()).isEqualTo("GET");
+        assertThat(client.request().method()).isEqualTo("POST");
         assertThat(header(client, "X-DWP-Transcript-Artifact-ID"))
                 .isEqualTo(context.artifactId().toString());
         assertThat(header(client, "X-DWP-Source-SHA256")).isEqualTo(hash);
@@ -37,6 +44,66 @@ class GovernedHttpMeetingTranscriptSourceTest {
                 .startsWith("dwp1.");
         assertThat(client.request().headers().map().keySet())
                 .noneMatch(name -> name.equalsIgnoreCase("X-DWP-Object-Key"));
+        JsonNode request = mapper.readTree(client.requestBody());
+        assertThat(request.get("artifactId").asText())
+                .isEqualTo(context.artifactId().toString());
+        assertThat(request.get("sourceSha256").asText()).isEqualTo(hash);
+        assertAssertion(client, context.tenantId(), context.meetingId(),
+                context.runId(), "POST", "/internal/v1/meeting-transcripts/read");
+    }
+
+    @Test
+    void retentionCapabilityRequiresBoundedOrphanCryptoShredAndSignedServiceProbe()
+            throws Exception {
+        CapturingHttpClient client = new CapturingHttpClient();
+        client.respond(200, "application/json", """
+                {"schemaVersion":"meeting-transcript-retention-capability-v1",
+                 "available":true,"deletionAvailable":true,"cryptoShredAvailable":true,
+                 "customerManagedStorage":true,"providerRetentionDisabled":true,
+                 "orphanCleanupAvailable":true,"maximumOrphanTtlSeconds":300,
+                 "legacyLocatorDeletionAvailable":true,
+                 "providerCode":"TRANSCRIPT_BROKER","storageProviderCode":"BROKER"}
+                """.getBytes());
+
+        var capability = source(properties(), client).retentionCapability();
+
+        assertThat(capability.available()).isTrue();
+        assertThat(capability.maximumOrphanTtlSeconds()).isEqualTo(300);
+        assertThat(client.request().method()).isEqualTo("GET");
+        assertThat(header(client, "X-DWP-Meeting-Transcript-Token"))
+                .isEqualTo("s".repeat(32));
+        assertServiceAssertion(
+                client, "GET", "/internal/v1/meeting-transcripts/retention-capability");
+    }
+
+    @Test
+    void deletionBindsTheExactSerializedLocatorBodyAndRequiresCryptoShredEvidence()
+            throws Exception {
+        UUID meetingId = UUID.randomUUID();
+        UUID artifactId = UUID.randomUUID();
+        String binding = "b".repeat(64);
+        CapturingHttpClient client = new CapturingHttpClient();
+        client.respond(200, "application/json", """
+                {"schemaVersion":"meeting-transcript-delete-v1",
+                 "artifactId":"%s","artifactVersion":4,
+                 "deletionBindingSha256":"%s","deletionState":"DELETED",
+                 "cryptoShredded":true,"providerDeletionId":"delete-proof-001",
+                 "deletedAt":"%s"}
+                """.formatted(artifactId, binding,
+                OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(1)).getBytes());
+        var request = new MeetingTranscriptSource.DeleteRequest(
+                77, meetingId, artifactId, "BROKER", "opaque/transcript/object",
+                binding, 4, "corr-transcript-delete");
+
+        var receipt = source(properties(), client).delete(request);
+
+        assertThat(receipt.artifactId()).isEqualTo(artifactId);
+        assertThat(client.request().method()).isEqualTo("POST");
+        assertThat(header(client, "Idempotency-Key")).isEqualTo("DELETE:" + artifactId);
+        JsonNode body = mapper.readTree(client.requestBody());
+        assertThat(body.get("objectKey").asText()).isEqualTo("opaque/transcript/object");
+        assertAssertion(client, 77, meetingId, artifactId,
+                "POST", "/internal/v1/meeting-transcripts/delete");
     }
 
     @Test
@@ -145,5 +212,45 @@ class GovernedHttpMeetingTranscriptSourceTest {
 
     private String header(CapturingHttpClient client, String name) {
         return client.request().headers().firstValue(name).orElseThrow();
+    }
+
+    private void assertAssertion(
+            CapturingHttpClient client,
+            long tenantId,
+            UUID meetingId,
+            UUID runId,
+            String method,
+            String path) throws Exception {
+        JsonNode payload = assertionPayload(client);
+        assertThat(payload.get("tenantId").asLong()).isEqualTo(tenantId);
+        assertThat(payload.get("meetingId").asText()).isEqualTo(meetingId.toString());
+        assertThat(payload.get("runId").asText()).isEqualTo(runId.toString());
+        assertThat(payload.get("method").asText()).isEqualTo(method);
+        assertThat(payload.get("path").asText()).isEqualTo(path);
+        assertThat(payload.get("bodySha256").asText()).isEqualTo(java.util.HexFormat.of()
+                .formatHex(MessageDigest.getInstance("SHA-256")
+                        .digest(client.requestBody())));
+    }
+
+    private void assertServiceAssertion(
+            CapturingHttpClient client, String method, String path) throws Exception {
+        JsonNode payload = assertionPayload(client);
+        assertThat(payload.get("scope").asText()).isEqualTo("SERVICE");
+        assertThat(payload.get("method").asText()).isEqualTo(method);
+        assertThat(payload.get("path").asText()).isEqualTo(path);
+        assertThat(payload.get("bodySha256").asText()).isEqualTo(java.util.HexFormat.of()
+                .formatHex(MessageDigest.getInstance("SHA-256").digest(new byte[0])));
+    }
+
+    private JsonNode assertionPayload(CapturingHttpClient client) throws Exception {
+        String assertion = header(client, "X-DWP-Meeting-Workload-Assertion");
+        String[] parts = assertion.split("\\.", -1);
+        assertThat(parts).hasSize(3);
+        JsonNode payload = mapper.readTree(Base64.getUrlDecoder().decode(parts[1]));
+        Mac mac = Mac.getInstance("HmacSHA256");
+        mac.init(new SecretKeySpec(new byte[32], "HmacSHA256"));
+        assertThat(Base64.getUrlDecoder().decode(parts[2])).isEqualTo(mac.doFinal(
+                (parts[0] + "." + parts[1]).getBytes(StandardCharsets.US_ASCII)));
+        return payload;
     }
 }
