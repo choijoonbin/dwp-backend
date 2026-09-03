@@ -19722,6 +19722,50 @@
         },
         "type": "object"
       },
+      "people_ApprovalEvidence": {
+        "properties": {
+          "availableMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "endAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "exceptionCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "periodEnd": {
+            "format": "date",
+            "type": "string"
+          },
+          "periodStart": {
+            "format": "date",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "recordedMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "requestedMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "scheduledMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "startAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "people_ApprovalItem": {
         "properties": {
           "domain": {
@@ -19732,6 +19776,9 @@
           },
           "employeeTitle": {
             "type": "string"
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/people_ApprovalEvidence"
           },
           "itemId": {
             "format": "uuid",
