@@ -38,6 +38,14 @@ public class NotificationQueryRepository {
     private static final Pattern ENCODED_AUTHORITY_SEPARATOR =
             Pattern.compile("(?i)(^/%2f|%5c)");
 
+    private static final Map<String, List<String>> REASON_ALIASES = Map.of(
+            "DIRECT", List.of("DIRECT", "DIRECT_RECIPIENT"),
+            "MENTION", List.of("MENTION", "MENTIONED"),
+            "ROLE", List.of("ROLE"),
+            "ORGANIZATION", List.of("ORGANIZATION", "ORG"),
+            "SUBSCRIPTION", List.of("SUBSCRIPTION", "SUBSCRIBED"),
+            "MANDATORY_POLICY", List.of("MANDATORY_POLICY", "MANDATORY"));
+
     static final String INBOX_SELECT = """
             SELECT user_notification.notification_id,
                    notification.thread_key,
@@ -130,7 +138,7 @@ public class NotificationQueryRepository {
                        ) AS all_count,
                        COUNT(*) FILTER (
                            WHERE inbox_state = 'ACTIVE'
-                             AND reason_code IN ('MENTION', 'MENTIONED')
+                             AND UPPER(reason_code) IN (:mentionReasons)
                              AND (snoozed_until IS NULL OR snoozed_until <= CURRENT_TIMESTAMP)
                        ) AS mention_count,
                        COUNT(*) FILTER (WHERE saved_at IS NOT NULL) AS saved_count,
@@ -140,7 +148,8 @@ public class NotificationQueryRepository {
                        COUNT(*) FILTER (WHERE inbox_state = 'DONE') AS done_count
                   FROM ntf_user_notifications
                  WHERE tenant_id = :tenantId AND user_id = :userId
-                """, actorParams(actor), (resultSet, rowNumber) -> new ViewCounts(
+                """, actorParams(actor).addValue("mentionReasons", REASON_ALIASES.get("MENTION")),
+                (resultSet, rowNumber) -> new ViewCounts(
                 resultSet.getLong("priority_count"),
                 resultSet.getLong("all_count"),
                 resultSet.getLong("mention_count"),
@@ -155,7 +164,8 @@ public class NotificationQueryRepository {
             InboxFilters filters,
             int fetchLimit,
             InboxCursor cursor) {
-        MapSqlParameterSource params = actorParams(actor).addValue("limit", fetchLimit);
+        MapSqlParameterSource params = actorParams(actor).addValue("limit", fetchLimit)
+                .addValue("mentionReasons", REASON_ALIASES.get("MENTION"));
         StringBuilder predicates = new StringBuilder(viewPredicate(view));
         if (cursor != null) {
             params.addValue("cursorTime", Timestamp.from(cursor.lastActivityAt()))
@@ -367,8 +377,10 @@ public class NotificationQueryRepository {
             predicates.append(" AND user_notification.read_at IS NOT NULL\n");
         }
         if (filters.reason() != null) {
-            if ("DIRECT".equals(filters.reason())) {
-                predicates.append(" AND user_notification.reason_code IN ('DIRECT', 'DIRECT_RECIPIENT')\n");
+            String canonical = canonicalReason(filters.reason());
+            if (canonical != null) {
+                predicates.append(" AND UPPER(user_notification.reason_code) IN (:reasonCodes)\n");
+                params.addValue("reasonCodes", REASON_ALIASES.get(canonical));
             } else {
                 predicates.append(" AND user_notification.reason_code = :reason\n");
                 params.addValue("reason", filters.reason());
@@ -399,7 +411,7 @@ public class NotificationQueryRepository {
                     """;
             case MENTIONS -> """
                     AND user_notification.inbox_state = 'ACTIVE'
-                    AND user_notification.reason_code IN ('MENTION', 'MENTIONED')
+                    AND UPPER(user_notification.reason_code) IN (:mentionReasons)
                     AND (user_notification.snoozed_until IS NULL
                          OR user_notification.snoozed_until <= CURRENT_TIMESTAMP)
                     """;
@@ -413,33 +425,39 @@ public class NotificationQueryRepository {
     }
 
     private NotificationReason reason(String reasonCode) {
-        String kind = switch (reasonCode == null ? "" : reasonCode.toUpperCase(Locale.ROOT)) {
-            case "MENTION", "MENTIONED" -> "MENTION";
-            case "ROLE" -> "ROLE";
-            case "ORGANIZATION", "ORG" -> "ORGANIZATION";
-            case "SUBSCRIPTION" -> "SUBSCRIPTION";
-            case "MANDATORY_POLICY", "MANDATORY" -> "MANDATORY_POLICY";
-            default -> "DIRECT";
-        };
+        String canonical = canonicalReason(reasonCode);
+        String kind = canonical == null ? "UNKNOWN" : canonical;
         String label = switch (kind) {
+            case "DIRECT" -> "Sent directly to you";
             case "MENTION" -> "You were mentioned";
             case "ROLE" -> "Relevant to your role";
             case "ORGANIZATION" -> "Relevant to your organization";
             case "SUBSCRIPTION" -> "From a subscription";
             case "MANDATORY_POLICY" -> "Required by policy";
-            default -> "Sent directly to you";
+            default -> "Reason unavailable";
         };
-        return new NotificationReason(kind, label, reasonCode);
+        return new NotificationReason(kind, label, canonical == null ? null : reasonCode);
+    }
+
+    private String canonicalReason(String reasonCode) {
+        if (reasonCode == null) return null;
+        String normalized = reasonCode.toUpperCase(Locale.ROOT);
+        return REASON_ALIASES.entrySet().stream()
+                .filter(entry -> entry.getValue().contains(normalized))
+                .map(Map.Entry::getKey)
+                .findFirst()
+                .orElse(null);
     }
 
     private String reasonExplanation(NotificationReason reason) {
         return switch (reason.kind()) {
+            case "DIRECT" -> "The source application addressed this notification directly to your account.";
             case "MENTION" -> "A participant mentioned you in the source application.";
             case "ROLE" -> "The source application selected recipients using an authorized role.";
             case "ORGANIZATION" -> "The source application selected recipients using organization membership.";
             case "SUBSCRIPTION" -> "This notification matches one of your subscriptions.";
             case "MANDATORY_POLICY" -> "An organization policy requires this notification.";
-            default -> "The source application addressed this notification directly to your account.";
+            default -> "The reason for receiving this notification is unavailable.";
         };
     }
 
@@ -563,6 +581,13 @@ public class NotificationQueryRepository {
             String reason,
             Instant from,
             Instant to) {
+        public InboxFilters {
+            if (readState != null && !List.of("ALL", "UNREAD", "READ").contains(readState)) {
+                throw new NotificationException(
+                        NotificationErrorCode.INVALID_INPUT,
+                        "readState must be ALL, UNREAD or READ.");
+            }
+        }
     }
 
     public record InboxRow(InboxItem item, long changeVersion) {

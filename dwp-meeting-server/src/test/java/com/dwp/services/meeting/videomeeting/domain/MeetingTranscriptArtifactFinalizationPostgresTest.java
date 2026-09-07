@@ -60,6 +60,10 @@ class MeetingTranscriptArtifactFinalizationPostgresTest {
     private VideoMeetingContentRepository content;
     private VideoMeetingIntelligenceRepository intelligence;
     private MeetingTranscriptArtifactRepository artifacts;
+    private MeetingIntelligenceAutoRequestRepository autoRequests;
+    private MeetingTranscriptDeletionReadiness deletionReadiness;
+    private MeetingTranscriptSource transcriptSource;
+    private MeetingTranscriptSource.RetentionCapability capability;
     private MeetingTranscriptArtifactFinalizationService service;
     private VideoMeetingAuditRecorder audit;
     private Fixture fixture;
@@ -83,6 +87,7 @@ class MeetingTranscriptArtifactFinalizationPostgresTest {
         content = new VideoMeetingContentRepository(jdbc);
         intelligence = new VideoMeetingIntelligenceRepository(jdbc);
         artifacts = new MeetingTranscriptArtifactRepository(jdbc);
+        autoRequests = new MeetingIntelligenceAutoRequestRepository(jdbc);
         audit = new VideoMeetingAuditRecorder(new AuditOutboxRecorder(
                 new NamedParameterJdbcTemplate(jdbc), mapper,
                 "dwp-meeting-server", "artifact-test", "test"));
@@ -90,19 +95,18 @@ class MeetingTranscriptArtifactFinalizationPostgresTest {
         var verifier = new MeetingTranscriptFinalizationAssertionVerifier(
                 TOKEN, KEY_ID, Base64.getEncoder().encodeToString(SECRET), mapper,
                 Clock.fixed(fixture.now().toInstant(), ZoneOffset.UTC));
-        MeetingTranscriptDeletionReadiness deletionReadiness =
-                mock(MeetingTranscriptDeletionReadiness.class);
-        MeetingTranscriptSource transcriptSource = mock(MeetingTranscriptSource.class);
-        var capability = new MeetingTranscriptSource.RetentionCapability(
+        deletionReadiness = mock(MeetingTranscriptDeletionReadiness.class);
+        transcriptSource = mock(MeetingTranscriptSource.class);
+        capability = new MeetingTranscriptSource.RetentionCapability(
                 true, true, true, true, true, true, 300, true,
-                "TRANSCRIPT_BROKER", "BROKER");
+                "TRANSCRIPT_BROKER", "BROKER", "ap-northeast-2");
         var retention = new MeetingTranscriptDeletionReadiness.RetentionSnapshot(
-                "TRANSCRIPT_BROKER", "BROKER", fixture.now());
+                "TRANSCRIPT_BROKER", "BROKER", "ap-northeast-2", fixture.now());
         when(transcriptSource.retentionCapability()).thenReturn(capability);
         when(deletionReadiness.requireSnapshot(capability)).thenReturn(retention);
         service = transactional(new MeetingTranscriptArtifactFinalizationService(
                 meetings, content, intelligence, artifacts, verifier, audit,
-                deletionReadiness, transcriptSource, transactionManager,
+                deletionReadiness, transcriptSource, autoRequests, transactionManager,
                 Clock.fixed(fixture.now().toInstant(), ZoneOffset.UTC)));
         MeetingRequestContext.set(fixture.subject());
     }
@@ -143,6 +147,15 @@ class MeetingTranscriptArtifactFinalizationPostgresTest {
                  WHERE payload ->> 'action' = 'meeting.transcript-artifact.finalized'
                 """, String.class);
         assertThat(auditPayload).doesNotContain("objectKey", "opaque/transcript/source");
+        String autoRequest = jdbc.queryForObject("""
+                SELECT row_to_json(request)::text
+                  FROM vm_meeting_intelligence_auto_requests request
+                 WHERE tenant_id = 1 AND meeting_id = ?
+                """, String.class, fixture.meetingId());
+        assertThat(autoRequest)
+                .contains("\"request_state\":\"PENDING\"")
+                .contains("\"expected_content_plan_version\":" + fixture.planVersion())
+                .doesNotContain("opaque/transcript/source", TOKEN, "object_key");
 
         MeetingIntelligenceRunTransactions runs = transactionalRuns();
         var prepared = runs.prepare(
@@ -185,6 +198,48 @@ class MeetingTranscriptArtifactFinalizationPostgresTest {
     }
 
     @Test
+    void finalizationAutoRequestAndAuditRollbackAtomicallyWhenAuditIsUnavailable() {
+        var registered = service.registerTranscript(
+                fixture.meetingId(), fixture.registration(), "artifact-register-audit-rollback",
+                "corr-register", TOKEN,
+                registrationAssertion(UUID.randomUUID(), fixture.registration()));
+        jdbc.execute("""
+                CREATE FUNCTION fail_transcript_finalization_audit() RETURNS trigger
+                LANGUAGE plpgsql AS $$
+                BEGIN
+                    IF NEW.payload ->> 'action' = 'meeting.transcript-artifact.finalized' THEN
+                        RAISE EXCEPTION 'simulated audit outage';
+                    END IF;
+                    RETURN NEW;
+                END $$
+                """);
+        jdbc.execute("""
+                CREATE TRIGGER fail_transcript_finalization_audit_trigger
+                BEFORE INSERT ON sys_audit_outbox
+                FOR EACH ROW EXECUTE FUNCTION fail_transcript_finalization_audit()
+                """);
+        var command = finalization(registered.version());
+
+        assertThatThrownBy(() -> service.finalizeTranscript(
+                fixture.meetingId(), command, "artifact-finalize-audit-rollback",
+                "corr-finalize", TOKEN,
+                finalizationAssertion(UUID.randomUUID(), command)))
+                .isInstanceOf(RuntimeException.class);
+
+        assertThat(jdbc.queryForObject("""
+                SELECT artifact_state FROM vm_meeting_artifacts WHERE artifact_id = ?
+                """, String.class, fixture.artifactId())).isEqualTo("PROCESSING");
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM vm_meeting_intelligence_auto_requests
+                 WHERE tenant_id = 1 AND meeting_id = ?
+                """, Integer.class, fixture.meetingId())).isZero();
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM sys_audit_outbox
+                 WHERE payload ->> 'action' = 'meeting.transcript-artifact.finalized'
+                """, Integer.class)).isZero();
+    }
+
+    @Test
     void replayJtiIsDeniedWhileNewJtiCanReplaySameIdempotentCommand() {
         var registered = service.registerTranscript(
                 fixture.meetingId(), fixture.registration(), "artifact-register-0002",
@@ -211,6 +266,10 @@ class MeetingTranscriptArtifactFinalizationPostgresTest {
                 SELECT COUNT(*) FROM sys_audit_outbox
                  WHERE payload ->> 'action' = 'meeting.transcript-artifact.finalized'
                 """, Integer.class)).isOne();
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM vm_meeting_intelligence_auto_requests
+                 WHERE tenant_id = 1 AND meeting_id = ?
+                """, Integer.class, fixture.meetingId())).isOne();
     }
 
     @Test
@@ -236,6 +295,45 @@ class MeetingTranscriptArtifactFinalizationPostgresTest {
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM vm_meeting_transcript_finalization_assertion_replay
                 """, Integer.class)).isZero();
+    }
+
+    @Test
+    void registrationAndFinalizationRequireExactAttestedProcessingRegion() {
+        var mismatchedRegistration = new MeetingTranscriptArtifactDtos.RegisterTranscriptCommand(
+                fixture.artifactId(), fixture.planVersion(), fixture.noticeId(),
+                fixture.registration().consentSnapshotSha256(),
+                fixture.registration().sourceSha256(), "us-east-1");
+
+        assertThatThrownBy(() -> service.registerTranscript(
+                fixture.meetingId(), mismatchedRegistration, "artifact-region-mismatch",
+                "corr-region-mismatch", TOKEN,
+                registrationAssertion(UUID.randomUUID(), mismatchedRegistration)))
+                .isInstanceOf(BaseException.class);
+        assertThat(jdbc.queryForObject("""
+                SELECT artifact_state FROM vm_meeting_artifacts WHERE artifact_id = ?
+                """, String.class, fixture.artifactId())).isEqualTo("UNAVAILABLE");
+
+        var registered = service.registerTranscript(
+                fixture.meetingId(), fixture.registration(), "artifact-region-register",
+                "corr-region-register", TOKEN,
+                registrationAssertion(UUID.randomUUID(), fixture.registration()));
+        var changedCapability = new MeetingTranscriptSource.RetentionCapability(
+                true, true, true, true, true, true, 300, true,
+                "TRANSCRIPT_BROKER", "BROKER", "us-east-1");
+        var changedRetention = new MeetingTranscriptDeletionReadiness.RetentionSnapshot(
+                "TRANSCRIPT_BROKER", "BROKER", "us-east-1", fixture.now());
+        when(transcriptSource.retentionCapability()).thenReturn(changedCapability);
+        when(deletionReadiness.requireSnapshot(changedCapability)).thenReturn(changedRetention);
+        var command = finalization(registered.version());
+
+        assertThatThrownBy(() -> service.finalizeTranscript(
+                fixture.meetingId(), command, "artifact-region-finalize",
+                "corr-region-finalize", TOKEN,
+                finalizationAssertion(UUID.randomUUID(), command)))
+                .isInstanceOf(BaseException.class);
+        assertThat(jdbc.queryForObject("""
+                SELECT artifact_state FROM vm_meeting_artifacts WHERE artifact_id = ?
+                """, String.class, fixture.artifactId())).isEqualTo("PROCESSING");
     }
 
     private MeetingIntelligenceRunTransactions transactionalRuns() {

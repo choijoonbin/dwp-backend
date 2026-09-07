@@ -1,5 +1,6 @@
 package com.dwp.services.meeting.security;
 
+import com.dwp.services.meeting.videomeeting.domain.MeetingFollowupAssertionVerifier;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -13,8 +14,8 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -69,23 +70,27 @@ class MeetingSecurityFilterTest {
     }
 
     @Test
-    void viewOnlyPermissionMayPostTheExactRecordingAccessTicketRoute()
+    void viewOnlyPermissionMayPostOnlyExactReadBoundTicketAndTranscriptRoutes()
             throws ServletException, IOException {
         MeetingSecurityFilter filter = new MeetingSecurityFilter(
                 "trusted-token", new ObjectMapper().findAndRegisterModules());
-        String path = "/v1/meetings/11111111-1111-1111-1111-111111111111"
-                + "/artifacts/22222222-2222-2222-2222-222222222222/access-ticket";
-        MockHttpServletRequest request = request("POST", path);
-        request.addHeader(MeetingSecurityFilter.SERVICE_TOKEN, "trusted-token");
-        request.addHeader(MeetingSecurityFilter.USER, "101");
-        request.addHeader(MeetingSecurityFilter.TENANT, "77");
-        request.addHeader(MeetingSecurityFilter.PERMISSIONS, "APP.MEETINGS:VIEW");
-        AtomicBoolean invoked = new AtomicBoolean();
+        String root = "/v1/meetings/11111111-1111-1111-1111-111111111111";
+        for (String path : List.of(
+                root + "/artifacts/22222222-2222-2222-2222-222222222222/access-ticket",
+                root + "/artifacts/22222222-2222-2222-2222-222222222222/transcript/query",
+                root + "/materials/22222222-2222-2222-2222-222222222222/access-ticket")) {
+            MockHttpServletRequest request = request("POST", path);
+            request.addHeader(MeetingSecurityFilter.SERVICE_TOKEN, "trusted-token");
+            request.addHeader(MeetingSecurityFilter.USER, "101");
+            request.addHeader(MeetingSecurityFilter.TENANT, "77");
+            request.addHeader(MeetingSecurityFilter.PERMISSIONS, "APP.MEETINGS:VIEW");
+            AtomicBoolean invoked = new AtomicBoolean();
 
-        filter.doFilter(request, new MockHttpServletResponse(),
-                (servletRequest, servletResponse) -> invoked.set(true));
+            filter.doFilter(request, new MockHttpServletResponse(),
+                    (servletRequest, servletResponse) -> invoked.set(true));
 
-        assertThat(invoked).isTrue();
+            assertThat(invoked).as(path).isTrue();
+        }
     }
 
     @Test
@@ -101,6 +106,10 @@ class MeetingSecurityFilterTest {
                 new Sibling("POST", exact.replace("11111111-1111", "not-a-uuid"),
                         "APP.MEETINGS:VIEW"),
                 new Sibling("POST", exact.toUpperCase(java.util.Locale.ROOT),
+                        "APP.MEETINGS:VIEW"),
+                new Sibling("POST", exact.replace("/access-ticket", "/transcript/query/extra"),
+                        "APP.MEETINGS:VIEW"),
+                new Sibling("POST", exact.replace("/artifacts/", "/materials/") + "/extra",
                         "APP.MEETINGS:VIEW"))) {
             MockHttpServletRequest request = request(sibling.method(), sibling.path());
             request.addHeader(MeetingSecurityFilter.SERVICE_TOKEN, "trusted-token");
@@ -119,22 +128,28 @@ class MeetingSecurityFilterTest {
     }
 
     @Test
-    void recordingAccessTicketRejectsUnrelatedViewPermission()
+    void viewOnlyPostRoutesRejectUnrelatedOrMutationOnlyPermissions()
             throws ServletException, IOException {
         MeetingSecurityFilter filter = new MeetingSecurityFilter(
                 "trusted-token", new ObjectMapper().findAndRegisterModules());
-        MockHttpServletRequest request = request(
-                "POST", "/v1/meetings/11111111-1111-1111-1111-111111111111"
-                        + "/artifacts/22222222-2222-2222-2222-222222222222/access-ticket");
-        request.addHeader(MeetingSecurityFilter.SERVICE_TOKEN, "trusted-token");
-        request.addHeader(MeetingSecurityFilter.USER, "101");
-        request.addHeader(MeetingSecurityFilter.TENANT, "77");
-        request.addHeader(MeetingSecurityFilter.PERMISSIONS, "APP.PEOPLE:VIEW");
-        MockHttpServletResponse response = new MockHttpServletResponse();
+        String root = "/v1/meetings/11111111-1111-1111-1111-111111111111";
+        for (String path : List.of(
+                root + "/artifacts/22222222-2222-2222-2222-222222222222/access-ticket",
+                root + "/artifacts/22222222-2222-2222-2222-222222222222/transcript/query",
+                root + "/materials/22222222-2222-2222-2222-222222222222/access-ticket")) {
+            for (String permission : List.of("APP.PEOPLE:VIEW", "APP.MEETINGS:UPDATE")) {
+                MockHttpServletRequest request = request("POST", path);
+                request.addHeader(MeetingSecurityFilter.SERVICE_TOKEN, "trusted-token");
+                request.addHeader(MeetingSecurityFilter.USER, "101");
+                request.addHeader(MeetingSecurityFilter.TENANT, "77");
+                request.addHeader(MeetingSecurityFilter.PERMISSIONS, permission);
+                MockHttpServletResponse response = new MockHttpServletResponse();
 
-        filter.doFilter(request, response, new MockFilterChain());
+                filter.doFilter(request, response, new MockFilterChain());
 
-        assertThat(response.getStatus()).isEqualTo(403);
+                assertThat(response.getStatus()).as(path + " " + permission).isEqualTo(403);
+            }
+        }
     }
 
     @Test
@@ -212,6 +227,33 @@ class MeetingSecurityFilterTest {
                         "POST", "/internal/v1/media/livekit/webhook/extra"),
                 siblingResponse, new MockFilterChain());
         assertThat(siblingResponse.getStatus()).isEqualTo(401);
+    }
+
+    @Test
+    void onlyTheExactBodySignedWorkSourceRouteBypassesGatewayUserIdentity()
+            throws ServletException, IOException {
+        MeetingSecurityFilter filter = new MeetingSecurityFilter(
+                "trusted-token", new ObjectMapper().findAndRegisterModules());
+        AtomicBoolean invoked = new AtomicBoolean();
+
+        filter.doFilter(
+                request("POST", "/internal/v1/meeting-followups/resolve"),
+                new MockHttpServletResponse(),
+                (servletRequest, servletResponse) -> invoked.set(true));
+
+        assertThat(invoked).isTrue();
+        for (String sibling : List.of(
+                MeetingFollowupAssertionVerifier.PATH,
+                "/internal/v1/meeting-followups/resolve/extra",
+                "/internal/v1/meeting-followups/Resolve")) {
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            filter.doFilter(
+                    request(sibling.equals(MeetingFollowupAssertionVerifier.PATH) ? "GET" : "POST",
+                            sibling),
+                    response,
+                    new MockFilterChain());
+            assertThat(response.getStatus()).as(sibling).isEqualTo(401);
+        }
     }
 
     @Test

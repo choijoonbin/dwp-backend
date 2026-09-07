@@ -39,17 +39,19 @@
         "authority": { "const": "INFORMATIONAL_ONLY" },
         "bundleKey": { "const": "product-surfaces" },
         "indexSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
-        "latestAliasVersion": { "const": 3 },
+        "latestAliasVersion": { "const": 5 },
         "versions": {
           "type": "array",
           "prefixItems": [
             { "$ref": "#/$defs/registryRefV1" },
             { "$ref": "#/$defs/registryRefV2" },
-            { "$ref": "#/$defs/registryRefV3" }
+            { "$ref": "#/$defs/registryRefV3" },
+            { "$ref": "#/$defs/registryRefV4" },
+            { "$ref": "#/$defs/registryRefV5" }
           ],
           "items": false,
-          "minItems": 3,
-          "maxItems": 3
+          "minItems": 5,
+          "maxItems": 5
         }
       }
     },
@@ -142,11 +144,33 @@
         "sha256": { "const": "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e" }
       }
     },
+    "registryRefV4": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bundleKey", "version", "sha256"],
+      "properties": {
+        "bundleKey": { "const": "product-surfaces" },
+        "version": { "const": 4 },
+        "sha256": { "const": "a9cd08260fd9a11dd7c612f2db6f03bb312f1e7843a2eb10b4082660da151137" }
+      }
+    },
+    "registryRefV5": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bundleKey", "version", "sha256"],
+      "properties": {
+        "bundleKey": { "const": "product-surfaces" },
+        "version": { "const": 5 },
+        "sha256": { "const": "c69816a06349fcbd45a0d946debfbce1d67e09b3ed87a8b056ec8a43f852109f" }
+      }
+    },
     "registryReference": {
       "oneOf": [
         { "$ref": "#/$defs/registryRefV1" },
         { "$ref": "#/$defs/registryRefV2" },
-        { "$ref": "#/$defs/registryRefV3" }
+        { "$ref": "#/$defs/registryRefV3" },
+        { "$ref": "#/$defs/registryRefV4" },
+        { "$ref": "#/$defs/registryRefV5" }
       ]
     },
     "openRecord": {

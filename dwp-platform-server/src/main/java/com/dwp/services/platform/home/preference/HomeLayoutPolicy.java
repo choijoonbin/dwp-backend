@@ -328,6 +328,10 @@ public final class HomeLayoutPolicy {
                 "standard", Set.of("short", "standard", "tall")));
         widgets.put("daily-brief", widget(true, "full", Set.of("compact", "large", "full"),
                 "standard", Set.of("short", "standard", "tall")));
+        widgets.put("focus-balance", widget(true, "medium", Set.of("quarter", "compact", "medium"),
+                "short", Set.of("short", "standard")));
+        widgets.put("meeting-load", widget(true, "medium", Set.of("quarter", "compact", "medium"),
+                "short", Set.of("short", "standard")));
         return new SurfaceContract(true, "balanced", List.copyOf(widgets.keySet()), Map.copyOf(widgets));
     }
 

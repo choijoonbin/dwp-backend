@@ -164,10 +164,16 @@ public class VideoMeetingIntelligenceService {
             analysis = provider.analyze(providerContext, new Request(
                     running.analysisProfile(), running.outputLanguage(),
                     running.sourceSha256(), transcript));
+        } catch (RuntimeException exception) {
+            return failPrepared(
+                    subject, prepared, "PROVIDER_EXECUTION_UNAVAILABLE",
+                    canonicalCorrelationId);
+        }
+        try {
             validator.validate(analysis, transcript);
         } catch (RuntimeException exception) {
             return failPrepared(
-                    subject, prepared, "INVALID_OR_UNAVAILABLE_PROVIDER_OUTPUT",
+                    subject, prepared, "INVALID_PROVIDER_OUTPUT",
                     canonicalCorrelationId);
         }
 
@@ -194,6 +200,17 @@ public class VideoMeetingIntelligenceService {
         return VideoMeetingIntelligenceDtos.RunResponse.from(
                 finalized.run(), finalized.report() == null
                         ? null : finalized.report().reportId());
+    }
+
+    void ensureAutomaticExecutionReadiness(
+            MeetingIntelligenceAutoRequestModels.AutoRequest request,
+            String correlationId) {
+        runTransactions.ensureExecutionReadiness();
+        capability(
+                request.processingRegion(),
+                new ExecutionContext(
+                        request.tenantId(), request.meetingId(), request.requestId(),
+                        correlation(correlationId)));
     }
 
     @Transactional(readOnly = true)
@@ -506,7 +523,8 @@ public class VideoMeetingIntelligenceService {
                 return VideoMeetingIntelligenceDtos.ReportResponse.from(new ReportView(
                                 report, analysis, intelligence.reviews(
                                 report.tenantId(), report.meetingId(), report.reportId())),
-                        canCurrentViewerReview(report));
+                        canCurrentViewerReview(report),
+                        MeetingFollowupCandidateProjector.candidates(report, analysis));
             } finally {
                 Arrays.fill(plaintext, (byte) 0);
             }

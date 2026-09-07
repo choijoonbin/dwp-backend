@@ -50,7 +50,7 @@ ALLOWED_OVERRIDE_REFS = {
     "PS-G010": "test.services-catalog-jit.v1",
 }
 RESERVED_CONTRACTS = {"hcm.reference.publish", "hcm.integration.rotate-secret"}
-REGISTRY_VERSIONS = (1, 2, 3, 4)
+REGISTRY_VERSIONS = (1, 2, 3, 4, 5)
 FIXED_GROUP_VERSIONS = {"CANARY": 1, "APPROVALS": 2, "HCM": 3}
 DESCRIPTOR_SECTIONS = {
     "capabilityContractKeys": ("capabilities", "contractKey"),
@@ -452,7 +452,7 @@ def validate_registry_index(index: dict[str, Any]) -> None:
     if not isinstance(versions, list) or [
         entry.get("version") for entry in versions if isinstance(entry, dict)
     ] != list(REGISTRY_VERSIONS):
-        raise ContractError("Registry lineage must contain the declared versions 1 through 4")
+        raise ContractError("Registry lineage must contain the declared versions 1 through 5")
 
 
 def validate_registry_entry(
@@ -499,6 +499,18 @@ def validate_monotonic_registry_lineage(
                         for index, value in enumerate(inherited))
         return current == inherited
 
+    def descriptor_monotonic_contains(
+        current: dict[str, Any], inherited: dict[str, Any]
+    ) -> bool:
+        current_descriptor = copy.deepcopy(current)
+        inherited_descriptor = copy.deepcopy(inherited)
+        current_routes = set(current_descriptor.pop("routeContractKeys", []))
+        inherited_routes = set(inherited_descriptor.pop("routeContractKeys", []))
+        return (
+            inherited_routes <= current_routes
+            and monotonic_contains(current_descriptor, inherited_descriptor)
+        )
+
     keyed_sections = list(DESCRIPTOR_SECTIONS.values()) + [
         ("authorityEndpoints", "endpointKey")
     ]
@@ -515,7 +527,7 @@ def validate_monotonic_registry_lineage(
                 current[identity] = record
         if any(
             identity not in current
-            or not monotonic_contains(current[identity], record)
+            or not descriptor_monotonic_contains(current[identity], record)
             for identity, record in previous.items()
         ):
             raise ContractError(f"Registry v{version} is not an exact monotonic superset")

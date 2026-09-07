@@ -199,6 +199,10 @@ class MessagingMessageQueryRepository {
                   JOIN msg_messages message
                     ON message.tenant_id = saved.tenant_id
                    AND message.message_id = saved.message_id
+                  JOIN msg_conversations conversation
+                    ON conversation.tenant_id = message.tenant_id
+                   AND conversation.conversation_id = message.conversation_id
+                   AND conversation.lifecycle_state = 'ACTIVE'
                   JOIN msg_conversation_members member
                     ON member.tenant_id = message.tenant_id
                    AND member.conversation_id = message.conversation_id

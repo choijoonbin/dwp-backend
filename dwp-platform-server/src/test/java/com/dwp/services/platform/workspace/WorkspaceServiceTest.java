@@ -3,6 +3,7 @@ package com.dwp.services.platform.workspace;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.audit.PlatformAuditService;
+import com.dwp.services.platform.activity.ActivityService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,13 +36,15 @@ class WorkspaceServiceTest {
     private AppEntitlementProvisioner appEntitlements;
     @Mock
     private PlatformAuditService auditService;
+    @Mock
+    private ActivityService activityService;
 
     private WorkspaceService service;
 
     @BeforeEach
     void setUp() {
         service = new WorkspaceService(
-                repository, appAccessRequests, appEntitlements, auditService);
+                repository, appAccessRequests, appEntitlements, auditService, activityService);
     }
 
     @Test
@@ -266,6 +269,8 @@ class WorkspaceServiceTest {
 
     @Test
     void recordsAVisibleAppLaunchInActivityAndAudit() {
+        when(auditService.successWithId(anyLong(), anyLong(), anyString(), anyString(), anyString(),
+                anyString(), any(), any())).thenReturn(UUID.randomUUID());
         WorkspaceRepository.AppRow app = app("dwp-work", "APP.WORK", "HEALTHY", "/work");
         when(repository.app(1L, 7L, "dwp-work", true)).thenReturn(Optional.of(app));
 
@@ -281,14 +286,16 @@ class WorkspaceServiceTest {
         verify(repository).recordLaunch(1L, 7L, "dwp-work");
         verify(repository).addAppActivity(
                 anyLong(), anyLong(), any(), anyString(), anyString(),
-                anyString(), anyString(), anyString());
-        verify(auditService).success(
+                anyString(), anyString(), any(UUID.class), anyString());
+        verify(auditService).successWithId(
                 anyLong(), anyLong(), anyString(), anyString(), anyString(),
                 anyString(), any(), any());
     }
 
     @Test
     void updatesAnOwnedWorkItemWithOptimisticVersioningAndAudit() {
+        when(auditService.successWithId(anyLong(), anyLong(), anyString(), anyString(), anyString(),
+                anyString(), any(), any())).thenReturn(UUID.randomUUID());
         UUID id = UUID.randomUUID();
         WorkspaceRepository.WorkRow before = work(id, "DUE_SOON", 2L);
         WorkspaceRepository.WorkRow after = work(id, "IN_PROGRESS", 3L);
@@ -312,15 +319,17 @@ class WorkspaceServiceTest {
         assertThat(result.dataClassification()).isEqualTo("CONFIDENTIAL");
         assertThat(result.version()).isEqualTo(3L);
         verify(repository).addWorkActivity(
-                anyLong(), anyLong(), any(), anyString(), anyString(), anyString(),
-                anyString(), anyString(), anyString());
-        verify(auditService).success(
+                anyLong(), anyLong(), any(), org.mockito.ArgumentMatchers.eq("IN_PROGRESS"), anyString(), anyString(),
+                anyString(), anyString(), any(UUID.class), anyString());
+        verify(auditService).successWithId(
                 anyLong(), anyLong(), anyString(), anyString(), anyString(),
                 anyString(), any(), any());
     }
 
     @Test
     void updatesAValidatedWorkBatchAtomicallyThroughTheSameAuditedTransition() {
+        when(auditService.successWithId(anyLong(), anyLong(), anyString(), anyString(), anyString(),
+                anyString(), any(), any())).thenReturn(UUID.randomUUID());
         UUID firstId = UUID.randomUUID();
         UUID secondId = UUID.randomUUID();
         WorkspaceRepository.WorkRow firstBefore = work(firstId, "DUE_SOON", 2L);
@@ -353,8 +362,8 @@ class WorkspaceServiceTest {
                 .containsExactly("COMPLETED", "COMPLETED");
         verify(repository, org.mockito.Mockito.times(2)).addWorkActivity(
                 anyLong(), anyLong(), any(), anyString(), anyString(), anyString(),
-                anyString(), anyString(), anyString());
-        verify(auditService, org.mockito.Mockito.times(2)).success(
+                anyString(), anyString(), any(UUID.class), anyString());
+        verify(auditService, org.mockito.Mockito.times(2)).successWithId(
                 anyLong(), anyLong(), anyString(), anyString(), anyString(),
                 anyString(), any(), any());
     }
@@ -441,7 +450,7 @@ class WorkspaceServiceTest {
     }
 
     private WorkspaceRepository.WorkRow work(UUID id, String status, long version) {
-        return work(id, status, version, "TASK", "Source");
+        return work(id, status, version, "TASK", "DWP_WORKSPACE");
     }
 
     private WorkspaceRepository.WorkRow work(

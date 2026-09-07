@@ -132,7 +132,8 @@ public final class MessagingDtos {
             boolean pinned,
             UUID lastReadMessageId,
             long lastReadSequence,
-            OffsetDateTime lastReadAt) {
+            OffsetDateTime lastReadAt,
+            String readReceiptVisibility) {
     }
 
     public record ConversationSummary(

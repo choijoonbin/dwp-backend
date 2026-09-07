@@ -21,6 +21,8 @@ class MeetingRuntimeWiringTest {
                     () -> mock(MeetingMediaProvider.class))
             .withBean(MeetingContentDependencies.class,
                     () -> mock(MeetingContentDependencies.class))
+            .withBean(MeetingRecordingDeletionReadiness.class,
+                    () -> mock(MeetingRecordingDeletionReadiness.class))
             .withBean(MeetingTranscriptDeletionRepository.class,
                     () -> mock(MeetingTranscriptDeletionRepository.class))
             .withBean(VideoMeetingAuditRecorder.class,
@@ -29,6 +31,8 @@ class MeetingRuntimeWiringTest {
                     () -> mock(MeetingIntelligenceProvider.class))
             .withBean(MeetingIntelligenceRetentionService.class,
                     () -> mock(MeetingIntelligenceRetentionService.class))
+            .withBean(MeetingChatRetentionService.class,
+                    () -> mock(MeetingChatRetentionService.class))
             .withBean(JdbcTemplate.class, () -> mock(JdbcTemplate.class))
             .withBean(VideoMeetingLifecycleOperationRepository.class,
                     () -> mock(VideoMeetingLifecycleOperationRepository.class))

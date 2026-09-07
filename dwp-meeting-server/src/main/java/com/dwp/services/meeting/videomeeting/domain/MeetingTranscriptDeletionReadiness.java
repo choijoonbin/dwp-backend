@@ -42,11 +42,11 @@ public class MeetingTranscriptDeletionReadiness {
     }
 
     public boolean ready() {
-        return snapshotIfReady() != null;
+        return healthSnapshotIfReady() != null;
     }
 
-    public RetentionSnapshot requireSnapshot() {
-        RetentionSnapshot snapshot = snapshotIfReady();
+    private HealthSnapshot requireHealthSnapshot() {
+        HealthSnapshot snapshot = healthSnapshotIfReady();
         if (snapshot == null) {
             throw new BaseException(
                     ErrorCode.EXTERNAL_SERVICE_ERROR,
@@ -57,7 +57,7 @@ public class MeetingTranscriptDeletionReadiness {
 
     public RetentionSnapshot requireSnapshot(
             MeetingTranscriptSource.RetentionCapability capability) {
-        RetentionSnapshot snapshot = requireSnapshot();
+        HealthSnapshot snapshot = requireHealthSnapshot();
         if (capability == null || !capability.available()
                 || !capability.deletionAvailable() || !capability.cryptoShredAvailable()
                 || !capability.customerManagedStorage()
@@ -67,15 +67,20 @@ public class MeetingTranscriptDeletionReadiness {
                 || capability.maximumOrphanTtlSeconds() > 3_600
                 || !snapshot.providerCode().equals(capability.providerCode())
                 || !snapshot.storageProviderCode().equals(
-                        capability.storageProviderCode())) {
+                        capability.storageProviderCode())
+                || capability.processingRegion() == null
+                || !capability.processingRegion().matches(
+                        "^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$")) {
             throw new BaseException(
                     ErrorCode.EXTERNAL_SERVICE_ERROR,
                     "Governed transcript retention provider is not ready.");
         }
-        return snapshot;
+        return new RetentionSnapshot(
+                snapshot.providerCode(), snapshot.storageProviderCode(),
+                capability.processingRegion(), snapshot.verifiedAt());
     }
 
-    private RetentionSnapshot snapshotIfReady() {
+    private HealthSnapshot healthSnapshotIfReady() {
         if (!validConfiguration()) return null;
         try {
             OffsetDateTime now = OffsetDateTime.now(clock);
@@ -101,7 +106,7 @@ public class MeetingTranscriptDeletionReadiness {
                 return null;
             }
             return repository.overdueLocatorCount(now) == 0
-                    ? new RetentionSnapshot(
+                    ? new HealthSnapshot(
                             health.lastProviderCode(), health.lastStorageProviderCode(),
                             health.lastSuccessAt())
                     : null;
@@ -111,7 +116,7 @@ public class MeetingTranscriptDeletionReadiness {
     }
 
     public void requireReady() {
-        requireSnapshot();
+        requireHealthSnapshot();
     }
 
     void markLocalFailure() {
@@ -149,6 +154,13 @@ public class MeetingTranscriptDeletionReadiness {
     }
 
     public record RetentionSnapshot(
+            String providerCode,
+            String storageProviderCode,
+            String processingRegion,
+            OffsetDateTime verifiedAt) {
+    }
+
+    private record HealthSnapshot(
             String providerCode,
             String storageProviderCode,
             OffsetDateTime verifiedAt) {

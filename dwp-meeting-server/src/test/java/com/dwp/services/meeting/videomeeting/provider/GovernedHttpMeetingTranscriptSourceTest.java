@@ -62,18 +62,36 @@ class GovernedHttpMeetingTranscriptSourceTest {
                  "customerManagedStorage":true,"providerRetentionDisabled":true,
                  "orphanCleanupAvailable":true,"maximumOrphanTtlSeconds":300,
                  "legacyLocatorDeletionAvailable":true,
-                 "providerCode":"TRANSCRIPT_BROKER","storageProviderCode":"BROKER"}
+                 "providerCode":"TRANSCRIPT_BROKER","storageProviderCode":"BROKER",
+                 "processingRegion":"ap-northeast-2"}
                 """.getBytes());
 
         var capability = source(properties(), client).retentionCapability();
 
         assertThat(capability.available()).isTrue();
         assertThat(capability.maximumOrphanTtlSeconds()).isEqualTo(300);
+        assertThat(capability.processingRegion()).isEqualTo("ap-northeast-2");
         assertThat(client.request().method()).isEqualTo("GET");
         assertThat(header(client, "X-DWP-Meeting-Transcript-Token"))
                 .isEqualTo("s".repeat(32));
         assertServiceAssertion(
                 client, "GET", "/internal/v1/meeting-transcripts/retention-capability");
+    }
+
+    @Test
+    void retentionCapabilityRejectsInvalidProcessingRegion() {
+        CapturingHttpClient client = new CapturingHttpClient();
+        client.respond(200, "application/json", """
+                {"schemaVersion":"meeting-transcript-retention-capability-v1",
+                 "available":true,"deletionAvailable":true,"cryptoShredAvailable":true,
+                 "customerManagedStorage":true,"providerRetentionDisabled":true,
+                 "orphanCleanupAvailable":true,"maximumOrphanTtlSeconds":300,
+                 "legacyLocatorDeletionAvailable":true,
+                 "providerCode":"TRANSCRIPT_BROKER","storageProviderCode":"BROKER",
+                 "processingRegion":"AP_NORTHEAST_2"}
+                """.getBytes());
+
+        assertThat(source(properties(), client).retentionCapability().available()).isFalse();
     }
 
     @Test
@@ -186,12 +204,8 @@ class GovernedHttpMeetingTranscriptSourceTest {
     private GovernedHttpMeetingTranscriptSource source(
             MeetingTranscriptHttpProperties transcript,
             CapturingHttpClient client) {
-        MeetingIntelligenceHttpProperties assertion = new MeetingIntelligenceHttpProperties();
-        assertion.setAssertionKeyId("meeting-workload-v1");
-        assertion.setAssertionSecretBase64(
-                Base64.getEncoder().encodeToString(new byte[32]));
         return new GovernedHttpMeetingTranscriptSource(
-                transcript, mapper, new MeetingWorkloadAssertionSigner(assertion), client);
+                transcript, mapper, new MeetingWorkloadAssertionSigner(transcript), client);
     }
 
     private MeetingTranscriptHttpProperties properties() {
@@ -200,6 +214,10 @@ class GovernedHttpMeetingTranscriptSourceTest {
         properties.setBaseUrl("https://transcript.example.test");
         properties.setAllowedHosts(Set.of("transcript.example.test"));
         properties.setServiceToken("s".repeat(32));
+        properties.setAssertionKeyId("transcript-workload-v1");
+        properties.setAssertionSecretBase64(
+                Base64.getEncoder().encodeToString(new byte[32]));
+        properties.setAssertionTtl(Duration.ofSeconds(30));
         properties.setConnectTimeout(Duration.ofSeconds(1));
         properties.setRequestTimeout(Duration.ofSeconds(5));
         return properties;

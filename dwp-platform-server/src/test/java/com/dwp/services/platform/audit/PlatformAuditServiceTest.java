@@ -5,6 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -17,6 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
 class PlatformAuditServiceTest {
@@ -29,6 +31,17 @@ class PlatformAuditServiceTest {
     @BeforeEach
     void setUp() {
         service = new PlatformAuditService(repository, new ObjectMapper());
+    }
+
+    @Test
+    void returnsExactlyTheEvidenceIdSavedInTheAuditRepository() {
+        UUID reference = service.successWithId(7L, 11L, "workspace.work-status.updated",
+                "WORK_ITEM", "WK-1", "corr-one", null, java.util.Map.of("status", "WAITING"));
+        ArgumentCaptor<PlatformAuditEvent> capture = ArgumentCaptor.forClass(PlatformAuditEvent.class);
+        verify(repository).save(capture.capture());
+        assertThat(capture.getValue().getAuditEventId()).isEqualTo(reference);
+        assertThat(capture.getValue().getTenantId()).isEqualTo(7L);
+        assertThat(capture.getValue().getCorrelationId()).isEqualTo("corr-one");
     }
 
     @Test

@@ -94,10 +94,10 @@ class MeetingProductSurfaceV4DraftConsumerTest {
         assertThat(bundle.path("version").asInt()).isEqualTo(4);
         assertThat(bundle.path("bundleStatus").asText()).isEqualTo("DRAFT");
         assertThat(bundle.path("checksum").asText()).matches("[a-f0-9]{64}");
-        assertThat(index.path("latestVersion").asInt()).isEqualTo(4);
+        assertThat(index.path("latestVersion").asInt()).isEqualTo(5);
         assertThat(index.path("latestArtifact").asText())
-                .isEqualTo("product-surfaces-v1.bundle-v4.json");
-        assertThat(index.path("latestChecksum").asText())
+                .isEqualTo("product-surfaces-v1.bundle-v5.json");
+        assertThat(index.path("versions").get(3).path("checksum").asText())
                 .isEqualTo(bundle.path("checksum").asText());
         assertThat(textValues(index.path("versions"), "checksum").subList(0, 3))
                 .containsExactly(

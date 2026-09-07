@@ -41,6 +41,14 @@ public class PlatformAuditService {
                 correlationId, before, after);
     }
 
+    /** Returns the persisted evidence ID, in the caller's transaction, for a linked event. */
+    public UUID successWithId(
+            Long tenantId, Long actorId, String action, String targetType,
+            String targetId, String correlationId, Object before, Object after) {
+        return recordSuccess(tenantId, "USER", actorId, action, targetType, targetId,
+                correlationId, before, after);
+    }
+
     public void serviceSuccess(
             Long tenantId,
             String action,
@@ -54,7 +62,7 @@ public class PlatformAuditService {
                 correlationId, before, after);
     }
 
-    private void recordSuccess(
+    private UUID recordSuccess(
             Long tenantId,
             String actorType,
             Long actorId,
@@ -64,8 +72,9 @@ public class PlatformAuditService {
             String correlationId,
             Object before,
             Object after) {
+        UUID auditEventId = UUID.randomUUID();
         repository.save(PlatformAuditEvent.builder()
-                .auditEventId(UUID.randomUUID())
+                .auditEventId(auditEventId)
                 .tenantId(tenantId)
                 .actorType(actorType)
                 .actorId(actorId)
@@ -78,6 +87,7 @@ public class PlatformAuditService {
                 .afterSnapshot(snapshot(after))
                 .occurredAt(Instant.now())
                 .build());
+        return auditEventId;
     }
 
     @Transactional(readOnly = true)

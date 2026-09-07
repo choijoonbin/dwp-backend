@@ -102,6 +102,11 @@ public class MessagingSecurityFilter extends OncePerRequestFilter {
     private boolean authorized(HttpServletRequest request, Set<String> permissions) {
         String path = request.getRequestURI();
         String method = request.getMethod();
+        if (("PUT".equals(method) && "/v1/privacy-preferences".equals(path))
+                || ("POST".equals(method)
+                    && path.matches("/v1/conversations/[0-9a-fA-F-]{36}/read-receipts"))) {
+            return has(permissions, "APP.MESSAGING", "VIEW");
+        }
         if (path.startsWith("/v1/admin/")) {
             return has(permissions, "ADMIN.MESSAGING", readOnly(method) ? "VIEW" : "MANAGE");
         }

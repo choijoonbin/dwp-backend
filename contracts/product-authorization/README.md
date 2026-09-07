@@ -30,19 +30,20 @@ where that descriptor exists, then preserves it in every later monotonic
 superset. It expands projection bindings and descriptor-to-route reverse
 indexes, validates same-bundle references and computes SHA-256 over canonical
 JSON with the mutable `checksum` and `bundleStatus` members omitted. The
-canonical source contains a version 1 base plus append-only version 2, 3 and 4
+canonical source contains a version 1 base plus append-only version 2, 3, 4 and 5
 waves. It emits complete snapshots rather than deltas:
 
 - `product-surfaces-v1.bundle-v1.json` — W0/Canary, checksum `bc34f47b…`
 - `product-surfaces-v1.bundle-v2.json` — W1a Approvals, checksum `5b634a35…`
 - `product-surfaces-v1.bundle-v3.json` — W1b HCM candidate, checksum `f90c4e3a…`
 - `product-surfaces-v1.bundle-v4.json` — twelve-product exact closure, checksum `a9cd0826…`
-- `product-surfaces-v1.json` — byte-identical latest/final alias of bundle v4
+- `product-surfaces-v1.bundle-v5.json` — DWAI.ON read-only run/activity closure, checksum `c69816a0…`
+- `product-surfaces-v1.json` — byte-identical latest/final alias of bundle v5
 - `product-surfaces-v1.index.json` — checksummed version/artifact index
 
 Auth classpath resources use the same names with `.generated.json` before the
 extension. Every contract snapshot is byte-identical to its Auth seed peer;
-the latest Auth alias is byte-identical to bundle v4. The generator verifies
+the latest Auth alias is byte-identical to bundle v5. The generator verifies
 all files, checksums, aliases, descriptor preservation and monotonic reverse
 references in both generate and `--check` modes.
 
@@ -57,7 +58,10 @@ adds the HCM descriptors and their enrichments; no HCM runtime PEP or activation
 is wired by this contract generation step. Version 4 is the exact monotonic
 superset that adds the remaining product descriptors and closes at least one
 `PAGE`, `DATA` and `ACTION` route for every rollout product. Generating or
-loading version 4 does not approve or activate it.
+loading version 4 does not approve or activate it. Version 5 is the exact
+monotonic superset that registers the DWAI.ON run list/detail and Activity
+events/detail/summary reads. It adds no command, does not alter any v1-v4
+descriptor, and remains `DRAFT`; generating or loading it does not activate it.
 
 The signed pilot fixture has no authoritative top-level registry reference.
 Its `registryLineage` is informational only; every test case and step-up
@@ -133,7 +137,7 @@ corrupt or unavailable durable state also fails closed. A higher approved
 revision with `E_p=false` is the only rollout path from `110` to `100`.
 
 Runtime loaders reject `test.*` keys and never read test registry overrides.
-The checksummed seed index imports versions 1 through 4 in order, all as `DRAFT`.
+The checksummed seed index imports versions 1 through 5 in order, all as `DRAFT`.
 It contains no active version field or pointer. Activation is an explicit CAS
 pointer transition after independent approval; loading a seed does not approve
 or activate it.

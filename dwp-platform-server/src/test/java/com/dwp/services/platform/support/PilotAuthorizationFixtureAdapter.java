@@ -133,8 +133,8 @@ public final class PilotAuthorizationFixtureAdapter {
                         && "INFORMATIONAL_ONLY".equals(fixture.path("registryLineage")
                         .path("authority").asText()),
                 "Global registry authority is forbidden for pilot fixtures.");
-        require(requiredArray(fixture.path("registryLineage"), "versions").size() == 4,
-                "Pilot fixture registry lineage must contain exactly v1 through v4.");
+        require(requiredArray(fixture.path("registryLineage"), "versions").size() == 5,
+                "Pilot fixture registry lineage must contain exactly v1 through v5.");
         requiredArray(fixture, "testCases").forEach(this::registryReference);
         requiredArray(fixture.path("catalogs"), "stepUpChallenges")
                 .forEach(this::registryReference);

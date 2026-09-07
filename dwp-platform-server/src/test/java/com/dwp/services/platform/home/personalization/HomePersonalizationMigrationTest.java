@@ -108,4 +108,26 @@ class HomePersonalizationMigrationTest {
                 .doesNotContain("UPDATE usr_home_preferences")
                 .doesNotContain("DELETE FROM usr_home_preferences");
     }
+
+    @Test
+    void v221RegistersBoundedCalendarInsightWidgetsWithoutRewritingPersonalLayouts()
+            throws Exception {
+        String sql = new ClassPathResource(
+                "db/migration/V221__register_flow_home_calendar_insight_widgets.sql")
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertThat(sql)
+                .contains("'PLATFORM.HOME_WIDGET', 'focus-balance', 'Focus balance'")
+                .contains("'PLATFORM.HOME_WIDGET', 'meeting-load', 'Meeting load'")
+                .contains("\"sourceAppResourceKey\":\"APP.CALENDAR\"")
+                .contains("\"dataSource\":\"DWP_CALENDAR\"")
+                .contains("\"defaultSize\":\"medium\"")
+                .contains("\"allowedSizes\":[\"quarter\",\"compact\",\"medium\"]")
+                .contains("\"defaultHeight\":\"short\"")
+                .contains("\"allowedHeights\":[\"short\",\"standard\"]")
+                .contains("\"analyticsKey\":\"home.focus-balance\"")
+                .contains("\"analyticsKey\":\"home.meeting-load\"")
+                .doesNotContain("UPDATE usr_home_preferences")
+                .doesNotContain("DELETE FROM usr_home_preferences");
+    }
 }

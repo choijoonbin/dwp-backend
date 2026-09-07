@@ -487,7 +487,7 @@ public class MessagingService {
             MessagingDtos.ConversationSummary conversation) {
         return new MessagingDtos.ConversationDetail(
                 conversation,
-                queries.members(tenantId, conversation.conversationId()),
+                queries.members(tenantId, conversation.conversationId(), userId),
                 queries.messages(tenantId, conversation.conversationId(), userId, 80),
                 new MessagingDtos.RealtimeStatus(
                         "SSE",

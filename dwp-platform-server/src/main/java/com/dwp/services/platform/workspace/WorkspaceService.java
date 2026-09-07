@@ -3,6 +3,8 @@ package com.dwp.services.platform.workspace;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.audit.PlatformAuditService;
+import com.dwp.services.platform.activity.ActivityQuery;
+import com.dwp.services.platform.activity.ActivityService;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,7 +23,6 @@ public class WorkspaceService {
 
     private static final String WORK_VIEW = "APP.WORK:VIEW";
     private static final String WORK_UPDATE = "APP.WORK:UPDATE";
-    private static final String ACTIVITY_VIEW = "APP.ACTIVITY:VIEW";
     private static final String APPS_VIEW = "APP.APPS:VIEW";
     private static final String APPS_UPDATE = "APP.APPS:UPDATE";
 
@@ -29,16 +30,19 @@ public class WorkspaceService {
     private final AppAccessRequestRepository appAccessRequests;
     private final AppEntitlementProvisioner appEntitlements;
     private final PlatformAuditService auditService;
+    private final ActivityService activityService;
 
     public WorkspaceService(
             WorkspaceRepository repository,
             AppAccessRequestRepository appAccessRequests,
             AppEntitlementProvisioner appEntitlements,
-            PlatformAuditService auditService) {
+            PlatformAuditService auditService,
+            ActivityService activityService) {
         this.repository = repository;
         this.appAccessRequests = appAccessRequests;
         this.appEntitlements = appEntitlements;
         this.auditService = auditService;
+        this.activityService = activityService;
     }
 
     @Transactional(readOnly = true)
@@ -50,15 +54,10 @@ public class WorkspaceService {
         require(authorities(permissions), WORK_VIEW);
         List<WorkspaceDtos.WorkItem> items = repository.workItems(
                         tenantId, actorId, korean(locale)).stream()
-                .map(row -> workItem(row, locale))
+                .map(row -> workItem(row, locale, authorities(permissions).contains(WORK_UPDATE)))
                 .toList();
-        WorkspaceDtos.WorkSummary summary = new WorkspaceDtos.WorkSummary(
-                items.size(),
-                count(items, "DUE_SOON"),
-                count(items, "IN_PROGRESS"),
-                count(items, "WAITING"),
-                count(items, "COMPLETED"));
-        return new WorkspaceDtos.WorkQueue(summary, items, OffsetDateTime.now());
+        OffsetDateTime now = OffsetDateTime.now();
+        return new WorkspaceDtos.WorkQueue(WorkspaceWorkPolicy.summary(items, now), items, now);
     }
 
     @Transactional
@@ -113,15 +112,15 @@ public class WorkspaceService {
                         tenantId, actorId, workItemId, korean)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         String requestedStatus = request.status().toUpperCase(Locale.ROOT);
-        if ("REVIEW".equals(before.type())
-                || IdentityGovernanceWorkItemProjectionRepository.SOURCE_SYSTEM.equals(before.sourceSystem())) {
-            throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
+        if (!WorkspaceWorkPolicy.owns(before)) {
+            throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
+                    "This work item is owned by its source application. Use the source action.");
         }
         if (before.version() != request.version()) {
             throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
         }
         if (before.status().equals(requestedStatus)) {
-            return workItem(before, locale);
+            return workItem(before, locale, true);
         }
         requireTransition(before.status(), requestedStatus);
         String activityKo = statusActivity(requestedStatus, true);
@@ -131,21 +130,10 @@ public class WorkspaceService {
                 activityKo, activityEn)) {
             throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
         }
-        String auditReference = "AUD-WRK-" + UUID.randomUUID();
-        repository.addWorkActivity(
-                tenantId,
-                actorId,
-                before,
-                "COMPLETED".equals(requestedStatus) ? "COMPLETED" : "RUNNING",
-                "업무 상태 변경",
-                "Work status changed",
-                before.id() + " 상태가 " + activityKo,
-                before.id() + " " + activityEn,
-                auditReference);
         WorkspaceRepository.WorkRow after = repository.workItem(
                         tenantId, actorId, workItemId, korean)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        auditService.success(
+        UUID auditRecordId = auditService.successWithId(
                 tenantId,
                 actorId,
                 "workspace.work-status.updated",
@@ -154,7 +142,12 @@ public class WorkspaceService {
                 correlationId,
                 before,
                 after);
-        return workItem(after, locale);
+        repository.addWorkActivity(
+                tenantId, actorId, after, requestedStatus,
+                "업무 상태 변경", "Work status changed",
+                before.id() + " 상태가 " + activityKo,
+                before.id() + " " + activityEn, auditRecordId, correlationId);
+        return workItem(after, locale, true);
     }
 
     @Transactional(readOnly = true)
@@ -163,12 +156,7 @@ public class WorkspaceService {
             Long actorId,
             String permissions,
             String locale) {
-        require(authorities(permissions), ACTIVITY_VIEW);
-        List<WorkspaceDtos.ActivityEvent> events = repository.activity(
-                        tenantId, actorId, korean(locale)).stream()
-                .map(this::activityEvent)
-                .toList();
-        return new WorkspaceDtos.ActivityFeed(events, OffsetDateTime.now());
+        return activityService.list(tenantId, actorId, permissions, locale, ActivityQuery.defaults());
     }
 
     @Transactional(readOnly = true)
@@ -210,6 +198,9 @@ public class WorkspaceService {
         WorkspaceRepository.AppRow after = repository.app(
                         tenantId, actorId, appId, korean(locale))
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        UUID auditRecordId = auditService.successWithId(
+                tenantId, actorId, "workspace.app-pin.updated", "WORKSPACE_APP_PREFERENCE",
+                appId, correlationId, before, after);
         repository.addAppActivity(
                 tenantId,
                 actorId,
@@ -218,16 +209,7 @@ public class WorkspaceService {
                 request.pinned() ? "App pinned" : "App unpinned",
                 after.name() + (request.pinned() ? " 앱을 고정했습니다." : " 앱 고정을 해제했습니다."),
                 after.name() + (request.pinned() ? " was pinned." : " was unpinned."),
-                "AUD-APP-" + UUID.randomUUID());
-        auditService.success(
-                tenantId,
-                actorId,
-                "workspace.app-pin.updated",
-                "WORKSPACE_APP_PREFERENCE",
-                appId,
-                correlationId,
-                before,
-                after);
+                auditRecordId, correlationId);
         return workspaceApp(
                 after,
                 authorities,
@@ -249,6 +231,10 @@ public class WorkspaceService {
         validateLaunch(app);
         repository.recordLaunch(tenantId, actorId, appId);
         OffsetDateTime launchedAt = OffsetDateTime.now();
+        UUID auditRecordId = auditService.successWithId(
+                tenantId, actorId, "workspace.app.launched", "WORKSPACE_APP",
+                appId, correlationId, null,
+                new WorkspaceDtos.AppLaunch(appId, app.launchMode(), app.launchTarget(), launchedAt));
         repository.addAppActivity(
                 tenantId,
                 actorId,
@@ -257,16 +243,7 @@ public class WorkspaceService {
                 "App launched",
                 app.name() + " 앱을 실행했습니다.",
                 app.name() + " was launched.",
-                "AUD-APP-" + UUID.randomUUID());
-        auditService.success(
-                tenantId,
-                actorId,
-                "workspace.app.launched",
-                "WORKSPACE_APP",
-                appId,
-                correlationId,
-                null,
-                new WorkspaceDtos.AppLaunch(appId, app.launchMode(), app.launchTarget(), launchedAt));
+                auditRecordId, correlationId);
         return new WorkspaceDtos.AppLaunch(
                 appId, app.launchMode(), app.launchTarget(), launchedAt);
     }
@@ -654,7 +631,8 @@ public class WorkspaceService {
         };
     }
 
-    private WorkspaceDtos.WorkItem workItem(WorkspaceRepository.WorkRow row, String locale) {
+    private WorkspaceDtos.WorkItem workItem(
+            WorkspaceRepository.WorkRow row, String locale, boolean canUpdate) {
         return new WorkspaceDtos.WorkItem(
                 row.workItemId(),
                 row.id(),
@@ -673,14 +651,8 @@ public class WorkspaceService {
                 row.recommendedNext(),
                 row.latestActivity(),
                 row.version(),
-                row.updatedAt());
-    }
-
-    private WorkspaceDtos.ActivityEvent activityEvent(WorkspaceRepository.ActivityRow row) {
-        return new WorkspaceDtos.ActivityEvent(
-                row.id(), row.occurredAt(), row.actor(), row.actorName(), row.state(),
-                row.title(), row.summary(), row.objectType(), row.objectLabel(), row.source(),
-                row.tool(), row.auditId(), row.progress(), row.sourceRoute());
+                row.updatedAt(),
+                WorkspaceWorkPolicy.capabilities(row, canUpdate));
     }
 
     private WorkspaceDtos.WorkspaceApp workspaceApp(
@@ -745,9 +717,6 @@ public class WorkspaceService {
         return snapshot;
     }
 
-    private long count(List<WorkspaceDtos.WorkItem> items, String status) {
-        return items.stream().filter(item -> status.equals(item.status())).count();
-    }
     private boolean korean(String locale) {
         return locale != null && locale.toLowerCase(Locale.ROOT).startsWith("ko");
     }

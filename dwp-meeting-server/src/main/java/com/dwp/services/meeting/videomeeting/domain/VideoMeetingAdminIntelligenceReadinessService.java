@@ -33,6 +33,9 @@ public class VideoMeetingAdminIntelligenceReadinessService {
     private final MeetingContentDependencies dependencies;
     private final MeetingIntelligenceProvider intelligence;
     private final MeetingIntelligenceRetentionService retention;
+    private final MeetingRecordingDeletionReadiness recordingDeletion;
+    private final MeetingTranscriptDeletionReadiness transcriptDeletion;
+    private final MeetingChatRetentionService chatRetention;
     private final JdbcTemplate jdbc;
     private final Clock clock;
 
@@ -43,8 +46,13 @@ public class VideoMeetingAdminIntelligenceReadinessService {
             MeetingContentDependencies dependencies,
             MeetingIntelligenceProvider intelligence,
             MeetingIntelligenceRetentionService retention,
+            MeetingRecordingDeletionReadiness recordingDeletion,
+            MeetingTranscriptDeletionReadiness transcriptDeletion,
+            MeetingChatRetentionService chatRetention,
             JdbcTemplate jdbc) {
-        this(meetings, media, dependencies, intelligence, retention, jdbc, Clock.systemUTC());
+        this(meetings, media, dependencies, intelligence, retention,
+                recordingDeletion, transcriptDeletion, chatRetention,
+                jdbc, Clock.systemUTC());
     }
 
     VideoMeetingAdminIntelligenceReadinessService(
@@ -53,6 +61,9 @@ public class VideoMeetingAdminIntelligenceReadinessService {
             MeetingContentDependencies dependencies,
             MeetingIntelligenceProvider intelligence,
             MeetingIntelligenceRetentionService retention,
+            MeetingRecordingDeletionReadiness recordingDeletion,
+            MeetingTranscriptDeletionReadiness transcriptDeletion,
+            MeetingChatRetentionService chatRetention,
             JdbcTemplate jdbc,
             Clock clock) {
         this.meetings = meetings;
@@ -60,6 +71,9 @@ public class VideoMeetingAdminIntelligenceReadinessService {
         this.dependencies = dependencies;
         this.intelligence = intelligence;
         this.retention = retention;
+        this.recordingDeletion = recordingDeletion;
+        this.transcriptDeletion = transcriptDeletion;
+        this.chatRetention = chatRetention;
         this.jdbc = jdbc;
         this.clock = clock;
     }
@@ -70,62 +84,51 @@ public class VideoMeetingAdminIntelligenceReadinessService {
                 new BaseException(
                         ErrorCode.ENTITY_NOT_FOUND,
                         "The meeting tenant policy was not found."));
-        MeetingMediaProvider.Capability mediaCapability = mediaCapability();
-        boolean mediaOperational = mediaCapability.available() && mediaOperational();
-        MeetingContentDependencies.Status dependencyStatus = dependencyStatus();
-        MeetingIntelligenceProvider.Capability intelligenceCapability =
-                intelligenceCapability(subject.tenantId());
-        boolean retentionReady = retentionReady();
-        boolean databaseReady = intelligenceDatabaseReady();
-        boolean safeModel = enterpriseSafe(intelligenceCapability);
-        boolean modelOperational = safeModel
-                && dependencyStatus.languageModelAvailable()
-                && languageModelOperationalEvidence(
-                        subject.tenantId(), intelligenceCapability);
+        CapabilityReadiness runtime = capabilityReadiness(subject.tenantId());
+        boolean recordingDeletionReady = recordingDeletionReady();
+        boolean transcriptDeletionReady = transcriptDeletionReady();
+        boolean chatRetentionReady = chatRetentionReady();
 
         Map<String, ReadinessSignal> dependencySignals = new LinkedHashMap<>();
         dependencySignals.put("provider", dependency(
-                mediaOperational, "REALTIME_PROVIDER_LIVENESS_NOT_READY"));
+                runtime.mediaOperational(), "REALTIME_PROVIDER_LIVENESS_NOT_READY"));
         dependencySignals.put("region", dependency(
-                safeModel && validRegion(intelligenceCapability.processingRegion()),
+                runtime.safeModel()
+                        && validRegion(runtime.intelligenceCapability().processingRegion()),
                 "PROCESSING_REGION_NOT_VERIFIED"));
         dependencySignals.put("kms", dependency(
-                dependencyStatus.kmsAvailable(), "KMS_NOT_READY"));
+                runtime.dependencyStatus().kmsAvailable(), "KMS_NOT_READY"));
         dependencySignals.put("audit", dependency(
-                dependencyStatus.auditAvailable(), "AUDIT_NOT_READY"));
+                runtime.dependencyStatus().auditAvailable(), "AUDIT_NOT_READY"));
         dependencySignals.put("egress", dependency(
-                dependencyStatus.egressAvailable(), "EGRESS_NOT_READY"));
+                runtime.dependencyStatus().egressAvailable(), "EGRESS_NOT_READY"));
         dependencySignals.put("storage", dependency(
-                dependencyStatus.storageAvailable(), "STORAGE_NOT_READY"));
+                runtime.dependencyStatus().storageAvailable(), "STORAGE_NOT_READY"));
         dependencySignals.put("stt", dependency(
-                dependencyStatus.speechToTextAvailable(), "STT_NOT_READY"));
+                runtime.dependencyStatus().speechToTextAvailable(), "STT_NOT_READY"));
         dependencySignals.put("llm", dependency(
-                modelOperational, "LLM_OPERATIONAL_EVIDENCE_NOT_READY"));
+                runtime.modelOperational(), "LLM_OPERATIONAL_EVIDENCE_NOT_READY"));
         dependencySignals.put("retention", dependency(
-                retentionReady, "RETENTION_WORKER_NOT_READY"));
-
-        boolean recordingReady = mediaOperational
-                && dependencyStatus.egressAvailable()
-                && dependencyStatus.storageAvailable()
-                && dependencyStatus.kmsAvailable()
-                && dependencyStatus.auditAvailable();
-        boolean transcriptReady = recordingReady && dependencyStatus.speechToTextAvailable();
-        boolean intelligenceReady = transcriptReady && modelOperational
-                && retentionReady && databaseReady;
+                runtime.retentionReady(), "RETENTION_WORKER_NOT_READY"));
 
         Map<String, ReadinessSignal> capabilities = new LinkedHashMap<>();
-        capabilities.put("recording", capability(policy, recordingReady));
-        capabilities.put("transcript", capability(policy, transcriptReady));
-        capabilities.put("aiNotes", capability(policy, intelligenceReady));
+        capabilities.put("recording", capability(policy, runtime.recordingReady()));
+        capabilities.put("transcript", capability(policy, runtime.transcriptReady()));
+        capabilities.put("aiNotes", capability(policy, runtime.intelligenceReady()));
 
         Map<String, ReadinessSignal> governance = new LinkedHashMap<>();
-        governance.put("humanReview", verifiedControl(databaseReady));
-        governance.put("explicitPublish", verifiedControl(databaseReady));
-        governance.put("adminContentAccess", verifiedControl(databaseReady));
+        governance.put("humanReview", verifiedControl(runtime.databaseReady()));
+        governance.put("explicitPublish", verifiedControl(runtime.databaseReady()));
+        governance.put("adminContentAccess", verifiedControl(runtime.databaseReady()));
+        governance.put("workFollowUpPromotion", ReadinessSignal.notVerified(
+                "WORK_FOLLOWUP_AUTHORITY_UNVERIFIED"));
+        governance.put("followUpReassignment", ReadinessSignal.notVerified(
+                "PEOPLE_TARGET_ELIGIBILITY_UNVERIFIED"));
         governance.put("legalHold", ReadinessSignal.notVerified(
                 "LEGAL_HOLD_ADMIN_WORKFLOW_NOT_CONFIGURED"));
         Map<String, ReadinessSignal> retentionSignals = retentionSignals(
-                retentionReady, databaseReady);
+                runtime.retentionReady(), runtime.databaseReady(),
+                recordingDeletionReady, transcriptDeletionReady, chatRetentionReady);
         governance.put("deletionEvidence", retentionSignals.values().stream()
                 .allMatch(signal -> "READY".equals(signal.state()))
                 ? ReadinessSignal.ready()
@@ -136,16 +139,56 @@ public class VideoMeetingAdminIntelligenceReadinessService {
                 VERSION,
                 OffsetDateTime.now(clock),
                 policy.recordingPolicy(),
-                safeModel ? intelligenceCapability.providerCode() : "disabled",
-                safeModel ? intelligenceCapability.model() : "none",
-                safeModel ? intelligenceCapability.processingRegion() : "none",
+                runtime.safeModel()
+                        ? runtime.intelligenceCapability().providerCode() : "disabled",
+                runtime.safeModel() ? runtime.intelligenceCapability().model() : "none",
+                runtime.safeModel()
+                        ? runtime.intelligenceCapability().processingRegion() : "none",
                 Map.copyOf(capabilities),
                 Map.copyOf(dependencySignals),
                 Map.copyOf(governance),
                 new VideoMeetingAdminIntelligenceDtos.RetentionReadiness(
                         policy.retentionDays(), policy.artifactRetentionDays(),
-                        policy.chatRetentionDays(), retentionReady,
+                        policy.chatRetentionDays(), runtime.retentionReady(),
                         Map.copyOf(retentionSignals)));
+    }
+
+    /**
+     * Projects the same live, fail-closed probes used by the operations readiness endpoint for
+     * policy editing. Policy state is intentionally excluded: an administrator must be able to
+     * move from NEVER to an enabled recording policy once the governed runtime is actually ready.
+     */
+    public PolicyCapabilities policyCapabilities() {
+        MeetingRequestContext.Subject subject = MeetingRequestContext.get();
+        CapabilityReadiness runtime = capabilityReadiness(subject.tenantId());
+        return new PolicyCapabilities(runtime.recordingReady(), runtime.intelligenceReady());
+    }
+
+    private CapabilityReadiness capabilityReadiness(long tenantId) {
+        MeetingMediaProvider.Capability mediaCapability = mediaCapability();
+        boolean mediaOperational = mediaCapability.available() && mediaOperational();
+        MeetingContentDependencies.Status dependencyStatus = dependencyStatus();
+        MeetingIntelligenceProvider.Capability intelligenceCapability =
+                intelligenceCapability(tenantId);
+        boolean retentionReady = retentionReady();
+        boolean databaseReady = intelligenceDatabaseReady();
+        boolean safeModel = enterpriseSafe(intelligenceCapability);
+        boolean modelOperational = safeModel
+                && dependencyStatus.languageModelAvailable()
+                && languageModelOperationalEvidence(tenantId, intelligenceCapability);
+        boolean recordingReady = mediaOperational
+                && dependencyStatus.egressAvailable()
+                && dependencyStatus.storageAvailable()
+                && dependencyStatus.kmsAvailable()
+                && dependencyStatus.auditAvailable();
+        boolean transcriptReady = recordingReady
+                && dependencyStatus.speechToTextAvailable();
+        boolean intelligenceReady = transcriptReady && modelOperational
+                && retentionReady && databaseReady;
+        return new CapabilityReadiness(
+                mediaOperational, dependencyStatus, intelligenceCapability,
+                retentionReady, databaseReady, safeModel, modelOperational,
+                recordingReady, transcriptReady, intelligenceReady);
     }
 
     private MeetingMediaProvider.Capability mediaCapability() {
@@ -222,6 +265,30 @@ public class VideoMeetingAdminIntelligenceReadinessService {
         }
     }
 
+    private boolean recordingDeletionReady() {
+        try {
+            return recordingDeletion.ready();
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
+    private boolean transcriptDeletionReady() {
+        try {
+            return transcriptDeletion.ready();
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
+    private boolean chatRetentionReady() {
+        try {
+            return chatRetention.ready();
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
     private boolean languageModelOperationalEvidence(
             long tenantId,
             MeetingIntelligenceProvider.Capability capability) {
@@ -281,7 +348,10 @@ public class VideoMeetingAdminIntelligenceReadinessService {
 
     private Map<String, ReadinessSignal> retentionSignals(
             boolean retentionReady,
-            boolean databaseReady) {
+            boolean databaseReady,
+            boolean recordingDeletionReady,
+            boolean transcriptDeletionReady,
+            boolean chatRetentionReady) {
         Map<String, ReadinessSignal> signals = new LinkedHashMap<>();
         signals.put("intelligenceReports", retentionReady && databaseReady
                 ? ReadinessSignal.ready()
@@ -289,10 +359,14 @@ public class VideoMeetingAdminIntelligenceReadinessService {
                         "INTELLIGENCE_REPORT_RETENTION_NOT_READY"));
         signals.put("meetingRecords", ReadinessSignal.notVerified(
                 "MEETING_RECORD_RETENTION_WORKER_NOT_CONFIGURED"));
-        signals.put("artifacts", ReadinessSignal.notVerified(
-                "ARTIFACT_RETENTION_WORKER_NOT_CONFIGURED"));
-        signals.put("chat", ReadinessSignal.notVerified(
-                "CHAT_RETENTION_WORKER_NOT_CONFIGURED"));
+        signals.put("artifacts", recordingDeletionReady && transcriptDeletionReady
+                ? ReadinessSignal.ready()
+                : ReadinessSignal.connectionRequired(
+                        "ARTIFACT_RETENTION_WORKERS_NOT_READY"));
+        signals.put("chat", chatRetentionReady
+                ? ReadinessSignal.ready()
+                : ReadinessSignal.connectionRequired(
+                        "RETENTION_WORKER_NOT_READY"));
         return signals;
     }
 
@@ -300,5 +374,27 @@ public class VideoMeetingAdminIntelligenceReadinessService {
         return new MeetingMediaProvider.Capability(
                 false, "disabled", "MEETING_PROVIDER_UNAVAILABLE",
                 false, false, false, false, 0);
+    }
+
+    public record PolicyCapabilities(
+            boolean recordingConfigured,
+            boolean aiNotesConfigured) {
+
+        public static PolicyCapabilities unavailable() {
+            return new PolicyCapabilities(false, false);
+        }
+    }
+
+    private record CapabilityReadiness(
+            boolean mediaOperational,
+            MeetingContentDependencies.Status dependencyStatus,
+            MeetingIntelligenceProvider.Capability intelligenceCapability,
+            boolean retentionReady,
+            boolean databaseReady,
+            boolean safeModel,
+            boolean modelOperational,
+            boolean recordingReady,
+            boolean transcriptReady,
+            boolean intelligenceReady) {
     }
 }

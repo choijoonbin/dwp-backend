@@ -21,8 +21,8 @@ public class MeetingTranscriptSourceConfiguration {
             havingValue = "http")
     MeetingTranscriptSource governedHttpMeetingTranscriptSource(
             MeetingTranscriptHttpProperties properties,
-            ObjectMapper objectMapper,
-            MeetingWorkloadAssertionSigner signer) {
-        return new GovernedHttpMeetingTranscriptSource(properties, objectMapper, signer);
+            ObjectMapper objectMapper) {
+        return new GovernedHttpMeetingTranscriptSource(
+                properties, objectMapper, new MeetingWorkloadAssertionSigner(properties));
     }
 }

@@ -112,7 +112,8 @@ public class LiveKitMeetingMediaAdapter implements MeetingMediaProvider {
             }
             Response<Room> response = api.getRoom()
                     .createRoom(
-                            room.roomName(), null, maximumParticipants, room.roomMetadata())
+                            room.roomName(), null, maximumParticipants, null,
+                            room.roomMetadata())
                     .execute();
             if (!response.isSuccessful()) {
                 Optional<Room> reconciled = findRoom(room.roomName());

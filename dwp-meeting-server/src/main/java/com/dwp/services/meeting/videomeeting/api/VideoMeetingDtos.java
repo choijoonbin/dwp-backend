@@ -1,6 +1,8 @@
 package com.dwp.services.meeting.videomeeting.api;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels;
+import com.dwp.services.meeting.videomeeting.api.VideoMeetingPreparationDtos.AgendaItemInput;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.PersonSnapshot;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.TenantPolicy;
 import com.dwp.services.meeting.videomeeting.provider.MeetingMediaProvider;
@@ -44,14 +46,28 @@ public final class VideoMeetingDtos {
             Boolean defaultMicrophoneEnabled,
             Boolean defaultCameraEnabled,
             @Size(max = 200) List<@Positive Long> participantUserIds,
-            @Size(max = 100) List<@Valid GuestInvitee> guestInvitees) {
+            @Size(max = 100) List<@Valid GuestInvitee> guestInvitees,
+            @Size(max = 50) List<@NotNull @Valid AgendaItemInput> agendaItems,
+            UUID sourceTemplateId,
+            @PositiveOrZero Long sourceTemplateVersion) {
+
+        public InstantMeetingRequest(String title, String description, String agenda,
+                VideoMeetingModels.AccessScope accessScope, Boolean waitingRoomEnabled,
+                Boolean guestAccessEnabled, Boolean allowJoinBeforeHost, Boolean defaultMicrophoneEnabled,
+                Boolean defaultCameraEnabled, List<Long> participantUserIds, List<GuestInvitee> guestInvitees) {
+            this(title, description, agenda, accessScope, waitingRoomEnabled, guestAccessEnabled,
+                    allowJoinBeforeHost, defaultMicrophoneEnabled, defaultCameraEnabled,
+                    participantUserIds, guestInvitees, null, null, null);
+        }
     }
 
     public record ScheduleMeetingRequest(
             @NotBlank @Size(max = 240) String title,
             @Size(max = 4000) String description,
             @Size(max = 8000) String agenda,
-            @NotNull @Future OffsetDateTime startsAt,
+            @NotNull @Future
+            @JsonFormat(without = JsonFormat.Feature.ADJUST_DATES_TO_CONTEXT_TIME_ZONE)
+            OffsetDateTime startsAt,
             @Min(5) @Max(1440) int durationMinutes,
             @NotBlank @Size(max = 80) String timeZone,
             @NotNull VideoMeetingModels.AccessScope accessScope,
@@ -61,7 +77,20 @@ public final class VideoMeetingDtos {
             Boolean defaultMicrophoneEnabled,
             Boolean defaultCameraEnabled,
             @Size(max = 200) List<@Positive Long> participantUserIds,
-            @Size(max = 100) List<@Valid GuestInvitee> guestInvitees) {
+            @Size(max = 100) List<@Valid GuestInvitee> guestInvitees,
+            @Size(max = 50) List<@NotNull @Valid AgendaItemInput> agendaItems,
+            UUID sourceTemplateId,
+            @PositiveOrZero Long sourceTemplateVersion) {
+
+        public ScheduleMeetingRequest(String title, String description, String agenda,
+                OffsetDateTime startsAt, int durationMinutes, String timeZone,
+                VideoMeetingModels.AccessScope accessScope, Boolean waitingRoomEnabled,
+                Boolean guestAccessEnabled, Boolean allowJoinBeforeHost, Boolean defaultMicrophoneEnabled,
+                Boolean defaultCameraEnabled, List<Long> participantUserIds, List<GuestInvitee> guestInvitees) {
+            this(title, description, agenda, startsAt, durationMinutes, timeZone, accessScope,
+                    waitingRoomEnabled, guestAccessEnabled, allowJoinBeforeHost, defaultMicrophoneEnabled,
+                    defaultCameraEnabled, participantUserIds, guestInvitees, null, null, null);
+        }
     }
 
     public record JoinRequestCommand(@Size(max = 100) String displayName) {
@@ -195,6 +224,13 @@ public final class VideoMeetingDtos {
             long version) {
 
         public static PolicyResponse from(VideoMeetingModels.TenantPolicy policy) {
+            return from(policy, false, false);
+        }
+
+        public static PolicyResponse from(
+                VideoMeetingModels.TenantPolicy policy,
+                boolean recordingConfigured,
+                boolean aiNotesConfigured) {
             return new PolicyResponse(
                     policy.meetingsEnabled(), policy.waitingRoomRequired(),
                     policy.guestsAllowed(), policy.participantChatAllowed(),
@@ -203,7 +239,19 @@ public final class VideoMeetingDtos {
                     policy.allowJoinBeforeHost(), policy.requireAuthenticatedInternalUsers(),
                     policy.maximumParticipants(), policy.retentionDays(),
                     policy.artifactRetentionDays(), policy.chatRetentionDays(),
-                    false, false, policy.version());
+                    recordingConfigured, aiNotesConfigured, policy.version());
+        }
+
+        public PolicyResponse withConfiguredCapabilities(
+                boolean configuredRecording,
+                boolean configuredAiNotes) {
+            return new PolicyResponse(
+                    meetingsEnabled, waitingRoomRequired, guestsAllowed,
+                    participantChatAllowed, reactionsAllowed, screenShareAllowed,
+                    unmuteControl, recordingPolicy, allowJoinBeforeHost,
+                    requireAuthenticatedInternalUsers, maximumParticipants,
+                    retentionDays, artifactRetentionDays, chatRetentionDays,
+                    configuredRecording, configuredAiNotes, version);
         }
     }
 

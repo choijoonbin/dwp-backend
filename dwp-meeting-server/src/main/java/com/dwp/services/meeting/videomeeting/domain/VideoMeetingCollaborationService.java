@@ -44,24 +44,28 @@ public class VideoMeetingCollaborationService {
     private final VideoMeetingRepository meetings;
     private final VideoMeetingCollaborationRepository collaboration;
     private final VideoMeetingAuditRecorder audit;
+    private final MeetingChatRetentionService chatRetention;
     private final Clock clock;
 
     @Autowired
     public VideoMeetingCollaborationService(
             VideoMeetingRepository meetings,
             VideoMeetingCollaborationRepository collaboration,
-            VideoMeetingAuditRecorder audit) {
-        this(meetings, collaboration, audit, Clock.systemUTC());
+            VideoMeetingAuditRecorder audit,
+            MeetingChatRetentionService chatRetention) {
+        this(meetings, collaboration, audit, chatRetention, Clock.systemUTC());
     }
 
     VideoMeetingCollaborationService(
             VideoMeetingRepository meetings,
             VideoMeetingCollaborationRepository collaboration,
             VideoMeetingAuditRecorder audit,
+            MeetingChatRetentionService chatRetention,
             Clock clock) {
         this.meetings = meetings;
         this.collaboration = collaboration;
         this.audit = audit;
+        this.chatRetention = chatRetention;
         this.clock = clock;
     }
 
@@ -90,6 +94,11 @@ public class VideoMeetingCollaborationService {
         TenantPolicy policy = requireEnabledPolicy(subject);
         if (!policy.participantChatAllowed()) {
             throw forbidden("Meeting chat is disabled by tenant policy.");
+        }
+        if (!chatRetention.ready()) {
+            throw new BaseException(
+                    ErrorCode.EXTERNAL_SERVICE_ERROR,
+                    "Meeting chat retention is not ready.");
         }
         String text = normalizedMessage(request == null ? null : request.text());
         String key = commandKey(idempotencyKey);

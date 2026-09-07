@@ -120,6 +120,31 @@ class VideoMeetingContentServiceTest {
     }
 
     @Test
+    void administratorRequiredPolicyProjectsMissingRecordingAsABlocker() {
+        UUID meetingId = UUID.randomUUID();
+        Meeting meeting = meeting(meetingId, LifecycleState.LOBBY);
+        Participant host = participant(meetingId, USER_ID, ParticipantRole.ORGANIZER);
+        ContentPlan disabled = disabledPlan(meetingId);
+        when(meetings.accessibleMeeting(TENANT_ID, meetingId, USER_ID))
+                .thenReturn(Optional.of(meeting));
+        when(meetings.participant(TENANT_ID, meetingId, USER_ID))
+                .thenReturn(Optional.of(host));
+        when(meetings.ensurePolicy(TENANT_ID, USER_ID))
+                .thenReturn(policy("ADMIN_REQUIRED"));
+        when(content.ensurePlan(TENANT_ID, meetingId, USER_ID)).thenReturn(disabled);
+        when(content.currentNotice(TENANT_ID, meetingId)).thenReturn(Optional.empty());
+        when(content.activeSession(TENANT_ID, meetingId)).thenReturn(Optional.empty());
+        when(dependencies.status()).thenReturn(readyDependencies());
+        when(mediaProvider.capability()).thenReturn(availableMedia());
+
+        var response = service().contentPlan(meetingId);
+
+        assertThat(response.state()).isEqualTo("DISABLED");
+        assertThat(codes(response.blockers())).containsExactly("PLAN_RECORDING_DISABLED");
+        verify(content, never()).reconcilePlanState(any(), any(), anyLong(), any());
+    }
+
+    @Test
     void contentPlanAtomicallyReconcilesBlockedToReadyWhenRealDependenciesRecover() {
         UUID meetingId = UUID.randomUUID();
         Meeting meeting = meeting(meetingId, LifecycleState.LIVE);
@@ -269,6 +294,36 @@ class VideoMeetingContentServiceTest {
                 "planVersion", "planState", "recordingRequested",
                 "transcriptionRequested", "aiSummaryRequested", "e2eeEnabled",
                 "noticeRevision");
+    }
+
+    @Test
+    void administratorRequiredPolicyRejectsAHostRecordingOptOutBeforeMutation() {
+        UUID meetingId = UUID.randomUUID();
+        Meeting meeting = meeting(meetingId, LifecycleState.LOBBY);
+        Participant host = participant(meetingId, USER_ID, ParticipantRole.ORGANIZER);
+        ContentPlan current = disabledPlan(meetingId);
+        lockAs(meeting, host);
+        when(meetings.ensurePolicy(TENANT_ID, USER_ID))
+                .thenReturn(policy("ADMIN_REQUIRED"));
+        when(content.ensurePlan(TENANT_ID, meetingId, USER_ID)).thenReturn(current);
+        when(dependencies.status()).thenReturn(readyDependencies());
+        when(mediaProvider.capability()).thenReturn(availableMedia());
+
+        assertThatThrownBy(() -> service().updateContentPlan(
+                meetingId,
+                new VideoMeetingContentDtos.UpdateContentPlanCommand(
+                        false, false, false, false, current.version()),
+                "content-plan-admin-required", "corr-admin-required"))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.RESOURCE_CONFLICT));
+
+        verify(content, never()).updatePlan(
+                any(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean(),
+                any(), any(), anyInt(), anyLong(), any());
+        verify(content, never()).saveCommand(
+                anyLong(), any(), anyLong(), anyString(), anyString(), anyString(),
+                anyBoolean(), anyInt(), anyList(), any(), anyLong());
     }
 
     @Test

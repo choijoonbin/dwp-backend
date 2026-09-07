@@ -161,7 +161,8 @@ public class VideoMeetingService {
                 request.allowJoinBeforeHost(), request.defaultMicrophoneEnabled(),
                 request.defaultCameraEnabled(),
                 request.participantUserIds(), request.guestInvitees(),
-                LifecycleState.LOBBY, idempotencyKey, correlationId);
+                LifecycleState.LOBBY, idempotencyKey, correlationId, request.agendaItems(),
+                request.sourceTemplateId(), request.sourceTemplateVersion());
     }
 
     @Transactional
@@ -179,7 +180,8 @@ public class VideoMeetingService {
                 request.defaultMicrophoneEnabled(), request.defaultCameraEnabled(),
                 request.participantUserIds(),
                 request.guestInvitees(), LifecycleState.SCHEDULED,
-                idempotencyKey, correlationId);
+                idempotencyKey, correlationId, request.agendaItems(),
+                request.sourceTemplateId(), request.sourceTemplateVersion());
     }
 
     @Transactional(readOnly = true)
@@ -464,7 +466,7 @@ public class VideoMeetingService {
         repository.recordPolicyEvent(
                 subject.tenantId(), subject.userId(), updated.version(),
                 eventCorrelation, commandKey(idempotencyKey),
-                "NEVER");
+                updated.recordingPolicy());
         audit.policyChanged(subject, updated.version(), eventCorrelation, Map.of(
                 "meetingsEnabled", updated.meetingsEnabled(),
                 "waitingRoomRequired", updated.waitingRoomRequired(),

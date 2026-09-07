@@ -42,8 +42,26 @@ public final class MeetingWorkloadAssertionSigner {
                 properties.getAssertionTtl(), Clock.systemUTC(), UUID::randomUUID);
     }
 
+    MeetingWorkloadAssertionSigner(MeetingTranscriptHttpProperties properties) {
+        this(properties.getAssertionKeyId(), properties.getAssertionSecretBase64(),
+                properties.getAssertionTtl(), Clock.systemUTC(), UUID::randomUUID);
+    }
+
+    MeetingWorkloadAssertionSigner(MeetingPreparationMaterialHttpProperties properties) {
+        this(properties.getAssertionKeyId(), properties.getAssertionSecretBase64(),
+                properties.getAssertionTtl(), Clock.systemUTC(), UUID::randomUUID);
+    }
+
     MeetingWorkloadAssertionSigner(
             MeetingIntelligenceHttpProperties properties,
+            Clock clock,
+            Supplier<UUID> jtiSupplier) {
+        this(properties.getAssertionKeyId(), properties.getAssertionSecretBase64(),
+                properties.getAssertionTtl(), clock, jtiSupplier);
+    }
+
+    MeetingWorkloadAssertionSigner(
+            MeetingTranscriptHttpProperties properties,
             Clock clock,
             Supplier<UUID> jtiSupplier) {
         this(properties.getAssertionKeyId(), properties.getAssertionSecretBase64(),

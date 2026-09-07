@@ -70,7 +70,9 @@ class MailDeliveryRepository {
                        account.account_id, account.provider_account_ref,
                        account.email_address AS sender_email,
                        account.display_name AS sender_name,
-                       thread.subject, message.body_content, message.recipients::text,
+                       thread.subject, message.body_content,
+                       COALESCE(snapshot.recipients, message.recipients)::text AS recipients,
+                       snapshot.recipients_sha256,
                        (
                            SELECT previous.provider_message_ref
                              FROM mail_messages previous
@@ -96,6 +98,9 @@ class MailDeliveryRepository {
                   JOIN mail_provider_connections connection
                     ON connection.tenant_id = account.tenant_id
                    AND connection.connection_id = account.connection_id
+                  LEFT JOIN mail_group_recipient_snapshots snapshot
+                    ON snapshot.tenant_id = leased.tenant_id
+                   AND snapshot.delivery_id = leased.delivery_id
                  ORDER BY leased.created_at, leased.delivery_id
                 """, (result, ignored) -> new DeliveryJob(
                 result.getObject("delivery_id", UUID.class),
@@ -116,7 +121,9 @@ class MailDeliveryRepository {
                 result.getString("sender_name"),
                 result.getString("subject"),
                 result.getString("body_content"),
-                recipients(result.getString("recipients")),
+                recipients(
+                        result.getString("recipients"),
+                        result.getString("recipients_sha256")),
                 result.getString("reply_to_provider_message_ref")),
                 batchSize, workerId, leaseSeconds);
     }
@@ -267,8 +274,13 @@ class MailDeliveryRepository {
         }
     }
 
-    private List<String> recipients(String rawJson) {
-        return json.mapList(rawJson).stream()
+    private List<String> recipients(String rawJson, String expectedSha256) {
+        List<Map<String, Object>> recipientSnapshot = json.mapList(rawJson);
+        if (expectedSha256 != null
+                && !expectedSha256.equals(MailRecipientSnapshot.fingerprint(recipientSnapshot))) {
+            throw new IllegalStateException("Group recipient snapshot integrity check failed.");
+        }
+        return recipientSnapshot.stream()
                 .map(value -> String.valueOf(value.getOrDefault("email", "")).trim())
                 .filter(value -> !value.isBlank())
                 .distinct()

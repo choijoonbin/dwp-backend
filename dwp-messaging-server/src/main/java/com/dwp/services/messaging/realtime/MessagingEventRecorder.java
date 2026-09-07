@@ -52,6 +52,7 @@ public class MessagingEventRecorder {
             UUID conversationId,
             UUID messageId,
             Map<String, Object> payload) {
+        if (MessagingRealtimeEvent.isSelfOnly(eventType)) audienceUserId = actor.userId();
         if (!TransactionSynchronizationManager.isActualTransactionActive()
                 || !TransactionSynchronizationManager.isSynchronizationActive()) {
             throw new IllegalStateException(

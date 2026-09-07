@@ -137,6 +137,12 @@ public class VideoMeetingContentService {
                 subject, meeting, host, policy,
                 content.plan(subject.tenantId(), meetingId).orElse(current),
                 dependencyStatus, mediaCapability);
+        if ("ADMIN_REQUIRED".equals(policy.recordingPolicy())
+                && !request.recordingRequested()) {
+            throw new BaseException(
+                    ErrorCode.RESOURCE_CONFLICT,
+                    "Tenant policy requires governed recording for this meeting.");
+        }
         if (current.version() != request.expectedVersion()) throw versionConflict();
 
         boolean changed = changed(current, request);
@@ -374,10 +380,14 @@ public class VideoMeetingContentService {
             MeetingMediaProvider.Capability mediaCapability,
             boolean requireLiveRecording,
             boolean requireConsent) {
-        if (!plan.processingRequested()) return List.of();
+        boolean requiredRecordingMissing =
+                "ADMIN_REQUIRED".equals(policy.recordingPolicy())
+                        && !plan.recordingRequested();
+        if (!plan.processingRequested() && !requiredRecordingMissing) return List.of();
         LinkedHashSet<BlockerCode> blockers = new LinkedHashSet<>();
         if (!policy.meetingsEnabled()) blockers.add(BlockerCode.MEETINGS_DISABLED);
         if ("NEVER".equals(policy.recordingPolicy())) blockers.add(BlockerCode.POLICY_NEVER);
+        if (requiredRecordingMissing) blockers.add(BlockerCode.PLAN_RECORDING_DISABLED);
         if (plan.e2eeEnabled()) blockers.add(BlockerCode.E2EE);
         if (!mediaCapability.available()) blockers.add(BlockerCode.MEDIA_PROVIDER);
         if (!status.auditAvailable()) blockers.add(BlockerCode.AUDIT);

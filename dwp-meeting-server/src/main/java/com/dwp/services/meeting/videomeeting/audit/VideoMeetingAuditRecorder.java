@@ -63,6 +63,14 @@ public class VideoMeetingAuditRecorder {
                 merge(afterState, Map.of("policyVersion", policyVersion)));
     }
 
+    /** Workspace audit carries identifiers and versions, never agenda, names or invitation aliases. */
+    public void workspaceChanged(
+            MeetingRequestContext.Subject subject, String action, String targetType,
+            String targetId, String correlationId, Map<String, Object> metadata) {
+        record(subject, "SYSTEM_EVENT", action, targetType, targetId, correlationId,
+                "INFO", "STANDARD", metadata);
+    }
+
     public void collaboration(
             MeetingRequestContext.Subject subject,
             Meeting meeting,
@@ -87,6 +95,19 @@ public class VideoMeetingAuditRecorder {
             String correlationId,
             Map<String, Object> afterState) {
         record(subject, "AUTHORIZATION", action, "MEETING_RECORDING_ARTIFACT",
+                artifactId.toString(), correlationId, "INFO", "EXTENDED",
+                merge(afterState, Map.of("meetingId", meeting.meetingId().toString())));
+    }
+
+    /** Transcript access metadata never contains source text, search terms, or object locators. */
+    public void transcriptAccess(
+            MeetingRequestContext.Subject subject,
+            Meeting meeting,
+            UUID artifactId,
+            String action,
+            String correlationId,
+            Map<String, Object> afterState) {
+        record(subject, "AUTHORIZATION", action, "MEETING_TRANSCRIPT_ARTIFACT",
                 artifactId.toString(), correlationId, "INFO", "EXTENDED",
                 merge(afterState, Map.of("meetingId", meeting.meetingId().toString())));
     }

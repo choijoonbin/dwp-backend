@@ -5,6 +5,7 @@ import com.dwp.services.meeting.videomeeting.domain.VideoMeetingIntelligenceMode
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingIntelligenceModels.IntelligenceReview;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingIntelligenceModels.IntelligenceRun;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingIntelligenceModels.ReportView;
+import com.dwp.services.meeting.videomeeting.domain.MeetingFollowupCandidateProjector.Candidate;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.Participant;
 import com.dwp.services.meeting.videomeeting.provider.MeetingIntelligenceProvider.Analysis;
 import jakarta.validation.constraints.Future;
@@ -87,7 +88,8 @@ public final class VideoMeetingIntelligenceDtos {
             long version,
             boolean canCurrentViewerReview,
             Analysis analysis,
-            List<ReviewResponse> reviews) {
+            List<ReviewResponse> reviews,
+            List<FollowUpCandidateResponse> followUpCandidates) {
 
         public static ReportResponse from(ReportView view) {
             return from(view, false);
@@ -95,6 +97,13 @@ public final class VideoMeetingIntelligenceDtos {
 
         public static ReportResponse from(
                 ReportView view, boolean canCurrentViewerReview) {
+            return from(view, canCurrentViewerReview, List.of());
+        }
+
+        public static ReportResponse from(
+                ReportView view,
+                boolean canCurrentViewerReview,
+                List<Candidate> followUpCandidates) {
             IntelligenceReport report = view.report();
             return new ReportResponse(
                     report.reportId(), report.meetingId(), report.runId(),
@@ -102,7 +111,21 @@ public final class VideoMeetingIntelligenceDtos {
                     report.retentionUntil(), report.legalHold(), report.approvedAt(),
                     report.publishedAt(), report.version(), canCurrentViewerReview,
                     view.payload(),
-                    view.reviews().stream().map(ReviewResponse::from).toList());
+                    view.reviews().stream().map(ReviewResponse::from).toList(),
+                    followUpCandidates.stream()
+                            .map(FollowUpCandidateResponse::from).toList());
+        }
+    }
+
+    public record FollowUpCandidateResponse(
+            UUID candidateId,
+            long sourceVersion,
+            int actionItemIndex) {
+
+        public static FollowUpCandidateResponse from(Candidate candidate) {
+            return new FollowUpCandidateResponse(
+                    candidate.candidateId(), candidate.sourceVersion(),
+                    candidate.actionItemIndex());
         }
     }
 

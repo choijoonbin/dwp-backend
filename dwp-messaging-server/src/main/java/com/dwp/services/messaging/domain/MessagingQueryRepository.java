@@ -124,19 +124,33 @@ class MessagingQueryRepository {
     }
 
     List<MessagingDtos.MemberSummary> members(long tenantId, UUID conversationId) {
+        return members(tenantId, conversationId, 0);
+    }
+
+    List<MessagingDtos.MemberSummary> members(long tenantId, UUID conversationId, long viewerId) {
         return jdbc.query("""
+                WITH visible_members AS (
+                    SELECT member.*, (member.user_id = ?
+                           OR COALESCE(preference.read_receipts_enabled, TRUE)) AS share_cursor
+                      FROM msg_conversation_members member
+                      LEFT JOIN msg_user_privacy_preferences preference
+                        ON preference.tenant_id = member.tenant_id
+                       AND preference.user_id = member.user_id
+                     WHERE member.tenant_id = ? AND member.conversation_id = ?
+                       AND member.lifecycle_state = 'ACTIVE'
+                )
                 SELECT member.user_id, member.person_public_id, person.display_name,
                        person.email_address, person.job_title, person.organization_name,
                        person.presence_state, member.member_role, member.membership_source,
                        member.notification_level, member.favorite, member.pinned,
-                       member.last_read_message_id, member.last_read_sequence, member.last_read_at
-                  FROM msg_conversation_members member
+                       CASE WHEN member.share_cursor THEN member.last_read_message_id END AS last_read_message_id,
+                       CASE WHEN member.share_cursor THEN member.last_read_sequence ELSE 0 END AS last_read_sequence,
+                       CASE WHEN member.share_cursor THEN member.last_read_at END AS last_read_at,
+                       CASE WHEN member.share_cursor THEN 'SHARED' ELSE 'PRIVATE' END AS receipt_visibility
+                  FROM visible_members member
                   JOIN msg_people_snapshot person
                     ON person.tenant_id = member.tenant_id
                    AND person.user_id = member.user_id
-                 WHERE member.tenant_id = ?
-                   AND member.conversation_id = ?
-                   AND member.lifecycle_state = 'ACTIVE'
                  ORDER BY CASE member.member_role
                               WHEN 'OWNER' THEN 0 WHEN 'MODERATOR' THEN 1
                               WHEN 'MEMBER' THEN 2 ELSE 3 END,
@@ -156,8 +170,9 @@ class MessagingQueryRepository {
                 result.getBoolean("pinned"),
                 result.getObject("last_read_message_id", UUID.class),
                 result.getLong("last_read_sequence"),
-                result.getObject("last_read_at", OffsetDateTime.class)),
-                tenantId, conversationId);
+                result.getObject("last_read_at", OffsetDateTime.class),
+                result.getString("receipt_visibility")),
+                viewerId, tenantId, conversationId);
     }
 
     List<MessagingDtos.PersonSummary> people(long tenantId, long userId, String query, int limit) {
@@ -190,6 +205,10 @@ class MessagingQueryRepository {
                              ON mentioned_message.tenant_id = mention.tenant_id
                             AND mentioned_message.conversation_id = mention.conversation_id
                             AND mentioned_message.message_id = mention.message_id
+                           JOIN msg_conversations mentioned_conversation
+                             ON mentioned_conversation.tenant_id = mention.tenant_id
+                            AND mentioned_conversation.conversation_id = mention.conversation_id
+                            AND mentioned_conversation.lifecycle_state = 'ACTIVE'
                            JOIN msg_conversation_members mentioned_member
                              ON mentioned_member.tenant_id = mention.tenant_id
                             AND mentioned_member.conversation_id = mention.conversation_id
@@ -210,6 +229,10 @@ class MessagingQueryRepository {
                            JOIN msg_messages saved_message
                              ON saved_message.tenant_id = saved.tenant_id
                             AND saved_message.message_id = saved.message_id
+                           JOIN msg_conversations saved_conversation
+                             ON saved_conversation.tenant_id = saved_message.tenant_id
+                            AND saved_conversation.conversation_id = saved_message.conversation_id
+                            AND saved_conversation.lifecycle_state = 'ACTIVE'
                            JOIN msg_conversation_members saved_member
                              ON saved_member.tenant_id = saved_message.tenant_id
                             AND saved_member.conversation_id = saved_message.conversation_id
@@ -227,6 +250,7 @@ class MessagingQueryRepository {
                     ON unread.tenant_id = conversation.tenant_id
                    AND unread.conversation_id = conversation.conversation_id
                    AND unread.sender_user_id <> ?
+                   AND unread.deleted_at IS NULL
                    AND unread.sequence > member.last_read_sequence
                    AND unread.sequence >= member.history_start_sequence
                  WHERE conversation.tenant_id = ?

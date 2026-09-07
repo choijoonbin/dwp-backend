@@ -137,7 +137,7 @@ class VideoMeetingIntelligenceContractTest {
 
         assertThat(fieldNames(json)).contains(
                 "reportId", "state", "audience", "canCurrentViewerReview",
-                "analysis", "reviews");
+                "analysis", "reviews", "followUpCandidates");
         assertThat(fieldNames(json)).doesNotContain(
                 "encryptedPayload", "payloadSha256", "sourceSha256",
                 "objectKey", "transcript");

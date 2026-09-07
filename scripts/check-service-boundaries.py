@@ -58,6 +58,158 @@ JAVA_NON_CODE_RE = re.compile(
 )
 REPOSITORY_TYPE_RE = re.compile(r"\b[A-Z][A-Za-z0-9_$]*Repository\b")
 CONTROLLER_TYPE_RE = re.compile(r"\b[A-Z][A-Za-z0-9_$]*Controller\b")
+SIGNED_WORKLOAD_FIELDS = {
+    "profile", "protocolSource", "signerSource", "method", "path", "header", "issuer", "audience", "ttlSeconds",
+}
+PURPOSE_TOKEN_HEADERS = {
+    "X-DWP-Provisioning-Token", "X-DWP-Identity-Sync-Token", "X-DWP-Approval-Recovery-Token",
+}
+SIGNED_WORKLOAD_FORBIDDEN = PURPOSE_TOKEN_HEADERS | {
+    "/api/", "X-DWP-Service-Token", "X-DWP-Service-Identity", "X-DWP-Product-Surface-Token",
+    "Authorization", "@Retry",
+}
+
+
+def java_without_comments(source: str) -> str:
+    """Keep Java literals intact, so URL slashes are not mistaken for comments."""
+    return JAVA_NON_CODE_RE.sub(
+        lambda match: " " if match.group().startswith(("//", "/*")) else match.group(), source
+    )
+
+
+def executable_literal_matches(pattern: str, source: str) -> list[re.Match[str]]:
+    """Match literals only when their enclosing expression starts in executable Java."""
+    masked = JAVA_NON_CODE_RE.sub(
+        lambda match: re.sub(r"[^\r\n]", " ", match.group()), source
+    )
+    return [
+        match for match in re.finditer(pattern, source)
+        if not masked[match.start()].isspace() and masked[match.start()] == source[match.start()]
+    ]
+
+
+def signed_workload_manifest_violations(entry: dict[str, Any]) -> list[str]:
+    violations: list[str] = []
+    prefix = f"httpClients:{entry.get('id')} signedWorkload"
+    workload = entry.get("signedWorkload")
+    if not isinstance(workload, dict) or set(workload) != SIGNED_WORKLOAD_FIELDS:
+        return [f"{prefix} must define exactly {sorted(SIGNED_WORKLOAD_FIELDS)}"]
+    if entry.get("interfaceType") != "internal-http":
+        violations.append(f"{prefix} is only valid for internal-http")
+    if workload.get("profile") != "dwp1-hmac-sha256":
+        violations.append(f"{prefix} requires the dwp1-hmac-sha256 profile")
+    if entry.get("retryMode") != "none" or entry.get("failureMode") != "fail-closed":
+        violations.append(f"{prefix} requires no retries and fail-closed handling")
+    targets = entry.get("targetServices")
+    if not isinstance(targets, list) or len(targets) != 1 or entry.get("sourceService") in targets:
+        violations.append(f"{prefix} requires one distinct owner service")
+    if workload.get("method") != "POST":
+        violations.append(f"{prefix} method must be POST")
+    path = workload.get("path")
+    if not isinstance(path, str) or not re.fullmatch(r"/internal/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+", path):
+        violations.append(f"{prefix} path must be an exact canonical /internal/ path")
+    header = workload.get("header")
+    if not isinstance(header, str) or not re.fullmatch(r"X-DWP-[A-Za-z0-9-]+-Assertion", header):
+        violations.append(f"{prefix} requires a dedicated assertion header")
+    for key in ("issuer", "audience"):
+        value = workload.get(key)
+        if not isinstance(value, str) or not re.fullmatch(r"dwp-[a-z0-9-]+", value) or value == "dwp-gateway":
+            violations.append(f"{prefix}.{key} requires a dedicated non-Gateway workload identity")
+    if workload.get("issuer") == workload.get("audience"):
+        violations.append(f"{prefix} issuer and audience must differ")
+    ttl = workload.get("ttlSeconds")
+    if type(ttl) is not int or not 1 <= ttl <= 30:
+        violations.append(f"{prefix} ttlSeconds must be an integer from 1 to 30")
+    sources: list[Path] = []
+    for key, value in (("client", entry.get("path")), ("protocolSource", workload.get("protocolSource")),
+                       ("signerSource", workload.get("signerSource"))):
+        relative = validate_relative_path(violations, "httpClients", str(entry.get("id")), value)
+        if relative is None:
+            continue
+        owner_relative = Path(str(entry.get("sourceService"))) / "src/main/java"
+        owner_root = ROOT / owner_relative
+        source = ROOT / relative
+        if (not relative.is_relative_to(owner_relative) or not source.is_file() or source.suffix != ".java"
+                or not source.resolve().is_relative_to(owner_root.resolve())):
+            violations.append(f"{prefix}.{key} must be a Java file owned by sourceService")
+        sources.append(relative)
+    if len(set(sources)) != 3:
+        violations.append(f"{prefix} client, protocol and signer must be distinct source files")
+    if not SIGNED_WORKLOAD_FORBIDDEN <= set(string_entries(entry.get("forbiddenMarkers"))):
+        violations.append(f"{prefix} must forbid Gateway/token reuse and automatic retries")
+    return violations
+
+
+def signed_workload_source_violations(entry: dict[str, Any], source: str) -> list[str]:
+    """Check declared source wiring, not cryptographic or owner-authorization correctness."""
+    violations: list[str] = []
+    workload = entry["signedWorkload"]
+    prefix = f"{entry['path']} signedWorkload"
+    protocol_path = Path(workload["protocolSource"])
+    signer_path = Path(workload["signerSource"])
+    protocol = java_without_comments((ROOT / protocol_path).read_text(encoding="utf-8"))
+    signer = java_without_comments((ROOT / signer_path).read_text(encoding="utf-8"))
+    client_code = JAVA_NON_CODE_RE.sub(" ", source)
+    signer_code = JAVA_NON_CODE_RE.sub(" ", signer)
+    for name, value in {
+        "PATH": workload["path"], "ASSERTION_HEADER": workload["header"],
+        "ISSUER": workload["issuer"], "AUDIENCE": workload["audience"],
+    }.items():
+        constants = [match.group(1) for match in executable_literal_matches(
+            rf'\bstatic\s+final\s+String\s+{name}\s*=\s*"([^"\\]*)"\s*;', protocol
+        )]
+        if constants != [value]:
+            violations.append(f"{prefix} protocol {name} must equal the declared literal exactly once")
+    protocol_name = ".".join(protocol_path.parts[protocol_path.parts.index("java") + 1:]).removesuffix(".java")
+    for path, value in ((Path(entry["path"]), source), (protocol_path, protocol), (signer_path, signer)):
+        code = JAVA_NON_CODE_RE.sub(" ", value)
+        package = ".".join(path.parts[path.parts.index("java") + 1:-1])
+        if not re.search(rf"\bpackage\s+{re.escape(package)}\s*;", code) or not re.search(rf"\bclass\s+{re.escape(path.stem)}\b", code):
+            violations.append(f"{prefix} source package/class does not match {path}")
+    signer_package = ".".join(signer_path.parts[signer_path.parts.index("java") + 1:-1])
+    if not re.search(rf"\b(?:package\s+{re.escape(signer_package)}|import\s+{re.escape(signer_package)}\.{re.escape(signer_path.stem)})\s*;", client_code):
+        violations.append(f"{prefix} client must resolve the declared signer class")
+    for label, code in (("client", client_code), ("signer", signer_code)):
+        if not re.search(rf"\bimport\s+static\s+{re.escape(protocol_name)}\.\*\s*;", code):
+            violations.append(f"{prefix} {label} must import the declared protocol constants")
+    for label, pattern in {
+        "canonical endpoint": r"\.resolve\(\s*PATH\s*\)",
+        "request endpoint": r"\bHttpRequest\.newBuilder\(\s*endpoint\s*\)",
+        "no-redirect policy": r"\.followRedirects\(\s*HttpClient\.Redirect\.NEVER\s*\)",
+        "POST body": r"\.POST\(\s*HttpRequest\.BodyPublishers\.ofByteArray\(\s*body\s*\)\s*\)",
+        "signed request": r"\.header\(\s*ASSERTION_HEADER\s*,\s*signer\.sign\(\s*request\s*,\s*body\s*\)\s*\)",
+        "signer construction": rf"\bnew\s+{re.escape(signer_path.stem)}\s*\(",
+        "trace propagation": r"\bOutboundHttpHeaders\.propagateObservability\s*\(",
+    }.items():
+        if not re.search(pattern, client_code):
+            violations.append(f"{prefix} client is missing executable {label} wiring")
+    for label, pattern in {
+        "request/source/action claims": (
+            r'\bnew\s+Claims\(\s*1\s*,\s*keyId\s*,\s*ISSUER\s*,\s*AUDIENCE\s*,\s*"POST"\s*,\s*PATH\s*,'
+            r'\s*request\.tenantId\(\)\s*,\s*request\.actorUserId\(\)\s*,\s*request\.source\(\)\.meetingId\(\)\s*,'
+            r'\s*request\.source\(\)\.reportId\(\)\s*,\s*request\.source\(\)\.candidateId\(\)\s*,\s*request\.action\(\)\s*,'
+            rf'\s*issuedAt\s*,\s*issuedAt\s*\+\s*{workload["ttlSeconds"]}\s*,\s*nonce\.get\(\)\s*,'
+            r'\s*HexFormat\.of\(\)\.formatHex\(\s*MessageDigest\.getInstance\(\s*"SHA-256"\s*\)\.digest\(\s*exactBody\s*\)\s*\)\s*\)'
+        ),
+        "HMAC algorithm": r'\bMac\.getInstance\(\s*"HmacSHA256"\s*\)',
+        "dedicated signing key": r'\bmac\.init\(\s*new\s+SecretKeySpec\(\s*secret\s*,\s*"HmacSHA256"\s*\)\s*\)',
+        "raw-body digest": r'\bMessageDigest\.getInstance\(\s*"SHA-256"\s*\)\.digest\(\s*exactBody\s*\)',
+        "versioned envelope": r'\bString\s+input\s*=\s*"dwp1\."\s*\+\s*BASE64\.encodeToString\(',
+    }.items():
+        if not executable_literal_matches(pattern, signer):
+            violations.append(f"{prefix} signer is missing {label}")
+    for label, pattern in {
+        "bounded lifetime": rf"\bissuedAt\s*\+\s*{workload['ttlSeconds']}\b",
+        "fresh nonce": r"\bnonce\.get\(\)",
+        "HMAC execution": r"\bmac\.doFinal\(\s*input\.getBytes\(\s*StandardCharsets\.US_ASCII\s*\)\s*\)",
+        "minimum key length": r"\bsecret\.length\s*<\s*32\b",
+    }.items():
+        if not re.search(pattern, signer_code):
+            violations.append(f"{prefix} signer is missing executable {label}")
+    for forbidden in SIGNED_WORKLOAD_FORBIDDEN:
+        if any(forbidden in value for value in (java_without_comments(source), protocol, signer)):
+            violations.append(f"{prefix} source contains forbidden marker {forbidden!r}")
+    return violations
 
 def load_policy() -> tuple[dict[str, Any] | None, list[str]]:
     if not POLICY_FILE.exists():
@@ -236,7 +388,7 @@ def policy_manifest_violations(policy: dict[str, Any]) -> list[str]:
                                 f"{section}:{entry_id} gateway-verifier must require {trace_marker}"
                             )
                 elif interface_type == "internal-http":
-                    if not any("/internal/" in marker for marker in required_markers):
+                    if "signedWorkload" not in entry and not any("/internal/" in marker for marker in required_markers):
                         violations.append(
                             f"{section}:{entry_id} internal-http contracts must require an /internal/ path marker"
                         )
@@ -248,14 +400,7 @@ def policy_manifest_violations(policy: dict[str, Any]) -> list[str]:
                         violations.append(
                             f"{section}:{entry_id} internal-http contracts must forbid Gateway /api/ calls"
                         )
-                    if not any(
-                        token in required_markers
-                        for token in (
-                            "X-DWP-Provisioning-Token",
-                            "X-DWP-Identity-Sync-Token",
-                            "X-DWP-Approval-Recovery-Token",
-                        )
-                    ):
+                    if "signedWorkload" not in entry and not PURPOSE_TOKEN_HEADERS.intersection(required_markers):
                         violations.append(
                             f"{section}:{entry_id} internal-http contracts must require a purpose-specific service token"
                         )
@@ -275,6 +420,8 @@ def policy_manifest_violations(policy: dict[str, Any]) -> list[str]:
                         violations.append(
                             f"{section}:{entry_id} external-connector contracts must require host allowlist validation"
                         )
+                if "signedWorkload" in entry:
+                    violations.extend(signed_workload_manifest_violations(entry))
             elif section == "crossDatabaseExceptions":
                 allowed_databases = validate_string_list(
                     violations, section, str(entry_id), entry, "allowedDatabases"
@@ -401,6 +548,9 @@ def http_client_policy_violations(policy: dict[str, Any]) -> list[str]:
                     f"{relative} creates an HTTP client but is not in {POLICY_FILE.relative_to(ROOT)}"
                 )
                 continue
+            if "signedWorkload" in contract:
+                # Validate registered signed clients below even if their HTTP import disappears.
+                continue
             for required in string_entries(contract["requiredMarkers"]):
                 if required not in source:
                     violations.append(
@@ -414,6 +564,18 @@ def http_client_policy_violations(policy: dict[str, Any]) -> list[str]:
     for relative in sorted(allowed_clients):
         if not (ROOT / relative).exists():
             violations.append(f"{relative} is registered in {POLICY_FILE.relative_to(ROOT)} but does not exist")
+        elif "signedWorkload" in allowed_clients[relative]:
+            contract = allowed_clients[relative]
+            source = java_without_comments((ROOT / relative).read_text(encoding="utf-8"))
+            if not HTTP_CLIENT_IMPORT_RE.search(JAVA_NON_CODE_RE.sub(" ", source)):
+                violations.append(f"{relative} signedWorkload requires an executable HTTP client import")
+            violations.extend(signed_workload_source_violations(contract, source))
+            for required in string_entries(contract["requiredMarkers"]):
+                if required not in source:
+                    violations.append(f"{relative} signedWorkload is missing required contract marker {required!r}")
+            for forbidden in string_entries(contract["forbiddenMarkers"]):
+                if forbidden in source:
+                    violations.append(f"{relative} signedWorkload contains forbidden marker {forbidden!r}")
     return violations
 
 

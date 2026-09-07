@@ -140,6 +140,10 @@ class AttachmentRepositoryIntegrationTest {
                 """, conversationId, TENANT_ID, key + ":" + conversationId);
         for (long userId : List.of(USER_ID, OTHER_USER_ID)) {
             jdbc.update("""
+                    INSERT INTO msg_people_snapshot (tenant_id, user_id, email_address, display_name)
+                    VALUES (?, ?, ?, 'Attachment member') ON CONFLICT (tenant_id, user_id) DO NOTHING
+                    """, TENANT_ID, userId, userId + "@attachment.test");
+            jdbc.update("""
                     INSERT INTO msg_conversation_members (
                         tenant_id, conversation_id, user_id, member_role,
                         membership_source, lifecycle_state)

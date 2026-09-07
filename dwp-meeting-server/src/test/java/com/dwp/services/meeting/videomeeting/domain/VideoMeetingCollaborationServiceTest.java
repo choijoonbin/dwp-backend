@@ -42,7 +42,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -61,10 +63,13 @@ class VideoMeetingCollaborationServiceTest {
     private VideoMeetingCollaborationRepository collaboration;
     @Mock
     private VideoMeetingAuditRecorder audit;
+    @Mock
+    private MeetingChatRetentionService chatRetention;
 
     @BeforeEach
     void setContext() {
         MeetingRequestContext.set(subject(USER_ID));
+        lenient().when(chatRetention.ready()).thenReturn(true);
     }
 
     @AfterEach
@@ -147,6 +152,32 @@ class VideoMeetingCollaborationServiceTest {
 
         verify(collaboration).createChatMessage(
                 TENANT_ID, meetingId, sender, 4, "ephemeral", NOW, NOW);
+    }
+
+    @Test
+    void chatSendFailsClosedBeforePlaintextStorageWhenRetentionIsNotReady() {
+        UUID meetingId = UUID.randomUUID();
+        Meeting meeting = meeting(meetingId, LifecycleState.LIVE);
+        Participant sender = participant(meetingId, USER_ID, ParticipantRole.ATTENDEE);
+        when(meetings.lockMeeting(TENANT_ID, meetingId)).thenReturn(meeting);
+        when(meetings.participant(TENANT_ID, meetingId, USER_ID))
+                .thenReturn(Optional.of(sender));
+        when(meetings.ensurePolicy(TENANT_ID, USER_ID)).thenReturn(policy(90));
+        when(chatRetention.ready()).thenReturn(false);
+
+        assertThatThrownBy(() -> service().sendChatMessage(
+                meetingId,
+                new VideoMeetingCollaborationDtos.SendChatMessageCommand("sensitive text"),
+                "chat-send-retention-down", "corr-chat"))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.EXTERNAL_SERVICE_ERROR));
+
+        verify(collaboration, never()).createChatMessage(
+                anyLong(), any(), any(), anyLong(), anyString(), any(), any());
+        verify(collaboration, never()).saveCommand(
+                anyLong(), any(), anyLong(), anyString(), anyString(), anyString(),
+                any(), anyLong(), anyInt());
     }
 
     @Test
@@ -340,7 +371,7 @@ class VideoMeetingCollaborationServiceTest {
 
     private VideoMeetingCollaborationService service() {
         return new VideoMeetingCollaborationService(
-                meetings, collaboration, audit,
+                meetings, collaboration, audit, chatRetention,
                 Clock.fixed(Instant.parse("2026-08-27T08:00:00Z"), ZoneOffset.UTC));
     }
 

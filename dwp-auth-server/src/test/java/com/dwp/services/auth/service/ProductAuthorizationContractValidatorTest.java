@@ -15,6 +15,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -114,6 +115,81 @@ class ProductAuthorizationContractValidatorTest {
     }
 
     @Test
+    void validatesVersionFiveAppendOnlyDwaionReadRouteClosure() throws IOException {
+        ProductAuthorizationContractDtos.BundleContract result = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v5.generated.json"));
+
+        assertThat(result.version()).isEqualTo(5);
+        assertThat(result.capabilities()).hasSize(72);
+        assertThat(result.accessPolicies()).hasSize(22);
+        assertThat(result.entitlementExpressions()).hasSize(16);
+        assertThat(result.predicatePolicies()).hasSize(33);
+        assertThat(result.routes()).hasSize(160);
+        assertThat(result.routes()).filteredOn(route -> "PAGE".equals(route.routeKind())).hasSize(66);
+        assertThat(result.routes()).filteredOn(route -> "DATA".equals(route.routeKind())).hasSize(27);
+        assertThat(result.routes()).filteredOn(route -> "ACTION".equals(route.routeKind())).hasSize(67);
+
+        assertThat(result.capabilities())
+                .filteredOn(value -> "dwaion.work.activity.read".equals(value.contractKey()))
+                .singleElement()
+                .satisfies(value -> {
+                    assertThat(value.resolvedCapabilityCode()).isEqualTo("APP.ACTIVITY:VIEW");
+                    assertThat(value.scopeResolver()).isEqualTo("SELF");
+                    assertThat(value.requiresProductEntitlement()).isTrue();
+                });
+
+        Set<String> v5Keys = Set.of(
+                "route.dwaion.work.runs.data",
+                "route.dwaion.work.run-detail.data",
+                "route.dwaion.work.activity-events.data",
+                "route.dwaion.work.activity-event.data",
+                "route.dwaion.work.activity-summary.data");
+        Map<String, ProductAuthorizationContractDtos.GovernedRoute> routes = result.routes().stream()
+                .filter(route -> v5Keys.contains(route.routeContractKey()))
+                .collect(Collectors.toMap(
+                        ProductAuthorizationContractDtos.GovernedRoute::routeContractKey,
+                        value -> value));
+        assertThat(routes).containsOnlyKeys(v5Keys);
+        assertThat(routes.values()).allSatisfy(route -> {
+            assertThat(route.routeKind()).isEqualTo("DATA");
+            assertThat(route.sideEffectFree()).isTrue();
+            assertThat(route.subject().productKey()).isEqualTo("dwaion");
+            assertThat(route.subject().surfaceKey()).isEqualTo("dwaion.work");
+            assertThat(route.accessProfiles()).singleElement().satisfies(profile -> {
+                assertThat(profile.readOnly()).isTrue();
+                assertThat(profile.targetBindingKinds()).containsExactly("SELF");
+            });
+            assertThat(route.gatewayApiBindings()).singleElement().satisfies(binding ->
+                    assertThat(binding.method()).isEqualTo("GET"));
+            assertThat(route.servicePepBindings()).singleElement().satisfies(binding -> {
+                assertThat(binding.serviceKey()).isEqualTo("agent");
+                assertThat(binding.method()).isEqualTo("GET");
+            });
+        });
+        assertThat(routes.get("route.dwaion.work.runs.data")
+                .accessProfiles().getFirst().requiredAccess().accessPolicyKey())
+                .isEqualTo("dwaion.work-access.v1");
+        assertThat(routes.get("route.dwaion.work.run-detail.data")
+                .accessProfiles().getFirst().requiredAccess().accessPolicyKey())
+                .isEqualTo("dwaion.work-access.v1");
+        assertThat(routes.get("route.dwaion.work.activity-events.data")
+                .accessProfiles().getFirst().requiredAccess().capabilityContractKey())
+                .isEqualTo("dwaion.work.activity.read");
+        assertThat(routes.get("route.dwaion.work.activity-event.data")
+                .accessProfiles().getFirst().requiredAccess().capabilityContractKey())
+                .isEqualTo("dwaion.work.activity.read");
+        assertThat(routes.get("route.dwaion.work.activity-summary.data")
+                .accessProfiles().getFirst().requiredAccess().capabilityContractKey())
+                .isEqualTo("dwaion.work.activity.read");
+
+        assertThat(routes.entrySet()).allSatisfy(entry -> {
+            String gatewayPath = entry.getValue().gatewayApiBindings().getFirst().path();
+            String servicePath = entry.getValue().servicePepBindings().getFirst().path();
+            assertThat(gatewayPath).isEqualTo("/api/agent" + servicePath);
+        });
+    }
+
+    @Test
     void validatesOrderedSeedIndexAndStrictSnapshotSupersets() throws IOException {
         JsonNode indexDocument = generatedDocument("product-surfaces-v1.index.generated.json");
         ProductAuthorizationContractDtos.SeedIndex index =
@@ -126,18 +202,21 @@ class ProductAuthorizationContractValidatorTest {
                 generatedDocument("product-surfaces-v1.bundle-v3.generated.json"));
         ProductAuthorizationContractDtos.BundleContract versionFour = validator.validateDocument(
                 generatedDocument("product-surfaces-v1.bundle-v4.generated.json"));
+        ProductAuthorizationContractDtos.BundleContract versionFive = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v5.generated.json"));
 
-        assertThat(index.latestVersion()).isEqualTo(4);
-        assertThat(index.latestChecksum()).isEqualTo(versionFour.checksum());
+        assertThat(index.latestVersion()).isEqualTo(5);
+        assertThat(index.latestChecksum()).isEqualTo(versionFive.checksum());
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::version)
-                .containsExactly(1L, 2L, 3L, 4L);
+                .containsExactly(1L, 2L, 3L, 4L, 5L);
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::bundleStatus)
                 .containsOnly("DRAFT");
         assertStrictCapabilitySuperset(versionOne, versionTwo);
         assertStrictCapabilitySuperset(versionTwo, versionThree);
         assertStrictCapabilitySuperset(versionThree, versionFour);
+        assertStrictCapabilitySuperset(versionFour, versionFive);
         assertThat(versionOne.capabilities())
                 .filteredOn(value -> "REQUIRED".equals(value.responsibilityRequirement()))
                 .allMatch(value -> "APP_CONFIG_ADMIN".equals(
@@ -151,6 +230,10 @@ class ProductAuthorizationContractValidatorTest {
                 .allMatch(value -> "APP_CONFIG_ADMIN".equals(
                         value.requiredResponsibilityCode()));
         assertThat(versionFour.capabilities())
+                .filteredOn(value -> "REQUIRED".equals(value.responsibilityRequirement()))
+                .allMatch(value -> "APP_CONFIG_ADMIN".equals(
+                        value.requiredResponsibilityCode()));
+        assertThat(versionFive.capabilities())
                 .filteredOn(value -> "REQUIRED".equals(value.responsibilityRequirement()))
                 .allMatch(value -> "APP_CONFIG_ADMIN".equals(
                         value.requiredResponsibilityCode()));

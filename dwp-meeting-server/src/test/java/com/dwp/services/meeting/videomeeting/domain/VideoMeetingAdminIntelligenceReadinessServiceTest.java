@@ -45,6 +45,12 @@ class VideoMeetingAdminIntelligenceReadinessServiceTest {
     @Mock
     private MeetingIntelligenceRetentionService retention;
     @Mock
+    private MeetingRecordingDeletionReadiness recordingDeletion;
+    @Mock
+    private MeetingTranscriptDeletionReadiness transcriptDeletion;
+    @Mock
+    private MeetingChatRetentionService chatRetention;
+    @Mock
     private JdbcTemplate jdbc;
 
     @AfterEach
@@ -60,6 +66,9 @@ class VideoMeetingAdminIntelligenceReadinessServiceTest {
         when(dependencies.status()).thenThrow(new IllegalStateException("probe down"));
         when(intelligence.capability(any())).thenThrow(new IllegalStateException("agent down"));
         when(retention.ready()).thenThrow(new IllegalStateException("worker stale"));
+        when(recordingDeletion.ready()).thenThrow(new IllegalStateException("worker stale"));
+        when(transcriptDeletion.ready()).thenThrow(new IllegalStateException("worker stale"));
+        when(chatRetention.ready()).thenThrow(new IllegalStateException("worker stale"));
         when(jdbc.queryForObject(anyString(), eq(Boolean.class)))
                 .thenThrow(new IllegalStateException("database probe denied"));
 
@@ -83,7 +92,14 @@ class VideoMeetingAdminIntelligenceReadinessServiceTest {
         assertThat(response.retention().signals().get("intelligenceReports").state())
                 .isEqualTo("CONNECTION_REQUIRED");
         assertThat(response.retention().signals().get("chat").state())
-                .isEqualTo("NOT_VERIFIED");
+                .isEqualTo("CONNECTION_REQUIRED");
+        assertThat(response.retention().signals().get("chat").reason())
+                .isEqualTo("RETENTION_WORKER_NOT_READY");
+
+        VideoMeetingAdminIntelligenceReadinessService.PolicyCapabilities capabilities =
+                service().policyCapabilities();
+        assertThat(capabilities.recordingConfigured()).isFalse();
+        assertThat(capabilities.aiNotesConfigured()).isFalse();
     }
 
     @Test
@@ -101,6 +117,9 @@ class VideoMeetingAdminIntelligenceReadinessServiceTest {
                         true, "AZURE_OPENAI", "approved-model", "korea-central",
                         true, true, List.of("meeting-intelligence-v1")));
         when(retention.ready()).thenReturn(true);
+        when(recordingDeletion.ready()).thenReturn(true);
+        when(transcriptDeletion.ready()).thenReturn(true);
+        when(chatRetention.ready()).thenReturn(true);
         when(jdbc.queryForObject(anyString(), eq(Boolean.class))).thenReturn(true);
         when(jdbc.queryForObject(
                 anyString(), eq(Boolean.class), any(), any(), any(), any()))
@@ -130,9 +149,14 @@ class VideoMeetingAdminIntelligenceReadinessServiceTest {
         assertThat(response.retention().signals().get("meetingRecords").state())
                 .isEqualTo("NOT_VERIFIED");
         assertThat(response.retention().signals().get("artifacts").state())
-                .isEqualTo("NOT_VERIFIED");
+                .isEqualTo("READY");
         assertThat(response.retention().signals().get("chat").state())
-                .isEqualTo("NOT_VERIFIED");
+                .isEqualTo("READY");
+
+        VideoMeetingAdminIntelligenceReadinessService.PolicyCapabilities capabilities =
+                service().policyCapabilities();
+        assertThat(capabilities.recordingConfigured()).isTrue();
+        assertThat(capabilities.aiNotesConfigured()).isTrue();
     }
 
     @Test
@@ -150,6 +174,9 @@ class VideoMeetingAdminIntelligenceReadinessServiceTest {
                         true, "MANAGED", "unverified-model", "korea-central",
                         true, false, List.of("meeting-intelligence-v1")));
         when(retention.ready()).thenReturn(true);
+        when(recordingDeletion.ready()).thenReturn(true);
+        when(transcriptDeletion.ready()).thenReturn(true);
+        when(chatRetention.ready()).thenReturn(true);
         when(jdbc.queryForObject(anyString(), eq(Boolean.class))).thenReturn(true);
 
         VideoMeetingAdminIntelligenceDtos.ReadinessResponse response = service().readiness();
@@ -178,6 +205,9 @@ class VideoMeetingAdminIntelligenceReadinessServiceTest {
                         true, "AZURE_OPENAI", "approved-model", "korea-central",
                         true, true, List.of("meeting-intelligence-v1")));
         when(retention.ready()).thenReturn(true);
+        when(recordingDeletion.ready()).thenReturn(true);
+        when(transcriptDeletion.ready()).thenReturn(true);
+        when(chatRetention.ready()).thenReturn(true);
         when(jdbc.queryForObject(anyString(), eq(Boolean.class))).thenReturn(true);
         when(jdbc.queryForObject(
                 anyString(), eq(Boolean.class), any(), any(), any(), any()))
@@ -195,7 +225,8 @@ class VideoMeetingAdminIntelligenceReadinessServiceTest {
 
     private VideoMeetingAdminIntelligenceReadinessService service() {
         return new VideoMeetingAdminIntelligenceReadinessService(
-                meetings, media, dependencies, intelligence, retention, jdbc,
+                meetings, media, dependencies, intelligence, retention,
+                recordingDeletion, transcriptDeletion, chatRetention, jdbc,
                 Clock.fixed(Instant.from(NOW), ZoneOffset.UTC));
     }
 

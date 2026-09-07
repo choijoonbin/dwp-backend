@@ -307,6 +307,57 @@
       ]
     },
     {
+      "id": "platform-meeting-followup-source",
+      "classification": "work-assignment-source-verification",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-platform-server",
+      "targetServices": [
+        "dwp-meeting-server"
+      ],
+      "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/workhub/assignment/MeetingFollowupSourceAuthority.java",
+      "purpose": "Read only owner-confirmed follow-up task terms. Registration does not activate source conversion: current Meeting authority, candidate ACL, retention and People target eligibility remain mandatory owner gates.",
+      "auth": "Dedicated dwp1 signed workload binds the exact raw POST body, tenant, actor, source, action, audience and single-use nonce for at most 30 seconds. No Gateway or legacy service-token impersonation.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "signedWorkload": {
+        "profile": "dwp1-hmac-sha256",
+        "protocolSource": "dwp-platform-server/src/main/java/com/dwp/services/platform/workhub/assignment/MeetingFollowupProtocol.java",
+        "signerSource": "dwp-platform-server/src/main/java/com/dwp/services/platform/workhub/assignment/MeetingFollowupWorkloadSigner.java",
+        "method": "POST",
+        "path": "/internal/v1/meeting-followups/resolve",
+        "header": "X-DWP-Work-Assertion",
+        "issuer": "dwp-platform-work",
+        "audience": "dwp-meeting-followup-source",
+        "ttlSeconds": 30
+      },
+      "requiredMarkers": [
+        "${DWP_WORK_MEETING_SOURCE_BASE_URL:}",
+        "${DWP_WORK_MEETING_ASSERTION_KEY_ID:}",
+        "${DWP_WORK_MEETING_ASSERTION_SECRET_BASE64:}",
+        "${DWP_WORK_MEETING_SOURCE_ALLOW_HTTP:false}",
+        "Duration.ofSeconds(3)",
+        "Duration.ofSeconds(5)",
+        "HttpClient.Redirect.NEVER",
+        ".timeout(timeout)",
+        "pending.get(timeout.toMillis(), TimeUnit.MILLISECONDS)",
+        "WorkSourceBodySubscriber",
+        "STRICT_DUPLICATE_DETECTION",
+        "FAIL_ON_UNKNOWN_PROPERTIES",
+        "OutboundHttpHeaders.propagateObservability"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "Authorization",
+        "X-DWP-Service-Token",
+        "X-DWP-Service-Identity",
+        "X-DWP-Product-Surface-Token",
+        "X-DWP-Provisioning-Token",
+        "X-DWP-Identity-Sync-Token",
+        "X-DWP-Approval-Recovery-Token",
+        "@Retry"
+      ]
+    },
+    {
       "id": "approval-auth-subject-directory",
       "classification": "approval-identity-subject-validation",
       "interfaceType": "internal-http",
@@ -444,6 +495,31 @@
         "/api/",
         "X-DWP-Service-Token",
         "X-DWP-Provisioning-Token"
+      ]
+    },
+    {
+      "id": "meeting-preparation-material-owner-broker",
+      "classification": "meeting-preparation-material-access",
+      "interfaceType": "external-connector",
+      "sourceService": "dwp-meeting-server",
+      "targetServices": [
+        "governed-preparation-material-owner"
+      ],
+      "path": "dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/provider/GovernedHttpMeetingPreparationMaterialProvider.java",
+      "purpose": "Request a short-lived access ticket from the configured owner service after current Meeting membership, source binding, version and retention checks succeed.",
+      "auth": "Uses a purpose-specific material token plus a signed workload assertion; browser credentials and DWP service tokens are forbidden.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "validatedOrigin",
+        "getAllowedHosts",
+        "HttpClient.Redirect.NEVER",
+        "X-DWP-Meeting-Material-Token",
+        "X-DWP-Meeting-Workload-Assertion",
+        "BoundedHttpResponseReader.read"
+      ],
+      "forbiddenMarkers": [
+        "X-DWP-Service-Token"
       ]
     },
     {

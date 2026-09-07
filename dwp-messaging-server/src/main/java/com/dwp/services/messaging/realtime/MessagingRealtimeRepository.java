@@ -70,8 +70,14 @@ public class MessagingRealtimeRepository {
                    AND event.event_sequence > ?
                    AND event.event_sequence <= ?
                    AND (event.audience_user_id IS NULL OR event.audience_user_id = ?)
+                   AND (event.event_type NOT IN ('messaging.read-cursor.updated', 'messaging.privacy-preferences.updated')
+                        OR (event.actor_user_id = ? AND event.audience_user_id = event.actor_user_id))
                    AND (event.conversation_id IS NULL OR EXISTS (
                        SELECT 1 FROM msg_conversation_members member
+                       JOIN msg_conversations conversation
+                         ON conversation.tenant_id = member.tenant_id
+                        AND conversation.conversation_id = member.conversation_id
+                        AND conversation.lifecycle_state = 'ACTIVE'
                         WHERE member.tenant_id = event.tenant_id
                           AND member.conversation_id = event.conversation_id
                           AND member.user_id = ?
@@ -82,7 +88,7 @@ public class MessagingRealtimeRepository {
                  ORDER BY event.event_sequence
                  LIMIT ?
                 """, (row, ignored) -> event(row), subject.tenantId(), after, through,
-                subject.userId(), subject.userId(), limit);
+                subject.userId(), subject.userId(), subject.userId(), limit);
     }
 
     public long latestTenantSequence(long tenantId) {
@@ -100,8 +106,14 @@ public class MessagingRealtimeRepository {
                   FROM msg_realtime_events event
                  WHERE event.tenant_id = ?
                    AND (event.audience_user_id IS NULL OR event.audience_user_id = ?)
+                   AND (event.event_type NOT IN ('messaging.read-cursor.updated', 'messaging.privacy-preferences.updated')
+                        OR (event.actor_user_id = ? AND event.audience_user_id = event.actor_user_id))
                    AND (event.conversation_id IS NULL OR EXISTS (
                        SELECT 1 FROM msg_conversation_members member
+                       JOIN msg_conversations conversation
+                         ON conversation.tenant_id = member.tenant_id
+                        AND conversation.conversation_id = member.conversation_id
+                        AND conversation.lifecycle_state = 'ACTIVE'
                         WHERE member.tenant_id = event.tenant_id
                           AND member.conversation_id = event.conversation_id
                           AND member.user_id = ?
@@ -109,11 +121,14 @@ public class MessagingRealtimeRepository {
                           AND event.occurred_at >= member.membership_started_at
                           AND (event.message_sequence IS NULL
                                OR event.message_sequence >= member.history_start_sequence)))
-                """, Long.class, subject.tenantId(), subject.userId(), subject.userId());
+                """, Long.class, subject.tenantId(), subject.userId(), subject.userId(), subject.userId());
         return sequence == null ? 0 : sequence;
     }
 
     public boolean canReceive(MessagingRealtimeEvent event, long userId) {
+        if (MessagingRealtimeEvent.isSelfOnly(event.eventType())
+                && (event.actorUserId() != userId || event.audienceUserId() == null
+                    || event.audienceUserId() != userId)) return false;
         if (event.audienceUserId() != null && event.audienceUserId() != userId) return false;
         if (event.conversationId() == null) return true;
         Long count = jdbc.queryForObject("""

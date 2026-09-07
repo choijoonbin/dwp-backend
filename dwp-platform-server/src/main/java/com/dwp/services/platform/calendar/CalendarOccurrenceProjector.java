@@ -83,7 +83,7 @@ final class CalendarOccurrenceProjector {
     List<CalendarDtos.AttentionItem> attention(
             List<CalendarDtos.EventSummary> events,
             CalendarRepository.PolicyRow policy,
-            String locale) {
+            String locale, int focus) {
         boolean ko = korean(locale);
         Map<String, CalendarDtos.AttentionItem> items = new LinkedHashMap<>();
         events.stream().filter(CalendarDtos.EventSummary::conflict).findFirst().ifPresent(event ->
@@ -98,7 +98,6 @@ final class CalendarOccurrenceProjector {
                         ko ? event.title() + " 초대에 응답해 주세요."
                                 : "Respond to the invitation for " + event.title() + ".",
                         event.eventId(), "/calendar/schedule")));
-        int focus = minutes(events, EventType.FOCUS);
         if (focus < policy.weeklyFocusTargetMinutes()) {
             int gap = policy.weeklyFocusTargetMinutes() - focus;
             items.put("focus", new CalendarDtos.AttentionItem(
@@ -260,13 +259,6 @@ final class CalendarOccurrenceProjector {
         String viewer = personPublicId == null ? "user:" + userId : "person:" + personPublicId;
         return UUID.nameUUIDFromBytes(("calendar-free-busy:" + tenantId + ":" + viewer
                 + ":" + eventId).getBytes(StandardCharsets.UTF_8));
-    }
-
-    private int minutes(List<CalendarDtos.EventSummary> events, EventType type) {
-        return events.stream().filter(event -> event.type() == type)
-                .mapToInt(event -> (int) Duration.between(
-                        event.startsAt(), event.endsAt()).toMinutes())
-                .sum();
     }
 
     private CalendarDtos.ResourceSummary resource(CalendarRepository.ResourceRow value) {

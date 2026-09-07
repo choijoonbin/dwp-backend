@@ -10504,6 +10504,62 @@
           "gatewayApiBindings":[{"bindingKey":"route.workplace.work.booking-create.action.binding.01","method":"POST","path":"/api/platform/v1/workplace/bookings","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.workplace.work.booking-create.action.binding.01","serviceKey":"platform","method":"POST","path":"/v1/workplace/bookings","pathParameterConstraints":{}}],"owner":"Workplace + Platform + Security","policyVersion":1,"lifecycleState":"ACTIVE"
         }
       ]
+    },
+    {
+      "version": 5,
+      "capabilities": [
+        {
+          "contractKey": "dwaion.work.activity.read",
+          "resolvedCapabilityCode": "APP.ACTIVITY:VIEW",
+          "mappingVersion": 1,
+          "productKey": "dwaion",
+          "surfaceKey": "dwaion.work",
+          "resourceKey": "APP.ACTIVITY",
+          "action": "VIEW",
+          "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+          "responsibilityRequirement": "NOT_REQUIRED",
+          "scopeResolver": "SELF",
+          "riskTier": "LOW",
+          "activationPolicy": null,
+          "sodPolicyId": null,
+          "requiresProductEntitlement": true,
+          "sunsetAt": null,
+          "legacySource": null,
+          "owner": "DWAI.ON + Activity + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        }
+      ],
+      "accessPolicies": [],
+      "entitlementExpressions": [],
+      "predicatePolicies": [],
+      "routes": [
+        {
+          "routeContractKey":"route.dwaion.work.runs.data","navigationContextId":"dwaion.work","subject":{"type":"PRODUCT","productKey":"dwaion","surfaceKey":"dwaion.work"},"routeKind":"DATA","sideEffectFree":true,"uiRouteId":null,"uiRoutePattern":null,
+          "accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"POLICY","accessPolicyKey":"dwaion.work-access.v1"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":["predicate.dwaion-self.v1"],"readOnly":true}],
+          "gatewayApiBindings":[{"bindingKey":"route.dwaion.work.runs.data.binding.01","method":"GET","path":"/api/agent/v1/runs","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.dwaion.work.runs.data.binding.01","serviceKey":"agent","method":"GET","path":"/v1/runs","pathParameterConstraints":{}}],"owner":"DWAI.ON + Agent Runtime + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.dwaion.work.run-detail.data","navigationContextId":"dwaion.work","subject":{"type":"PRODUCT","productKey":"dwaion","surfaceKey":"dwaion.work"},"routeKind":"DATA","sideEffectFree":true,"uiRouteId":null,"uiRoutePattern":null,
+          "accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"POLICY","accessPolicyKey":"dwaion.work-access.v1"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":["predicate.dwaion-self.v1"],"readOnly":true}],
+          "gatewayApiBindings":[{"bindingKey":"route.dwaion.work.run-detail.data.binding.01","method":"GET","path":"/api/agent/v1/runs/{runId}","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.dwaion.work.run-detail.data.binding.01","serviceKey":"agent","method":"GET","path":"/v1/runs/{runId}","pathParameterConstraints":{}}],"owner":"DWAI.ON + Agent Runtime + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.dwaion.work.activity-events.data","navigationContextId":"dwaion.work","subject":{"type":"PRODUCT","productKey":"dwaion","surfaceKey":"dwaion.work"},"routeKind":"DATA","sideEffectFree":true,"uiRouteId":null,"uiRoutePattern":null,
+          "accessProfiles":[{"profileKey":"activity-reader","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"dwaion.work.activity.read"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":["predicate.dwaion-self.v1"],"readOnly":true}],
+          "gatewayApiBindings":[{"bindingKey":"route.dwaion.work.activity-events.data.binding.01","method":"GET","path":"/api/agent/v1/activity/events","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.dwaion.work.activity-events.data.binding.01","serviceKey":"agent","method":"GET","path":"/v1/activity/events","pathParameterConstraints":{}}],"owner":"DWAI.ON + Activity + Agent Runtime + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.dwaion.work.activity-event.data","navigationContextId":"dwaion.work","subject":{"type":"PRODUCT","productKey":"dwaion","surfaceKey":"dwaion.work"},"routeKind":"DATA","sideEffectFree":true,"uiRouteId":null,"uiRoutePattern":null,
+          "accessProfiles":[{"profileKey":"activity-reader","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"dwaion.work.activity.read"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":["predicate.dwaion-self.v1"],"readOnly":true}],
+          "gatewayApiBindings":[{"bindingKey":"route.dwaion.work.activity-event.data.binding.01","method":"GET","path":"/api/agent/v1/activity/events/{eventId}","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.dwaion.work.activity-event.data.binding.01","serviceKey":"agent","method":"GET","path":"/v1/activity/events/{eventId}","pathParameterConstraints":{}}],"owner":"DWAI.ON + Activity + Agent Runtime + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        },
+        {
+          "routeContractKey":"route.dwaion.work.activity-summary.data","navigationContextId":"dwaion.work","subject":{"type":"PRODUCT","productKey":"dwaion","surfaceKey":"dwaion.work"},"routeKind":"DATA","sideEffectFree":true,"uiRouteId":null,"uiRoutePattern":null,
+          "accessProfiles":[{"profileKey":"activity-reader","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"dwaion.work.activity.read"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":["predicate.dwaion-self.v1"],"readOnly":true}],
+          "gatewayApiBindings":[{"bindingKey":"route.dwaion.work.activity-summary.data.binding.01","method":"GET","path":"/api/agent/v1/activity/executions/summary","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.dwaion.work.activity-summary.data.binding.01","serviceKey":"agent","method":"GET","path":"/v1/activity/executions/summary","pathParameterConstraints":{}}],"owner":"DWAI.ON + Activity + Agent Runtime + Security","policyVersion":1,"lifecycleState":"ACTIVE"
+        }
+      ]
     }
   ],
   "descriptorEnrichments": {

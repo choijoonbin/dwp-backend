@@ -40,12 +40,13 @@ public interface MeetingTranscriptSource {
             int maximumOrphanTtlSeconds,
             boolean legacyLocatorDeletionAvailable,
             String providerCode,
-            String storageProviderCode) {
+            String storageProviderCode,
+            String processingRegion) {
 
         public static RetentionCapability unavailable() {
             return new RetentionCapability(
                     false, false, false, false, false, false, 0,
-                    false, "DISABLED", "DISABLED");
+                    false, "DISABLED", "DISABLED", "none");
         }
     }
 

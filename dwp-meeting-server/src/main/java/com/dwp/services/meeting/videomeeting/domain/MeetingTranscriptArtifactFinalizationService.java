@@ -39,6 +39,7 @@ public class MeetingTranscriptArtifactFinalizationService {
     private final VideoMeetingAuditRecorder audit;
     private final MeetingTranscriptDeletionReadiness deletionReadiness;
     private final MeetingTranscriptSource transcriptSource;
+    private final MeetingIntelligenceAutoRequestRepository autoRequests;
     private final TransactionTemplate transactions;
     private final Clock clock;
 
@@ -52,10 +53,11 @@ public class MeetingTranscriptArtifactFinalizationService {
             VideoMeetingAuditRecorder audit,
             MeetingTranscriptDeletionReadiness deletionReadiness,
             MeetingTranscriptSource transcriptSource,
+            MeetingIntelligenceAutoRequestRepository autoRequests,
             PlatformTransactionManager transactionManager) {
         this(meetings, content, intelligence, artifacts,
                 assertionVerifier, audit, deletionReadiness, transcriptSource,
-                transactionManager, Clock.systemUTC());
+                autoRequests, transactionManager, Clock.systemUTC());
     }
 
     MeetingTranscriptArtifactFinalizationService(
@@ -67,6 +69,7 @@ public class MeetingTranscriptArtifactFinalizationService {
             VideoMeetingAuditRecorder audit,
             MeetingTranscriptDeletionReadiness deletionReadiness,
             MeetingTranscriptSource transcriptSource,
+            MeetingIntelligenceAutoRequestRepository autoRequests,
             PlatformTransactionManager transactionManager,
             Clock clock) {
         this.meetings = meetings;
@@ -77,6 +80,7 @@ public class MeetingTranscriptArtifactFinalizationService {
         this.audit = audit;
         this.deletionReadiness = deletionReadiness;
         this.transcriptSource = transcriptSource;
+        this.autoRequests = autoRequests;
         this.transactions = new TransactionTemplate(transactionManager);
         this.clock = clock;
     }
@@ -122,6 +126,7 @@ public class MeetingTranscriptArtifactFinalizationService {
             MeetingTranscriptSource.RetentionCapability liveCapability) {
         MeetingTranscriptDeletionReadiness.RetentionSnapshot retention =
                 deletionReadiness.requireSnapshot(liveCapability);
+        requireRegionBinding(retention, request.processingRegion());
         Meeting meeting = meetings.lockMeeting(subject.tenantId(), meetingId);
         TranscriptArtifact current = artifacts.lockTranscript(subject.tenantId(), meetingId)
                 .orElse(null);
@@ -150,7 +155,7 @@ public class MeetingTranscriptArtifactFinalizationService {
         TranscriptArtifact registered = artifacts.registerProcessing(
                 current, request.artifactId(), subject.tenantId(), meetingId,
                 request.sourceSha256(), now.plusDays(policy.artifactRetentionDays()),
-                request.processingRegion(), notice.noticeId(), consent.snapshotSha256(),
+                retention.processingRegion(), notice.noticeId(), consent.snapshotSha256(),
                 plan.version(), retention.providerCode(), retention.storageProviderCode(),
                 key, hash, subject.userId(), now);
         consumeAssertion(verifiedAssertion, subject, meetingId, request.artifactId());
@@ -203,6 +208,7 @@ public class MeetingTranscriptArtifactFinalizationService {
             MeetingTranscriptSource.RetentionCapability liveCapability) {
         MeetingTranscriptDeletionReadiness.RetentionSnapshot retention =
                 deletionReadiness.requireSnapshot(liveCapability);
+        requireRegionBinding(retention, request.processingRegion());
         Meeting meeting = meetings.lockMeeting(subject.tenantId(), meetingId);
         TranscriptArtifact current = artifacts.lock(
                         subject.tenantId(), meetingId, request.artifactId())
@@ -217,7 +223,7 @@ public class MeetingTranscriptArtifactFinalizationService {
             throw new BaseException(ErrorCode.OBJECT_VERSION_CONFLICT,
                     "The transcript artifact changed. Refresh and retry.");
         }
-        ContentNotice notice = validateFinalizationSnapshot(
+        FinalizationGovernance governance = validateFinalizationSnapshot(
                 meeting, current, request, retention, now);
         if (current.registrationIdempotencyKey() == null
                 || current.registeredAt() == null
@@ -234,18 +240,28 @@ public class MeetingTranscriptArtifactFinalizationService {
                 current.retentionUntil(), current.processingRegion(),
                 current.contentNoticeId(), current.consentSnapshotSha256(), key, hash,
                 subject.userId(), now);
+        UUID autoRequestId = null;
+        if (governance.plan().aiSummaryRequested()
+                && governance.notice().aiSummaryDisclosed()) {
+            autoRequestId = autoRequests.enqueue(
+                    meeting, governance.plan(), governance.notice(), finalized, now);
+        }
+        Map<String, Object> evidence = new java.util.LinkedHashMap<>();
+        evidence.put("artifactState", finalized.state());
+        evidence.put("processingRegion", finalized.processingRegion());
+        evidence.put("contentNoticeId", finalized.contentNoticeId().toString());
+        evidence.put("artifactVersion", finalized.version());
+        evidence.put("automaticIntelligenceRequested", autoRequestId != null);
+        if (autoRequestId != null) evidence.put("automaticRequestId", autoRequestId.toString());
         audit.collaboration(
                 subject, meeting, "meeting.transcript-artifact.finalized",
                 "MEETING_TRANSCRIPT_ARTIFACT", finalized.artifactId().toString(),
                 correlation(correlationId), true,
-                Map.of("artifactState", finalized.state(),
-                        "processingRegion", finalized.processingRegion(),
-                        "contentNoticeId", finalized.contentNoticeId().toString(),
-                        "artifactVersion", finalized.version()));
+                Map.copyOf(evidence));
         return MeetingTranscriptArtifactDtos.TranscriptArtifactResponse.from(finalized);
     }
 
-    private ContentNotice validateFinalizationSnapshot(
+    private FinalizationGovernance validateFinalizationSnapshot(
             Meeting meeting,
             TranscriptArtifact current,
             MeetingTranscriptArtifactDtos.FinalizeTranscriptCommand request,
@@ -261,14 +277,25 @@ public class MeetingTranscriptArtifactFinalizationService {
                 || current.storageProviderCode() == null
                 || !current.storageProviderCode().equals(retention.storageProviderCode())
                 || !current.storageProviderCode().equals(request.storageProvider())
+                || current.processingRegion() == null
+                || !current.processingRegion().equals(retention.processingRegion())
                 || current.deletionCommandId() != null) {
             throw conflict("The transcript finalization snapshot is unavailable or expired.");
         }
-        return content.notice(meeting.tenantId(), meeting.meetingId(),
+        ContentNotice notice = content.notice(meeting.tenantId(), meeting.meetingId(),
                         current.contentNoticeId())
                 .filter(ContentNotice::transcriptionDisclosed)
                 .orElseThrow(() -> conflict(
                         "The registered content notice does not permit finalization."));
+        ContentPlan plan = content.plan(meeting.tenantId(), meeting.meetingId())
+                .filter(candidate -> candidate.version() == current.contentPlanVersion()
+                        && candidate.version() == request.expectedContentPlanVersion()
+                        && candidate.state() == VideoMeetingContentModels.PlanState.READY
+                        && candidate.transcriptionRequested() && !candidate.e2eeEnabled()
+                        && notice.noticeId().equals(candidate.currentNoticeId()))
+                .orElseThrow(() -> conflict(
+                        "The current content plan no longer permits finalization."));
+        return new FinalizationGovernance(plan, notice);
     }
 
     private void validateRequest(
@@ -393,5 +420,17 @@ public class MeetingTranscriptArtifactFinalizationService {
 
     private BaseException conflict(String message) {
         return new BaseException(ErrorCode.RESOURCE_CONFLICT, message);
+    }
+
+    private void requireRegionBinding(
+            MeetingTranscriptDeletionReadiness.RetentionSnapshot retention,
+            String requestedRegion) {
+        if (retention.processingRegion() == null
+                || !retention.processingRegion().equals(requestedRegion)) {
+            throw conflict("The transcript processing region does not match the broker attestation.");
+        }
+    }
+
+    private record FinalizationGovernance(ContentPlan plan, ContentNotice notice) {
     }
 }

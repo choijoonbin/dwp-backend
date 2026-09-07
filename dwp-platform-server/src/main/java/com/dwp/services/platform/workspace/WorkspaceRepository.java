@@ -23,8 +23,8 @@ public class WorkspaceRepository {
                    updated_by = ?
              WHERE tenant_id = ? AND work_item_id = ? AND version = ?
                AND assignee_user_id = ?
-               AND work_type <> 'REVIEW'
-               AND source_system <> 'IDENTITY_GOVERNANCE'
+               AND work_type = 'TASK'
+               AND source_system IN ('WORKSPACE', 'DWP_WORKSPACE')
             """;
 
     private final JdbcTemplate jdbc;
@@ -84,20 +84,6 @@ public class WorkspaceRepository {
                 tenantId, workItemId, version, actorId) == 1;
     }
 
-    public List<ActivityRow> activity(Long tenantId, Long actorId, boolean korean) {
-        return jdbc.query("""
-                SELECT activity_event_id, occurred_at, actor_kind, actor_name, event_state,
-                       title_ko, title_en, summary_ko, summary_en, object_type,
-                       object_label_ko, object_label_en, source_system, tool_name,
-                       audit_reference, progress, source_route
-                  FROM wrk_activity_events
-                 WHERE tenant_id = ?
-                   AND (visible_to_user_id IS NULL OR visible_to_user_id = ?)
-                 ORDER BY occurred_at DESC
-                 LIMIT 200
-                """, (result, ignored) -> activityRow(result, korean), tenantId, actorId);
-    }
-
     public void addWorkActivity(
             Long tenantId,
             Long actorId,
@@ -107,18 +93,22 @@ public class WorkspaceRepository {
             String titleEn,
             String summaryKo,
             String summaryEn,
-            String auditReference) {
+            UUID auditRecordId,
+            String correlationId) {
         jdbc.update("""
                 INSERT INTO wrk_activity_events (
                     activity_event_id, tenant_id, visible_to_user_id, actor_kind,
                     actor_name, event_state, title_ko, title_en, summary_ko, summary_en,
                     object_type, object_label_ko, object_label_en, source_system,
-                    audit_reference, source_route, occurred_at)
+                    audit_reference, source_route, occurred_at, event_kind, source_event_id,
+                    object_id, work_status, correlation_id, audit_record_id, data_provenance)
                 VALUES (?, ?, ?, 'PERSON', ?, ?, ?, ?, ?, ?, 'WORK_ITEM', ?, ?, ?, ?, ?,
-                        CURRENT_TIMESTAMP)
-                """, UUID.randomUUID(), tenantId, actorId, "User " + actorId, state,
+                        CURRENT_TIMESTAMP, 'CHANGE', ?, ?, ?, ?, ?, 'LIVE')
+                """, UUID.randomUUID(), tenantId, actorId, "User " + actorId, "COMPLETED",
                 titleKo, titleEn, summaryKo, summaryEn, item.title(), item.title(),
-                item.sourceSystem(), auditReference, item.sourceRoute());
+                item.sourceSystem(), auditRecordId.toString(), "/work?item=" + item.id(),
+                "work-status:" + item.workItemId() + ":" + item.version(),
+                item.workItemId().toString(), state, correlationId, auditRecordId);
     }
 
     public List<AppRow> apps(Long tenantId, Long actorId, boolean korean) {
@@ -185,18 +175,20 @@ public class WorkspaceRepository {
             String titleEn,
             String summaryKo,
             String summaryEn,
-            String auditReference) {
+            UUID auditRecordId,
+            String correlationId) {
         jdbc.update("""
                 INSERT INTO wrk_activity_events (
                     activity_event_id, tenant_id, visible_to_user_id, actor_kind,
                     actor_name, event_state, title_ko, title_en, summary_ko, summary_en,
                     object_type, object_label_ko, object_label_en, source_system,
-                    audit_reference, source_route, occurred_at)
+                    audit_reference, source_route, occurred_at, event_kind, source_event_id,
+                    object_id, correlation_id, audit_record_id, data_provenance)
                 VALUES (?, ?, ?, 'PERSON', ?, 'COMPLETED', ?, ?, ?, ?, 'WORKSPACE_APP',
-                        ?, ?, 'DWP Apps', ?, ?, CURRENT_TIMESTAMP)
+                        ?, ?, 'DWP Apps', ?, ?, CURRENT_TIMESTAMP, 'USAGE', ?, ?, ?, ?, 'LIVE')
                 """, UUID.randomUUID(), tenantId, actorId, "User " + actorId,
-                titleKo, titleEn, summaryKo, summaryEn, app.name(), app.name(), auditReference,
-                "/apps?app=" + app.id());
+                titleKo, titleEn, summaryKo, summaryEn, app.name(), app.name(), auditRecordId.toString(),
+                "/apps?app=" + app.id(), "app:" + auditRecordId, app.id(), correlationId, auditRecordId);
     }
 
     private WorkRow workRow(ResultSet result, boolean korean) throws SQLException {
@@ -219,24 +211,6 @@ public class WorkspaceRepository {
                 localized(result, "latest_activity", korean),
                 result.getLong("version"),
                 result.getObject("updated_at", OffsetDateTime.class));
-    }
-
-    private ActivityRow activityRow(ResultSet result, boolean korean) throws SQLException {
-        return new ActivityRow(
-                result.getObject("activity_event_id", UUID.class),
-                result.getObject("occurred_at", OffsetDateTime.class),
-                result.getString("actor_kind"),
-                result.getString("actor_name"),
-                result.getString("event_state"),
-                localized(result, "title", korean),
-                localized(result, "summary", korean),
-                result.getString("object_type"),
-                localized(result, "object_label", korean),
-                result.getString("source_system"),
-                result.getString("tool_name"),
-                result.getString("audit_reference"),
-                (Integer) result.getObject("progress"),
-                result.getString("source_route"));
     }
 
     private AppRow appRow(ResultSet result, boolean korean) throws SQLException {
@@ -281,23 +255,6 @@ public class WorkspaceRepository {
             String latestActivity,
             long version,
             OffsetDateTime updatedAt) {
-    }
-
-    public record ActivityRow(
-            UUID id,
-            OffsetDateTime occurredAt,
-            String actor,
-            String actorName,
-            String state,
-            String title,
-            String summary,
-            String objectType,
-            String objectLabel,
-            String source,
-            String tool,
-            String auditId,
-            Integer progress,
-            String sourceRoute) {
     }
 
     public record AppRow(

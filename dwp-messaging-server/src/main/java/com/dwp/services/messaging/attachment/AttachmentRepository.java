@@ -26,9 +26,16 @@ public class AttachmentRepository {
 
     public boolean activeMember(long tenantId, UUID conversationId, long userId) {
         Integer count = jdbc.queryForObject("""
-                SELECT COUNT(*) FROM msg_conversation_members
-                 WHERE tenant_id = ? AND conversation_id = ? AND user_id = ?
-                   AND lifecycle_state = 'ACTIVE'
+                SELECT COUNT(*) FROM msg_conversation_members member
+                  JOIN msg_conversations conversation
+                    ON conversation.tenant_id = member.tenant_id
+                   AND conversation.conversation_id = member.conversation_id
+                   AND conversation.lifecycle_state = 'ACTIVE'
+                  JOIN msg_people_snapshot person
+                    ON person.tenant_id = member.tenant_id AND person.user_id = member.user_id
+                   AND person.lifecycle_state = 'ACTIVE'
+                 WHERE member.tenant_id = ? AND member.conversation_id = ? AND member.user_id = ?
+                   AND member.lifecycle_state = 'ACTIVE'
                 """, Integer.class, tenantId, conversationId, userId);
         return count != null && count == 1;
     }
@@ -101,8 +108,23 @@ public class AttachmentRepository {
                     ON member.tenant_id = attachment.tenant_id
                    AND member.conversation_id = attachment.conversation_id
                    AND member.user_id = ? AND member.lifecycle_state = 'ACTIVE'
+                  JOIN msg_conversations conversation
+                    ON conversation.tenant_id = attachment.tenant_id
+                   AND conversation.conversation_id = attachment.conversation_id
+                   AND conversation.lifecycle_state = 'ACTIVE'
+                  JOIN msg_people_snapshot person
+                    ON person.tenant_id = member.tenant_id AND person.user_id = member.user_id
+                   AND person.lifecycle_state = 'ACTIVE'
                  WHERE attachment.tenant_id = ? AND attachment.conversation_id = ?
                    AND attachment.attachment_id = ?
+                   AND ((attachment.message_id IS NULL AND attachment.uploader_user_id = member.user_id)
+                        OR EXISTS (
+                            SELECT 1 FROM msg_messages message
+                             WHERE message.tenant_id = attachment.tenant_id
+                               AND message.conversation_id = attachment.conversation_id
+                               AND message.message_id = attachment.message_id
+                               AND message.deleted_at IS NULL
+                               AND message.sequence >= member.history_start_sequence))
                 """, userId, tenantId, conversationId, attachmentId).stream().findFirst();
     }
 
@@ -289,6 +311,20 @@ public class AttachmentRepository {
                    AND download_grant.expires_at > CURRENT_TIMESTAMP
                    AND attachment.tenant_id = ? AND attachment.conversation_id = ?
                    AND attachment.status = 'CLEAN' AND attachment.message_id IS NOT NULL
+                   AND EXISTS (
+                       SELECT 1 FROM msg_messages message
+                       JOIN msg_conversations conversation
+                         ON conversation.tenant_id = message.tenant_id
+                        AND conversation.conversation_id = message.conversation_id
+                        AND conversation.lifecycle_state = 'ACTIVE'
+                       JOIN msg_people_snapshot person
+                         ON person.tenant_id = member.tenant_id AND person.user_id = member.user_id
+                        AND person.lifecycle_state = 'ACTIVE'
+                       WHERE message.tenant_id = attachment.tenant_id
+                         AND message.conversation_id = attachment.conversation_id
+                         AND message.message_id = attachment.message_id
+                         AND message.deleted_at IS NULL
+                         AND message.sequence >= member.history_start_sequence)
                 RETURNING attachment.*
                 """, tenantId, userId, tokenHash, attachmentId,
                 tenantId, conversationId).stream().findFirst();

@@ -22,6 +22,7 @@ import reactor.core.publisher.Mono;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,6 +43,31 @@ class ProductSurfaceDecisionContextFilterTest {
     private final GeneratedProductRouteCatalog catalog = new GeneratedProductRouteCatalog(
             objectMapper,
             new ClassPathResource("product-authorization/product-surfaces-v1.generated.json"));
+
+    @Test
+    void latestCatalogRegistersExactDwaionV5ReadBindingsAsSideEffectFree() {
+        Map<String, String> expected = Map.of(
+                "/api/agent/v1/runs", "route.dwaion.work.runs.data",
+                "/api/agent/v1/runs/40000000-0000-4000-8000-000000000017",
+                "route.dwaion.work.run-detail.data",
+                "/api/agent/v1/activity/events", "route.dwaion.work.activity-events.data",
+                "/api/agent/v1/activity/events/40000000-0000-4000-8000-000000000017",
+                "route.dwaion.work.activity-event.data",
+                "/api/agent/v1/activity/executions/summary",
+                "route.dwaion.work.activity-summary.data");
+
+        expected.forEach((path, routeKey) -> {
+            GeneratedProductRouteCatalog.Match match = catalog.match("GET", path);
+            assertThat(match.status()).isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+            assertThat(match.uniqueRoute()).isNotNull().satisfies(route -> {
+                assertThat(route.routeContractKey()).isEqualTo(routeKey);
+                assertThat(route.productKey()).isEqualTo("dwaion");
+                assertThat(route.surfaceKey()).isEqualTo("dwaion.work");
+                assertThat(route.routeKind()).isEqualTo("DATA");
+                assertThat(route.stateChanging()).isFalse();
+            });
+        });
+    }
 
     @Test
     void enforcedHomePreferenceMutationInjectsExactTrustedEvidence() {

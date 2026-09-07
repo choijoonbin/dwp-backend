@@ -62,7 +62,7 @@ PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = (1, 2, 3, 4)
+BUNDLE_VERSIONS = (1, 2, 3, 4, 5)
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -104,6 +104,15 @@ EXPECTED_RELEASE_COUNTS = {
         "predicatePolicies": 25, "routes": 129, "PAGE": 58, "DATA": 12, "ACTION": 59},
     4: {"capabilities": 71, "accessPolicies": 22, "entitlementExpressions": 16,
         "predicatePolicies": 33, "routes": 155, "PAGE": 66, "DATA": 22, "ACTION": 67},
+    5: {"capabilities": 72, "accessPolicies": 22, "entitlementExpressions": 16,
+        "predicatePolicies": 33, "routes": 160, "PAGE": 66, "DATA": 27, "ACTION": 67},
+}
+IMMUTABLE_RELEASE_CHECKSUMS = {
+    1: "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
+    2: "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
+    3: "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
+    4: "a9cd08260fd9a11dd7c612f2db6f03bb312f1e7843a2eb10b4082660da151137",
+    5: "c69816a06349fcbd45a0d946debfbce1d67e09b3ed87a8b056ec8a43f852109f",
 }
 PLATFORM_CANARY_PRODUCTS = {"communications", "services"}
 PLATFORM_TELEMETRY_SURFACE_DIMENSIONS = {
@@ -750,10 +759,13 @@ def _apply_projection_binding(route: dict[str, Any], patch: Any) -> None:
 
 def _validate_exact_superset(previous: dict[str, Any], current: dict[str, Any]) -> None:
     require(current["version"] == previous["version"] + 1, "snapshot versions must be contiguous")
+    added_descriptor = False
     for section, key in SECTION_KEYS.items():
         prior = {item[key]: item for item in previous[section]}
         candidate = {item[key]: item for item in current[section]}
-        require(prior.keys() < candidate.keys(), f"v{current['version']}/{section}: not an exact strict superset")
+        require(prior.keys() <= candidate.keys(),
+                f"v{current['version']}/{section}: not an exact monotonic superset")
+        added_descriptor = added_descriptor or prior.keys() < candidate.keys()
         drift = []
         for descriptor_key, descriptor in prior.items():
             prior_descriptor = copy.deepcopy(descriptor)
@@ -766,6 +778,8 @@ def _validate_exact_superset(previous: dict[str, Any], current: dict[str, Any]) 
             not drift,
             f"v{current['version']}/{section}: prior descriptor or reverse-reference drift {drift}",
         )
+    require(added_descriptor,
+            f"v{current['version']}: append-only wave must add a descriptor")
     prior_endpoints = previous.get("authorityEndpoints", [])
     current_endpoints = current.get("authorityEndpoints", [])
     if current["version"] == 2:
@@ -784,6 +798,10 @@ def _validate_release_snapshot(snapshot: dict[str, Any]) -> None:
         actual[kind] = sum(route["routeKind"] == kind for route in snapshot["routes"])
     require(actual == expected, f"v{version}: release count drift expected={expected} actual={actual}")
     require(snapshot["bundleStatus"] == "DRAFT", f"v{version}: generated seed must remain DRAFT")
+    immutable_checksum = IMMUTABLE_RELEASE_CHECKSUMS.get(version)
+    if immutable_checksum is not None:
+        require(snapshot["checksum"] == immutable_checksum,
+                f"v{version}: immutable release checksum drift")
 
     _validate_approval_projection_schema_metadata(snapshot)
 

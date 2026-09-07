@@ -167,6 +167,47 @@ class MeetingRecordingCommandDurabilityPostgresTest {
     }
 
     @Test
+    void administratorRequiredPolicyCannotStartWithDisabledPlanOrMissingConsent() {
+        jdbc.update("""
+                UPDATE vm_tenant_policies
+                   SET recording_policy = 'ADMIN_REQUIRED' WHERE tenant_id = 1
+                """);
+        jdbc.update("""
+                UPDATE vm_meeting_content_plans
+                   SET recording_requested = FALSE, transcription_requested = FALSE,
+                       ai_summary_requested = FALSE, e2ee_enabled = FALSE,
+                       plan_state = 'DISABLED', current_notice_id = NULL,
+                       notice_revision = 0, version = version + 1,
+                       updated_at = ?, updated_by = ?
+                 WHERE tenant_id = 1 AND meeting_id = ?
+                """, fixture.now(), fixture.subject().userId(), fixture.meetingId());
+        long version = jdbc.queryForObject("""
+                SELECT version FROM vm_meeting_content_plans
+                 WHERE tenant_id = 1 AND meeting_id = ?
+                """, Long.class, fixture.meetingId());
+
+        Preparation blocked = transactionsAt(fixture.now()).prepareStart(
+                fixture.subject(), fixture.meetingId(), version,
+                "recording-admin-required-0001",
+                requestHash(fixture.meetingId(), version),
+                "corr-admin-required", dependencies(), mediaCapability(),
+                recordingCapability());
+
+        assertThat(blocked.execute()).isFalse();
+        assertThat(blocked.replay().response().blockers().stream()
+                .map(VideoMeetingContentDtos.BlockerResponse::code).toList())
+                .containsExactly("PLAN_RECORDING_DISABLED", "CONSENT");
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM vm_meeting_recording_sessions
+                 WHERE tenant_id = 1 AND meeting_id = ?
+                """, Integer.class, fixture.meetingId())).isZero();
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM vm_meeting_recording_provider_commands
+                 WHERE tenant_id = 1 AND meeting_id = ?
+                """, Integer.class, fixture.meetingId())).isZero();
+    }
+
+    @Test
     void retentionReadinessBlocksNewStartButNeverPreventsAProviderBoundStop() {
         AtomicBoolean retentionReady = new AtomicBoolean(true);
         MeetingRecordingProvider provider = mock(MeetingRecordingProvider.class);

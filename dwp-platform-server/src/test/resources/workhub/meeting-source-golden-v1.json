@@ -1,0 +1,38 @@
+{
+  "purpose": "PUBLIC TEST FIXTURE ONLY; never use this secret in configuration",
+  "testSecretBase64": "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
+  "requestBody": "{\"tenantId\":7,\"actorUserId\":11,\"source\":{\"meetingId\":\"11111111-1111-4111-8111-111111111111\",\"reportId\":\"22222222-2222-4222-8222-222222222222\",\"candidateId\":\"33333333-3333-4333-8333-333333333333\"},\"action\":\"CREATE\",\"targetAssigneeUserId\":null,\"expectedSourceVersion\":3}",
+  "request": {
+    "tenantId": 7,
+    "actorUserId": 11,
+    "source": {
+      "meetingId": "11111111-1111-4111-8111-111111111111",
+      "reportId": "22222222-2222-4222-8222-222222222222",
+      "candidateId": "33333333-3333-4333-8333-333333333333"
+    },
+    "action": "CREATE",
+    "targetAssigneeUserId": null,
+    "expectedSourceVersion": 3
+  },
+  "claims": {
+    "v": 1,
+    "kid": "work-meeting-test-v1",
+    "iss": "dwp-platform-work",
+    "aud": "dwp-meeting-followup-source",
+    "method": "POST",
+    "path": "/internal/v1/meeting-followups/resolve",
+    "tenantId": 7,
+    "actorUserId": 11,
+    "meetingId": "11111111-1111-4111-8111-111111111111",
+    "reportId": "22222222-2222-4222-8222-222222222222",
+    "candidateId": "33333333-3333-4333-8333-333333333333",
+    "action": "CREATE",
+    "iat": 1788483600,
+    "exp": 1788483630,
+    "jti": "44444444-4444-4444-8444-444444444444",
+    "bodySha256": "61cc863d2334b1644f6d0fb97932d3430903e4a9261738b14ae24f5e6ff50e54"
+  },
+  "payload": "{\"v\":1,\"kid\":\"work-meeting-test-v1\",\"iss\":\"dwp-platform-work\",\"aud\":\"dwp-meeting-followup-source\",\"method\":\"POST\",\"path\":\"/internal/v1/meeting-followups/resolve\",\"tenantId\":7,\"actorUserId\":11,\"meetingId\":\"11111111-1111-4111-8111-111111111111\",\"reportId\":\"22222222-2222-4222-8222-222222222222\",\"candidateId\":\"33333333-3333-4333-8333-333333333333\",\"action\":\"CREATE\",\"iat\":1788483600,\"exp\":1788483630,\"jti\":\"44444444-4444-4444-8444-444444444444\",\"bodySha256\":\"61cc863d2334b1644f6d0fb97932d3430903e4a9261738b14ae24f5e6ff50e54\"}",
+  "headerName": "X-DWP-Work-Assertion",
+  "assertion": "dwp1.eyJ2IjoxLCJraWQiOiJ3b3JrLW1lZXRpbmctdGVzdC12MSIsImlzcyI6ImR3cC1wbGF0Zm9ybS13b3JrIiwiYXVkIjoiZHdwLW1lZXRpbmctZm9sbG93dXAtc291cmNlIiwibWV0aG9kIjoiUE9TVCIsInBhdGgiOiIvaW50ZXJuYWwvdjEvbWVldGluZy1mb2xsb3d1cHMvcmVzb2x2ZSIsInRlbmFudElkIjo3LCJhY3RvclVzZXJJZCI6MTEsIm1lZXRpbmdJZCI6IjExMTExMTExLTExMTEtNDExMS04MTExLTExMTExMTExMTExMSIsInJlcG9ydElkIjoiMjIyMjIyMjItMjIyMi00MjIyLTgyMjItMjIyMjIyMjIyMjIyIiwiY2FuZGlkYXRlSWQiOiIzMzMzMzMzMy0zMzMzLTQzMzMtODMzMy0zMzMzMzMzMzMzMzMiLCJhY3Rpb24iOiJDUkVBVEUiLCJpYXQiOjE3ODg0ODM2MDAsImV4cCI6MTc4ODQ4MzYzMCwianRpIjoiNDQ0NDQ0NDQtNDQ0NC00NDQ0LTg0NDQtNDQ0NDQ0NDQ0NDQ0IiwiYm9keVNoYTI1NiI6IjYxY2M4NjNkMjMzNGIxNjQ0ZjZkMGZiOTc5MzJkMzQzMDkwM2U0YTkyNjE3MzhiMTRhZTI0ZjVlNmZmNTBlNTQifQ.2h65AUzNBcyEzkt61eOGkzihPn1gwA9MdhW-BgpE2OU"
+}

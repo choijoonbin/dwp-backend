@@ -548,7 +548,7 @@ class MessagingServiceTest {
         return new MessagingDtos.MemberSummary(
                 userId, UUID.randomUUID(), name, name.toLowerCase().replace(' ', '.') + "@example.com",
                 "Engineer", "DWP", "AVAILABLE", role, "DIRECT", "DEFAULT",
-                false, false, null, 0, null);
+                false, false, null, 0, null, "SHARED");
     }
 
     private MessagingMessageAccess access(

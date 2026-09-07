@@ -1,11 +1,13 @@
 package com.dwp.services.meeting.videomeeting.api;
 
 import com.dwp.core.common.ApiResponse;
+import com.dwp.services.meeting.videomeeting.domain.VideoMeetingAdminIntelligenceReadinessService;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -26,9 +28,18 @@ import java.util.List;
 public class VideoMeetingController {
 
     private final VideoMeetingService service;
+    private final VideoMeetingAdminIntelligenceReadinessService intelligenceReadiness;
+
+    @Autowired
+    public VideoMeetingController(
+            VideoMeetingService service,
+            VideoMeetingAdminIntelligenceReadinessService intelligenceReadiness) {
+        this.service = service;
+        this.intelligenceReadiness = intelligenceReadiness;
+    }
 
     public VideoMeetingController(VideoMeetingService service) {
-        this.service = service;
+        this(service, null);
     }
 
     @GetMapping("/capabilities")
@@ -186,7 +197,8 @@ public class VideoMeetingController {
 
     @GetMapping("/admin/policy")
     public ApiResponse<VideoMeetingDtos.PolicyResponse> policy() {
-        return ApiResponse.success(service.policy());
+        VideoMeetingDtos.PolicyResponse policy = service.policy();
+        return ApiResponse.success(withConfiguredCapabilities(policy));
     }
 
     @PutMapping("/admin/policy")
@@ -194,7 +206,26 @@ public class VideoMeetingController {
             @Valid @RequestBody VideoMeetingDtos.TenantPolicyUpdateRequest request,
             @RequestHeader("Idempotency-Key") String idempotencyKey,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId) {
-        return ApiResponse.success(service.updatePolicy(
-                request, idempotencyKey, correlationId));
+        VideoMeetingDtos.PolicyResponse policy = service.updatePolicy(
+                request, idempotencyKey, correlationId);
+        return ApiResponse.success(withConfiguredCapabilities(policy));
+    }
+
+    private VideoMeetingDtos.PolicyResponse withConfiguredCapabilities(
+            VideoMeetingDtos.PolicyResponse policy) {
+        if (intelligenceReadiness == null) {
+            return policy.withConfiguredCapabilities(false, false);
+        }
+        try {
+            VideoMeetingAdminIntelligenceReadinessService.PolicyCapabilities capabilities =
+                    intelligenceReadiness.policyCapabilities();
+            if (capabilities == null) {
+                return policy.withConfiguredCapabilities(false, false);
+            }
+            return policy.withConfiguredCapabilities(
+                    capabilities.recordingConfigured(), capabilities.aiNotesConfigured());
+        } catch (RuntimeException exception) {
+            return policy.withConfiguredCapabilities(false, false);
+        }
     }
 }

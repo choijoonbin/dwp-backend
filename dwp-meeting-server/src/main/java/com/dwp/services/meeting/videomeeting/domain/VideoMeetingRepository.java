@@ -44,6 +44,9 @@ public class VideoMeetingRepository {
     private final NamedParameterJdbcTemplate namedJdbc;
     private final VideoMeetingJdbcCodec codec;
     private final VideoMeetingQueryRepository queries;
+    private final VideoMeetingPreparationRepository preparation;
+    private final MeetingTemplateRepository templates;
+    private final VideoMeetingTenantDirectoryRepository tenantDirectory;
     private final RowMapper<Meeting> meetingMapper;
     private final RowMapper<Participant> participantMapper;
 
@@ -52,108 +55,78 @@ public class VideoMeetingRepository {
         this.namedJdbc = new NamedParameterJdbcTemplate(jdbc);
         this.codec = new VideoMeetingJdbcCodec(objectMapper);
         this.queries = new VideoMeetingQueryRepository(jdbc, namedJdbc, codec);
+        this.preparation = new VideoMeetingPreparationRepository(jdbc);
+        this.templates = new MeetingTemplateRepository(jdbc, objectMapper);
+        this.tenantDirectory = new VideoMeetingTenantDirectoryRepository(jdbc, namedJdbc, codec);
         this.meetingMapper = codec::meeting;
         this.participantMapper = codec::participant;
     }
 
-    public TenantPolicy ensurePolicy(long tenantId, long actorUserId) {
+    void validateTemplateSource(long tenantId, long actorId, UUID templateId, Long templateVersion) {
+        if (templateId == null) return;
+        if (!templates.revisionAccessible(tenantId, actorId, templateId, templateVersion))
+            throw new BaseException(ErrorCode.ENTITY_NOT_FOUND, "The meeting template revision was not found.");
+    }
+
+    void lockCreationKey(long tenantId, long actorId, String key) {
+        jdbc.queryForObject("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", Object.class,
+                "meeting-create|" + tenantId + "|" + actorId + "|" + key);
+    }
+
+    void initializePreparation(Meeting meeting,
+            List<com.dwp.services.meeting.videomeeting.api.VideoMeetingPreparationDtos.AgendaItemInput> items,
+            long actorId, UUID templateId, Long templateVersion) {
+        preparation.createAgenda(meeting, items, actorId);
+        if (templateId != null) {
+            jdbc.update("""
+                    INSERT INTO vm_meeting_template_sources (tenant_id, meeting_id, template_id, template_version)
+                    VALUES (?, ?, ?, ?)
+                    """, meeting.tenantId(), meeting.meetingId(), templateId, templateVersion);
+        }
+    }
+
+    void recordInvitationEvent(Meeting meeting, String eventType, long aggregateVersion) {
         jdbc.update("""
-                INSERT INTO vm_tenant_policies (tenant_id, created_by, updated_by)
-                VALUES (?, ?, ?)
-                ON CONFLICT (tenant_id) DO NOTHING
-                """, tenantId, actorUserId, actorUserId);
-        return policy(tenantId).orElseThrow(() -> new BaseException(
-                ErrorCode.ENTITY_NOT_FOUND, "The meeting tenant policy was not found."));
+                INSERT INTO vm_meeting_invitation_outbox (
+                    event_id, tenant_id, meeting_id, event_type,
+                    aggregate_version, invitation_revision)
+                SELECT ?, meeting.tenant_id, meeting.meeting_id, ?, ?, preparation.invitation_revision
+                  FROM vm_meetings meeting
+                  JOIN vm_meeting_preparations preparation
+                    ON preparation.tenant_id = meeting.tenant_id
+                   AND preparation.meeting_id = meeting.meeting_id
+                 WHERE meeting.tenant_id = ? AND meeting.meeting_id = ?
+                ON CONFLICT (tenant_id, meeting_id, event_type, aggregate_version) DO NOTHING
+                """, UUID.randomUUID(), eventType, aggregateVersion,
+                meeting.tenantId(), meeting.meetingId());
+    }
+
+    public TenantPolicy ensurePolicy(long tenantId, long actorUserId) {
+        return tenantDirectory.ensurePolicy(tenantId, actorUserId);
     }
 
     public Optional<TenantPolicy> policy(long tenantId) {
-        return jdbc.query("""
-                SELECT tenant_id, meetings_enabled, waiting_room_required, guests_allowed,
-                       participant_chat_allowed, reactions_allowed, screen_share_allowed,
-                       unmute_control, recording_policy, allow_join_before_host,
-                       require_authenticated_internal_users, maximum_participants, retention_days,
-                       artifact_retention_days, chat_retention_days, version
-                  FROM vm_tenant_policies
-                 WHERE tenant_id = ?
-                """, codec::policy, tenantId).stream().findFirst();
+        return tenantDirectory.policy(tenantId);
     }
 
     public TenantPolicy updatePolicy(
             long tenantId,
             VideoMeetingDtos.TenantPolicyUpdateRequest request,
             long actorUserId) {
-        return jdbc.query("""
-                UPDATE vm_tenant_policies
-                   SET meetings_enabled = ?, waiting_room_required = ?, guests_allowed = ?,
-                       participant_chat_allowed = ?, reactions_allowed = ?,
-                       screen_share_allowed = ?,
-                       allow_join_before_host = ?, require_authenticated_internal_users = ?,
-                       maximum_participants = ?, recording_policy = ?,
-                       retention_days = ?, artifact_retention_days = ?,
-                       chat_retention_days = COALESCE(?, chat_retention_days),
-                       version = version + 1,
-                       updated_at = CURRENT_TIMESTAMP, updated_by = ?
-                 WHERE tenant_id = ? AND version = ?
-                RETURNING tenant_id, meetings_enabled, waiting_room_required, guests_allowed,
-                          participant_chat_allowed, reactions_allowed, screen_share_allowed,
-                          unmute_control, recording_policy, allow_join_before_host,
-                          require_authenticated_internal_users, maximum_participants,
-                          retention_days,
-                          artifact_retention_days, chat_retention_days, version
-                """, codec::policy,
-                request.meetingsEnabled(), request.waitingRoomRequired(), request.guestsAllowed(),
-                request.participantChatAllowed(), request.reactionsAllowed(),
-                request.screenShareAllowed(),
-                request.allowJoinBeforeHost(), request.requireAuthenticatedInternalUsers(),
-                request.maximumParticipants(), request.recordingPolicy(),
-                request.retentionDays(), request.artifactRetentionDays(),
-                request.chatRetentionDays(),
-                actorUserId, tenantId, request.expectedVersion())
-                .stream().findFirst().orElseThrow(this::versionConflict);
+        return tenantDirectory.updatePolicy(tenantId, request, actorUserId);
     }
 
     public Optional<PersonSnapshot> person(long tenantId, long userId) {
-        return jdbc.query("""
-                SELECT tenant_id, user_id, person_public_id, email_address, display_name,
-                       job_title, organization_name
-                  FROM vm_people_snapshot
-                 WHERE tenant_id = ? AND user_id = ? AND lifecycle_state = 'ACTIVE'
-                """, codec::person, tenantId, userId).stream().findFirst();
+        return tenantDirectory.person(tenantId, userId);
     }
 
     public List<PersonSnapshot> people(long tenantId, List<Long> userIds) {
-        if (userIds == null || userIds.isEmpty()) return List.of();
-        return namedJdbc.query("""
-                SELECT tenant_id, user_id, person_public_id, email_address, display_name,
-                       job_title, organization_name
-                  FROM vm_people_snapshot
-                 WHERE tenant_id = :tenantId
-                   AND user_id IN (:userIds)
-                   AND lifecycle_state = 'ACTIVE'
-                 ORDER BY user_id
-                """, new MapSqlParameterSource()
-                .addValue("tenantId", tenantId)
-                .addValue("userIds", userIds), codec::person);
+        return tenantDirectory.people(tenantId, userIds);
     }
 
     public List<PersonSnapshot> searchPeople(
             long tenantId, long requestingUserId, String query, int limit) {
-        String pattern = "%" + query.toLowerCase(java.util.Locale.ROOT) + "%";
-        return jdbc.query("""
-                SELECT tenant_id, user_id, person_public_id, email_address, display_name,
-                       job_title, organization_name
-                  FROM vm_people_snapshot
-                 WHERE tenant_id = ?
-                   AND lifecycle_state = 'ACTIVE'
-                   AND user_id <> ?
-                   AND (? = '' OR LOWER(display_name) LIKE ?
-                        OR LOWER(email_address) LIKE ?
-                        OR LOWER(COALESCE(job_title, '')) LIKE ?
-                        OR LOWER(COALESCE(organization_name, '')) LIKE ?)
-                 ORDER BY display_name, user_id
-                 LIMIT ?
-                """, codec::person,
-                tenantId, requestingUserId, query, pattern, pattern, pattern, pattern, limit);
+        return tenantDirectory.searchPeople(tenantId, requestingUserId, query, limit);
     }
 
     public int activeParticipantCount(long tenantId, UUID meetingId) {
@@ -394,6 +367,57 @@ public class VideoMeetingRepository {
                 """, meetingMapper, provider, roomName, mediaIncarnation, actorUserId,
                 meeting.tenantId(), meeting.meetingId(), expectedVersion)
                 .stream().findFirst().orElseThrow(this::versionConflict);
+    }
+
+    public Meeting reschedule(
+            Meeting meeting,
+            OffsetDateTime startsAt,
+            OffsetDateTime endsAt,
+            String timeZone,
+            long actorUserId,
+            long expectedVersion) {
+        return jdbc.query("""
+                UPDATE vm_meetings
+                   SET scheduled_start_at = ?, scheduled_end_at = ?, time_zone = ?,
+                       version = version + 1, updated_at = CURRENT_TIMESTAMP, updated_by = ?
+                 WHERE tenant_id = ? AND meeting_id = ? AND version = ?
+                   AND lifecycle_state IN ('DRAFT', 'SCHEDULED', 'LOBBY')
+                RETURNING *
+                """, meetingMapper, startsAt, endsAt, timeZone, actorUserId,
+                meeting.tenantId(), meeting.meetingId(), expectedVersion)
+                .stream().findFirst().orElseThrow(this::versionConflict);
+    }
+
+    public Meeting cancel(
+            Meeting meeting,
+            long actorUserId,
+            long expectedVersion) {
+        return jdbc.query("""
+                UPDATE vm_meetings
+                   SET lifecycle_state = 'CANCELLED', ended_at = CURRENT_TIMESTAMP,
+                       ended_by = ?, version = version + 1,
+                       updated_at = CURRENT_TIMESTAMP, updated_by = ?
+                 WHERE tenant_id = ? AND meeting_id = ? AND version = ?
+                   AND lifecycle_state IN ('DRAFT', 'SCHEDULED', 'LOBBY')
+                RETURNING *
+                """, meetingMapper, actorUserId, actorUserId,
+                meeting.tenantId(), meeting.meetingId(), expectedVersion)
+                .stream().findFirst().orElseThrow(this::versionConflict);
+    }
+
+    public List<Meeting> lockSeriesMeetings(
+            long tenantId, UUID seriesId, int fromOccurrenceIndex) {
+        return jdbc.query("""
+                SELECT meeting.*
+                  FROM vm_meeting_occurrences occurrence
+                  JOIN vm_meetings meeting
+                    ON meeting.tenant_id = occurrence.tenant_id
+                   AND meeting.meeting_id = occurrence.meeting_id
+                 WHERE occurrence.tenant_id = ? AND occurrence.series_id = ?
+                   AND occurrence.occurrence_index >= ?
+                 ORDER BY occurrence.occurrence_index
+                 FOR UPDATE OF meeting
+                """, meetingMapper, tenantId, seriesId, fromOccurrenceIndex);
     }
 
     public Optional<MediaSession> mediaSession(long tenantId, UUID meetingId) {

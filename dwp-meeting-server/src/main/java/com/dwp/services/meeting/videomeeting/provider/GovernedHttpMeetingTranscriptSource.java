@@ -141,7 +141,8 @@ final class GovernedHttpMeetingTranscriptSource implements MeetingTranscriptSour
                     request, RetentionCapabilityResponse.class);
             if (!RETENTION_SCHEMA.equals(response.schemaVersion())
                     || !safeCode(response.providerCode(), 48)
-                    || !safeCode(response.storageProviderCode(), 32)) {
+                    || !safeCode(response.storageProviderCode(), 32)
+                    || !safeRegion(response.processingRegion())) {
                 return RetentionCapability.unavailable();
             }
             boolean ready = response.available()
@@ -157,7 +158,8 @@ final class GovernedHttpMeetingTranscriptSource implements MeetingTranscriptSour
                     response.customerManagedStorage(), response.providerRetentionDisabled(),
                     response.orphanCleanupAvailable(), response.maximumOrphanTtlSeconds(),
                     response.legacyLocatorDeletionAvailable(),
-                    response.providerCode(), response.storageProviderCode());
+                    response.providerCode(), response.storageProviderCode(),
+                    response.processingRegion());
         } catch (RuntimeException exception) {
             return RetentionCapability.unavailable();
         }
@@ -324,6 +326,11 @@ final class GovernedHttpMeetingTranscriptSource implements MeetingTranscriptSour
                 && value.matches("^[A-Za-z0-9][A-Za-z0-9._:-]*$");
     }
 
+    private boolean safeRegion(String value) {
+        return value != null
+                && value.matches("^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$");
+    }
+
     private IllegalStateException unavailable() {
         return new IllegalStateException("Meeting transcript broker is unavailable.");
     }
@@ -354,7 +361,8 @@ final class GovernedHttpMeetingTranscriptSource implements MeetingTranscriptSour
             int maximumOrphanTtlSeconds,
             boolean legacyLocatorDeletionAvailable,
             String providerCode,
-            String storageProviderCode) {
+            String storageProviderCode,
+            String processingRegion) {
     }
 
     private record DeleteRequestBody(

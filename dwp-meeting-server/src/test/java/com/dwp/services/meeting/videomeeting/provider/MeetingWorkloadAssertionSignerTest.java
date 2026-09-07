@@ -86,6 +86,33 @@ class MeetingWorkloadAssertionSignerTest {
     }
 
     @Test
+    void transcriptSignerMatchesTheAgentResourceGoldenExactly() {
+        MeetingTranscriptHttpProperties properties = new MeetingTranscriptHttpProperties();
+        properties.setAssertionKeyId("transcript-workload-v1");
+        properties.setAssertionSecretBase64(
+                Base64.getEncoder().encodeToString("T".repeat(32).getBytes(StandardCharsets.US_ASCII)));
+        properties.setAssertionTtl(Duration.ofSeconds(30));
+        MeetingWorkloadAssertionSigner signer = new MeetingWorkloadAssertionSigner(
+                properties,
+                Clock.fixed(Instant.ofEpochSecond(1_788_500_000L), ZoneOffset.UTC),
+                () -> UUID.fromString("d470bceb-ccdd-4ef5-b915-4892fe5c9542"));
+        byte[] body = ("{\"schemaVersion\":\"meeting-transcript-read-v1\","+
+                "\"tenantId\":77,"+
+                "\"meetingId\":\"29f14739-0f92-469e-8528-d3731e809f55\","+
+                "\"runId\":\"776d0d8e-96e2-4c29-8df5-9f5e3beaf72f\","+
+                "\"artifactId\":\"130d865c-69bc-48d8-b22e-ae5761cd2728\","+
+                "\"sourceSha256\":\"" + "a".repeat(64) + "\"}")
+                .getBytes(StandardCharsets.UTF_8);
+
+        String assertion = signer.sign(
+                new ExecutionContext(77, MEETING_ID, RUN_ID, "corr-golden"),
+                "POST", "/internal/v1/meeting-transcripts/read", body);
+
+        assertThat(assertion).isEqualTo(
+                "dwp1.eyJ2IjoxLCJraWQiOiJ0cmFuc2NyaXB0LXdvcmtsb2FkLXYxIiwibWV0aG9kIjoiUE9TVCIsInBhdGgiOiIvaW50ZXJuYWwvdjEvbWVldGluZy10cmFuc2NyaXB0cy9yZWFkIiwidGVuYW50SWQiOjc3LCJtZWV0aW5nSWQiOiIyOWYxNDczOS0wZjkyLTQ2OWUtODUyOC1kMzczMWU4MDlmNTUiLCJydW5JZCI6Ijc3NmQwZDhlLTk2ZTItNGMyOS04ZGY1LTlmNWUzYmVhZjcyZiIsImlhdCI6MTc4ODUwMDAwMCwiZXhwIjoxNzg4NTAwMDMwLCJqdGkiOiJkNDcwYmNlYi1jY2RkLTRlZjUtYjkxNS00ODkyZmU1Yzk1NDIiLCJib2R5U2hhMjU2IjoiY2ZlNGQwYjI3NzQyZDFjMzU0OTgzODJmZmM2NjNmZGI3MjZjMjVjZjE3ZTkxY2Q3MTI2ZmY1ZWQwY2YwZjU4ZiJ9.GcAOSl4-s7yT94ZfhgE_faay8NQ5OkSEdb28Xn4yMu4");
+    }
+
+    @Test
     void changingBodyChangesTheBoundAssertion() {
         MeetingWorkloadAssertionSigner signer = signer(Duration.ofSeconds(30));
         ExecutionContext context = new ExecutionContext(77, MEETING_ID, RUN_ID, "corr");

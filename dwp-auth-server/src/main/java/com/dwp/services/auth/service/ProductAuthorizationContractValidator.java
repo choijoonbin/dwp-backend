@@ -109,14 +109,14 @@ public class ProductAuthorizationContractValidator {
         require(index.schemaVersion() == 1, "Unsupported registry seed index schemaVersion.");
         require("product-surfaces".equals(index.bundleKey()), "Unexpected registry seed index bundleKey.");
         require("SHA-256".equals(index.indexChecksumAlgorithm()), "Only SHA-256 index checksums are supported.");
-        require(index.latestVersion() == 4, "Registry latest version must be 4.");
+        require(index.latestVersion() == 5, "Registry latest version must be 5.");
         require(CHECKSUM_PATTERN.matcher(index.latestChecksum()).matches(), "Invalid latest registry checksum.");
         require(ARTIFACT_PATTERN.matcher(index.latestArtifact()).matches(), "Invalid latest registry artifact.");
         require(ARTIFACT_PATTERN.matcher(index.latestAuthSeedArtifact()).matches(),
                 "Invalid latest auth seed artifact.");
         require(index.versions() != null && !index.versions().isEmpty(), "Registry index versions are required.");
-        require(index.versions().size() == 4,
-                "Registry index must contain only versions 1 through 4.");
+        require(index.versions().size() == 5,
+                "Registry index must contain only versions 1 through 5.");
 
         long expectedVersion = 1;
         Set<String> checksums = new HashSet<>();
@@ -148,8 +148,8 @@ public class ProductAuthorizationContractValidator {
         require(contract != null, "Registry contract is required.");
         require(contract.schemaVersion() == 1, "Unsupported registry schemaVersion.");
         require("product-surfaces".equals(contract.bundleKey()), "Unexpected registry bundleKey.");
-        require(Set.of(1L, 2L, 3L, 4L).contains(contract.version()),
-                "Registry version must be one of the immutable lineage versions 1 through 4.");
+        require(Set.of(1L, 2L, 3L, 4L, 5L).contains(contract.version()),
+                "Registry version must be one of the immutable lineage versions 1 through 5.");
         require(Set.of("DRAFT", "APPROVED", "ACTIVE", "RETIRED").contains(contract.bundleStatus()),
                 "Invalid bundle status.");
         require("SHA-256".equals(contract.checksumAlgorithm()), "Only SHA-256 is supported.");

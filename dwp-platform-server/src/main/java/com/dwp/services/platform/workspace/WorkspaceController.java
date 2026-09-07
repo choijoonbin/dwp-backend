@@ -64,15 +64,6 @@ public class WorkspaceController {
                 tenantId, actorId, permissions, locale, correlationId, request));
     }
 
-    @GetMapping("/activity")
-    public ApiResponse<WorkspaceDtos.ActivityFeed> activity(
-            @RequestHeader(TENANT) Long tenantId,
-            @RequestHeader(USER) Long actorId,
-            @RequestHeader(PERMISSIONS) String permissions,
-            @RequestHeader(value = LOCALE, required = false) String locale) {
-        return ApiResponse.success(service.activity(tenantId, actorId, permissions, locale));
-    }
-
     @GetMapping("/apps")
     public ApiResponse<List<WorkspaceDtos.WorkspaceApp>> apps(
             @RequestHeader(TENANT) Long tenantId,

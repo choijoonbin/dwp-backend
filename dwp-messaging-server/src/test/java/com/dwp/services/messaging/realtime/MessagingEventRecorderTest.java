@@ -3,6 +3,8 @@ package com.dwp.services.messaging.realtime;
 import com.dwp.services.messaging.security.MessagingRequestContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.OffsetDateTime;
@@ -66,5 +68,19 @@ class MessagingEventRecorderTest {
         return new MessagingRequestContext.Subject(
                 100, 1, UUID.randomUUID(), "Test User",
                 Set.of("WORKSPACE_MEMBER"), Set.of("APP.MESSAGING:CREATE"), Set.of());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"messaging.read-cursor.updated", "messaging.privacy-preferences.updated"})
+    void selfEventsCannotAccidentallyBeRecordedAsConversationOrTenantEvents(String eventType) {
+        MessagingRealtimeRepository repository = mock(MessagingRealtimeRepository.class);
+        MessagingEventRecorder recorder = new MessagingEventRecorder(repository, mock(MessagingRealtimePublisher.class));
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        TransactionSynchronizationManager.initSynchronization();
+        UUID conversation = UUID.randomUUID();
+        recorder.conversationEvent(subject(), eventType, conversation, null, Map.of());
+        recorder.tenantEvent(subject(), eventType, Map.of());
+        verify(repository).append(1, 100L, conversation, null, 100, eventType, Map.of());
+        verify(repository).append(1, 100L, null, null, 100, eventType, Map.of());
     }
 }

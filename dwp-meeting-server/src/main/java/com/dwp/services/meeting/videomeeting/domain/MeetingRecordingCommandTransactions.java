@@ -381,10 +381,14 @@ class MeetingRecordingCommandTransactions {
             MeetingContentDependencies.Status status,
             MeetingMediaProvider.Capability media,
             MeetingRecordingProvider.Capability recording) {
-        if (!plan.processingRequested()) return List.of();
+        boolean requiredRecordingMissing =
+                "ADMIN_REQUIRED".equals(policy.recordingPolicy())
+                        && !plan.recordingRequested();
+        if (!plan.processingRequested() && !requiredRecordingMissing) return List.of();
         LinkedHashSet<BlockerCode> blockers = new LinkedHashSet<>();
         if (!policy.meetingsEnabled()) blockers.add(BlockerCode.MEETINGS_DISABLED);
         if ("NEVER".equals(policy.recordingPolicy())) blockers.add(BlockerCode.POLICY_NEVER);
+        if (requiredRecordingMissing) blockers.add(BlockerCode.PLAN_RECORDING_DISABLED);
         if (plan.e2eeEnabled()) blockers.add(BlockerCode.E2EE);
         if (!media.available()) blockers.add(BlockerCode.MEDIA_PROVIDER);
         if (!status.auditAvailable()) blockers.add(BlockerCode.AUDIT);

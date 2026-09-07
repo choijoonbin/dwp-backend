@@ -325,7 +325,7 @@ class MeetingTranscriptDeletionPostgresTest {
         MeetingTranscriptSource.RetentionCapability capability =
                 new MeetingTranscriptSource.RetentionCapability(
                         true, true, true, true, true, true, 300, true,
-                        "TRANSCRIPT_BROKER", "BROKER");
+                        "TRANSCRIPT_BROKER", "BROKER", "ap-northeast-2");
         when(source.retentionCapability()).thenReturn(capability);
         return new CapturingSource(source, capability);
     }

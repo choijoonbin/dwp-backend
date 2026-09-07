@@ -1069,7 +1069,8 @@ assert_registry_codes 'personal density contract' \
 assert_registry_codes 'system code runtime visibility contract' \
   'PLATFORM.SYS_CODE_SETS.RUNTIME_VISIBILITY' 'ADMIN_ONLY,RUNTIME'
 assert_registry_codes 'home widget contract' \
-  'PLATFORM.HOME_WIDGET' 'activity,command-rail,daily-brief,focus,schedule'
+  'PLATFORM.HOME_WIDGET' \
+  'activity,command-rail,daily-brief,focus,focus-balance,meeting-load,schedule'
 assert_registry_codes 'personal home surface contract' \
   'PLATFORM.HOME_SURFACE' 'approval-home,hcm-home,workspace-home'
 assert_registry_codes 'personal home presentation contract' \

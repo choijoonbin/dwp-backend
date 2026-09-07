@@ -20,4 +20,9 @@ public record MessagingRealtimeEvent(
     public String cursor() {
         return Long.toString(sequence);
     }
+
+    public static boolean isSelfOnly(String eventType) {
+        return "messaging.read-cursor.updated".equals(eventType)
+                || "messaging.privacy-preferences.updated".equals(eventType);
+    }
 }

@@ -127,7 +127,7 @@ class LiveKitMeetingMediaAdapterTest {
         adapter.ensureRoom(room, 100);
 
         verify(rooms, never()).createRoom(
-                anyString(), any(), anyInt(), anyString());
+                anyString(), any(), anyInt(), any(), anyString());
     }
 
     @Test
@@ -153,7 +153,7 @@ class LiveKitMeetingMediaAdapterTest {
                 .hasMessageContaining("room binding");
 
         verify(rooms, never()).createRoom(
-                anyString(), any(), anyInt(), anyString());
+                anyString(), any(), anyInt(), any(), anyString());
     }
 
     @Test
@@ -176,13 +176,13 @@ class LiveKitMeetingMediaAdapterTest {
         when(api.getRoom()).thenReturn(rooms);
         when(rooms.listRooms(java.util.List.of(room.roomName()))).thenReturn(listCall);
         when(listCall.execute()).thenReturn(Response.success(java.util.List.of()));
-        when(rooms.createRoom(room.roomName(), null, 100, room.roomMetadata()))
+        when(rooms.createRoom(room.roomName(), null, 100, null, room.roomMetadata()))
                 .thenReturn(createCall);
         when(createCall.execute()).thenReturn(Response.success(created));
 
         adapter.ensureRoom(room, 100);
 
-        verify(rooms).createRoom(room.roomName(), null, 100, room.roomMetadata());
+        verify(rooms).createRoom(room.roomName(), null, 100, null, room.roomMetadata());
         assertThat(room.roomMetadata()).isEqualTo(
                 "{\"schemaVersion\":1,\"tenantId\":77,\"meetingId\":\""
                         + MEETING_ID + "\",\"roomIncarnation\":\""

@@ -3,6 +3,7 @@ package com.dwp.services.meeting.security;
 import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.services.meeting.videomeeting.api.MeetingMediaWebhookController;
+import com.dwp.services.meeting.videomeeting.domain.MeetingFollowupAssertionVerifier;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -64,11 +65,12 @@ public class MeetingSecurityFilter extends OncePerRequestFilter {
             EXPECTED_DECISION_REVISION, CURRENT_CONTEXT, CURRENT_SCOPE,
             ACTIVE_ACCESS_MODE, ROLLOUT_STATE, ROLLOUT_REVISION, ROLLOUT_COHORT,
             SUPPORT_SESSION, ACTOR_TENANT);
-    private static final Pattern RECORDING_ACCESS_TICKET = Pattern.compile(
-            "^/v1/meetings/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-"
-                    + "[0-9a-f]{4}-[0-9a-f]{12}/artifacts/[0-9a-f]{8}-"
-                    + "[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/"
-                    + "access-ticket$");
+    private static final String UUID_PATH = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-"
+            + "[0-9a-f]{4}-[0-9a-f]{12}";
+    private static final Pattern VIEW_ONLY_POST = Pattern.compile(
+            "^/v1/meetings/" + UUID_PATH + "/(?:"
+                    + "artifacts/" + UUID_PATH + "/(?:access-ticket|transcript/query)"
+                    + "|materials/" + UUID_PATH + "/access-ticket)$");
 
     private final String serviceToken;
     private final ObjectMapper objectMapper;
@@ -98,6 +100,8 @@ public class MeetingSecurityFilter extends OncePerRequestFilter {
         return path.startsWith("/actuator/health")
                 || path.startsWith("/v3/api-docs")
                 || path.equals(MeetingMediaWebhookController.PATH)
+                || ("POST".equals(request.getMethod())
+                && path.equals(MeetingFollowupAssertionVerifier.PATH))
                 || path.equals("/error");
     }
 
@@ -132,6 +136,13 @@ public class MeetingSecurityFilter extends OncePerRequestFilter {
         Long tenantId = positiveLong(exactHeader(request, TENANT, 32, false));
         Set<String> permissions = parse(exactHeader(request, PERMISSIONS, 8192, true));
         Set<String> roles = parse(exactHeader(request, ROLES, 4096, true));
+        if (workspacePath(request.getRequestURI()) && (roles.contains("PROVIDER_SUPPORT")
+                || headerPresent(request, SUPPORT_SESSION) || headerPresent(request, ACTOR_TENANT)
+                || "SUPPORT".equals(exactHeader(request, ACTIVE_ACCESS_MODE, 40, false)))) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "Personal Meeting workspace operations do not accept support identities.");
+            return;
+        }
         if (userId == null || tenantId == null) {
             writeError(response, ErrorCode.UNAUTHORIZED,
                     "Verified user and tenant identity are required.");
@@ -164,6 +175,12 @@ public class MeetingSecurityFilter extends OncePerRequestFilter {
                 permissions,
                 parse(exactHeader(request, GROUPS, 8192, true))));
         try {
+            String path = request.getRequestURI();
+            if (workspacePath(path)) {
+                response.setHeader("Cache-Control", "private, no-store");
+                response.setHeader("Pragma", "no-cache");
+                response.setHeader("Referrer-Policy", "no-referrer");
+            }
             if (exact.binding() != null) {
                 request.setAttribute(
                         MeetingProductAccessPolicy.class.getName() + ".binding",
@@ -274,14 +291,56 @@ public class MeetingSecurityFilter extends OncePerRequestFilter {
         if (path.startsWith("/v1/admin/")) {
             return has(permissions, "ADMIN.MEETINGS", readOnly(method) ? "VIEW" : "MANAGE");
         }
+        Boolean workspace = workspaceAuthorization(method, path, permissions);
+        if (workspace != null) return workspace;
         if (readOnly(method)) return has(permissions, "APP.MEETINGS", "VIEW");
-        if ("POST".equals(method) && RECORDING_ACCESS_TICKET.matcher(path).matches()) {
+        if ("POST".equals(method) && VIEW_ONLY_POST.matcher(path).matches()) {
             return has(permissions, "APP.MEETINGS", "VIEW");
         }
-        if (path.equals("/v1/meetings") || path.equals("/v1/meetings/instant")) {
+        if (path.equals("/v1/meetings") || path.equals("/v1/meetings/instant")
+                || path.equals("/v1/meeting-series")
+                || path.equals("/v1/meeting-series/preview")) {
             return has(permissions, "APP.MEETINGS", "CREATE", "MANAGE");
         }
         return has(permissions, "APP.MEETINGS", "UPDATE", "MANAGE");
+    }
+
+    private Boolean workspaceAuthorization(String method, String path, Set<String> permissions) {
+        String uuid = "[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}";
+        if ((("GET".equals(method) || "PUT".equals(method))
+                && path.equals("/v1/schedule-draft"))
+                || ("POST".equals(method) && path.matches(
+                        "/v1/schedule-draft/(recurrence-preview|commit|discard)"))) {
+            return has(permissions, "APP.MEETINGS", "CREATE", "MANAGE");
+        }
+        if ("PUT".equals(method) && (path.equals("/v1/preferences")
+                || path.matches("/v1/templates/" + uuid + "/favorite")
+                || path.matches("/v1/meetings/" + uuid + "/invitation-response")
+                || path.matches("/v1/meetings/" + uuid + "/my-preparation"))) {
+            return has(permissions, "APP.MEETINGS", "VIEW");
+        }
+        if ("POST".equals(method) && (path.equals("/v1/templates")
+                || path.matches("/v1/templates/" + uuid + "/(clone|apply)")
+                || path.equals("/v1/personal-room") || path.equals("/v1/personal-room/sessions")
+                || path.equals("/v1/meeting-series")
+                || path.equals("/v1/meeting-series/preview"))) {
+            return has(permissions, "APP.MEETINGS", "CREATE", "MANAGE");
+        }
+        if ("DELETE".equals(method) && path.matches("/v1/templates/" + uuid)) {
+            return has(permissions, "APP.MEETINGS", "DELETE", "MANAGE");
+        }
+        return null;
+    }
+
+    private boolean workspacePath(String path) {
+        return path.equals("/v1/preferences") || path.equals("/v1/personal-room")
+                || path.equals("/v1/schedule-draft")
+                || path.startsWith("/v1/schedule-draft/")
+                || path.equals("/v1/meeting-series") || path.equals("/v1/meeting-series/preview")
+                || path.startsWith("/v1/personal-room/") || path.startsWith("/v1/personal-rooms/")
+                || path.matches("/v1/meetings/[0-9A-Fa-f-]{36}/my-preparation")
+                || path.equals("/v1/templates") || path.startsWith("/v1/templates/")
+                || path.equals("/v1/admin/templates") || path.startsWith("/v1/admin/templates/");
     }
 
     private boolean invalidExactHeader(HttpServletRequest request) {

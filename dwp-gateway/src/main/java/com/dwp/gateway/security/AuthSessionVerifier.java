@@ -219,6 +219,9 @@ public class AuthSessionVerifier implements SessionVerifier {
         if (path.startsWith("/api/platform/v1/admin/workplace")) {
             return "ADMIN.WORKPLACE";
         }
+        if (path.equals("/api/platform/v1/calendar/team-availability/snapshot")) {
+            return "APP.CALENDAR,APP.PEOPLE_DIRECTORY";
+        }
         if (path.startsWith("/api/platform/v1/calendar")) {
             return "APP.CALENDAR";
         }

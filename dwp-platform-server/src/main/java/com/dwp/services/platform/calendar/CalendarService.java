@@ -129,7 +129,7 @@ public class CalendarService {
         LocalDate today = now.toLocalDate();
         LocalDate weekStartDate = startOfWeek(today, policy.weekStart());
         OffsetDateTime weekStart = weekStartDate.atStartOfDay(zone).toOffsetDateTime();
-        OffsetDateTime weekEnd = weekStart.plusDays(7);
+        OffsetDateTime weekEnd = weekStartDate.plusDays(7).atStartOfDay(zone).toOffsetDateTime();
         OffsetDateTime horizonEnd = now.plusDays(30).toOffsetDateTime();
         if (horizonEnd.isBefore(weekEnd)) horizonEnd = weekEnd;
         List<CalendarDtos.EventSummary> horizonEvents = roomAccessGuard.filterViewableEvents(
@@ -142,7 +142,7 @@ public class CalendarService {
                         && event.endsAt().isAfter(weekStart))
                 .toList();
         OffsetDateTime dayStart = today.atStartOfDay(zone).toOffsetDateTime();
-        OffsetDateTime dayEnd = dayStart.plusDays(1);
+        OffsetDateTime dayEnd = today.plusDays(1).atStartOfDay(zone).toOffsetDateTime();
         List<CalendarDtos.EventSummary> todayEvents = weekEvents.stream()
                 .filter(event -> event.startsAt().isBefore(dayEnd) && event.endsAt().isAfter(dayStart))
                 .sorted(Comparator.comparing(CalendarDtos.EventSummary::startsAt))
@@ -151,8 +151,8 @@ public class CalendarService {
                 .filter(event -> event.endsAt().isAfter(now.toOffsetDateTime()))
                 .min(Comparator.comparing(CalendarDtos.EventSummary::startsAt))
                 .orElse(null);
-        int meetingMinutes = minutes(weekEvents, EventType.MEETING);
-        int focusMinutes = minutes(weekEvents, EventType.FOCUS);
+        int meetingMinutes = minutes(weekEvents, EventType.MEETING, weekStart, weekEnd);
+        int focusMinutes = minutes(weekEvents, EventType.FOCUS, weekStart, weekEnd);
         int conflicts = (int) weekEvents.stream().filter(CalendarDtos.EventSummary::conflict).count();
         int responses = (int) weekEvents.stream()
                 .filter(event -> event.myResponse() == ResponseStatus.NEEDS_ACTION)
@@ -170,22 +170,22 @@ public class CalendarService {
         for (int day = 0; day < 7; day++) {
             LocalDate date = weekStartDate.plusDays(day);
             OffsetDateTime start = date.atStartOfDay(zone).toOffsetDateTime();
-            OffsetDateTime end = start.plusDays(1);
+            OffsetDateTime end = date.plusDays(1).atStartOfDay(zone).toOffsetDateTime();
             List<CalendarDtos.EventSummary> values = weekEvents.stream()
                     .filter(event -> event.startsAt().isBefore(end) && event.endsAt().isAfter(start))
                     .toList();
-            int dailyMeetings = minutes(values, EventType.MEETING);
-            int dailyFocus = minutes(values, EventType.FOCUS);
+            int dailyMeetings = minutes(values, EventType.MEETING, start, end);
+            int dailyFocus = minutes(values, EventType.FOCUS, start, end);
             int dailyConflicts = (int) values.stream()
                     .filter(CalendarDtos.EventSummary::conflict).count();
-            int loadPercent = Math.min(160, Math.round(
-                    dailyMeetings * 100f / Math.max(1, policy.dailyMeetingLimitMinutes())));
+            int loadPercent = Math.round(
+                    dailyMeetings * 100f / Math.max(1, policy.dailyMeetingLimitMinutes()));
             load.add(new CalendarDtos.DayLoad(
                     date, dailyMeetings, dailyFocus, values.size(), dailyConflicts, loadPercent));
         }
         return new CalendarDtos.HomeResponse(
                 today, zone.getId(), next, todayEvents, metrics, List.copyOf(load),
-                occurrenceProjector.attention(weekEvents, policy, locale), OffsetDateTime.now());
+                occurrenceProjector.attention(weekEvents, policy, locale, focusMinutes), OffsetDateTime.now());
     }
 
     @Transactional
@@ -765,10 +765,10 @@ public class CalendarService {
         }
     }
 
-    private int minutes(List<CalendarDtos.EventSummary> events, EventType type) {
-        return events.stream().filter(event -> event.type() == type)
-                .mapToInt(event -> (int) Duration.between(event.startsAt(), event.endsAt()).toMinutes())
-                .sum();
+    /** Sum event minutes only inside the requested reporting interval. */
+    private int minutes(
+            List<CalendarDtos.EventSummary> events, EventType type, OffsetDateTime from, OffsetDateTime to) {
+        return CalendarHomeTimeAccounting.minutes(events, type, from, to);
     }
 
     private LocalDate startOfWeek(LocalDate date, int weekStart) {

@@ -108,6 +108,9 @@ public class MeetingTranscriptDeletionService {
                 && capability.providerCode() != null
                 && capability.providerCode().matches("^[A-Z][A-Z0-9_-]{2,47}$")
                 && capability.storageProviderCode() != null
-                && capability.storageProviderCode().matches("^[A-Z][A-Z0-9_-]{1,31}$");
+                && capability.storageProviderCode().matches("^[A-Z][A-Z0-9_-]{1,31}$")
+                && capability.processingRegion() != null
+                && capability.processingRegion().matches(
+                        "^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$");
     }
 }

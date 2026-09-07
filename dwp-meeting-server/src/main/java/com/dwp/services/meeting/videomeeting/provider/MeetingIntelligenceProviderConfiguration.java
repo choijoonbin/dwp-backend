@@ -6,7 +6,6 @@ import com.dwp.core.crypto.KeyContext;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -33,9 +32,10 @@ public class MeetingIntelligenceProviderConfiguration {
     }
 
     @Bean
-    @ConditionalOnExpression(
-            "'${dwp.meeting.intelligence.provider:disabled}' == 'http' || "
-                    + "'${dwp.meeting.transcript-source.provider:disabled}' == 'http'")
+    @ConditionalOnProperty(
+            prefix = "dwp.meeting.intelligence",
+            name = "provider",
+            havingValue = "http")
     MeetingWorkloadAssertionSigner meetingWorkloadAssertionSigner(
             MeetingIntelligenceHttpProperties properties) {
         return new MeetingWorkloadAssertionSigner(properties);

@@ -23,7 +23,12 @@ public final class WorkspaceDtos {
             long dueSoon,
             long inProgress,
             long waiting,
-            long completed) {
+            long completed,
+            long active,
+            long overdue) {
+        public WorkSummary(long total, long dueSoon, long inProgress, long waiting, long completed) {
+            this(total, dueSoon, inProgress, waiting, completed, Math.max(0, total - completed), 0);
+        }
     }
 
     public record WorkQueue(
@@ -51,7 +56,11 @@ public final class WorkspaceDtos {
             String recommendedNext,
             String latestActivity,
             long version,
-            OffsetDateTime updatedAt) {
+            OffsetDateTime updatedAt,
+            WorkCapabilities capabilities) {
+    }
+
+    public record WorkCapabilities(boolean canStart, boolean canComplete, boolean canWait) {
     }
 
     public record UpdateWorkStatusRequest(
@@ -75,7 +84,28 @@ public final class WorkspaceDtos {
 
     public record ActivityFeed(
             List<ActivityEvent> events,
-            OffsetDateTime generatedAt) {
+            OffsetDateTime generatedAt,
+            String nextCursor,
+            boolean hasMore,
+            ActivityCoverage coverage,
+            OffsetDateTime snapshotAt,
+            String startCursor) {
+        public ActivityFeed(List<ActivityEvent> events, OffsetDateTime generatedAt) {
+            this(events, generatedAt, null, false, new ActivityCoverage(
+                    List.of("WORK_ITEM", "WORKSPACE_APP"), true, false,
+                    List.of("SAMPLE", "QUARANTINED"), "WORKSPACE"), generatedAt, null);
+        }
+    }
+
+    public record ActivityCoverage(
+            List<String> supportedObjectTypes, boolean includesLegacy,
+            boolean includesUsage, List<String> excludedProvenance, String sourceScope) {
+    }
+
+    public record ExecutionSummary(
+            long total, long running, long needsInput, long policyBlocked,
+            long completed, long failed, long cancelled, long unknown, OffsetDateTime generatedAt,
+            ActivityCoverage coverage) {
     }
 
     public record ActivityEvent(
@@ -92,7 +122,31 @@ public final class WorkspaceDtos {
             String tool,
             String auditId,
             Integer progress,
-            String sourceRoute) {
+            String sourceRoute,
+            String eventKind,
+            String sourceEventId,
+            String objectId,
+            String executionId,
+            Long executionVersion,
+            Integer attempt,
+            String workStatus,
+            String correlationId,
+            UUID auditRecordId,
+            String dataProvenance,
+            String sourceAccess,
+            String auditAccess,
+            String auditStatus,
+            String resumeCursor) {
+        public ActivityEvent(
+                UUID id, OffsetDateTime occurredAt, String actor, String actorName,
+                String state, String title, String summary, String objectType,
+                String objectLabel, String source, String tool, String auditId,
+                Integer progress, String sourceRoute) {
+            this(id, occurredAt, actor, actorName, state, title, summary, objectType,
+                    objectLabel, source, tool, auditId, progress, sourceRoute,
+                    "CHANGE", id.toString(), null, null, null, null, null, null,
+                    null, "LEGACY", "AVAILABLE", "RESTRICTED", "LEGACY_UNLINKED", null);
+        }
     }
 
     public record WorkspaceApp(

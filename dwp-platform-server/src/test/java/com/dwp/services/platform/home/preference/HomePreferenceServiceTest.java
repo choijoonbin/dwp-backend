@@ -62,13 +62,17 @@ class HomePreferenceServiceTest {
         assertThat(result.layout().presentation()).isEqualTo("balanced");
         assertThat(result.layout().widgets())
                 .extracting(HomePreferenceDtos.WidgetPreference::widgetKey)
-                .containsExactly("command-rail", "activity", "focus", "schedule", "daily-brief");
+                .containsExactly(
+                        "command-rail", "activity", "focus", "schedule", "daily-brief",
+                        "focus-balance", "meeting-load");
         assertThat(result.layout().widgets())
                 .extracting(HomePreferenceDtos.WidgetPreference::size)
-                .containsExactly("large", "quarter", "medium", "quarter", "full");
+                .containsExactly(
+                        "large", "quarter", "medium", "quarter", "full", "medium", "medium");
         assertThat(result.layout().widgets())
                 .extracting(HomePreferenceDtos.WidgetPreference::height)
-                .containsExactly("short", "tall", "tall", "standard", "standard");
+                .containsExactly(
+                        "short", "tall", "tall", "standard", "standard", "short", "short");
     }
 
     @Test
@@ -127,7 +131,7 @@ class HomePreferenceServiceTest {
         assertThat(result.layout().presentation()).isEqualTo("expressive");
         JsonNode actualAppLayout = objectMapper.valueToTree(result.layout().appLayout());
         assertThat(actualAppLayout).isEqualTo(appLayout);
-        assertThat(result.layout().widgets()).hasSize(5);
+        assertThat(result.layout().widgets()).hasSize(7);
         assertThat(result.layout().widgets().getFirst().size()).isEqualTo("large");
         assertThat(result.layout().widgets().getFirst().height()).isEqualTo("short");
         verify(auditService).success(
@@ -174,6 +178,60 @@ class HomePreferenceServiceTest {
                     assertThat(widget.size()).isEqualTo("compact");
                     assertThat(widget.height()).isEqualTo("short");
                 });
+    }
+
+    @Test
+    void acceptsBoundedCalendarInsightGeometryAndRejectsExpansion() {
+        List<HomePreferenceDtos.WidgetPreference> bounded = workspaceWidgets().stream()
+                .map(widget -> switch (widget.widgetKey()) {
+                    case "focus-balance" -> widget(
+                            "focus-balance", true, "quarter", "standard");
+                    case "meeting-load" -> widget(
+                            "meeting-load", false, "compact", "short");
+                    default -> widget;
+                })
+                .toList();
+
+        HomePreferenceDtos.HomeLayoutPayload normalized = service.normalizeForSurface(
+                HomePreferenceService.WORKSPACE_HOME,
+                workspaceLayout(bounded, null, "balanced"));
+
+        assertThat(normalized.widgets())
+                .filteredOn(widget -> widget.widgetKey().equals("focus-balance"))
+                .singleElement()
+                .isEqualTo(widget("focus-balance", true, "quarter", "standard"));
+        assertThat(normalized.widgets())
+                .filteredOn(widget -> widget.widgetKey().equals("meeting-load"))
+                .singleElement()
+                .isEqualTo(widget("meeting-load", false, "compact", "short"));
+        assertThat(service.isWidgetSizeAllowed(
+                HomePreferenceService.WORKSPACE_HOME, "focus-balance", "compact")).isTrue();
+        assertThat(service.isWidgetSizeAllowed(
+                HomePreferenceService.WORKSPACE_HOME, "meeting-load", "full")).isFalse();
+
+        List<HomePreferenceDtos.WidgetPreference> oversized = workspaceWidgets().stream()
+                .map(widget -> widget.widgetKey().equals("focus-balance")
+                        ? widget("focus-balance", true, "full", "short")
+                        : widget)
+                .toList();
+        assertThatThrownBy(() -> service.normalizeForSurface(
+                HomePreferenceService.WORKSPACE_HOME,
+                workspaceLayout(oversized, null, "balanced")))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(
+                                ErrorCode.INVALID_INPUT_VALUE));
+
+        List<HomePreferenceDtos.WidgetPreference> tooTall = workspaceWidgets().stream()
+                .map(widget -> widget.widgetKey().equals("meeting-load")
+                        ? widget("meeting-load", true, "medium", "tall")
+                        : widget)
+                .toList();
+        assertThatThrownBy(() -> service.normalizeForSurface(
+                HomePreferenceService.WORKSPACE_HOME,
+                workspaceLayout(tooTall, null, "balanced")))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(
+                                ErrorCode.INVALID_INPUT_VALUE));
     }
 
     @Test
@@ -321,7 +379,15 @@ class HomePreferenceServiceTest {
                 .allSatisfy(widget -> assertThat(widget.size()).isNotBlank());
         assertThat(result.layout().widgets())
                 .extracting(HomePreferenceDtos.WidgetPreference::widgetKey)
-                .containsExactly("command-rail", "activity", "focus", "schedule", "daily-brief");
+                .containsExactly(
+                        "command-rail", "activity", "focus", "schedule", "daily-brief",
+                        "focus-balance", "meeting-load");
+        assertThat(result.integrityStatus())
+                .isEqualTo(HomePreferenceDtos.HomePreferenceIntegrityStatus.RECONCILED);
+        assertThat(result.layout().widgets().subList(5, 7))
+                .containsExactly(
+                        widget("focus-balance", true, "medium", "short"),
+                        widget("meeting-load", true, "medium", "short"));
     }
 
     @Test
@@ -524,7 +590,9 @@ class HomePreferenceServiceTest {
                 widget("activity", true, "fifth"),
                 widget("focus", true, "medium"),
                 widget("schedule", true, "quarter"),
-                widget("daily-brief", true, "full"));
+                widget("daily-brief", true, "full"),
+                widget("focus-balance", true, "medium"),
+                widget("meeting-load", true, "medium"));
     }
 
     private List<HomePreferenceDtos.WidgetPreference> legacyWorkspaceWidgets() {

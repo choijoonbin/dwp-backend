@@ -4,6 +4,7 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.meeting.security.MeetingRequestContext;
 import com.dwp.services.meeting.videomeeting.api.VideoMeetingDtos;
+import com.dwp.services.meeting.videomeeting.api.VideoMeetingPreparationDtos.AgendaItemInput;
 import com.dwp.services.meeting.videomeeting.audit.VideoMeetingAuditRecorder;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.AccessScope;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.AttendanceState;
@@ -65,17 +66,42 @@ final class VideoMeetingCreationCoordinator {
             LifecycleState initialState,
             String idempotencyKey,
             String correlationId) {
+        return create(title, description, agenda, startsAt, endsAt, timeZone, accessScope,
+                waitingRoomEnabled, guestAccessEnabled, allowJoinBeforeHost, defaultMicrophoneEnabled,
+                defaultCameraEnabled, participantUserIds, guestInvitees, initialState,
+                idempotencyKey, correlationId, List.of(), null, null);
+    }
+
+    VideoMeetingDtos.MeetingCreatedResponse create(
+            String title, String description, String agenda,
+            OffsetDateTime startsAt, OffsetDateTime endsAt, String timeZone,
+            AccessScope accessScope, Boolean waitingRoomEnabled, Boolean guestAccessEnabled,
+            Boolean allowJoinBeforeHost, Boolean defaultMicrophoneEnabled, Boolean defaultCameraEnabled,
+            List<Long> participantUserIds, List<VideoMeetingDtos.GuestInvitee> guestInvitees,
+            LifecycleState initialState, String idempotencyKey, String correlationId,
+            List<AgendaItemInput> agendaItems, UUID sourceTemplateId, Long sourceTemplateVersion) {
         MeetingRequestContext.Subject subject = MeetingRequestContext.get();
         TenantPolicy policy = requireEnabledPolicy(subject);
+        List<AgendaItemInput> orderedAgenda = VideoMeetingPreparationPolicy.canonicalItems(agendaItems);
+        if ((sourceTemplateId == null) != (sourceTemplateVersion == null)
+                || sourceTemplateVersion != null && sourceTemplateVersion < 0)
+            throw VideoMeetingPreparationPolicy.invalid();
         String commandKey = commandKey(idempotencyKey);
         String requestHash = requestHash(
                 initialState, title, description, agenda, startsAt, endsAt, timeZone,
                 accessScope, waitingRoomEnabled, guestAccessEnabled, allowJoinBeforeHost,
                 defaultMicrophoneEnabled, defaultCameraEnabled,
                 canonicalUserIds(participantUserIds), canonicalGuests(guestInvitees));
+        // Preserve the digest for every legacy request without the new optional content.
+        if (!orderedAgenda.isEmpty() || sourceTemplateId != null) {
+            requestHash = requestHash(requestHash, VideoMeetingPreparationPolicy.fingerprint(orderedAgenda),
+                    sourceTemplateId, sourceTemplateVersion);
+        }
+        repository.lockCreationKey(subject.tenantId(), subject.userId(), commandKey);
         VideoMeetingRepository.IdempotentMeeting existing = repository.byIdempotency(
                 subject.tenantId(), subject.userId(), commandKey).orElse(null);
         if (existing != null) return idempotentResult(existing, requestHash);
+        repository.validateTemplateSource(subject.tenantId(), subject.userId(), sourceTemplateId, sourceTemplateVersion);
 
         rejectUnverifiedEntryOptions(
                 accessScope, guestAccessEnabled, allowJoinBeforeHost, guestInvitees);
@@ -109,6 +135,9 @@ final class VideoMeetingCreationCoordinator {
                 meeting, organizer, ParticipantRole.ORGANIZER,
                 AttendanceState.ADMITTED, subject.userId());
         addInvitees(meeting, organizer, participantUserIds, guestInvitees, policy, subject.userId());
+        repository.initializePreparation(meeting, orderedAgenda, subject.userId(), sourceTemplateId, sourceTemplateVersion);
+        if (initialState == LifecycleState.SCHEDULED)
+            repository.recordInvitationEvent(meeting, "MEETING_SCHEDULED", meeting.version());
         recordCreation(
                 subject, meeting, initialState, accessScope, participantCount,
                 eventCorrelation, commandKey);

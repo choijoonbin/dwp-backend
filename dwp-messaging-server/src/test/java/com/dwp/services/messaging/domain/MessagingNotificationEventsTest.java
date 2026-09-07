@@ -256,6 +256,7 @@ class MessagingNotificationEventsTest {
                 false,
                 null,
                 0,
-                null);
+                null,
+                "SHARED");
     }
 }

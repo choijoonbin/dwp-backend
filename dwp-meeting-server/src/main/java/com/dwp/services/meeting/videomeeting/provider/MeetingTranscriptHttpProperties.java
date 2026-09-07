@@ -13,6 +13,9 @@ public class MeetingTranscriptHttpProperties {
     private String baseUrl = "";
     private Set<String> allowedHosts = new LinkedHashSet<>();
     private String serviceToken = "";
+    private String assertionKeyId = "";
+    private String assertionSecretBase64 = "";
+    private Duration assertionTtl = Duration.ofSeconds(30);
     private Duration connectTimeout = Duration.ofSeconds(2);
     private Duration requestTimeout = Duration.ofSeconds(10);
     private int maximumResponseBytes = 5_000_000;
@@ -27,6 +30,14 @@ public class MeetingTranscriptHttpProperties {
     }
     public String getServiceToken() { return serviceToken; }
     public void setServiceToken(String serviceToken) { this.serviceToken = serviceToken; }
+    public String getAssertionKeyId() { return assertionKeyId; }
+    public void setAssertionKeyId(String assertionKeyId) { this.assertionKeyId = assertionKeyId; }
+    public String getAssertionSecretBase64() { return assertionSecretBase64; }
+    public void setAssertionSecretBase64(String assertionSecretBase64) {
+        this.assertionSecretBase64 = assertionSecretBase64;
+    }
+    public Duration getAssertionTtl() { return assertionTtl; }
+    public void setAssertionTtl(Duration assertionTtl) { this.assertionTtl = assertionTtl; }
     public Duration getConnectTimeout() { return connectTimeout; }
     public void setConnectTimeout(Duration connectTimeout) { this.connectTimeout = connectTimeout; }
     public Duration getRequestTimeout() { return requestTimeout; }
