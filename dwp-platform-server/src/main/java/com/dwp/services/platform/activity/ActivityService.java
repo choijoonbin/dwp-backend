@@ -3,6 +3,8 @@ package com.dwp.services.platform.activity;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.workspace.WorkspaceDtos;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
@@ -19,29 +21,43 @@ import java.util.stream.Collectors;
 public class ActivityService {
     private final ActivityRepository repository;
     private final ActivityCursor cursor;
-    public ActivityService(ActivityRepository repository, ActivityCursor cursor) {
+    private final boolean localFixtures;
+
+    @Autowired
+    public ActivityService(
+            ActivityRepository repository,
+            ActivityCursor cursor,
+            @Value("${dwp.platform.activity.local-fixtures-enabled:false}") boolean localFixtures) {
         this.repository = repository;
         this.cursor = cursor;
+        this.localFixtures = localFixtures;
+    }
+
+    ActivityService(ActivityRepository repository, ActivityCursor cursor) {
+        this(repository, cursor, false);
     }
 
     public WorkspaceDtos.ActivityFeed list(
             Long tenant, Long user, String permissions, String locale, ActivityQuery requested) {
         Set<String> access = require(tenant, user, permissions);
         ActivityQuery query = requested.normalized();
-        String scope = cursor.scope(tenant, user, access, locale, query);
+        String scope = cursor.scope(tenant, user, access, locale, query, localFixtures);
         ActivityCursor.Position position = cursor.decode(query.cursor(), scope);
-        List<WorkspaceDtos.ActivityEvent> rows = repository.list(tenant, user, access, korean(locale), query, position);
+        List<WorkspaceDtos.ActivityEvent> rows = repository.list(
+                tenant, user, access, korean(locale), query, position, localFixtures);
         boolean more = rows.size() > query.limit();
         List<WorkspaceDtos.ActivityEvent> events = rows.stream().limit(query.limit())
                 .map(event -> withCursor(event, cursor.encode(position, event.occurredAt(), event.id()))).toList();
         return new WorkspaceDtos.ActivityFeed(events, OffsetDateTime.now(),
                 more ? events.getLast().resumeCursor() : null, more,
-                coverage(access, true, query.includeUsage(), List.of("SAMPLE", "QUARANTINED")),
+                coverage(access, true, query.includeUsage(),
+                        localFixtures ? List.of("QUARANTINED") : List.of("SAMPLE", "QUARANTINED")),
                 position.snapshotAt(), cursor.encode(position, null, null));
     }
 
     public WorkspaceDtos.ActivityEvent detail(Long tenant, Long user, String permissions, String locale, UUID id) {
-        return repository.detail(tenant, user, require(tenant, user, permissions), korean(locale), id)
+        return repository.detail(tenant, user, require(tenant, user, permissions), korean(locale), id,
+                        localFixtures)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
     }
 

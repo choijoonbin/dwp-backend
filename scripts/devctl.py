@@ -359,6 +359,7 @@ def local_environment() -> dict[str, str]:
         "REDIS_PORT": "6379",
         "REDIS_PASSWORD": "dwp_redis_password",
         "SERVICE_AUTH_URL": "http://localhost:8001",
+        "SERVICE_GATEWAY_URL": "http://localhost:8080",
         "SERVICE_PLATFORM_URL": "http://localhost:8002",
         "SERVICE_PEOPLE_URL": "http://localhost:8003",
         "SERVICE_PROVIDER_URL": "http://localhost:8004",
@@ -395,9 +396,11 @@ def local_environment() -> dict[str, str]:
         "DWP_AGENT_REGISTRY_MODE": "enforced",
         "DWP_AGENT_LOCAL_GOVERNANCE_SEED_ENABLED": "true",
         "DWP_AGENT_LOCAL_GOVERNANCE_TENANT_IDS": "1",
+        "DWP_AGENT_LOCAL_ACTIVITY_SEED_ENABLED": "true",
         "DWP_PLATFORM_SERVICE_TOKEN": "dwp-local-platform-service-token",
         "DWP_PLATFORM_RUNTIME_SERVICE_TOKEN": "dwp-local-platform-runtime-token",
         "DWP_PLATFORM_PRODUCT_AUTHORIZATION_APPROVALS_V2_ENABLED": "true",
+        "DWP_ACTIVITY_LOCAL_FIXTURES_ENABLED": "true",
         "DWP_PRODUCTIVITY_DATA_KEY": (
             "ZHdwLWxvY2FsLXByb2R1Y3Rpdml0eS1rZXktMzJieXQ="
         ),
@@ -534,6 +537,7 @@ def service_environment(service_name: str) -> dict[str, str]:
         environment.pop(
             "DWP_PLATFORM_PRODUCT_AUTHORIZATION_APPROVALS_V2_ENABLED", None
         )
+        environment.pop("DWP_ACTIVITY_LOCAL_FIXTURES_ENABLED", None)
     if service_name != "agent":
         environment.pop("DWP_AGENT_DATABASE_URL", None)
         environment.pop("DWP_AGENT_DATABASE_REQUIRED", None)
@@ -545,6 +549,7 @@ def service_environment(service_name: str) -> dict[str, str]:
         environment.pop("DWP_AGENT_REGISTRY_MODE", None)
         environment.pop("DWP_AGENT_LOCAL_GOVERNANCE_SEED_ENABLED", None)
         environment.pop("DWP_AGENT_LOCAL_GOVERNANCE_TENANT_IDS", None)
+        environment.pop("DWP_AGENT_LOCAL_ACTIVITY_SEED_ENABLED", None)
     if service_name != "platform":
         environment.pop("DWP_PRODUCTIVITY_DATA_KEY", None)
     if service_name not in {"gateway", "people"}:

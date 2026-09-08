@@ -17,13 +17,19 @@ public class ActivityCursor {
     private final ObjectMapper mapper;
     public ActivityCursor(ObjectMapper mapper) { this.mapper = mapper; }
 
-    public String scope(Long tenantId, Long actorId, Set<String> permissions, String locale, ActivityQuery q) {
+    public String scope(
+            Long tenantId, Long actorId, Set<String> permissions, String locale, ActivityQuery q) {
+        return scope(tenantId, actorId, permissions, locale, q, false);
+    }
+
+    public String scope(Long tenantId, Long actorId, Set<String> permissions, String locale,
+                        ActivityQuery q, boolean localFixtures) {
         try {
             String canonical = mapper.writeValueAsString(List.of(
                     tenantId, actorId, permissions.stream().sorted().toList(), value(locale),
                     value(q.actor()), value(q.state()), value(q.query()), value(q.source()),
                     value(q.objectType()), value(q.objectId()), value(q.executionId()),
-                    value(q.from()), value(q.to()), q.includeUsage()));
+                    value(q.from()), value(q.to()), q.includeUsage(), localFixtures));
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                     .digest(canonical.getBytes(StandardCharsets.UTF_8)));
         } catch (Exception exception) {

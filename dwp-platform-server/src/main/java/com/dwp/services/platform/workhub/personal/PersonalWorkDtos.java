@@ -43,13 +43,27 @@ public final class PersonalWorkDtos {
     public record SourceLink(String availability, SourceReference reference, String title,
                              String sourceRoute, String status, OffsetDateTime dueAt) { }
 
+    @Schema(name = "PersonalWorkChecklistItem")
+    public record ChecklistItem(@NotNull UUID itemId, @NotBlank @Size(max = 500) String title,
+                                boolean completed) { }
+
+    @Schema(name = "PersonalWorkDeleteResult")
+    public record DeleteResult(UUID taskId, long version, OffsetDateTime deletedAt) { }
+
     @Schema(name = "PersonalWorkCreateTaskRequest")
     public record CreateTaskRequest(
             @NotBlank @Size(max = 500) String title,
             @Size(max = 10000) String description,
             @NotNull Priority priority,
             OffsetDateTime dueAt,
-            @Valid SourceReference sourceReference) { }
+            @Valid SourceReference sourceReference,
+            @Size(max = 100) List<@NotNull @Valid ChecklistItem> checklist,
+            @Size(max = 10) List<@NotNull @Valid SourceReference> sourceReferences) {
+        public CreateTaskRequest(String title, String description, Priority priority,
+                                 OffsetDateTime dueAt, SourceReference sourceReference) {
+            this(title, description, priority, dueAt, sourceReference, null, null);
+        }
+    }
 
     /** Full title/description/priority/dueAt replacement. Source changes are explicit. */
     @Schema(name = "PersonalWorkUpdateTaskRequest")
@@ -60,7 +74,16 @@ public final class PersonalWorkDtos {
             OffsetDateTime dueAt,
             @Valid SourceReference sourceReference,
             boolean clearSourceReference,
-            @NotNull @Min(0) Long version) { }
+            @NotNull @Min(0) Long version,
+            @Size(max = 100) List<@NotNull @Valid ChecklistItem> checklist,
+            @Size(max = 10) List<@NotNull @Valid SourceReference> sourceReferences) {
+        public UpdateTaskRequest(String title, String description, Priority priority,
+                                 OffsetDateTime dueAt, SourceReference sourceReference,
+                                 boolean clearSourceReference, Long version) {
+            this(title, description, priority, dueAt, sourceReference, clearSourceReference,
+                    version, null, null);
+        }
+    }
 
     @Schema(name = "PersonalWorkStatusRequest")
     public record StatusRequest(@NotNull Status status, @NotNull @Min(0) Long version) { }
@@ -71,7 +94,15 @@ public final class PersonalWorkDtos {
     public record Task(UUID taskId, String title, String description, Status status,
                        Priority priority, OffsetDateTime dueAt, SourceLink source,
                        long version, OffsetDateTime createdAt, OffsetDateTime updatedAt,
-                       OffsetDateTime completedAt) { }
+                       OffsetDateTime completedAt, List<ChecklistItem> checklist,
+                       List<SourceLink> sources) {
+        public Task(UUID taskId, String title, String description, Status status, Priority priority,
+                    OffsetDateTime dueAt, SourceLink source, long version,
+                    OffsetDateTime createdAt, OffsetDateTime updatedAt, OffsetDateTime completedAt) {
+            this(taskId, title, description, status, priority, dueAt, source, version,
+                    createdAt, updatedAt, completedAt, List.of(), source == null ? List.of() : List.of(source));
+        }
+    }
 
     @Schema(name = "PersonalWorkTaskPage")
     public record TaskPage(List<Task> items, int page, int size, long totalElements,

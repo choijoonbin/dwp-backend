@@ -388,6 +388,7 @@ class VideoMeetingServiceTest {
                         ParticipantRole.ATTENDEE, false, false);
 
         assertThat(response.participants()).hasSize(1);
+        assertThat(response.attendeeCount()).isEqualTo(2);
         VideoMeetingDtos.ParticipantResponse participant = response.participants().getFirst();
         assertThat(participant.displayName()).isEqualTo("박현우");
         assertThat(participant.emailAddress()).isNull();

@@ -312,6 +312,60 @@
         },
         "type": "object"
       },
+      "ApiResponseBookmarkPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/BookmarkPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseBookmarkState": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/BookmarkState"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseCancellationPreviewResponse": {
         "properties": {
           "correlationId": {
@@ -454,6 +508,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/ContentPlanResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseControlState": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ControlState"
           },
           "errorCode": {
             "type": "string"
@@ -1699,6 +1780,54 @@
         },
         "type": "object"
       },
+      "BookmarkInput": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "favorite": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "favorite"
+        ],
+        "type": "object"
+      },
+      "BookmarkPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BookmarkState"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "BookmarkState": {
+        "properties": {
+          "favorite": {
+            "type": "boolean"
+          },
+          "meetingId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "CancelPreviewRequest": {
         "properties": {
           "expectedSeriesVersion": {
@@ -2114,6 +2243,89 @@
           "version": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ControlInput": {
+        "properties": {
+          "expectedControlVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "expectedMeetingVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "expectedPolicyVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "hold": {
+            "type": "boolean"
+          },
+          "purgeAuthorized": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "expectedControlVersion",
+          "expectedMeetingVersion",
+          "expectedPolicyVersion",
+          "hold",
+          "purgeAuthorized"
+        ],
+        "type": "object"
+      },
+      "ControlState": {
+        "properties": {
+          "authorizationAuditPublished": {
+            "type": "boolean"
+          },
+          "controlVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "hold": {
+            "type": "boolean"
+          },
+          "meetingId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "meetingVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "policyVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "purgeAuthorized": {
+            "type": "boolean"
+          },
+          "purgedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "retentionUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "workerEnabled": {
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -2612,6 +2824,9 @@
             "format": "int32",
             "type": "integer"
           },
+          "canHost": {
+            "type": "boolean"
+          },
           "endedAt": {
             "format": "date-time",
             "type": "string"
@@ -2620,9 +2835,19 @@
             "format": "uuid",
             "type": "string"
           },
+          "organizerName": {
+            "type": "string"
+          },
+          "organizerUserId": {
+            "format": "int64",
+            "type": "integer"
+          },
           "participantPeak": {
             "format": "int32",
             "type": "integer"
+          },
+          "participantRole": {
+            "type": "string"
           },
           "recordingAvailable": {
             "type": "boolean"
@@ -3048,6 +3273,10 @@
               "$ref": "#/components/schemas/ArtifactResponse"
             },
             "type": "array"
+          },
+          "attendeeCount": {
+            "format": "int32",
+            "type": "integer"
           },
           "canHost": {
             "type": "boolean"
@@ -5510,6 +5739,84 @@
         ]
       }
     },
+    "/v1/admin/record-retention/meetings/{meetingId}": {
+      "get": {
+        "operationId": "read_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseControlState"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "meeting-record-retention-controller"
+        ]
+      },
+      "put": {
+        "operationId": "update_5",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ControlInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseControlState"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "meeting-record-retention-controller"
+        ]
+      }
+    },
     "/v1/admin/templates": {
       "get": {
         "operationId": "list_1",
@@ -5732,7 +6039,7 @@
         ]
       },
       "put": {
-        "operationId": "update_2",
+        "operationId": "update_3",
         "parameters": [
           {
             "in": "path",
@@ -5833,6 +6140,15 @@
               "minimum": 1,
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "favoriteOnly",
+            "required": false,
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -5849,6 +6165,41 @@
         },
         "tags": [
           "video-meeting-controller"
+        ]
+      }
+    },
+    "/v1/history/bookmarks": {
+      "get": {
+        "operationId": "read_2",
+        "parameters": [
+          {
+            "description": "1 to 100 unique record IDs from the current page, in display order",
+            "in": "query",
+            "name": "meetingIds",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseBookmarkPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "meeting-record-bookmark-controller"
         ]
       }
     },
@@ -6331,6 +6682,63 @@
         },
         "tags": [
           "meeting-transcript-access-controller"
+        ]
+      }
+    },
+    "/v1/meetings/{meetingId}/bookmark": {
+      "put": {
+        "operationId": "update_2",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookmarkInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseBookmarkState"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "meeting-record-bookmark-controller"
         ]
       }
     },
@@ -10256,7 +10664,7 @@
         ]
       },
       "put": {
-        "operationId": "update_3",
+        "operationId": "update_4",
         "parameters": [
           {
             "in": "path",

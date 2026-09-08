@@ -178,6 +178,47 @@ public class ServiceCenterService {
     }
 
     @Transactional
+    public ServiceCenterDtos.RequestDetail respondToInformationRequest(
+            Long tenantId, Long userId, String correlationId, UUID requestId,
+            ServiceCenterDtos.InformationResponseRequest request) {
+        if (request.message() == null || request.message().strip().length() < 10
+                || request.message().strip().length() > 2000 || request.values() == null
+                || request.values().size() > 50 || request.version() == null
+                || request.version() < 0 || request.idempotencyKey() == null) {
+            throw invalid("A valid response, version and command identity are required.");
+        }
+        repository.lockInformationResponse(tenantId, userId, request.idempotencyKey());
+        ServiceCenterRepository.RequestRecord current = repository.lockRequest(tenantId, requestId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        // Re-evaluate the current owner even when replaying a previously accepted command.
+        if (!current.requesterUserId().equals(userId)) throw forbidden();
+        var receipt = repository.informationResponseReceipt(tenantId, userId, request.idempotencyKey());
+        if (receipt.isPresent()) {
+            if (!repository.matchesInformationResponse(receipt.get(), requestId, request)) {
+                throw conflict("The response command identity was already used for different content.");
+            }
+            return detail(tenantId, current);
+        }
+        if (current.version() != request.version()
+                || current.status() != RequestStatus.AWAITING_REQUESTER) {
+            throw conflict("This request is no longer awaiting this response. Refresh and review it.");
+        }
+        validatePayload(current.schema(), request.values(), true);
+        if (repository.respondToInformationRequest(
+                tenantId, userId, requestId, request.values(), request.version()) != 1) {
+            throw conflict("The service request changed. Refresh and review it.");
+        }
+        repository.addTimeline(tenantId, requestId, "REQUESTER_RESPONDED", RequestStatus.IN_PROGRESS,
+                "USER", userId, request.message().strip());
+        repository.saveInformationResponse(tenantId, userId, requestId, request);
+        audit.success(tenantId, userId, "service.request.information.responded", "SERVICE_REQUEST",
+                requestId.toString(), correlationId,
+                Map.of("status", current.status().name(), "version", current.version()),
+                Map.of("status", RequestStatus.IN_PROGRESS.name(), "version", current.version() + 1));
+        return detail(tenantId, requireRequest(tenantId, requestId));
+    }
+
+    @Transactional
     public ServiceCenterDtos.RequestDetail cancel(
             Long tenantId,
             Long userId,

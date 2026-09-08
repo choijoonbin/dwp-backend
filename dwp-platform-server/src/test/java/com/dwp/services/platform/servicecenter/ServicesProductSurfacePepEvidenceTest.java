@@ -406,7 +406,75 @@ class ServicesProductSurfacePepEvidenceTest {
                                 "GET",
                                 "/api/platform/v1/services/requests",
                                 "/v1/services/requests",
-                                Map.of("surface", "hcm")));
+                                Map.of("surface", "hcm")),
+                        tuple(
+                                ServicesProductSurfacePepFilter.INFORMATION_RESPONSE_ROUTE,
+                                ServicesProductSurfacePepFilter.RouteKind.ACTION,
+                                "POST",
+                                "/api/platform/v1/services/requests/{requestId}/information-response",
+                                "/v1/services/requests/{requestId}/information-response",
+                                Map.of()));
+    }
+
+    @Test
+    void acceptsExactRequesterResponseAuthorityEvenWhenV4FeatureIsOff() throws Exception {
+        ownerChain(false).mvc().perform(informationResponse()).andExpect(status().isOk());
+        verify(service).respondToInformationRequest(anyLong(), anyLong(), any(), any(), any());
+    }
+
+    @Test
+    void refusesResponseForViewOnlyUser() throws Exception {
+        mvc.perform(informationResponse().with(request -> replaceHeader(
+                request, "X-DWP-Permissions", "APP.EMPLOYEE_SERVICES:VIEW")))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void refusesOtherRequesterScopeAndUnrelatedRouteAuthority() throws Exception {
+        mvc.perform(informationResponse().with(request -> replaceHeader(request,
+                "X-DWP-Context-Scope-Key",
+                scope(TENANT_ID, ACTOR_ID + 1, "services.work", "SELF", "SELF"))))
+                .andExpect(status().isForbidden());
+        mvc.perform(informationResponse().with(request -> replaceHeader(request,
+                "X-DWP-Route-Contract-Key", "route.services.work.request-cancel.action")))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void refusesStaleResponseAuthorityAndMalformedBody() throws Exception {
+        mvc.perform(informationResponse().with(request -> replaceHeader(request,
+                "X-DWP-Expected-Decision-Revision", "psr-" + "f".repeat(64))))
+                .andExpect(status().isConflict());
+        mvc.perform(informationResponse().content("{}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void legacyRequesterResponseStillRequiresSourceUpdatePermission() throws Exception {
+        mvc.perform(informationResponse().with(request -> replaceHeader(
+                request, "X-DWP-Rollout-State", "000"))).andExpect(status().isOk());
+        reset(service);
+        mvc.perform(informationResponse().with(request -> {
+                    replaceHeader(request, "X-DWP-Rollout-State", "000");
+                    return replaceHeader(request, "X-DWP-Permissions", "APP.WORK:UPDATE");
+                })).andExpect(status().isForbidden());
+        verifyNoInteractions(service);
+    }
+
+    private MockHttpServletRequestBuilder informationResponse() {
+        return exact(post("/v1/services/requests/" + REQUEST_ID + "/information-response")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"values":{"systemName":"DWP"},"message":"Clarified requested access",
+                                 "version":3,"idempotencyKey":"c047b790-36b0-4f21-9c46-9100aa1f583e"}
+                                """),
+                ServicesProductSurfacePepFilter.INFORMATION_RESPONSE, scope())
+                .header("X-DWP-Expected-Decision-Revision", CURRENT_REVISION)
+                .with(request -> replaceHeader(request, "X-DWP-Permissions",
+                        "APP.EMPLOYEE_SERVICES:VIEW,APP.EMPLOYEE_SERVICES:UPDATE"));
     }
 
     private MockHttpServletRequestBuilder page(String scope) {

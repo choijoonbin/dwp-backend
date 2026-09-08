@@ -185,8 +185,9 @@ public class VideoMeetingController {
     @GetMapping("/history")
     public ApiResponse<VideoMeetingDtos.PageResponse<VideoMeetingDtos.HistoryItemResponse>> history(
             @RequestParam(defaultValue = "0") @Min(0) int page,
-            @RequestParam(defaultValue = "30") @Min(1) @Max(100) int pageSize) {
-        return ApiResponse.success(service.history(page, pageSize));
+            @RequestParam(defaultValue = "30") @Min(1) @Max(100) int pageSize,
+            @RequestParam(defaultValue = "false") boolean favoriteOnly) {
+        return ApiResponse.success(service.history(page, pageSize, favoriteOnly));
     }
 
     @GetMapping("/admin/overview")

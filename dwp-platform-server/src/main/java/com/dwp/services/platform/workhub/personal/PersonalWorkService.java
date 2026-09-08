@@ -65,9 +65,13 @@ public class PersonalWorkService {
         access.write(context);
         validateFields(request.title(), request.description(), request.priority());
         validateReference(request.sourceReference());
+        List<ChecklistItem> checklist = validateChecklist(request.checklist() == null ? List.of() : request.checklist());
+        List<SourceReference> sources = requestedSources(request.sourceReference(), request.sourceReferences(), false, List.of());
         TaskRow result = command(context, commandId, "CREATE", "tasks", request, TaskRow.class, () -> {
-            requireSource(context, request.sourceReference());
-            TaskRow created = repository.insert(context, UUID.randomUUID(), request);
+            sources.forEach(source -> requireSource(context, source));
+            CreateTaskRequest effective = new CreateTaskRequest(request.title(), request.description(),
+                    request.priority(), request.dueAt(), sources.isEmpty() ? null : sources.getFirst(), checklist, sources);
+            TaskRow created = repository.insert(context, UUID.randomUUID(), effective);
             recordTask(context, correlationId, "CREATED", null, created);
             return created;
         });
@@ -87,11 +91,16 @@ public class PersonalWorkService {
             TaskRow before = requireTask(context, taskId);
             requireVersion(before.version(), request.version());
             if (before.status() == Status.ARCHIVED) throw invalid("Reopen an archived task before editing it.");
-            if (request.sourceReference() != null) requireSource(context, request.sourceReference());
-            SourceReference source = request.clearSourceReference() ? null
-                    : request.sourceReference() == null ? before.sourceReference() : request.sourceReference();
+            List<SourceReference> sources = requestedSources(request.sourceReference(), request.sourceReferences(),
+                    request.clearSourceReference(), before.sourceReferences());
+            for (SourceReference source : sources) {
+                if (!before.sourceReferences().contains(source)) requireSource(context, source);
+            }
+            List<ChecklistItem> checklist = validateChecklist(request.checklist() == null
+                    ? before.checklist() : request.checklist());
             UpdateTaskRequest effective = new UpdateTaskRequest(request.title(), request.description(),
-                    request.priority(), request.dueAt(), source, request.clearSourceReference(), request.version());
+                    request.priority(), request.dueAt(), sources.isEmpty() ? null : sources.getFirst(),
+                    request.clearSourceReference(), request.version(), checklist, sources);
             TaskRow after = repository.update(context, taskId, effective);
             recordTask(context, correlationId, "UPDATED", before, after);
             return after;
@@ -113,6 +122,21 @@ public class PersonalWorkService {
             return after;
         });
         return response(context, result);
+    }
+
+    @Transactional
+    public DeleteResult delete(AccessContext context, UUID taskId, UUID commandId,
+                               String correlationId, VersionRequest request) {
+        access.write(context);
+        TaskRow result = command(context, commandId, "DELETE", taskId.toString(), request, TaskRow.class, () -> {
+            TaskRow before = requireTask(context, taskId);
+            requireVersion(before.version(), request.version());
+            TaskRow after = repository.softDelete(context, taskId, request.version());
+            repository.removeTaskFromPlans(context, taskId);
+            recordTask(context, correlationId, "DELETED", before, after);
+            return after;
+        });
+        return new DeleteResult(result.taskId(), result.version(), result.deletedAt());
     }
 
     @Transactional(readOnly = true)
@@ -182,7 +206,8 @@ public class PersonalWorkService {
     private Task response(AccessContext context, TaskRow row) {
         return new Task(row.taskId(), row.title(), row.description(), row.status(), row.priority(), row.dueAt(),
                 row.sourceReference() == null ? null : sourceLink(context, row.sourceReference()),
-                row.version(), row.createdAt(), row.updatedAt(), row.completedAt());
+                row.version(), row.createdAt(), row.updatedAt(), row.completedAt(), row.checklist(),
+                row.sourceReferences().stream().map(source -> sourceLink(context, source)).toList());
     }
 
     private DayPlan planResponse(AccessContext context, PlanRow plan) {
@@ -251,20 +276,29 @@ public class PersonalWorkService {
         result.put("dueAt", row.dueAt());
         result.put("version", row.version());
         result.put("hasSourceReference", row.sourceReference() != null);
+        result.put("sourceCount", row.sourceReferences().size());
+        result.put("checklistCount", row.checklist().size());
+        result.put("checklistCompleted", row.checklist().stream().filter(ChecklistItem::completed).count());
+        result.put("deleted", row.deletedAt() != null);
         return result;
     }
 
     private <T> T command(AccessContext context, UUID commandId, String operation, String target,
                            Object request, Class<T> responseType, Supplier<T> mutation) {
         if (commandId == null) throw invalid("Idempotency-Key is required.");
-        String fingerprint = hash(json(request));
+        String fingerprint = requestFingerprint(request);
         repository.lock(context);
         Optional<Receipt> existing = repository.receipt(context, commandId);
         if (existing.isPresent()) {
             Receipt receipt = existing.get();
             if (!operation.equals(receipt.operation()) || !target.equals(receipt.target())
                     || !fingerprint.equals(receipt.fingerprint())) throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
-            try { return mapper.readValue(receipt.payload(), responseType); }
+            try {
+                T replay = mapper.readValue(receipt.payload(), responseType);
+                if (replay instanceof TaskRow task && !"DELETE".equals(operation)
+                        && repository.isDeleted(context, task.taskId())) throw new BaseException(ErrorCode.NOT_FOUND);
+                return replay;
+            }
             catch (JsonProcessingException exception) {
                 throw new BaseException(ErrorCode.INTERNAL_SERVER_ERROR, "Invalid personal work receipt.", exception);
             }
@@ -272,6 +306,18 @@ public class PersonalWorkService {
         T result = mutation.get();
         repository.recordReceipt(context, commandId, operation, target, fingerprint, json(result));
         return result;
+    }
+
+    private String requestFingerprint(Object request) {
+        if (request instanceof CreateTaskRequest || request instanceof UpdateTaskRequest) {
+            // Retain receipt identity for requests sent before the additive optional fields existed.
+            com.fasterxml.jackson.databind.node.ObjectNode fields = mapper.valueToTree(request);
+            for (String field : List.of("checklist", "sourceReferences")) {
+                if (fields.path(field).isNull()) fields.remove(field);
+            }
+            return hash(json(fields));
+        }
+        return hash(json(request));
     }
 
     private String json(Object value) {
@@ -289,6 +335,33 @@ public class PersonalWorkService {
     private void validateFields(String title, String description, Priority priority) {
         if (title == null || title.isBlank() || title.length() > 500 || priority == null
                 || description != null && description.length() > 10000) throw invalid("Invalid personal task fields.");
+    }
+
+    private List<ChecklistItem> validateChecklist(List<ChecklistItem> items) {
+        if (items.size() > 100) throw invalid("A task supports at most 100 checklist items.");
+        HashSet<UUID> ids = new HashSet<>();
+        List<ChecklistItem> result = new ArrayList<>();
+        for (ChecklistItem item : items) {
+            if (item == null || item.itemId() == null || !ids.add(item.itemId())
+                    || item.title() == null || item.title().isBlank() || item.title().length() > 500) {
+                throw invalid("Checklist items require unique identities and nonblank titles.");
+            }
+            result.add(new ChecklistItem(item.itemId(), item.title().strip(), item.completed()));
+        }
+        return List.copyOf(result);
+    }
+
+    private List<SourceReference> requestedSources(SourceReference single, List<SourceReference> multiple,
+                                                   boolean clear, List<SourceReference> previous) {
+        if ((single != null && multiple != null) || (clear && (single != null || multiple != null))) {
+            throw invalid("Choose one source update mode.");
+        }
+        List<SourceReference> result = clear ? List.of()
+                : multiple != null ? multiple : single != null ? List.of(single) : previous;
+        if (result.size() > 10) throw invalid("A task supports at most 10 source references.");
+        result.forEach(this::requireReference);
+        if (new HashSet<>(result).size() != result.size()) throw invalid("Source references must be unique.");
+        return List.copyOf(result);
     }
 
     private void requireReference(SourceReference reference) {

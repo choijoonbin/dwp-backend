@@ -51,6 +51,8 @@ class VideoMeetingAdminIntelligenceReadinessServiceTest {
     @Mock
     private MeetingChatRetentionService chatRetention;
     @Mock
+    private MeetingRecordRetentionService recordRetention;
+    @Mock
     private JdbcTemplate jdbc;
 
     @AfterEach
@@ -153,6 +155,12 @@ class VideoMeetingAdminIntelligenceReadinessServiceTest {
         assertThat(response.retention().signals().get("chat").state())
                 .isEqualTo("READY");
 
+        when(recordRetention.ready()).thenReturn(true);
+        assertThat(service().readiness().retention().signals().get("meetingRecords").state()).isEqualTo("READY");
+        assertThat(service().readiness().governance().get("deletionEvidence").state()).isEqualTo("READY");
+        when(recordRetention.ready()).thenThrow(new IllegalStateException("worker probe unavailable"));
+        assertThat(service().readiness().retention().signals().get("meetingRecords").state()).isEqualTo("NOT_VERIFIED");
+
         VideoMeetingAdminIntelligenceReadinessService.PolicyCapabilities capabilities =
                 service().policyCapabilities();
         assertThat(capabilities.recordingConfigured()).isTrue();
@@ -226,7 +234,7 @@ class VideoMeetingAdminIntelligenceReadinessServiceTest {
     private VideoMeetingAdminIntelligenceReadinessService service() {
         return new VideoMeetingAdminIntelligenceReadinessService(
                 meetings, media, dependencies, intelligence, retention,
-                recordingDeletion, transcriptDeletion, chatRetention, jdbc,
+                recordingDeletion, transcriptDeletion, chatRetention, recordRetention, jdbc,
                 Clock.fixed(Instant.from(NOW), ZoneOffset.UTC));
     }
 

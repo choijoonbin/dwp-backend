@@ -2417,6 +2417,30 @@
       "surfaceKey": "services.management"
     },
     {
+      "action": "UPDATE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "services.request.respond",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Platform + Services + Security",
+      "policyVersion": 1,
+      "productKey": "services",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "APP.EMPLOYEE_SERVICES:UPDATE",
+      "resourceKey": "APP.EMPLOYEE_SERVICES",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "MEDIUM",
+      "routeContractKeys": [
+        "route.services.work.request-information-response.action"
+      ],
+      "scopeResolver": "SELF",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "services.work"
+    },
+    {
       "action": "CREATE",
       "activationPolicy": null,
       "authorityMode": "PERMISSION_AND_RELATIONSHIP",
@@ -2465,7 +2489,7 @@
       "surfaceKey": "workplace.work"
     }
   ],
-  "checksum": "c69816a06349fcbd45a0d946debfbce1d67e09b3ed87a8b056ec8a43f852109f",
+  "checksum": "e966b7340da431481bb9f577724224645be45ac50e169c75da1a521f2cde925a",
   "checksumAlgorithm": "SHA-256",
   "entitlementExpressions": [
     {
@@ -3342,7 +3366,8 @@
         "route.services.work.draft-submit.action",
         "route.services.work.draft-update.action",
         "route.services.work.my-detail.page",
-        "route.services.work.request-cancel.action"
+        "route.services.work.request-cancel.action",
+        "route.services.work.request-information-response.action"
       ],
       "targetBindingKinds": [
         "SELF",
@@ -13940,6 +13965,61 @@
           ],
           "precedence": 300,
           "predicatePolicyKeys": [
+            "predicate.platform.own-request.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "services.request.respond",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "SELF",
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.services.work.request-information-response.action.binding.01",
+          "method": "POST",
+          "path": "/api/platform/v1/services/requests/{requestId}/information-response",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "services.work",
+      "owner": "Platform + Services + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.services.work.request-information-response.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.services.work.request-information-response.action.binding.01",
+          "method": "POST",
+          "path": "/v1/services/requests/{requestId}/information-response",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "services",
+        "surfaceKey": "services.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
             "predicate.space-membership.v1"
           ],
           "profileKey": "full-work",
@@ -14285,5 +14365,5 @@
     }
   ],
   "schemaVersion": 1,
-  "version": 5
+  "version": 6
 }

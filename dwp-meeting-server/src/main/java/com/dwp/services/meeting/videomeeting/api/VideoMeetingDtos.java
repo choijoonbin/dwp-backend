@@ -433,6 +433,7 @@ public final class VideoMeetingDtos {
             boolean recordingAvailable,
             boolean transcriptAvailable,
             boolean aiNotesAvailable,
+            int attendeeCount,
             long version) {
 
         public static MeetingDetailResponse from(
@@ -480,6 +481,7 @@ public final class VideoMeetingDtos {
                     artifactAvailable(visibleArtifacts, "RECORDING"),
                     artifactAvailable(visibleArtifacts, "TRANSCRIPT"),
                     artifactAvailable(visibleArtifacts, "SUMMARY"),
+                    detail.participants().size(),
                     meeting.version());
         }
 
@@ -541,6 +543,10 @@ public final class VideoMeetingDtos {
     public record HistoryItemResponse(
             UUID meetingId,
             String title,
+            long organizerUserId,
+            String organizerName,
+            String participantRole,
+            boolean canHost,
             OffsetDateTime endedAt,
             int actualDurationMinutes,
             int participantPeak,
@@ -595,7 +601,9 @@ public final class VideoMeetingDtos {
         int actualDuration = meeting.startedAt() == null || meeting.endedAt() == null
                 ? 0 : safeMinutes(Duration.between(meeting.startedAt(), meeting.endedAt()));
         return new HistoryItemResponse(
-                meeting.meetingId(), meeting.title(), meeting.endedAt(), actualDuration,
+                meeting.meetingId(), meeting.title(), meeting.organizerUserId(),
+                meeting.organizerName(), effectiveRole(card.viewerRole()).name(),
+                effectiveRole(card.viewerRole()).canHost(), meeting.endedAt(), actualDuration,
                 card.participantCount(), null, false, false);
     }
 

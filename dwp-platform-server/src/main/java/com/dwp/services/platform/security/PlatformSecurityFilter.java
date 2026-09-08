@@ -4,6 +4,7 @@ import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.filter.ApiHistoryServletFilter;
 import com.dwp.core.security.RolePlaneBoundary;
+import com.dwp.services.platform.servicecenter.ServicesProductSurfacePepFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -126,6 +127,9 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
             HttpServletRequest request,
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
+        if (request.getRequestURI().startsWith("/v1/workspace/activity")) {
+            response.setHeader("Cache-Control", "private, no-store, max-age=0");
+        }
         boolean runtimeRead = isRuntimeRead(request);
         if (serviceToken.isBlank() && (!runtimeRead || runtimeServiceToken.isBlank())) {
             writeError(response, ErrorCode.EXTERNAL_SERVICE_ERROR, "Platform service identity is not configured.");
@@ -159,7 +163,10 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
         List<String> resolvedApprovalRoutes = List.of();
         boolean approvalStateChanging = false;
         String approvalExpectedRevision = null;
-        boolean canaryProductPath = canaryPepRegistry.ownsPath(path);
+        // Additive Services response authority is verified by the source-owned PEP before
+        // this filter. Preserve immutable v1 route matching for every existing route.
+        boolean canaryProductPath = canaryPepRegistry.ownsPath(path)
+                && !ServicesProductSurfacePepFilter.hasVerifiedRequesterResponseAuthority(request);
         boolean approvalProductPath = approvalsPepRegistry.governsPathFamily(path);
         boolean productPath = canaryProductPath || approvalProductPath;
         boolean exactEnforcement = false;
@@ -274,6 +281,14 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
         boolean workspacePath = path.startsWith("/v1/workspace");
         if (workspacePath && isBlank(request.getHeader(PERMISSIONS_HEADER))) {
             writeError(response, ErrorCode.FORBIDDEN, "Workspace permission is required.");
+            return;
+        }
+        boolean activityPath = path.equals("/v1/workspace/activity")
+                || path.startsWith("/v1/workspace/activity/");
+        if (activityPath && (!hasAuthority(request.getHeader(PERMISSIONS_HEADER), "APP.ACTIVITY", "VIEW")
+                || !"TENANT".equals(request.getHeader("X-DWP-Identity-Plane")) || supportAccess
+                || parseValues(request.getHeader(ROLES_HEADER)).stream().anyMatch(role -> role.startsWith("PROVIDER_")))) {
+            writeError(response, ErrorCode.FORBIDDEN, "Personal tenant Activity permission is required.");
             return;
         }
         boolean calendarPath = path.startsWith("/v1/calendar");

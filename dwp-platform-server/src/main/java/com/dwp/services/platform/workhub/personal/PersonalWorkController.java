@@ -102,6 +102,14 @@ public class PersonalWorkController {
                 new StatusRequest(Status.ARCHIVED, request.version())));
     }
 
+    @PostMapping("/personal-tasks/{taskId}/delete")
+    public ApiResponse<DeleteResult> delete(@Parameter(hidden = true) @ModelAttribute(value = "personalWorkContext", binding = false) AccessContext context,
+            @PathVariable UUID taskId, @RequestHeader("Idempotency-Key") UUID commandId,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @Valid @RequestBody VersionRequest request) {
+        return ApiResponse.success(service.delete(context, taskId, commandId, correlationId, request));
+    }
+
     @GetMapping("/personal-tasks/{taskId}/timeline")
     public ApiResponse<TimelinePage> timeline(@Parameter(hidden = true) @ModelAttribute(value = "personalWorkContext", binding = false) AccessContext context,
             @PathVariable UUID taskId, @RequestParam(defaultValue = "0") int page,

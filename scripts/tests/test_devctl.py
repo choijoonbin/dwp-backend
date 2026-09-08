@@ -10,6 +10,14 @@ from scripts import devctl
 
 
 class AgentLocalEnvironmentTest(unittest.TestCase):
+    def test_agent_owner_reads_use_explicit_local_gateway_and_preserve_override(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(devctl.service_environment("agent")["SERVICE_GATEWAY_URL"],
+                             "http://localhost:8080")
+        with patch.dict(os.environ, {"SERVICE_GATEWAY_URL": "http://127.0.0.1:9080"}):
+            self.assertEqual(devctl.service_environment("agent")["SERVICE_GATEWAY_URL"],
+                             "http://127.0.0.1:9080")
+
     def test_core006_bootstrap_settings_are_injected_only_into_exact_services(
         self,
     ) -> None:
@@ -75,6 +83,7 @@ class AgentLocalEnvironmentTest(unittest.TestCase):
             "DWP_AGENT_DATA_KEY_VERSION": "local-v1",
             "DWP_AGENT_LOCAL_GOVERNANCE_SEED_ENABLED": "true",
             "DWP_AGENT_LOCAL_GOVERNANCE_TENANT_IDS": "1",
+            "DWP_AGENT_LOCAL_ACTIVITY_SEED_ENABLED": "true",
         }
         for key, value in agent_key_settings.items():
             self.assertEqual(environments["agent"][key], value)
@@ -85,6 +94,16 @@ class AgentLocalEnvironmentTest(unittest.TestCase):
                     if name != "agent"
                 )
             )
+
+        activity_platform_flag = "DWP_ACTIVITY_LOCAL_FIXTURES_ENABLED"
+        self.assertEqual(environments["platform"][activity_platform_flag], "true")
+        self.assertTrue(
+            all(
+                activity_platform_flag not in environment
+                for name, environment in environments.items()
+                if name != "platform"
+            )
+        )
 
         delegated_identity_settings = {
             "DWP_AGENT_IDENTITY_SIGNING_SECRET": (

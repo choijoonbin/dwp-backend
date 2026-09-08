@@ -205,11 +205,13 @@ class ProductAuthorizationContractValidatorTest {
         ProductAuthorizationContractDtos.BundleContract versionFive = validator.validateDocument(
                 generatedDocument("product-surfaces-v1.bundle-v5.generated.json"));
 
-        assertThat(index.latestVersion()).isEqualTo(5);
-        assertThat(index.latestChecksum()).isEqualTo(versionFive.checksum());
+        ProductAuthorizationContractDtos.BundleContract versionSix = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v6.generated.json"));
+        assertThat(index.latestVersion()).isEqualTo(6);
+        assertThat(index.latestChecksum()).isEqualTo(versionSix.checksum());
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::version)
-                .containsExactly(1L, 2L, 3L, 4L, 5L);
+                .containsExactly(1L, 2L, 3L, 4L, 5L, 6L);
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::bundleStatus)
                 .containsOnly("DRAFT");
@@ -217,6 +219,14 @@ class ProductAuthorizationContractValidatorTest {
         assertStrictCapabilitySuperset(versionTwo, versionThree);
         assertStrictCapabilitySuperset(versionThree, versionFour);
         assertStrictCapabilitySuperset(versionFour, versionFive);
+        assertStrictCapabilitySuperset(versionFive, versionSix);
+        assertThat(versionSix.routes()).filteredOn(value -> value.routeContractKey().equals(
+                "route.services.work.request-information-response.action"))
+                .singleElement().satisfies(route -> {
+                    assertThat(route.routeKind()).isEqualTo("ACTION");
+                    assertThat(route.accessProfiles().getFirst().requiredAccess().capabilityContractKey())
+                            .isEqualTo("services.request.respond");
+                });
         assertThat(versionOne.capabilities())
                 .filteredOn(value -> "REQUIRED".equals(value.responsibilityRequirement()))
                 .allMatch(value -> "APP_CONFIG_ADMIN".equals(

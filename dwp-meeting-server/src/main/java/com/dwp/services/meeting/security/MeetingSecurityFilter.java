@@ -136,7 +136,8 @@ public class MeetingSecurityFilter extends OncePerRequestFilter {
         Long tenantId = positiveLong(exactHeader(request, TENANT, 32, false));
         Set<String> permissions = parse(exactHeader(request, PERMISSIONS, 8192, true));
         Set<String> roles = parse(exactHeader(request, ROLES, 4096, true));
-        if (workspacePath(request.getRequestURI()) && (roles.contains("PROVIDER_SUPPORT")
+        if ((workspacePath(request.getRequestURI()) || personalHistoryFilter(request))
+                && (roles.contains("PROVIDER_SUPPORT")
                 || headerPresent(request, SUPPORT_SESSION) || headerPresent(request, ACTOR_TENANT)
                 || "SUPPORT".equals(exactHeader(request, ACTIVE_ACCESS_MODE, 40, false)))) {
             writeError(response, ErrorCode.FORBIDDEN,
@@ -176,7 +177,7 @@ public class MeetingSecurityFilter extends OncePerRequestFilter {
                 parse(exactHeader(request, GROUPS, 8192, true))));
         try {
             String path = request.getRequestURI();
-            if (workspacePath(path)) {
+            if (workspacePath(path) || personalHistoryFilter(request)) {
                 response.setHeader("Cache-Control", "private, no-store");
                 response.setHeader("Pragma", "no-cache");
                 response.setHeader("Referrer-Policy", "no-referrer");
@@ -314,6 +315,7 @@ public class MeetingSecurityFilter extends OncePerRequestFilter {
             return has(permissions, "APP.MEETINGS", "CREATE", "MANAGE");
         }
         if ("PUT".equals(method) && (path.equals("/v1/preferences")
+                || path.matches("/v1/meetings/" + uuid + "/bookmark")
                 || path.matches("/v1/templates/" + uuid + "/favorite")
                 || path.matches("/v1/meetings/" + uuid + "/invitation-response")
                 || path.matches("/v1/meetings/" + uuid + "/my-preparation"))) {
@@ -334,13 +336,22 @@ public class MeetingSecurityFilter extends OncePerRequestFilter {
 
     private boolean workspacePath(String path) {
         return path.equals("/v1/preferences") || path.equals("/v1/personal-room")
+                || path.equals("/v1/history/bookmarks")
+                || path.matches("/v1/meetings/[0-9A-Fa-f-]{36}/bookmark")
                 || path.equals("/v1/schedule-draft")
                 || path.startsWith("/v1/schedule-draft/")
                 || path.equals("/v1/meeting-series") || path.equals("/v1/meeting-series/preview")
                 || path.startsWith("/v1/personal-room/") || path.startsWith("/v1/personal-rooms/")
                 || path.matches("/v1/meetings/[0-9A-Fa-f-]{36}/my-preparation")
                 || path.equals("/v1/templates") || path.startsWith("/v1/templates/")
+                || path.startsWith("/v1/admin/record-retention/")
                 || path.equals("/v1/admin/templates") || path.startsWith("/v1/admin/templates/");
+    }
+
+    private boolean personalHistoryFilter(HttpServletRequest request) {
+        if (!request.getRequestURI().equals("/v1/history")) return false;
+        String[] values = request.getParameterValues("favoriteOnly");
+        return values != null && Arrays.stream(values).anyMatch(value -> !"false".equalsIgnoreCase(value));
     }
 
     private boolean invalidExactHeader(HttpServletRequest request) {

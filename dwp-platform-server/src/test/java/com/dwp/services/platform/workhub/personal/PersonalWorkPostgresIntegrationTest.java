@@ -53,8 +53,10 @@ class PersonalWorkPostgresIntegrationTest {
         jdbc = new JdbcTemplate(dataSource);
         transactions = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
         repository = new PersonalWorkRepository(jdbc);
-        jdbc.execute(new ClassPathResource("db/migration/V223__create_personal_work_runtime.sql")
-                .getContentAsString(StandardCharsets.UTF_8));
+        for (String migration : List.of("V223__create_personal_work_runtime.sql",
+                "V228__extend_personal_work_checklists_sources_and_deletion.sql")) {
+            jdbc.execute(new ClassPathResource("db/migration/" + migration).getContentAsString(StandardCharsets.UTF_8));
+        }
     }
 
     @BeforeEach
@@ -107,6 +109,19 @@ class PersonalWorkPostgresIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM personal_work_timeline", Integer.class)).isEqualTo(2);
         assertCode(() -> tx(() -> service.create(owner, key, null,
                 new CreateTaskRequest("Different", null, Priority.HIGH, null, null))), ErrorCode.RESOURCE_CONFLICT);
+    }
+
+    @Test
+    void preExtensionCommandReceiptStillReplaysAfterTheSchemaUpgrade() throws Exception {
+        UUID key = UUID.randomUUID();
+        CreateTaskRequest request = new CreateTaskRequest("Legacy command", null, Priority.NORMAL, null, null);
+        Task first = tx(() -> service.create(owner, key, null, request));
+        String legacyRequest = "{\"title\":\"Legacy command\",\"description\":null,\"priority\":\"NORMAL\",\"dueAt\":null,\"sourceReference\":null}";
+        String fingerprint = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                .digest(legacyRequest.getBytes(StandardCharsets.UTF_8)));
+        jdbc.update("UPDATE personal_work_command_receipts SET request_fingerprint = ? WHERE command_id = ?", fingerprint, key);
+        assertThat(tx(() -> service.create(owner, key, null, request)).taskId()).isEqualTo(first.taskId());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM personal_work_tasks", Integer.class)).isOne();
     }
 
     @Test
@@ -167,6 +182,111 @@ class PersonalWorkPostgresIntegrationTest {
         assertCode(() -> tx(() -> service.replaceDayPlan(owner, LocalDate.now(), UUID.randomUUID(), null,
                 new ReplaceDayPlanRequest(List.of(reference(task), reference(task)), 0L))), ErrorCode.INVALID_INPUT_VALUE);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM personal_work_day_plans", Integer.class)).isZero();
+    }
+
+
+    @Test
+    void checklistAndMultipleSourcesRoundTripPreserveOrderAndRequireOwnedSources() {
+        Task first = create();
+        Task second = create();
+        UUID itemId = UUID.randomUUID();
+        Task task = tx(() -> service.create(owner, UUID.randomUUID(), null,
+                new CreateTaskRequest("Checklist task", null, Priority.NORMAL, null, null,
+                        List.of(new ChecklistItem(itemId, "  Check evidence  ", false)),
+                        List.of(reference(first), reference(second)))));
+        assertThat(task.checklist()).containsExactly(new ChecklistItem(itemId, "Check evidence", false));
+        assertThat(task.sources()).extracting(SourceLink::reference).containsExactly(reference(first), reference(second));
+        assertThat(task.source()).isEqualTo(task.sources().getFirst());
+        Task updated = tx(() -> service.update(owner, task.taskId(), UUID.randomUUID(), null,
+                new UpdateTaskRequest(task.title(), null, task.priority(), null, null, false, task.version(),
+                        List.of(new ChecklistItem(itemId, "Check evidence", true)),
+                        List.of(reference(second), reference(first)))));
+        assertThat(updated.checklist().getFirst().completed()).isTrue();
+        assertThat(updated.status()).isEqualTo(Status.OPEN);
+        assertThat(updated.sources()).extracting(SourceLink::reference).containsExactly(reference(second), reference(first));
+        Task preserved = tx(() -> service.update(owner, task.taskId(), UUID.randomUUID(), null,
+                new UpdateTaskRequest("Legacy edit", null, task.priority(), null, null, false, updated.version())));
+        assertThat(preserved.checklist()).isEqualTo(updated.checklist());
+        assertThat(preserved.sources()).isEqualTo(updated.sources());
+        assertCode(() -> tx(() -> service.update(owner, task.taskId(), UUID.randomUUID(), null,
+                new UpdateTaskRequest("Stale edit", null, task.priority(), null, null, false, updated.version(),
+                        List.of(), List.of()))), ErrorCode.RESOURCE_CONFLICT);
+        Task cleared = tx(() -> service.update(owner, task.taskId(), UUID.randomUUID(), null,
+                new UpdateTaskRequest(task.title(), null, task.priority(), null, null, false, preserved.version(),
+                        List.of(), List.of())));
+        assertThat(cleared.checklist()).isEmpty();
+        assertThat(cleared.sources()).isEmpty();
+        assertThat(cleared.source()).isNull();
+        assertCode(() -> tx(() -> service.create(context(7L, 12L), UUID.randomUUID(), null,
+                new CreateTaskRequest("Foreign reference", null, Priority.NORMAL, null, null, List.of(),
+                        List.of(reference(first))))), ErrorCode.RESOURCE_NOT_AVAILABLE);
+    }
+
+    @Test
+    void malformedChecklistAndDuplicateSourceReferencesAreRejectedBeforeWriting() {
+        Task source = create();
+        UUID itemId = UUID.randomUUID();
+        assertCode(() -> tx(() -> service.create(owner, UUID.randomUUID(), null,
+                new CreateTaskRequest("Duplicate checklist", null, Priority.NORMAL, null, null,
+                        List.of(new ChecklistItem(itemId, "One", false), new ChecklistItem(itemId, "Two", true)),
+                        List.of()))), ErrorCode.INVALID_INPUT_VALUE);
+        assertCode(() -> tx(() -> service.create(owner, UUID.randomUUID(), null,
+                new CreateTaskRequest("Duplicate sources", null, Priority.NORMAL, null, null, List.of(),
+                        List.of(reference(source), reference(source))))), ErrorCode.INVALID_INPUT_VALUE);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM personal_work_tasks", Integer.class)).isOne();
+    }
+
+    @Test
+    void softDeleteIsScopedIdempotentRemovesSelectionsAndPreservesHistory() {
+        UUID createCommand = UUID.randomUUID();
+        CreateTaskRequest createRequest = new CreateTaskRequest("Delete me", null, Priority.NORMAL, null, null);
+        Task task = tx(() -> service.create(owner, createCommand, null, createRequest));
+        Task other = create();
+        LocalDate date = LocalDate.of(2026, 9, 7);
+        DayPlan plan = tx(() -> service.replaceDayPlan(owner, date, UUID.randomUUID(), null,
+                new ReplaceDayPlanRequest(List.of(reference(task), reference(other)), 0L)));
+        assertCode(() -> tx(() -> service.delete(context(7L, 12L), task.taskId(), UUID.randomUUID(), null,
+                new VersionRequest(task.version()))), ErrorCode.NOT_FOUND);
+        assertCode(() -> tx(() -> service.delete(owner, task.taskId(), UUID.randomUUID(), null,
+                new VersionRequest(task.version() + 1))), ErrorCode.RESOURCE_CONFLICT);
+        UUID deleteCommand = UUID.randomUUID();
+        DeleteResult deleted = tx(() -> service.delete(owner, task.taskId(), deleteCommand, null,
+                new VersionRequest(task.version())));
+        assertThat(deleted.deletedAt()).isNotNull();
+        assertThat(deleted.version()).isEqualTo(task.version() + 1);
+        assertThat(tx(() -> service.delete(owner, task.taskId(), deleteCommand, null,
+                new VersionRequest(task.version())))).isEqualTo(deleted);
+        assertCode(() -> tx(() -> service.get(owner, task.taskId())), ErrorCode.NOT_FOUND);
+        assertCode(() -> tx(() -> service.create(owner, createCommand, null, createRequest)), ErrorCode.NOT_FOUND);
+        assertCode(() -> tx(() -> service.transition(owner, task.taskId(), UUID.randomUUID(), null,
+                new StatusRequest(Status.COMPLETED, deleted.version()))), ErrorCode.NOT_FOUND);
+        assertThat(tx(() -> service.list(owner, null, 0, 50)).items()).extracting(Task::taskId).containsExactly(other.taskId());
+        DayPlan remaining = tx(() -> service.dayPlan(owner, date));
+        assertThat(remaining.version()).isEqualTo(plan.version() + 1);
+        assertThat(remaining.items()).hasSize(1);
+        assertThat(remaining.items().getFirst().position()).isZero();
+        assertThat(remaining.items().getFirst().source().reference()).isEqualTo(reference(other));
+        assertCode(() -> tx(() -> service.replaceDayPlan(owner, date, UUID.randomUUID(), null,
+                new ReplaceDayPlanRequest(List.of(), plan.version()))), ErrorCode.RESOURCE_CONFLICT);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM personal_work_tasks WHERE task_id = ?", Integer.class, task.taskId())).isOne();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM personal_work_timeline WHERE task_id = ?", Integer.class, task.taskId())).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT action FROM personal_work_timeline WHERE task_id = ? AND version = 1", String.class, task.taskId())).isEqualTo("DELETED");
+    }
+
+    @Test
+    void deletionAuditFailureRollsBackTaskAndAffectedPlanTogether() {
+        Task task = create();
+        LocalDate date = LocalDate.of(2026, 9, 7);
+        DayPlan plan = tx(() -> service.replaceDayPlan(owner, date, UUID.randomUUID(), null,
+                new ReplaceDayPlanRequest(List.of(reference(task)), 0L)));
+        when(audit.successWithId(anyLong(), anyLong(), anyString(), anyString(), anyString(), any(), any(), any()))
+                .thenThrow(new IllegalStateException("Audit unavailable"));
+        assertThatThrownBy(() -> tx(() -> service.delete(owner, task.taskId(), UUID.randomUUID(), null,
+                new VersionRequest(task.version())))).isInstanceOf(IllegalStateException.class);
+        assertThat(tx(() -> service.get(owner, task.taskId())).version()).isEqualTo(task.version());
+        assertThat(tx(() -> service.dayPlan(owner, date)).version()).isEqualTo(plan.version());
+        assertThat(tx(() -> service.dayPlan(owner, date)).items()).hasSize(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM personal_work_command_receipts WHERE operation = 'DELETE'", Integer.class)).isZero();
     }
 
     private Task create() {

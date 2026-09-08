@@ -3,6 +3,9 @@ package com.dwp.services.platform.workhub.personal;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
@@ -18,6 +21,7 @@ import static com.dwp.services.platform.workhub.personal.PersonalWorkDtos.*;
 @Repository
 public class PersonalWorkRepository {
     private final JdbcTemplate jdbc;
+    private final ObjectMapper mapper = new ObjectMapper();
 
     public PersonalWorkRepository(JdbcTemplate jdbc) { this.jdbc = jdbc; }
 
@@ -30,7 +34,7 @@ public class PersonalWorkRepository {
     public Optional<TaskRow> find(AccessContext context, UUID taskId) {
         return jdbc.query("""
                 SELECT * FROM personal_work_tasks
-                WHERE tenant_id = ? AND owner_user_id = ? AND task_id = ?
+                WHERE tenant_id = ? AND owner_user_id = ? AND task_id = ? AND deleted_at IS NULL
                 """, this::task, context.tenantId(), context.userId(), taskId).stream().findFirst();
     }
 
@@ -38,6 +42,7 @@ public class PersonalWorkRepository {
         return jdbc.query("""
                 SELECT * FROM personal_work_tasks
                 WHERE tenant_id = ? AND owner_user_id = ?
+                AND deleted_at IS NULL
                 AND ((?::text IS NULL AND status <> 'ARCHIVED') OR status = ?)
                 ORDER BY updated_at DESC, task_id LIMIT ? OFFSET ?
                 """, this::task, context.tenantId(), context.userId(),
@@ -49,6 +54,7 @@ public class PersonalWorkRepository {
         Long count = jdbc.queryForObject("""
                 SELECT count(*) FROM personal_work_tasks
                 WHERE tenant_id = ? AND owner_user_id = ?
+                AND deleted_at IS NULL
                 AND ((?::text IS NULL AND status <> 'ARCHIVED') OR status = ?)
                 """, Long.class, context.tenantId(), context.userId(),
                 status == null ? null : status.name(), status == null ? null : status.name());
@@ -60,13 +66,14 @@ public class PersonalWorkRepository {
         jdbc.update("""
                 INSERT INTO personal_work_tasks
                 (task_id, tenant_id, owner_user_id, title, description, status, priority, due_at,
-                 source_system, source_reference, obligation_key)
-                VALUES (?, ?, ?, ?, ?, 'OPEN', ?, ?, ?, ?, ?)
+                 source_system, source_reference, obligation_key, checklist, source_references)
+                VALUES (?, ?, ?, ?, ?, 'OPEN', ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb)
                 """, taskId, context.tenantId(), context.userId(), request.title().trim(),
                 request.description(), request.priority().name(), request.dueAt(),
                 source == null ? null : source.sourceSystem(),
                 source == null ? null : source.sourceReference(),
-                source == null ? null : source.obligationKey());
+                source == null ? null : source.obligationKey(),
+                json(request.checklist()), json(request.sourceReferences()));
         return find(context, taskId).orElseThrow();
     }
 
@@ -75,12 +82,14 @@ public class PersonalWorkRepository {
         int changed = jdbc.update("""
                 UPDATE personal_work_tasks SET title = ?, description = ?, priority = ?, due_at = ?,
                 source_system = ?, source_reference = ?, obligation_key = ?,
+                checklist = ?::jsonb, source_references = ?::jsonb,
                 version = version + 1, updated_at = CURRENT_TIMESTAMP
-                WHERE tenant_id = ? AND owner_user_id = ? AND task_id = ? AND version = ?
+                WHERE tenant_id = ? AND owner_user_id = ? AND task_id = ? AND version = ? AND deleted_at IS NULL
                 """, request.title().trim(), request.description(), request.priority().name(), request.dueAt(),
                 source == null ? null : source.sourceSystem(),
                 source == null ? null : source.sourceReference(),
                 source == null ? null : source.obligationKey(),
+                json(request.checklist()), json(request.sourceReferences()),
                 context.tenantId(), context.userId(), taskId, request.version());
         requireChanged(changed);
         return find(context, taskId).orElseThrow();
@@ -91,10 +100,46 @@ public class PersonalWorkRepository {
                 UPDATE personal_work_tasks SET status = ?, version = version + 1,
                 completed_at = CASE WHEN ? = 'COMPLETED' THEN CURRENT_TIMESTAMP ELSE NULL END,
                 updated_at = CURRENT_TIMESTAMP
-                WHERE tenant_id = ? AND owner_user_id = ? AND task_id = ? AND version = ?
+                WHERE tenant_id = ? AND owner_user_id = ? AND task_id = ? AND version = ? AND deleted_at IS NULL
                 """, status.name(), status.name(), context.tenantId(), context.userId(), taskId, version);
         requireChanged(changed);
         return find(context, taskId).orElseThrow();
+    }
+
+    public TaskRow softDelete(AccessContext context, UUID taskId, long version) {
+        requireChanged(jdbc.update("""
+                UPDATE personal_work_tasks SET deleted_at = CURRENT_TIMESTAMP,
+                    version = version + 1, updated_at = CURRENT_TIMESTAMP
+                 WHERE tenant_id = ? AND owner_user_id = ? AND task_id = ?
+                   AND version = ? AND deleted_at IS NULL
+                """, context.tenantId(), context.userId(), taskId, version));
+        return jdbc.query("""
+                SELECT * FROM personal_work_tasks
+                 WHERE tenant_id = ? AND owner_user_id = ? AND task_id = ?
+                """, this::task, context.tenantId(), context.userId(), taskId).getFirst();
+    }
+
+    public boolean isDeleted(AccessContext context, UUID taskId) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("""
+                SELECT EXISTS (SELECT 1 FROM personal_work_tasks
+                 WHERE tenant_id = ? AND owner_user_id = ? AND task_id = ? AND deleted_at IS NOT NULL)
+                """, Boolean.class, context.tenantId(), context.userId(), taskId));
+    }
+
+    /** Rebuild each affected plan so its order and optimistic version remain valid. */
+    public void removeTaskFromPlans(AccessContext context, UUID taskId) {
+        List<LocalDate> dates = jdbc.query("""
+                SELECT DISTINCT plan_date FROM personal_work_day_plan_items
+                 WHERE tenant_id = ? AND owner_user_id = ?
+                   AND source_system = 'PERSONAL_TASK' AND source_reference = ?
+                """, (rs, ignored) -> rs.getObject("plan_date", LocalDate.class),
+                context.tenantId(), context.userId(), taskId.toString());
+        for (LocalDate date : dates) {
+            PlanRow before = plan(context, date);
+            replacePlan(context, date, before.version(), before.items().stream()
+                    .filter(item -> !("PERSONAL_TASK".equals(item.sourceSystem())
+                            && taskId.toString().equals(item.sourceReference()))).toList());
+        }
     }
 
     public void appendTimeline(AccessContext context, TaskRow task, String action, UUID auditId) {
@@ -189,7 +234,10 @@ public class PersonalWorkRepository {
                 rs.getString("description"), Status.valueOf(rs.getString("status")),
                 Priority.valueOf(rs.getString("priority")), rs.getObject("due_at", OffsetDateTime.class),
                 source(rs), rs.getLong("version"), rs.getObject("created_at", OffsetDateTime.class),
-                rs.getObject("updated_at", OffsetDateTime.class), rs.getObject("completed_at", OffsetDateTime.class));
+                rs.getObject("updated_at", OffsetDateTime.class), rs.getObject("completed_at", OffsetDateTime.class),
+                readList(rs.getString("checklist"), new TypeReference<List<ChecklistItem>>() { }),
+                readList(rs.getString("source_references"), new TypeReference<List<SourceReference>>() { }),
+                rs.getObject("deleted_at", OffsetDateTime.class));
     }
 
     private SourceReference source(ResultSet rs) throws SQLException {
@@ -200,6 +248,17 @@ public class PersonalWorkRepository {
                 obligation == null || obligation.isEmpty() ? null : obligation);
     }
 
+    private String json(Object value) {
+        try { return mapper.writeValueAsString(value == null ? List.of() : value); }
+        catch (JsonProcessingException error) { throw new IllegalStateException(error); }
+    }
+
+    private <T> List<T> readList(String value, TypeReference<List<T>> type) {
+        if (value == null) return List.of();
+        try { return mapper.readValue(value, type); }
+        catch (JsonProcessingException error) { throw new IllegalStateException(error); }
+    }
+
     private void requireChanged(int changed) {
         if (changed != 1) throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
     }
@@ -207,7 +266,22 @@ public class PersonalWorkRepository {
     public record TaskRow(UUID taskId, String title, String description, Status status,
                           Priority priority, OffsetDateTime dueAt, SourceReference sourceReference,
                           long version, OffsetDateTime createdAt, OffsetDateTime updatedAt,
-                          OffsetDateTime completedAt) { }
+                          OffsetDateTime completedAt, List<ChecklistItem> checklist,
+                          List<SourceReference> sourceReferences, OffsetDateTime deletedAt) {
+        public TaskRow {
+            checklist = checklist == null ? List.of() : List.copyOf(checklist);
+            sourceReferences = sourceReferences == null
+                    ? sourceReference == null ? List.of() : List.of(sourceReference)
+                    : List.copyOf(sourceReferences);
+        }
+        public TaskRow(UUID taskId, String title, String description, Status status,
+                       Priority priority, OffsetDateTime dueAt, SourceReference sourceReference,
+                       long version, OffsetDateTime createdAt, OffsetDateTime updatedAt,
+                       OffsetDateTime completedAt) {
+            this(taskId, title, description, status, priority, dueAt, sourceReference,
+                    version, createdAt, updatedAt, completedAt, null, null, null);
+        }
+    }
     public record PlanRow(LocalDate date, long version, List<SourceReference> items,
                           OffsetDateTime updatedAt) { }
     public record Receipt(String operation, String target, String fingerprint, String payload) { }

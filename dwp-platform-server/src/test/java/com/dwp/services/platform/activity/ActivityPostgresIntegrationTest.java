@@ -157,6 +157,80 @@ class ActivityPostgresIntegrationTest {
     }
 
     @Test
+    void localSampleFactsRequireServerOptInStayOwnerScopedAndNeverEnterCurrentSummary() {
+        UUID localWork = UUID.randomUUID();
+        UUID localAudit = UUID.randomUUID();
+        UUID localEvent = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO wrk_items(work_item_id,tenant_id,work_key,title_ko,title_en,work_type,
+                  priority,lifecycle_state,owner_name,assignee_user_id,source_system)
+                VALUES (?,?,'ACTIVITY-LOCAL-TEST','로컬 표본','Local sample','TASK','MEDIUM',
+                  'IN_PROGRESS','Local',900018,'DWP_WORKSPACE')
+                """, localWork, tenant);
+        jdbc.update("""
+                INSERT INTO sys_platform_audit_events(audit_event_id,tenant_id,actor_type,actor_id,
+                  action,target_type,target_id,outcome,correlation_id)
+                VALUES (?,?,'USER',900018,'workspace.activity.local-fixture-created','WORK_ITEM',
+                  ?,'SUCCESS','activity-local-joonbin')
+                """, localAudit, tenant, localWork.toString());
+        jdbc.update("""
+                INSERT INTO wrk_activity_events(activity_event_id,tenant_id,visible_to_user_id,
+                  actor_kind,actor_name,event_state,title_ko,title_en,summary_ko,summary_en,
+                  object_type,object_label_ko,object_label_en,source_system,event_kind,
+                  source_event_id,object_id,work_status,correlation_id,audit_record_id,
+                  data_provenance,audit_reference)
+                VALUES (?,?,900018,'PERSON','Local','COMPLETED','로컬 표본','Local sample',
+                  '개발 검증','Development verification','WORK_ITEM','로컬 표본','Local sample',
+                  'DWP_WORKSPACE','CHANGE',?,?,'IN_PROGRESS','activity-local-joonbin',?,
+                  'SAMPLE','LOCAL-FIXTURE-TEST')
+                """, localEvent, tenant, "activity-local:test-" + localEvent,
+                localWork.toString(), localAudit);
+
+        var repository = new ActivityRepository(new NamedParameterJdbcTemplate(jdbc));
+        var cursor = new ActivityCursor(new ObjectMapper().findAndRegisterModules());
+        var defaultService = new ActivityService(repository, cursor, false);
+        var localService = new ActivityService(repository, cursor, true);
+        assertThat(defaultService.list(tenant, 900018L, ACCESS, "en", ActivityQuery.defaults()).events())
+                .isEmpty();
+        assertThatThrownBy(() -> defaultService.detail(tenant, 900018L, ACCESS, "en", localEvent))
+                .isInstanceOf(BaseException.class);
+        var page = localService.list(tenant, 900018L, ACCESS, "en", ActivityQuery.defaults());
+        assertThat(page.events()).singleElement().satisfies(row -> {
+            assertThat(row.id()).isEqualTo(localEvent);
+            assertThat(row.dataProvenance()).isEqualTo("SAMPLE");
+        });
+        assertThat(page.coverage().excludedProvenance()).containsExactly("QUARANTINED");
+        assertThat(localService.detail(tenant, 900018L, ACCESS, "en", localEvent).id())
+                .isEqualTo(localEvent);
+        assertThatThrownBy(() -> localService.detail(tenant, 7L, ACCESS, "en", localEvent))
+                .isInstanceOf(BaseException.class);
+        assertThat(localService.summary(tenant, 900018L, ACCESS).total()).isZero();
+
+        // A fixture created by an older script must not become visible merely because
+        // it was incorrectly labelled LIVE. The reserved marker is fail-closed.
+        UUID staleLiveFixture = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO wrk_activity_events(activity_event_id,tenant_id,visible_to_user_id,
+                  actor_kind,actor_name,event_state,title_ko,title_en,summary_ko,summary_en,
+                  object_type,object_label_ko,object_label_en,source_system,event_kind,
+                  source_event_id,object_id,work_status,correlation_id,audit_record_id,
+                  data_provenance,audit_reference)
+                VALUES (?,?,900018,'PERSON','Local','COMPLETED','구버전 표본','Stale fixture',
+                  '개발 검증','Development verification','WORK_ITEM','구버전 표본','Stale fixture',
+                  'DWP_WORKSPACE','CHANGE',?,?,'IN_PROGRESS','activity-local-joonbin',?,
+                  'LIVE','LOCAL-FIXTURE-STALE')
+                """, staleLiveFixture, tenant, "activity-local:stale-" + staleLiveFixture,
+                localWork.toString(), localAudit);
+        assertThat(defaultService.list(tenant, 900018L, ACCESS, "en", ActivityQuery.defaults()).events())
+                .isEmpty();
+        assertThat(localService.list(tenant, 900018L, ACCESS, "en", ActivityQuery.defaults()).events())
+                .extracting(WorkspaceDtos.ActivityEvent::id).containsExactly(localEvent);
+        assertThatThrownBy(() -> localService.detail(tenant, 900018L, ACCESS, "en", staleLiveFixture))
+                .isInstanceOf(BaseException.class);
+        assertThat(localService.summary(tenant, 900018L, ACCESS).total()).isZero();
+    }
+
+    @Test
     void readsEveryMatchingEventBeyond200WithStableKeysetAndIndependentOldDetail() {
         OffsetDateTime time = OffsetDateTime.parse("2025-01-01T00:00:00.123456Z");
         List<UUID> inserted = new ArrayList<>();

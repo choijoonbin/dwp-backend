@@ -18,6 +18,7 @@ import com.dwp.services.meeting.videomeeting.provider.MeetingMediaProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
 
 import java.time.Clock;
 import java.time.LocalDate;
@@ -482,11 +483,18 @@ public class VideoMeetingService {
     @Transactional(readOnly = true)
     public VideoMeetingDtos.PageResponse<VideoMeetingDtos.HistoryItemResponse> history(
             int page, int pageSize) {
+        return history(page, pageSize, false);
+    }
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public VideoMeetingDtos.PageResponse<VideoMeetingDtos.HistoryItemResponse> history(
+            int page, int pageSize, boolean favoriteOnly) {
+        if (favoriteOnly) MeetingWorkspacePolicy.require("APP.MEETINGS", "VIEW");
         MeetingRequestContext.Subject subject = MeetingRequestContext.get();
         int boundedPage = Math.max(0, page);
         int boundedSize = Math.max(1, Math.min(100, pageSize));
         VideoMeetingRepository.PagedMeetings history = repository.history(
-                subject.tenantId(), subject.userId(), boundedPage, boundedSize);
+                subject.tenantId(), subject.userId(), boundedPage, boundedSize, favoriteOnly);
         return new VideoMeetingDtos.PageResponse<>(
                 history.items().stream().map(VideoMeetingDtos::history).toList(),
                 history.total(), boundedPage, boundedSize);

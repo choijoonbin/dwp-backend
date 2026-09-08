@@ -50,7 +50,7 @@ public class OwnerWorkSourceResolver implements PersonalWorkSourceResolver {
                                 "/work/queue?item=" + item.workItemId(), item.status(), item.dueAt()));
                 case "MAIL_THREAD" -> mail(context, reference);
                 case "APPROVAL_TASK", "APPROVAL_REQUEST" -> bookmark(context, reference, "APP.APPROVALS:VIEW");
-                case "SERVICE_REQUEST" -> bookmark(context, reference, "APP.SERVICES:VIEW");
+                case "SERVICE_REQUEST" -> bookmark(context, reference, "APP.EMPLOYEE_SERVICES:VIEW");
                 case "IDENTITY_GOVERNANCE" -> bookmark(context, reference, "APP.WORK:VIEW");
                 default -> Optional.empty();
             };

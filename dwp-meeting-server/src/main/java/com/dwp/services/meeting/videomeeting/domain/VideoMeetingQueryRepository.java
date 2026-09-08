@@ -118,8 +118,14 @@ final class VideoMeetingQueryRepository {
     }
 
     VideoMeetingRepository.PagedMeetings history(
-            long tenantId, long userId, int page, int pageSize) {
+            long tenantId, long userId, int page, int pageSize, boolean favoriteOnly) {
         MapSqlParameterSource parameters = pageParameters(tenantId, userId, page, pageSize);
+        String favoritePredicate = favoriteOnly ? """
+                 AND EXISTS (SELECT 1 FROM vm_meeting_record_bookmarks bookmark
+                      WHERE bookmark.tenant_id = meeting.tenant_id
+                        AND bookmark.meeting_id = meeting.meeting_id
+                        AND bookmark.user_id = :userId AND bookmark.favorite)
+                """ : "";
         List<MeetingCard> items = namedJdbc.query("""
                 SELECT meeting.*,
                        (SELECT COUNT(*) FROM vm_meeting_participants participant
@@ -134,7 +140,7 @@ final class VideoMeetingQueryRepository {
                  WHERE meeting.tenant_id = :tenantId
                    AND meeting.lifecycle_state IN ('ENDED', 'CANCELLED')
                    AND
-                """ + VideoMeetingRepository.ACCESS_PREDICATE + """
+                """ + VideoMeetingRepository.ACCESS_PREDICATE + favoritePredicate + """
                  ORDER BY COALESCE(meeting.ended_at, meeting.updated_at) DESC,
                           meeting.meeting_id DESC
                  LIMIT :limit OFFSET :offset
@@ -144,7 +150,7 @@ final class VideoMeetingQueryRepository {
                  WHERE meeting.tenant_id = :tenantId
                    AND meeting.lifecycle_state IN ('ENDED', 'CANCELLED')
                    AND
-                """ + VideoMeetingRepository.ACCESS_PREDICATE,
+                """ + VideoMeetingRepository.ACCESS_PREDICATE + favoritePredicate,
                 parameters, Long.class);
         return new VideoMeetingRepository.PagedMeetings(items, total == null ? 0 : total);
     }
@@ -206,7 +212,7 @@ final class VideoMeetingQueryRepository {
             long tenantId, long userId, int page, int pageSize) {
         return accessParameters(tenantId, userId)
                 .addValue("limit", pageSize)
-                .addValue("offset", page * pageSize);
+                .addValue("offset", (long) page * pageSize);
     }
 
     private MapSqlParameterSource accessParameters(long tenantId, long userId) {

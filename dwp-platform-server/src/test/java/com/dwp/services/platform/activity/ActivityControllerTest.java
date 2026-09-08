@@ -32,7 +32,8 @@ class ActivityControllerTest {
         mvc = standaloneSetup(new ActivityController(service))
                 .setControllerAdvice(new GlobalExceptionHandler(new StaticMessageSource()))
                 .addFilters(security).build();
-        when(repository.list(anyLong(), anyLong(), anySet(), anyBoolean(), any(), any())).thenReturn(List.of());
+        when(repository.list(anyLong(), anyLong(), anySet(), anyBoolean(), any(), any(), anyBoolean()))
+                .thenReturn(List.of());
         when(repository.executionCounts(anyLong(), anyLong(), anySet())).thenReturn(new long[7]);
     }
 
@@ -46,7 +47,7 @@ class ActivityControllerTest {
                 .andExpect(jsonPath("$.data.coverage.supportedObjectTypes.length()").value(1))
                 .andExpect(jsonPath("$.data.startCursor").isString());
         verify(repository).list(eq(7L), eq(8L), anySet(), eq(false),
-                argThat(q -> q.limit() == 50 && !q.includeUsage()), any());
+                argThat(q -> q.limit() == 50 && !q.includeUsage()), any(), eq(false));
     }
 
     @Test
@@ -60,7 +61,8 @@ class ActivityControllerTest {
     @Test
     void rejectsUntrustedGatewayAndMissingActivityPermission() throws Exception {
         mvc.perform(request("").with(r -> {r.removeHeader("X-DWP-Service-Token"); return r;}))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("Cache-Control", "private, no-store, max-age=0"));
         mvc.perform(request("").with(r -> {r.removeHeader("X-DWP-Permissions");
             r.addHeader("X-DWP-Permissions", "APP.WORK:VIEW"); return r;})).andExpect(status().isForbidden());
         verifyNoInteractions(repository);
@@ -68,7 +70,8 @@ class ActivityControllerTest {
 
     @Test
     void unavailableDeletedCrossTenantAndForbiddenDetailsHaveTheSameNotFoundShape() throws Exception {
-        mvc.perform(request("/events/" + UUID.randomUUID())).andExpect(status().isNotFound());
+        mvc.perform(request("/events/" + UUID.randomUUID())).andExpect(status().isNotFound())
+                .andExpect(header().string("Cache-Control", "private, no-store, max-age=0"));
     }
 
     @Test

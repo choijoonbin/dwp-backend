@@ -48,6 +48,19 @@ import java.util.stream.Collectors;
 @Order(Ordered.HIGHEST_PRECEDENCE + 15)
 public final class ServicesProductSurfacePepFilter extends OncePerRequestFilter {
 
+    public static final String INFORMATION_RESPONSE_ROUTE =
+            "route.services.work.request-information-response.action";
+    private static final Object RESPONSE_AUTHORITY = new Object();
+    private static final String RESPONSE_ATTRIBUTE =
+            ServicesProductSurfacePepFilter.class.getName() + ".requesterResponseAuthority";
+
+    /** Server-only proof that the Services owner PEP verified the additive response route. */
+    public static boolean hasVerifiedRequesterResponseAuthority(HttpServletRequest request) {
+        return request.getAttribute(RESPONSE_ATTRIBUTE) == RESPONSE_AUTHORITY
+                && "POST".equals(request.getMethod())
+                && request.getRequestURI().matches("/v1/services/requests/[^/]+/information-response");
+    }
+
     static final String HOME_PAGE_ROUTE = "route.services.work.home.page";
     static final String REQUEST_DETAIL_DATA_ROUTE =
             "route.services.work.request-detail.data";
@@ -118,9 +131,14 @@ public final class ServicesProductSurfacePepFilter extends OncePerRequestFilter 
             "hcm",
             "hcm.personal",
             true);
+    static final Binding INFORMATION_RESPONSE = new Binding(
+            INFORMATION_RESPONSE_ROUTE, INFORMATION_RESPONSE_ROUTE, RouteKind.ACTION, "POST",
+            "/api/platform/v1/services/requests/{requestId}/information-response",
+            "/v1/services/requests/{requestId}/information-response", Map.of(), Set.of(),
+            "services", "services.work", false);
     private static final List<Binding> BINDINGS = List.of(
             HOME_PAGE, REQUEST_DETAIL_DATA, REQUEST_CREATE_ACTION,
-            HCM_CATALOG_PAGE, HCM_REQUESTS_PAGE);
+            HCM_CATALOG_PAGE, HCM_REQUESTS_PAGE, INFORMATION_RESPONSE);
     private static final Set<String> ROLLOUT_STATES = Set.of("000", "100", "110", "111");
     private static final Set<String> ROLLOUT_COHORTS = Set.of(
             "baseline", "holdout", "full", "eligible-10", "eligible-25",
@@ -153,7 +171,8 @@ public final class ServicesProductSurfacePepFilter extends OncePerRequestFilter 
     protected boolean shouldNotFilter(HttpServletRequest request) {
         List<Binding> candidates = candidateBindings(request);
         return candidates.isEmpty() || (!enabled && candidates.stream()
-                .noneMatch(Binding::requiresHcmApplication));
+                .noneMatch(binding -> binding.requiresHcmApplication()
+                        || binding == INFORMATION_RESPONSE));
     }
 
     @Override
@@ -181,7 +200,14 @@ public final class ServicesProductSurfacePepFilter extends OncePerRequestFilter 
                     "Trusted Employee Services rollout evidence is invalid.");
             return;
         }
+        boolean requesterResponse = INFORMATION_RESPONSE.matches(request);
+        if (requesterResponse && !requesterResponsePermissions(request)) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "The requester Employee Services update authority is required.");
+            return;
+        }
         if (rolloutState.charAt(1) == '0') {
+            if (requesterResponse) request.setAttribute(RESPONSE_ATTRIBUTE, RESPONSE_AUTHORITY);
             filterChain.doFilter(request, response);
             return;
         }
@@ -225,6 +251,7 @@ public final class ServicesProductSurfacePepFilter extends OncePerRequestFilter 
             return;
         }
 
+        if (requesterResponse) request.setAttribute(RESPONSE_ATTRIBUTE, RESPONSE_AUTHORITY);
         HttpServletRequest downstream = binding.routeContractKey().equals(
                 binding.platformV1RouteContractKey())
                 ? request
@@ -234,6 +261,16 @@ public final class ServicesProductSurfacePepFilter extends OncePerRequestFilter 
                 binding.requiresHcmApplication()
                         ? HCM_BRIDGE_QUERY_PARAMETERS : Set.of());
         filterChain.doFilter(downstream, response);
+    }
+
+    private boolean requesterResponsePermissions(HttpServletRequest request) {
+        Set<String> permissions = upperValues(request.getHeader("X-DWP-Permissions"));
+        return positiveLong(request.getHeader("X-DWP-Tenant-ID")) > 0
+                && positiveLong(request.getHeader("X-DWP-User-ID")) > 0
+                && request.getHeader("X-DWP-Support-Session-ID") == null
+                && !RolePlaneBoundary.isProviderIdentity(values(request.getHeader("X-DWP-Roles")))
+                && permissions.contains("APP.EMPLOYEE_SERVICES:VIEW")
+                && permissions.contains("APP.EMPLOYEE_SERVICES:UPDATE");
     }
 
     private Decision authorize(HttpServletRequest request, Binding binding) {

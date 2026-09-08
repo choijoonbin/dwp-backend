@@ -36,6 +36,7 @@ public class VideoMeetingAdminIntelligenceReadinessService {
     private final MeetingRecordingDeletionReadiness recordingDeletion;
     private final MeetingTranscriptDeletionReadiness transcriptDeletion;
     private final MeetingChatRetentionService chatRetention;
+    private final MeetingRecordRetentionService recordRetention;
     private final JdbcTemplate jdbc;
     private final Clock clock;
 
@@ -49,9 +50,10 @@ public class VideoMeetingAdminIntelligenceReadinessService {
             MeetingRecordingDeletionReadiness recordingDeletion,
             MeetingTranscriptDeletionReadiness transcriptDeletion,
             MeetingChatRetentionService chatRetention,
+            MeetingRecordRetentionService recordRetention,
             JdbcTemplate jdbc) {
         this(meetings, media, dependencies, intelligence, retention,
-                recordingDeletion, transcriptDeletion, chatRetention,
+                recordingDeletion, transcriptDeletion, chatRetention, recordRetention,
                 jdbc, Clock.systemUTC());
     }
 
@@ -64,6 +66,7 @@ public class VideoMeetingAdminIntelligenceReadinessService {
             MeetingRecordingDeletionReadiness recordingDeletion,
             MeetingTranscriptDeletionReadiness transcriptDeletion,
             MeetingChatRetentionService chatRetention,
+            MeetingRecordRetentionService recordRetention,
             JdbcTemplate jdbc,
             Clock clock) {
         this.meetings = meetings;
@@ -74,6 +77,7 @@ public class VideoMeetingAdminIntelligenceReadinessService {
         this.recordingDeletion = recordingDeletion;
         this.transcriptDeletion = transcriptDeletion;
         this.chatRetention = chatRetention;
+        this.recordRetention = recordRetention;
         this.jdbc = jdbc;
         this.clock = clock;
     }
@@ -357,8 +361,8 @@ public class VideoMeetingAdminIntelligenceReadinessService {
                 ? ReadinessSignal.ready()
                 : ReadinessSignal.connectionRequired(
                         "INTELLIGENCE_REPORT_RETENTION_NOT_READY"));
-        signals.put("meetingRecords", ReadinessSignal.notVerified(
-                "MEETING_RECORD_RETENTION_WORKER_NOT_CONFIGURED"));
+        signals.put("meetingRecords", recordRetentionReady() ? ReadinessSignal.ready()
+                : ReadinessSignal.notVerified("MEETING_RECORD_RETENTION_WORKER_NOT_READY"));
         signals.put("artifacts", recordingDeletionReady && transcriptDeletionReady
                 ? ReadinessSignal.ready()
                 : ReadinessSignal.connectionRequired(
@@ -368,6 +372,11 @@ public class VideoMeetingAdminIntelligenceReadinessService {
                 : ReadinessSignal.connectionRequired(
                         "RETENTION_WORKER_NOT_READY"));
         return signals;
+    }
+
+    private boolean recordRetentionReady() {
+        try { return recordRetention.ready(); }
+        catch (RuntimeException exception) { return false; }
     }
 
     private MeetingMediaProvider.Capability unavailableMedia() {

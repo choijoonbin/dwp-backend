@@ -33,6 +33,8 @@ class MeetingRuntimeWiringTest {
                     () -> mock(MeetingIntelligenceRetentionService.class))
             .withBean(MeetingChatRetentionService.class,
                     () -> mock(MeetingChatRetentionService.class))
+            .withBean(MeetingRecordRetentionService.class,
+                    () -> mock(MeetingRecordRetentionService.class))
             .withBean(JdbcTemplate.class, () -> mock(JdbcTemplate.class))
             .withBean(VideoMeetingLifecycleOperationRepository.class,
                     () -> mock(VideoMeetingLifecycleOperationRepository.class))

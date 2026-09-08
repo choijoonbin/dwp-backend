@@ -87,6 +87,13 @@ public final class ServiceCenterDtos {
             boolean submit) {
     }
 
+    public record InformationResponseRequest(
+            @NotNull @Size(max = 50) Map<String, Object> values,
+            @NotBlank @Size(min = 10, max = 2000) String message,
+            @NotNull @Min(0) Long version,
+            @NotNull UUID idempotencyKey) {
+    }
+
     public record VersionRequest(@NotNull @Min(0) Long version) {
     }
 

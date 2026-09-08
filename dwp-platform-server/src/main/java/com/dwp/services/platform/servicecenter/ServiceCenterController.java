@@ -80,6 +80,17 @@ public class ServiceCenterController {
                 tenantId, userId, correlationId, requestId, request));
     }
 
+    @PostMapping("/requests/{requestId}/information-response")
+    public ApiResponse<ServiceCenterDtos.RequestDetail> informationResponse(
+            @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
+            @RequestHeader("X-DWP-User-ID") Long userId,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @PathVariable UUID requestId,
+            @Valid @RequestBody ServiceCenterDtos.InformationResponseRequest request) {
+        return ApiResponse.success(service.respondToInformationRequest(
+                tenantId, userId, correlationId, requestId, request));
+    }
+
     @PostMapping("/requests/{requestId}/cancel")
     public ApiResponse<ServiceCenterDtos.RequestDetail> cancel(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,

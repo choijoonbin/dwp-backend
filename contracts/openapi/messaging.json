@@ -534,6 +534,36 @@
         },
         "type": "object"
       },
+      "ApiResponseListReceiptSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ReceiptSummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseMembershipMutationResponse": {
         "properties": {
           "correlationId": {
@@ -615,6 +645,60 @@
         },
         "type": "object"
       },
+      "ApiResponseObservationResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ObservationResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponsePrivacyPreference": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PrivacyPreference"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseReadCursorResponse": {
         "properties": {
           "correlationId": {
@@ -622,6 +706,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/ReadCursorResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseReceiptSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ReceiptSummary"
           },
           "errorCode": {
             "type": "string"
@@ -730,6 +841,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/SessionResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseSharedAssetsResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SharedAssetsResponse"
           },
           "errorCode": {
             "type": "string"
@@ -1706,6 +1844,35 @@
         },
         "type": "object"
       },
+      "ObservationResponse": {
+        "properties": {
+          "observedMessageIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ObserveRequest": {
+        "properties": {
+          "messageIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "messageIds"
+        ],
+        "type": "object"
+      },
       "PersonSearchResult": {
         "properties": {
           "displayName": {
@@ -1759,6 +1926,18 @@
             "type": "string"
           },
           "userId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "PrivacyPreference": {
+        "properties": {
+          "readReceiptsEnabled": {
+            "type": "boolean"
+          },
+          "version": {
             "format": "int64",
             "type": "integer"
           }
@@ -1843,6 +2022,57 @@
           },
           "state": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ReceiptSummary": {
+        "properties": {
+          "messageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "readCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "recipients": {
+            "items": {
+              "$ref": "#/components/schemas/Recipient"
+            },
+            "type": "array"
+          },
+          "unavailableCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unreadCount": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Recipient": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "personPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "READ",
+              "UNREAD",
+              "UNAVAILABLE"
+            ],
+            "type": "string"
+          },
+          "userId": {
+            "format": "int64",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -2009,6 +2239,71 @@
           "version": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SharedAsset": {
+        "properties": {
+          "attachmentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "conversationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "conversationName": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "FILE",
+              "LINK"
+            ],
+            "type": "string"
+          },
+          "messageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "senderName": {
+            "type": "string"
+          },
+          "sharedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "sizeBytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SharedAssetsResponse": {
+        "properties": {
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SharedAsset"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -2250,6 +2545,23 @@
         },
         "required": [
           "body"
+        ],
+        "type": "object"
+      },
+      "UpdatePrivacyPreferenceRequest": {
+        "properties": {
+          "readReceiptsEnabled": {
+            "type": "boolean"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "readReceiptsEnabled",
+          "version"
         ],
         "type": "object"
       },
@@ -3640,6 +3952,46 @@
         ]
       }
     },
+    "/v1/conversations/{conversationId}/messages/{messageId}/receipts": {
+      "get": {
+        "operationId": "receipt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "messageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseReceiptSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-receipt-controller"
+        ]
+      }
+    },
     "/v1/conversations/{conversationId}/messages/{messageId}/saved": {
       "delete": {
         "operationId": "unsaveMessage",
@@ -3806,6 +4158,88 @@
         },
         "tags": [
           "messaging-controller"
+        ]
+      }
+    },
+    "/v1/conversations/{conversationId}/read-receipts": {
+      "get": {
+        "operationId": "receipts",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "messageIds",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListReceiptSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-receipt-controller"
+        ]
+      },
+      "post": {
+        "operationId": "observe",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ObserveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseObservationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-receipt-controller"
         ]
       }
     },
@@ -4021,6 +4455,38 @@
         ]
       }
     },
+    "/v1/home/shared-assets": {
+      "get": {
+        "operationId": "recent",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 6,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSharedAssetsResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-home-asset-controller"
+        ]
+      }
+    },
     "/v1/people": {
       "get": {
         "operationId": "people",
@@ -4059,6 +4525,54 @@
         },
         "tags": [
           "messaging-controller"
+        ]
+      }
+    },
+    "/v1/privacy-preferences": {
+      "get": {
+        "operationId": "preference",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePrivacyPreference"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-privacy-controller"
+        ]
+      },
+      "put": {
+        "operationId": "update",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePrivacyPreferenceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePrivacyPreference"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-privacy-controller"
         ]
       }
     },

@@ -43,6 +43,14 @@ class ActivityCursorTest {
     }
 
     @Test
+    void localFixtureModeIsPartOfTheCursorScope() {
+        var query = ActivityQuery.defaults();
+        assertThat(cursor.scope(7L, 8L, Set.of("APP.ACTIVITY:VIEW"), "ko", query, false))
+                .isNotEqualTo(cursor.scope(
+                        7L, 8L, Set.of("APP.ACTIVITY:VIEW"), "ko", query, true));
+    }
+
+    @Test
     void validatesBoundsEnumsAndDateRange() {
         assertThat(ActivityQuery.defaults().normalized().limit()).isEqualTo(50);
         for (int limit : new int[] {0, -1, 101}) {

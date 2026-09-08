@@ -39,6 +39,19 @@ class GeneratedProductRouteCatalogTest {
     }
 
     @Test
+    void v6RequesterResponseHasAnExactNewSourceAction() {
+        String path = "/api/platform/v1/services/requests/00000000-0000-4000-8000-000000000001/information-response";
+        var latest = catalog(6).match("POST", path);
+        assertThat(latest.status()).isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+        assertThat(latest.uniqueRoute().routeContractKey())
+                .isEqualTo("route.services.work.request-information-response.action");
+        assertThat(latest.uniqueRoute().productKey()).isEqualTo("services");
+        assertThat(catalog(5).match("POST", path).uniqueRoute()).isNull();
+        assertThat(catalog(6).match("PUT", path).status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+    }
+
+    @Test
     void declaredAuthorityEndpointUsesAStrictClosedShape() throws Exception {
         ObjectNode unknownField = bundle(3);
         ((ObjectNode) unknownField.withArray("authorityEndpoints").get(0))

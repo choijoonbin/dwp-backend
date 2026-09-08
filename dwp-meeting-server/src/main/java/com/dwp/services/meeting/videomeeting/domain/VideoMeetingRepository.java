@@ -525,7 +525,12 @@ public class VideoMeetingRepository {
 
     public PagedMeetings history(
             long tenantId, long userId, int page, int pageSize) {
-        return queries.history(tenantId, userId, page, pageSize);
+        return history(tenantId, userId, page, pageSize, false);
+    }
+
+    public PagedMeetings history(
+            long tenantId, long userId, int page, int pageSize, boolean favoriteOnly) {
+        return queries.history(tenantId, userId, page, pageSize, favoriteOnly);
     }
 
     public List<Participant> waitingParticipants(long tenantId, UUID meetingId) {

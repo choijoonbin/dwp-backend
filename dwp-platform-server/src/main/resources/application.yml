@@ -82,6 +82,9 @@ dwp:
   platform:
     service-token: ${DWP_PLATFORM_SERVICE_TOKEN:}
     runtime-service-token: ${DWP_PLATFORM_RUNTIME_SERVICE_TOKEN:}
+    activity:
+      # Local UI evidence stays SAMPLE and is invisible unless the server is explicitly opted in.
+      local-fixtures-enabled: ${DWP_ACTIVITY_LOCAL_FIXTURES_ENABLED:false}
     # Deny-only interlock: true intentionally fails startup until the authoritative runtime exists.
     widget-registry-enabled: ${DWP_WIDGET_REGISTRY_ENABLED:false}
     home:

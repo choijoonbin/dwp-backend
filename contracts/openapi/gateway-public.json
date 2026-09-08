@@ -10855,6 +10855,60 @@
         },
         "type": "object"
       },
+      "meeting_ApiResponseBookmarkPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/meeting_BookmarkPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "meeting_ApiResponseBookmarkState": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/meeting_BookmarkState"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "meeting_ApiResponseCancellationPreviewResponse": {
         "properties": {
           "correlationId": {
@@ -10997,6 +11051,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/meeting_ContentPlanResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "meeting_ApiResponseControlState": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/meeting_ControlState"
           },
           "errorCode": {
             "type": "string"
@@ -12242,6 +12323,54 @@
         },
         "type": "object"
       },
+      "meeting_BookmarkInput": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "favorite": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "favorite"
+        ],
+        "type": "object"
+      },
+      "meeting_BookmarkPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/meeting_BookmarkState"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "meeting_BookmarkState": {
+        "properties": {
+          "favorite": {
+            "type": "boolean"
+          },
+          "meetingId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "meeting_CancelPreviewRequest": {
         "properties": {
           "expectedSeriesVersion": {
@@ -12657,6 +12786,89 @@
           "version": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "meeting_ControlInput": {
+        "properties": {
+          "expectedControlVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "expectedMeetingVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "expectedPolicyVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "hold": {
+            "type": "boolean"
+          },
+          "purgeAuthorized": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "expectedControlVersion",
+          "expectedMeetingVersion",
+          "expectedPolicyVersion",
+          "hold",
+          "purgeAuthorized"
+        ],
+        "type": "object"
+      },
+      "meeting_ControlState": {
+        "properties": {
+          "authorizationAuditPublished": {
+            "type": "boolean"
+          },
+          "controlVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "hold": {
+            "type": "boolean"
+          },
+          "meetingId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "meetingVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "policyVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "purgeAuthorized": {
+            "type": "boolean"
+          },
+          "purgedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "retentionUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "workerEnabled": {
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -13155,6 +13367,9 @@
             "format": "int32",
             "type": "integer"
           },
+          "canHost": {
+            "type": "boolean"
+          },
           "endedAt": {
             "format": "date-time",
             "type": "string"
@@ -13163,9 +13378,19 @@
             "format": "uuid",
             "type": "string"
           },
+          "organizerName": {
+            "type": "string"
+          },
+          "organizerUserId": {
+            "format": "int64",
+            "type": "integer"
+          },
           "participantPeak": {
             "format": "int32",
             "type": "integer"
+          },
+          "participantRole": {
+            "type": "string"
           },
           "recordingAvailable": {
             "type": "boolean"
@@ -13591,6 +13816,10 @@
               "$ref": "#/components/schemas/meeting_ArtifactResponse"
             },
             "type": "array"
+          },
+          "attendeeCount": {
+            "format": "int32",
+            "type": "integer"
           },
           "canHost": {
             "type": "boolean"
@@ -16461,6 +16690,36 @@
         },
         "type": "object"
       },
+      "messaging_ApiResponseListReceiptSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/messaging_ReceiptSummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "messaging_ApiResponseMembershipMutationResponse": {
         "properties": {
           "correlationId": {
@@ -16542,6 +16801,60 @@
         },
         "type": "object"
       },
+      "messaging_ApiResponseObservationResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/messaging_ObservationResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "messaging_ApiResponsePrivacyPreference": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/messaging_PrivacyPreference"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "messaging_ApiResponseReadCursorResponse": {
         "properties": {
           "correlationId": {
@@ -16549,6 +16862,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/messaging_ReadCursorResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "messaging_ApiResponseReceiptSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/messaging_ReceiptSummary"
           },
           "errorCode": {
             "type": "string"
@@ -16657,6 +16997,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/messaging_SessionResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "messaging_ApiResponseSharedAssetsResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/messaging_SharedAssetsResponse"
           },
           "errorCode": {
             "type": "string"
@@ -17633,6 +18000,35 @@
         },
         "type": "object"
       },
+      "messaging_ObservationResponse": {
+        "properties": {
+          "observedMessageIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "messaging_ObserveRequest": {
+        "properties": {
+          "messageIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "messageIds"
+        ],
+        "type": "object"
+      },
       "messaging_PersonSearchResult": {
         "properties": {
           "displayName": {
@@ -17686,6 +18082,18 @@
             "type": "string"
           },
           "userId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "messaging_PrivacyPreference": {
+        "properties": {
+          "readReceiptsEnabled": {
+            "type": "boolean"
+          },
+          "version": {
             "format": "int64",
             "type": "integer"
           }
@@ -17770,6 +18178,57 @@
           },
           "state": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "messaging_ReceiptSummary": {
+        "properties": {
+          "messageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "readCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "recipients": {
+            "items": {
+              "$ref": "#/components/schemas/messaging_Recipient"
+            },
+            "type": "array"
+          },
+          "unavailableCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unreadCount": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "messaging_Recipient": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "personPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "READ",
+              "UNREAD",
+              "UNAVAILABLE"
+            ],
+            "type": "string"
+          },
+          "userId": {
+            "format": "int64",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -17936,6 +18395,71 @@
           "version": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "messaging_SharedAsset": {
+        "properties": {
+          "attachmentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "conversationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "conversationName": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "FILE",
+              "LINK"
+            ],
+            "type": "string"
+          },
+          "messageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "senderName": {
+            "type": "string"
+          },
+          "sharedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "sizeBytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "messaging_SharedAssetsResponse": {
+        "properties": {
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/messaging_SharedAsset"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -18177,6 +18701,23 @@
         },
         "required": [
           "body"
+        ],
+        "type": "object"
+      },
+      "messaging_UpdatePrivacyPreferenceRequest": {
+        "properties": {
+          "readReceiptsEnabled": {
+            "type": "boolean"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "readReceiptsEnabled",
+          "version"
         ],
         "type": "object"
       },
@@ -28094,6 +28635,33 @@
         },
         "type": "object"
       },
+      "platform_ApiResponseEvidence": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_Evidence"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "platform_ApiResponseExecutionSummary": {
         "properties": {
           "correlationId": {
@@ -30470,6 +31038,33 @@
         },
         "type": "object"
       },
+      "platform_ApiResponsePersonalWorkDeleteResult": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_PersonalWorkDeleteResult"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "platform_ApiResponsePersonalWorkTask": {
         "properties": {
           "correlationId": {
@@ -31314,6 +31909,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/platform_SiteCampusAssignment"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseSourceStatuses": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_SourceStatuses"
           },
           "errorCode": {
             "type": "string"
@@ -37154,6 +37776,45 @@
         },
         "type": "object"
       },
+      "platform_Evidence": {
+        "properties": {
+          "auditAccess": {
+            "type": "string"
+          },
+          "auditRecordId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "eventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "hashAlgorithm": {
+            "type": "string"
+          },
+          "integrityScope": {
+            "type": "string"
+          },
+          "integrityStatus": {
+            "type": "string"
+          },
+          "linkStatus": {
+            "type": "string"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "recordHash": {
+            "type": "string"
+          },
+          "verifiedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "platform_ExecutionSummary": {
         "properties": {
           "cancelled": {
@@ -38876,6 +39537,35 @@
         },
         "type": "object"
       },
+      "platform_InformationResponseRequest": {
+        "properties": {
+          "idempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "message": {
+            "maxLength": 2000,
+            "minLength": 10,
+            "type": "string"
+          },
+          "values": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "idempotencyKey",
+          "message",
+          "values",
+          "version"
+        ],
+        "type": "object"
+      },
       "platform_IntegrityCheckpoint": {
         "properties": {
           "checkpointDate": {
@@ -39973,8 +40663,37 @@
         },
         "type": "object"
       },
+      "platform_PersonalWorkChecklistItem": {
+        "properties": {
+          "completed": {
+            "type": "boolean"
+          },
+          "itemId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId",
+          "title"
+        ],
+        "type": "object"
+      },
       "platform_PersonalWorkCreateTaskRequest": {
         "properties": {
+          "checklist": {
+            "items": {
+              "$ref": "#/components/schemas/platform_PersonalWorkChecklistItem"
+            },
+            "maxItems": 100,
+            "minItems": 0,
+            "type": "array"
+          },
           "description": {
             "maxLength": 10000,
             "minLength": 0,
@@ -39995,6 +40714,14 @@
           },
           "sourceReference": {
             "$ref": "#/components/schemas/platform_PersonalWorkSourceReference"
+          },
+          "sourceReferences": {
+            "items": {
+              "$ref": "#/components/schemas/platform_PersonalWorkSourceReference"
+            },
+            "maxItems": 10,
+            "minItems": 0,
+            "type": "array"
           },
           "title": {
             "maxLength": 500,
@@ -40042,6 +40769,23 @@
           },
           "source": {
             "$ref": "#/components/schemas/platform_PersonalWorkSourceLink"
+          }
+        },
+        "type": "object"
+      },
+      "platform_PersonalWorkDeleteResult": {
+        "properties": {
+          "deletedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "taskId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -40143,6 +40887,12 @@
       },
       "platform_PersonalWorkTask": {
         "properties": {
+          "checklist": {
+            "items": {
+              "$ref": "#/components/schemas/platform_PersonalWorkChecklistItem"
+            },
+            "type": "array"
+          },
           "completedAt": {
             "format": "date-time",
             "type": "string"
@@ -40169,6 +40919,12 @@
           },
           "source": {
             "$ref": "#/components/schemas/platform_PersonalWorkSourceLink"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/platform_PersonalWorkSourceLink"
+            },
+            "type": "array"
           },
           "status": {
             "enum": [
@@ -40286,6 +41042,14 @@
       },
       "platform_PersonalWorkUpdateTaskRequest": {
         "properties": {
+          "checklist": {
+            "items": {
+              "$ref": "#/components/schemas/platform_PersonalWorkChecklistItem"
+            },
+            "maxItems": 100,
+            "minItems": 0,
+            "type": "array"
+          },
           "clearSourceReference": {
             "type": "boolean"
           },
@@ -40309,6 +41073,14 @@
           },
           "sourceReference": {
             "$ref": "#/components/schemas/platform_PersonalWorkSourceReference"
+          },
+          "sourceReferences": {
+            "items": {
+              "$ref": "#/components/schemas/platform_PersonalWorkSourceReference"
+            },
+            "maxItems": 10,
+            "minItems": 0,
+            "type": "array"
           },
           "title": {
             "maxLength": 500,
@@ -43672,6 +44444,53 @@
           "until",
           "version"
         ],
+        "type": "object"
+      },
+      "platform_SourceStatus": {
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "lastAttemptAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastSuccessAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "resourceKind": {
+            "type": "string"
+          },
+          "semantics": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_SourceStatuses": {
+        "properties": {
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/platform_SourceStatus"
+            },
+            "type": "array"
+          }
+        },
         "type": "object"
       },
       "platform_Subject": {
@@ -61200,6 +62019,84 @@
         ]
       }
     },
+    "/api/meetings/v1/admin/record-retention/meetings/{meetingId}": {
+      "get": {
+        "operationId": "meeting_read_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/meeting_ApiResponseControlState"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "meeting"
+        ]
+      },
+      "put": {
+        "operationId": "meeting_update_5",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/meeting_ControlInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/meeting_ApiResponseControlState"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "meeting"
+        ]
+      }
+    },
     "/api/meetings/v1/admin/templates": {
       "get": {
         "operationId": "meeting_list_1",
@@ -61422,7 +62319,7 @@
         ]
       },
       "put": {
-        "operationId": "meeting_update_2",
+        "operationId": "meeting_update_3",
         "parameters": [
           {
             "in": "path",
@@ -61523,6 +62420,15 @@
               "minimum": 1,
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "favoriteOnly",
+            "required": false,
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -61531,6 +62437,41 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/meeting_ApiResponsePageResponseHistoryItemResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "meeting"
+        ]
+      }
+    },
+    "/api/meetings/v1/history/bookmarks": {
+      "get": {
+        "operationId": "meeting_read_2",
+        "parameters": [
+          {
+            "description": "1 to 100 unique record IDs from the current page, in display order",
+            "in": "query",
+            "name": "meetingIds",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/meeting_ApiResponseBookmarkPage"
                 }
               }
             },
@@ -62013,6 +62954,63 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/meeting_ApiResponseQueryResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "meeting"
+        ]
+      }
+    },
+    "/api/meetings/v1/meetings/{meetingId}/bookmark": {
+      "put": {
+        "operationId": "meeting_update_2",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/meeting_BookmarkInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/meeting_ApiResponseBookmarkState"
                 }
               }
             },
@@ -65946,7 +66944,7 @@
         ]
       },
       "put": {
-        "operationId": "meeting_update_3",
+        "operationId": "meeting_update_4",
         "parameters": [
           {
             "in": "path",
@@ -67536,6 +68534,46 @@
         ]
       }
     },
+    "/api/messaging/v1/conversations/{conversationId}/messages/{messageId}/receipts": {
+      "get": {
+        "operationId": "messaging_receipt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "messageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/messaging_ApiResponseReceiptSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging"
+        ]
+      }
+    },
     "/api/messaging/v1/conversations/{conversationId}/messages/{messageId}/saved": {
       "delete": {
         "operationId": "messaging_unsaveMessage",
@@ -67694,6 +68732,88 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/messaging_ApiResponseReadCursorResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging"
+        ]
+      }
+    },
+    "/api/messaging/v1/conversations/{conversationId}/read-receipts": {
+      "get": {
+        "operationId": "messaging_receipts",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "messageIds",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/messaging_ApiResponseListReceiptSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging"
+        ]
+      },
+      "post": {
+        "operationId": "messaging_observe",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/messaging_ObserveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/messaging_ApiResponseObservationResponse"
                 }
               }
             },
@@ -67917,6 +69037,38 @@
         ]
       }
     },
+    "/api/messaging/v1/home/shared-assets": {
+      "get": {
+        "operationId": "messaging_recent",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 6,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/messaging_ApiResponseSharedAssetsResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging"
+        ]
+      }
+    },
     "/api/messaging/v1/people": {
       "get": {
         "operationId": "messaging_people",
@@ -67947,6 +69099,54 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/messaging_ApiResponseListPersonSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging"
+        ]
+      }
+    },
+    "/api/messaging/v1/privacy-preferences": {
+      "get": {
+        "operationId": "messaging_preference",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/messaging_ApiResponsePrivacyPreference"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging"
+        ]
+      },
+      "put": {
+        "operationId": "messaging_update",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/messaging_UpdatePrivacyPreferenceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/messaging_ApiResponsePrivacyPreference"
                 }
               }
             },
@@ -90909,6 +92109,55 @@
         ]
       }
     },
+    "/api/platform/v1/services/requests/{requestId}/information-response": {
+      "post": {
+        "operationId": "platform_informationResponse",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_InformationResponseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseRequestDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
     "/api/platform/v1/services/requests/{requestId}/submit": {
       "post": {
         "operationId": "platform_submit",
@@ -91770,6 +93019,37 @@
         ]
       }
     },
+    "/api/platform/v1/workspace/activity/audit/evidence/{auditRecordId}": {
+      "get": {
+        "operationId": "platform_agentEvidence",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "auditRecordId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseEvidence"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
     "/api/platform/v1/workspace/activity/events/{id}": {
       "get": {
         "operationId": "platform_detail_1",
@@ -91809,6 +93089,37 @@
         ]
       }
     },
+    "/api/platform/v1/workspace/activity/events/{id}/evidence": {
+      "get": {
+        "operationId": "platform_evidence",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseEvidence"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
     "/api/platform/v1/workspace/activity/executions/summary": {
       "get": {
         "operationId": "platform_summary",
@@ -91819,6 +93130,27 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/platform_ApiResponseExecutionSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/workspace/activity/sources/status": {
+      "get": {
+        "operationId": "platform_sources",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseSourceStatuses"
                 }
               }
             },
@@ -93694,6 +95026,64 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/platform_ApiResponsePersonalWorkTask"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/workspace/work-hub/personal-tasks/{taskId}/delete": {
+      "post": {
+        "operationId": "platform_delete_2",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "taskId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_PersonalWorkVersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponsePersonalWorkDeleteResult"
                 }
               }
             },

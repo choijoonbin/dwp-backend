@@ -23,7 +23,13 @@ public class ActivityRepository {
     // its current domain permission AND current object ownership/catalog grant.
     static final String AUTHORIZED = """
              e.tenant_id = :tenant AND e.visible_to_user_id = :user
-             AND e.data_provenance IN ('LIVE','LEGACY')
+             AND ((e.data_provenance IN ('LIVE','LEGACY')
+                 AND e.correlation_id IS DISTINCT FROM 'activity-local-joonbin'
+                 AND (e.source_event_id IS NULL OR e.source_event_id NOT LIKE 'activity-local:%'))
+               OR (:localFixtures AND e.data_provenance = 'SAMPLE'
+                 AND e.visible_to_user_id = 900018
+                 AND e.correlation_id = 'activity-local-joonbin'
+                 AND e.source_event_id LIKE 'activity-local:%'))
              AND ((e.object_type = 'WORK_ITEM' AND :workView
                    AND e.source_system IN ('WORKSPACE','DWP_WORKSPACE')
                    AND EXISTS (SELECT 1 FROM wrk_items w WHERE w.tenant_id = e.tenant_id
@@ -40,8 +46,8 @@ public class ActivityRepository {
 
     public List<WorkspaceDtos.ActivityEvent> list(
             Long tenant, Long user, Set<String> permissions, boolean korean,
-            ActivityQuery query, ActivityCursor.Position position) {
-        MapSqlParameterSource params = access(tenant, user, permissions)
+            ActivityQuery query, ActivityCursor.Position position, boolean localFixtures) {
+        MapSqlParameterSource params = access(tenant, user, permissions, localFixtures)
                 .addValue("snapshot", position.snapshotAt()).addValue("limit", query.limit() + 1);
         StringBuilder sql = new StringBuilder(SELECT_EVENT)
                 .append(AUTHORIZED).append(" AND e.created_at <= :snapshot");
@@ -74,9 +80,11 @@ public class ActivityRepository {
     }
 
     public Optional<WorkspaceDtos.ActivityEvent> detail(
-            Long tenant, Long user, Set<String> permissions, boolean korean, UUID id) {
+            Long tenant, Long user, Set<String> permissions, boolean korean, UUID id,
+            boolean localFixtures) {
         return jdbc.query(SELECT_EVENT + AUTHORIZED
-                        + " AND e.activity_event_id = :id", access(tenant, user, permissions).addValue("id", id),
+                        + " AND e.activity_event_id = :id",
+                access(tenant, user, permissions, localFixtures).addValue("id", id),
                 (rs, n) -> event(rs, korean)).stream().findFirst();
     }
 
@@ -90,13 +98,15 @@ public class ActivityRepository {
                        count(*) FILTER (WHERE e.event_state='FAILED') AS failed,
                        count(*) FILTER (WHERE e.event_state='CANCELLED') AS cancelled
                   FROM wrk_activity_execution_current e WHERE
-                """ + AUTHORIZED, access(tenant, user, permissions),
+                """ + AUTHORIZED, access(tenant, user, permissions, false),
                 (rs, n) -> new long[] {rs.getLong(1), rs.getLong(2), rs.getLong(3),
                         rs.getLong(4), rs.getLong(5), rs.getLong(6), rs.getLong(7)});
     }
 
-    private MapSqlParameterSource access(Long tenant, Long user, Set<String> permissions) {
+    private MapSqlParameterSource access(
+            Long tenant, Long user, Set<String> permissions, boolean localFixtures) {
         return new MapSqlParameterSource().addValue("tenant", tenant).addValue("user", user)
+                .addValue("localFixtures", localFixtures)
                 .addValue("workView", permissions.contains("APP.WORK:VIEW"))
                 .addValue("appsView", permissions.contains("APP.APPS:VIEW"))
                 .addValue("permissions", permissions.isEmpty() ? Set.of("__NONE__") : permissions);

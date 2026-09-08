@@ -212,6 +212,60 @@ public class ServiceCenterRepository {
                 .stream().findFirst();
     }
 
+    void lockInformationResponse(Long tenantId, Long userId, UUID commandId) {
+        jdbc.queryForObject("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", Object.class,
+                "service-response:" + tenantId + ":" + userId + ":" + commandId);
+    }
+
+    Optional<RequestRecord> lockRequest(Long tenantId, UUID requestId) {
+        return jdbc.query(requestSelect() + """
+                 WHERE tenant_id = ? AND service_request_id = ? FOR UPDATE
+                """, (result, ignored) -> request(result), tenantId, requestId).stream().findFirst();
+    }
+
+    Optional<ResponseReceipt> informationResponseReceipt(Long tenantId, Long userId, UUID commandId) {
+        return jdbc.query("""
+                SELECT service_request_id, request_values::text, message, expected_version
+                  FROM svc_request_information_responses
+                 WHERE tenant_id = ? AND requester_user_id = ? AND command_id = ?
+                """, (result, ignored) -> new ResponseReceipt(
+                result.getObject("service_request_id", UUID.class),
+                tree(result.getString("request_values")),
+                result.getString("message"), result.getLong("expected_version")),
+                tenantId, userId, commandId).stream().findFirst();
+    }
+
+    boolean matchesInformationResponse(ResponseReceipt receipt, UUID requestId,
+                                       ServiceCenterDtos.InformationResponseRequest input) {
+        return receipt.requestId().equals(requestId) && receipt.version() == input.version()
+                && receipt.message().equals(input.message().strip())
+                && receipt.values().equals(objectMapper.valueToTree(input.values()));
+    }
+
+    int respondToInformationRequest(Long tenantId, Long userId, UUID requestId,
+                                    Map<String, Object> values, long version) {
+        return jdbc.update("""
+                UPDATE svc_requests
+                   SET request_payload = CAST(? AS jsonb), status = 'IN_PROGRESS',
+                       version = version + 1, updated_at = CURRENT_TIMESTAMP, updated_by = ?
+                 WHERE tenant_id = ? AND service_request_id = ? AND requester_user_id = ?
+                   AND status = 'AWAITING_REQUESTER' AND version = ?
+                """, json(values), userId, tenantId, requestId, userId, version);
+    }
+
+    void saveInformationResponse(Long tenantId, Long userId, UUID requestId,
+                                 ServiceCenterDtos.InformationResponseRequest input) {
+        jdbc.update("""
+                INSERT INTO svc_request_information_responses
+                    (tenant_id, requester_user_id, command_id, service_request_id,
+                     request_values, message, expected_version, resulting_version)
+                VALUES (?, ?, ?, ?, CAST(? AS jsonb), ?, ?, ?)
+                """, tenantId, userId, input.idempotencyKey(), requestId,
+                json(input.values()), input.message().strip(), input.version(), input.version() + 1);
+    }
+
+    record ResponseReceipt(UUID requestId, JsonNode values, String message, long version) { }
+
     int updateDraft(
             Long tenantId,
             Long userId,

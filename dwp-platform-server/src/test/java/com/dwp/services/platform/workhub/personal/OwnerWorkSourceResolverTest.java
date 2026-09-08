@@ -28,6 +28,15 @@ class OwnerWorkSourceResolverTest {
     }
 
     @Test
+    void serviceReferenceUsesCanonicalSourcePermissionWithoutCreatingMetadataAccess() {
+        var reference = reference("SERVICE_REQUEST");
+        assertThat(resolver.resolve(context("APP.WORK:VIEW,APP.EMPLOYEE_SERVICES:VIEW"), reference))
+                .contains(new ResolvedSource(reference, null, null, null, null));
+        assertThat(resolver.resolve(context("APP.WORK:VIEW,APP.SERVICES:VIEW"), reference)).isEmpty();
+        verifyNoInteractions(mail, workspace);
+    }
+
+    @Test
     void mailReferenceRechecksCurrentTenantOwnerAclAndHidesRevokedSource() {
         var reference = reference("MAIL_THREAD");
         when(mail.thread(1L, 7L, UUID.fromString(reference.sourceReference())))

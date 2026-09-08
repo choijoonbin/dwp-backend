@@ -10560,6 +10560,92 @@
           "gatewayApiBindings":[{"bindingKey":"route.dwaion.work.activity-summary.data.binding.01","method":"GET","path":"/api/agent/v1/activity/executions/summary","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.dwaion.work.activity-summary.data.binding.01","serviceKey":"agent","method":"GET","path":"/v1/activity/executions/summary","pathParameterConstraints":{}}],"owner":"DWAI.ON + Activity + Agent Runtime + Security","policyVersion":1,"lifecycleState":"ACTIVE"
         }
       ]
+    },
+    {
+      "version": 6,
+      "capabilities": [
+        {
+          "action": "UPDATE",
+          "activationPolicy": null,
+          "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+          "contractKey": "services.request.respond",
+          "legacySource": null,
+          "lifecycleState": "ACTIVE",
+          "mappingVersion": 1,
+          "owner": "Platform + Services + Security",
+          "policyVersion": 1,
+          "productKey": "services",
+          "requiresProductEntitlement": true,
+          "resolvedCapabilityCode": "APP.EMPLOYEE_SERVICES:UPDATE",
+          "resourceKey": "APP.EMPLOYEE_SERVICES",
+          "responsibilityRequirement": "NOT_REQUIRED",
+          "riskTier": "MEDIUM",
+          "scopeResolver": "SELF",
+          "sodPolicyId": null,
+          "sunsetAt": null,
+          "surfaceKey": "services.work"
+        }
+      ],
+      "accessPolicies": [],
+      "entitlementExpressions": [],
+      "predicatePolicies": [],
+      "routes": [
+        {
+          "accessProfiles": [
+            {
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "precedence": 300,
+              "predicatePolicyKeys": [
+                "predicate.platform.own-request.v1"
+              ],
+              "profileKey": "full-work",
+              "readOnly": false,
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "services.request.respond"
+              },
+              "targetBindingKinds": [
+                "SELF",
+                "OBJECT"
+              ]
+            }
+          ],
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.services.work.request-information-response.action.binding.01",
+              "method": "POST",
+              "path": "/api/platform/v1/services/requests/{requestId}/information-response",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "lifecycleState": "ACTIVE",
+          "navigationContextId": "services.work",
+          "owner": "Platform + Services + Security",
+          "policyVersion": 1,
+          "routeContractKey": "route.services.work.request-information-response.action",
+          "routeKind": "ACTION",
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.services.work.request-information-response.action.binding.01",
+              "method": "POST",
+              "path": "/v1/services/requests/{requestId}/information-response",
+              "pathParameterConstraints": {},
+              "serviceKey": "platform"
+            }
+          ],
+          "sideEffectFree": null,
+          "subject": {
+            "productKey": "services",
+            "surfaceKey": "services.work",
+            "type": "PRODUCT"
+          },
+          "uiRouteId": null,
+          "uiRoutePattern": null
+        }
+      ]
     }
   ],
   "descriptorEnrichments": {

@@ -56,7 +56,8 @@ class WorkCalendarPostgresIntegrationTest {
         jdbc = new JdbcTemplate(dataSource);
         transactions = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
         repository = new WorkCalendarRepository(jdbc);
-        for (String migration : List.of("V223__create_personal_work_runtime.sql", "V224__create_work_calendar_references.sql")) {
+        for (String migration : List.of("V223__create_personal_work_runtime.sql", "V224__create_work_calendar_references.sql",
+                "V228__extend_personal_work_checklists_sources_and_deletion.sql")) {
             jdbc.execute(new ClassPathResource("db/migration/" + migration).getContentAsString(StandardCharsets.UTF_8));
         }
         // A Calendar-owned sentinel verifies that linking has no scheduling/lifecycle side effect.

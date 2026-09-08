@@ -2205,6 +2205,33 @@
         },
         "type": "object"
       },
+      "ApiResponseEvidence": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Evidence"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseExecutionSummary": {
         "properties": {
           "correlationId": {
@@ -4608,6 +4635,33 @@
         },
         "type": "object"
       },
+      "ApiResponsePersonalWorkDeleteResult": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PersonalWorkDeleteResult"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponsePersonalWorkTask": {
         "properties": {
           "correlationId": {
@@ -5452,6 +5506,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/SiteCampusAssignment"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseSourceStatuses": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SourceStatuses"
           },
           "errorCode": {
             "type": "string"
@@ -11563,6 +11644,45 @@
         },
         "type": "object"
       },
+      "Evidence": {
+        "properties": {
+          "auditAccess": {
+            "type": "string"
+          },
+          "auditRecordId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "eventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "hashAlgorithm": {
+            "type": "string"
+          },
+          "integrityScope": {
+            "type": "string"
+          },
+          "integrityStatus": {
+            "type": "string"
+          },
+          "linkStatus": {
+            "type": "string"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "recordHash": {
+            "type": "string"
+          },
+          "verifiedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ExecutionSummary": {
         "properties": {
           "cancelled": {
@@ -13285,6 +13405,35 @@
         },
         "type": "object"
       },
+      "InformationResponseRequest": {
+        "properties": {
+          "idempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "message": {
+            "maxLength": 2000,
+            "minLength": 10,
+            "type": "string"
+          },
+          "values": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "idempotencyKey",
+          "message",
+          "values",
+          "version"
+        ],
+        "type": "object"
+      },
       "IngestResult": {
         "properties": {
           "accepted": {
@@ -14391,8 +14540,37 @@
         },
         "type": "object"
       },
+      "PersonalWorkChecklistItem": {
+        "properties": {
+          "completed": {
+            "type": "boolean"
+          },
+          "itemId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "itemId",
+          "title"
+        ],
+        "type": "object"
+      },
       "PersonalWorkCreateTaskRequest": {
         "properties": {
+          "checklist": {
+            "items": {
+              "$ref": "#/components/schemas/PersonalWorkChecklistItem"
+            },
+            "maxItems": 100,
+            "minItems": 0,
+            "type": "array"
+          },
           "description": {
             "maxLength": 10000,
             "minLength": 0,
@@ -14413,6 +14591,14 @@
           },
           "sourceReference": {
             "$ref": "#/components/schemas/PersonalWorkSourceReference"
+          },
+          "sourceReferences": {
+            "items": {
+              "$ref": "#/components/schemas/PersonalWorkSourceReference"
+            },
+            "maxItems": 10,
+            "minItems": 0,
+            "type": "array"
           },
           "title": {
             "maxLength": 500,
@@ -14460,6 +14646,23 @@
           },
           "source": {
             "$ref": "#/components/schemas/PersonalWorkSourceLink"
+          }
+        },
+        "type": "object"
+      },
+      "PersonalWorkDeleteResult": {
+        "properties": {
+          "deletedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "taskId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -14561,6 +14764,12 @@
       },
       "PersonalWorkTask": {
         "properties": {
+          "checklist": {
+            "items": {
+              "$ref": "#/components/schemas/PersonalWorkChecklistItem"
+            },
+            "type": "array"
+          },
           "completedAt": {
             "format": "date-time",
             "type": "string"
@@ -14587,6 +14796,12 @@
           },
           "source": {
             "$ref": "#/components/schemas/PersonalWorkSourceLink"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/PersonalWorkSourceLink"
+            },
+            "type": "array"
           },
           "status": {
             "enum": [
@@ -14704,6 +14919,14 @@
       },
       "PersonalWorkUpdateTaskRequest": {
         "properties": {
+          "checklist": {
+            "items": {
+              "$ref": "#/components/schemas/PersonalWorkChecklistItem"
+            },
+            "maxItems": 100,
+            "minItems": 0,
+            "type": "array"
+          },
           "clearSourceReference": {
             "type": "boolean"
           },
@@ -14727,6 +14950,14 @@
           },
           "sourceReference": {
             "$ref": "#/components/schemas/PersonalWorkSourceReference"
+          },
+          "sourceReferences": {
+            "items": {
+              "$ref": "#/components/schemas/PersonalWorkSourceReference"
+            },
+            "maxItems": 10,
+            "minItems": 0,
+            "type": "array"
           },
           "title": {
             "maxLength": 500,
@@ -18224,6 +18455,53 @@
           "until",
           "version"
         ],
+        "type": "object"
+      },
+      "SourceStatus": {
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "lastAttemptAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastSuccessAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "resourceKind": {
+            "type": "string"
+          },
+          "semantics": {
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SourceStatuses": {
+        "properties": {
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceStatus"
+            },
+            "type": "array"
+          }
+        },
         "type": "object"
       },
       "Subject": {
@@ -38264,6 +38542,55 @@
         ]
       }
     },
+    "/v1/services/requests/{requestId}/information-response": {
+      "post": {
+        "operationId": "informationResponse",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InformationResponseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRequestDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "service-center-controller"
+        ]
+      }
+    },
     "/v1/services/requests/{requestId}/submit": {
       "post": {
         "operationId": "submit",
@@ -39095,6 +39422,37 @@
         ]
       }
     },
+    "/v1/workspace/activity/audit/evidence/{auditRecordId}": {
+      "get": {
+        "operationId": "agentEvidence",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "auditRecordId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEvidence"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "activity-evidence-controller"
+        ]
+      }
+    },
     "/v1/workspace/activity/events/{id}": {
       "get": {
         "operationId": "detail_1",
@@ -39134,6 +39492,37 @@
         ]
       }
     },
+    "/v1/workspace/activity/events/{id}/evidence": {
+      "get": {
+        "operationId": "evidence",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEvidence"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "activity-evidence-controller"
+        ]
+      }
+    },
     "/v1/workspace/activity/executions/summary": {
       "get": {
         "operationId": "summary",
@@ -39152,6 +39541,27 @@
         },
         "tags": [
           "activity-controller"
+        ]
+      }
+    },
+    "/v1/workspace/activity/sources/status": {
+      "get": {
+        "operationId": "sources",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSourceStatuses"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "activity-evidence-controller"
         ]
       }
     },
@@ -41019,6 +41429,64 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponsePersonalWorkTask"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "personal-work-controller"
+        ]
+      }
+    },
+    "/v1/workspace/work-hub/personal-tasks/{taskId}/delete": {
+      "post": {
+        "operationId": "delete_2",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "taskId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonalWorkVersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePersonalWorkDeleteResult"
                 }
               }
             },

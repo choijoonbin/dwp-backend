@@ -1,6 +1,6 @@
 # Verified workspace activity history
 
-Implementation contract, 2026-09-04. This is a read-only execution/change-history surface,
+Implementation contract, updated 2026-09-07. This is a read-only execution/change-history surface,
 not a second task, calendar, notification, or audit administration application.
 
 ## Supported source ownership
@@ -54,6 +54,12 @@ duplicate writes fail. Verified live rows are append-only.
 - `GET /v1/workspace/activity/executions/summary`: full accessible current execution
   counts; not a count of page events. Workspace coverage excludes legacy and samples.
 
+`SAMPLE` is not part of the normal contract. The explicit local fixture is visible in
+list/detail/evidence only when the server starts with
+`DWP_ACTIVITY_LOCAL_FIXTURES_ENABLED=true` and the exact user plus reserved
+correlation/source markers match. Cursor scope includes that flag. Execution summary
+always evaluates with fixture visibility disabled, so a local sample never changes a KPI.
+
 Filters: `actor`, `state`, `query`, `source`, `objectType`, `objectId`, `executionId`,
 `from` (inclusive), `to` (exclusive), `cursor`, `limit` (1–100, default 50), and
 `includeUsage` (default false). Actor and state values are uppercase. Dates are instants.
@@ -84,3 +90,90 @@ live audit/event atomicity, immutable/idempotent writes, source revocation, inde
 detail, pagination past 200 records, date/search filters, and latest-execution summaries.
 Production rollout still requires the normal release process, authorization review,
 and validation of source coverage with the tenant's actual configured integrations.
+
+## Additive evidence and source observations (2026-09-07)
+
+The following are read-only Platform observations, not new execution owners or command APIs:
+
+| GET route (service path)                                | Required scope                                                                                                                     | Result                                                        |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `/v1/workspace/activity/events/{id}/evidence`           | `APP.ACTIVITY:VIEW` and the same current native source ACL as event detail                                                         | Native event audit linkage and authorized audit receipt       |
+| `/v1/workspace/activity/audit/evidence/{auditRecordId}` | `APP.ACTIVITY:VIEW`, `APP.ASK:VIEW`, exact tenant and current actor, `dwp-agent-runtime` source and UUID-shaped `AGENT_RUN` target | Central audit receipt for the viewer's own Agent run          |
+| `/v1/workspace/activity/sources/status`                 | `APP.ACTIVITY:VIEW` plus `APP.MAIL:VIEW` / `APP.CALENDAR:VIEW` for each emitted resource                                           | Only the current user's connector/subject/stream observations |
+
+The gateway adds `/api/platform` to these service paths. Gateway service identity and
+positive tenant/user identity are required; Activity rejects provider identity planes,
+provider roles and support sessions. These paths extend the existing native Activity
+permission boundary. They do not promote or rewrite a product-authorization bundle.
+The Platform security filter applies `Cache-Control: private, no-store, max-age=0` to
+every `/v1/workspace/activity/**` response, including authentication, authorization and
+application errors.
+
+Evidence separates `linkStatus=LINKED|NOT_LINKED` from
+`integrityStatus=VERIFIED|FAILED|PENDING|UNAVAILABLE`. The original tenant-qualified FK
+proves linkage only. `ADMIN.AUDIT_VIEW:VIEW` is additionally required for `recordHash`,
+`hashAlgorithm` and `verifiedAt`; without it, the receipt consistently uses
+`auditAccess=RESTRICTED`, null audit details and `integrityStatus=UNAVAILABLE`.
+Unavailable, removed, cross-tenant or unreadable native sources are indistinguishable
+404 responses. Agent central records not yet ingested also return 404; clients may
+refresh, but must not invent a verified record.
+
+`integrityScope=DAILY_CHECKPOINT_REPORTED` means the audit owner's stored daily
+checkpoint status, not an independent re-verification or a legal compliance claim.
+A central event must have been ingested before checkpoint creation and fall inside its
+recorded event-time range. A link, a hash alone, a response time, or an absent checkpoint
+cannot be promoted to `VERIFIED`; a linked receipt without a checkpoint is `PENDING`.
+No new signing key or competing audit ledger is introduced.
+
+The legacy-compatible `auditStatus` on an activity event is a linkage presentation
+field, not the checkpoint integrity verdict. Clients must use the evidence receipt's
+`integrityStatus` for that verdict.
+
+Source status exposes only a connector label/key, permitted resource kind, effective
+status, and last-attempt/last-success timestamps. Effective status uses lifecycle,
+policy, subject consent, connector health and stream state in that order, so
+`BLOCKED`/`REVIEW_REQUIRED` policy cannot be hidden by a healthy or ready stream.
+Credentials, token data, provider identifiers and raw errors are not selected.
+`observedAt` is the time this source ledger was read, not an external synchronization
+timestamp. An empty list is unconnected or unreadable coverage, never a 100% health
+claim. Agent stage history, progress, attempt, lease and execution titles remain owned
+by `dwp_agent` and are not copied into Platform.
+
+### Explicit local fixture
+
+`dwp-platform-server/scripts/seed-local-activity-demo.sql` is opt-in and intentionally
+not an automatically deployed Flyway migration. The operator must first confirm the
+local IAM identity `joonbin@sk.com` is user `900018` in the default tenant. The script
+also checks its existing Calendar public-person binding. Run the file in one transaction
+after `SET LOCAL dwp.activity.seed_profile = 'local-joonbin'`.
+
+It creates three independent `[개발 검증]` native work items, their creation audit
+records and completed `SAMPLE` change facts, plus two clearly labelled personal
+connector fixtures and three streams. Their public effective states are primary Mail
+`READY`, primary Calendar `STALE`, and attention Mail `BLOCKED`. Stable IDs, null-safe
+identity collision checks and insert-only conflict handling preserve subsequent user
+edits, timestamps and existing records. Any work, audit, event, connector, subject or
+stream identity collision fails the transaction. A reserved connector, subject or
+stream carrying an existing credential, provider binding or sync cursor also fails the
+whole transaction instead of reusing it as a fixture.
+No passwords, identity grants, refresh tokens, credential references or client IDs are
+installed. Connector observations with the reserved `activity-local-joonbin-` key use
+`semantics=LOCAL_FIXTURE`; these seeded timestamps are not evidence that Microsoft Graph
+or any external system synchronized.
+
+## Verification evidence and operating boundary
+
+The latest targeted regression on 2026-09-07 passed **72/72** tests with no failure,
+error or skip: the independent QA suite of 71 tests plus one PostgreSQL regression for
+a credential-bearing reserved connector collision. The isolated PostgreSQL coverage
+includes default-OFF fixture visibility, list/detail/evidence authorization, LIVE-only
+summary, cursor flag binding, policy precedence, identity/credential collision rollback,
+nullable marker regression and no-store error responses. The evidence and JUnit/log
+artifacts are stored in
+`output/activity-design-2026-09-07/independent-evidence-review/` at the workspace root.
+
+This verification does not claim production rollout or operational validation. At the
+user's request, production tenant sampling, external provider synchronization,
+deployment, permanent monitoring and operating recovery exercises are deferred to one
+later coordinated release.
+Real connector observations remain `PERSONAL_SYNC_LEDGER`.
